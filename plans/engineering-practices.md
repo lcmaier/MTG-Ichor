@@ -788,6 +788,81 @@ battlefield in these 50 games.
 has: *answer-preserving is not stream-preserving.* An A/B whose arms differ by a
 prompt cannot be read as "byte-identical or the change is wrong" — the check is
 that the **gameplay aggregates** hold and the counters move by less than a game.
+
+**Re-recorded 2026-09-12 for RE-3** — `PERFORMANCE_POOL` +1 (Rhox Faithmender,
+79 → 80) and the stress pool +6 (123 → 129). **The middle arm is identical to
+`main` outside `=== Timing ===` on both pools**, which is the byte-level form of
+§9's prediction: two `EventPattern` arms, an `AmountRewrite` variant, two
+templates and a field on `Restriction::Event` cost a game nothing until a card
+watches one. CPU median 15.73 → 15.49 ms (−1.5%; main 15.36–16.11, middle
+15.32–15.77 — straddling, so flat). Seven rounds, on RE-2's rule.
+
+*The shipped arm's CPU/game is up and it is the card, which the per-unit rows
+are what say.* Two sittings put CPU/game at **+4.0% and +2.1%** — both inside
+§8's 2–6% spread, both with the arms' rounds barely straddling, and the 1.9
+points between them is what §8 already says a stored ms number is. What is
+stable across both is the reading that matters: `ms / 1,000 walks` **+0.2% then
+−1.6%**, and `CPU/turn p50` **+2.3% then 0.0%**. The walk did not get slower;
+there are more of them. Rhox Faithmender is a 1/5 lifelinker that doubles its own
+lifelink, so at 200 games `performance` runs 29.6 → 29.8 turns, spells 22.8 →
+23.4, damage events 19.6 → 21.3, total damage 56.1 → 61.1, life changes 12.9 →
+13.9, layer walks 371 → 385. `Replacement gathers` **974 → 999 (+25)** is one
+per doubled gain, and the honest reading is that **the sweep was already running
+on every lifelink gain and finding nothing** — this phase gave it something to
+find rather than giving it somewhere new to look. Per turn: 32.9 → 33.5
+gathers, 0.450 → 0.460 `CPU/turn p50`, which is the slot.
+
+| | performance (80 cards) | stress (129 cards) |
+|---|---|---|
+| P0 / P1 | 29 (58.0%) / 21 (42.0%) | 30 (60.0%) / 20 (40.0%) |
+| Avg turns | 31.9 | 30.8 |
+| Spells cast | 24.9 | 22.0 |
+| Lands played | 19.2 | 18.2 |
+| Combat w/ atk | 11.6 | 9.3 |
+| Creatures died | 7.8 | 4.9 |
+| Damage events | 23.9 | 20.1 |
+| Total damage | 62.2 | 55.6 |
+| Life changes | 15.4 | 14.6 |
+| **Layer walks** | **406** | **494** |
+| **Board walks** | **264** | **296** |
+| **Memo hits** | **67,873** | **77,925** |
+| **Layer frames** | **5,107** | **5,922** |
+| **Frames/walk** | **12.58** | **11.98** |
+| **Dependency checks** | **32** | **13** |
+| **Replacement gathers** | **1086** | **1058** |
+| **Restriction queries** | **1089** | **1063** |
+| Prevention allocations | 0.00 | 0.04 |
+
+**Reachability.** `--require "Rhox Faithmender"` on `performance`, 200 games /
+seed 12345: cast 176, resolved 174, in **114 of 200 games (57%)**, copies/deck
+1.52 — between Eon Hub's 64% at five mana and Thought Reflection's 46% at seven,
+which is where a four-drop belongs. **Reach is not the number that mattered
+here**, and §9 said which was: it is the only RE consumer that needs no second
+card to do anything, because Knight of Meadowgrain and Vampire Nighthawk were
+already pooled and lifelink's contained gain was already a proposal.
+Zero errors and zero panics. The other five were forced through `stress` the
+same way, since three of them are the phase's kind-changing substitutions:
+Tainted Remedy 164/164 in 119 games (60%), Words of Worship 172/172 in 117
+(58%), Ali from Cairo 161/160 in 112 (56%), Alhammarret's Archive 148/148 in 106
+(53%), Skullcrack 215/196 in 131 (66%) — zero errors and zero panics on each.
+Skullcrack's 19 unresolved casts are CR 608.2b doing its job: it targets, and a
+target that has left is a spell that does not resolve.
+
+**The stress column is not an engine reading**, for RE-1's and RE-2's reason:
+`default_registry` grew by six, so the middle and shipped arms play different
+decks from `main` on that pool. `Avg turns` 29.0 → 32.3 and `Memo hits` +44% are
+the six new cards being drawn.
+
+**Re-run at the PR's review, and the stress column moved by a hair — the second
+instance of RE-2's rule, and the first that was predicted.** The review added
+`ordering_cannot_change_outcome`'s fourth shape, which suppresses CR 616.1's
+prompt between two identical substitutions. *Answer-preserving is not
+stream-preserving*: `RandomDecisionProvider::pick_n` draws from its own `StdRng`
+on every prompt, so a game in which two Tainted Remedies met one life gain lost
+a draw and shifted from there. `performance` is **identical to the digit** — no
+pooled card carries two identical `Instead` statics — and `stress` moves `Avg
+turns` 30.9 → 30.8, gathers 1062 → 1058, `Memo hits` −0.4%: less than one game's
+worth, which is the check the rule prescribes. The table above is the re-run.
 RC-4's entry suppression had the same property and nothing said so; this is the
 line that says it.
 
@@ -1550,6 +1625,21 @@ useful as the first:
 
 Fetch them with `curl` and a UA header, like the oracle text (`CLAUDE.md`'s
 references row): `/cards/named?exact=…` carries a `rulings_uri`.
+
+**Where it goes: in the card's own doc comment, under `# The rulings, and where
+each is tested`** — RD-1's shape, and the one to copy. Written down after RE-3's
+review asked the same question it had asked at RE-2's: RE-1, RE-2 and RE-3 each
+appended a module-level "rulings pass" block, and by the third the header of
+`phase_re_cards.rs` was **412 lines** of prose a reader had to scroll past to
+reach a card. Moved onto the cards it costs nothing and reads better — the
+rulings for Ali from Cairo are the paragraph above Ali from Cairo — and the
+module doc keeps what is genuinely about the *phase*: the axes, the design
+claims the cards were chosen to press on, and what a random deck can draw.
+
+**Format-variant rulings are dropped, not answered.** A Two-Headed Giant ruling
+gets no line: CR 810 is not implemented, "n/a" is not one of the three answers,
+and the list's whole value is that every entry names a board. The same goes for
+any ruling about a format §9 has not built.
 
 **What it caught on its first outing (CM-3, five cards, eleven rulings).** Six
 became tests, and none of them was a board the corpus had:

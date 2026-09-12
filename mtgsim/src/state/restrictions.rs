@@ -91,7 +91,7 @@ pub type RestrictionRegistry = DurationRegistry<RegisteredRestriction>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::effects::AffectedSet;
+    use crate::types::effects::{AffectedSet, PlayerSet};
     use crate::types::replacement::EventPattern;
     use crate::types::restriction::{Restriction, RestrictionDef};
     use uuid::Uuid;
@@ -105,7 +105,8 @@ mod tests {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::Destroy { source: None },
-                affected: AffectedSet::Fixed(vec![source]),
+                affected_objects: AffectedSet::Fixed(vec![source]),
+                affected_players: PlayerSet::Nobody,
                 by: None,
             }),
         }

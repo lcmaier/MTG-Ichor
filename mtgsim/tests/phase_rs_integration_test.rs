@@ -614,7 +614,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         .iter()
         .map(|r| match &r.def.what {
             Restriction::ApplyReplacement { to_objects, .. } => to_objects.clone(),
-            Restriction::Event { affected, .. } => affected.clone(),
+            Restriction::Event { affected_objects, .. } => affected_objects.clone(),
         })
         .collect();
     assert_eq!(
@@ -636,7 +636,8 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
     let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: Vec::new(), replaced_amount: None, damage_prevented: None };

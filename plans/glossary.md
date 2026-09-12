@@ -227,6 +227,16 @@ damage assignment, one color in a generic mana payment, one member across which
 a 615.7 shield's remaining amount is split. The CR never uses the word, which is
 why it was retired from the choice ladder — see **step**.
 
+**acid test** — the one board in a phase whose failure mode is a **hang or a
+crash rather than a wrong number**, written first and named in full so it cannot
+be quietly deleted. Two Thought Reflections (RE-2) and the CR 614.5 lineage are
+the original: get the applied set wrong and the engine does not answer badly, it
+recurses until the stack ends. So the test carries a derived bound as well as an
+assertion — `execute_actions_decomposing`'s depth check — because a test that
+cannot fail is not a test. **Not a synonym for "the important test"**: a board
+that fails as a wrong number, or as an unexpected prompt, is an ordinary
+regression however much the phase turned on it.
+
 **frame** — a computed `EffectiveCharacteristics` snapshot of one object. Two
 scopes, one meaning: the layer walk's frame for an object on the board, cached
 per `layer_epoch` under a descending layer **ceiling**; and `EntryFrame`, CR

@@ -28,8 +28,8 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive,
-    SelectionFilter, TargetCount, TokenDef, TypeChange,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -122,7 +122,8 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_players: PlayerSet::Nobody,
         by: None,
     }
 }
@@ -133,7 +134,8 @@ fn lands_cant_enter() -> Restriction {
 fn creatures_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::EnterBattlefield { cast: None },
-        affected: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+        affected_players: PlayerSet::Nobody,
         by: None,
     }
 }

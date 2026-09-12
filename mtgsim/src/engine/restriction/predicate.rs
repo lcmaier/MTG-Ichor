@@ -148,7 +148,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
 /// def  = Restriction::Event {
 ///            pattern:  ZoneChange { from: Battlefield, to: Graveyard,
 ///                                   cause: Sacrificed, object: None },
-///            affected: Filter { ByController(You) },
+///            affected_objects: Filter { ByController(You) },
 ///            by:       Some(ControlledBy(Opponent)),
 ///        }
 /// source     = <Sigarda>          controller = P0   (CR 109.5: hers, now)
@@ -197,18 +197,23 @@ fn matches(
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
     match (&def.what, query) {
-        (Restriction::Event { pattern, affected, by }, Query::Event { action, cause, .. }) => {
+        (
+            Restriction::Event { pattern, affected_objects, affected_players, by },
+            Query::Event { action, cause, .. },
+        ) => {
             pattern_watches(game, pattern, action, controller)
+                // The union `ReplacementDef` already makes, and it is a union
+                // rather than a replacement because the two sets answer about
+                // different kinds of subject: `set_affects` asks one or the
+                // other by what the event is *about*, never both. So Skullcrack
+                // ("players can't gain life") carries `NO_OBJECTS` beside
+                // `Everyone`, and every restriction written before RE-3 keeps
+                // its object set beside a `Nobody` that says the same thing it
+                // always said.
                 && set_affects(
                     game,
-                    affected,
-                    // `Restriction::Event` names no player. RD-4 gave
-                    // `ApplyReplacement` the player set CR 615.12 needs and
-                    // deliberately left this arm alone: no printed "can't" the
-                    // engine can express is about an event whose subject is a
-                    // player, and the day one is, it adds the field with its
-                    // card rather than ahead of it.
-                    &PlayerSet::Nobody,
+                    affected_objects,
+                    affected_players,
                     source,
                     controller,
                     subject_of(action),
@@ -289,7 +294,7 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
         debug_assert!(
             matches!(
                 def.what,
-                Restriction::Event { affected: AffectedSet::SourceOnly, .. }
+                Restriction::Event { affected_objects: AffectedSet::SourceOnly, .. }
             ),
             "a keyword-derived restriction that is not `AffectedSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
@@ -334,7 +339,8 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<RestrictionDef> {
     if has_keyword(game, id, KeywordFlag::Indestructible) {
         out.push(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected: AffectedSet::SourceOnly,
+            affected_objects: AffectedSet::SourceOnly,
+            affected_players: PlayerSet::Nobody,
             by: None,
         }));
     }

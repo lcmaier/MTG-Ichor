@@ -3556,75 +3556,44 @@ encodings with the loop the sized one produces, and the three-Thief board.
 `plans/archive/replacement-architecture-landed.md`, "RE-2" (evicted
 2026-09-11).
 
-#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event)
+#### RE-3 — life (CR 119.10, 119.7's "can't gain", the CR 120.3a loss as a replaceable event) — ✅ landed 2026-09-12
 
-**Builds:** decision 2 — the two pattern arms, `AmountRewrite::LifeFloor`,
-the two life templates with `TemplateAmount`, and `Restriction::Event.affected_players`
-with its `is_prohibited` union (§11 item 26 closes). **Consumers:**
+**Shipped.** `EventPattern::{GainLife, LoseLife { cause }}`,
+`AmountRewrite::LifeFloor(i64)`, `GameActionTemplate::{GainLife, LoseLife}` over
+a new `TemplateAmount { Fixed, ReplacedAmount }`, and
+`Restriction::Event.affected_players: PlayerSet` unioned by the same
+`set_affects` the other two pairs use — so `is_prohibited` refuses a `GainLife`
+ahead of the pipeline and §11 items 26 and 45 both close. Rhox Faithmender
+(pooled), Tainted Remedy, Words of Worship, Ali from Cairo, Alhammarret's
+Archive, Skullcrack. `is_prevention` untouched, as the section required.
 
-- **Rhox Faithmender** — "Lifelink. If you would gain life, you gain twice
-  that much life instead." `GainLife`, `Fixed(vec![])` + `You`,
-  `Amount(Multiplier(2))`. Rulings, three: *two Faithmenders quadruple* →
-  test (`Amount` composing on a player subject, RD-1's Furnace pair on the
-  other kind); *"becomes 10" from 3 becomes 17* → RE-6's `SetLifeTotal` test,
-  when it exists; *2HG* → n/a. **Reachable from the pool today**: lifelink's
-  contained `GainLife` (Vampire Nighthawk, Knight of Meadowgrain) is the first
-  proposal it meets.
-- **Tainted Remedy** — "If an opponent would gain life, that player loses that
-  much life instead." `GainLife`, `Opponents`, `Instead(LoseLife {
-  ReplacedAmount })`. Rulings, two, both tests: *Alhammarret's Archive beside
-  it: the gaining player picks double-then-lose-6 or lose-3-then-nothing* →
-  the ordering test, and Archive's second application not existing is
-  `never_happens` on a proposal that is no longer a gain; *two Remedies: the
-  second has no gain to apply to* → CR 614.7 by the same road. Four-player:
-  three opponents, three rows' worth of one static.
-- **Words of Worship** — "{1}: The next time you would draw a card this turn,
-  you gain 5 life instead." A `Primitive::CreateReplacement` row, `DrawCard`,
-  `Uses::Once`, `UntilEndOfTurn`, `Instead(GainLife { Fixed(5) })` — the
-  kind-changing substitution, from a draw (RE-2's pattern) to life (this PR's
-  template), and the first `Once` draw row. Ruling: *several Words used before
-  a draw: choose which applies each time* → CR 616.1 among rows of one player.
-  Leyline of Punishment's ruling about it — the gain refused, the draw
-  replaced with nothing — is the "can't" test below.
-- **Ali from Cairo** — "Damage that would reduce your life total to less than
-  1 reduces it to 1 instead." `LoseLife { cause: Some(Damage) }`, `You`,
-  `Amount(LifeFloor(1))`. Rulings, three, all tests: *not effects that reduce
-  life without damage* → `Primitive::LoseLife` goes through; *works if Ali
-  dies in the same event* → the SBA batch decides against one board, so a
-  lethal Earthquake to Ali and to you is decided while Ali is there;
-  *damage is still dealt, triggers on damage still see it* → `DamageDealt`
-  carries the full amount and only the contained loss is clamped.
-- **Alhammarret's Archive** — both halves: `GainLife` ×2 and `DrawCard {
-  cause: Some(Effect) }` ×2 on one legendary artifact, RE-2's arm and this
-  one's on one consumer, Gisela's shape. Its rulings are Rhox Faithmender's
-  and Teferi's, already tests.
-- **Skullcrack** — "Players can't gain life this turn. Damage can't be
-  prevented this turn. Skullcrack deals 3 damage to target player or
-  planeswalker." Two `Primitive::Restrict` rows, `UntilEndOfTurn`: the RD-4
-  fixture's `ApplyReplacement { Prevention }` row, now printed, and the new
-  `Event { GainLife, affected_players: Everyone }`. Rulings, two, both tests:
-  *replacements that turn gain into something else won't apply because
-  gaining is impossible* → Tainted Remedy under Skullcrack does nothing;
-  *"becomes N" higher than current does nothing* → RE-6's. **Leyline of
-  Punishment** is the static form (`Effect::Restriction` on the permanent,
-  RS-1's sweep) and its opening-hand clause is §3.3 source 2's, which would be
-  dead under a real name — so Leyline is *not* registered, and the static form
-  is proved by the RD-4 fixture extended with the life arm. Recorded so the
-  omission reads as the rule and not as an oversight.
-- **Bloodletter of Aclazotz** is recorded as a shape and not registered: "if
-  an opponent would lose life during your turn" is a conditional static whose
-  condition — it is your turn — the `Condition` AST has no leaf for, with one
-  customer. `LoseLife`'s pattern and `Opponents` are built here for it.
+**Four things the sizing did not have.** `EventPattern::LoseLife` carries a
+`LifeLossCausePattern` and not a `LifeLossCause`, because the cause's `Damage`
+arm holds the damage's *source* and Ali is about damage from anything
+(`DestructionSourcePattern` is the precedent). `Primitive::Restrict` could only
+build an object-scoped row, so Skullcrack — its first printed customer — moved
+the target-filling from a demand to a marker (§11 item 57). `LifeFloor` is the
+first `AmountRewrite` arm `apply` cannot answer for, which is why the damage and
+gain legs refuse the pairing rather than letting it return a plausible number.
+And the CR 616.1 suppression premise was written about damage for the third
+time, so it is now a property of `EventPattern` rather than a list of kinds
+(item 58).
 
-**`PERFORMANCE_POOL` +1, Rhox Faithmender**, predicted: the first static
-`GainLife` source, opening the sweep on every lifelink gain, and a four-drop
-with lifelink of its own.
+**Decided here, and written down**: Ali from Cairo does not clamp a
+`LifeLossCause::Cost`, structurally and twice over; `never_happens` gains no
+`LoseLife` arm, on RE-2's reasoning; `Restriction::Event.affected_players`
+unions rather than replaces, and `PlayerSet::Nobody` on an object-only
+restriction keeps meaning what it always meant.
 
-**Atoms:** `ATOM-119.10-001` (the 0-gain non-event, already `never_happens`;
-the test now has a watcher to prove nothing was offered). Nothing else in the
-corpus is filed under life-gain replacement; the ordering board is
-`COMP-614-DAMAGE-ORDERING-001`'s sibling and is a test with no atom, which
-`specdb suspicious` will not mind.
+**Trace page: no**, decided at the close — `engineering-practices.md` §7 named
+RE-2 and RE-4 and not this one, and the premise generalisation does not change
+it: moving a read's answer from a list of shapes to a property of the type
+answers the *same* question in the same place. The rule that would catch it is
+"how a read is answered", and nothing here reads differently.
+
+→ The section as sized, what the building changed and the measurement:
+`plans/archive/replacement-architecture-landed.md`, "RE-3" (evicted
+2026-09-12).
 
 #### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52)
 
@@ -4149,8 +4118,24 @@ number before running:
   roughly +1 per turn plus one per cantrip; `Layer walks` flat; 40-game event
   dumps identical but for one `CardDrawn` line's neighbour. The shipped arm
   adds walks only while Thought Reflection is on the battlefield.
-- **RE-3:** flat on the middle arm — patterns over events that already flow.
-  A move is the card.
+- **RE-3 — measured 2026-09-12, and the prediction held to the byte.** The
+  middle arm is **identical to `main` outside `=== Timing ===` on both pools**,
+  200 games / seed 12345: patterns over events that already flow cost nothing
+  until a card watches one. CPU median 15.49 vs 15.73 ms (**−1.5%**, rounds
+  straddling: main 15.36–16.11, middle 15.32–15.77) — flat.
+  **The shipped arm's CPU/game is up and it is the card**, which the per-unit
+  rows are what say: two sittings gave +4.0% and +2.1%, both inside the spread,
+  while `ms / 1,000 walks` went +0.2% then −1.6% and `CPU/turn p50` +2.3% then
+  0.0%. The walk did not get slower; there are more of them. Rhox
+  Faithmender makes the games longer (avg turns 29.6 → 29.8, spells 22.8 →
+  23.4, damage events 19.6 → 21.3, total damage 56.1 → 61.1, life changes
+  12.9 → 13.9), and `Replacement gathers` +25/game is the gain it doubles
+  rather than a sweep it added. `--require`: **cast 176, resolved 174, in 114
+  of 200 games (57%), copies/deck 1.52** — between Eon Hub's 64% and Thought
+  Reflection's 46%, and reach was never the point: it is the only RE consumer
+  that needs no second card to do anything. `stress` moves much further (gathers
+  987 → 1143, avg turns 29.0 → 32.3) with all six cards in the deck, and
+  `stress` milliseconds are a threshold rather than a comparison (§3.1).
 - **RE-4:** gathers +1 per token creation (Kalitas's rider on `stress`; zero on
   `performance` until Raise the Alarm is pooled); `Layer walks` +N per plural
   creation for the frame each entry is decided against, which RC-5 measured
@@ -4185,7 +4170,7 @@ number before running:
 §3's table is re-recorded once per PR that moves the pool, at 50 games, after
 the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; decide again at RE-4's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's; decide again at RE-4's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4197,6 +4182,16 @@ written 2026-09-11. It walks the three boards named here plus Teferi beside a
 Thought Reflection in the draw step, and Alms Collector is traced in **both**
 encodings, because the difference between them is a loop and a test can only
 show that the loop does not happen.
+
+**RE-3: no**, decided at its close (2026-09-12) and recorded because the phase
+did produce a candidate. Generalising the CR 616.1 suppression premise from a
+list of pattern kinds to `EventPattern::reads_the_amount` looks like §7's rule
+— "how a read is answered" — and is not: the same predicate asks the same
+question at the same point in the same loop, and what changed is where the
+answer is *written down*. Nothing reads differently, no board takes a path it
+did not take, and the two boards worth walking (two Faithmenders, and the
+Archive beside Tainted Remedy) are a product and a two-branch prompt that two
+tests state completely.
 
 #### Exit criteria
 
@@ -4975,6 +4970,11 @@ found them.
     gives `Restriction::Event` the `affected_players` the row needs — see
     item 45. Recorded so the arm's producer
     status is not misread as an omission.
+    **Closed by RE-3 (2026-09-12).** Skullcrack is registered, both of its rows
+    are `Primitive::Restrict`, and the prevention one is RD-4's fixture row
+    printed on a card. Leyline of Punishment stays unregistered on its
+    opening-hand clause, and the RD-4 fixture now carries the static form of
+    both of its other sentences rather than only one.
 
 27. **CR 120.3 has eight results, RD ships two of them, and the other four
     have an owner each as of today.** *Closed by RD-1 (2026-09-08), with one
@@ -5384,6 +5384,11 @@ found them.
     `to_players` to `ApplyReplacement`; this is the third instance of the same
     field and the last type without it. → RE-3 (Skullcrack), read by RE-6
     (Platinum Angel); `codebase-state.md` item 114; closes item 26.
+    **Closed by RE-3 (2026-09-12)**, unioned by the same `set_affects` call the
+    other two use. Twelve literal constructions took the field and one
+    exhaustive destructuring took the binding — the row's "~6" counted the type
+    name, comments and `..` patterns included. Platinum Angel is now a def
+    rather than a design question.
 
 46. **This document held two answers on skips for twelve days.** §11 item 6
     (2026-08-30) said skips go through the pipeline with the proposal built by
@@ -5628,6 +5633,113 @@ found them.
     it is recorded here as the owner's call rather than guessed at. CR 731 proper
     stays §12's: it is about *game* loops and would answer "the game is a draw",
     which is a different question from "this engine ran out of stack".
+
+### Found by building RE-3 (2026-09-12)
+
+57. **`Primitive::Restrict` could only build an object-scoped row, and its first
+    printed customer is the one that needed a player-scoped one.** The primitive
+    looped `collect_battlefield_targets` and overwrote the def's affected set
+    with each target, with a debug assertion demanding the card author an empty
+    `Fixed`. Skullcrack breaks it in both directions at once: "players can't
+    gain life this turn" names no object and every player, and its *target* is
+    the player it then damages, so the loop would have written a row about that
+    player's objects — or, with no object target, no row at all; and "damage
+    can't be prevented this turn" authors `Filter { All }`, which the assertion
+    forbids.
+
+    **The fix is the assertion's own sentence promoted to a condition**: an
+    empty `Fixed` beside `PlayerSet::Nobody` is the *marker* for "the resolution
+    supplies the subject", and anything else is complete as authored and gets
+    one row. RS-1's existing test authors exactly that pair and is unchanged.
+
+    Worth the entry because of how long it hid: RS-1 shipped the primitive with
+    no registered consumer, RD-4 needed both of its row shapes and built them as
+    `RegisteredRestriction` fixtures because every printed carrier was blocked
+    on something else, and the gap between "the type can express it" and "a
+    resolution can create it" survived two phases that each touched one side.
+    **A `Primitive` with no registered consumer is a `Primitive` whose shape is
+    a guess**, which is the same rule as "an arm the pipeline cannot apply is
+    worse than a missing one", read at the producer end.
+
+58. **The CR 616.1 suppression premise was written about damage for the third
+    time in three PRs, and it is now a property of the type.** RD-1 wrote
+    `ordering_cannot_change_outcome`'s multiplier shape as `matches!(pattern,
+    EventPattern::DealDamage { .. })`; item 19 found the entry shape's leaf table
+    needed the same clause, item 55 found the draw shape needed it stated
+    differently, and RE-3 found a `Multiplier(2)` over `EventPattern::GainLife`
+    falling straight through the damage gate into a real prompt. Two Rhox
+    Faithmenders commute for exactly the reason two Furnaces of Rath do, and the
+    card's own ruling is the arithmetic.
+
+    The clause the theorem needs is **not** "the pattern is damage"; it is "no
+    member can stop applying as another member changes the number", which is
+    `EventPattern::reads_the_amount` — matched exhaustively, and it answers
+    `true` for exactly one arm today (`DrawCards { at_least }`, Alms Collector's
+    "two or more").
+
+    **It lives on `EventPattern` rather than beside its caller, and that is the
+    finding.** Each of the three misses happened because the axis that moved was
+    that enum, which grows one arm per `GameAction` variant every replacement
+    phase — so the question has to be in front of whoever writes the arm, not in
+    a predicate they have no reason to open. An exhaustive match makes it a
+    compile error either way; *where* it sits decides whether the author answers
+    it at the moment they are in a position to. The contrast is
+    `filter_is_mods_invariant`, which stays at its caller because it classifies
+    an `ObjectFilter` against a property of `EnterMods` — a relation between two
+    types, and so a fact about neither.
+
+    **The remaining shape lists are on the closed axis and stay lists.** The
+    entry and draw shapes enumerate `Rewrite` arms, and `Rewrite` is a closed
+    algebra whose every addition arrives with a CR cite and a review (§3.2b). The
+    axis that grows silently is the one now covered.
+
+59. **A phase can close `specdb`'s claim about its own corpus and should check
+    it.** §9's RE-3 section said "nothing else in the corpus is filed under
+    life-gain replacement". Two atoms are: `ATOM-119.7-004` is CR 119.7's last
+    clause — *"a replacement effect that would replace a life gain event
+    affecting that player won't do anything"* — which is Skullcrack's third
+    ruling and is now covered; `ATOM-616.2-001` is the CR's own gain→draw→
+    graveyard chain, already carrying an RB partial and now carrying a second
+    from Words of Worship into Rhox Faithmender.
+
+    Neither moves `specdb owed` (both are filed under Phase 8 and Phase 6, and
+    `owed`'s scope is the three shipped phases), which is exactly why the claim
+    rotted unnoticed: **a sentence about the corpus is not checked by the gate
+    that checks the corpus.** The prompt for this phase said to verify it before
+    relying on it, and that instruction is the generalisation — item 46's rule
+    about stale scope paragraphs, applied to the atom list rather than to the
+    design.
+
+60. **The fourth suppression shape has the shortest premise of the four, and it
+    was nearly not built because the reason for skipping it was a cost
+    argument.** RE-3 left two Tainted Remedies prompting and wrote down "no
+    pooled card reaches this board" — true, and not the question. RC-4's rule is
+    *never prompt for a choice with one outcome*, and this choice provably has
+    one; the review that asked "why not?" was reading the rule and the PR was
+    reading the budget.
+
+    What the check produced is worth more than the fix. The premise the other
+    three shapes carry is about *what the members do to the number* —
+    multiplication commutes, entry mods merge, doublers compose one level out.
+    This one needs none of that: **if every member carries the same `Rewrite`
+    and applying it is a pure function of the event, the event after one
+    application is the same whichever member applied it**, so the set of members
+    still applicable to it is the same, and by induction so is the whole trace
+    — however many end up applying, and whatever their patterns are. It is the
+    only one of the four that does not mention `EventPattern`.
+
+    **The clause that is not free is instance-invariance**, and it is what makes
+    the leaf table earn its place rather than answering `true` everywhere:
+    `GameActionTemplate::GainLife` embeds CR 609.6's source and
+    `DrawCards { player: Some(You) }` the applying effect's controller, so two
+    otherwise-identical statics on different permanents substitute *different*
+    events. Extracting `substitute` from `apply_rewrite`'s `Instead` arm is what
+    makes the purity a fact of the signature rather than a comment.
+
+    And the shape needed its own debug check, on item 55's rule: a suppressed
+    member here does not have to keep applying — Tainted Remedy's ruling is that
+    it stops — so what is asserted is that its own `substitute` would have
+    produced the same event.
 
 ## 12. Explicitly out of scope
 

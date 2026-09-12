@@ -80,7 +80,11 @@ impl<'a> ActionContext<'a> {
 /// In Phase 6, a replacement-effect pipeline will sit between "build action"
 /// and "execute action", potentially modifying or replacing the action before
 /// it is carried out. For now, `execute_action` is a direct passthrough.
-#[derive(Debug, Clone)]
+/// `PartialEq` because `ordering_cannot_change_outcome`'s fourth shape claims
+/// two members would substitute the *same* event, and its debug check has to be
+/// able to say so. Structural equality is the right meaning here: two proposals
+/// are the same proposal when every field agrees.
+#[derive(Debug, Clone, PartialEq)]
 pub enum GameAction {
     /// Deal damage from a source to a target.
     DealDamage {

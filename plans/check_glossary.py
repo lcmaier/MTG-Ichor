@@ -77,9 +77,9 @@ CR_DIR = ROOT / "MTG-Rules" / "versions"
 # Every word this project uses in a sense a reader cannot recover from ordinary
 # English plus one rule number. Adding one here is the whole cost of coining it.
 WATCHLIST = [
-    "applied set", "arm", "atom", "batch", "blocked", "bucket", "candidate",
-    "ceiling", "census", "chokepoint", "containment", "cursor", "decomposition",
-    "donor", "drainer", "emitter",
+    "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
+    "candidate", "ceiling", "census", "chokepoint", "containment", "cursor",
+    "decomposition", "donor", "drainer", "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event",
     "memo", "performer", "pool", "position", "proposal", "queue", "registry",

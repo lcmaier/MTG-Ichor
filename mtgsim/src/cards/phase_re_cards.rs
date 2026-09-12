@@ -34,51 +34,6 @@
 //! Assault also needs "creatures that attacked this turn" and nothing tracks
 //! it.
 //!
-//! # The rulings pass (Scryfall, 2026-09-11)
-//!
-//! Every ruling on all five cards, with what became of it
-//! (`engineering-practices.md` §3.4). Yawgmoth's Bargain and Time Walk's
-//! ordering ruling are the two that carry no board of their own.
-//!
-//! - **Yawgmoth's Bargain** — Scryfall lists no rulings. Its tests are the
-//!   rule's: the draw step's *contents* are not proposed at all
-//!   (`ATOM-614.10-001`).
-//! - **Eon Hub**, *"The upkeep step is skipped entirely. The turn proceeds from
-//!   untap step to draw step."* → the event log, asserted as the absence of a
-//!   `StepBegin { Upkeep }` between the untap and draw ones.
-//! - **Eon Hub**, *"Upkeep-triggered abilities don't trigger, and 'activate
-//!   only during your upkeep' abilities can't be activated."* → the first half
-//!   is item 6's and falls out — a step that does not begin emits no event for
-//!   a trigger to read, which is why this PR goes first. The second half has
-//!   **no facility to assert against**: `ActivationRestriction` has no
-//!   step-scoped arm, and no registered card carries one. Recorded, not
-//!   skipped.
-//! - **Eon Hub**, *"Any triggered abilities that triggered during the untap
-//!   step will go onto the stack at the start of the draw step."* → item 6's,
-//!   for the same reason. Nothing triggers yet. **Both Eon Hub rulings are
-//!   booked as two tests item 6 owes** — `codebase-state.md` item 121, which
-//!   names the board and sizes them.
-//! - **Meditate**, *"You skip one turn as part of the effect."* → one row,
-//!   `Uses::Once`, so one turn; and two Meditates skip two, which is
-//!   CR 614.10a's own sentence and the board that needed a real queue.
-//! - **Time Walk**, *"If multiple 'extra turn' effects resolve in the same
-//!   turn, take them in the reverse of the order that the effects resolved."*
-//!   → the queue is a stack, tested with two extra turns for two different
-//!   players so that the order is observable at all.
-//! - **Moment of Silence**, *"The player skips their next combat phase this
-//!   turn (if any). If they manage to have two combat phases, then only their
-//!   next one combat phase is skipped."* → `Uses::Once`, and the second
-//!   sentence is tested against a second `BeginPhase { Combat }` proposal the
-//!   fixture makes by moving the cursor, because CR 500.8's extra phases are
-//!   unbuilt. **RE-10 replaces the fixture with Aggravated Assault.**
-//! - **Moment of Silence**, *"It must be used before the combat phase starts or
-//!   it has no effect."* → `ATOM-614.10-002`: a row created during combat meets
-//!   no proposal and expires at cleanup unused.
-//! - **Moment of Silence**, *"If cast on a player when it is not their turn, it
-//!   has no effect."* → falls out of the subject rather than being coded: a
-//!   `BeginPhase` event is about the **active** player, so a row scoped to
-//!   anyone else watches nothing this turn.
-//!
 //! # What a random deck can draw
 //!
 //! Eon Hub is the pooled card: `{5}` colourless, so every deck can cast it, and
@@ -120,111 +75,6 @@
 //! Collector keeps the subject and changes the count. Only Alms Collector has a
 //! genuinely new subject left over, and that one draw is its rider.
 //!
-//! # The rulings pass (Scryfall, 2026-09-11)
-//!
-//! Every ruling on all four cards, with what became of it, **and the test that
-//! carries it** — `engineering-practices.md` §3.4 asks for the name, so the next
-//! reader can go from a printed sentence to the assertion without searching.
-//! Fifteen rulings; ten are tests in `tests/phase_re2_integration_test.rs`,
-//! three fall out of the shape and are asserted anyway, and two have no
-//! facility to assert against and say so.
-//!
-//! - **Thought Reflection**, *"If a spell or ability causes you to draw
-//!   multiple cards, Thought Reflection's effect doubles each card draw. For
-//!   example, if you cast Harmonize ('Draw three cards'), you'll draw six
-//!   cards."* → `ATOM-121.2a-001` from the inner side: the instruction is not
-//!   what it watches, so three individual draws each become two.
-//!   → `thought_reflection_doubles_each_of_a_three_card_instruction`
-//! - **Thought Reflection**, *"The effects of multiple Thought Reflections are
-//!   cumulative ... two ... four times the original number ... three ... eight
-//!   times."* → **the acid test**,
-//!   `test_two_thought_reflections_draw_four_not_infinity`. Not legendary, so
-//!   the pool can build two, and the 2ⁿ is what §3.2d's lineage rule buys.
-//!   → `test_two_thought_reflections_draw_four_not_infinity`, with
-//!   `three_thought_reflections_draw_eight` for the exponent.
-//! - **Thought Reflection**, *"If two or more replacement effects would apply
-//!   to a card-drawing event, the player who's drawing the card chooses what
-//!   order to apply them."* → falls out of CR 616.1's chooser being the
-//!   affected player. **Not asserted on two Reflections**: their order provably
-//!   cannot change the answer, so the engine does not ask (§11 item 55). The
-//!   boards that do ask are
-//!   `a_draw_doubler_beside_a_notion_thief_is_a_real_choice`, where the two
-//!   answers differ, and the three-Thief board, where the chooser moves with
-//!   the event's subject.
-//! - **Teferi's Ageless Insight**, *"If a spell or ability causes you to put a
-//!   card into your hand without specifically using the word 'draw,' it's not a
-//!   card drawn."* → structurally true and asserted: a `ZoneChangeCause` that
-//!   is not `Drawn` proposes no draw at all, so there is no event to watch.
-//!   → `a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it`
-//! - **Teferi's Ageless Insight**, *"If two or more replacement effects would
-//!   apply to a card-drawing event, the player drawing the card chooses the
-//!   order in which to apply them."* → as above.
-//! - **Teferi's Ageless Insight**, *"Because [it] is legendary, it's unlikely
-//!   that one player will control two. However, if that happens, each card that
-//!   player would draw after the first will result in four cards being drawn."*
-//!   → the legend rule makes this Thought Reflection's test, which is why the
-//!   acid test is on that card. Teferi's own board is the one decision 1 named:
-//!   beside a Thought Reflection in the draw step it draws **three**.
-//!   → `teferi_beside_thought_reflection_draws_three_in_the_draw_step`, with
-//!   `teferi_excepts_the_draw_steps_first_card` and
-//!   `teferi_doubles_a_draw_that_is_not_the_draw_steps` either side of it.
-//! - **Alms Collector**, *"[Its] replacement effect applies to an instruction
-//!   to draw more than one card before any replacement effects apply to
-//!   individual cards drawn."* → `ATOM-616.1g-001`, with Thought Reflection on
-//!   the other side of the board.
-//!   → `alms_collector_applies_to_the_instruction_before_thought_reflection_sees_a_draw`
-//! - **Alms Collector**, *"Once a replacement effect has been applied to an
-//!   event, it can't be applied again to the resulting events ... Thought
-//!   Reflection can double that player's resulting card draw without Alms
-//!   Collector's replacement effect applying again."* → **the ruling that
-//!   changed the card's encoding**, and a test. As `Prevent` plus riders the
-//!   board is an infinite loop; as an `Instead` on the count it is three cards,
-//!   which is what the ruling describes.
-//!   → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
-//! - **Alms Collector**, *"To determine whether a player is instructed to draw
-//!   multiple once or instructed multiple times to draw one card, count how
-//!   many times the word 'draw' is used."* → test. Ancestral Recall (pooled) is
-//!   one "draw" of three and meets it; two `Primitive::DrawCards(1)` in one
-//!   resolution are two instructions and do not.
-//!   → `one_instruction_of_two_is_a_different_event_from_two_instructions_of_one`
-//! - **Alms Collector**, *"If an effect puts cards into a player's hand without
-//!   using the word 'draw' at all, [it] doesn't apply."* → the same structural
-//!   fact as Teferi's first ruling, asserted once.
-//! - **Alms Collector**, *"If two players each control an Alms Collector and an
-//!   effect instructs them to each draw two or more cards, the replacement
-//!   effect of each ... is applied and both players end up drawing two cards."*
-//!   → test. Two separate instructions, one per player, each meeting the other
-//!   player's Collector and neither meeting its own controller's.
-//!   → `two_alms_collectors_facing_each_other_both_draw_two`
-//! - **Alms Collector**, *"If two players each control [one] and a third player
-//!   would draw two or more cards, the third player chooses which ... will
-//!   apply, and therefore which of the first two players draws a card."* → the
-//!   four-player test, and the only three-player CR 616.1 prompt reachable from
-//!   two printed cards.
-//!   → `a_third_player_chooses_which_alms_collector_applies`
-//! - **Notion Thief**, *"If an opponent is instructed to draw a card then
-//!   discard a card, and Notion Thief causes you to draw a card instead, that
-//!   opponent still discards a card. The same is true of any other actions that
-//!   opponent is instructed to do."* → tested on the ruling's second sentence:
-//!   `Primitive::Discard` is `NotImplemented` until RE-8, so the board is a
-//!   draw-then-lose-life resolution (Night's Whisper's shape, unnamed) and the
-//!   assertion is that the opponent still loses the life.
-//!   → `the_opponents_other_instructions_still_happen`
-//! - **Notion Thief**, *"If two or more players each control a Notion Thief ...
-//!   that player chooses one ... Then the player whose Notion Thief's effect
-//!   was chosen repeats this process among the remaining ... Each effect can be
-//!   applied to the card draw only once this way."* → the three-player test,
-//!   and every sentence of it falls out rather than being coded: "that player
-//!   chooses" is CR 616.1's affected player, "the player whose ... was chosen
-//!   repeats" is the same rule asked of the *new* subject, and "only once" is
-//!   CR 614.5's applied set travelling with the lineage.
-//!   → `three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order`
-//! - **Notion Thief**, *"[So] if each player in a two-player game controls a
-//!   Notion Thief and one would draw a card, it really will be that player who
-//!   draws a card."* → test, and it is the same mechanism observed from
-//!   outside: the draw is handed across the table twice and comes home.
-//!   → `two_notion_thieves_hand_the_draw_across_the_table_and_back`
-//!
 //! # What a random deck can draw
 //!
 //! Thought Reflection is the pooled card, and it is `{4}{U}{U}{U}`. Seven mana
@@ -238,6 +88,66 @@
 //! battlefield doing nothing in most games while paying for a creature slot.
 //! Teferi's Ageless Insight and Notion Thief stay out as the same shape with a
 //! narrower pattern.
+//! # RE-3 — life (CR 119.3, 119.7, 119.10, 120.3a's contained loss)
+//!
+//! **Six printed cards over three events, and the axis is which event an effect
+//! watches.** CR 119.3's gain, the loss CR 120.3a contains inside damage, and a
+//! gain that CR 101.2 refuses outright:
+//!
+//! | Card | Watches | Does |
+//! |---|---|---|
+//! | [`rhox_faithmender`] | a gain, yours | `Amount(Multiplier(2))` |
+//! | [`alhammarrets_archive`] | a gain, yours — and a draw | the same, plus RE-2's draw doubler |
+//! | [`tainted_remedy`] | a gain, an opponent's | `Instead(LoseLife { ReplacedAmount })` |
+//! | [`words_of_worship`] | a draw, yours, once | `Instead(GainLife { Fixed(5) })` |
+//! | [`ali_from_cairo`] | the loss inside damage, yours | `Amount(LifeFloor(1))` |
+//! | [`skullcrack`] | — (it forbids) | two `Primitive::Restrict` rows |
+//!
+//! **Ali from Cairo is why the loss inside damage is its own event**, and its
+//! own ruling is the only thing that says so: *"this effect does not prevent
+//! damage, it prevents the damage from turning into loss of life."* So it is a
+//! `LoseLife { cause: Some(Damage) }` and **not** a prevention effect —
+//! `ReplacementDef::is_prevention` tests the pattern for damage first, and this
+//! pattern is not damage, which is what keeps Skullcrack's second sentence from
+//! switching it off. `is_prevention` is untouched by this phase.
+//!
+//! **Skullcrack's first sentence is a "can't", not a replacement** (CR 101.2,
+//! 614.17), and CR 119.7 spells out what that costs the pipeline: *"a
+//! replacement effect that would replace a life gain event affecting that
+//! player won't do anything."* Both directions fall out of the order of the two
+//! checks rather than being coded — a gain replacement finds no event, and a
+//! replacement that *produces* a gain has its substitute refused, which is
+//! Leyline of Punishment's ruling about Words of Worship.
+//!
+//! # What a random deck can draw
+//!
+//! Rhox Faithmender is the pooled card, and it is the first RE consumer that
+//! needs no second card to set it up: Knight of Meadowgrain and Vampire
+//! Nighthawk are already in the pool, so lifelink's contained `GainLife` —
+//! proposed in every measured game since RB with nothing watching it — is a
+//! live proposal the moment this is on the battlefield. At `{3}{W}` for a 1/5
+//! with lifelink it also doubles the life its own combat damage gains, so the
+//! board it opens is one card wide.
+//!
+//! The other five stay out. Tainted Remedy and Words of Worship are enchantments
+//! whose whole effect is a replacement nothing in the pool would trigger often
+//! enough to pay for a slot; Ali from Cairo is a 0/1 for four mana whose clamp
+//! only matters on a board that is already lethal; Alhammarret's Archive is the
+//! same two engine paths as Thought Reflection and this card at five mana; and
+//! Skullcrack would put a CR 101.2 restriction row on every turn it is cast,
+//! which is RS-1's path rather than a new one. **Leyline of Punishment is
+//! deliberately unregistered** — its opening-hand clause is §3.3 source 2's
+//! zone-reaching static, which would be dead text under a real card name, and
+//! the static form of its other two sentences is the fixture in
+//! `tests/phase_rd4_integration_test.rs`. **Bloodletter of Aclazotz is recorded
+//! as a shape and not written**: "if an opponent would lose life during your
+//! turn" is a conditional static whose condition — it is your turn — the
+//! `Condition` AST has no leaf for, with one customer. `EventPattern::LoseLife`
+//! and `PlayerSet::Opponents` are built here for it, and its own ruling is what
+//! the pattern's `cause: None` is about: *"[it] doesn't change the amount of
+//! damage dealt to opponents ... they would lose 2 life, but you'd still gain
+//! only 1."*
+//!
 
 use std::sync::Arc;
 
@@ -247,12 +157,17 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PatternFill, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
+use crate::types::keywords::KeywordFlag;
+use crate::types::replacement::{
+    AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
+    Rewrite, TemplateAmount,
+};
+use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::DrawCause;
 
 /// A static ability whose effect is a replacement effect — never a resolution,
@@ -344,12 +259,25 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
 /// with it. CR 616.1's chooser is the affected player — the one whose upkeep it
 /// is — so on a four-player table this asks nobody, four times a round.
 ///
-/// Its rulings are in this module's doc comment; two of the three are item 6's.
-///
 /// **The pooled card of the PR.** Colourless at five, so every deck can cast
 /// it, and every player's upkeep for the rest of the game is then a proposal
 /// that goes nowhere — the first measured card whose cost is a *dropped*
 /// turn-structure event.
+/// # The rulings, and where each is tested
+///
+/// - *"The upkeep step is skipped entirely. The turn proceeds from untap step
+///   to draw step."* → the event log, asserted as the absence of a
+///   `StepBegin { Upkeep }` between the untap and draw ones.
+/// - *"Upkeep-triggered abilities don't trigger, and 'activate only during your
+///   upkeep' abilities can't be activated."* → the first half falls out and is
+///   item 6's: a step that does not begin emits no event for a trigger to read,
+///   which is why this PR went first. The second half has **no facility to
+///   assert against** — `ActivationRestriction` has no step-scoped arm and no
+///   registered card carries one. Recorded, not skipped.
+/// - *"Any triggered abilities that triggered during the untap step will go
+///   onto the stack at the start of the draw step."* → item 6's, same reason.
+///   Both trigger-shaped rulings are booked as two tests item 6 owes
+///   (`codebase-state.md` item 121, which names the board and sizes them).
 pub fn eon_hub() -> Arc<CardData> {
     CardDataBuilder::new("Eon Hub")
         .mana_cost(ManaCost::build(&[], 5))
@@ -377,6 +305,11 @@ pub fn eon_hub() -> Arc<CardData> {
 ///
 /// Ruling (2026-09-11): *"You skip one turn as part of the effect."* → one row,
 /// one turn.
+/// # The rulings, and where each is tested
+///
+/// - *"You skip one turn as part of the effect."* → one row, `Uses::Once`, so
+///   one turn; and two Meditates skip two, which is CR 614.10a's own sentence
+///   and the board that needed a real queue.
 pub fn meditate() -> Arc<CardData> {
     CardDataBuilder::new("Meditate")
         .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
@@ -454,6 +387,21 @@ pub fn time_walk() -> Arc<CardData> {
 /// The affected set is authored empty in both halves, which
 /// `Primitive::CreateReplacement`'s `Target` arm requires: the shape is the
 /// card's and the player is the resolution's.
+/// # The rulings, and where each is tested
+///
+/// - *"The player skips their next combat phase this turn (if any). If they
+///   manage to have two combat phases, then only their next one combat phase is
+///   skipped."* → `Uses::Once`, and the second sentence is tested against a
+///   second `BeginPhase { Combat }` proposal the fixture makes by moving the
+///   cursor, because CR 500.8's extra phases are unbuilt. **RE-10 replaces the
+///   fixture with Aggravated Assault.**
+/// - *"It must be used before the combat phase starts or it has no effect."* →
+///   `ATOM-614.10-002`: a row created during combat meets no proposal and
+///   expires at cleanup unused.
+/// - *"If cast on a player when it is not their turn, it has no effect."* →
+///   falls out of the subject rather than being coded: a `BeginPhase` event is
+///   about the **active** player, so a row scoped to anyone else watches
+///   nothing this turn.
 pub fn moment_of_silence() -> Arc<CardData> {
     CardDataBuilder::new("Moment of Silence")
         .mana_cost(ManaCost::build(&[ManaType::White], 0))
@@ -515,11 +463,27 @@ fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
 /// Reflection that has applied cannot apply to its own output. Without the
 /// inheritance the game does not answer wrongly; it hangs.
 ///
-/// Its rulings are in this module's doc comment.
-///
 /// **The pooled card of the PR**, at seven mana, which is the most any pooled
 /// card has cost — so its reachability is measured with `--require` rather than
 /// assumed.
+/// # The rulings, and where each is tested
+///
+/// - *"If a spell or ability causes you to draw multiple cards, [this] doubles
+///   each card draw ... Harmonize ('Draw three cards') ... you'll draw six."* →
+///   `ATOM-121.2a-001` from the inner side: the instruction is not what it
+///   watches, so three individual draws each become two.
+///   → `thought_reflection_doubles_each_of_a_three_card_instruction`
+/// - *"The effects of multiple Thought Reflections are cumulative ... two ...
+///   four times the original number ... three ... eight times."* → **the acid
+///   test**, `test_two_thought_reflections_draw_four_not_infinity`, with
+///   `three_thought_reflections_draw_eight` for the exponent.
+/// - *"If two or more replacement effects would apply to a card-drawing event,
+///   the player who's drawing the card chooses what order to apply them."* →
+///   falls out of CR 616.1's chooser being the affected player. **Not asserted
+///   on two Reflections**: their order provably cannot change the answer, so the
+///   engine does not ask (§11 item 55). The boards that do ask are
+///   `a_draw_doubler_beside_a_notion_thief_is_a_real_choice` and the three-Thief
+///   board, where the chooser moves with the event's subject.
 pub fn thought_reflection() -> Arc<CardData> {
     CardDataBuilder::new("Thought Reflection")
         .mana_cost(ManaCost::build(
@@ -550,6 +514,23 @@ pub fn thought_reflection() -> Arc<CardData> {
 /// card this doubles.
 ///
 /// Legendary, so the two-copy board is Thought Reflection's.
+/// # The rulings, and where each is tested
+///
+/// - *"If a spell or ability causes you to put a card into your hand without
+///   specifically using the word 'draw,' it's not a card drawn."* →
+///   structurally true and asserted: a `ZoneChangeCause` that is not `Drawn`
+///   proposes no draw at all.
+///   → `a_card_put_into_hand_is_not_drawn_and_no_draw_replacement_sees_it`
+/// - *"If two or more replacement effects would apply to a card-drawing event,
+///   the player drawing the card chooses the order."* → as Thought Reflection's.
+/// - *"Because [it] is legendary, it's unlikely that one player will control
+///   two. However, if that happens, each card that player would draw after the
+///   first will result in four cards being drawn."* → the legend rule makes this
+///   Thought Reflection's test. This card's own board is the one decision 1
+///   named: beside a Thought Reflection in the draw step it draws **three**.
+///   → `teferi_beside_thought_reflection_draws_three_in_the_draw_step`, with
+///   `teferi_excepts_the_draw_steps_first_card` and
+///   `teferi_doubles_a_draw_that_is_not_the_draw_steps` either side of it.
 pub fn teferis_ageless_insight() -> Arc<CardData> {
     CardDataBuilder::new("Teferi's Ageless Insight")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 2))
@@ -601,6 +582,36 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 /// The two draws come out affected-player-first, because a rider resolves after
 /// the event it rides on (§4.1a) — neither the card's text order nor CR 121.2c's
 /// turn order, which `codebase-state.md` item 122 owns and sizes.
+/// # The rulings, and where each is tested
+///
+/// - *"[Its] replacement effect applies to an instruction to draw more than one
+///   card before any replacement effects apply to individual cards drawn."* →
+///   `ATOM-616.1g-001`, with Thought Reflection on the other side of the board.
+///   → `alms_collector_applies_to_the_instruction_before_thought_reflection_sees_a_draw`
+/// - *"Once a replacement effect has been applied to an event, it can't be
+///   applied again to the resulting events ... Thought Reflection can double
+///   that player's resulting card draw without [this] applying again."* →
+///   **the ruling that changed the card's encoding**, and a test. As `Prevent`
+///   plus riders the board is an infinite loop; as an `Instead` on the count it
+///   is three cards. → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
+/// - *"To determine whether a player is instructed to draw multiple once or
+///   instructed multiple times to draw one card, count how many times the word
+///   'draw' is used."* → test. Ancestral Recall (pooled) is one "draw" of three
+///   and meets it; two `Primitive::DrawCards(1)` in one resolution are two
+///   instructions and do not.
+///   → `one_instruction_of_two_is_a_different_event_from_two_instructions_of_one`
+/// - *"If an effect puts cards into a player's hand without using the word
+///   'draw' at all, [it] doesn't apply."* → the same structural fact as
+///   Teferi's first ruling, asserted once there.
+/// - *"If two players each control [one] and an effect instructs them to each
+///   draw two or more cards, the replacement effect of each ... is applied and
+///   both players end up drawing two cards."* → test. Two separate
+///   instructions, each meeting the other player's Collector and neither meeting
+///   its own controller's. → `two_alms_collectors_facing_each_other_both_draw_two`
+/// - *"If two players each control [one] and a third player would draw two or
+///   more cards, the third player chooses which ... will apply."* → the
+///   four-player test, and the only three-player CR 616.1 prompt reachable from
+///   two printed cards. → `a_third_player_chooses_which_alms_collector_applies`
 pub fn alms_collector() -> Arc<CardData> {
     CardDataBuilder::new("Alms Collector")
         .mana_cost(ManaCost::build(&[ManaType::White], 3))
@@ -652,6 +663,24 @@ pub fn alms_collector() -> Arc<CardData> {
 /// `n: 1` rather than a `DrawCard`, because the substitute for a draw is always
 /// the instruction (CR 121.2a) — which also means the Thief's own draw is
 /// `DrawCause::Effect` and a second Thief can take it.
+/// # The rulings, and where each is tested
+///
+/// - *"If an opponent is instructed to draw a card then discard a card, and
+///   [this] causes you to draw a card instead, that opponent still discards a
+///   card. The same is true of any other actions that opponent is instructed to
+///   do."* → tested on the second sentence: `Primitive::Discard` is
+///   `NotImplemented` until RE-8, so the board is a draw-then-lose-life
+///   resolution and the assertion is that the opponent still loses the life.
+///   → `the_opponents_other_instructions_still_happen`
+/// - *"If two or more players each control [one] ... that player chooses one ...
+///   Then the player whose [effect] was chosen repeats this process among the
+///   remaining ... Each effect can be applied to the card draw only once."* →
+///   the three-player test, and every sentence falls out rather than being
+///   coded. → `three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order`
+/// - *"[So] if each player in a two-player game controls [one] and one would
+///   draw a card, it really will be that player who draws a card."* → test, and
+///   the same mechanism observed from outside.
+///   → `two_notion_thieves_hand_the_draw_across_the_table_and_back`
 pub fn notion_thief() -> Arc<CardData> {
     CardDataBuilder::new("Notion Thief")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Black], 2))
@@ -674,6 +703,381 @@ pub fn notion_thief() -> Arc<CardData> {
                 }),
             )
             .affecting_players(PlayerSet::Opponents),
+        ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-3 — life
+// ---------------------------------------------------------------------------
+
+/// Rhox Faithmender — {3}{W}
+/// Creature — Rhino Monk 1/5
+///
+/// > Lifelink
+/// > If you would gain life, you gain twice that much life instead.
+///
+/// **The first consumer in Phase RE that meets a live proposal without a
+/// fixture.** Lifelink's contained `GainLife` has been proposed in every
+/// measured game since RB, with nothing watching it; this card is on the
+/// battlefield with lifelink of its own, so it doubles the life its own combat
+/// damage gains.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"If you control two Rhox Faithmenders, life you gain will be multiplied by
+///   four. Three ... by eight, and so on."* → **the test this phase was built
+///   around**, and it failed as an unexpected CR 616.1 *prompt* before it could
+///   fail as a number (§11 item 58).
+///   → `test_two_rhox_faithmenders_quadruple`, with
+///   `three_rhox_faithmenders_multiply_by_eight` for the exponent and
+///   `four_is_not_two_applications_of_one_faithmender` for CR 614.6's single
+///   modified event.
+/// - *"If an effect sets your life total to a specific number, and that number
+///   is higher than your current life total, the effect will cause you to gain
+///   life equal to the difference ... 3 life and 'becomes 10' ... will actually
+///   become 17."* → **no facility**: CR 119.5's set-life-total is
+///   `Primitive::SetLifeTotal`, which RE-6 builds. It is the same board as
+///   Alhammarret's Archive's first ruling and Skullcrack's fourth, so one
+///   primitive closes three (`codebase-state.md` item 123).
+pub fn rhox_faithmender() -> Arc<CardData> {
+    CardDataBuilder::new("Rhox Faithmender")
+        .mana_cost(ManaCost::build(&[ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Rhino))
+        .subtype(Subtype::Creature(CreatureType::Monk))
+        .power_toughness(1, 5)
+        .keyword_flag(KeywordFlag::Lifelink)
+        .rules_text("Lifelink\nIf you would gain life, you gain twice that much life instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Tainted Remedy — {2}{B}
+/// Enchantment
+///
+/// > If an opponent would gain life, that player loses that much life instead.
+///
+/// **The kind-changing substitution, and the first customer of
+/// [`TemplateAmount::ReplacedAmount`].** "That much" is the gain's own number
+/// read at the moment this applies, which is what makes its ordering ruling
+/// arithmetic rather than a coin flip: beside Alhammarret's Archive the gaining
+/// player picks double-then-lose-6, or lose-3-then-nothing.
+///
+/// Four-player: `PlayerSet::Opponents` is three opponents against one static
+/// row, which is the shape CR 109.5 resolves per event rather than per
+/// registration.
+/// # The rulings, and where each is tested
+///
+/// - *"If more than one replacement effect tries to apply to a life gain event,
+///   the player who would gain life chooses the order ... that player may choose
+///   to have the 3 life become doubled to 6 life and then lose 6 life. The
+///   player may also choose to apply [this] first, turning 'gain 3 life' into
+///   'lose 3 life.' Alhammarret's Archive would then not apply."* → test, with
+///   the ruling's own numbers, and the board `ordering_cannot_change_outcome`
+///   must **not** suppress.
+///   → `the_gaining_player_chooses_between_the_archive_and_tainted_remedy`
+/// - *"Having more than one [of these] on the battlefield doesn't have any
+///   noticeable effect on life gain. Once the effect of one applies, there is no
+///   life gain for the others to apply to."* → two tests, because the engine
+///   proves the order away and a suppressed choice can only be stated by making
+///   it. → `a_second_tainted_remedy_has_no_gain_left_to_apply_to` and
+///   `two_tainted_remedies_lose_the_same_three_whichever_applies`
+pub fn tainted_remedy() -> Arc<CardData> {
+    CardDataBuilder::new("Tainted Remedy")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Enchantment)
+        .rules_text("If an opponent would gain life, that player loses that much life instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::LoseLife {
+                    amount: TemplateAmount::ReplacedAmount,
+                }),
+            )
+            .affecting_players(PlayerSet::Opponents),
+        ))
+        .build()
+}
+
+/// Words of Worship — {2}{W}
+/// Enchantment
+///
+/// > {1}: The next time you would draw a card this turn, you gain 5 life
+/// > instead.
+///
+/// **A draw replaced by life — RE-2's pattern and RE-3's template on one
+/// row**, and the first `Uses::Once` draw replacement in the crate. It is a
+/// resolution's row rather than a static ability, so `Duration::UntilEndOfTurn`
+/// is the card's "this turn" and `Uses::Once` is its "the next time"; neither
+/// is derived, for CR 608.2c's reason.
+///
+/// [`EventPattern::DrawCard`] with `cause: None` — "the next time you would
+/// draw a card" excepts nothing, so the draw step's own draw is a candidate.
+///
+/// **Leyline of Punishment's
+/// ruling about this card is the CR 101.2 ordering test**: under a "players
+/// can't gain life", the substituted gain is proposed, refused, and the draw
+/// has been replaced with nothing.
+/// # The rulings, and where each is tested
+///
+/// - *"If multiple Words have been used prior to drawing a card, then you can
+///   choose which one to apply (and use up) each time you draw a card."* → test.
+///   Two rows from one source, one prompt, and the other row still there for the
+///   next draw — which is what "(and use up)" means.
+///   → `two_words_rows_are_a_choice_and_each_draw_uses_one_up`
+/// - **Leyline of Punishment's** ruling about this card, since the Leyline is
+///   not registered: *"effects that replace an event with gaining life (like
+///   Words of Worship's effect does) will end up replacing the event with
+///   nothing."* → the CR 101.2 ordering test, on Skullcrack.
+///   → `words_of_worship_under_skullcrack_replaces_the_draw_with_nothing`
+pub fn words_of_worship() -> Arc<CardData> {
+    CardDataBuilder::new("Words of Worship")
+        .mana_cost(ManaCost::build(&[ManaType::White], 2))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text("{1}: The next time you would draw a card this turn, you gain 5 life instead.")
+        .ability(one_shot(
+            AbilityType::Activated,
+            vec![Cost::Mana(ManaCost::build(&[], 1))],
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            EventPattern::DrawCard { cause: None },
+                            AffectedSet::NO_OBJECTS,
+                            Rewrite::Instead(GameActionTemplate::GainLife {
+                                amount: TemplateAmount::Fixed(5),
+                            }),
+                        )
+                        .affecting_players(PlayerSet::You)
+                        .once(),
+                    ),
+                    Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
+                ),
+                EffectRecipient::Controller,
+            ),
+        ))
+        .build()
+}
+
+/// Ali from Cairo — {2}{R}{R}
+/// Creature — Human 0/1
+///
+/// > Damage that would reduce your life total to less than 1 reduces it to 1
+/// > instead.
+///
+/// **It watches the loss, not the damage**, and its own ruling is the only
+/// reason to know that: *"this effect does not prevent damage, it prevents the
+/// damage from turning into loss of life. So the full damage is dealt (and
+/// abilities that trigger on damage being dealt still trigger), but the full
+/// loss of life is not applied."* CR 120.3a's contained `LoseLife` is that
+/// loss, built in RD-1 for this card.
+///
+/// So the def is `LoseLife { cause: Some(Damage) }` and **not** a prevention
+/// effect: `is_prevention` tests the pattern for damage first, and this pattern
+/// is not damage, which is why Skullcrack's "damage can't be prevented" does
+/// not switch it off.
+///
+/// `cause: Some(Damage)` is also the whole answer to whether it clamps a life
+/// *payment*. It does not, twice over: CR 119.4 refuses a payment larger than
+/// the life total before any replacement is asked, and a payment's cause is
+/// [`LifeLossCause::Cost`], which this pattern does not match. The card agrees
+/// — "damage that would reduce" — and so does its first ruling, *"this effect
+/// does not apply to effects which reduce your life without doing damage."*
+///
+/// # The rulings, and where each is tested
+///
+/// - *"This effect does not apply to effects which reduce your life without
+///   doing damage."* → test: a `Primitive::LoseLife` is `LifeLossCause::Effect`,
+///   which the pattern does not match, and the player goes to -7.
+///   → `ali_from_cairo_does_not_clamp_a_loss_that_is_not_damage`, with
+///   `ali_from_cairo_does_not_clamp_a_life_payment` for the `Cost` arm nothing
+///   had watched.
+/// - *"The ability works up until Ali enters the graveyard, so if he takes
+///   lethal damage or is destroyed at the same time you take damage, the ability
+///   helps you."* → test, and it falls out of CR 704.3's decide-then-perform
+///   rather than being coded: a batch decides every member against one board.
+///   → `ali_helps_on_the_earthquake_that_kills_him`
+/// - *"This effect does not prevent damage, it prevents the damage from turning
+///   into loss of life. So the full damage is dealt (and abilities that trigger
+///   on damage being dealt still trigger), but the full loss of life is not
+///   applied."* → **the ruling that decided the card's pattern**, and three
+///   tests: the `DamageDealt` event carries the whole amount, Skullcrack does
+///   not switch the clamp off, and a lifelinker still gains the full damage.
+///   → `the_full_damage_is_still_dealt_and_only_the_loss_is_clamped`,
+///   `skullcrack_does_not_turn_off_ali_from_cairo` and
+///   `ali_clamps_the_loss_and_lifelink_still_gains_the_full_damage`
+pub fn ali_from_cairo() -> Arc<CardData> {
+    CardDataBuilder::new("Ali from Cairo")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 2))
+        .color(Color::Red)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .power_toughness(0, 1)
+        .rules_text("Damage that would reduce your life total to less than 1 reduces it to 1 instead.")
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::LoseLife { cause: Some(LifeLossCausePattern::Damage) },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::LifeFloor(1)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Alhammarret's Archive — {5}
+/// Legendary Artifact
+///
+/// > If you would gain life, you gain twice that much life instead.
+/// > If you would draw a card except the first one you draw in each of your
+/// > draw steps, draw two cards instead.
+///
+/// **Two statics on one permanent, one from each of the two RE phases** —
+/// Rhox Faithmender's gain doubler and Teferi's Ageless Insight's draw doubler,
+/// written as the same two defs because they *are* the same two defs. Gisela's
+/// shape, and the reason RE-2 → RE-3 is a hard order in §9.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"If an effect would set your life total to a specific number that's higher
+///   ... your life total will actually become 17."* → RE-6's, as Rhox
+///   Faithmender's twin.
+/// - *"If two or more replacement effects would apply to a card-drawing event,
+///   the player drawing the card chooses the order."* → already tested, in
+///   RE-2: `a_draw_doubler_beside_a_notion_thief_is_a_real_choice`.
+/// - *"Because [it] is legendary ... if that happens, life gained by that player
+///   will be multiplied by four."* → the legend rule makes this Rhox
+///   Faithmender's board. This card's own board is the one that shows the two
+///   halves coexist.
+///   → `alhammarrets_archive_doubles_a_gain_and_a_draw_from_one_permanent`
+/// - *"Similarly, the effects of the last abilities of multiple Archives are
+///   cumulative."* → already tested, in RE-2:
+///   `test_two_thought_reflections_draw_four_not_infinity`.
+pub fn alhammarrets_archive() -> Arc<CardData> {
+    CardDataBuilder::new("Alhammarret's Archive")
+        .mana_cost(ManaCost::build(&[], 5))
+        .card_type(CardType::Artifact)
+        .supertype(Supertype::Legendary)
+        .rules_text(
+            "If you would gain life, you gain twice that much life instead.\nIf you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::GainLife,
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .build()
+}
+
+/// Skullcrack — {1}{R}
+/// Instant
+///
+/// > Players can't gain life this turn. Damage can't be prevented this turn.
+/// > Skullcrack deals 3 damage to target player or planeswalker.
+///
+/// **The card that lands RD-4's restriction row in a game** (§11 item 26). Its
+/// second sentence is the `ApplyReplacement { Prevention }` row RD-4 could only
+/// build as a fixture, because every printed carrier of it needed a facility
+/// the engine lacked; its first is the `Event { GainLife }` row RE-3 gave
+/// `Restriction::Event` the player set for (item 45).
+///
+/// **Three atoms in text order, and the order is the card's**: CR 608.2c reads
+/// a spell's instructions in the order printed, and both restrictions are in
+/// place before the damage is dealt — which is what makes a lifelinker's damage
+/// gain nothing this turn.
+///
+/// **Leyline of Punishment is deliberately not registered.** It is the static
+/// form of the same two rows — an `Effect::Restriction` on a permanent, which
+/// RS-1's sweep already reads — and the RD-4 fixture extended with the life arm
+/// is what proves that form. What keeps it out is its first line: "if this card
+/// is in your opening hand, you may begin the game with it on the battlefield"
+/// is §3.3 source 2's zone-reaching static, which would be dead text under a
+/// real card name. Recorded so the omission reads as the rule and not as an
+/// oversight.
+/// # The rulings, and where each is tested
+///
+/// - *"[This] targets only the player or planeswalker. If that player or
+///   planeswalker is an illegal target when [it] tries to resolve, it won't
+///   resolve and none of its effects will happen."* → CR 608.2b's fizzle, which
+///   is the stack's and predates this phase; the card adds no new claim to it.
+///   Recorded rather than re-tested.
+/// - *"Spells and abilities that would cause a player to gain life or that would
+///   prevent damage still resolve, but the life-gain and damage-prevention parts
+///   have no effect."* → test, and "still resolve" is the half that could have
+///   been got wrong: a refused proposal is not an error.
+///   → `a_life_gain_spell_still_resolves_under_skullcrack_and_gains_nothing`,
+///   with `skullcrack_stops_life_gain_for_everyone_including_its_controller` for
+///   `PlayerSet::Everyone`.
+/// - *"Effects that would replace gaining life with another effect won't apply
+///   because it's impossible for players to gain life."* → CR 119.7's own last
+///   clause, and `ATOM-119.7-004`.
+///   → `under_skullcrack_a_gain_replacement_has_no_event_to_replace`
+/// - *"If an effect says to set a player's life total to a certain number and
+///   that number is higher than the player's current life total, that part of
+///   the effect won't do anything."* → RE-6's, as above.
+pub fn skullcrack() -> Arc<CardData> {
+    CardDataBuilder::new("Skullcrack")
+        .mana_cost(ManaCost::build(&[ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Sequence(vec![
+                // "Players can't gain life this turn." No object and every
+                // player, so the row is complete as authored and the
+                // resolution's target — the player it then damages — is not
+                // what it is about.
+                Effect::Atom(
+                    Primitive::Restrict(
+                        RestrictionDef::new(Restriction::Event {
+                            pattern: EventPattern::GainLife,
+                            affected_objects: AffectedSet::NO_OBJECTS,
+                            affected_players: PlayerSet::Everyone,
+                            by: None,
+                        }),
+                        Duration::UntilEndOfTurn,
+                    ),
+                    EffectRecipient::Controller,
+                ),
+                // "Damage can't be prevented this turn." CR 615.12's row, whose
+                // two halves are a union: every object and every player.
+                Effect::Atom(
+                    Primitive::Restrict(
+                        RestrictionDef::new(Restriction::ApplyReplacement {
+                            kind: ReplacementKindFilter::Prevention,
+                            to_objects: AffectedSet::Filter { filter: ObjectFilter::All },
+                            to_players: PlayerSet::Everyone,
+                        }),
+                        Duration::UntilEndOfTurn,
+                    ),
+                    EffectRecipient::Controller,
+                ),
+                Effect::Atom(
+                    Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false },
+                    EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                ),
+            ]),
         ))
         .build()
 }
