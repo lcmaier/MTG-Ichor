@@ -5612,120 +5612,60 @@ state-based loss loops as CR 704.3 batch members, deduped per player by
 `subject_of`; CR 704.5b's window closed at the check; `GameResult` on
 `GameState`, written by the `PlayerWins` performer and by the batch's
 settlement (CR 104.2a/104.4a per batch, never per member); CR 104.1 at the
-chokepoint, the state-based check and the priority loop; CR 800.4j at the
-priority rotation and the three turn-based actions a departed active player
-has nobody to perform; `Primitive::{LoseGame, WinGame, SetLifeTotal}`,
-`Primitive::Exile` for the effect's own source and battlefield targets,
-`AmountExpr::StartingLifeTotal`, `Condition::LibraryEmpty` and the gather's
-"as long as" leg through `settled_holds`; `fuzz_games --players N`. Four
-cards — Laboratory Maniac (pooled), Exquisite Archangel, Stunning Reversal,
-Platinum Angel. Items 6 (the loss half), 112, 113 (the priority half) and 123
-close; 108 is re-dated and measured; 122 is re-owned; "Before Commander"
-item 4's fuzz mode is built. `replacement-architecture.md` §11 items 61–65.
+chokepoint, the state-based check and the priority loop; CR 104.4b's draw as
+a cap on the state-based loop; CR 800.4j at the priority rotation and the
+three turn-based actions a departed active player has nobody to perform;
+CR 800.4a at the target rule and the attack-target list;
+`Primitive::{LoseGame, WinGame, SetLifeTotal}`, `Primitive::Exile` for the
+effect's own source and for a targeted card wherever it is,
+`AmountExpr::StartingLifeTotal`, `Condition::LibraryEmpty` and the CR 604.2
+leg in both static sweeps through `settled_holds`; `fuzz_games --players N`.
+Four cards — Laboratory Maniac (pooled), Exquisite Archangel, Stunning
+Reversal, Platinum Angel. Items 6 (the loss half), 112, 113 (the priority
+half) and 123 close; 108 is re-dated and measured; 122 is re-owned; "Before
+Commander" item 4's fuzz mode is built. `replacement-architecture.md` §11
+items 61–67. **One line here, not six**: the review of this PR's first cut
+found four small wrong answers recorded as debt with fixes shorter than their
+entries, and they were fixed instead (§11 item 67 and the rule at the foot of
+this section); a fifth was CR 104.3f, which is a catch-all and not a
+migration.
 
 125. **Exquisite Archangel dying in the check that would lose you the game
-     takes the graveyard outcome without offering the choice.** The card's
-     first ruling: *"its effect applies ... You choose whether Exquisite
-     Archangel is moved to exile or to your graveyard."* The loss and the
-     death are two members of one batch decided against one board, so the
-     replacement applies; but riders resolve after the batch performs
-     (CR 615.5, §4.1a), the death has happened by then, and the card in the
-     graveyard is a new object (CR 400.7) the rider's `Exile` does not find.
-     Lich's Mirror's fifteenth ruling is the same board with a shuffle.
+     takes the graveyard outcome, and the rider structure cannot offer the
+     ruling's choice.** The card's first ruling: *"its effect applies ... You
+     choose whether Exquisite Archangel is moved to exile or to your
+     graveyard."* The loss and the death are two members of one batch decided
+     against one board, so the replacement applies; but the card's "instead
+     exile this creature and your life total becomes ..." is *two* events
+     about two subjects, and a rewrite produces one (§3.2d), so the Archangel
+     is encoded as `Prevent` plus a rider — and riders resolve after the batch
+     performs (CR 615.5, §4.1a). The death has happened by then, the card in
+     the graveyard is a new object (CR 400.7), and the rider's `Exile` finds
+     nothing. Lich's Mirror's fifteenth ruling is the same board with a
+     shuffle.
 
      **Reachability (2026-09-12):** reachable in `stress` — the Archangel is
      registered, and one combat with it blocking a 5-power attacker while
-     another attacker is lethal to you is the board — and **not wrong**: the
-     engine takes one of the ruling's two outcomes, and only the *choice* is
-     missing. Tested as it behaves
+     another attacker is lethal to you is the board. **Wrong in the narrow
+     sense**: the engine takes one of the ruling's two outcomes and never asks;
+     the other is unreachable by construction. Tested as it behaves
      (`exquisite_archangel_replaces_the_loss_while_dying_in_the_same_check`).
 
-     **Sized:** the rider's exile would have to be a *member* of the batch —
-     proposed in phase 1 beside the death, so the two moves of one object
-     meet the CR 704.7-style same-subject collapse with a prompt — which is
-     the "a rewrite produces one event" boundary §3.2d drew, or a prompt at
-     rider time when the rider's object left in the batch it rides on. Either
-     is ~40 lines and a `ChoiceKind`; it lands with the second card that
-     needs it, which is Lich's Mirror (RE-8's `ShuffleIntoLibrary` or later).
-
-126. **`Primitive::Exile` reaches the battlefield and the effect's own source
-     only.** Its `Implicit` recipient is the source — "exile this creature",
-     "Exile Stunning Reversal" — and every other recipient is filtered through
-     `collect_battlefield_targets`, so "exile target card from a graveyard"
-     (Scryfall 2026-09-12: `o:"exile target card from a graveyard"` **63**
-     cards) and "exile target card from a hand" would resolve and exile
-     nothing.
-
-     **Reachability (2026-09-12):** unreachable — no registered card targets
-     a card outside the battlefield with an exile.
-
-     **Sized:** ~10 lines — the target's zone read off the object rather
-     than assumed — with the first such card, which is a targeting question
-     (`SelectionFilter` has no graveyard-card leaf) before it is an exile one.
-
-127. **A static "if you would lose the game" whose rider leaves the loss's
-     condition standing is CR 104.4b's mandatory loop, and the engine would
-     hang in it.** The check repeats while the game changes (CR 704.3); a
-     `Uses::Static` `Prevent` on `PlayerLoses` with a rider that emits events
-     and does not clear ten poison counters is proposed, replaced and
-     re-proposed forever. Lich's Mirror's twelfth ruling is the printed case
-     — controlled but not owned, so it does not shuffle itself away — and the
-     ruling's answer is "the game will end in a draw".
-
-     **Reachability (2026-09-12):** unreachable — the one registered static
-     (Exquisite Archangel) exiles itself, Stunning Reversal is `Uses::Once`,
-     and no control-changing effect can reach a Lich's Mirror that is not
-     registered.
-
-     **Sized:** ~15 lines — an iteration cap on `check_state_based_actions_loop`
-     that settles `GameResult::Draw` (CR 104.4b) rather than a general loop
-     detector — with the first card that can loop, which is Lich's Mirror
-     under Act of Treason.
-
-128. **CR 104.3f — "if a player would both win and lose the game
-     simultaneously, that player loses" — has no producer and is not
-     settled.** A batch performing a player's `PlayerWins` and their
-     `PlayerLoses` would record the win (the performer runs first in batch
-     order) and then the loss, and the settlement keeps the first result.
-
-     **Reachability (2026-09-12):** unreachable — nothing proposes both in one
-     batch; the state-based check proposes no wins, and a resolution's
-     `WinGame` and `LoseGame` for one player would be two instructions and
-     two batches.
-
-     **Sized:** ~10 lines in the settlement — a `PlayerWins` performed in a
-     batch that also performed that player's loss is undone — with the first
-     card that says both, which no printed card does directly (the rule
-     exists for effects like Platinum Angel leaving as a "you win" resolves).
-
-129. **The gather unwraps `Effect::Conditional` around a replacement; the
-     restriction sweep does not.** RE-6 gave `push_static_ability_replacements`
-     and `register_static_effects` the "as long as" leg for Laboratory Maniac.
-     A conditional static "can't" — "as long as you control an artifact, your
-     opponents can't gain life" is a sentence Magic could print — would be
-     registered as a source and then never read, which is the silent-card
-     failure.
-
-     **Reachability (2026-09-12):** unreachable — no registered card wraps an
-     `Effect::Restriction` in a condition.
-
-     **Sized:** ~8 lines mirroring the gather's leg in
-     `engine::restriction`'s static sweep, plus the `register_static_effects`
-     match, with the first card. One customer, so recorded rather than built
-     (§8c).
-
-130. **`fuzz_ab.py`'s "P0 / P1" row reads two seats and one outcome key.** The
-     four-player table has P2 and P3 shares and the "wins by effect" key that
-     Laboratory Maniac's games print, and the script's row shows neither; the
-     §3 four-player table's outcome row is transcribed from the raw output.
-
-     **Reachability (2026-09-12):** reachable, **not wrong** — a table, not an
-     answer, and the raw block prints every key.
-
-     **Sized:** ~15 lines in the script's `counters` parser, a seat-count
-     read off the "Players:" header line; with RE-7, whose measurement is the
-     first diff of two four-player tables.
+     **Sized: it is `backlog.md` §2.25's facility, not a patch.** A
+     replacement whose result is more than one event — the exile and the life
+     total, simultaneous with the rest of the batch — needs a rewrite to yield
+     *members* inserted into the batch in phase 1, which is exactly the
+     one-event-becoming-two that RD-5 gated closed for Harm's Way (≈30
+     mechanical sites in `apply_replacements`' return shape and
+     `execute_batch_inner`'s phase-2 write, plus whatever the split itself
+     needs); on top of it, two members moving one object to two zones must
+     turn the CR 704.7 same-subject *collapse* into a *prompt* (~40 lines and
+     a `ChoiceKind`). §2.25 now records the Archangel as its second customer,
+     which is what §8c's "two customers before a leaf" asks for before that
+     facility is built. Until then the engine's answer is the graveyard and
+     this line is the record that the choice is missing.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time.
+- **A wrong answer sized under about thirty lines, with a fixture that can prove it, is fixed in the PR that found it — not recorded here.** This list is what a *later system* has to carry (a facility that does not exist yet, an arm with no customer, a wrong answer whose fix is a phase); an entry longer than its fix is the sign it should have been a commit. Adopted 2026-09-12 at RE-6's review, which found four such entries in one PR (`replacement-architecture.md` §11 item 67).
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

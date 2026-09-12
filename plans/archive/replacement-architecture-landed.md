@@ -2572,7 +2572,8 @@ player" is RE-7's).
   after") needs that to count as an action performed, or a priority window
   opens between the draw that re-arms CR 704.5b and the check that reads it.
   A refused proposal emits nothing, so the indestructible creature still does
-  not re-check forever. §11 item 61 says what this admits (item 127).
+  not re-check forever. §11 item 61 says what this admits, and the CR 104.4b
+  cap on the loop (`MANDATORY_LOOP_CHECKS`, settling a draw) is its answer.
 - **`Primitive::Exile` and CR 608.2m at the stack were nowhere in the row.**
   The Archangel's rider and Stunning Reversal's second instruction both exile
   the effect's own source, so `Exile` stopped being a stub with `Implicit` as
@@ -2678,8 +2679,10 @@ whose ghost-attack-inflated 87-turn games decked out five times in 400
 
 **The four-player table is `engineering-practices.md` §3's**, recorded as
 RE-7's starting point with the two rows it is measured against: turns after a
-departure **21.2** per game and departed-owned permanents **32.1** at the end
-on `performance` (22.6 and 34.1 on `stress`). Zero errors, zero panics on both
-pools; one `stress` game ran to its 200th turn and ended there with a win.
+departure **21.0** per game and departed-owned permanents **32.2** at the end
+on `performance` (22.8 and 34.2 on `stress`). Zero errors, zero panics on both
+pools; one `stress` game ran to its 200th turn and ended there with a win, and
+one ended in CR 104.4a's draw — two survivors trading lethal combat damage in
+one step, both losses in one check, settled by the batch.
 Three shell runs at one seed line-for-line outside `=== Timing ===`, and
 `fuzz_ab.py`'s own check `deterministic: yes`.

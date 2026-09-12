@@ -922,45 +922,52 @@ three or more can move. `python plans/fuzz_ab.py --players 4 --arm
 re6=<binary>` prints all of it; RE-7 runs it with two arms and diffs.
 **Departed-owned permanents** is `codebase-state.md` item 108's wrong answer
 counted — permanents a player who has left still owns when the game ends —
-and RE-7 zeroes it. Zero errors and zero panics on both pools; one `stress`
-game of 200 ran to its 200th turn and ended there with a win (seed 12413, all
-four seats took about fifty turns). Three shell runs at one seed line-for-line
-outside `=== Timing ===`. **Read the first version of this table as a
-warning**: its first run had avg turns 86.6 and total damage 496 per game,
-because a departed seat was still an attack target and the random agent had
-been hitting empty chairs for a hundred turns — CR 506.2, fixed in RE-6
+and RE-7 zeroes it. Zero errors and zero panics on both pools. Two `stress`
+games of 200 are worth a sentence each: one ran to its 200th turn and ended
+there with a win (seed 12413, all four seats took about fifty turns), and one
+is **CR 104.4a's draw** — at turn 46 the two survivors dealt each other lethal
+combat damage in one damage step, both losses were members of one check, and
+the batch settled a draw rather than crowning whichever performed second
+(seed 12492), which is the per-batch settlement doing in a random game what
+its test says. Three shell runs at one seed line-for-line outside
+`=== Timing ===`. **Read the first version of this table as a warning**: its
+first run had avg turns 86.6 and total damage 496 per game, because a departed
+seat was still an attack target and the random agent had been hitting empty
+chairs for a hundred turns — CR 506.2, fixed in RE-6
 (`replacement-architecture.md` §11 item 66). A wider table's first number is a
 measurement of the harness until the harness is checked.
 
 | 4 players, 50 games / seed 12345 | performance (81 cards) | stress (133 cards) |
 |---|---|---|
-| P0 / P1 / P2 / P3 | 23 (46%) / 13 (26%) / 9 (18%) / 5 (10%) | 28 (56%) / 13 (26%) / 5 (10%) / 4 (8%) |
-| Avg turns | 63.1 | 61.7 |
-| Spells cast | 44.7 | 43.5 |
-| Lands played | 37.4 | 36.1 |
-| Combat w/ atk | 26.3 | 23.9 |
-| Creatures died | 16.2 | 8.6 |
-| Damage events | 55.9 | 52.2 |
-| Total damage | 160.6 | 138.3 |
-| Life changes | 39.0 | 39.4 |
-| Turns after a departure | 23.2 | 19.0 |
-| **Departed-owned permanents** | **32.5** | **32.9** |
-| **Layer walks** | **848** | **1,075** |
-| **Board walks** | **522** | **555** |
-| **Memo hits** | **224,307** | **251,039** |
-| **Layer frames** | **18,384** | **19,332** |
-| **Frames/walk** | **21.67** | **17.98** |
-| **Dependency checks** | **199** | **218** |
-| **Replacement gathers** | **2196** | **2218** |
-| **Restriction queries** | **2200** | **2225** |
+| Wins by seat | 24 (48%) / 12 (24%) / 9 (18%) / 5 (10%) | 25 (50%) / 14 (28%) / 7 (14%) / 4 (8%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 62.7 | 61.9 |
+| Spells cast | 45.0 | 43.6 |
+| Lands played | 37.4 | 36.2 |
+| Combat w/ atk | 26.1 | 23.7 |
+| Creatures died | 16.0 | 8.6 |
+| Damage events | 55.8 | 51.9 |
+| Total damage | 159.2 | 137.6 |
+| Life changes | 38.9 | 35.9 |
+| Turns after a departure | 22.9 | 19.2 |
+| **Departed-owned permanents** | **32.7** | **32.8** |
+| **Layer walks** | **848** | **1,067** |
+| **Board walks** | **520** | **546** |
+| **Memo hits** | **223,086** | **244,752** |
+| **Layer frames** | **18,326** | **18,965** |
+| **Frames/walk** | **21.60** | **17.77** |
+| **Dependency checks** | **185** | **207** |
+| **Replacement gathers** | **2185** | **2191** |
+| **Restriction queries** | **2189** | **2197** |
 | Prevention allocations | 0.00 | 0.06 |
 
-At 200 games the same run reads: `performance` avg turns 61.4, P0/P1/P2/P3
-87/64/35/14, turns after a departure 21.2, departed-owned permanents 32.1,
-gathers 2112, CPU/game median 69.7 ms with `CPU/turn p50` 0.880 ms — a
-four-player game costs about four times a two-player one and lasts twice as
-long, so the turn is twice as expensive, which is the board being twice as
-wide; `stress` avg turns 66.2, 86/54/46/14, 22.6 and 34.1, gathers 2502.
+At 200 games the same run reads: `performance` avg turns 61.2, wins by seat
+87/63/36/14, turns after a departure 21.0, departed-owned permanents 32.2,
+gathers 2104, CPU/game median 75.0 ms with `CPU/turn p50` 0.96 ms — a
+four-player game costs about four and a half times a two-player one and lasts
+twice as long, so the turn is twice as expensive, which is the board being
+twice as wide; `stress` avg turns 66.3, 80/57/49/13 and one draw, 22.8 and
+34.2, gathers 2502.
 
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was

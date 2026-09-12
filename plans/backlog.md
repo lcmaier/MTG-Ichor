@@ -407,7 +407,7 @@ RD-3 built CR 609.7a's chosen source. The card is one mechanism short.
 | **Rules** | CR 614.9 (partial redirection), 615.7 (the count allocated across members) |
 | **Verdict** | `Rewrite` returns one proposal; `apply_replacements` returns one entry per *batch index*, and a split-off event has none |
 | **Size** | ≈ 30 mechanical sites plus new logic in `next_damage_shares` — above `replacement-architecture.md` §9's ~300–400 estimate, which did not contain the allocation half |
-| **Blocks** | Harm's Way, and nothing else measured — Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::Variable` and `codebase-state.md` item 90 |
+| **Blocks** | Harm's Way; and, since RE-6, the choice Exquisite Archangel's first ruling offers — see the second customer below. Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::Variable` and `codebase-state.md` item 90 |
 | **Atoms** | none filed under `Backlog`; CR 614.9's atoms are covered by RD-4's whole-event redirects |
 | **Owner** | `replacement-architecture.md` §9's RD-5 section, which carries the shape, the site table and the gate that closed |
 
@@ -434,6 +434,25 @@ place RE turns one event into several — CR 121.2's draw decomposition — is a
 second member inserted into the batch being decided; `apply_replacements`'
 `Vec<(usize, Option<GameAction>)>` and `execute_batch_inner`'s `decided[i]`
 are touched by none of RE's nine PRs. The site table above stands.
+
+**A second customer, found at RE-6 (2026-09-12), and it is not a split.**
+Exquisite Archangel's "if you would lose the game, instead exile this creature
+and your life total becomes equal to your starting life total" replaces one
+event with *two*, about two subjects. A rewrite yields one event, so RE-6
+encoded it as `Prevent` plus a rider — and a rider resolves after the batch
+performs (CR 615.5, `replacement-architecture.md` §4.1a). The card's first
+ruling is the board where that timing is observable: dealt lethal damage in
+the same check that would lose you the game, *"its effect applies ... You
+choose whether Exquisite Archangel is moved to exile or to your graveyard"*.
+The exile has to be a member of the batch beside the death for that choice to
+exist, which is this entry's facility — a rewrite yielding members inserted in
+phase 1 — plus one thing Harm's Way does not need: two members moving one
+object to two zones turn the CR 704.7 same-subject *collapse* into a *prompt*
+(~40 lines and a `ChoiceKind`). Lich's Mirror's fifteenth ruling is the same
+board with a shuffle. The engine takes the graveyard outcome today and never
+asks (`codebase-state.md` item 125; `replacement-architecture.md` §11 item
+63). Two customers now, which is §8c's bar for building a leaf; the gate that
+closed RD-5 was about *size*, and this entry's size is unchanged.
 
 ### 2.23 Battles (CR 310), and CR 120.3h
 

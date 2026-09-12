@@ -5764,11 +5764,14 @@ found them.
     draw that re-arms CR 704.5b and the check that reads it. CR 614.6 makes the
     rider's work the state-based action in modified form, so it *was*
     performed. The check now asks whether the event log grew, which a refused
-    proposal never makes it do. **What this admits, named:** a `Uses::Static`
-    replacement whose rider does not clear the condition is CR 104.4b's
-    mandatory loop, and the engine would spin in it — Lich's Mirror controlled
-    but not owned, ruling twelve — `codebase-state.md` item 127, with the
-    iteration cap that settles a draw sized against its first card.
+    proposal never makes it do. **What this admits, and what closes it:** a
+    `Uses::Static` replacement whose rider does not clear the condition is
+    CR 104.4b's mandatory loop — Lich's Mirror controlled but not owned,
+    ruling twelve — and the rules' own answer is a draw, so
+    `check_state_based_actions_loop` caps its performing checks
+    (`MANDATORY_LOOP_CHECKS`) and settles `GameResult::Draw` at the cap. A
+    fixture that gains 1 life instead of losing, at ten poison, spins it
+    (`a_loss_replaced_forever_is_a_draw_not_a_hang`).
 
 62. **CR 104.2a is a fact about a batch, and CR 104.1 is a line at the
     chokepoint.** The section said `PlayerWins`' performer records the result
@@ -5793,11 +5796,16 @@ found them.
     — riders after the performed events, CR 615.5 — means the death has
     happened when the rider's exile looks, and CR 400.7 makes the graveyard
     card a new object it does not find. The engine takes the graveyard outcome
-    and offers no choice. It is one of the ruling's two answers, tested as it
-    behaves, and `codebase-state.md` item 125 sizes the two ways of getting
-    the other: the rider as a phase-1 member, which is the "one rewrite, one
-    event" boundary §3.2d drew, or a prompt when a rider's object left in the
-    batch it rides on. Lich's Mirror's fifteenth ruling is the second customer.
+    and offers no choice — one of the ruling's two answers, tested as it
+    behaves, with the other unreachable by construction. **The size is
+    `backlog.md` §2.25's, not a patch's.** The Archangel's "instead" is two
+    events about two subjects, and a rewrite yields one (§3.2d); getting the
+    exile *into* the batch beside the death is the same one-event-becoming-
+    two that RD-5 gated closed for Harm's Way (≈30 mechanical sites in
+    `apply_replacements`' return shape and phase 2's write), and on top of it
+    two members moving one object to two zones turn the CR 704.7 collapse into
+    a prompt. §2.25 carries the Archangel as its second customer now; item 125
+    is the record that the choice is missing until it is built.
 
 64. **The first `Condition` a replacement effect reads is asked at gather, and
     the argument is two rules that were already there.** CR 604.2 makes a
@@ -5812,8 +5820,9 @@ found them.
     doubled draw whose first inner takes the last card and whose second is the
     win is the test that separates the readings. One evaluator —
     `settled_holds`, shared with CR 613.11's cost effects — so a leaf is one
-    question wherever it is asked. **The leg exists for replacements only**:
-    a conditional "can't" is registered as a source and never read, item 129.
+    question wherever it is asked. The restriction sweep has the same leg
+    (the review found it missing there and it was eight lines), so a
+    conditional "can't" reads the way a conditional replacement does.
 
 65. **CR 104.1 removed the post-mortem tail, and that is the one two-player
     stream change — read the way RE-3's review said to.** Since the harness
@@ -5833,11 +5842,34 @@ found them.
     hitting empty chairs and the two survivors' game never had to end. CR 506.2
     — the defending players are the active player's *opponents*, and a player
     who has left is nobody's — is one `in_game` read, and the table it leaves
-    (61.4 turns, 157 damage) is the one §3 records. Two things worth keeping:
+    (61 turns, 156 damage) is the one §3 records. Two things worth keeping:
     a wider table's first number is a measurement of the harness until the
     harness is checked, and the check that found it was reading the event log
     of the outlier rather than the averages — the same recipe as
     `engineering-practices.md` §3.2's tail rule.
+
+67. **The Deferred Migrations list had become a queue of small fixes, and the
+    review said so.** RE-6's first cut recorded six items, and four of them
+    were wrong answers with fixes shorter than their entries: `Exile`
+    reaching only the battlefield (ten lines), the CR 104.4b loop with no cap
+    (fifteen), the restriction sweep lacking the conditional leg the gather
+    had just gained (eight), and `fuzz_ab.py` reading two seats (fifteen). A
+    fifth, CR 104.3f, was a catch-all the CR keeps for rules text and no card
+    can produce. All four are fixed in the same PR, with a fixture each; the
+    fifth is a sentence in "Out of RE". The list's own foot now says the rule:
+    a wrong answer under about thirty lines with a fixture to prove it is
+    fixed in the PR that found it, and the list is for what a later system
+    has to carry. The entry that *does* belong there is item 125, whose fix is
+    RD-5's gated facility — and writing it honestly meant sending the
+    Archangel to `backlog.md` §2.25 as that facility's second customer, which
+    is more useful than a "~40 lines" that was never true.
+
+    Two more things the review caught: a departed player was still a legal
+    *target* (CR 800.4a; a "target player draws" resolving after its target
+    left would have drawn for an empty seat, and Laboratory Maniac there
+    would have reached the `PlayerWins` performer's refusal as a game error);
+    and three source comments narrated what the code used to do, which is the
+    commit message's job (`engineering-practices.md` §2).
 
 ## 12. Explicitly out of scope
 
