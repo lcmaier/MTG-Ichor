@@ -79,7 +79,7 @@ CR_DIR = ROOT / "MTG-Rules" / "versions"
 WATCHLIST = [
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "census", "chokepoint", "containment", "cursor",
-    "decomposition", "donor", "drainer", "emitter",
+    "decomposition", "departed", "departing", "donor", "drainer", "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event",
     "memo", "performer", "pool", "position", "proposal", "queue", "registry",

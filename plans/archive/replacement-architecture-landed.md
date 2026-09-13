@@ -2686,3 +2686,299 @@ one ended in CR 104.4a's draw — two survivors trading lethal combat damage in
 one step, both losses in one check, settled by the batch.
 Three shell runs at one seed line-for-line outside `=== Timing ===`, and
 `fuzz_ab.py`'s own check `deterministic: yes`.
+
+#### RE-7 — leaving the game (CR 800.4a–e, 800.4c, 800.4m) — ✅ landed 2026-09-13
+
+*Evicted 2026-09-13 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+**Builds:** the rest of decision 5's N-player half, inside `PlayerLoses`'
+performer as CR 800.4a says — "this is not a state-based action. It happens as
+soon as the player leaves the game." In the rule's own order: every object the
+player owns leaves the game (removed from hand, library, graveyard, exile,
+command zone, battlefield and stack, one `GameEvent::LeftTheGame { object }`
+each — not a zone change, CR 400.11: outside the game is not a zone); every
+control-changing row in that player's favour ends (a Layer 2 row keyed by the
+departed controller, `ContinuousEffect.controller`); their stack objects not
+represented by cards cease to exist; and anything they still control is exiled
+through `change_zone` with a new `ZoneChangeCause::ControllerLeftTheGame`,
+which no catchall may absorb. 800.4b and 800.4d are refusals at
+`propose_entry`, `CreateTokens`' performer and Layer 2's control change for a
+departed player; 800.4e is a refusal at combat damage assignment; 800.4m sets
+each "until that player's next turn" duration to expire when that turn would
+have begun, on all three duration registries. 800.4c — a control effect ending
+with no default controller left — is main item 9's revert and lands here as
+its own arm. **Consumer:** Act of Treason, which is in the pool, both ways
+round — the thief loses and the stolen creature goes home (800.4a's second
+clause); the owner loses and the creature the thief still controls leaves the
+game (first clause) — plus `setup_game(4)` tests for each clause and the
+four-player fuzz run RE-6 opened, whose "permanents that stay" row this PR
+zeroes. No cards.
+
+**`PERFORMANCE_POOL`: no change.** The measurement is the four-player table:
+RE-6's starting point against this PR's, and CPU on the two-player pools
+byte-identical, since nothing here runs before a third player exists.
+
+**Atoms:** `ATOM-800.4a-001`, `ATOM-800.4a-002`, `ATOM-800.4b-001`,
+`ATOM-800.4c-001`, `ATOM-800.4d-001`, `ATOM-800.4e-001` (all Phase 9, covered
+where they are); `COMP-800-PLAYER-LEAVES-COMMANDER-001` as `COVERS-PARTIAL`
+until commander damage exists; `ATOM-800.4j-001` completes. **800.4m and
+800.4k have no atom** — session-10 deferred both as "edge-case resolution
+policies" whose prerequisites had not landed — so this PR files
+`ATOM-800.4m-001` in `session-10.md` and covers it, the way RE-10's exit
+criterion files CR 500.8's.
+
+##### Decided before writing, because the section left four open
+
+**1. "Leaves the game" is a performer, not a proposal, and its emitter is a
+second function.** CR 400.11 — outside the game is not a zone — so an owned
+object leaving is not a `ZoneChange`, and there is no destination to give one.
+It is also not a `GameAction`: §3.2b's growth contract asks which CR rule
+permits a new arm, and no printed card says "would leave the game", so an arm
+here is one `EventPattern` nothing could ever match — "worse than a missing
+one". The removal therefore lives **inside the `PlayerLoses` performer**, which
+is one of `perform_action`'s own arms and so satisfies the chokepoint invariant
+as written; the precedent is CR 704.5d's token sweep and CR 608.2n's ability,
+both of which remove an object with no zone change and no proposal.
+`GameState::remove_from_game` is the performer — `cleanup_zone_state`, the
+zone collection, `remove_object` — and `GameEvent::LeftTheGame { object, owner,
+from }` is the emitter, kept apart for the reason `move_object` and
+`announce_zone_change` are. Clause 4's exile *is* a zone change and goes
+through `change_zone` with a new `ZoneChangeCause::ControllerLeftTheGame`; it
+is a result of the departure, so its nested batch joins the enclosing one
+(§4.2's default).
+
+**No LKI frame on `LeftTheGame`, and the question is recorded rather than
+answered.** Whether a "leaves the battlefield" trigger fires when a permanent
+leaves the *game* is item 6's, and the CR does not say in one sentence; the
+frame costs a layer walk per permanent at the moment a game ends, which at two
+seats is the loser's whole board. The field is two lines the day a trigger
+wants it. → `codebase-state.md`, "Before Triggered abilities".
+
+**2. The batch-order hazard: the losses go last, and the rule generalises.**
+CR 704.3 decides every member against one board and then performs them in batch
+order; the performers are loud about the board they find. A `PlayerLoses`
+member is the only one that *removes other members' subjects* — a creature
+owned by the departing player that is dying in the same check is both a
+`Destroy` member and, a moment later, an object that has left the game. So the
+losses are gathered into their own vector and appended after the 704.5f–m
+sweeps and the 704.6d moves: **a member that removes objects performs after the
+members that were decided against them.** The subject-keyed dedupe is
+indifferent (a loss's subject is a player and a death's is an object), CR
+order among the losses themselves is preserved because they are gathered in it,
+and the simultaneity the rule asserts is untouched — only the log's order
+moves. The two alternatives were rejected on the invariants: a removal
+"tolerant" of members already decided makes `perform_zone_change` quiet, which
+is the opposite of "performers are loud"; and deferring the leave past phase 3
+contradicts 800.4a's own "as soon as the player leaves the game" and would run
+the riders against a board the departure should already have emptied.
+
+**3. 800.4m expires at the turn boundary that skips the seat, and the site is
+`next_turn_taker`.** "Until that player's next turn" is read by
+`remove_expired_at_turn_start`, which `on_turn_begin` calls for the turn that
+began — and a departed player's turn never begins, so the row would last
+indefinitely, which 800.4m forbids in as many words. The moment the turn *would
+have begun* is the moment the rotation passes the seat, and that moment already
+has a function: `next_turn_taker`, which consumes what it reads and is where
+RE-1 put 800.4k. Each seat it skips for `player_lost` expires that player's rows
+at `turn_number + 1` — the number the turn would have carried — on all three
+registries, and the queue half gets the same treatment because a queued extra
+turn is a turn of theirs that would have begun. Idempotent, so the second
+rotation past the same seat finds nothing. 800.4m's other half — "or until a
+specific point in that turn" — has no rows: step- and phase-scoped durations are
+`backlog.md` §2.12's and arrive with their first consumer.
+
+**Two definitions, not three.** §9's row says `remove_expired_at_turn_start`
+**3**; RS-0 made `ReplacementEffectRegistry` an alias of `DurationRegistry`, so
+the three registries share two definitions and one of them is generic.
+
+**4. A departed player's stack objects cease to exist through `remove_object`,
+silently, and clause 3 is the residual clause 1 leaves.** CR 800.4a's third
+sentence is scoped to objects the player *controlled* that are not represented
+by cards — in this engine, an ability on the stack, whose `GameObject.owner` is
+its activator, so clause 1 has already taken every one of them by the time
+clause 3 looks. It is written anyway, keyed on `stack_entries`' controller, for
+eight lines: it is the CR's own sentence, its customer is a copy of a spell
+(CV-3, `is_copy` with an owner that is not its controller), and the alternative
+is a ledger entry longer than the code, which is what the ledger's head now
+forbids. It emits **no event**: an ability ceasing to exist is announced nowhere
+in this engine — CR 608.2n's is silent and CR 701.6b's is announced as the
+*countering* — and nothing printed watches one. Clause 1's `LeftTheGame` is
+what the log carries today, because clause 1 is what removes them.
+
+##### As landed (2026-09-13)
+
+**Built as designed, with one correction that changes the phase's scope
+sentence.** CR 800.1 — "a multiplayer game is a game that begins with more than
+two players" — is the gate on every rule here, and without it §9's "byte-identical
+on both two-player pools, by construction" was a claim about the code rather
+than about the rules. `GameState::is_multiplayer` reads the seat count the game
+*began* with, so a four-player game down to two keeps CR 800.4; three RE-6
+tests found the omission the first time the performer ran (§11 item 68).
+
+**`engine/leaving.rs` is the new module**, and CR 800.4's own sentences are its
+functions: `owned_objects_leave`, `end_control_given_to`,
+`uncarded_stack_objects_cease`, `exile_objects_no_player_in_game_controls`.
+CR 800.4f–i and CR 802 are named in its header as the neighbours that are not
+here, because "Before Commander" item 4 is where they live and a reader arriving
+at this file will look for them.
+
+**Four things the section left open, decided before the code and unchanged by
+it** — the chokepoint shape, the batch order, 800.4m's moment, and what a
+departed player's stack objects go through. They are written out above, under
+"Decided before writing"; §11 items 68–72 are what building it added.
+
+**Three small wrong answers fixed here rather than recorded**, on the ledger's
+own rule:
+
+- **CR 608.2n's tail assumed its own object survives the resolution.** A spell
+  whose owner leaves during its own resolution is gone from `objects`, and
+  `resolve_taken` turned that into an error rather than into CR 608.2m's "it
+  will continue to resolve fully". Six lines and a fixture (§11 item 71).
+- **`fuzz_ab.py` could not read the row this PR exists to zero.** RE-6 added
+  "Turns after a departure" and "Departed-owned permanents" to `fuzz_games` and
+  not to the script that diffs two of its runs (§11 item 72).
+- **`ATOM-800.4c-001`'s board could not reach its own rule**, which is a corpus
+  defect rather than an engine one and is corrected in `session-10.md` with the
+  reason (§11 item 70).
+
+**Counted against the tree before writing, and the row was one short.** It
+predicted "the five zone collections + the stack **6** sweeps"; there are
+**seven** collections — `PlayerState::{library, hand, graveyard}` and
+`GameState::{battlefield, stack, exile, command}` — and clause 1 is one loop
+over all of them rather than six. `propose_entry` had the two callers the
+prompt verified; `remove_expired_at_turn_start` had two definitions and not
+three, RS-0 having made the replacement registry an alias.
+
+**Sized 800–950, read as 900–1,200 at the prompt, and shipped +1,325 / −26**
+(docs excluded): engine **507** against ~400 — of which 281 is the new module
+and 55 its own unit tests — and tests **818** against ~450. Over the corrected
+read's top by about a tenth, and the column that ran over is the one RE-3 and
+RE-6 both named: the rule has four clauses, three refusals, two moments and a
+scope, and each wants a board plus the control board that says the rule is
+doing the work. No cards, as the row said.
+
+**Decided here, because building it asked.**
+
+- **Clause 1 reads the zone collections, never `objects`.** The log records one
+  `LeftTheGame` per object, so the order is observable, and `GameState::objects`
+  is a `HashMap`. The collections are the same set in a deterministic order —
+  `battlefield_ids_ordered` for the board, the `Vec`s for the rest — and the
+  order among the seven is this engine's rather than the CR's, which names none.
+- **Clause 4 and CR 800.4c are one predicate.** Both reduce to "the effective
+  controller is not in the game": 800.4a asks it at the departure, 800.4c at the
+  moment a control-changing effect ends. 800.4c's third condition — "there is no
+  other effect giving control of that object to another player in the game" — is
+  the layer walk's own answer rather than a second test, because the effective
+  controller *is* the top Layer 2 row's. The sweep is free while everyone is
+  still playing, which is every two-player game and every four-player one before
+  its first departure.
+- **Clause 2's residual is the resolution's row, and that is why it is small.**
+  A Layer 2 row from a static ability dies with its source, and clauses 1 and 4
+  have just taken every source the departing player owned or controlled, so
+  `cleanup_zone_state`'s `remove_by_source` ends those. What is left is Act of
+  Treason's: a row whose source is a sorcery in a graveyard that nothing will
+  disturb. `PlayerRef::Owner` and `Opponent` name no single beneficiary a row can
+  be judged by and are left alone; they need nothing, because a creature the
+  departing player owns left with clause 1 and one they merely control is exiled
+  by clause 4.
+- **`LeftTheGame` carries no CR 603.10a frame.** Whether a leaves-the-battlefield
+  ability triggers when a permanent leaves the *game* is CR 603's question and
+  the rules do not answer it in one sentence; the frame costs a layer walk per
+  permanent at the moment a player leaves. Recorded as `codebase-state.md`,
+  "Before Triggered abilities" item 6, with the ten-line fix if the answer turns
+  out to be yes.
+
+**Glossary triage** (`check_glossary.py --suggest`): no coinage. The words this
+phase adds are the CR's own — *leaves the game*, *ceases to exist*, *default
+controller*, *multiplayer* — and each already resolves to a rule number in the
+source it appears in. RE-3's outcome and RE-6's, a third time.
+
+##### Measured (2026-09-13)
+
+**The row this PR exists to zero is zero: "Departed-owned permanents" 32.2 →
+0.0 on `performance` and 34.2 → 0.0 on `stress`**, 200 games / seed 12345 at
+four seats, and 32.7/32.8 → 0.0/0.0 on the 50-game fixture table. Zero errors
+and zero panics on both pools, both arms.
+
+**Both two-player pools are `IDENTICAL` outside `=== Timing ===`, which is the
+first RE phase since RE-3 to manage it** and the first whose reason is a rule
+rather than a gate: CR 800.1 puts the whole section out of scope at two seats
+(`--rounds 0 --no-fixtures`, 200 games / seed 12345, both pools). Three shell
+`fuzz_games` runs at one seed and `--players 4` are line-for-line identical
+outside `=== Timing ===` on both pools, and `fuzz_ab.py` reads `deterministic:
+yes` in both arms.
+
+**Every four-player engine-work row moves, and one number says why:
+`Frames/walk` 21.22 → 18.08.** `Layer walks` is flat (802 → 805) — the memo
+misses are the same — and what got cheaper is each miss, because a walk since
+LI-1 fills the whole working set and the working set is a board that is now
+about 32 permanents smaller. `Memo hits` 212,676 → 187,526 (−11.8%),
+`Layer frames` 17,019 → 14,556 (−14.5%), `Dependency checks` 307 → 157.
+**CPU/game median 58.87 → 48.00 ms (−18.5%)**, `ms / 1,000 walks` −18.8%,
+`CPU/turn p50` 0.740 → 0.680 — which is not a speed-up the engine earned but a
+board it stopped carrying, and it is the size of item 108's cost. The
+proposal rows are flat as predicted, `Replacement gathers` 2104 → 2102 and
+`Restriction queries` 2107 → 2107: this PR adds no proposal.
+
+**The gameplay rows move because the games are different**, and only one of them
+is an engine reading: `Avg turns` 61.2 → 61.0 and `Total damage` 156.1 → 152.3
+are a game whose departed players stopped blocking and attacking, and the seat
+win shares move with them (87/63/36/14 → 95/58/34/13). Read them as "the same
+harness on a different board", never as a delta.
+
+**Both of `stress`'s outliers resolved, and reading them first was the check.**
+`Hit turn limit` **1 → 0**: seed 12413 ran to its 200th turn with **99
+departed-owned permanents** on the board, three seats' worth of creatures that
+no player controlled still blocking; it now ends at turn 196 with a win.
+`Draw` **1 → 0**: seed 12492's CR 104.4a draw at turn 46 is gone, and it is a
+game that diverged rather than a rule that changed — with the departed players'
+boards removed it ends at turn 43 with a win for P0, four combats earlier than
+the double-lethal it used to reach. **And `Wins by effect` 0 → 1**, which is
+RE-6's "games ended by a win: zero" losing its zero: seed 12410 is Thought
+Reflection beside Laboratory Maniac in a draw step, the first inner taking the
+last card and the second replaced by the win — RE-6's
+`thought_reflection_beside_laboratory_maniac_asks_nothing_and_the_second_card_is_the_win`
+reached in a measured game.
+
+**`PERFORMANCE_POOL` unchanged at 81, as the section said**, and both arms print
+`Card pool: performance (81 cards)`. No `--require` row: this PR registers no
+card, and the path it opens is walked unforced in every four-player game with a
+departure, which the "Turns after a departure" row of 20.8 says is most of them.
+
+### Trace-page decisions — the phases that produced a candidate and declined it
+
+*Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*
+
+**RE-3: no**, decided at its close (2026-09-12) and recorded because the phase
+did produce a candidate. Generalising the CR 616.1 suppression premise from a
+list of pattern kinds to `EventPattern::reads_the_amount` looks like §7's rule
+— "how a read is answered" — and is not: the same predicate asks the same
+question at the same point in the same loop, and what changed is where the
+answer is *written down*. Nothing reads differently, no board takes a path it
+did not take, and the two boards worth walking (two Faithmenders, and the
+Archive beside Tainted Remedy) are a product and a two-branch prompt that two
+tests state completely.
+
+**RE-6: no**, decided at its close (2026-09-12), and the section's own
+sentence — "the sweep's shape changes" — was the candidate. It changes what is
+*proposed* (four writes become four members) and not how any read is answered:
+the loss goes through the same CR 616.1 loop every other kind does, the
+subject-keyed dedupe is RA-3's with a second key type, and the settlement is
+a read of `player_lost` after a batch. The two boards a page would walk — a
+loss for two reasons replaced once, and four losses with one replaced settling
+the survivor's win before the rider — are each one test with one assertion
+that a trace would only narrate.
+
+**RE-7: no**, decided at its close (2026-09-13), and the candidate was real
+enough to be worth the paragraph. CR 800.4a changes what the board *is* in the
+middle of a batch, and §7's rule is about a phase that changes how a **read** is
+answered — which this does not: every read afterwards asks the same question of
+the same accessor and gets a smaller board, which is a board and not a path.
+The one seam a page would have walked is the batch-order rule (§11 item 69), and
+that is a five-line change with a two-assertion test —
+`a_creature_dying_in_the_same_check_is_destroyed_and_then_leaves_the_game` names
+the order in the log — where the trace would only narrate it. The page this
+phase *would* deserve is the one CR 800.4c wants: a permanent through three
+controllers and two departures, with the layer walk's answer at each step. It
+has one customer, no printed card, and a fixture board; when CV-3 or Bribery
+gives it a second, it is worth writing then.

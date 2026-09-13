@@ -309,6 +309,14 @@ that looks live.
 rule. Routing a sweep through the chokepoint makes its order observable, so it
 needs `battlefield_ids_ordered` even where the old direct-write loop did not.
 
+**departed** / **departing** — a player who has left the game (CR 104.5), and
+the objects and effects that were theirs. The CR's own phrase is "a player who
+has left the game"; this is the adjective form, and it is the word `fuzz_games`
+already prints in "Departed-owned permanents". **It says nothing about *why***
+— every loss is a departure, and so is a concession — and it is scoped by
+CR 800.1: at two seats a departure ends the game, so nothing is ever *about* a
+departed player there. → `engine/leaving.rs`; `GameState::is_multiplayer`.
+
 **atom** — one atomic test in the spec corpus: a single checkable claim read off
 the CR, with an id like `ATOM-614.9-001`. Tests claim atoms with `// COVERS:` at
 write time, and a phase does not close until `specdb.py`'s `owed` is clean for

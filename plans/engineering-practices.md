@@ -969,6 +969,74 @@ twice as long, so the turn is twice as expensive, which is the board being
 twice as wide; `stress` avg turns 66.3, 80/57/49/13 and one draw, 22.8 and
 34.2, gathers 2502.
 
+**Re-recorded 2026-09-13 for RE-7** (CR 800.4a; `replacement-architecture.md`
+§9). `PERFORMANCE_POOL` unchanged at 81 and the stress pool at 133 — RE-7
+registers no card — so unlike every re-record above, **this whole table is an
+engine reading and not a pool one**, and it is the first four-player diff the
+project has taken.
+
+**The row it exists to move: "Departed-owned permanents" 32.2 → 0.0 and
+34.2 → 0.0** at 200 games, 32.7/32.8 → 0.0/0.0 at the 50 below.
+`codebase-state.md` item 108 closed with it. **Every engine-work row moves and
+one number says why: `Frames/walk` 21.22 → 18.08.** `Layer walks` is flat
+(802 → 805) — the memo misses are the same — and each miss got cheaper, because
+a walk fills the whole working set (LI-1) and the working set is a board about
+32 permanents smaller. `Memo hits` −11.8%, `Layer frames` −14.5%,
+`Dependency checks` 307 → 157; CPU/game median 58.87 → 48.00 ms (**−18.5%**),
+`ms / 1,000 walks` −18.8%, `CPU/turn p50` 0.740 → 0.680. **That is not a
+speed-up the engine earned**; it is a board it stopped carrying, and it is the
+size of what item 108 was costing every four-player number measured before it.
+`Replacement gathers` 2104 → 2102 and `Restriction queries` 2107 → 2107 — flat,
+as predicted: this PR adds no proposal. **Both two-player pools are
+`IDENTICAL` outside `=== Timing ===`**, which is CR 800.1's doing rather than a
+gate's: the section is about what two-player games cannot do.
+
+**The gameplay rows below are a different board, not a delta** — the departed
+players' creatures stopped blocking and attacking — so `Avg turns`, `Total
+damage` and the seat shares moved and should be read as a fresh fixture.
+**Both of `stress`'s outliers resolved, and reading them before the averages
+is what found them**: `Hit turn limit` 1 → 0 (seed 12413 ran to turn 200 with
+**99** departed-owned permanents on the board and now ends at 196), `Draw`
+1 → 0 (seed 12492's CR 104.4a draw is a game that diverged, not a rule that
+changed: with three seats' boards gone it ends at turn 43 instead of 46), and
+**`Wins by effect` 0 → 1** — seed 12410 is Thought Reflection beside Laboratory
+Maniac in a draw step, the first card the last in the library and the second
+replaced by the win. RE-6's "games ended by a win: zero on every table" loses
+its zero here. Zero errors and zero panics on both pools, both arms; three
+shell runs at one seed and `--players 4` identical outside `=== Timing ===`.
+
+| 4 players, 50 games / seed 12345 | performance (81 cards) | stress (133 cards) |
+|---|---|---|
+| Wins by seat | 27 (54%) / 9 (18%) / 10 (20%) / 4 (8%) | 26 (52%) / 15 (30%) / 6 (12%) / 3 (6%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 63.8 | 62.7 |
+| Spells cast | 47.2 | 45.0 |
+| Lands played | 37.9 | 36.4 |
+| Combat w/ atk | 26.5 | 23.7 |
+| Creatures died | 16.3 | 9.2 |
+| Damage events | 56.5 | 51.4 |
+| Total damage | 162.2 | 138.2 |
+| Life changes | 39.0 | 34.5 |
+| Turns after a departure | 23.9 | 20.0 |
+| **Departed-owned permanents** | **0.0** | **0.0** |
+| **Layer walks** | **865** | **1,078** |
+| **Board walks** | **535** | **567** |
+| **Memo hits** | **201,330** | **224,139** |
+| **Layer frames** | **16,128** | **16,848** |
+| **Frames/walk** | **18.65** | **15.62** |
+| **Dependency checks** | **123** | **136** |
+| **Replacement gathers** | **2238** | **2220** |
+| **Restriction queries** | **2243** | **2226** |
+| Prevention allocations | 0.00 | 0.02 |
+
+At 200 games the same run reads: `performance` avg turns 61.0, wins by seat
+95/58/34/13, turns after a departure 20.8, departed-owned permanents 0.0,
+gathers 2102, CPU/game median 48.00 ms with `CPU/turn p50` 0.68 ms — so a
+four-player game now costs about three times a two-player one rather than four
+and a half, and the turn is 1.6 times as expensive rather than twice;
+`stress` avg turns 66.2, 91/53/41/14 and one win by effect, 22.6 and 0.0,
+gathers 2517.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
