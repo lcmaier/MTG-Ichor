@@ -64,6 +64,10 @@ ROWS = [
     ("Damage events", r"^\s+Damage events:\s+([\d.]+)"),
     ("Total damage", r"^\s+Total damage:\s+([\d.]+)"),
     ("Life changes", r"^\s+Life changes:\s+([\d.]+)"),
+    # Printed by `fuzz_games` only above two seats, so absent from every
+    # two-player run and skipped rather than shown as "?" — see OPTIONAL_ROWS.
+    ("Turns after a departure", r"^\s+Turns after a departure:\s+([\d.]+)"),
+    ("Departed-owned permanents", r"^\s+Departed-owned permanents:\s+([\d.]+)"),
     ("Layer walks", r"^\s+Layer walks:\s+(\d+)"),
     ("Board walks", r"^\s+Board walks:\s+(\d+)"),
     ("Memo hits", r"^\s+Memo hits:\s+(\d+)"),
@@ -75,6 +79,11 @@ ROWS = [
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
 ]
 THRESHOLDS = ["Errors", "Panics", "Uncast resolved", "Hit turn limit"]
+# Rows a two-player run does not print at all. Dropped from a table where no
+# arm has them, and shown wherever one does — **by name, not by "every value
+# is '?'"**: a row that vanished because the harness stopped printing it is a
+# regression, and only these two are legitimately absent.
+OPTIONAL_ROWS = {"Turns after a departure", "Departed-owned permanents"}
 # The §3 table's rows, in its order; the four thresholds stay out of it.
 FIXTURE_ROWS = [r for r, _ in ROWS if r not in THRESHOLDS and r != "Max turns"]
 BOLD = {"Layer walks", "Board walks", "Memo hits", "Layer frames", "Frames/walk", "Dependency checks", "Replacement gathers", "Restriction queries"}
@@ -143,9 +152,11 @@ def fmt(name, value):
 def table(title, arms, rows_by_arm, rows):
     width = max(len(a) for a in arms) + 2
     print(f"\n{title}")
-    print(f"{'':<22}" + "".join(f"{a:>{max(width, 18)}}" for a in arms))
+    print(f"{'':<26}" + "".join(f"{a:>{max(width, 18)}}" for a in arms))
     for name in rows:
-        print(f"{name:<22}" + "".join(f"{fmt(name, rows_by_arm[a][name]):>{max(width, 18)}}" for a in arms))
+        if name in OPTIONAL_ROWS and all(rows_by_arm[a][name] == "?" for a in arms):
+            continue
+        print(f"{name:<26}" + "".join(f"{fmt(name, rows_by_arm[a][name]):>{max(width, 18)}}" for a in arms))
 
 
 def main():
