@@ -3794,7 +3794,89 @@ byte-identical, since nothing here runs before a third player exists.
 **Atoms:** `ATOM-800.4a-001`, `ATOM-800.4a-002`, `ATOM-800.4b-001`,
 `ATOM-800.4c-001`, `ATOM-800.4d-001`, `ATOM-800.4e-001` (all Phase 9, covered
 where they are); `COMP-800-PLAYER-LEAVES-COMMANDER-001` as `COVERS-PARTIAL`
-until commander damage exists; `ATOM-800.4j-001` completes.
+until commander damage exists; `ATOM-800.4j-001` completes. **800.4m and
+800.4k have no atom** — session-10 deferred both as "edge-case resolution
+policies" whose prerequisites had not landed — so this PR files
+`ATOM-800.4m-001` in `session-10.md` and covers it, the way RE-10's exit
+criterion files CR 500.8's.
+
+##### Decided before writing, because the section left four open
+
+**1. "Leaves the game" is a performer, not a proposal, and its emitter is a
+second function.** CR 400.11 — outside the game is not a zone — so an owned
+object leaving is not a `ZoneChange`, and there is no destination to give one.
+It is also not a `GameAction`: §3.2b's growth contract asks which CR rule
+permits a new arm, and no printed card says "would leave the game", so an arm
+here is one `EventPattern` nothing could ever match — "worse than a missing
+one". The removal therefore lives **inside the `PlayerLoses` performer**, which
+is one of `perform_action`'s own arms and so satisfies the chokepoint invariant
+as written; the precedent is CR 704.5d's token sweep and CR 608.2n's ability,
+both of which remove an object with no zone change and no proposal.
+`GameState::remove_from_game` is the performer — `cleanup_zone_state`, the
+zone collection, `remove_object` — and `GameEvent::LeftTheGame { object, owner,
+from }` is the emitter, kept apart for the reason `move_object` and
+`announce_zone_change` are. Clause 4's exile *is* a zone change and goes
+through `change_zone` with a new `ZoneChangeCause::ControllerLeftTheGame`; it
+is a result of the departure, so its nested batch joins the enclosing one
+(§4.2's default).
+
+**No LKI frame on `LeftTheGame`, and the question is recorded rather than
+answered.** Whether a "leaves the battlefield" trigger fires when a permanent
+leaves the *game* is item 6's, and the CR does not say in one sentence; the
+frame costs a layer walk per permanent at the moment a game ends, which at two
+seats is the loser's whole board. The field is two lines the day a trigger
+wants it. → `codebase-state.md`, "Before Triggered abilities".
+
+**2. The batch-order hazard: the losses go last, and the rule generalises.**
+CR 704.3 decides every member against one board and then performs them in batch
+order; the performers are loud about the board they find. A `PlayerLoses`
+member is the only one that *removes other members' subjects* — a creature
+owned by the departing player that is dying in the same check is both a
+`Destroy` member and, a moment later, an object that has left the game. So the
+losses are gathered into their own vector and appended after the 704.5f–m
+sweeps and the 704.6d moves: **a member that removes objects performs after the
+members that were decided against them.** The subject-keyed dedupe is
+indifferent (a loss's subject is a player and a death's is an object), CR
+order among the losses themselves is preserved because they are gathered in it,
+and the simultaneity the rule asserts is untouched — only the log's order
+moves. The two alternatives were rejected on the invariants: a removal
+"tolerant" of members already decided makes `perform_zone_change` quiet, which
+is the opposite of "performers are loud"; and deferring the leave past phase 3
+contradicts 800.4a's own "as soon as the player leaves the game" and would run
+the riders against a board the departure should already have emptied.
+
+**3. 800.4m expires at the turn boundary that skips the seat, and the site is
+`next_turn_taker`.** "Until that player's next turn" is read by
+`remove_expired_at_turn_start`, which `on_turn_begin` calls for the turn that
+began — and a departed player's turn never begins, so the row would last
+indefinitely, which 800.4m forbids in as many words. The moment the turn *would
+have begun* is the moment the rotation passes the seat, and that moment already
+has a function: `next_turn_taker`, which consumes what it reads and is where
+RE-1 put 800.4k. Each seat it skips for `player_lost` expires that player's rows
+at `turn_number + 1` — the number the turn would have carried — on all three
+registries, and the queue half gets the same treatment because a queued extra
+turn is a turn of theirs that would have begun. Idempotent, so the second
+rotation past the same seat finds nothing. 800.4m's other half — "or until a
+specific point in that turn" — has no rows: step- and phase-scoped durations are
+`backlog.md` §2.12's and arrive with their first consumer.
+
+**Two definitions, not three.** §9's row says `remove_expired_at_turn_start`
+**3**; RS-0 made `ReplacementEffectRegistry` an alias of `DurationRegistry`, so
+the three registries share two definitions and one of them is generic.
+
+**4. A departed player's stack objects cease to exist through `remove_object`,
+silently, and clause 3 is the residual clause 1 leaves.** CR 800.4a's third
+sentence is scoped to objects the player *controlled* that are not represented
+by cards — in this engine, an ability on the stack, whose `GameObject.owner` is
+its activator, so clause 1 has already taken every one of them by the time
+clause 3 looks. It is written anyway, keyed on `stack_entries`' controller, for
+eight lines: it is the CR's own sentence, its customer is a copy of a spell
+(CV-3, `is_copy` with an owner that is not its controller), and the alternative
+is a ledger entry longer than the code, which is what the ledger's head now
+forbids. It emits **no event**: an ability ceasing to exist is announced nowhere
+in this engine — CR 608.2n's is silent and CR 701.6b's is announced as the
+*countering* — and nothing printed watches one. Clause 1's `LeftTheGame` is
+what the log carries today, because clause 1 is what removes them.
 
 #### RE-8 — the producers (CR 701.9, 701.9b, 701.22)
 
