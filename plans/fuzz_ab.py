@@ -78,14 +78,30 @@ ROWS = [
     ("Restriction queries", r"^\s+Restriction queries:\s+(\d+)"),
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
 ]
-THRESHOLDS = ["Errors", "Panics", "Uncast resolved", "Hit turn limit"]
+# Rows that must read zero, flagged loudly when they do not. The fuzz harness
+# asserts nothing, so a row pinned at zero is the only way a 200-game run can
+# fail rather than merely print — which is why a *fixed* bug keeps its row:
+# "Uncast resolved" has read 0 since item 16c, and "Departed-owned permanents"
+# has read 0 since RE-7. A regression in either is a line here, not a diff
+# somebody has to notice.
+ZERO_ROWS = [
+    "Errors", "Panics", "Uncast resolved", "Hit turn limit",
+    "Departed-owned permanents",
+]
+# What stays out of `engineering-practices.md` §3's fixture table: the four
+# process rows, which are about the run rather than about the game.
+# **Not the same list as `ZERO_ROWS` any more**, and they were one list only
+# because they happened to coincide until RE-7: a row can be a threshold *and*
+# a number the table records, and "Departed-owned permanents" is both — its
+# 32.2 → 0.0 is the record of a fix and its 0.0 is the guard on it.
+FIXTURE_EXCLUDE = ["Errors", "Panics", "Uncast resolved", "Hit turn limit", "Max turns"]
 # Rows a two-player run does not print at all. Dropped from a table where no
 # arm has them, and shown wherever one does — **by name, not by "every value
 # is '?'"**: a row that vanished because the harness stopped printing it is a
 # regression, and only these two are legitimately absent.
 OPTIONAL_ROWS = {"Turns after a departure", "Departed-owned permanents"}
-# The §3 table's rows, in its order; the four thresholds stay out of it.
-FIXTURE_ROWS = [r for r, _ in ROWS if r not in THRESHOLDS and r != "Max turns"]
+# The §3 table's rows, in its order.
+FIXTURE_ROWS = [r for r, _ in ROWS if r not in FIXTURE_EXCLUDE]
 BOLD = {"Layer walks", "Board walks", "Memo hits", "Layer frames", "Frames/walk", "Dependency checks", "Replacement gathers", "Restriction queries"}
 
 
@@ -206,7 +222,11 @@ def main():
             same = counted[(a, pool)][1] == base
             print(f"  {a} vs {labels[0]} outside Timing: {'IDENTICAL' if same else 'differ'}")
         for a in labels:
-            bad = [t for t in THRESHOLDS if counted[(a, pool)][0][t] not in ("0", "?")]
+            # "0.0" as readily as "0": the two-seat-only rows are averages.
+            bad = [
+                t for t in ZERO_ROWS
+                if counted[(a, pool)][0][t] not in ("0", "0.0", "?")
+            ]
             if bad:
                 print(f"  !! {a}: {', '.join(bad)} nonzero")
 

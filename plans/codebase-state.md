@@ -5362,24 +5362,25 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    `lki` frame, retiring the three ad-hoc reads, ~100–150 lines, inside
    critical-path item 6.
 
-6. **Does a leaves-the-battlefield ability trigger when a permanent leaves the
-   *game*?** CR 800.4a takes the permanent off the battlefield and out of the
-   game in one step, and no sentence in CR 603 or CR 800.4 answers whether that
-   is the "leaves the battlefield" the trigger condition names; CR 800.4d
-   answers only the departed player's *own* triggers, which are not put onto
-   the stack. RE-7 left `GameEvent::LeftTheGame` without the CR 603.10a frame
-   on that uncertainty, and the frame is what a matcher would need — so this is
-   a question the dispatcher has to answer before it can key anything on the
-   event.
+6. **CR 603.6c's *phased-in* qualifier has no implementation, and the matcher
+   will need it.** The rule names CR 800.4a's departure in as many words —
+   "leaves-the-battlefield abilities trigger when a permanent moves from the
+   battlefield to another zone, **or when a phased-in permanent leaves the game
+   because its owner leaves the game**" — so a `GameEvent::LeftTheGame` from
+   the battlefield fires them, and RE-7 puts the CR 603.10a frame on the event
+   for the matcher to read. What it cannot express is the qualifier: a permanent
+   that is **phased out** does not trigger, and phasing (CR 702.26) is not built
+   (this file, "Phasing (CR 702.26) — sized 2026-08-26, not started"). Every
+   permanent is phased in today, so the frame is unconditional and correct;
+   the day phasing lands it needs a condition, and the day the matcher lands it
+   needs to know that.
 
-   **Reachability (2026-09-13):** unreachable — no trigger matcher exists. The
-   event is emitted in every four-player game with a departure, so the day one
-   does, this is a wrong answer rather than a gap.
+   **Reachability (2026-09-13):** unreachable twice over — no trigger matcher
+   reads the event, and nothing can phase a permanent out. It stops being
+   unreachable when *either* lands, which is why the line names both.
 
-   **Sized:** one field and one `compute_characteristics_uncached` call in
-   `owned_objects_leave` if the answer is yes, ~10 lines; the cost is a layer
-   walk per permanent at the moment a player leaves, which is why it was not
-   paid speculatively.
+   **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
+   ~5 lines, inside whichever of the two arrives second.
 
 7. **CR 800.4d's second sentence has no site until the dispatcher exists.** "If
    a triggered ability that would be controlled by a player who has left the

@@ -189,6 +189,9 @@ impl GameState {
     /// knows. Idempotent, so the next rotation past the same seat finds
     /// nothing. Its other half — "or until a specific point in that turn" — has
     /// no rows: step- and phase-scoped durations are `backlog.md` §2.12's.
+    /// `turn_number + 1` is the number that turn would have carried: this runs
+    /// while the drainer is still deciding whose turn is next, so nothing has
+    /// advanced it yet.
     fn next_turn_taker(&mut self) -> Option<PlayerId> {
         while let Some(player) = self.turn_queue.pop() {
             if !self.player_lost[player] {
@@ -196,7 +199,7 @@ impl GameState {
             }
             // A queued extra turn is a turn of theirs too, and CR 500.7 puts
             // it at the same place in the rotation this one would have been.
-            self.expire_at_departed_turn(player);
+            self.expire_until_your_next_turn(player, self.turn_number + 1);
         }
         let n = self.num_players();
         for _ in 0..n {
@@ -204,18 +207,9 @@ impl GameState {
             if !self.player_lost[self.turn_rotation] {
                 return Some(self.turn_rotation);
             }
-            self.expire_at_departed_turn(self.turn_rotation);
+            self.expire_until_your_next_turn(self.turn_rotation, self.turn_number + 1);
         }
         None
-    }
-
-    /// CR 800.4m's expiry for `player`, whose turn would have begun now.
-    ///
-    /// The turn number is the one that turn would have carried — `turn_number`
-    /// has not advanced yet, because this runs while the drainer is still
-    /// deciding whose turn is next.
-    fn expire_at_departed_turn(&mut self, player: PlayerId) {
-        self.expire_until_your_next_turn(player, self.turn_number + 1);
     }
 
     /// Propose `phase`'s beginning; report whether it happened.

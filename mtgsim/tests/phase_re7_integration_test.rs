@@ -24,7 +24,8 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StackEntry, StepType};
 use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield,
-    put_on_battlefield_under, set_attacking, setup_game, test_ctx, test_dp, vanilla_creature,
+    put_on_battlefield_under, set_attacking, set_blocked_by, set_blocking, setup_game, test_ctx,
+    test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, EnchantmentType, Subtype};
 use mtgsim::types::effects::{
@@ -60,7 +61,9 @@ fn departures(game: &GameState) -> Vec<(ObjectId, PlayerId, Zone)> {
     game.events
         .events()
         .filter_map(|e| match e {
-            GameEvent::LeftTheGame { object_id, owner, from } => Some((*object_id, *owner, *from)),
+            GameEvent::LeftTheGame { object_id, owner, from, .. } => {
+                Some((*object_id, *owner, *from))
+            }
             _ => None,
         })
         .collect()
@@ -96,6 +99,17 @@ fn resolve_with(
 fn steal(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
     let effect = Effect::Atom(
         Primitive::GainControl(Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    resolve_with(game, thief, &effect, vec![ResolvedTarget::Object(creature)], &test_dp())
+}
+
+/// Aethersnatch's shape: a control-change effect with **no duration**, so
+/// nothing in CR 514.2's cleanup ends it and CR 800.4a's second clause is the
+/// only thing that can.
+fn steal_indefinitely(game: &mut GameState, creature: ObjectId, thief: PlayerId) -> ObjectId {
+    let effect = Effect::Atom(
+        Primitive::GainControl(Duration::Indefinite),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     resolve_with(game, thief, &effect, vec![ResolvedTarget::Object(creature)], &test_dp())
@@ -266,6 +280,56 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
         ]
     );
     assert!(departures(&game).iter().all(|&(_, owner, _)| owner == 1));
+
+    // CR 603.6c — "leaves-the-battlefield abilities trigger ... when a
+    // phased-in permanent leaves the game because its owner leaves the game" —
+    // so the CR 603.10a frame rides the event, and only for the permanent.
+    let frames: Vec<(Zone, bool)> = game
+        .events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::LeftTheGame { from, lki, .. } => Some((*from, lki.is_some())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(frames[0], (Zone::Battlefield, true), "the permanent carries its frame");
+    assert!(
+        frames[1..].iter().all(|&(_, has)| !has),
+        "and nothing else does: no other zone has a permanent to look back at"
+    );
+    let lki = game.events.events().find_map(|e| match e {
+        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == permanent => lki.as_ref(),
+        _ => None,
+    });
+    assert_eq!(lki.expect("a frame").power, Some(2), "and it is the permanent as it was");
+}
+
+/// CR 603.6c's frame is the *effective* one, not the printed card — the same
+/// claim `perform_zone_change`'s LKI makes, on the one event that is not a zone
+/// change. A departing player's creature under somebody else's Aura leaves the
+/// game as the creature the board had made it.
+#[test]
+fn the_frame_a_permanent_leaves_the_game_with_is_the_one_the_board_made() {
+    let mut game = setup_game(4);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let pump = Effect::Atom(
+        Primitive::ModifyPowerToughness(
+            AmountExpr::Fixed(3),
+            AmountExpr::Fixed(3),
+            Duration::UntilEndOfTurn,
+        ),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    resolve_with(&mut game, 0, &pump, vec![ResolvedTarget::Object(bears)], &test_dp());
+
+    departs(&mut game, 1, &test_dp());
+
+    let lki = game.events.events().find_map(|e| match e {
+        GameEvent::LeftTheGame { object_id, lki, .. } if *object_id == bears => lki.as_ref(),
+        _ => None,
+    });
+    let lki = lki.expect("a frame");
+    assert_eq!((lki.power, lki.toughness), (Some(5), Some(5)));
 }
 
 /// CR 800.4a's first example, second half: *"If, instead, Bianca leaves the
@@ -342,6 +406,49 @@ fn the_thief_leaving_ends_the_steal_and_the_creature_goes_home() {
     );
 }
 
+/// A control-change effect with **no duration** — Aethersnatch's — ends here
+/// and nowhere else, which is the case CR 800.4a's second clause exists for.
+/// Nothing in CR 514.2's cleanup would touch it, so if the departure did not
+/// end it the creature would stay stolen for the rest of the game.
+#[test]
+fn a_control_effect_with_no_duration_ends_when_the_player_it_favours_leaves() {
+    let mut game = setup_game(4);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    steal_indefinitely(&mut game, bears, 0);
+    assert_eq!(get_effective_controller(&game, bears), Some(0));
+
+    // A cleanup first, to show the duration really is the thing that does not
+    // end it.
+    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    advance(&mut game);
+    assert_eq!(game.phase.step, Some(StepType::Cleanup));
+    assert_eq!(get_effective_controller(&game, bears), Some(0), "no duration, nothing ended");
+
+    departs(&mut game, 0, &test_dp());
+
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield);
+    assert_eq!(get_effective_controller(&game, bears), Some(1));
+}
+
+/// The other half of the same rule, and the one a judge answer turns on: when
+/// the *default* controller leaves and the no-duration effect survives them,
+/// the thief keeps the creature. CR 800.4c never fires, because the effect
+/// that gives control never ends.
+#[test]
+fn a_no_duration_effect_keeps_the_creature_when_its_default_controller_leaves() {
+    let mut game = setup_game(4);
+    let bears = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 1, 0);
+    steal_indefinitely(&mut game, bears, 2);
+
+    departs(&mut game, 0, &test_dp());
+    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    advance(&mut game);
+    assert_eq!(game.phase.step, Some(StepType::Cleanup));
+
+    assert_eq!(game.get_object(bears).unwrap().zone, Zone::Battlefield);
+    assert_eq!(get_effective_controller(&game, bears), Some(2), "P2's effect never ended");
+}
+
 /// The same board with the *owner* leaving: the creature goes with them, and
 /// the thief keeps nothing (CR 800.4a's first clause again, through a
 /// resolution's row rather than an Aura's).
@@ -364,8 +471,9 @@ fn the_owner_leaving_takes_the_stolen_creature_with_them() {
 /// The residual clause 1 leaves: an object on the stack that is not a card and
 /// that the departing player controls without owning.
 ///
-/// Its printed customer is a copy of a spell (CR 707.10), which CV-3 will
-/// produce; today no production path separates an ability's owner from its
+/// Its printed customer is a copy of a spell (CR 707.10), which CV-4 will
+/// produce — `copy-effects-architecture.md` calls it "`is_copy`'s first
+/// writer"; today no production path separates an ability's owner from its
 /// controller, so clause 1 takes every one. What this pins is that the clause
 /// is wired — and that it announces nothing, because the object was never the
 /// departing player's to leave with.
@@ -568,6 +676,72 @@ fn combat_damage_is_not_assigned_to_a_player_who_has_left() {
     assert!(assignments.is_empty(), "CR 800.4e: that damage isn't assigned");
 }
 
+/// CR 800.4e stops the *player's* share and nothing else. A trampler whose
+/// defending player has left still assigns to its blocker: the rule is about
+/// the assignment to that player, and RE-7's `retain` is over the finished
+/// list rather than over the attacker.
+#[test]
+fn a_tramplers_blocker_still_takes_damage_when_the_defending_player_has_left() {
+    let mut game = setup_game(4);
+    let attacker = put_on_battlefield(
+        &mut game,
+        vanilla_creature(5, 5, &[mtgsim::types::keywords::KeywordFlag::Trample]),
+        0,
+    );
+    let blocker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 2);
+    set_attacking(&mut game, attacker, 1);
+    set_blocked_by(&mut game, attacker, vec![blocker]);
+    set_blocking(&mut game, blocker, vec![attacker]);
+    departs(&mut game, 1, &test_dp());
+
+    // The attacker's controller is still asked how to divide — CR 702.19b's
+    // "at least lethal to each blocker" is their choice and does not stop
+    // being one because the spill has nowhere to go.
+    let dp = RecordingDecisionProvider::picking(0);
+    let assignments =
+        mtgsim::engine::combat::resolution::assign_combat_damage(&game, &dp, 0, false);
+
+    let from_attacker: Vec<&DamageTarget> = assignments
+        .iter()
+        .filter(|a| a.source == attacker)
+        .map(|a| &a.target)
+        .collect();
+    assert_eq!(
+        from_attacker,
+        vec![&DamageTarget::Object(blocker)],
+        "the blocker's share stands and the player's is not assigned"
+    );
+    assert!(
+        assignments.iter().all(|a| !matches!(a.target, DamageTarget::Player(_))),
+        "CR 800.4e: nothing is assigned to a player who has left"
+    );
+}
+
+/// What actually happens when a player leaves after blockers are declared:
+/// their blockers leave the game with them (CR 800.4a), and CR 510.1c makes an
+/// attacker that was blocked and has no blockers left deal no damage at all —
+/// which is a *different* rule from 800.4e and is why that one needs the board
+/// above to be seen.
+#[test]
+fn a_blocked_attacker_whose_blockers_left_the_game_assigns_nothing() {
+    let mut game = setup_game(4);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
+    let blocker = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 2);
+    set_attacking(&mut game, attacker, 1);
+    set_blocked_by(&mut game, attacker, vec![blocker]);
+    set_blocking(&mut game, blocker, vec![attacker]);
+
+    departs(&mut game, 2, &test_dp());
+
+    assert!(game.objects.get(&blocker).is_none(), "the blocker left with its owner");
+    let assignments =
+        mtgsim::engine::combat::resolution::assign_combat_damage(&game, &test_dp(), 0, false);
+    assert!(
+        assignments.is_empty(),
+        "CR 510.1c: blocked, no blockers remaining, no trample"
+    );
+}
+
 /// The same attacker against a defending player still in the game, so the test
 /// above is about the rule and not about the fixture.
 #[test]
@@ -738,14 +912,25 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
 // CR 800.4a beside CR 903.10a — what a departure does not undo
 // ---------------------------------------------------------------------------
 
+/// **What this guards is a dangling key, not a rule.** CR 903.10a's tally is a
+/// `HashMap<ObjectId, u32>` on each damaged player, keyed by the *commander
+/// object* — and CR 800.4a has just deleted that object from the game. So the
+/// board asks whether CR 704.6c's check still reads the tallies of a commander
+/// that no longer exists, which it does only because the check reads
+/// `.values()` and never looks the key up. A future reader that resolves the
+/// key to a card — "you lost to Bianca's Gonti" in a log line, say — breaks
+/// here and nowhere else.
+///
+/// The composite's own framing ("no further commander damage can accumulate
+/// from it") is true by construction and would not be worth a test on its own:
+/// a player who has left cannot come back, and CR 800.4a took their commander
+/// with them.
 // COVERS-PARTIAL: COMP-800-PLAYER-LEAVES-COMMANDER-001
 //
 // The partial is the word *Commander*: there is no constructor for a Commander
 // game yet (`codebase-state.md`, "Before Commander" items 2 and 3), so the
 // board below is a four-player game with the CR 903.10a tallies written
-// directly rather than dealt. What the composite asks is asserted as it is
-// written — the tallies survive their source leaving the game, and neither
-// player is at 21.
+// directly rather than dealt.
 #[test]
 fn commander_damage_already_dealt_survives_its_dealer_leaving_the_game() {
     let mut game = setup_game(4);

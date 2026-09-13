@@ -2798,7 +2798,8 @@ by cards — in this engine, an ability on the stack, whose `GameObject.owner` i
 its activator, so clause 1 has already taken every one of them by the time
 clause 3 looks. It is written anyway, keyed on `stack_entries`' controller, for
 eight lines: it is the CR's own sentence, its customer is a copy of a spell
-(CV-3, `is_copy` with an owner that is not its controller), and the alternative
+(CV-4, `is_copy`'s first writer, with an owner that is not its controller),
+and the alternative
 is a ledger entry longer than the code, which is what the ledger's head now
 forbids. It emits **no event**: an ability ceasing to exist is announced nowhere
 in this engine — CR 608.2n's is silent and CR 701.6b's is announced as the
@@ -2849,13 +2850,17 @@ over all of them rather than six. `propose_entry` had the two callers the
 prompt verified; `remove_expired_at_turn_start` had two definitions and not
 three, RS-0 having made the replacement registry an alias.
 
-**Sized 800–950, read as 900–1,200 at the prompt, and shipped +1,325 / −26**
-(docs excluded): engine **507** against ~400 — of which 281 is the new module
-and 55 its own unit tests — and tests **818** against ~450. Over the corrected
-read's top by about a tenth, and the column that ran over is the one RE-3 and
-RE-6 both named: the rule has four clauses, three refusals, two moments and a
-scope, and each wants a board plus the control board that says the rule is
-doing the work. No cards, as the row said.
+**Sized 800–950, read as 900–1,200 at the prompt, and shipped +1,543 / −26**
+(docs excluded): engine **540** against ~400 — of which ~300 is the new module
+and 55 its own unit tests — and tests **1,003** against ~450. Over the
+corrected read's top by about a quarter, and the column that ran over is the one
+RE-3 and RE-6 both named: the rule has four clauses, three refusals, two moments
+and a scope, and each wants a board plus the control board that says the rule is
+doing the work. **The review added a third of the test column** — CR 603.6c's
+frame, the no-duration control effect both ways round, and the two combat boards
+that separate CR 800.4e from CR 510.1c — which is the sizing lesson rather than
+an overrun: this phase's unit is a *sentence of one rule*, and the row costed it
+by counting call sites. No cards, as the row said.
 
 **Decided here, because building it asked.**
 
@@ -2872,6 +2877,15 @@ doing the work. No cards, as the row said.
   controller *is* the top Layer 2 row's. The sweep is free while everyone is
   still playing, which is every two-player game and every four-player one before
   its first departure.
+- **Clause 2 does not consult a row's duration, and CR 110.2 is what lets it
+  just delete one.** CR 800.4a ends the effect whether or not it had a duration
+  — an Aethersnatch-shaped row, which nothing in CR 514.2's cleanup would touch,
+  ends here and nowhere else — and control falls back with nothing to undo
+  because CR 110.2's default is a value `PermanentState` *stores* (110.2b's
+  caster, main item 9). Both halves of the judge answer that prompted the check
+  are tests: the no-duration row ending when the player it favours leaves, and
+  the creature *staying* with the thief when its default controller leaves
+  instead, which is the board CR 800.4c can never fire on.
 - **Clause 2's residual is the resolution's row, and that is why it is small.**
   A Layer 2 row from a static ability dies with its source, and clauses 1 and 4
   have just taken every source the departing player owned or controlled, so
@@ -2881,12 +2895,15 @@ doing the work. No cards, as the row said.
   be judged by and are left alone; they need nothing, because a creature the
   departing player owns left with clause 1 and one they merely control is exiled
   by clause 4.
-- **`LeftTheGame` carries no CR 603.10a frame.** Whether a leaves-the-battlefield
-  ability triggers when a permanent leaves the *game* is CR 603's question and
-  the rules do not answer it in one sentence; the frame costs a layer walk per
-  permanent at the moment a player leaves. Recorded as `codebase-state.md`,
-  "Before Triggered abilities" item 6, with the ten-line fix if the answer turns
-  out to be yes.
+- **`LeftTheGame` carries the CR 603.10a frame, and CR 603.6c is why.** The
+  first cut left it off as an open question; the rule answers it in the sentence
+  that names this event — "leaves-the-battlefield abilities trigger when a
+  permanent moves from the battlefield to another zone, **or when a phased-in
+  permanent leaves the game because its owner leaves the game**". So the frame
+  is captured in the same one-statement window `perform_zone_change` uses, for
+  the permanent and for nothing else. The residual is the qualifier: "phased-in"
+  is a condition this engine cannot express, and `codebase-state.md`, "Before
+  Triggered abilities" item 6 is what says so. → §11 item 73.
 
 **Glossary triage** (`check_glossary.py --suggest`): no coinage. The words this
 phase adds are the CR's own — *leaves the game*, *ceases to exist*, *default
@@ -2909,16 +2926,24 @@ outside `=== Timing ===` on both pools, and `fuzz_ab.py` reads `deterministic:
 yes` in both arms.
 
 **Every four-player engine-work row moves, and one number says why:
-`Frames/walk` 21.22 → 18.08.** `Layer walks` is flat (802 → 805) — the memo
-misses are the same — and what got cheaper is each miss, because a walk since
-LI-1 fills the whole working set and the working set is a board that is now
-about 32 permanents smaller. `Memo hits` 212,676 → 187,526 (−11.8%),
-`Layer frames` 17,019 → 14,556 (−14.5%), `Dependency checks` 307 → 157.
-**CPU/game median 58.87 → 48.00 ms (−18.5%)**, `ms / 1,000 walks` −18.8%,
-`CPU/turn p50` 0.740 → 0.680 — which is not a speed-up the engine earned but a
-board it stopped carrying, and it is the size of item 108's cost. The
-proposal rows are flat as predicted, `Replacement gathers` 2104 → 2102 and
-`Restriction queries` 2107 → 2107: this PR adds no proposal.
+`Frames/walk` 21.22 → 18.69.** A walk since LI-1 fills the whole working set,
+and the working set is a board about 32 permanents smaller, so each one got
+cheaper: `Memo hits` 212,676 → 187,526 (−11.8%), `Layer frames` 17,019 →
+15,660 (−8.0%), `Dependency checks` 307 → 171. **CPU/game median −15.8% and
+−14.0% across two sittings**, `ms / 1,000 walks` −19.4% and −17.7%,
+`CPU/turn p50` 0.860 → 0.800 and 0.840 → 0.800 — which is not a
+speed-up the engine earned but a board it stopped carrying, and it is the size
+of item 108's cost. The proposal rows are flat as predicted, `Replacement
+gathers` 2104 → 2102 and `Restriction queries` 2107 → 2107: this PR adds no
+proposal.
+
+**`Layer walks` is the one row that goes up — 802 → 838 — and it is CR 603.6c's
+price, measured rather than assumed.** The frame a permanent leaves the game
+with is an uncached walk each, so it costs about 33 per game across three
+departures (+4.5%) and **zero at two seats**, where CR 800.1 puts the whole
+section out of scope. On `stress` the two cancel: 1,239 → 1,240. It is recorded
+as a rate rather than a total because the cancellation is a fact about *this*
+board width, and a wider one would not repeat it.
 
 **The gameplay rows move because the games are different**, and only one of them
 is an engine reading: `Avg turns` 61.2 → 61.0 and `Total damage` 156.1 → 152.3
@@ -2980,5 +3005,5 @@ that is a five-line change with a two-assertion test —
 the order in the log — where the trace would only narrate it. The page this
 phase *would* deserve is the one CR 800.4c wants: a permanent through three
 controllers and two departures, with the layer walk's answer at each step. It
-has one customer, no printed card, and a fixture board; when CV-3 or Bribery
+has one customer, no printed card, and a fixture board; when CV-4 or Bribery
 gives it a second, it is worth writing then.

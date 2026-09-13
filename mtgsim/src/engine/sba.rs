@@ -165,23 +165,23 @@ impl GameState {
         // is dying in this same check is destroyed first, and leaves the game
         // from the graveyard a moment later.
         let mut batch: Vec<GameAction> = Vec::new();
-        let mut losses: Vec<GameAction> = Vec::new();
+        let mut player_losses: Vec<GameAction> = Vec::new();
         for i in 0..self.players.len() {
             if !self.in_game(i) {
                 continue;
             }
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
-                losses.push(sba_player_loses(i, LossReason::LifeReachedZero));
+                player_losses.push(sba_player_loses(i, LossReason::LifeReachedZero));
             }
             // 704.5b — attempted to draw from an empty library since the last
             // check.
             if drew_from_empty[i] {
-                losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
+                player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
             }
             // 704.5c — ten or more poison counters.
             if self.players[i].poison_counters >= 10 {
-                losses.push(sba_player_loses(i, LossReason::PoisonCounters));
+                player_losses.push(sba_player_loses(i, LossReason::PoisonCounters));
             }
         }
 
@@ -414,7 +414,7 @@ impl GameState {
             if self.in_game(i)
                 && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
             {
-                losses.push(sba_player_loses(i, LossReason::CommanderDamage));
+                player_losses.push(sba_player_loses(i, LossReason::CommanderDamage));
             }
         }
 
@@ -422,7 +422,7 @@ impl GameState {
         // last in CR order among the conditions this check gathers.
         batch.extend(commander_moves);
         // And the losses last of all, on the rule the gather above states.
-        batch.extend(losses);
+        batch.extend(player_losses);
 
         // --- Perform the gathered actions as one event (CR 704.3) -----------
         //

@@ -87,8 +87,20 @@ impl GameState {
         }
 
         for (id, from) in leaving {
+            // CR 603.10a, in the one window it can be read: a moment later
+            // `cleanup_zone_state` has retired the continuous effects this
+            // permanent's static abilities generated and the answer is
+            // unrecoverable. CR 603.6c is what wants it — a leaves-the-
+            // battlefield ability triggers "when a phased-in permanent leaves
+            // the game because its owner leaves the game".
+            let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
+                crate::engine::layers::compute::compute_characteristics_uncached(self, id)
+                    .map(Box::new)
+            } else {
+                None
+            };
             self.remove_from_game(id)?;
-            self.events.emit(GameEvent::LeftTheGame { object_id: id, owner: player, from });
+            self.events.emit(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki });
         }
         Ok(())
     }
@@ -111,6 +123,16 @@ impl GameState {
     ///
     /// "Or players" has no rows at all: nothing in this engine controls a
     /// player (CR 800.4b's fourth sentence, recorded and not built).
+    ///
+    /// **What deleting a row means is CR 110.2's, and that is why this can be
+    /// a deletion.** "A permanent's controller is, by default, the player under
+    /// whose control it entered the battlefield", and 110.2b makes that the
+    /// player who put the spell on the stack — a fact `PermanentState`
+    /// *stores*, so control falls back to it with nothing to undo. A row's
+    /// duration is not consulted: CR 800.4a ends the effect whether or not it
+    /// had one, which is what separates this from the CR 514.2 cleanup. An
+    /// Aethersnatch-shaped row (no duration, so nothing ends it at cleanup)
+    /// ends here and nowhere else.
     fn end_control_given_to(&mut self, player: PlayerId) {
         let doomed: Vec<_> = self
             .continuous_effects
@@ -162,6 +184,13 @@ impl GameState {
             .iter()
             .copied()
             .filter(|id| {
+                // Two shapes, and between them they are CR 707.10's "a copy
+                // of a spell is not a card" plus everything on the stack that
+                // is not a spell at all. `is_spell` is false for exactly one
+                // thing today — an activated ability — because a spell is the
+                // only stack object a card can be; `is_copy` has no writer
+                // until CV-4 — `copy-effects-architecture.md` names it
+                // "`is_copy`'s first writer" — and is the leg for spell copies.
                 let not_a_card = self.stack_entries.get(id).is_some_and(|e| !e.is_spell)
                     || self.objects.get(id).is_some_and(|obj| obj.is_copy);
                 not_a_card && get_effective_controller(self, *id) == Some(player)

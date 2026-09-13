@@ -975,19 +975,38 @@ registers no card — so unlike every re-record above, **this whole table is an
 engine reading and not a pool one**, and it is the first four-player diff the
 project has taken.
 
+**The two-player table above is not re-recorded, and that is the reading rather
+than an omission.** RE-7 is CR 800.4, which CR 800.1 scopes to a game that
+*began* with more than two players, so both two-player pools are byte-identical
+to `main` outside `=== Timing ===` — there is no number to write down. The two
+tables are not alternatives: **a phase re-records whichever ones it moves**, and
+from RE-6 on that is a question with two answers rather than one. A phase that
+changes a two-player path re-records the table above; a phase whose rules only
+exist at three or more re-records this one; a phase that moves the pool
+re-records both, because the decks changed under each.
+
 **The row it exists to move: "Departed-owned permanents" 32.2 → 0.0 and
 34.2 → 0.0** at 200 games, 32.7/32.8 → 0.0/0.0 at the 50 below.
 `codebase-state.md` item 108 closed with it. **Every engine-work row moves and
-one number says why: `Frames/walk` 21.22 → 18.08.** `Layer walks` is flat
-(802 → 805) — the memo misses are the same — and each miss got cheaper, because
-a walk fills the whole working set (LI-1) and the working set is a board about
-32 permanents smaller. `Memo hits` −11.8%, `Layer frames` −14.5%,
-`Dependency checks` 307 → 157; CPU/game median 58.87 → 48.00 ms (**−18.5%**),
-`ms / 1,000 walks` −18.8%, `CPU/turn p50` 0.740 → 0.680. **That is not a
-speed-up the engine earned**; it is a board it stopped carrying, and it is the
-size of what item 108 was costing every four-player number measured before it.
-`Replacement gathers` 2104 → 2102 and `Restriction queries` 2107 → 2107 — flat,
-as predicted: this PR adds no proposal. **Both two-player pools are
+one number says why: `Frames/walk` 21.22 → 18.69.** A walk fills the whole
+working set (LI-1), and the working set is a board about 32 permanents smaller,
+so each one got cheaper: `Memo hits` −11.8%, `Layer frames` −8.0%,
+`Dependency checks` 307 → 171. CPU/game median **−15.8% and −14.0%** across
+two sittings, `ms / 1,000 walks` −19.4% and −17.7%, `CPU/turn p50` 0.860 →
+0.800 and 0.840 → 0.800. **That is not a speed-up the engine earned**; it is a board it
+stopped carrying, and it is the size of what item 108 was costing every
+four-player number measured before it.
+
+**`Layer walks` is the one row that goes *up*, 802 → 838, and it is CR 603.6c's
+price.** A permanent leaving the game carries the CR 603.10a frame a
+leaves-the-battlefield trigger will read, and the frame is an uncached walk
+each — about 33 per game across three departures, +4.5%, and **zero at two
+seats**. It buys back more than it costs here and would not on a wider board;
+recording it as a rate rather than as a total is what makes that checkable
+later.
+
+`Replacement gathers` 2104 → 2102 and `Restriction queries` 2107 → 2107 —
+flat, as predicted: this PR adds no proposal. **Both two-player pools are
 `IDENTICAL` outside `=== Timing ===`**, which is CR 800.1's doing rather than a
 gate's: the section is about what two-player games cannot do.
 
@@ -1019,23 +1038,25 @@ shell runs at one seed and `--players 4` identical outside `=== Timing ===`.
 | Life changes | 39.0 | 34.5 |
 | Turns after a departure | 23.9 | 20.0 |
 | **Departed-owned permanents** | **0.0** | **0.0** |
-| **Layer walks** | **865** | **1,078** |
-| **Board walks** | **535** | **567** |
+| **Layer walks** | **899** | **1,112** |
+| **Board walks** | **569** | **601** |
 | **Memo hits** | **201,330** | **224,139** |
-| **Layer frames** | **16,128** | **16,848** |
-| **Frames/walk** | **18.65** | **15.62** |
-| **Dependency checks** | **123** | **136** |
+| **Layer frames** | **17,314** | **17,982** |
+| **Frames/walk** | **19.26** | **16.17** |
+| **Dependency checks** | **137** | **153** |
 | **Replacement gathers** | **2238** | **2220** |
 | **Restriction queries** | **2243** | **2226** |
 | Prevention allocations | 0.00 | 0.02 |
 
 At 200 games the same run reads: `performance` avg turns 61.0, wins by seat
 95/58/34/13, turns after a departure 20.8, departed-owned permanents 0.0,
-gathers 2102, CPU/game median 48.00 ms with `CPU/turn p50` 0.68 ms — so a
-four-player game now costs about three times a two-player one rather than four
-and a half, and the turn is 1.6 times as expensive rather than twice;
-`stress` avg turns 66.2, 91/53/41/14 and one win by effect, 22.6 and 0.0,
-gathers 2517.
+gathers 2102, `Layer walks` 838, CPU/game median 56.27 ms with `CPU/turn p50`
+0.80 ms; `stress` avg turns 66.2, 91/53/41/14 and one win by effect, 22.6 and
+0.0, gathers 2517, `Layer walks` 1,240 — where `main`'s was 1,239, so the
+frame's cost and the smaller board cancel almost exactly on the wider pool.
+**Do not carry the milliseconds across sittings**: the same two binaries read
+58.87/48.00 ms in one sitting and 66.85/56.27 in the next, which is §8's point
+about a stored ms, and the ratio is the finding.
 
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was

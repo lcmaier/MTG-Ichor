@@ -509,7 +509,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         EquipmentDetached { equipment_id, former_host } => {
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
         }
-        LeftTheGame { object_id, owner, from } => {
+        LeftTheGame { object_id, owner, from, .. } => {
             format!("LeftTheGame: {} (P{}, from {:?})", obj_name(game, *object_id), owner, from)
         }
         TokenCeasedToExist { object_id } => {

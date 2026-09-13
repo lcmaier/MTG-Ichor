@@ -3792,8 +3792,10 @@ loud about the board it finds — a member that removes objects performs after t
 members decided against them.
 
 **Measured:** "Departed-owned permanents" **32.2 → 0.0** and 34.2 → 0.0 at four
-seats, closing `codebase-state.md` item 108; both two-player pools `IDENTICAL`
-outside `=== Timing ===`. **Trace page: no**, decided at the close.
+seats, closing `codebase-state.md` item 108; CPU/game −15.8% on a board 32
+permanents smaller, against `Layer walks` +4.5% for CR 603.6c's frame; both
+two-player pools `IDENTICAL` outside `=== Timing ===`. **Trace page: no**,
+decided at the close.
 
 → As sized, as built and as measured: `plans/archive/replacement-architecture-landed.md`,
 "RE-7" (evicted 2026-09-13).
@@ -4126,10 +4128,12 @@ number before running:
   **"Departed-owned permanents" 32.2 → 0.0** on `performance` and 34.2 → 0.0 on
   `stress`. `Replacement gathers` 2104 → 2102 and `Restriction queries`
   2107 → 2107 — flat, as a PR that adds no proposal should be — and `Layer
-  walks` 802 → 805, also flat: the memo misses are the same. What moves is
-  `Frames/walk`, 21.22 → 18.08, and everything downstream of it: `Memo hits`
-  −11.8%, `Layer frames` −14.5%, `Dependency checks` 307 → 157, **CPU/game
-  median −18.5%** and `ms / 1,000 walks` −18.8%. That is a board the engine
+  walks` 802 → **838**, up by CR 603.6c's frame — an uncached walk per permanent
+  leaving, ~33 a game and none at two seats. What moves the other way is
+  `Frames/walk`, 21.22 → 18.69, and everything downstream of it: `Memo hits`
+  −11.8%, `Layer frames` −8.0%, `Dependency checks` 307 → 171, **CPU/game
+  median −15.8% and −14.0%** across two sittings and `ms / 1,000 walks` −19.4%
+  and −17.7%. That is a board the engine
   stopped carrying rather than a walk that got faster, and it is the size of
   what item 108 was costing every four-player number taken before it. The
   gameplay rows are a different board and not a delta. → `engineering-practices.md`
@@ -5952,6 +5956,29 @@ found them.
     is a regression and these two are the only ones legitimately absent.
     **The recipe this generalises:** a harness row and the script that diffs it
     are two edits, and RE-6 made one of them.
+
+73. **CR 603.6c answers the question RE-7 recorded as open, and it answers it
+    in the sentence that names this event.** The first cut left
+    `GameEvent::LeftTheGame` without a CR 603.10a frame on the reasoning that
+    "whether a leaves-the-battlefield ability fires for a permanent that leaves
+    the *game* is CR 603's and the rules do not say in one sentence". They do,
+    and it is the sentence: *"leaves-the-battlefield abilities trigger when a
+    permanent moves from the battlefield to another zone, **or when a phased-in
+    permanent leaves the game because its owner leaves the game**"*. So the
+    frame rides the event, captured in the same one-statement window
+    `perform_zone_change` uses, and the deferral was a rules search that stopped
+    at CR 800.4 instead of following the trigger side. **The residual is the
+    qualifier, not the answer**: "phased-in" is a condition this engine cannot
+    express, because phasing is not built, so the frame is unconditional and
+    every permanent is phased in — `codebase-state.md`, "Before Triggered
+    abilities" item 6, which now names the two things that would make it
+    reachable rather than the question it used to hold.
+
+    **The general shape, and it has cost this project a deferral twice now:**
+    a rule that is *about* an event is not always written where the event is.
+    800.4a says what happens to the permanent; 603.6c says what watches it. The
+    census habit — read the tree, then read the rule that names the site — has
+    no step that reads the rules that name the *rule*.
 
 ## 12. Explicitly out of scope
 

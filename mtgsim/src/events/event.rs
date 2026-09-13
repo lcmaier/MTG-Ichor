@@ -220,13 +220,24 @@ pub enum GameEvent {
     /// CR 800.4a is "not a state-based action. It happens as soon as the
     /// player leaves the game" — and by nothing else.
     ///
-    /// **No LKI frame, and that is a question rather than an omission.**
-    /// Whether a leaves-the-battlefield trigger fires for a permanent that
-    /// leaves the *game* is CR 603's, and the rule does not answer it in one
-    /// sentence; computing the frame costs a layer walk per permanent at the
-    /// moment a game ends. → `codebase-state.md`, "Before Triggered
-    /// abilities".
-    LeftTheGame { object_id: ObjectId, owner: PlayerId, from: Zone },
+    /// **`lki` is CR 603.6c, which names this event in as many words**:
+    /// "leaves-the-battlefield abilities trigger when a permanent moves from
+    /// the battlefield to another zone, **or when a phased-in permanent leaves
+    /// the game because its owner leaves the game**". So a permanent leaving
+    /// here fires them, and CR 603.10a's frame is what a matcher will read —
+    /// captured before `cleanup_zone_state` retires the static abilities that
+    /// produced it, the same window `perform_zone_change` has. `None` for an
+    /// object that was not a permanent, which is every other zone.
+    ///
+    /// CR 603.6c's qualifier is the one part with no implementation: a *phased
+    /// out* permanent does not trigger, and phasing (CR 702.26) is not built
+    /// (`codebase-state.md`, "Phasing"). Every permanent is phased in today.
+    LeftTheGame {
+        object_id: ObjectId,
+        owner: PlayerId,
+        from: Zone,
+        lki: Option<Box<EffectiveCharacteristics>>,
+    },
 
     // --- Tokens ---
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
