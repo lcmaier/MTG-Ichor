@@ -1480,6 +1480,14 @@ impl GameState {
         cause: Option<ZoneChangeCause>,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
+        // CR 800.4b — "if an object would be put onto the battlefield ... under
+        // the control of a player who has left the game, that object remains in
+        // its current zone". A rule, checked at the site like CR 508.8's and
+        // CR 800.4k's: there is no event here for a replacement effect to see,
+        // and `false` is exactly "nothing moved and nothing entered".
+        if self.is_multiplayer() && !self.in_game(controller) {
+            return Ok(false);
+        }
         let seed = self.default_enter_mods(object, controller);
         let mods = crate::engine::replacement::strip_prohibited_counters(
             self, object, controller, &EnterMods::NONE, &seed, None,

@@ -451,10 +451,22 @@ fn resolve_set_controller(
 
     let mut players = FilterPlayers::for_row(effect, game, board, layer_index);
 
+    // CR 800.4b — "if an object would change to the control of a player who has
+    // left the game, it doesn't". A rule, ahead of the row and not a condition
+    // on it: the row is still in the registry (CR 800.4a's second sentence ends
+    // only the ones in the *departed* player's favour, and this is the same
+    // sentence read from the object's side), and what the rule denies is the
+    // change. `None` is how this function says a modification does not apply.
+    let still_playing = |pid: PlayerId| !game.is_multiplayer() || game.in_game(pid);
+
     match player_ref {
-        PlayerRef::You => Some(players.you()),
-        PlayerRef::Player(pid) => Some(*pid),
-        PlayerRef::Owner => game.objects.get(&object_id).map(|obj| obj.owner),
+        PlayerRef::You => Some(players.you()).filter(|&p| still_playing(p)),
+        PlayerRef::Player(pid) => Some(*pid).filter(|&p| still_playing(p)),
+        PlayerRef::Owner => game
+            .objects
+            .get(&object_id)
+            .map(|obj| obj.owner)
+            .filter(|&p| still_playing(p)),
         PlayerRef::Opponent => {
             let you = players.you();
             let mut opponents = (0..game.num_players()).filter(|&pid| pid != you);
