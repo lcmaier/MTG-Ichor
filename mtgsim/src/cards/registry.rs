@@ -697,6 +697,16 @@ impl CardRegistry {
         registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
         registry.register("Platinum Angel", phase_re_cards::platinum_angel);
 
+        // RE-4 — tokens. Four cards on two axes: what makes a plural creation
+        // (Raise the Alarm, Hordeling Outburst), what doubles one (Parallel
+        // Lives), and what substitutes a token's entry (Hallowed Moonlight).
+        // Parallel Lives and Raise the Alarm are pooled; the module doc says
+        // why the other two stay out.
+        registry.register("Parallel Lives", phase_re_cards::parallel_lives);
+        registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
+        registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
+        registry.register("Hallowed Moonlight", phase_re_cards::hallowed_moonlight);
+
         registry
     }
 
