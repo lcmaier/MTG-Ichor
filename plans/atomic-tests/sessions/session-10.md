@@ -74,11 +74,19 @@ Most of Chapter 8 is DEFERRED or OUT-OF-SCOPE. Chapter 9's Commander section (90
 **ATOM-800.4c-001**
 - **Rule:** 800.4c — If a control-changing effect ends, no other effect gives control to another in-game player, and the default controller has left the game, the object is exiled immediately.
 - **Mechanism:** Player-leaves-game — orphaned object exile
-- **Minimal Board:** 4-player game. Player B owns a creature. Player A cast Act of Treason targeting it (temporary control). Player B then leaves the game. At end of turn, Act of Treason's effect ends.
-- **Action:** Act of Treason's "until end of turn" control effect ends.
-- **Expected Result:** The creature is exiled (default controller B has left the game, no other control effect exists).
+- **Minimal Board:** 4-player game. Player B owns Runeclaw Bears. Player A used Bribery to put it onto the battlefield under A's control, so A is the CR 110.2b default controller and B is still the owner. Player C then cast Act of Treason on it (temporary control). Player A leaves the game: the Bears are neither owned by A (800.4a's first clause) nor controlled by A (its fourth), so they stay.
+- **Action:** Act of Treason's "until end of turn" control effect ends at cleanup.
+- **Expected Result:** The creature is exiled (default controller A has left the game, no other control effect exists).
 - **Phase:** Phase 9
 - **Ticket:** D24
+
+> **Board corrected 2026-09-13 (RE-7).** It read "Player B owns a creature.
+> Player A cast Act of Treason targeting it ... Player B then leaves the game",
+> which cannot reach this rule: CR 800.4a's first clause takes every object its
+> owner owns, whoever controls it, and 800.4a's own Bribery example says so —
+> *"If Bianca leaves the game, Serra Angel also leaves the game."* The rule
+> needs a default controller who is **not** the owner, which is session-1's
+> Gonti scenario (line 1197) and what the board above now builds.
 
 **ATOM-800.4d-001**
 - **Rule:** 800.4d — Object that would be owned by a left-game player isn't created. Triggered ability controlled by left-game player isn't put on stack.
@@ -115,9 +123,21 @@ Most of Chapter 8 is DEFERRED or OUT-OF-SCOPE. Chapter 9's Commander section (90
 - **Phase:** Phase 9
 - **Ticket:** D24
 
-**800.4k** — DEFERRED — Phase 9. Left-game player's turn doesn't begin. Classified with D24. Tested implicitly by 800.4j-001.
+**ATOM-800.4m-001**
+- **Rule:** 800.4m — When a player leaves the game, a continuous effect whose duration lasts until that player's next turn lasts until that turn would have begun. It neither expires immediately nor lasts indefinitely.
+- **Mechanism:** Player-leaves-game — duration anchored to a turn that never begins
+- **Minimal Board:** 4-player game (A, B, C, D), A's turn. An effect with duration "until your next turn" is created under B's control. B then leaves the game.
+- **Action:** A's turn ends and the rotation reaches B's seat, which CR 800.4k skips; C's turn begins.
+- **Expected Result:** The effect is still active immediately after B leaves, and has expired by the time C's turn begins. An identical effect under D's control is unaffected.
+- **Phase:** Phase 9
+- **Ticket:** D24
 
-**800.4m** — DEFERRED — Phase 9. Continuous effect duration handling when player leaves. Classified with D24.
+> **Filed 2026-09-13 (RE-7).** 800.4m was DEFERRED with the note that its
+> prerequisite system did not exist; the prerequisite is a turn rotation that
+> skips a departed seat, and that landed with RE-6 (CR 800.4k). The rule is
+> then two observations one board apart, which is what the entry above builds.
+
+**800.4k** — DEFERRED — Phase 9. Left-game player's turn doesn't begin. Classified with D24. Tested implicitly by 800.4j-001.
 
 **800.4n** — OUT-OF-SCOPE. Ante zone. Ante is permanently excluded.
 

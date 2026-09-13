@@ -352,13 +352,10 @@ fn a_lost_player_is_passed_over_in_the_priority_rotation() {
 
 // COVERS-PARTIAL: ATOM-800.4j-001
 //
-// The atom's departure is a concession, which no harness offers (CR 104.3a
-// is a *leave*, not a proposed loss); the active player here loses to a
-// state-based action instead, which is the same departure for CR 800.4j's
-// purposes. What is covered is the priority half — "the next player in turn
-// order receives priority" — and the turn continuing; the departed player's
-// objects leaving the game is RE-7's, and their next turn not beginning is
-// RE-1's `a_lost_players_turn_does_not_begin`.
+// The priority half — "the next player in turn order receives priority". The
+// atom's whole expected result is
+// `a_departed_active_players_turn_continues_without_them` below, which carries
+// the `COVERS:`; this board is the one sentence stated on its own.
 #[test]
 fn a_departed_active_players_priority_passes_to_the_next_player_in_turn_order() {
     let mut game = setup_game(4);
@@ -562,6 +559,16 @@ fn laboratory_maniac_wins_a_whole_game_at_the_draw_step() {
 /// The hand is empty rather than untouched, which is RE-7's CR 800.4a and not
 /// this rule: the cards left the game with their owner. What says no cleanup
 /// discard happened is that nobody was asked for one.
+// COVERS: ATOM-800.4j-001
+//
+// The atom's action is "Player A leaves the game (e.g., concedes)", and the
+// "e.g." is what makes a state-based loss the same departure — CR 104.3a's
+// concession is one way to leave and no harness offers it. Its expected result
+// is this test's four assertions: the turn continues, priority passes, the
+// phase and step structure completes, and the next turn is P1's (CR 800.4k).
+// `COVERS-PARTIAL` until RE-7, because a turn "completing normally" for a
+// player whose permanents were still on the battlefield was not the rule's
+// board.
 #[test]
 fn a_departed_active_players_turn_continues_without_them() {
     let deck: Vec<Arc<CardData>> = (0..40).map(|_| forest()).collect();

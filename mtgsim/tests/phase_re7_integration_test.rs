@@ -735,6 +735,35 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
 }
 
 // ---------------------------------------------------------------------------
+// CR 800.4a beside CR 903.10a — what a departure does not undo
+// ---------------------------------------------------------------------------
+
+// COVERS-PARTIAL: COMP-800-PLAYER-LEAVES-COMMANDER-001
+//
+// The partial is the word *Commander*: there is no constructor for a Commander
+// game yet (`codebase-state.md`, "Before Commander" items 2 and 3), so the
+// board below is a four-player game with the CR 903.10a tallies written
+// directly rather than dealt. What the composite asks is asserted as it is
+// written — the tallies survive their source leaving the game, and neither
+// player is at 21.
+#[test]
+fn commander_damage_already_dealt_survives_its_dealer_leaving_the_game() {
+    let mut game = setup_game(4);
+    let commander = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 0);
+    game.objects.get_mut(&commander).unwrap().is_commander = true;
+    game.players[1].commander_damage_taken.insert(commander, 15);
+    game.players[2].commander_damage_taken.insert(commander, 10);
+
+    departs(&mut game, 0, &test_dp());
+
+    assert!(game.objects.get(&commander).is_none(), "CR 800.4a: the commander left too");
+    assert_eq!(game.players[1].commander_damage_taken.get(&commander), Some(&15));
+    assert_eq!(game.players[2].commander_damage_taken.get(&commander), Some(&10));
+    assert!(!sba(&mut game, &test_dp()), "and neither player is at CR 704.6c's 21");
+    assert!(game.in_game(1) && game.in_game(2));
+}
+
+// ---------------------------------------------------------------------------
 // CR 800.1 — the scope
 // ---------------------------------------------------------------------------
 
