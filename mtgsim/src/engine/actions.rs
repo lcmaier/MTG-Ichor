@@ -1364,7 +1364,13 @@ impl GameState {
                 }
                 self.player_lost[player] = true;
                 self.events.emit(GameEvent::PlayerLost { player_id: player, reason });
-                Ok(())
+                // CR 104.3 — a player who loses the game leaves it — and
+                // CR 800.4a's four clauses follow here rather than at the next
+                // state-based check, because the rule says "this is not a
+                // state-based action. It happens as soon as the player leaves
+                // the game". Clause 4's exile is a result of the departure, so
+                // its nested batch joins this one (§4.2).
+                self.player_left_the_game(player, _ctx)
             }
 
             // CR 104.1 — "immediately". The result is recorded here and read by

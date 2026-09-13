@@ -208,6 +208,26 @@ pub enum GameEvent {
     /// (attached to a non-creature). Equipment stays on battlefield.
     EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
 
+    // --- Multiplayer (CR 800.4a) ---
+    /// An object owned by a player who has just left the game left it too.
+    ///
+    /// **Not a zone change, because there is no zone to name**: CR 400.11
+    /// lists the seven, and outside the game is not one of them. `from` is
+    /// where the object was, which the log wants and a `ZoneChange` would have
+    /// carried; there is no `to`.
+    ///
+    /// Emitted once per object by the `GameAction::PlayerLoses` performer —
+    /// CR 800.4a is "not a state-based action. It happens as soon as the
+    /// player leaves the game" — and by nothing else.
+    ///
+    /// **No LKI frame, and that is a question rather than an omission.**
+    /// Whether a leaves-the-battlefield trigger fires for a permanent that
+    /// leaves the *game* is CR 603's, and the rule does not answer it in one
+    /// sentence; computing the frame costs a layer walk per permanent at the
+    /// moment a game ends. → `codebase-state.md`, "Before Triggered
+    /// abilities".
+    LeftTheGame { object_id: ObjectId, owner: PlayerId, from: Zone },
+
     // --- Tokens ---
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.

@@ -556,8 +556,12 @@ fn laboratory_maniac_wins_a_whole_game_at_the_draw_step() {
 
 /// The whole-game path for CR 800.4j: the active player leaves in their own
 /// upkeep and the turn runs to the end without them — no draw, no attackers
-/// declared for the creature they still have, no cleanup discard — and the
+/// declared for the creature they had, no cleanup discard — and the
 /// next turn is the next player's (CR 800.4k).
+///
+/// The hand is empty rather than untouched, which is RE-7's CR 800.4a and not
+/// this rule: the cards left the game with their owner. What says no cleanup
+/// discard happened is that nobody was asked for one.
 #[test]
 fn a_departed_active_players_turn_continues_without_them() {
     let deck: Vec<Arc<CardData>> = (0..40).map(|_| forest()).collect();
@@ -567,7 +571,6 @@ fn a_departed_active_players_turn_continues_without_them() {
     g.setup(&test_dp()).unwrap();
     put_on_battlefield(&mut g.state, vanilla_creature(2, 2, &[]), 0);
     let drawn_before = cards_drawn(&g.state, 0);
-    let hand_before = g.state.players[0].hand.len();
 
     // Lost before the first priority grant of the turn.
     g.state.players[0].life_total = 0;
@@ -581,7 +584,11 @@ fn a_departed_active_players_turn_continues_without_them() {
         !dp.kinds().iter().any(|k| k.starts_with("DeclareAttackers")),
         "nobody declares attackers in a turn with no active player"
     );
-    assert_eq!(g.state.players[0].hand.len(), hand_before, "and no cleanup discard");
+    assert!(
+        !dp.kinds().iter().any(|k| k.starts_with("DiscardToHandSize")),
+        "no cleanup discard is asked of a player who has left"
+    );
+    assert!(g.state.players[0].hand.is_empty(), "CR 800.4a took the hand with them");
     assert_eq!(g.state.turn_number, 2);
     assert_eq!(g.state.active_player, 1, "CR 800.4k: the next turn is the next player's");
 }

@@ -153,23 +153,35 @@ impl GameState {
         // has already left is gated here, ahead of the proposal, for the reason
         // `next_turn_taker` gates CR 800.4k there: nothing about a departed
         // player is an event.
+        //
+        // **Gathered apart from the batch and appended to the end of it**, and
+        // that is CR 800.4a meeting CR 704.3. Every member is decided against
+        // one board and then performed in batch order, and each performer is
+        // loud about the board it finds; a loss is the only member that removes
+        // *other* members' subjects, since the departing player's objects leave
+        // the game inside its performer. So the rule this batch is built to is
+        // that a member which removes objects performs after the members
+        // decided against them — a creature the departing player owns and that
+        // is dying in this same check is destroyed first, and leaves the game
+        // from the graveyard a moment later.
         let mut batch: Vec<GameAction> = Vec::new();
+        let mut losses: Vec<GameAction> = Vec::new();
         for i in 0..self.players.len() {
             if !self.in_game(i) {
                 continue;
             }
             // 704.5a — 0 or less life.
             if self.players[i].life_total <= 0 {
-                batch.push(sba_player_loses(i, LossReason::LifeReachedZero));
+                losses.push(sba_player_loses(i, LossReason::LifeReachedZero));
             }
             // 704.5b — attempted to draw from an empty library since the last
             // check.
             if drew_from_empty[i] {
-                batch.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
+                losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
             }
             // 704.5c — ten or more poison counters.
             if self.players[i].poison_counters >= 10 {
-                batch.push(sba_player_loses(i, LossReason::PoisonCounters));
+                losses.push(sba_player_loses(i, LossReason::PoisonCounters));
             }
         }
 
@@ -395,20 +407,22 @@ impl GameState {
         }
 
         // 704.6c — dealt 21 or more combat damage by one commander over the
-        // course of the game. After the 704.5 sweeps because it is 704.6, and
+        // course of the game. After the 704.5 losses because it is 704.6, and
         // a player already losing to a 704.5 reason is collapsed onto that one
         // by the dedupe below.
         for i in 0..self.players.len() {
             if self.in_game(i)
                 && self.players[i].commander_damage_taken.values().any(|&dmg| dmg >= 21)
             {
-                batch.push(sba_player_loses(i, LossReason::CommanderDamage));
+                losses.push(sba_player_loses(i, LossReason::CommanderDamage));
             }
         }
 
-        // CR 704.6d's accepted moves, last because 704.6d is last in CR order
-        // among the conditions this check gathers.
+        // CR 704.6d's accepted moves, after the 704.5 sweeps because 704.6d is
+        // last in CR order among the conditions this check gathers.
         batch.extend(commander_moves);
+        // And the losses last of all, on the rule the gather above states.
+        batch.extend(losses);
 
         // --- Perform the gathered actions as one event (CR 704.3) -----------
         //

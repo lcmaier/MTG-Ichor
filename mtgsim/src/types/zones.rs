@@ -128,6 +128,15 @@ pub enum ZoneChangeCause {
     /// though the destination does not.
     CommanderZoneSba,
 
+    // --- multiplayer (CR 800.4) ---
+    /// CR 800.4a's fourth sentence and CR 800.4c — an object whose controller
+    /// has left the game and which nobody still in the game controls is
+    /// exiled. Two rules, one variant: the engine's reason is the same in both
+    /// — there is no player left to control it — and the difference between
+    /// them is *when* the question is asked, which the moment of the move
+    /// already says.
+    ControllerLeftTheGame,
+
     // --- turn structure and special actions ---
     /// CR 121.5 makes this trigger-visibly distinct from "put into hand".
     Drawn,
