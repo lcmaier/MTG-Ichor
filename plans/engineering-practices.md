@@ -1058,6 +1058,18 @@ frame's cost and the smaller board cancel almost exactly on the wider pool.
 58.87/48.00 ms in one sitting and 66.85/56.27 in the next, which is §8's point
 about a stored ms, and the ratio is the finding.
 
+**What a seat costs, measured in one sitting on one binary so the ratio means
+something** (200 games / seed 12345, `performance`, `--threads 1`): two players
+**14.94 ms/game** and `CPU/turn p50` **0.430 ms** over 29.9 turns; four players
+**56.70 ms/game** and **0.800 ms** over 61.0. So a four-player game costs
+**3.8×** a two-player one, lasts **2.0×** as long, and its turn is **1.86×** as
+expensive — the last figure being the board being wider, and the one RE-7 moved
+(it was 2× when item 108 left 32 permanents on the table). **This pair is the
+number v1 reads**, since `CLAUDE.md` names four-player Commander and highly
+parallel CLI games as the two use cases, and it is worth re-taking whenever a
+phase claims to be flat: "flat at two seats" has been true of a phase that was
+not flat at four.
+
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
 about an *activated ability*: Circle of Protection: Red resolves in 130 of 200
