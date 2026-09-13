@@ -18,8 +18,8 @@ use std::sync::Arc;
 use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
 use mtgsim::cards::phase_rc_cards::{master_biomancer, root_maze};
 use mtgsim::cards::phase_re_cards::{
-    goblin_token, hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm,
-    soldier_token,
+    alms_collector, goblin_token, hallowed_moonlight, hordeling_outburst, parallel_lives,
+    raise_the_alarm, soldier_token, thought_reflection,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -29,7 +29,7 @@ use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_name, get_effective_power, get_effective_subtypes,
     get_effective_toughness, get_effective_types, has_supertype,
 };
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::test_support::{
     fill_library, place_bare, put_in_graveyard, put_in_hand, put_on_battlefield,
     setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
@@ -844,4 +844,62 @@ fn the_registered_token_defs_say_what_the_cards_say() {
     assert_eq!(goblin.name, "Goblin Token");
     assert!(goblin.colors.contains(&Color::Red));
     assert!(goblin.subtypes.contains(&Subtype::Creature(CreatureType::Goblin)));
+}
+
+// ---------------------------------------------------------------------------
+// Found by this phase's A/B — CR 104.4b for a loop of riders
+// ---------------------------------------------------------------------------
+
+/// Two Thought Reflections and two Alms Collectors across two players hand one
+/// draw back and forth forever: P0's draw is doubled, P1's Collector makes it
+/// one and its **rider** has P1 draw — a new event with a fresh applied set —
+/// which P1's Reflection doubles, which P0's Collector halves with a rider
+/// that has P0 draw, and so on. No CR 614.5 set runs out, because every hop
+/// is a rider. CR 104.4b: "a loop of mandatory actions … with no way to stop"
+/// is a draw, and `GameState::batch_depth` is where the engine says so —
+/// the same answer `check_state_based_actions_loop` gives a looping check.
+///
+/// Reached first in a four-player `stress` game (seed 12523) as a stack
+/// overflow, with a Notion Thief in the cycle; the two-player board here is
+/// the same loop with fewer cards. Before the cap the test binary aborted.
+#[test]
+fn a_loop_of_riders_is_a_draw_and_not_a_stack_overflow() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 60);
+    fill_library(&mut game, 1, 60);
+    put_on_battlefield(&mut game, thought_reflection(), 0);
+    put_on_battlefield(&mut game, alms_collector(), 0);
+    put_on_battlefield(&mut game, thought_reflection(), 1);
+    put_on_battlefield(&mut game, alms_collector(), 1);
+    let effect = Effect::Atom(
+        Primitive::DrawCards(AmountExpr::Fixed(1)),
+        EffectRecipient::Controller,
+    );
+
+    resolve_for(&mut game, 0, &effect, &test_dp());
+
+    assert_eq!(game.result, Some(GameResult::Draw), "CR 104.4b");
+}
+
+/// The control: one Thought Reflection beside one Alms Collector is the
+/// board RE-2 walked, and it ends — the Collector's rider draw is doubled
+/// once and stops, because nothing hands it back.
+#[test]
+fn one_reflection_beside_one_collector_ends() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 60);
+    fill_library(&mut game, 1, 60);
+    put_on_battlefield(&mut game, thought_reflection(), 0);
+    put_on_battlefield(&mut game, alms_collector(), 1);
+    let effect = Effect::Atom(
+        Primitive::DrawCards(AmountExpr::Fixed(1)),
+        EffectRecipient::Controller,
+    );
+
+    resolve_for(&mut game, 0, &effect, &test_dp());
+
+    assert_eq!(game.result, None, "no loop: the draw ends");
+    // P0 drew one (the Collector made two into one), P1 drew one (the rider).
+    assert_eq!(game.players[0].hand.len(), 1 + 1, "the fixture spell and one drawn card");
+    assert_eq!(game.players[1].hand.len(), 1);
 }

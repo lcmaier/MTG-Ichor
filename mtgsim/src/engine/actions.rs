@@ -22,6 +22,13 @@ use crate::ui::decision::DecisionProvider;
 /// `src/types/` has no `crate::engine` edge to spend.
 pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeCause};
 
+/// How many batches may nest before the nesting is CR 104.4b's loop — see
+/// `GameState::batch_depth`. The deepest legitimate chain in the tree is a
+/// draw doubled along its lineage (two levels per applied instance) inside a
+/// rider inside a resolution — about a dozen; the loop this catches adds four
+/// per cycle without end.
+const MANDATORY_LOOP_DEPTH: usize = 48;
+
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
 /// `execute_action` has no `DecisionProvider` of its own, and CR 616.1 needs
@@ -571,7 +578,15 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
+        // A fresh applied set is a new lineage (§3.2d): a rider's draw inside
+        // a doubled draw starts counting decomposition from zero, or the
+        // invariant `execute_actions_decomposing` asserts — depth bounded by
+        // the inherited set — would be asked across two lineages at once.
+        let outer_lineage = std::mem::replace(&mut self.decomposition_depth, 0);
+        self.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
+        self.batch_depth -= 1;
+        self.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
         result
     }
@@ -619,7 +634,9 @@ impl GameState {
             inherited.len()
         );
         let previous = self.events.open_batch(ctx.resolution_stamp());
+        self.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, inherited);
+        self.batch_depth -= 1;
         self.events.close_batch(previous);
         self.decomposition_depth -= 1;
         result
@@ -648,7 +665,12 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_new_batch(ctx.resolution_stamp());
+        // A new lineage, as in `execute_actions`.
+        let outer_lineage = std::mem::replace(&mut self.decomposition_depth, 0);
+        self.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
+        self.batch_depth -= 1;
+        self.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
         result
     }
@@ -697,6 +719,22 @@ impl GameState {
         // to be over. The ending batch's own members all perform — they were
         // one event — and its settlement is what makes this true afterwards.
         if self.result.is_some() {
+            return Ok(Vec::new());
+        }
+
+        // CR 104.4b — "if a game … somehow enters a 'loop' of mandatory
+        // actions, repeating a sequence of events with no way to stop, the
+        // game is a draw." A batch nested this deep is that loop: every
+        // legitimate nesting is bounded by something finite — a resolution's
+        // instructions, CR 614.5's applied set along a decomposition, the
+        // members of one batch — and a chain that passes through a *rider*
+        // has none of them, because a rider's proposal is a new event. Two
+        // Thought Reflections and two Alms Collectors across two players are
+        // the printed board (`GameState::batch_depth`). The result is
+        // recorded here and read one line up by every enclosing batch, which
+        // is how the whole chain unwinds at CR 104.1's "immediately".
+        if self.batch_depth > MANDATORY_LOOP_DEPTH {
+            self.result = Some(GameResult::Draw);
             return Ok(Vec::new());
         }
 

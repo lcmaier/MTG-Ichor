@@ -416,7 +416,32 @@ pub struct GameState {
     /// `execute_actions_decomposing` asserts in debug builds — turning a stack
     /// overflow that aborts the test binary into a red test that names the
     /// rule. The release binary carries the counter and not the assertion.
+    ///
+    /// **Per lineage, not per call stack.** A fresh-set batch —
+    /// `execute_actions`, which a rider's proposal and every contained event
+    /// go through — is a new lineage, and zeroes this for its extent: a
+    /// rider's draw inside a doubled draw inherits nothing and decomposes from
+    /// depth one. Counted across the rider instead, the assertion fired on a
+    /// legal board (one Thought Reflection beside one Alms Collector, RE-4's
+    /// A/B) while the loop it exists for is the one `batch_depth` catches.
     pub(crate) decomposition_depth: usize,
+
+    /// How many batches are nested inside one another right now — one per
+    /// `execute_batch_inner` on the call stack, kept by its three wrappers.
+    ///
+    /// **This one is a cap, and CR 104.4b is why** — the same rule
+    /// `check_state_based_actions_loop` applies to a state-based check that
+    /// keeps performing. A rider's proposal is a *new* event with a fresh
+    /// applied set (CR 615.5, §3.2d), so a cycle that passes through a rider
+    /// has no CR 614.5 set to run out: two Thought Reflections and two Alms
+    /// Collectors across two players hand one draw back and forth forever,
+    /// each hop a rider, and the rules' own answer for "a loop of mandatory
+    /// actions … with no way to stop" is that the game is a draw. Found in a
+    /// four-player `stress` game (seed 12523, RE-4's A/B) as a stack overflow.
+    /// `decomposition_depth` is the *derived* invariant for the lineage case
+    /// and deliberately not a cap; this is the rule for the case that has no
+    /// invariant.
+    pub(crate) batch_depth: usize,
 
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
@@ -605,6 +630,7 @@ impl GameState {
             cost_modification_ability_sources: HashSet::new(),
             entry_selection: EntrySelectionScope::default(),
             decomposition_depth: 0,
+            batch_depth: 0,
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
