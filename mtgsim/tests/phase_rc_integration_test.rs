@@ -1,6 +1,6 @@
 //! Phase RC-2 integration tests: entering the battlefield as a replaceable event.
 //!
-//! RC-2 is the first RC phase that adds behaviour rather than removing it, so
+//! RC-2 is the first RC phase that adds behavior rather than removing it, so
 //! these tests assert on two things at once, the way RB's do: the modified
 //! outcome, **and** that the modification arrived through the pipeline. A
 //! "enters tapped" test that passes because something wrote `tapped = true`

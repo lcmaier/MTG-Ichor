@@ -784,7 +784,7 @@ smaller sample shows it, which is why the table above is the re-run. Stress is
 unchanged to the digit, because no `stress` deck put two draw doublers on one
 battlefield in these 50 games.
 
-**The rule that generalises**, and it applies to every suppression this codebase
+**The rule that generalizes**, and it applies to every suppression this codebase
 has: *answer-preserving is not stream-preserving.* An A/B whose arms differ by a
 prompt cannot be read as "byte-identical or the change is wrong" — the check is
 that the **gameplay aggregates** hold and the counters move by less than a game.
@@ -2314,3 +2314,49 @@ to `grep`, unreachable from `CLAUDE.md`'s authority table, and pinned to a
 commit like the trace around it, so the convention aged like a snapshot when
 it is the one part that must not. Lifted here 2026-09-03. The page keeps its
 section as the historical record; **this is the authority.**
+
+## 8. The rules pass — read the rules that name the *rule*, not just the site
+
+**Before deferring a rules question, search the CR for the rule that watches
+the one you are implementing.** The census habit this project runs — read the
+tree, then read the rule that names each call site — finds what an event *does*
+and is blind to what *observes* it, because the observer is written somewhere
+else entirely.
+
+RE-7 is the scar. CR 800.4a says what becomes of a departing player's
+permanents, and it says nothing about triggers; so "does a leaves-the-
+battlefield ability fire when a permanent leaves the *game*?" was recorded as
+an open question, with `GameEvent::LeftTheGame` shipped without the CR 603.10a
+frame a matcher would need. **CR 603.6c answers it in the sentence that names
+the event** — "leaves-the-battlefield abilities trigger when a permanent moves
+from the battlefield to another zone, **or when a phased-in permanent leaves
+the game because its owner leaves the game**" — and the search that would have
+found it is one `grep` for the rule number of the *other* side.
+
+**The habit, three greps and about two minutes:**
+
+1. `grep` the chapter that owns the thing you are changing (800.4 for a
+   departure) — this is the census's own step, and it is the one that is never
+   skipped.
+2. `grep` the chapter that owns the thing that *watches* it. For an event
+   that is CR 603 (triggers) and CR 614 (replacement); for a characteristic,
+   CR 613; for a zone change, CR 400.7 and CR 603.10.
+3. `grep` the *name* of what you are building, in the CR's own words, across
+   the whole file. "leaves the game" appears in 603.6c, and 603.6c is nowhere
+   near 800.4.
+
+**What makes this worth a section rather than a comment**: the failure is
+silent and it is *shaped like progress*. A deferral with a reachability line
+and a size reads exactly like a deferral that was researched, and the ledger
+cannot tell them apart — `codebase-state.md`'s rule catches an entry longer
+than its fix, not an entry whose premise was never checked. The counter-example
+is `replacement-architecture.md` §11 item 64, where the same search *was* run
+and CR 604.2 plus CR 614.4 closed a design question two rules away from the one
+being implemented; the difference between the two was a few minutes of reading,
+not a difference in difficulty.
+
+**And it applies to the corpus, not only to code.** `ATOM-800.4c-001`'s board
+could not reach its own rule — it had the creature's owner leave, which
+CR 800.4a's first clause forbids — and that is the same failure from the
+authoring side: a scenario written against one rule without the rule that
+overrides it. → `replacement-architecture.md` §11 items 70 and 73.

@@ -118,7 +118,7 @@ pub struct ReplacementDef {
     /// **One rule reads it, and it is a rules-level classification rather than
     /// per-mechanic variety.** CR 701.19c: "effects that say that a permanent
     /// can't be regenerated ... cause regeneration shields to not be applied" —
-    /// so the pipeline has to be able to recognise a regeneration shield in
+    /// so the pipeline has to be able to recognize a regeneration shield in
     /// order to withhold it, and nothing about the shield's pattern, rewrite or
     /// rider distinguishes it from any other `Prevent`-with-a-rider.
     ///
@@ -1055,7 +1055,7 @@ pub struct AuxiliaryMove {
     /// since RB: CR 110.1 makes a permanent a card *on the battlefield*, and
     /// this matches creature cards in a graveyard. The type is right; the name
     /// is two phases stale, and the rename is `codebase-state.md` item 64 —
-    /// ~120 mechanical call sites, no behaviour, so it wants a PR of its own.
+    /// ~120 mechanical call sites, no behavior, so it wants a PR of its own.
     pub filter: ObjectFilter,
 
     /// Where the chosen objects go, and why. The `cause` is what separates

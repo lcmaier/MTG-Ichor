@@ -60,7 +60,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
     id
 }
 
-/// A red creature — the colour half of a `SourcePattern` needs a board.
+/// A red creature — the color half of a `SourcePattern` needs a board.
 fn red_creature(power: i32, keywords: &[KeywordFlag]) -> Arc<CardData> {
     let mut builder = CardDataBuilder::new("Red Probe")
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))

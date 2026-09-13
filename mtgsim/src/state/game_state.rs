@@ -184,7 +184,7 @@ pub struct GameState {
     /// **Diagnostic only; nothing may branch on it.** It is on `GameState`
     /// rather than in a thread-local for the reason `GameState.rng` is: ambient
     /// state that a game can reach is state a fork or a replay cannot account
-    /// for. A read of these numbers changing behaviour would make them
+    /// for. A read of these numbers changing behavior would make them
     /// unmeasurable, which is why every accessor is read-only and no engine
     /// module imports them.
     pub counters: crate::state::diagnostics::EngineCounters,
@@ -1176,7 +1176,7 @@ impl GameState {
             // long as this card is in your graveyard and you control an Island,
             // creatures you control have flying") is the stock example.
             //
-            // When those are modelled, this fallback is not the fix. CR 613.7d
+            // When those are modeled, this fallback is not the fix. CR 613.7d
             // gives an object a timestamp when it enters *any* zone, but we
             // only store one on `PermanentState`, so a graveyard Wonder has
             // nowhere to read one from. The timestamp has to move onto the

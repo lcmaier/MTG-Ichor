@@ -148,7 +148,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
-        // CR 305.6 — intrinsic to the land types, modelled as two explicit mana
+        // CR 305.6 — intrinsic to the land types, modeled as two explicit mana
         // abilities for `dual_lands.rs`'s documented reason.
         .mana_ability_single(ManaType::White)
         .mana_ability_single(ManaType::Blue)

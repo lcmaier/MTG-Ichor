@@ -156,7 +156,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// exactly one candidate. CR 616.1 engages only among "two or more", so its
 /// ordering choice, its applied set across instances, and its APNAP ordering
 /// were unreachable in any game at any length. This card is the second
-/// candidate. `engineering-practices.md` §3.3 generalises the lesson.
+/// candidate. `engineering-practices.md` §3.3 generalizes the lesson.
 ///
 /// **The pair is observable, which is what makes it a test and not a claim.**
 /// Both rewrites exile, but Kalitas carries a CR 615.5 rider and this does not:

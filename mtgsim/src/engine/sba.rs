@@ -458,7 +458,7 @@ impl GameState {
 
         // 704.5n — an Equipment or Fortification attached to an illegal
         // permanent becomes unattached and remains on the battlefield.
-        // (This block was labelled 704.5p until 2026-09-08; 704.5p is below.)
+        // (This block was labeled 704.5p until 2026-09-08; 704.5p is below.)
         let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {

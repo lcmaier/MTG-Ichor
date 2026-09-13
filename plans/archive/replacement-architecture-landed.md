@@ -1302,7 +1302,7 @@ its rulings pass:
   `PreventHalf(Up)` over `ByController(You)` + `You` — decision 0's two player
   sets and both halves of decision 1 on one consumer. Rulings, three: *doubles
   from any source, including the opponent's own* → test; *the affected player
-  orders* → the Furnace/Ghosts test generalised to a prevention (Gisela's
+  orders* → the Furnace/Ghosts test generalized to a prevention (Gisela's
   half beside an opponent's Furnace on 5: prevent 3 then double 2, or double
   to 10 then prevent 5); *divide, then double* → the War Mammoth test.
 - **Angel of Suffering** — "Flying. If damage would be dealt to you, prevent
@@ -2697,7 +2697,7 @@ soon as the player leaves the game." In the rule's own order: every object the
 player owns leaves the game (removed from hand, library, graveyard, exile,
 command zone, battlefield and stack, one `GameEvent::LeftTheGame { object }`
 each — not a zone change, CR 400.11: outside the game is not a zone); every
-control-changing row in that player's favour ends (a Layer 2 row keyed by the
+control-changing row in that player's favor ends (a Layer 2 row keyed by the
 departed controller, `ContinuousEffect.controller`); their stack objects not
 represented by cards cease to exist; and anything they still control is exiled
 through `change_zone` with a new `ZoneChangeCause::ControllerLeftTheGame`,
@@ -2754,7 +2754,7 @@ frame costs a layer walk per permanent at the moment a game ends, which at two
 seats is the loser's whole board. The field is two lines the day a trigger
 wants it. → `codebase-state.md`, "Before Triggered abilities".
 
-**2. The batch-order hazard: the losses go last, and the rule generalises.**
+**2. The batch-order hazard: the losses go last, and the rule generalizes.**
 CR 704.3 decides every member against one board and then performs them in batch
 order; the performers are loud about the board they find. A `PlayerLoses`
 member is the only one that *removes other members' subjects* — a creature
@@ -2883,7 +2883,7 @@ by counting call sites. No cards, as the row said.
   ends here and nowhere else — and control falls back with nothing to undo
   because CR 110.2's default is a value `PermanentState` *stores* (110.2b's
   caster, main item 9). Both halves of the judge answer that prompted the check
-  are tests: the no-duration row ending when the player it favours leaves, and
+  are tests: the no-duration row ending when the player it favors leaves, and
   the creature *staying* with the thief when its default controller leaves
   instead, which is the board CR 800.4c can never fire on.
 - **Clause 2's residual is the resolution's row, and that is why it is small.**
@@ -2975,7 +2975,7 @@ departure, which the "Turns after a departure" row of 20.8 says is most of them.
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*
 
 **RE-3: no**, decided at its close (2026-09-12) and recorded because the phase
-did produce a candidate. Generalising the CR 616.1 suppression premise from a
+did produce a candidate. Generalizing the CR 616.1 suppression premise from a
 list of pattern kinds to `EventPattern::reads_the_amount` looks like §7's rule
 — "how a read is answered" — and is not: the same predicate asks the same
 question at the same point in the same loop, and what changed is where the

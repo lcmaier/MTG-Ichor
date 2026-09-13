@@ -640,7 +640,7 @@ fn no_token_is_created_under_the_control_of_a_player_who_has_left() {
 /// player who has left the game, it doesn't".
 ///
 /// The row is written and kept: CR 800.4a's second clause ends the rows in the
-/// *departed* player's favour that existed when they left, and this one did
+/// *departed* player's favor that existed when they left, and this one did
 /// not. What the rule denies is the change, which is Layer 2's answer.
 #[test]
 fn an_object_does_not_change_to_the_control_of_a_player_who_has_left() {

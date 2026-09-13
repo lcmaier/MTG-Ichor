@@ -655,7 +655,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 /// multiplicity, which is a count field — and only the controller's draw is a
 /// genuinely new subject, which is what `then` is for. One rider, not two.
 ///
-/// **Flash is not modelled** (`codebase-state.md`'s timing item), and it costs
+/// **Flash is not modeled** (`codebase-state.md`'s timing item), and it costs
 /// this card's tests nothing: every board here puts it on the battlefield
 /// before the draw, which is the only state its replacement reads.
 ///

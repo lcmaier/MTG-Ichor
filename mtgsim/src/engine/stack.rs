@@ -644,7 +644,7 @@ mod tests {
     /// `GameState::resolving` licenses two things that are bugs anywhere else:
     /// a stack removal that finds nothing, and an entering permanent taking a
     /// controller other than its owner. Leaving it set past the resolution
-    /// would extend that licence to whatever the same object does next — a
+    /// would extend that license to whatever the same object does next — a
     /// creature returned from the graveyard would enter under the dead spell's
     /// controller, and a genuinely missing stack object would go unreported.
     #[test]

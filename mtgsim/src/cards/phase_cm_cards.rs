@@ -472,7 +472,7 @@ pub fn altars_reap() -> Arc<CardData> {
 /// (Oracle text verified on Scryfall, 2026-09-07.)
 ///
 /// The other half of CR 601.2h's example. "Black spells **and** green spells"
-/// is English "and" over two colours, which is set union — `Or`, the node
+/// is English "and" over two colors, which is set union — `Or`, the node
 /// Root Maze's reading added — and "you cast" is CR 109.5's "you", the
 /// source's current controller.
 pub fn thunderscape_familiar() -> Arc<CardData> {

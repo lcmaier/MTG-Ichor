@@ -330,7 +330,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         self.seen.borrow_mut().push("allocate".to_string());
         // Greedy in bucket order, respecting each maximum. Dumping the whole
         // total into bucket 0 was legal only while every test's pool had one
-        // type in it; a two-colour pool has a bucket whose maximum is zero
+        // type in it; a two-color pool has a bucket whose maximum is zero
         // (`ask_choose_generic_mana_allocation` clamps each to what the pips
         // leave over), and the asker asserts against it.
         let mut out = vec![0; buckets.len()];

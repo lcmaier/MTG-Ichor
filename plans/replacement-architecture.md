@@ -3478,7 +3478,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 | **RE-4 — tokens** | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850** | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
 | **RE-5 — counters, on permanents and players** | `CounterChange`'s entry door and `by`; `AddCounters.by` and its `CounterSubject`; item 43's `EnterMods` player half; `Amount` on an entry's mods; `PlayerState`'s counter map (§2.16) | `pattern_watches` **1** more arm; `AddCounters` constructions **2** + performer **1**; `EnterMods`/`EnterModsTemplate` merge **2**; `apply_rewrite`'s `Amount` arm **1**; `poison_counters` readers **4** (one production, `sba.rs:142`) → the map. Predicted **~650 engine, ~550 cards, ~800 tests ≈ 1,900–2,100** | medium-high — top of the band; an `Amount` arm that edits `EnterMods` is new, and the subject enum touches every counter site |
 | **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
-| **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favour end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
+| **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
 | **RE-8 — the producers (CR 701.9, 701.22)** | `Primitive::Discard` with 701.9b's chooser; `caused_by` on the zone-change pattern; the to-battlefield leg; `GameAction::Scry`, its arm, `Primitive::Scry` and `ChoiceKind::Scry` | `resolve.rs` stubs **2** made real; `pattern_watches` **1** field + **1** arm; `apply_rewrite`'s `Instead(ZoneChangeTo)` **1** leg; exhaustive matches **3** for `Scry`; `DecisionProvider` impls **3** for the scry choice. Predicted **~450 engine, ~400 cards, ~500 tests ≈ 1,300–1,500** | low-medium — two producers of the plainest kind; the leg's frame rebuild is already how the loop runs |
 | **RE-10 — extra phases, and the turn plan** | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300** | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
 | **RE-9 — mana** | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped` from the activation | exhaustive matches **3**; writers **2** → **1**; `resolve_mana_effect` **1**, `Primitive::ProduceMana` **1**; `pattern_watches` **1**. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150** | low on shape, **the one whose A/B could say no** — a proposal on every land tap |
@@ -3586,7 +3586,7 @@ unions rather than replaces, and `PlayerSet::Nobody` on an object-only
 restriction keeps meaning what it always meant.
 
 **Trace page: no**, decided at the close — `engineering-practices.md` §7 named
-RE-2 and RE-4 and not this one, and the premise generalisation does not change
+RE-2 and RE-4 and not this one, and the premise generalization does not change
 it: moving a read's answer from a list of shapes to a property of the type
 answers the *same* question in the same place. The rule that would catch it is
 "how a read is answered", and nothing here reads differently.
@@ -4390,7 +4390,7 @@ rule number) — confirm the merge at labelling time.
 5. **The overlay's shape — closed by performance, not by taste.**
    `layers-architecture.md` §15.2 item 3 left "clone vs. CoW overlay" open for
    the dependency algorithm. Asked again in review — *are there performance
-   considerations that favour one?* — and the answer is yes, decisively, but the
+   considerations that favor one?* — and the answer is yes, decisively, but the
    two customers have to be priced separately because §5 establishes they are
    not the same operation.
 
@@ -5389,7 +5389,7 @@ found them.
     each other until RE was sized, and the paragraph was the one a builder
     would have started from. Same for §8a's discard row, which said the
     pattern arm did not exist for sixteen days after RB built it. The rule
-    that follows is `state-of-play.md`'s reason generalised: **a scope
+    that follows is `state-of-play.md`'s reason generalized: **a scope
     paragraph for an unsized phase goes stale in the merge that builds part of
     it, and re-reading it is the first step of sizing, not a courtesy** — the
     prompt for this sizing said so, and it was right twice. The review the
@@ -5698,7 +5698,7 @@ found them.
     `owed`'s scope is the three shipped phases), which is exactly why the claim
     rotted unnoticed: **a sentence about the corpus is not checked by the gate
     that checks the corpus.** The prompt for this phase said to verify it before
-    relying on it, and that instruction is the generalisation — item 46's rule
+    relying on it, and that instruction is the generalization — item 46's rule
     about stale scope paragraphs, applied to the atom list rather than to the
     design.
 
@@ -5928,7 +5928,7 @@ found them.
     is CR 110.2b's gap and main item 9's subject, and session-1 had already
     written the right board down (line 1197, the Gonti scenario) six months
     before session-10 wrote the wrong one. Corrected in place with the reason.
-    **Worth generalising:** the corpus is authored, and an atom whose board
+    **Worth generalizing:** the corpus is authored, and an atom whose board
     contradicts a rule's own example is a defect the `owed` gate cannot see,
     because an atom nobody has tried to cover looks exactly like an atom that
     is waiting.
@@ -5954,7 +5954,7 @@ found them.
     `ROWS` and skipped by name in a two-player table — not by "every arm reads
     `?`", because a row that vanished because the harness stopped printing it
     is a regression and these two are the only ones legitimately absent.
-    **The recipe this generalises:** a harness row and the script that diffs it
+    **The recipe this generalizes:** a harness row and the script that diffs it
     are two edits, and RE-6 made one of them.
 
 73. **CR 603.6c answers the question RE-7 recorded as open, and it answers it
@@ -5974,11 +5974,14 @@ found them.
     abilities" item 6, which now names the two things that would make it
     reachable rather than the question it used to hold.
 
-    **The general shape, and it has cost this project a deferral twice now:**
-    a rule that is *about* an event is not always written where the event is.
-    800.4a says what happens to the permanent; 603.6c says what watches it. The
-    census habit — read the tree, then read the rule that names the site — has
-    no step that reads the rules that name the *rule*.
+    **The general shape is `engineering-practices.md` §8, written at this
+    finding and for it:** a rule that is *about* an event is not always written
+    where the event is. 800.4a says what happens to the permanent; 603.6c says
+    what watches it. The habit is three greps — the chapter that owns the
+    thing, the chapter that owns whatever watches it, and the CR's own words
+    for what you are building — and it is hoisted out of this list because a
+    lesson buried six thousand lines into a phase doc is a lesson nobody
+    reaches.
 
 ## 12. Explicitly out of scope
 

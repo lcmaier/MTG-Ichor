@@ -1044,7 +1044,7 @@ fn x_trinket() -> Arc<CardData> {
 /// pay {1} less, not {2} less."
 ///
 /// The filter is one `Or` in one ability, so the gather returns one instance
-/// and the reduction applies once. Written as two colour leaves on two
+/// and the reduction applies once. Written as two color leaves on two
 /// abilities it would apply twice, and this board is the only one that says so.
 #[test]
 fn test_the_familiar_reduces_a_black_and_green_spell_once() {
@@ -1206,7 +1206,7 @@ fn test_the_familiar_reduces_green_too_and_only_for_its_controller() {
         "a green spell under the Familiar",
     );
 
-    // Neither colour: {1}{R} is untouched.
+    // Neither color: {1}{R} is untouched.
     let red_trinket = || {
         colored_trinket(
             "Vermilion Trinket",

@@ -512,7 +512,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
 /// now a nonbasic land — strips its own ability under CR 305.7.
 ///
 /// Compressed because our `ObjectFilter` has no way to say "each **other**
-/// non-Aura enchantment", so a modelled Opalescence would also enchant itself
+/// non-Aura enchantment", so a modeled Opalescence would also enchant itself
 /// and put three layers of noise between the fixture and what it is testing.
 /// One card reaches the same self-reference.
 ///

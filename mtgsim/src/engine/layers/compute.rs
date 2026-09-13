@@ -454,7 +454,7 @@ fn resolve_set_controller(
     // CR 800.4b — "if an object would change to the control of a player who has
     // left the game, it doesn't". A rule, ahead of the row and not a condition
     // on it: the row is still in the registry (CR 800.4a's second sentence ends
-    // only the ones in the *departed* player's favour, and this is the same
+    // only the ones in the *departed* player's favor, and this is the same
     // sentence read from the object's side), and what the rule denies is the
     // change. `None` is how this function says a modification does not apply.
     let still_playing = |pid: PlayerId| !game.is_multiplayer() || game.in_game(pid);

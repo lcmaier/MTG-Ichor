@@ -129,7 +129,7 @@ impl CopiableValues {
     /// This is what layer 1a *is*: not an adjustment to a frame but a
     /// replacement of the values later layers then modify. `controller` and
     /// `control_since_turn` are untouched, which is the field list above
-    /// restated as behaviour.
+    /// restated as behavior.
     pub(super) fn apply_to(&self, chars: &mut EffectiveCharacteristics) {
         chars.name = self.name.clone();
         chars.mana_cost = self.mana_cost.clone();

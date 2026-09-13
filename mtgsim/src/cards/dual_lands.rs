@@ -34,7 +34,7 @@ use crate::types::mana::ManaType;
 /// Build a dual land from its two basic land types.
 ///
 /// Subtype order follows the printed type line, which is also the order
-/// `land_types::basic_land_types_sorted` would produce — irrelevant to behaviour,
+/// `land_types::basic_land_types_sorted` would produce — irrelevant to behavior,
 /// but it keeps the fixture readable next to the real card.
 fn dual(name: &str, first: LandType, second: LandType) -> Arc<CardData> {
     CardDataBuilder::new(name)
