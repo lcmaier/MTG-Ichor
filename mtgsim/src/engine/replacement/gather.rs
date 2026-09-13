@@ -89,6 +89,10 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::Tap { object } => EventSubject::Object(*object),
         GameAction::Destroy { object, .. } => EventSubject::Object(*object),
         GameAction::EnterBattlefield { object, .. } => EventSubject::Object(*object),
+        // CR 614.16's "under your control": the tokens are created for a
+        // player, and CR 616.1's chooser is that player.
+        GameAction::CreateTokens { controller, .. } => EventSubject::Player(*controller),
+        GameAction::CreateTokenIn { object, .. } => EventSubject::Object(*object),
         GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
         GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
         GameAction::Attach { attachment, .. } => EventSubject::Object(*attachment),
@@ -735,6 +739,11 @@ pub(crate) fn pattern_watches(
         // loss's reason is asked by nothing printed (RE decision 5).
         (EventPattern::PlayerLoses, GameAction::PlayerLoses { .. }) => true,
         (EventPattern::PlayerWins, GameAction::PlayerWins { .. }) => true,
+
+        // CR 614.16's "one or more tokens" — the rule's own phrase is the one
+        // count this arm reads, and no multiplier the pipeline admits crosses
+        // it. Which *player* the effect is around is `set_affects`'s question.
+        (EventPattern::CreateTokens, GameAction::CreateTokens { defs, .. }) => !defs.is_empty(),
 
         _ => false,
     }

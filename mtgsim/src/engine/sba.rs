@@ -574,8 +574,9 @@ impl GameState {
         // so a batch's tokens carry distinct ticks in batch order — the same
         // key `moved_since` uses, and for the same reason it is not `ObjectId`,
         // a v4 UUID. Every token is created *in* the battlefield zone
-        // (`Primitive::CreateToken`), so one reaching here has moved and its
-        // stamp is not the pregame 0.
+        // (`create_tokens`), so one reaching here has either moved or was
+        // created elsewhere by `put_token_into`, which stamps the same
+        // counter — and its stamp is not the pregame 0 either way.
         let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
             .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))

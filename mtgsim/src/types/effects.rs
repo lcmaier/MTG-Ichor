@@ -944,7 +944,9 @@ pub enum Primitive {
     RemoveCounters(CounterType, AmountExpr),
 
     // === Tokens ===
-    /// Create N tokens (rule 701.7)
+    /// Create N tokens (CR 701.7a) — resolved as one
+    /// `GameAction::CreateTokens` carrying the def N times, so CR 614.16's
+    /// doublers see one event and the N entries are one batch.
     CreateToken(TokenDef, AmountExpr),
 
     // === Regeneration (rule 701.19) ===

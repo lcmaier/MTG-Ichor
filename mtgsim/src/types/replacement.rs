@@ -442,6 +442,27 @@ pub enum EventPattern {
     /// preclude that player from winning", which is exactly the sentence that
     /// puts it outside the pipeline.
     PlayerWins,
+
+    /// CR 614.16 — "if an effect would create one or more tokens". The
+    /// event's subject is the player the tokens are created under, and which
+    /// player the effect is around is [`ReplacementDef::affected_players`]'s
+    /// question: Parallel Lives is `You`, and the nine printed "would create
+    /// one or more tokens" replacements differ in nothing this arm could hold.
+    ///
+    /// **No field, and the census is why** — [`Self::GainLife`]'s reason.
+    /// Printed constraints on the *kind* of token exist — creature tokens
+    /// (Divine Visitation, Ojer Taq, Jinnie Fay), Treasure (Xorn), Clue, Food
+    /// or Treasure (Academy Manufactor) — and none is registered. The retrofit
+    /// is a `kind` matched against each `TokenDef`'s types and subtypes, one
+    /// `pattern_watches` clause and `Amount` repeating only the defs that
+    /// match; sized at `codebase-state.md`'s RE-4 Deferred Migrations line,
+    /// and it waits for the card that reads it.
+    ///
+    /// **Reads no amount**, for [`Self::GainLife`]'s reason: the one count
+    /// `pattern_watches` asks is the rule's own "one or more", and no
+    /// multiplier `pipeline::ordering_cannot_change_outcome` admits (n ≥ 1)
+    /// can carry a creation across that line in either direction.
+    CreateTokens,
 }
 
 /// CR 609.7's source-side predicate — "a **red** source of your choice", "a
@@ -589,6 +610,9 @@ impl EventPattern {
             | EventPattern::BeginStep { .. } => false,
             // The game's end has no number at all, and neither arm has a field.
             EventPattern::PlayerLoses | EventPattern::PlayerWins => false,
+            // "One or more" is the only count, and a multiplier of one or more
+            // keeps a creation on whichever side of it the creation was.
+            EventPattern::CreateTokens => false,
         }
     }
 }

@@ -6,7 +6,8 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
 use crate::events::event::{DamageTarget, GameEvent, LossReason, ResolutionStamp};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
-use crate::types::effects::CounterType;
+use crate::objects::object::GameObject;
+use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
@@ -281,8 +282,8 @@ pub enum GameAction {
     ///
     /// `from` is the zone the card is coming from, or `None` for a token,
     /// which is created in the battlefield zone rather than moved into it
-    /// (`Primitive::CreateToken`). Its performer moves only when there is a
-    /// `from`.
+    /// (`GameState::create_tokens`). Its performer moves only when there is
+    /// a `from`, and announces the creation when there is not.
     ///
     /// `controller` is CR 110.2b's **default**: the owner for a land drop or a
     /// token, the player who put the spell on the stack for a resolving
@@ -306,6 +307,53 @@ pub enum GameAction {
         controller: PlayerId,
         mods: EnterMods,
         cause: Option<ZoneChangeCause>,
+    },
+
+    /// An effect creates one or more tokens (CR 111, 701.7a) — **the outer
+    /// event**, the one CR 614.16's doublers replace: "if an effect would
+    /// create one or more tokens under your control, it creates twice that
+    /// many of those tokens instead".
+    ///
+    /// `defs` is a `Vec` and not a `(def, n)` pair, as §3.1 decided for
+    /// Academy Manufactor's "one of each" and Anointed Procession's ruling
+    /// ("twice as many of each kind"): a multiplier repeats each def in
+    /// place, and a heterogeneous creation stays one event. The subject is
+    /// `controller`, the player the tokens are created under — their owner
+    /// (CR 111.2) and CR 616.1's chooser.
+    ///
+    /// Performing it creates the objects and proposes **every entry as one
+    /// batch** — contained events with fresh applied sets (CR 616.1g),
+    /// joining this event's batch id — so two tokens entering together are
+    /// each decided against the board before either entered (CR 614.12;
+    /// `codebase-state.md` item 46), and a "can't enter" that drops one
+    /// un-creates it (CR 111.5). The event is reported as decided whatever
+    /// became of its entries; the log counts creations by
+    /// [`GameEvent::TokenCreated`].
+    CreateTokens {
+        defs: Vec<TokenDef>,
+        controller: PlayerId,
+    },
+
+    /// A token is created in a zone that is not the battlefield — the
+    /// substituted form of a token's entry, Hallowed Moonlight's "exile it
+    /// instead" applied to something that was never anywhere.
+    ///
+    /// **An appearance, not a move.** A card's substituted entry is a
+    /// [`Self::ZoneChange`] from where the card is; a token has no `from`,
+    /// and the honest event is the token being created in exile (its ruling:
+    /// "put into exile instead and then ceases to exist"). `ZoneChange.from`
+    /// stays a `Zone` — an `Option` there is a catchall-shaped `None` on
+    /// every card move for one token's sake — so `pipeline::substitute`
+    /// returns this instead, and CR 704.5d takes it from there.
+    ///
+    /// **No `EventPattern` arm, deliberately** — the second exemption from
+    /// `replacement-architecture.md` §3.2a's one-arm-per-variant, after
+    /// [`Self::Attach`]. Nothing prints "if a token would be created in
+    /// exile", and an arm the pipeline cannot apply is worse than a missing
+    /// one. `substitute` is its only producer.
+    CreateTokenIn {
+        object: ObjectId,
+        zone: Zone,
     },
 
     /// A turn begins (CR 500.11, 614.10) — **the unit a "skip your next turn"
@@ -1293,8 +1341,12 @@ impl GameState {
                         self.perform_zone_change(object, from, Zone::Battlefield, cause)?;
                     }
                     // A token: created in the zone, so there is no move to
-                    // perform and none to announce (`Primitive::CreateToken`).
-                    (None, None) => {}
+                    // perform (`create_tokens`). What there is to announce is
+                    // CR 111.2's first sentence — the token is created — and
+                    // its second is `place_on_battlefield`'s.
+                    (None, None) => {
+                        self.announce_token_created(object, Zone::Battlefield)?;
+                    }
                     (from, cause) => {
                         return Err(format!(
                             "entry of {} names from={:?} and cause={:?}; a move has both and a \
@@ -1305,6 +1357,20 @@ impl GameState {
                 }
                 self.place_on_battlefield(object, controller, &mods);
                 Ok(())
+            }
+
+            // CR 111 / 701.7a — the outer event. The objects, then every
+            // entry as one contained batch; `create_tokens` says why.
+            GameAction::CreateTokens { defs, controller } => {
+                self.create_tokens(&defs, controller, _ctx)
+            }
+
+            // The substituted form of a token's entry: an appearance in a
+            // zone that is not the battlefield, announced as the creation it
+            // is. `put_token_into` performs; this arm announces.
+            GameAction::CreateTokenIn { object, zone } => {
+                self.put_token_into(object, zone)?;
+                self.announce_token_created(object, zone)
             }
 
             // --- Turn structure (CR 500, 614.10) ----------------------------
@@ -1426,8 +1492,8 @@ impl GameState {
         // has to run the layer walk *before* a mutation rather than after.
         //
         // A permanent, not merely an object in the zone: a token whose entry
-        // was substituted is in the battlefield zone with no entity, and there
-        // is nothing to look back at (`Primitive::CreateToken`).
+        // is being decided is in the battlefield zone with no entity, and there
+        // is nothing to look back at (`create_tokens`).
         let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
             crate::engine::layers::compute::compute_characteristics_uncached(self, object)
                 .map(Box::new)
@@ -1457,21 +1523,62 @@ impl GameState {
         Ok(())
     }
 
-    /// Propose CR 614.1c's entry — the one proposal for an object entering the
-    /// battlefield, from `from`, or from nowhere for a token.
+    /// **The only emitter of `GameEvent::TokenCreated`.** Two callers, each
+    /// of which performed the placement it announces: the `EnterBattlefield`
+    /// arm for a token entering, and the `CreateTokenIn` arm for a token
+    /// created anywhere else. `owner` is CR 111.2's — the player who created
+    /// it.
+    pub(crate) fn announce_token_created(
+        &mut self,
+        object: ObjectId,
+        zone: Zone,
+    ) -> Result<(), String> {
+        let owner = self.get_object(object)?.owner;
+        self.events.emit(GameEvent::TokenCreated { object_id: object, owner, zone });
+        Ok(())
+    }
+
+    /// CR 614.1c's entry as a proposal, or `None` where a rule refuses it
+    /// ahead of any event — built here for [`Self::propose_entry`]'s one
+    /// entry and [`Self::create_tokens`]' batch of them alike.
     ///
-    /// Returns whether the entry was performed. `false` means the pipeline
-    /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — and the object is
-    /// where it was, with nothing moved and nothing announced. An entry
-    /// *substituted* by a zone change (Containment Priest's "exile it instead")
-    /// was performed as that zone change and is `true`; a caller that needs to
-    /// know where the card ended up asks the card (`resolve_top_of_stack`,
-    /// CR 608.3e).
+    /// CR 800.4b — "if an object would be put onto the battlefield ... under
+    /// the control of a player who has left the game, that object remains in
+    /// its current zone". A rule, checked at the site like CR 508.8's and
+    /// CR 800.4k's: there is no event here for a replacement effect to see.
     ///
     /// The seed's counters (CR 306.5b's loyalty) go through the same CR 101.2
     /// door as a replacement's: a "can't have counters put on it" that would
     /// stop them later stops them here (CR 614.17d), with no cause, because a
     /// rule put them there.
+    fn entry_proposal(
+        &mut self,
+        object: ObjectId,
+        from: Option<Zone>,
+        controller: PlayerId,
+        cause: Option<ZoneChangeCause>,
+    ) -> Option<GameAction> {
+        if self.is_multiplayer() && !self.in_game(controller) {
+            return None;
+        }
+        let seed = self.default_enter_mods(object, controller);
+        let mods = crate::engine::replacement::strip_prohibited_counters(
+            self, object, controller, &EnterMods::NONE, &seed, None,
+        );
+        Some(GameAction::EnterBattlefield { object, from, controller, mods, cause })
+    }
+
+    /// Propose CR 614.1c's entry — the one proposal for a card entering the
+    /// battlefield, from `from`. (A token's entry is proposed by
+    /// [`Self::create_tokens`], as a member of its creation's batch.)
+    ///
+    /// Returns whether the entry was performed. `false` means the pipeline
+    /// dropped it — CR 614.6, or a CR 614.17d "can't enter" — or CR 800.4b
+    /// refused it, and the object is where it was, with nothing moved and
+    /// nothing announced. An entry *substituted* by a zone change (Containment
+    /// Priest's "exile it instead") was performed as that zone change and is
+    /// `true`; a caller that needs to know where the card ended up asks the
+    /// card (`resolve_top_of_stack`, CR 608.3e).
     pub(crate) fn propose_entry(
         &mut self,
         object: ObjectId,
@@ -1480,23 +1587,93 @@ impl GameState {
         cause: Option<ZoneChangeCause>,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
-        // CR 800.4b — "if an object would be put onto the battlefield ... under
-        // the control of a player who has left the game, that object remains in
-        // its current zone". A rule, checked at the site like CR 508.8's and
-        // CR 800.4k's: there is no event here for a replacement effect to see,
-        // and `false` is exactly "nothing moved and nothing entered".
-        if self.is_multiplayer() && !self.in_game(controller) {
+        let Some(entry) = self.entry_proposal(object, from, controller, cause) else {
             return Ok(false);
-        }
-        let seed = self.default_enter_mods(object, controller);
-        let mods = crate::engine::replacement::strip_prohibited_counters(
-            self, object, controller, &EnterMods::NONE, &seed, None,
-        );
-        let performed = self.execute_actions(
-            vec![GameAction::EnterBattlefield { object, from, controller, mods, cause }],
-            ctx,
-        )?;
+        };
+        let performed = self.execute_actions(vec![entry], ctx)?;
         Ok(!performed.is_empty())
+    }
+
+    /// The `CreateTokens` performer: the objects, then their entries as **one
+    /// batch**.
+    ///
+    /// Each token is created in the battlefield zone with no entity and in no
+    /// collection — the state the look-ahead frame's membership gate reads as
+    /// "entering" and CR 704.5d reads as "on the battlefield" — and its entry
+    /// carries no `from` and no cause. CR 110.2b's default controller is the
+    /// player the creating effect gave it to, who is already its owner
+    /// (CR 111.2); passed explicitly because a token never passed through the
+    /// stack and so is never `GameState::resolving`.
+    ///
+    /// The entries are **contained** events (`replacement-architecture.md`
+    /// §3.2d): one `execute_actions`, joining this batch's id, each with a
+    /// fresh applied set. That order is CR 616.1g — "the second effect can't
+    /// be chosen until after the first effect has been chosen" — read as the
+    /// order of two loops: a doubler applied to the creation has been applied
+    /// before any entry exists, and it is not offered again at one. And it is
+    /// `codebase-state.md` item 46's plural entry: every member is decided
+    /// against the board before any of them entered (CR 614.12), which is
+    /// what "can't apply to any other permanent entering at the same time"
+    /// means for a printed card.
+    ///
+    /// A member that did not perform — dropped by a "can't enter" (CR 614.17d)
+    /// or by a `Prevent` — is CR 111.5's "the token is not created": the
+    /// object goes, and un-creating it is no more an event than `add_object`
+    /// was. A *substituted* member was created somewhere else
+    /// (`CreateTokenIn`) and stays. The outer event is reported as decided
+    /// whichever way its members went, on `DrawCards`' precedent against an
+    /// empty library; the log counts creations by `TokenCreated`.
+    fn create_tokens(
+        &mut self,
+        defs: &[TokenDef],
+        controller: PlayerId,
+        ctx: &ActionContext,
+    ) -> Result<(), String> {
+        // One `Arc<CardData>` per run of equal defs: a doubled creation
+        // repeats each def in place, and the repeats share one printed text.
+        let mut lowered: Option<(&TokenDef, std::sync::Arc<crate::objects::card_data::CardData>)> =
+            None;
+        let mut ids = Vec::with_capacity(defs.len());
+        let mut entries = Vec::with_capacity(defs.len());
+        for def in defs {
+            let data = match &lowered {
+                Some((seen, data)) if *seen == def => data.clone(),
+                _ => {
+                    let data = def.card_data();
+                    lowered = Some((def, data.clone()));
+                    data
+                }
+            };
+            // CR 111.2 — a token's owner is the player who controls the effect
+            // that created it — and CR 111.1's `is_token` is what makes
+            // CR 704.5d and `ObjectFilter::Token` able to see it. Both are set
+            // before it reaches the battlefield, because
+            // `register_static_effects` runs inside `place_on_battlefield`
+            // and would otherwise register against an object that does not
+            // yet know what it is.
+            let mut obj = GameObject::new(data, controller, Zone::Battlefield);
+            obj.is_token = true;
+            let id = self.add_object(obj);
+            ids.push(id);
+            if let Some(entry) = self.entry_proposal(id, None, controller, None) {
+                entries.push(entry);
+            }
+        }
+        let performed = self.execute_actions(entries, ctx)?;
+        let created: HashSet<ObjectId> = performed
+            .iter()
+            .filter_map(|a| match a {
+                GameAction::EnterBattlefield { object, .. }
+                | GameAction::CreateTokenIn { object, .. } => Some(*object),
+                _ => None,
+            })
+            .collect();
+        for id in ids {
+            if !created.contains(&id) {
+                self.remove_object(id);
+            }
+        }
+        Ok(())
     }
 }
 

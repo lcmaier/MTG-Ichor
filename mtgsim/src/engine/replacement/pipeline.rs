@@ -8,7 +8,7 @@ use crate::events::event::DamageTarget;
 use crate::types::card_types::CardType;
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef};
+use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef, TokenDef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
@@ -144,9 +144,13 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         // reports it and the individual draw does not — one card, and no rider
         // says "that many" about one.
         GameAction::DrawCards { n, .. } => Some(*n),
+        // CR 614.16's "that many" is the count proposed, and it is what a
+        // rider saying "that many" about a creation would mean.
+        GameAction::CreateTokens { defs, .. } => Some(defs.len() as u64),
         GameAction::AddCounters { .. }
         | GameAction::RemoveCounters { .. }
         | GameAction::DrawCard { .. }
+        | GameAction::CreateTokenIn { .. }
         | GameAction::ZoneChange { .. }
         | GameAction::Untap { .. }
         | GameAction::Tap { .. }
@@ -1527,6 +1531,45 @@ fn apply_rewrite(
                 ))
             }
 
+            // CR 614.16's token half — Parallel Lives, Anointed Procession,
+            // Doubling Season's first ability. A multiplier repeats each def
+            // **in place** (`[A, B]` → `[A, A, B, B]`): "twice as many of
+            // each kind" is Anointed Procession's ruling, and keeping a
+            // kind's tokens adjacent keeps the batch order — and so CR 613.7's
+            // timestamps — the creation's own.
+            //
+            // Every other arm is refused as the authoring error it is. `Plus`
+            // is the one with a printed customer — Xorn's "that many plus
+            // one" — and it waits, because "plus one *of what*" is a question
+            // a heterogeneous `Vec` cannot answer until
+            // `EventPattern::CreateTokens` can name a kind
+            // (`codebase-state.md`, RE-4's Deferred Migrations line).
+            GameAction::CreateTokens { defs, controller } => match amount_rewrite {
+                AmountRewrite::Multiplier(n) => {
+                    let n = usize::try_from(*n).map_err(|_| {
+                        format!(
+                            "replacement {:?} multiplies a token creation by {}, which no \
+                             board can hold",
+                            chosen.id, n
+                        )
+                    })?;
+                    let before = defs.len();
+                    let defs: Vec<TokenDef> =
+                        defs.into_iter().flat_map(|d| std::iter::repeat_n(d, n)).collect();
+                    let took_effect = defs.len() != before;
+                    Ok((
+                        Some(GameAction::CreateTokens { defs, controller }),
+                        Applied { took_effect, prevented: 0 },
+                    ))
+                }
+                other => Err(format!(
+                    "replacement {:?} applies {:?} to a token creation; CR 614.16's token \
+                     half is a multiplier, and no other arithmetic has a printed customer \
+                     this pipeline can apply",
+                    chosen.id, other
+                )),
+            },
+
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports. The
             // wording is about the *arm* and not about the event, because
@@ -1681,30 +1724,27 @@ fn substitute(
             GameAction::ZoneChange { object, from, .. },
         ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
 
-        // Containment Priest: "if a nontoken creature would enter … exile
-        // it instead". The entry is the zone change (CR 614.1c), so the
-        // substitute is a zone change from where the card is — one move,
-        // no hop through the battlefield — and the card never becomes a
-        // permanent: `PermanentEnteredBattlefield` is the entry
-        // performer's to emit, and it never runs.
+        // Containment Priest and Hallowed Moonlight: "if a creature would
+        // enter … exile it instead". The entry is the zone change
+        // (CR 614.1c), so a card's substitute is a zone change from where
+        // the card is — one move, no hop through the battlefield — and the
+        // card never becomes a permanent: `PermanentEnteredBattlefield` is
+        // the entry performer's to emit, and it never runs.
         //
-        // A token has no `from`. It is created in the battlefield zone and
+        // A token has no `from`: it was created in the battlefield zone and
         // sits there with no entity until its entry is decided
-        // (`Primitive::CreateToken`), so the substitute moves it out of
-        // that zone, and the log says `from: Battlefield` for a token
-        // CR 111 says was created in exile. That is the cheap answer, on
-        // record under Phase RE, whose `CreateTokens` proposal is where a
-        // creation's destination belongs (`replacement-architecture.md`
-        // §9, RC-4b).
+        // (`create_tokens`), so its substitute is not a move from anywhere
+        // but the creation itself, somewhere else — `CreateTokenIn`, the
+        // appearance the Moonlight ruling describes ("put into exile instead
+        // and then ceases to exist"). The template's cause names a move, and
+        // an appearance has none.
         (
             GameActionTemplate::ZoneChangeTo { to, cause },
             GameAction::EnterBattlefield { object, from, .. },
-        ) => Ok(GameAction::ZoneChange {
-                object,
-                from: from.unwrap_or(Zone::Battlefield),
-                to: *to,
-                cause: *cause,
-            }),
+        ) => Ok(match from {
+            Some(from) => GameAction::ZoneChange { object, from, to: *to, cause: *cause },
+            None => GameAction::CreateTokenIn { object, zone: *to },
+        }),
 
         (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
             match subject_object(subject) {
