@@ -1094,7 +1094,7 @@ mechanic rather than a migration, which is why it is here and not in
   (2026-09-08): the census runs first so full control is scheduled against the
   whole stack rather than against the one decorator that happened to need it.
 
-### 2.27 The token vocabulary — a token cannot have an ability
+### 2.27 The token vocabulary — a token cannot have an ability — type half ✅ landed 2026-09-13 (RE-4)
 
 - **Rules** — CR 111.10a–v (the twenty predefined token types), CR 111.11
   (a token created by name), CR 111.4 (a token has the characteristics the
@@ -1158,11 +1158,24 @@ mechanic rather than a migration, which is why it is here and not in
   characteristics atoms are covered where they are. The twenty types do not
   each owe an atom — CR 111.10 is one rule with twenty rows, and the corpus
   files it as `BOUNDARY-DEF` with two examples, which is the right granularity.
-- **Owner** — none yet. **The type half is RE-4's** (2026-09-13, the owner):
-  RE-4 rewrites `Primitive::CreateToken` into `GameAction::CreateTokens` and is
-  the one PR that already has `TokenDef` and its lowering open, so adding the
-  fields there costs a struct and not a second pass over the same code. The
-  library half and CR 111.11 stay unowned.
+- **Owner** — **the type half landed with RE-4 (2026-09-13)**: `TokenDef`
+  carries `abilities`, `supertypes`, `rules_text` and `enchant_filter`, and
+  two things the field count above had not seen — the name is an `Option`,
+  since CR 111.4 names an unnamed token "[subtypes] Token" (Kalitas's Zombie
+  is "Zombie Token"), and power and toughness are `Option`s, since CR 208.3
+  gives a noncreature none and the lowering had been writing `Some(0)` onto
+  one. `resolve.rs::token_card_data` is `TokenDef::card_data`, and every one
+  of the twenty predefined tokens is now *expressible* as a def: a token that
+  carries Master Biomancer's static ability is a test, Boo's supertype meets
+  the legend rule, and a Role-shaped Aura def lowers with its enchant filter.
+  **What is left is the library and the lookup**, both unowned: `cards::tokens`
+  with CR 111.10's twenty as constructors — eleven need `Primitive::Sacrifice`
+  as a cost (CM-3 shipped it), Treasure and Gold need §2.19's any-color mana,
+  Wicked Role needs CR 603, and the Roles need an Aura token to attach on
+  creation; and CR 111.11's by-name lookup, ~40 lines against `CardRegistry`,
+  which wants the information model (§2.9) before it can reveal what it made.
+  The library graduates entry by entry, Walker first, since it is the one that
+  needs nothing.
 
 ---
 

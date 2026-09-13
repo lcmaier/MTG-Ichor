@@ -3475,7 +3475,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 | **RE-1 — skips, and the turn queue** — ✅ landed | `BeginTurn`/`BeginPhase`/`BeginStep`, three arms, three small performers emitting the three begin events; `advance_turn` as a queue drainer with proceed-past; `Primitive::ExtraTurn` and CR 500.7's order | Predicted **~1,700–1,900**; shipped **+1,770 / −155** before the docs. The three exhaustive matches and `pattern_watches` were exactly as counted; `Game::setup`'s "first turn" was a *new* site rather than an existing one, and `turn_rotation` was a field nobody predicted (§11 items 47, 48) | medium — and the risk landed where it was named: the fixtures, six of which counted turn positions by hand |
 | **RE-2 — draw** | `DrawCards` outer + `DrawCard.cause`; two pattern arms; `GameActionTemplate::DrawCards { n, player }`; the outer performer's decomposition with the inherited applied set (item 29's producer) | exhaustive matches **3** + `pattern_watches` **2**; `DrawCard` producers **2** rewritten to the outer, performer **1**, test constructions **1**; `execute_batch_inner`'s `inherited` **1** call site; `Primitive::DrawCards` **1**. Predicted **~550 engine, ~350 cards, ~800 tests ≈ 1,700–1,900** | **highest** — the first decomposition, whose defect is a hang, and the `cause` stamping rule across nested outers |
 | **RE-3 — life** | `EventPattern::GainLife`, `LoseLife { cause }`; `AmountRewrite::LifeFloor`; `GameActionTemplate::{GainLife, LoseLife} { amount: TemplateAmount }`; `Restriction::Event.affected_players` | `pattern_watches` **2**; `apply_rewrite`'s `Amount` arm **1** and `Instead` arm **2**; `Restriction::Event` constructions **~6** + `is_prohibited`'s union **1**; `GainLife` producers **2**, `LoseLife` **3**, untouched. Predicted **~350 engine, ~450 cards, ~600 tests ≈ 1,400–1,600** | low-medium — patterns over events that already flow; the clamp is the one new arithmetic |
-| **RE-4 — tokens** | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850** | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
+| **RE-4 — tokens** — ✅ landed | `CreateTokens` + its pattern arm; the plural entry batch (item 46); `CreateTokenIn` and `TokenCreated` (item 52); `Amount` over a `Vec` | exhaustive matches **3** ×2 variants; `Primitive::CreateToken` **1** producer + **1** performer restructured; `apply_rewrite`'s `Instead(ZoneChangeTo)` entry arm **1**. Predicted **~600 engine, ~350 cards, ~700 tests ≈ 1,650–1,850**; shipped **+1,867 / −171** — engine 594, cards 322, tests 951 — with the two loop findings' 90 lines in it, and the three exhaustive matches exactly as counted plus `pattern_watches`, `reads_the_amount` and `display.rs` (compiler-forced); `game_state.rs` needed nothing for the variants | medium — the first performer that proposes a batch from inside a performer, and the log line item 52 is about is the test |
 | **RE-5 — counters, on permanents and players** | `CounterChange`'s entry door and `by`; `AddCounters.by` and its `CounterSubject`; item 43's `EnterMods` player half; `Amount` on an entry's mods; `PlayerState`'s counter map (§2.16) | `pattern_watches` **1** more arm; `AddCounters` constructions **2** + performer **1**; `EnterMods`/`EnterModsTemplate` merge **2**; `apply_rewrite`'s `Amount` arm **1**; `poison_counters` readers **4** (one production, `sba.rs:142`) → the map. Predicted **~650 engine, ~550 cards, ~800 tests ≈ 1,900–2,100** | medium-high — top of the band; an `Amount` arm that edits `EnterMods` is new, and the subject enum touches every counter site |
 | **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
 | **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
@@ -3595,58 +3595,26 @@ answers the *same* question in the same place. The rule that would catch it is
 `plans/archive/replacement-architecture-landed.md`, "RE-3" (evicted
 2026-09-12).
 
-#### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52)
+#### RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g; items 46 and 52) — ✅ landed 2026-09-13
 
-**Builds:** decision 3 — `CreateTokens { defs, controller }`,
-`EventPattern::CreateTokens`, the performer that creates the objects and
-proposes their entries as one batch, `CreateTokenIn { object, zone }` with
-`TokenCreated`, and `Amount` over a `Vec` (a multiplier repeats each def).
-`Primitive::CreateToken(def, amount)` becomes one proposal. **Consumers:**
-
-- **Parallel Lives** — "If an effect would create one or more tokens under
-  your control, it creates twice that many of those tokens instead."
-  `CreateTokens`, `Fixed(vec![])` + `You` (the subject is the controller the
-  tokens are created under), `Amount(Multiplier(2))`, `Uses::Static`.
-  Rulings, two, both tests: *two Parallel Lives create four times* →
-  `Amount` composing (the Furnace pair, third kind); *everything specified
-  by the creating effect is true of the extra tokens* → structurally true of a
-  repeated def, asserted on a token's characteristics. `ATOM-614.16-001` —
-  "token replacement applies to tokens from other replacements" — is Kalitas's
-  rider making a Zombie under Parallel Lives: two Zombies, and the atom's
-  board is in the pool already.
-- **Raise the Alarm** and **Hordeling Outburst** — "Create two 1/1 white
-  Soldier creature tokens." / "Create three 1/1 red Goblin creature tokens."
-  The first plural creations in the crate, and so **the first plural entry
-  batch** (item 46): the test is RC-5's
-  `test_two_biomancers_entering_together_give_each_other_nothing` reached from
-  a printed card — two Soldiers under Master Biomancer each get Biomancer's
-  counters and neither gets the other's — plus Root Maze asking once per token
-  (CR 616.1g's per-entry fresh choice, §3.2d's contrast case).
-- **Hallowed Moonlight** — "Until end of turn, if a creature would enter and
-  it wasn't cast, exile it instead. Draw a card." A `Primitive::CreateReplacement`
-  row, `EnterBattlefield { cast: Some(false) }`, `Filter { creatures }` +
-  `Everyone`, `Instead(ZoneChangeTo { Exile })`, `UntilEndOfTurn` — every
-  piece exists since RC-4b, and it is the card that reaches item 52. Rulings,
-  two, both tests: *a creature token is put into exile instead and then
-  ceases to exist* → the log holds `CreateTokens`, `TokenCreated { Exile }`
-  and CR 704.5d's `TokenCeasedToExist`, and **no `ZoneChange { from:
-  Battlefield }`** — the line Dour Port-Mage would have read, asserted absent;
-  *a cast creature is unaffected, from any zone* → Grizzly Bears resolves
-  normally under it.
-
-**`PERFORMANCE_POOL` +2, Parallel Lives and Raise the Alarm**, predicted: the
-first `CreateTokens` static source, and the producer that makes a plural entry
-batch happen in a measured game — the engine path item 46 wanted measured, and
-the first board on which CR 616.1 is asked once per token. Kalitas's rider
-already makes single tokens in the stress pool, so the middle arm moves by one
-gather per Zombie and nothing else.
-
-**Atoms:** `ATOM-614.16-001`; `ATOM-111.5-002` (Phase 8 — a token not created
-when a permanent with its characteristics can't enter: Worms of the Earth's
-`ZoneChange` prohibition over a land token, covered where it is, not
-re-filed); `ATOM-613.7m-001` stays on its `L03` ticket with decision 3's
-"not asked" reason written beside it, since a homogeneous batch has no
-observable order.
+**Shipped.** `Primitive::CreateToken` resolves as one `GameAction::CreateTokens
+{ defs, controller }`, whose performer creates the objects and proposes every
+entry as one contained batch (item 46's producer; CR 616.1g as the order of
+two loops); `EventPattern::CreateTokens` and `Rewrite::Amount(Multiplier)`
+over the `Vec`, repeating each def in place; a token's substituted entry is
+`GameAction::CreateTokenIn { object, zone }` — an appearance, announced as
+`GameEvent::TokenCreated`, with no `ZoneChange` at all (item 52); `TokenDef`
+can say an ability, a supertype, rules text and an enchant filter, its name
+is CR 111.4's default when the effect gives none, and its power and toughness
+are `Option`s. Parallel Lives and Raise the Alarm pooled; Hordeling Outburst
+and Hallowed Moonlight registered. Sized 1,650–1,850, shipped **+1,867 /
+−171** before the docs, two of them older defects the four-player A/B reached
+(§11 items 77–78: a loop of riders is now CR 104.4b's draw, and the lineage
+assertion is per lineage). `PERFORMANCE_POOL` 81 → 83. **Trace page: no**,
+decided at the close. The design record, the shape as built, the measurement
+and the findings are in `plans/archive/replacement-architecture-landed.md`,
+"RE-4"; `codebase-state.md`'s RE-4 lines (items 126–130) are what was left
+absent, each with its customer named.
 
 #### RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a; item 43, `backlog.md` §2.16)
 
@@ -4098,10 +4066,33 @@ number before running:
   that needs no second card to do anything. `stress` moves much further (gathers
   987 → 1143, avg turns 29.0 → 32.3) with all six cards in the deck, and
   `stress` milliseconds are a threshold rather than a comparison (§3.1).
-- **RE-4:** gathers +1 per token creation (Kalitas's rider on `stress`; zero on
-  `performance` until Raise the Alarm is pooled); `Layer walks` +N per plural
-  creation for the frame each entry is decided against, which RC-5 measured
-  per entry already.
+- **RE-4 — measured 2026-09-13, and the prediction held everywhere it could
+  be read.** The middle arm is **`IDENTICAL` to `main` outside `=== Timing
+  ===` on `performance` at two seats and at four** (200 games / seed 12345):
+  nothing in the 81 creates a token, so no creation is ever proposed.
+  CPU/game +2.1% and −1.3% across two sittings at two seats, +1.0% and −0.6%
+  at four — flat, inside the spread and straddling it. On `stress` the
+  registry grew by four and every row reads the deck (§11 item 80), so a
+  **fourth arm** — the engine commit with the cards unregistered, `main`'s
+  decks in both pools — carried the engine's reading there: `IDENTICAL` on
+  `performance`, and on `stress` a log that differs from `main`'s by exactly
+  one `TokenCreated` line per Zombie Kalitas makes (26 in 200 two-seat
+  games), with the predicted +1 gather per creation visible as `Layer frames`
+  7,166 → 7,169 per game — the gather's walk of Kalitas, about 23 frames each
+  — and rounded away in `Replacement gathers` (1114 → 1114); four seats
+  2517 → 2518 gathers, 1,240 → 1,241 walks. The pooled arm is a re-record and
+  a bigger board: `Replacement gathers` 1002 → 1043 per game, `Layer walks`
+  373 → 386, avg turns 29.9 → 30.7, total damage 57.8 → 69.3 — two Soldiers a
+  cast — with CPU/game +12.9% and +9.0% across two sittings, `CPU/turn p50`
+  0.400 → 0.410 and `ms / 1,000 queries` +2.7%: more game, not a slower walk.
+  `--require`: Parallel Lives cast 168, resolved 168, in **116 of 200 games
+  (58%)**, copies/deck 1.54; Raise the Alarm 201 / 201 in **140 (70%)**,
+  1.49. **What the four-seat `stress` run found is §11 items 77–78**: seed
+  12523 overflowed the stack on both new arms and on neither `main` nor the
+  fourth arm, and is a CR 104.4b draw now — the first game a measured run has
+  ended by that rule. Three shell runs at one seed `IDENTICAL` outside
+  `=== Timing ===` at both seat counts on both pools. → `engineering-practices.md`
+  §3's tables, both re-recorded.
 - **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
   branch that no def reaches until Hardened Scales is registered, and the
   subject enum changes no proposal's count.
@@ -4161,7 +4152,7 @@ number before running:
 §3's table is re-recorded once per PR that moves the pool, at 50 games, after
 the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-6's and RE-7's; decide again at RE-4's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-6's and RE-7's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4174,12 +4165,15 @@ Thought Reflection in the draw step, and Alms Collector is traced in **both**
 encodings, because the difference between them is a loop and a test can only
 show that the loop does not happen.
 
-**RE-3: no**, **RE-6: no**, **RE-7: no** — each decided at that PR's close,
-each recorded because the phase produced a candidate, and each argued where the
-phase's own record is: `plans/archive/replacement-architecture-landed.md`,
-"Trace-page decisions". The three share one shape, which is the summary this
-heading keeps: a phase that changes what is *proposed*, or where an answer is
-written down, or how wide the board is, changes no read's path.
+**RE-3: no**, **RE-6: no**, **RE-7: no**, **RE-4: no** — each decided at that
+PR's close, each recorded because the phase produced a candidate, and each
+argued where the phase's own record is:
+`plans/archive/replacement-architecture-landed.md`, "Trace-page decisions". The
+four share one shape, which is the summary this heading keeps: a phase that
+changes what is *proposed*, or where an answer is written down, or how wide the
+board is, changes no read's path. RE-4 was the second phase this section named
+in advance, and the read it was named for — an entry decided against a board
+its siblings have not entered — turned out to be RC-5's page's last trace.
 
 #### Exit criteria
 
@@ -5982,6 +5976,87 @@ found them.
     for what you are building — and it is hoisted out of this list because a
     lesson buried six thousand lines into a phase doc is a lesson nobody
     reaches.
+
+74. **CR 111.4 names the token, and every def in the tree had been naming it
+    wrong.** "If the spell or ability doesn't specify the name of the token,
+    its name is the same as its subtype(s) plus the word 'Token'" — so
+    Kalitas's Zombie is "Zombie Token", and the RB tests asserted "Zombie".
+    Found by §8's rules pass on RE-4's first morning, reading CR 111 before
+    touching `TokenDef`; `backlog.md` §2.27's measurement had counted fields
+    against fields and could not see it. Two corrections to the type
+    followed from the same read: `name` is an `Option` (CR 111.9 and 111.10
+    give a name, CR 111.4 derives one), and power and toughness are
+    `Option`s, because CR 208.3 gives a noncreature none and the lowering had
+    been writing `Some(0)` onto one. `Subtype::word` is the printed word the
+    default name is built from (`codebase-state.md` item 130 is its one
+    residual).
+
+75. **`TokenCreated` has two emitters, and CR 111.13 is the line between a
+    token the event announces and one it does not.** Decision 3 gave the
+    event to `CreateTokenIn`'s performer alone; the entry performer's token
+    arm announces it too, ahead of `PermanentEnteredBattlefield`, because
+    CR 111.2 is two sentences (created, then enters) and a "whenever you
+    create one or more tokens" trigger wants one key whatever the zone.
+    CR 111.13 — a copy of a permanent spell becoming a token "is not
+    'created'" — is what settled it: that token enters from the stack with a
+    `from`, takes the card arm, and is announced by its zone change alone.
+    One emitter function, two callers, each announcing the placement it
+    performed; the archive's "Decided before writing" has the argument.
+
+76. **The first performer to propose a batch from inside a performer set the
+    precedent: the outer reports the event as decided, the log counts what
+    happened.** Three tokens proposed and one refused is `CreateTokens {
+    defs: [3] }` in the performed list and two `TokenCreated`s in the log —
+    `DrawCards { n }` against an empty library, one level up. Nothing reads a
+    token count off the outer; a rider reads the count *proposed*.
+
+77. **A loop of riders is CR 104.4b's, and the engine had no detector for
+    it.** A rider's proposal is a new event with a fresh applied set (§3.2d,
+    CR 615.5), so a cycle every hop of which is a rider — two Thought
+    Reflections and two Alms Collectors across two players, or a Notion Thief
+    in the Collector's seat — has no CR 614.5 set to run out, and ran until
+    the stack overflowed. Reached by RE-4's four-player `stress` A/B (seed
+    12523, registered arm) and by nothing at two seats in 200 games, though
+    two seats suffice. `check_state_based_actions_loop` already answered the
+    rule for a looping check; `GameState::batch_depth` answers it for a
+    looping batch, at 48 nested batches, and the whole chain unwinds through
+    CR 104.1's "immediately". The fixture aborts the test binary with the cap
+    raised. RE-2's page walked this loop in the *rider* encoding of Alms
+    Collector and moved the card to `Instead` to avoid it; the `Instead` half
+    still carries a rider, and two boards' worth of them is the loop again.
+
+78. **`decomposition_depth`'s assertion counted across a rider, and fired on
+    a legal board.** Its invariant — depth bounded by the inherited set — is
+    a fact about one lineage, and a rider inside a doubled draw starts a
+    second one at depth zero. One Thought Reflection beside one Alms
+    Collector (the board RE-2 registered both cards for) tripped it in every
+    debug build; release builds carry the counter without the assertion,
+    which is why 600 fuzz games had not. A fresh-set batch now zeroes the
+    depth for its extent. Found by item 77's fixture's *control*.
+
+79. **Four arms left absent, each with its customer named**
+    (`codebase-state.md` items 126–129): `EventPattern::CreateTokens` has no
+    kind field (Divine Visitation, Ojer Taq, Jinnie Fay, Xorn, Academy
+    Manufactor); `AmountRewrite::Plus` over a creation is refused (Xorn);
+    there is no `GameActionTemplate::CreateTokens` (Divine Visitation, Bard
+    King of Dale — and the reason `ATOM-614.16-001` is `COVERS-PARTIAL`);
+    and a creation carries no `EnterMods` (121 printed "tapped and
+    attacking"). Each is a `GainLife`-shaped wait: the retrofit is sized and
+    nothing registered reads it.
+
+80. **The middle arm cannot isolate the engine on `stress` when the registry
+    grows, and a fourth arm can.** Registering four cards changes every
+    `stress` deck, so "registered, old pool" against `main` reads the deck
+    change on that pool (RE-3 noted it; RE-4's read `differ` in every row).
+    A fourth binary — the engine commit with the cards *unregistered*, so
+    the registry and both pools are `main`'s — is `IDENTICAL` to `main` on
+    `performance` and differs on `stress` by exactly one `TokenCreated` line
+    per Zombie Kalitas makes (26 in 200 games), with the one extra gather's
+    walk of Kalitas showing as `Layer frames` 7,166 → 7,169 per game and
+    invisible in the rounded `Replacement gathers` row. It is also the arm
+    that showed item 77's loop was the *decks'* to reach and not the engine's
+    to cause. Cheap enough to be the rule: a phase that registers cards and
+    wants the engine's `stress` cost builds it.
 
 ## 12. Explicitly out of scope
 

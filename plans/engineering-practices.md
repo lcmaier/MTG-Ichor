@@ -1183,6 +1183,110 @@ carefully — 45.36 → 70.31 ms is a *different set of games*, not a slower
 engine, since B's p99 sits on A's; CPU/game median moves +1.8%, inside the
 sitting's spread, and ms per 1,000 questions is flat to slightly down.
 
+**Re-recorded 2026-09-13 for RE-4** (CR 614.16's token half;
+`replacement-architecture.md` §9). `PERFORMANCE_POOL` +2 — Parallel Lives and
+Raise the Alarm, 81 → 83 — and the stress pool +4 (133 → 137), so **both tables
+are a re-record and neither column is an engine reading**; the engine's
+reading is the middle arm, and it is the cleanest one RE has had. **`IDENTICAL`
+to `main` outside `=== Timing ===` on `performance` at two seats and at four**
+(200 games / seed 12345): nothing in the 81 creates a token, so the creation
+proposal, its batch and the `TokenCreated` line never run until the Alarm is
+pooled. CPU/game +2.1% and −1.3% (two seats, two sittings), +1.0% and −0.6%
+(four); `CPU/turn p50` 0.400 → 0.410 then 0.420 → 0.420 — flat, both signs.
+
+**The `stress` column moved with the registry, and a fourth arm is what read
+the engine there.** Registering four cards changes every `stress` deck, so the
+middle arm reads `differ` on that pool in every gameplay row — RE-3 noted the
+same and read nothing off it. RE-4 built a fourth binary, the engine commit
+with the cards *unregistered* (so `main`'s registry and decks), and it is
+`IDENTICAL` on `performance` and differs on `stress` by exactly one
+`TokenCreated` line per Zombie Kalitas makes — 26 in 200 two-seat games — the
+predicted +1 gather per creation showing as `Layer frames` 7,166 → 7,169 per
+game and rounding away in the gathers row. **Cheap enough to be the rule:** a
+phase that registers cards and wants the engine's `stress` cost builds it
+(`replacement-architecture.md` §11 item 80).
+
+*The pooled column is a re-record and a bigger board.* Two 1/1 Soldiers a
+cast are two permanents that attack, block, die and are walked: at 200 games
+on `performance`, `Replacement gathers` 1002 → 1043, `Layer walks` 373 → 386,
+avg turns 29.9 → 30.7, total damage 57.8 → 69.3, max turns 72 → 95 (the p99,
+43 → 78 ms). CPU/game +12.9% and +9.0% across two sittings, `ms / 1,000
+queries` +2.7% and −0.8%, `CPU/turn p50` 0.400 → 0.410: more game, not a
+slower walk. **Reachability:** `--require "Parallel Lives,Raise the Alarm"`,
+200 games — Parallel Lives cast 168, resolved 168, in **116 of 200 games
+(58%)**, copies/deck 1.54; Raise the Alarm 201 / 201 in **140 (70%)**,
+copies/deck 1.49; board diversity 100%. Zero errors, zero panics, every arm.
+
+| | performance (83 cards) | stress (137 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 24 (48.0%) / 26 (52.0%) |
+| Avg turns | 30.1 | 29.9 |
+| Spells cast | 23.3 | 22.2 |
+| Lands played | 18.3 | 17.4 |
+| Combat w/ atk | 10.8 | 9.0 |
+| Creatures died | 7.5 | 5.7 |
+| Damage events | 23.1 | 20.8 |
+| Total damage | 68.3 | 54.8 |
+| Life changes | 14.5 | 15.8 |
+| **Layer walks** | **389** | **464** |
+| **Board walks** | **249** | **278** |
+| **Memo hits** | **62,489** | **71,222** |
+| **Layer frames** | **4,545** | **5,329** |
+| **Frames/walk** | **11.69** | **11.49** |
+| **Dependency checks** | **23** | **15** |
+| **Replacement gathers** | **1021** | **1012** |
+| **Restriction queries** | **1023** | **1014** |
+| Prevention allocations | 0.02 | 0.00 |
+
+**The four-player table, re-recorded** — the pool moved, so this one moves
+with it, as RE-7 said it would. The middle arm is `IDENTICAL` to `main` here
+too, and the pooled column is the same bigger board: gathers 2102 → 2145 at
+200 games, avg turns 61.0 → 61.4, CPU/game −3.6% and −2.0% (a different
+board; `Dependency checks` 171 → 111). **Two `stress` games of 200 are worth a
+sentence each.** Seed 12523 is the first game a measured run has ended as a
+**CR 104.4b draw**: a loop of riders — two Thought Reflections and a Notion
+Thief and an Alms Collector across two seats handing one draw back and forth,
+each hop a rider with a fresh applied set — which overflowed the stack on the
+first run and is capped at the chokepoint now (`replacement-architecture.md`
+§11 item 77; the engine-only arm, with `main`'s decks, never drew the board).
+Seed 12538 runs to the 200-turn limit: a two-seat endgame where Words of
+Worship and Circle of Protection: Red let the random agent gain five life per
+draw and prevent every point of red damage for a hundred and fifty turns —
+RE-3's and RD-3's cards and the agent, with no token in the last four hundred
+events. Three shell runs at one seed and `--players 4` identical outside
+`=== Timing ===` on both pools.
+
+| 4 players, 50 games / seed 12345 | performance (83 cards) | stress (137 cards) |
+|---|---|---|
+| Wins by seat | 24 (48%) / 13 (26%) / 9 (18%) / 4 (8%) | 26 (52%) / 16 (32%) / 8 (16%) / 0 (0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 55.8 | 66.9 |
+| Spells cast | 42.0 | 48.5 |
+| Lands played | 33.5 | 38.7 |
+| Combat w/ atk | 22.5 | 25.1 |
+| Creatures died | 14.7 | 12.7 |
+| Damage events | 50.2 | 57.6 |
+| Total damage | 156.0 | 152.5 |
+| Life changes | 35.5 | 39.3 |
+| Turns after a departure | 18.5 | 20.6 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **786** | **1,238** |
+| **Board walks** | **498** | **671** |
+| **Memo hits** | **161,430** | **262,805** |
+| **Layer frames** | **14,310** | **21,402** |
+| **Frames/walk** | **18.21** | **17.29** |
+| **Dependency checks** | **90** | **89** |
+| **Replacement gathers** | **1922** | **2412** |
+| **Restriction queries** | **1926** | **2419** |
+| Prevention allocations | 0.00 | 0.04 |
+
+At 200 games the same run reads: `performance` avg turns 61.4, wins by seat
+96/59/31/14, turns after a departure 21.9, gathers 2145, `Layer walks` 839,
+CPU/game median 49.70 ms with `CPU/turn p50` 0.73 ms; `stress` avg turns
+64.9, 85/60/38/15 with one draw and one turn limit, 22.4, gathers 2379,
+`Layer walks` 1,177. The stress column is not an engine reading, for RE-1's
+reason: the registry grew by four.
+
 **Re-recorded 2026-09-06 for LI-2** (CR 613.8a/b/c, the dependency loop;
 `layers-architecture.md` §13b). One new card in `performance` — Urborg,
 Tomb of Yawgmoth, 68 → 69 — and three in `stress` — Urborg, Opalescence,
@@ -2243,7 +2347,10 @@ RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, b
 pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
 one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (the
 applied set answered for a decomposed event; one of the two RE phases §9 named,
-decided at its close), **RE-4, RS-2, critical-path item 6**. Budget
+decided at its close), RE-4 ✗ (decided *no* at its close, 2026-09-13: the
+read it was named for was RC-5's page's already, and what it changed is what
+is proposed — the archive's "Trace-page decisions" has the argument),
+**RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

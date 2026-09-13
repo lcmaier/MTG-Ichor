@@ -2359,179 +2359,13 @@ section never asked.
 
 ### Found by the look-ahead frame (2026-09-02, RC-4)
 
-46. **The frame is per entry, not per batch, and §5b says it should be per
-    batch.** Two Master Biomancers entering as one event should give each other
-    nothing — every member's look-ahead reads the pre-batch board. Today an
-    entry is proposed *inside* its zone change's performer (RC-2's nested
-    `propose_entry`), so the second member of a `[ZoneChange, ZoneChange]`
-    batch is decided after the first was performed and sees it on the
-    battlefield. **Unreachable rather than wrong**: no caller produces a
-    multi-entry batch (`Primitive::ReturnToBattlefield` is a stub;
-    `CreateToken` loops `propose_entry`). The fix is structural — decide the
-    entry in phase 1 beside its zone change, perform it in phase 2 — and it is
-    the same restructuring CR 613.7m needs ("Before card breadth" item 4), so
-    the two are scheduled together as RC-5 part 2 (`replacement-architecture.md`
-    §9). **Sized:** ~400 additions in `execute_batch_inner` and
-    `perform_action`'s `ZoneChange` arm. The entry hop ("Before Triggered
-    abilities" item 4) was the same restructuring seen from the log's side,
-    and **RC-4b closed it (2026-09-02)**: an entry is a phase-1 proposal that
-    carries `from`, so a multi-entry batch would now decide every member
-    against the pre-batch board. What is left here is producing one —
-    `CreateToken` still loops `propose_entry` one token per batch — and
-    CR 613.7m's APNAP timestamps.
+46. **~~The frame is per entry, not per batch, and §5b says it should be per
+    batch.~~ ✅ CLOSED 2026-09-13 (RE-4).** The frame half was RC-4b's; the
+    producer is `GameAction::CreateTokens`, whose performer proposes every
+    token's entry as one batch — Raise the Alarm in the pool is the first
+    plural entry a measured game builds. → `plans/archive/codebase-state-closed.md`.
 
-    **Re-read against the tree 2026-09-03 (RC-5's re-size), and the two halves
-    split.** The frame half is *done*, not merely designed: phase 1 decides
-    every member before phase 2 performs any, `EntryFrame::new` is built from
-    the proposal inside phase 1, and a `ZoneChange { to: Battlefield }`
-    proposal is a debug assertion — so §5b's two Master Biomancers already give
-    each other nothing. RC-5 proves it at the `execute_actions` boundary
-    (`test_two_biomancers_entering_together_give_each_other_nothing`) and does
-    not pretend that proves the pool. **The producer is the whole of what is
-    left, and it is bigger than it looks**: `Primitive::ReturnToBattlefield` is
-    the natural one, and it needs a graveyard leaf on `SelectionFilter` (which
-    enumerates only battlefield, stack and players) plus item 48's `controller`
-    field, because a mass return is exactly item 48's wrong fourth road.
-    **Sized:** ~350 and a card. It is what makes CR 614.13a's second clause —
-    "nor any other object entering the battlefield at the same time" — and the
-    batch-scoped frame reachable from a game rather than from a test. CR 613.7m
-    is *not* part of this any more; see item 4 under "Before card breadth".
-
-    **`Primitive::CreateToken` is the cheaper producer and it should stop
-    looping** (asked on review 2026-09-03). "Create three 1/1 Soldiers" is one
-    event by CR 111's own shape, and the loop makes it three — three batches,
-    three CR 616.1 passes, three chances for an entry replacement to see a token
-    the others just made. Phase RE's `GameAction::CreateTokens` is where that
-    stops, and it arrives there for CR 614.16's doublers anyway, so the fix is
-    free at the point of use rather than a job of its own. **It is also the
-    cheaper route to a multi-entry batch than a mass return**: no graveyard leaf,
-    no item 48 controller field, and the pool already makes tokens (Kalitas's
-    rider). Whoever builds RE should expect it to close this item and 613.7m
-    together. **On storage:** a token is a full `GameObject` today, and a wide
-    board of them is the shape simulators historically bog down on. Nothing has
-    measured it here — `fuzz_games` makes few tokens — so it is not a claim, but
-    a batched creation is the prerequisite for ever storing them any other way,
-    because a per-token loop hard-codes one object per token at the *proposal*.
-
-    **Reachability (2026-09-03):** unreachable — still no producer of a
-    multi-entry batch: `ReturnToBattlefield` is the stub arm (`resolve.rs:868`),
-    `CreateToken` loops `propose_entry` (`resolve.rs:630`), and Kalitas makes
-    one token per death.
-
-    **Owner (2026-09-11):** RE-4 — `replacement-architecture.md` §9, RE
-    decision 3; Raise the Alarm and Hordeling Outburst are the first plural
-    creations, and CR 613.7m's prompt is *not* asked for a homogeneous batch.
-
-47. **`pipeline::ordering_cannot_change_outcome` is a semantics-assuming
-    shortcut, and these are its expiry conditions.** (Named
-    `order_invariant_entry_bucket` until RD-2; item 65.) It skips CR 616.1's prompt when every
-    member of the bucket is an `EnterWith` whose applicability no `EnterMods`
-    field can move, which is true today because the only characteristic the
-    mods feed is power (through `+1/+1` and `-1/-1` counters, CR 122.1a) and
-    the only leaf that reads power is `ObjectFilter::PowerLE`, which the
-    predicate excludes. It goes false, silently, the day any of these lands:
-    (a) `EnterMods` gains a field that feeds a characteristic — **face-down**,
-    which is Layer 1 and changes everything (Phase CV); (b) `ObjectFilter`
-    gains a leaf that reads power, toughness, keywords or counters
-    (`ToughnessLE`, `HasKeyword`, `HasCounter` — RS-2/RS-3 candidates); (c)
-    `EventPattern::EnterBattlefield` gains a field that reads `mods`.
-    `filter_is_mods_invariant` is matched exhaustively, so (b) is a compile
-    error rather than a silent default; (a) and (c) are not, and
-    `check_order_invariance` is the debug-build check that computes the theorem
-    the other way — re-gather after the suppressed choice and assert the rest
-    still apply — which catches either on any board a test or a debug fuzz run
-    reaches. **The rule for whoever adds (a) or (c): revisit the predicate in
-    the same commit.** **A fourth condition arrived with RC-5 and fired
-    immediately** — an `EnterModsTemplate` amount that reads the CR 614.12 frame
-    does not commute, so the predicate now asks for `Fixed` or a source that is
-    not the entering object. The rule was followed: see item 58.
-
-    **A second bucket shape arrived with RD-2 (2026-09-09), by decision rather
-    than by accident** (`replacement-architecture.md` §11 item 29). The
-    predicate — renamed `ordering_cannot_change_outcome`, item 65 — now also
-    admits a bucket that is entirely `Amount(Multiplier(n ≥ 1))` on
-    `EventPattern::DealDamage`, under the same shared clauses. It goes false
-    the day (d) an `EventPattern::DealDamage` field reads the *amount* — or
-    (e) a `Multiplier(0)` is printed, which the `n ≥ 1` clause refuses rather
-    than defaults on. The debug re-gather checks per group member since RD-2's
-    group form, so (d) is caught on any board a debug run reaches.
-
-    **(d) re-derived at RD-3 (2026-09-09), which added the arm's first two
-    fields, and the suppression stands.** `source` is CR 609.7's predicate over
-    the object *dealing* the damage and `combat` is CR 510.2's flag on the
-    proposal; neither reads the amount, so no member of a multiplier bucket can
-    fall out of applicability as another changes the number. Item 102 is the
-    entry; the rule this item states for whoever adds such a field — revisit
-    the predicate in the same commit — was followed.
-
-    **Reachability (2026-09-03):** nothing owed — expiry conditions for a
-    predicate; the rule is "revisit in the same commit".
-
-    **Sized:** none.
-
-48. **`default_enter_controller` has three roads and answers a fourth wrongly
-    — and RC-4 stopped standing on it.** The three that exist are exact: a
-    resolving permanent spell (`GameState::resolving`, CR 110.2b's default),
-    a land drop (owner), a token (owner, CR 111.2). The fourth is an effect
-    putting a card onto the battlefield *under a player's control* who is not
-    its owner — Reanimate's "put target creature card from a graveyard onto
-    the battlefield under your control" — where owner is wrong and nothing in
-    the proposal says otherwise. No registered effect takes that road
-    (`Primitive::ReturnToBattlefield` is a stub). **Sized:** the mover has to
-    say under whose control — a `controller: Option<PlayerId>` on the
-    `ZoneChange` proposal, or a `propose_entry` argument the `Returned` arm
-    threads — one field, read in one place. The `base_controller` `resolving`
-    leg RC-3 added was re-checked for this phase as the brief asked: it is
-    consulted for an entering object only by the finished-board
-    `object_matches_filter`, which RC-4 no longer uses for an entry (the
-    frame seeds its controller from the proposal), so the frame does not stand
-    on it and it stays as RC-3 left it — right for the three roads, inert in a
-    game.
-
-    **Reachability (2026-09-03):** unreachable — `default_enter_controller`
-    (`game_state.rs:738`) still answers resolving-or-owner, and no registered
-    effect puts a card onto the battlefield under a non-owner's control.
-
-49. **`is_prohibited` has no source-1a leg.** `gather` asks the entering
-    permanent itself for its `SourceOnly` replacement abilities ahead of the
-    battlefield sweep, because `replacement_ability_sources` is written by the
-    performer; the restriction sweep has no twin, so an entering Tatterkite's
-    "this creature can't have counters put on it" (Melira's Keepers has the same
-    sentence) is invisible to an entry that would give it counters. CR 614.17d's
-    parenthesis licenses the leg. No registered effect gives an entering
-    permanent counters *from outside* — Master Biomancer is RC-5's — so there is
-    no board to fail on yet; add the leg with the first such card, mirroring
-    `gather`'s `SelfScope::EnteringSelf`, ~20 lines. **Master Biomancer landed
-    2026-09-03 and the leg is still owed — the board now exists.** An entering
-    Tatterkite under a Biomancer should get no counters and would get two:
-    `strip_prohibited_counters` asks `is_prohibited`, which still has no
-    source-1a sweep. Neither Tatterkite nor Melira's Keepers is registered, so
-    nothing fails; this is the first entry on this list whose *reproducer* is
-    now one card away rather than two.
-
-    **Reachability (2026-09-03):** unreachable, one card away — Master Biomancer
-    is registered; Tatterkite and Melira's Keepers are not, and no other
-    registered permanent forbids counters on itself.
-
-    **Sized:** ~20 lines mirroring `gather`'s
-    `SelfScope::EnteringSelf` in `restriction/predicate.rs`, with the first such
-    card.
-
-50. **A count enumerates the battlefield twice per CDA.** `SetPowerToughness`
-    evaluates its two amounts separately, so Keldon Warlord's `CountOf` sorts
-    `battlefield_ids_ordered` and matches every permanent twice per layer-7a
-    application — the second pass hits the frame cache for every frame but
-    repeats the sort and the filter walk. Not measured to matter (see the RC-4
-    block above); recorded so that whoever sees `Frames/walk` climb on a
-    CDA-heavy board knows the factor of two is here and not in the cache.
-
-    **Reachability (2026-09-03):** reachable — not wrong; perf only (Keldon
-    Warlord is in `PERFORMANCE_POOL`; the factor of two sits inside
-    `Frames/walk`, not the cache).
-
-    **Sized:** evaluate a CDA's two amounts in one pass, or memoize
-    `CountOf` per filter within a walk, ~30 lines in `cda.rs`/`compute.rs`; only
-    when a CDA-heavy board measures it.
+    **Reachability (2026-09-13):** closed — RE-4.
 
 ### Found by the RC-4 review's nesting audit (2026-09-02)
 
@@ -2543,36 +2377,13 @@ section never asked.
 
 ### Found by RC-4b — entering is one event (2026-09-02)
 
-52. **A token whose entry is exiled instead records `from: Battlefield`.** A
-    token is created in `Zone::Battlefield` with no entity and in no
-    collection until its entry is decided (`Primitive::CreateToken`), and its
-    `EnterBattlefield` carries `from: None`. `Instead(ZoneChangeTo)` on it is
-    performed as `ZoneChange { from: Battlefield, to }` with no LKI, so the
-    log says the token left the battlefield where CR 111 says it was created
-    in exile (Hallowed Moonlight's ruling); CR 704.5d then removes it. A
-    *dropped* token entry un-creates the object (CR 111.5). **Unreachable
-    today**: Containment Priest excludes tokens and no registered card is
-    Hallowed Moonlight. The honest fix is Phase RE's `CreateTokens` proposal
-    (CR 614.16's doublers need it anyway), where the creation is the event and
-    the entry's decision sets its destination —
-    `replacement-architecture.md` §9, RC-4b's token decision. **Sized:** the
-    `CreateTokens` arm of `GameAction` and `EventPattern`, ~150, inside RE.
-    **Not optional before Phase 8 (owner, RC-4b review):** Dour Port-Mage
-    ("Whenever one or more other creatures you control leave the battlefield
-    without dying, draw a card.") and Aang, Airbending Master ("... you get an
-    experience counter.") are the matcher that reads this line — a
-    leaves-the-battlefield trigger keyed on `ZoneChange { from: Battlefield }`
-    — and both would fire for a token that was created in exile and never left
-    anything. Cross-listed as "Before card breadth" item 8.
+52. **~~A token whose entry is exiled instead records `from: Battlefield`.~~
+    ✅ CLOSED 2026-09-13 (RE-4).** The substitute is `GameAction::CreateTokenIn`
+    — an appearance, announced as `TokenCreated { Exile }` — and the token has
+    no `ZoneChange` at all; Hallowed Moonlight is registered and reaches it.
+    → `plans/archive/codebase-state-closed.md`.
 
-    **Reachability (2026-09-03):** unreachable — re-checked: Containment Priest
-    excludes tokens, no other registered replacement acts on an *entering* token
-    (Rest in Peace, Leyline and Kalitas act on graveyard-bound moves), and
-    Hallowed Moonlight is not registered.
-
-    **Owner (2026-09-11):** RE-4 — `replacement-architecture.md` §9, RE
-    decision 3: a `from`-less `CreateTokenIn` variant rather than an `Option`
-    on `ZoneChange.from`, with Hallowed Moonlight registered as the consumer.
+    **Reachability (2026-09-13):** closed — RE-4.
 
 ### Found by RC-5 — applying an entry can move the board (2026-09-03)
 
@@ -5065,10 +4876,25 @@ first.
    (Equip is unimplemented, Aura Finesse is unregistered, no Aura is castable)
    and nothing enters simultaneously (613.7m; `CreateToken` still loops).
 
+   **Re-dated 2026-09-13 (RE-4) — 613.7m's half now has simultaneous entries
+   and is still not asked, on RC-4's rule.** `GameAction::CreateTokens`
+   proposes every token's entry as one batch, so objects *do* receive
+   timestamps simultaneously now, in every Raise the Alarm the pool casts.
+   But the tokens one effect creates are identical and enter under one
+   controller, so "in the order of that player's choice" is a choice with one
+   outcome, and "never prompt for a choice with one outcome" applies
+   (`replacement-architecture.md` §9, RE decision 3): the batch order is the
+   creation's, and the log, the timestamps and `battlefield_ids_ordered`
+   agree with it (`a_plural_creation_is_one_event_and_its_entries_join_it`).
+   The prompt's customer is the first creation with *distinguishable*
+   members — Academy Manufactor's "one of each", Bestial Menace — or the
+   mass return item 46 used to size, and none is in reach. 613.7e's half is
+   unchanged.
+
    **Sized:** 613.7e is LH-2, ~900 additions
    (`layers-architecture.md` §13a); 613.7m is a decision point (the active
-   player orders their own), ~60 lines inside RE's `CreateTokens`; 613.7n rides
-   LH-2.
+   player orders their own), ~60 lines inside `CreateTokens`' performer, with
+   the first distinguishable creation; 613.7n rides LH-2.
 
 5. **Layer 7c is not order-independent in Magic, and 19 cards say so (recorded 2026-08-24).** `compute.rs` applies ±1/±1 counters after the 7c registry slice without a timestamp merge. That is correct while every 7c modification is an addition — but CR 701.10a makes "double [a creature's] power" a 7c continuous effect whose addend depends on what already applied, so two doublings, or a doubling and a pump, are order-dependent by timestamp. Scryfall: **19 cards** match the doubling shape (Bulk Up, Epic Fight, Exponential Growth, Unnatural Growth…), before looser wordings. Inexpressible today — `AmountExpr` has no affected-power leaf — so nothing is wrong now. The first doubling card needs that leaf **and** the timestamp merge Layer 6's keyword counters already use. The comment at the code site was corrected 2026-08-24; it used to claim order-independence as a property of the layer.
 
@@ -5097,14 +4923,9 @@ first.
    plus `enumerate_legal_selections` — the same change as main item 15's first
    half.
 
-8. **A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52 (recorded 2026-09-02).** Dour Port-Mage and Aang, Airbending Master — "leave the battlefield without dying" — read exactly that line and would draw a card or grant an experience counter for a token Hallowed Moonlight created in exile. The fix is Phase RE's `CreateTokens` proposal, whose destination the entry's decision sets, and it lands before any pool pairs a token-exiling replacement with a leaves-without-dying trigger. A hard back-stop, not an RE nicety.
+8. **~~A token created in exile instead logs `from: Battlefield` — RC-4b's cheap token answer, item 52.~~ ✅ CLOSED 2026-09-13 (RE-4).** The line Dour Port-Mage and Aang would have read no longer exists: a token exiled instead is `TokenCreated { Exile }` with no zone change, asserted absent in `phase_re4_integration_test`. → `plans/archive/codebase-state-closed.md`, main item 52.
 
-   **Reachability (2026-09-03):** unreachable — as main item 52, re-checked
-   there.
-
-   **Sized:** with item 52, ~150 lines inside RE — **RE-4** as of 2026-09-11
-   (`replacement-architecture.md` §9, RE decision 3), with Hallowed Moonlight
-   registered there as the card that reaches it.
+   **Reachability (2026-09-13):** closed — RE-4.
 
 9. **`can_pay_costs` checks each `Cost::Mana` against the whole pool, and
    `pay_costs` is not atomic across them (found 2026-09-02, closing 16c).**
@@ -5381,6 +5202,26 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
    ~5 lines, inside whichever of the two arrives second.
+
+8. **"Whenever you create one or more tokens" has one key, and CR 111.13 is
+   where it stops (recorded 2026-09-13, RE-4).** `GameEvent::TokenCreated {
+   object_id, owner, zone }` is announced for every token an effect creates —
+   ahead of `PermanentEnteredBattlefield` for one that enters, alone for one
+   created elsewhere (Hallowed Moonlight's exile) — so a "create" trigger
+   reads one event kind whatever the zone, and a plural creation is one batch
+   of them, the way "one or more creatures die" is a batch of zone changes.
+   The line it must not cross is CR 111.13: a copy of a permanent spell
+   becomes a token as it resolves and "is not 'created' for the purposes of
+   any … triggered abilities that refer to creating a token" — it enters from
+   the stack with a `from`, takes the entry performer's card arm, and gets no
+   `TokenCreated`. CV-4 is where that token first exists; the arm is already
+   the right one.
+
+   **Reachability (2026-09-13):** nothing owed to correctness — a note for
+   item 6's event audit (item 2), so the dispatcher keys "create" on this
+   event and not on `is_token` at entry.
+
+   **Sized:** none; the event exists and is emitted.
 
 7. **CR 800.4d's second sentence has no site until the dispatcher exists.** "If
    a triggered ability that would be controlled by a player who has left the
@@ -5708,6 +5549,103 @@ migration.
      which is what §8c's "two customers before a leaf" asks for before that
      facility is built. Until then the engine's answer is the graveyard and
      this line is the record that the choice is missing.
+
+### Found by RE-4 — tokens (2026-09-13)
+
+**Shipped:** `GameAction::CreateTokens { defs, controller }` and
+`EventPattern::CreateTokens`; `Rewrite::Amount(Multiplier)` over a `Vec`,
+repeating each def in place; a performer that creates the objects and
+proposes every entry as one contained batch, un-creating a dropped member
+(CR 111.5); `GameAction::CreateTokenIn { object, zone }` as the substitute
+for a token's entry, with `GameState::put_token_into` and
+`GameEvent::TokenCreated` (two callers of one emitter — the entry performer's
+token arm and `CreateTokenIn`'s); `TokenDef` with `abilities`, `supertypes`,
+`rules_text`, `enchant_filter`, an `Option` name (CR 111.4's default) and
+`Option` power and toughness (CR 208.3), lowered by `TokenDef::card_data`;
+Parallel Lives, Raise the Alarm (both pooled), Hordeling Outburst, Hallowed
+Moonlight. Items 46 and 52 and "Before card breadth" item 8 closed. **Left
+absent, each with its customer named:**
+
+126. **`EventPattern::CreateTokens` has no kind field, and five printed cards
+     want one.** "If one or more *creature* tokens would be created under
+     your control" (Divine Visitation, Ojer Taq, Jinnie Fay), "*Treasure*
+     tokens" (Xorn), "a *Clue, Food, or Treasure* token" (Academy Manufactor)
+     constrain which defs the effect is about, and the arm today matches any
+     nonempty creation. `GainLife`'s rule (wait for the customer, size the
+     retrofit) applies: none of the five is registered, and a field nothing
+     reads is a field every author decides about.
+
+     **Reachability (2026-09-13):** unreachable — no registered def is
+     constrained by kind; Parallel Lives is "one or more tokens".
+
+     **Sized:** a `kind: Option<TokenKindPattern>` (types and subtypes,
+     matched against each `TokenDef` — the objects do not exist at gather
+     time, so `ObjectFilter` cannot be reused), one `pattern_watches` clause
+     ("any def matches"), `apply_rewrite`'s `Multiplier` leg repeating only
+     the matching defs, and `reads_the_amount` unchanged; ~40 lines, with
+     the first of the five.
+
+127. **`AmountRewrite::Plus` over a creation is refused, and Xorn is the
+     customer.** "If you would create one or more Treasure tokens, instead
+     create that many plus one" — `Plus(1)` over a `Vec<TokenDef>` has to
+     say *which* def the extra one repeats, which is unambiguous only once
+     item 126's kind field has narrowed the creation to one def. The
+     pipeline returns an authoring error today rather than guessing
+     (`amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest`).
+
+     **Reachability (2026-09-13):** unreachable — no registered def pairs
+     `Plus` with `CreateTokens`.
+
+     **Sized:** ~15 lines in the `Multiplier` leg's sibling, after item 126.
+
+128. **No `GameActionTemplate::CreateTokens`, so "instead create [other
+     tokens]" is not a rewrite yet.** Divine Visitation ("that many 4/4 white
+     Angel creature tokens … are created instead"), Jinnie Fay, Chatterfang's
+     "those tokens plus that many Squirrels" and the kind-changing "if you
+     would draw, create a token instead" family (Bard King of Dale, and the
+     *Words of* shape RE-2's ledger row named) each substitute the creation's
+     defs. `Rewrite::Instead` has no template for it, and `ATOM-614.16-001` is
+     `COVERS-PARTIAL` for exactly this reason — its board's "instead create a
+     1/1 Spirit" is a substitute where Kalitas's Zombie is a rider.
+
+     **Reachability (2026-09-13):** unreachable — nothing registered
+     substitutes a creation.
+
+     **Sized:** a template `CreateTokens { def, count: TemplateAmount }`
+     (`ReplacedAmount` for "that many"), one `substitute` leg, one
+     `template_is_instance_invariant` arm; ~60 lines, with Divine Visitation,
+     which also wants item 126.
+
+129. **A creation carries no `EnterMods`, so "create … tapped and
+     attacking" is not expressible.** Parallel Lives' second ruling uses it as
+     its example of what the extra tokens inherit, and it is printed on 121
+     cards, 78 of which create tokens (Scryfall, `o:"tapped and attacking"`,
+     2026-09-13). The entry each token proposes seeds its mods from the rules
+     alone (`default_enter_mods`), and the creation has no field to add
+     "tapped" or "attacking" to that seed.
+
+     **Reachability (2026-09-13):** unreachable — no registered def enters
+     modified.
+
+     **Sized:** `TokenDef` (or `CreateTokens`) gains an `EnterMods` the
+     performer merges into each entry's seed, ~20 lines; "attacking" also
+     needs a combat-state write the entry performer does not have today
+     (CR 508.4's "put onto the battlefield attacking" is its own rule and a
+     combat question), so the tapped half is cheap and the attacking half is
+     combat's.
+
+130. **`Subtype::word` spells three multi-word subtypes and would misspell a
+     fourth.** CR 111.4's default name is built from the printed subtype
+     words; the variant name is the word for every subtype but "Power-Plant",
+     "Urza's" and "Time Lord", which the function spells. A new multi-word
+     subtype (none in the CR's creature or land lists beyond those three;
+     planar and dungeon types are several words each and no token has one)
+     lands as its variant name until a line is added.
+
+     **Reachability (2026-09-13):** not wrong today — the three are spelled,
+     and no other multi-word subtype is a token's.
+
+     **Sized:** one line per subtype, at the moment a token def carries one.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
