@@ -223,3 +223,59 @@ impl GameState {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::engine::actions::ZoneChangeCause;
+    use crate::objects::card_data::CardDataBuilder;
+    use crate::objects::object::GameObject;
+    use crate::state::game_state::GameState;
+    use crate::test_support::{setup_game, test_ctx, vanilla_creature};
+    use crate::types::zones::Zone;
+
+    /// CR 800.4b's third sentence — "if an object would be put onto the
+    /// battlefield ... under the control of a player who has left the game,
+    /// that object remains in its current zone".
+    ///
+    /// A unit test rather than an integration one because `propose_entry` is
+    /// the site and it is `pub(crate)`: the production route to it with a
+    /// departed controller is a permanent spell whose CR 110.2b default
+    /// controller left, and no registered card puts a spell on the stack under
+    /// a player who does not own it.
+    #[test]
+    fn an_object_is_not_put_onto_the_battlefield_under_a_departed_players_control() {
+        let mut game = setup_game(4);
+        game.player_lost[1] = true;
+        let card = GameObject::new(vanilla_creature(2, 2, &[]), 2, Zone::Hand);
+        let id = card.id;
+        game.add_object(card);
+        game.players[2].hand.push(id);
+
+        let entered = game
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeCause::Resolved), &test_ctx())
+            .unwrap();
+
+        assert!(!entered);
+        assert_eq!(game.get_object(id).unwrap().zone, Zone::Hand, "it remains in its current zone");
+        assert!(game.battlefield.is_empty());
+    }
+
+    /// The same call in a two-player game, where CR 800.1 puts the rule out of
+    /// scope and the entry happens.
+    #[test]
+    fn a_two_player_game_does_not_refuse_the_entry() {
+        let mut game = GameState::new(2, 20);
+        game.player_lost[1] = true;
+        let card = GameObject::new(CardDataBuilder::new("Fixture").build(), 0, Zone::Hand);
+        let id = card.id;
+        game.add_object(card);
+        game.players[0].hand.push(id);
+
+        let entered = game
+            .propose_entry(id, Some(Zone::Hand), 1, Some(ZoneChangeCause::Resolved), &test_ctx())
+            .unwrap();
+
+        assert!(entered);
+        assert_eq!(game.get_object(id).unwrap().zone, Zone::Battlefield);
+    }
+}

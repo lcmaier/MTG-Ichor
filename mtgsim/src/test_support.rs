@@ -430,6 +430,29 @@ pub fn put_on_battlefield(
     id
 }
 
+/// [`put_on_battlefield`] with an owner and a CR 110.2b default controller that
+/// need not be the same player.
+///
+/// Bribery's board, which no other helper can build: "put that card onto the
+/// battlefield under your control" leaves the card its owner's and the
+/// permanent yours by default, and CR 800.4a's fourth clause and CR 800.4c are
+/// both about exactly that gap.
+pub fn put_on_battlefield_under(
+    game: &mut GameState,
+    card_data: Arc<CardData>,
+    owner: PlayerId,
+    controller: PlayerId,
+) -> ObjectId {
+    let obj = GameObject::new(card_data, owner, Zone::Battlefield);
+    let id = obj.id;
+    game.add_object(obj);
+    let mods = game.default_enter_mods(id, controller);
+    let entry = game.place_on_battlefield(id, controller, &mods);
+    entry.entered_battlefield_turn = 0;
+    entry.controller_since_turn = 0;
+    id
+}
+
 /// Put a land onto the battlefield for a player (from a factory function).
 pub fn put_land_on_battlefield(
     game: &mut GameState,
