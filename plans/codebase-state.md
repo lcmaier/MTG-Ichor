@@ -5381,6 +5381,23 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    walk per permanent at the moment a player leaves, which is why it was not
    paid speculatively.
 
+7. **CR 800.4d's second sentence has no site until the dispatcher exists.** "If
+   a triggered ability that would be controlled by a player who has left the
+   game would be put onto the stack, it isn't put on the stack" — a refusal at
+   the moment CR 603.3 puts an ability on the stack, which is the one moment
+   this engine does not have. Its first sentence (an object owned by a departed
+   player is not created) landed with RE-7 at `Primitive::CreateToken`;
+   `ATOM-800.4d-001` is `COVERS-PARTIAL` on that test and names this half as
+   the reason. The rule's own example is Astral Slide's delayed trigger, which
+   is also the shape that will reach it first: a *delayed* trigger outlives the
+   departure that its source did not.
+
+   **Reachability (2026-09-13):** unreachable — no ability is put onto the
+   stack by a trigger, so there is nothing to refuse.
+
+   **Sized:** one `in_game` read at the dispatcher's put-on-stack site,
+   ~5 lines and a four-player fixture, inside critical-path item 6.
+
 ### Before Commander (CR 903)
 
 1. **Commander damage increment — ✅ done (2026-04-18).** — archived.

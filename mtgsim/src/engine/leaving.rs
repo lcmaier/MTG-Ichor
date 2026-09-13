@@ -200,22 +200,21 @@ impl GameState {
         if !self.is_multiplayer() || self.player_lost.iter().all(|&lost| !lost) {
             return Ok(());
         }
-        let mut orphaned: Vec<ObjectId> = self
+        let orphaned: Vec<ObjectId> = self
             .battlefield_ids_ordered()
             .into_iter()
             .chain(self.stack.iter().copied())
             .filter(|&id| get_effective_controller(self, id).is_some_and(|p| !self.in_game(p)))
             .collect();
-        // A replacement effect may move a later member while an earlier one is
-        // being exiled (an Aura's host leaving takes the Aura off its host, and
-        // a `ZoneChangeTo` rewrite can send either anywhere), so each is
-        // re-asked before it moves rather than trusted from the sweep.
-        orphaned.retain(|id| self.objects.contains_key(id));
         for id in orphaned {
-            if get_effective_controller(self, id).is_some_and(|p| self.in_game(p)) {
+            // Each exile is a proposal, so a replacement effect may have moved
+            // a later object while an earlier one was being exiled, and the
+            // sweep's answer for it is a board old. Re-asked rather than
+            // trusted.
+            if !self.objects.contains_key(&id) {
                 continue;
             }
-            if !self.objects.contains_key(&id) {
+            if get_effective_controller(self, id).is_some_and(|p| self.in_game(p)) {
                 continue;
             }
             self.change_zone(id, Zone::Exile, ZoneChangeCause::ControllerLeftTheGame, ctx)?;
