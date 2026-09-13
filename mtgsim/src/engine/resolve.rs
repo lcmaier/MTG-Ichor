@@ -880,7 +880,7 @@ impl GameState {
                 if self.is_multiplayer() && !self.in_game(controller) {
                     return Ok(());
                 }
-                let data = token_card_data(token_def);
+                let data = token_def.card_data();
                 for _ in 0..count {
                     // CR 111.2 — a token's owner is the player who controls the
                     // effect that created it, and CR 111.1's `is_token` is what
@@ -2136,33 +2136,3 @@ mod tests {
     }
 }
 
-/// Lower a [`TokenDef`](crate::types::effects::TokenDef) into the `CardData`
-/// its `GameObject` reads.
-///
-/// CR 111.4: "a token has the characteristics of the spell or ability that
-/// created it" — and no mana cost (CR 111.6 makes its mana value 0), which
-/// falls out of `CardDataBuilder`'s default rather than being set.
-///
-/// One `Arc` per `CreateToken` resolution, shared by every token that
-/// resolution makes. They are separate objects with separate `ObjectId`s; what
-/// they share is their printed characteristics, which is exactly what
-/// `Arc<CardData>` means everywhere else in this engine.
-fn token_card_data(
-    def: &crate::types::effects::TokenDef,
-) -> std::sync::Arc<crate::objects::card_data::CardData> {
-    let mut builder = crate::objects::card_data::CardDataBuilder::new(&def.name)
-        .power_toughness(def.power, def.toughness);
-    for color in &def.colors {
-        builder = builder.color(*color);
-    }
-    for card_type in &def.types {
-        builder = builder.card_type(*card_type);
-    }
-    for subtype in &def.subtypes {
-        builder = builder.subtype(subtype.clone());
-    }
-    for keyword in &def.keyword_flags {
-        builder = builder.keyword_flag(*keyword);
-    }
-    builder.build()
-}

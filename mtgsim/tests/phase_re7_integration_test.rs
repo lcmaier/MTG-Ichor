@@ -209,13 +209,17 @@ fn stack_object_with(
 /// A 2/2 black Bear, for the token the departed player does not get.
 fn bear_token() -> TokenDef {
     TokenDef {
-        name: "Bear".to_string(),
+        name: Some("Bear".to_string()),
         colors: vec![Color::Black],
         types: vec![CardType::Creature],
         subtypes: Vec::new(),
-        power: 2,
-        toughness: 2,
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(2),
         keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
     }
 }
 

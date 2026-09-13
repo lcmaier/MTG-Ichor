@@ -533,16 +533,119 @@ pub enum ZoneFilter {
     Exile,
 }
 
-/// Token definition for CreateToken
+/// What a token is created *as* — CR 111.3's "text", the characteristics
+/// the creating effect defines.
+///
+/// **A description, not a card.** CR 111.4 says the effect *sets* the
+/// token's name and subtypes, and CR 111.3 that a token "doesn't have any
+/// characteristics not defined by the spell or ability that created it";
+/// so this carries exactly what an effect can say and nothing a card has
+/// that a token cannot — no mana cost (CR 111.6), no cast-time costs, no
+/// color indicator. [`Self::card_data`] lowers it into the `CardData` a
+/// `GameObject` reads, once per creation.
+///
+/// Every field a printed token needs is here (`backlog.md` §2.27 counted the
+/// gap at four — abilities, supertypes, rules text, an Aura's enchant
+/// filter — and RE-4 added them). What is *not* here is CR 111.10's twenty
+/// predefined tokens, which are constructors of this type and wait on the
+/// facilities their abilities need (§2.27, the library half).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TokenDef {
-    pub name: String,
+    /// `None` is CR 111.4's default — "its name is the same as its
+    /// subtype(s) plus the word 'Token'", so Kalitas's Zombie is named
+    /// "Zombie Token". `Some` is CR 111.9's "create [name], a …" (Boo) and
+    /// CR 111.10's named tokens (Walker).
+    pub name: Option<String>,
     pub colors: Vec<Color>,
     pub types: Vec<crate::types::card_types::CardType>,
+    /// CR 111.4: set by the effect together with the name, and the source
+    /// of the name when none is given. Legendary is a *supertype* and goes
+    /// in [`Self::supertypes`].
     pub subtypes: Vec<crate::types::card_types::Subtype>,
-    pub power: i32,
-    pub toughness: i32,
+    /// CR 111.9's "a legendary 1/1 red Hamster" and CR 111.10d's Walker are
+    /// the printed shapes; fifty-five printed effects create a legendary
+    /// token (§2.27).
+    pub supertypes: Vec<crate::types::card_types::Supertype>,
+    /// `None` for a noncreature token — CR 208.3 gives a noncreature no
+    /// power or toughness, and eighteen of CR 111.10's twenty predefined
+    /// tokens are noncreature. A creature token carries both.
+    pub power: Option<i32>,
+    pub toughness: Option<i32>,
     pub keyword_flags: Vec<KeywordFlag>,
+    /// The abilities the effect writes onto the token — CR 111.10a's
+    /// Treasure is an activated ability, the Roles are static ones, and
+    /// 211 printed effects quote one inline (§2.27). Provenance for
+    /// `AbilityDef::is_characteristic_defining` is the *creating effect*
+    /// (CR 604.3a(2)'s second clause), so an author sets it as for a
+    /// printed card.
+    pub abilities: Vec<crate::objects::card_data::AbilityDef>,
+    /// The token's text as a reader sees it. Display only, like
+    /// `CardData::rules_text`; the engine reads [`Self::abilities`].
+    pub rules_text: String,
+    /// CR 303.4 for an Aura token — CR 111.10j–r's Roles print "enchant
+    /// creature". `None` for everything that is not an Aura.
+    pub enchant_filter: Option<SelectionFilter>,
+}
+
+impl TokenDef {
+    /// CR 111.4's name: the given one, or "[subtypes] Token" when the
+    /// effect gave none — "Dwarf Berserker Token" for the rule's own
+    /// example, "Token" for a token with neither.
+    pub fn effective_name(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => {
+                let mut words: Vec<String> =
+                    self.subtypes.iter().map(|s| s.word()).collect();
+                words.push("Token".to_string());
+                words.join(" ")
+            }
+        }
+    }
+
+    /// Lower this description into the `CardData` a `GameObject` reads.
+    ///
+    /// CR 111.3: the values defined this way "are functionally equivalent
+    /// to the characteristic values that are printed on a card" — which is
+    /// why a token's `CardData` is built by the same builder a card's is
+    /// and read by the same layer walk. No mana cost is set, so CR 111.6's
+    /// mana value of 0 falls out of the builder's default.
+    ///
+    /// One `Arc` per call; a plural creation shares one across the tokens
+    /// of one def, which is what `Arc<CardData>` means everywhere else in
+    /// this engine — separate objects, one printed text.
+    pub fn card_data(&self) -> std::sync::Arc<crate::objects::card_data::CardData> {
+        let mut builder =
+            crate::objects::card_data::CardDataBuilder::new(&self.effective_name());
+        if let (Some(power), Some(toughness)) = (self.power, self.toughness) {
+            builder = builder.power_toughness(power, toughness);
+        }
+        for color in &self.colors {
+            builder = builder.color(*color);
+        }
+        for card_type in &self.types {
+            builder = builder.card_type(*card_type);
+        }
+        for supertype in &self.supertypes {
+            builder = builder.supertype(*supertype);
+        }
+        for subtype in &self.subtypes {
+            builder = builder.subtype(subtype.clone());
+        }
+        for keyword in &self.keyword_flags {
+            builder = builder.keyword_flag(*keyword);
+        }
+        for ability in &self.abilities {
+            builder = builder.ability(ability.clone());
+        }
+        if !self.rules_text.is_empty() {
+            builder = builder.rules_text(&self.rules_text);
+        }
+        if let Some(filter) = &self.enchant_filter {
+            builder = builder.enchant_filter(filter.clone());
+        }
+        builder.build()
+    }
 }
 
 /// Counter types that can be placed on permanents/players

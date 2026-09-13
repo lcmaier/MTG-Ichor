@@ -202,13 +202,17 @@ fn bear_costing(generic: u8) -> Arc<CardData> {
 /// way Kalitas's rider does.
 fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> Result<(), String> {
     let def = TokenDef {
-        name: "Zombie".to_string(),
+        name: None,
         colors: vec![Color::Black],
         types: vec![CardType::Creature],
         subtypes: vec![Subtype::Creature(CreatureType::Zombie)],
-        power: 2,
-        toughness: 2,
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(2),
         keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
     };
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
