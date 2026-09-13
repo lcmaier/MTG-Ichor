@@ -1094,6 +1094,78 @@ mechanic rather than a migration, which is why it is here and not in
   (2026-09-08): the census runs first so full control is scheduled against the
   whole stack rather than against the one decorator that happened to need it.
 
+### 2.27 The token vocabulary — a token cannot have an ability
+
+- **Rules** — CR 111.10a–v (the twenty predefined token types), CR 111.11
+  (a token created by name), CR 111.4 (a token has the characteristics the
+  effect that created it says), CR 701.16a (investigate = create a Clue).
+- **Verdict** — `TokenDef` (`types/effects.rs`) has **seven** fields — name,
+  colors, types, subtypes, power, toughness, keyword flags — and
+  `resolve.rs::token_card_data` lowers it into a `CardData` that has
+  **seventeen**. Six of the ten it cannot fill are right to be absent:
+  `mana_cost` (CR 111.6 gives a token none), `alternative_costs` and
+  `additional_costs` (cast-time, and a token is never cast), `color_indicator`
+  (a token's colors are stated outright, so nothing is derived), `loyalty` (no
+  printed card creates a planeswalker token — measured, zero) and `defense`
+  (battles, `backlog.md` §2.23). **Four are the gap: `abilities`,
+  `supertypes`, `rules_text` and `enchant_filter`.**
+
+  **So every one of CR 111.10's twenty predefined tokens is inexpressible, and
+  the rule's own text is why**: each of the twenty is *defined by an ability*.
+  Treasure, Food, Gold, Clue, Blood, Powerstone, Map, Junk, Lander, Mutagen and
+  Shard are an activated ability apiece; the six Roles are Auras — `enchant
+  creature` plus a static grant, and Wicked Role's is a *triggered* ability;
+  Incubator is a double-faced token with `{2}: Transform this token`; only
+  Walker (a 2/2 black Zombie named Walker) is expressible, and it is the one
+  of the twenty with no ability at all.
+
+  `token_card_data` does not drop abilities by oversight — there is no field to
+  read. This is the same failure shape as `backlog.md` §2.19's: **a `Vec` whose
+  element type cannot say the thing**, found by counting what the lowering
+  writes against what the target type holds.
+- **Size** — small for the vocabulary, a phase for the library. The type change
+  is ~6 fields plus ~20 lines of `token_card_data`, and a `cards::tokens` module
+  holding CR 111.10's twenty is one constructor each — but eleven of the twenty
+  need `Primitive::Sacrifice` as a *cost* (CM-3 shipped it), Treasure and Gold
+  need **§2.19's any-color mana** and are blocked on it, Wicked Role needs
+  CR 603 and is blocked on critical-path item 6, and the Roles need an Aura
+  token to attach on creation. So: **the type in RE-4's PR, the library in a
+  phase of its own**, and the library graduates entry by entry rather than all
+  at once. CR 111.11's by-name lookup is a separate ~40 lines against
+  `CardRegistry` and wants the information model (§2.9) before it can reveal
+  what it made.
+- **Blocks** — measured on Scryfall 2026-09-13, `unique=cards`: **3,582** cards
+  create a token at all, and **1,085 of them create one this vocabulary cannot
+  express** — 749 that name a CR 111.10 type (Treasure 375, Food 155,
+  Powerstone 44, Blood 43, Role 39, Clue 28, Map 13, Incubator 7, and the
+  rest), 211 that quote an ability inline (`create … token with "…"`), and 138
+  more that say **investigate** without ever printing the word Clue. A further
+  **55** create a *legendary* token, which is the missing `supertypes` field
+  rather than the missing abilities, and **80** printed tokens are double-faced
+  (CV-5's `back_face`, not this entry's). Copy-shaped tokens — "create a token
+  that's a copy of", 270, plus amass — are **CV-3's** and not here.
+
+  **The retrofit argument, which is why this is not simply Phase 8 breadth.**
+  A token with no abilities is not a token that is missing something; it is a
+  token the engine believes has none, and nothing fails. Every card written
+  against the current vocabulary is written *around* it — Academy Manufactor is
+  already recorded as uncastable for exactly this reason
+  (`replacement-architecture.md`, "Out of RE") — and Phase 8 is 643 atoms of
+  writing cards. The same back-stop argument CV-7 won on applies with a larger
+  population: **before Phase 8 card breadth**.
+- **Atoms** — `ATOM-111.10-001` (Treasure) and `-002` (Food), both tagged
+  Phase 8 and uncovered; `ATOM-111.11-001` (token by name). CR 111.4's
+  characteristics atoms are covered where they are. The twenty types do not
+  each owe an atom — CR 111.10 is one rule with twenty rows, and the corpus
+  files it as `BOUNDARY-DEF` with two examples, which is the right granularity.
+- **Owner** — none yet. **The type half is RE-4's** (2026-09-13, the owner):
+  RE-4 rewrites `Primitive::CreateToken` into `GameAction::CreateTokens` and is
+  the one PR that already has `TokenDef` and its lowering open, so adding the
+  fields there costs a struct and not a second pass over the same code. The
+  library half and CR 111.11 stay unowned.
+
+---
+
 ---
 
 ## 3. Dispositioned — sections that need no entry of their own
