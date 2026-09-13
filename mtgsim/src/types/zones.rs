@@ -39,7 +39,7 @@ impl Zone {
 ///   trigger matcher.** A third reader is a third place for it to drift.
 /// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
 ///   This is the whole of what makes the enum cheap to extend later. Widening
-///   is only expensive when an existing site was labelled with a coarse variant
+///   is only expensive when an existing site was labeled with a coarse variant
 ///   that should have been finer, and re-triaging it is guesswork that fails
 ///   silently — which requires a catchall to lump into. A genuinely new mutation
 ///   arrives with its own new call site, so it adds a variant and touches
@@ -80,7 +80,7 @@ pub enum ZoneChangeCause {
     /// reasons *as a cause*, and by that test these would collapse — nothing
     /// asks "was it returned or put". They stay apart because `Returned` means
     /// an object going back where it was, a Nadu card was never in hand, and a
-    /// site labelled with a variant whose name does not describe it is exactly
+    /// site labeled with a variant whose name does not describe it is exactly
     /// the coarse-label failure the no-catchall ban exists to prevent. The cost
     /// of the extra variant is zero while nothing matches exhaustively.
     ///
@@ -127,6 +127,15 @@ pub enum ZoneChangeCause {
     /// Two rules, two variants: the engine's reason for the move differs even
     /// though the destination does not.
     CommanderZoneSba,
+
+    // --- multiplayer (CR 800.4) ---
+    /// CR 800.4a's fourth sentence and CR 800.4c — an object whose controller
+    /// has left the game and which nobody still in the game controls is
+    /// exiled. Two rules, one variant: the engine's reason is the same in both
+    /// — there is no player left to control it — and the difference between
+    /// them is *when* the question is asked, which the moment of the move
+    /// already says.
+    ControllerLeftTheGame,
 
     // --- turn structure and special actions ---
     /// CR 121.5 makes this trigger-visibly distinct from "put into hand".

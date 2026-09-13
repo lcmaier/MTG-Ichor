@@ -8,7 +8,7 @@ states facts and has nothing re-reading it is `codebase-state.md` item 89 with
 a new name - it goes stale in the commit that renames something and nobody
 finds out. This is the re-reader.
 
-    python plans/check_glossary.py        # exit 1 on any of three failures
+    python plans/check_glossary.py        # exit 1 on any of four failures
 
 Three assertions:
 
@@ -79,7 +79,7 @@ CR_DIR = ROOT / "MTG-Rules" / "versions"
 WATCHLIST = [
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "census", "chokepoint", "containment", "cursor",
-    "decomposition", "donor", "drainer", "emitter",
+    "decomposition", "departed", "departing", "donor", "drainer", "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event",
     "memo", "performer", "pool", "position", "proposal", "queue", "registry",
@@ -89,6 +89,28 @@ WATCHLIST = [
 
 # Words that name more than one thing, and how many senses the glossary owes
 # each. A new collision is a line here and a numbered sense there, together.
+# British forms this crate does not use, and their American spellings. **A
+# vocabulary rule, which is why it lives here**: the glossary is the authority
+# on the words this codebase uses, and how a word is spelled is one of them.
+# The crate is a gate; `plans/` is reported and not failed, because the doc
+# tree carries pre-existing forms whose sweep is its own diff.
+#
+# Checked as whole words, so `colours` is caught by `colour` and a `Colour`
+# type name would be too. Add a pair when one slips in — the list is the rule.
+BRITISH = {
+    "favour": "favor", "favours": "favors", "favoured": "favored",
+    "favourite": "favorite", "behaviour": "behavior", "colour": "color",
+    "colours": "colors", "generalise": "generalize",
+    "generalises": "generalizes", "generalised": "generalized",
+    "generalising": "generalizing", "generalisation": "generalization",
+    "generalisable": "generalizable", "recognise": "recognize",
+    "organise": "organize", "organised": "organized", "summarise": "summarize",
+    "normalise": "normalize", "prioritise": "prioritize", "analyse": "analyze",
+    "defence": "defense", "licence": "license", "whilst": "while",
+    "centre": "center", "modelled": "modeled", "labelled": "labeled",
+    "travelled": "traveled", "fulfil": "fulfill",
+}
+
 POLYSEMOUS = {
     "source": 3, "shield": 3, "registry": 3, "queue": 3, "census": 2,
     "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
@@ -239,6 +261,19 @@ def main() -> int:
         if word not in defined:
             failures.append(f'"{word}" is on the watch-list and is not defined')
 
+    # 4 - American spelling in the crate. Whole words, comments included: a
+    # doc comment is prose this project reads as often as it reads code.
+    british_hits = []
+    for path in rs:
+        text = path.read_text(encoding="utf-8")
+        for n, line in enumerate(text.splitlines(), 1):
+            for word in re.findall(r"[A-Za-z]+", line):
+                if (fix := BRITISH.get(word.lower())) is not None:
+                    rel = path.relative_to(ROOT).as_posix()
+                    british_hits.append(f'{rel}:{n} "{word}" -> "{fix}"')
+    for hit in british_hits:
+        failures.append(f"British spelling: {hit}")
+
     # 3 - a word with more than one meaning carries all of them, numbered.
     for word, owed in POLYSEMOUS.items():
         if word not in defined:
@@ -250,10 +285,21 @@ def main() -> int:
                 f'"{word}" owes {owed} numbered senses; its entry carries {senses or "none"}'
             )
 
+    # `plans/` is a report: the doc tree carries pre-existing British forms and
+    # sweeping them is its own diff. Printed so the count can only go down.
+    docs = sorted((ROOT / "plans").rglob("*.md"))
+    doc_hits = sum(
+        1
+        for path in docs
+        for word in re.findall(r"[A-Za-z]+", path.read_text(encoding="utf-8"))
+        if word.lower() in BRITISH
+    )
+
     print(f"  terms defined       {len(defined):>4}")
     print(f"  watch-list          {len(WATCHLIST):>4}")
     print(f"  polysemous          {len(POLYSEMOUS):>4}")
     print(f"  .rs files searched  {len(rs):>4}")
+    print(f"  British in plans/   {doc_hits:>4}  (a report, not a gate)")
     print()
 
     if failures:

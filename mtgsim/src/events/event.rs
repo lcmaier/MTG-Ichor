@@ -208,6 +208,37 @@ pub enum GameEvent {
     /// (attached to a non-creature). Equipment stays on battlefield.
     EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
 
+    // --- Multiplayer (CR 800.4a) ---
+    /// An object owned by a player who has just left the game left it too.
+    ///
+    /// **Not a zone change, because there is no zone to name**: CR 400.11
+    /// lists the seven, and outside the game is not one of them. `from` is
+    /// where the object was, which the log wants and a `ZoneChange` would have
+    /// carried; there is no `to`.
+    ///
+    /// Emitted once per object by the `GameAction::PlayerLoses` performer —
+    /// CR 800.4a is "not a state-based action. It happens as soon as the
+    /// player leaves the game" — and by nothing else.
+    ///
+    /// **`lki` is CR 603.6c, which names this event in as many words**:
+    /// "leaves-the-battlefield abilities trigger when a permanent moves from
+    /// the battlefield to another zone, **or when a phased-in permanent leaves
+    /// the game because its owner leaves the game**". So a permanent leaving
+    /// here fires them, and CR 603.10a's frame is what a matcher will read —
+    /// captured before `cleanup_zone_state` retires the static abilities that
+    /// produced it, the same window `perform_zone_change` has. `None` for an
+    /// object that was not a permanent, which is every other zone.
+    ///
+    /// CR 603.6c's qualifier is the one part with no implementation: a *phased
+    /// out* permanent does not trigger, and phasing (CR 702.26) is not built
+    /// (`codebase-state.md`, "Phasing"). Every permanent is phased in today.
+    LeftTheGame {
+        object_id: ObjectId,
+        owner: PlayerId,
+        from: Zone,
+        lki: Option<Box<EffectiveCharacteristics>>,
+    },
+
     // --- Tokens ---
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.

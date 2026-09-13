@@ -130,7 +130,14 @@ impl GameState {
         // through here, and CR 903.9b has to be able to offer the command zone
         // instead.
         let actx = ActionContext::resolving(dp, &ctx);
-        if entry.is_spell {
+        if !self.objects.contains_key(&object_id) {
+            // CR 800.4a — the resolving object left the game during its own
+            // resolution, because its owner did (a spell that makes its own
+            // controller lose in a multiplayer game). CR 608.2m keeps the
+            // resolution whole and this is only its CR 608.2n tail: there is no
+            // card left to put anywhere. The ability announcement below still
+            // stands — the ability resolved.
+        } else if entry.is_spell {
             self.get_object(object_id)?;
             let is_permanent_type = has_permanent_type(self, object_id);
 
@@ -637,7 +644,7 @@ mod tests {
     /// `GameState::resolving` licenses two things that are bugs anywhere else:
     /// a stack removal that finds nothing, and an entering permanent taking a
     /// controller other than its owner. Leaving it set past the resolution
-    /// would extend that licence to whatever the same object does next — a
+    /// would extend that license to whatever the same object does next — a
     /// creature returned from the graveyard would enter under the dead spell's
     /// controller, and a genuinely missing stack object would go unreported.
     #[test]

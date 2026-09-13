@@ -23,7 +23,7 @@ python plans/check_claude_md.py && python plans/check_module_layout.py && python
 | `plans/*-architecture.md` | One per CR subsystem; each owns its type shapes, phase codes and open questions. `layers` (613) · `replacement` (614–616, `RA`–`RE`) · `cant-effects` (101.2/614.17/613.11, `RS-*`, supersedes L15) · `copy-effects` (707/712/708/729 + Layer 1, `CV-*`, supersedes D5) · `cost` (601.2f–h/118.7–9/613.11's cost half/903.8, `CM-*`/`CP-*`, supersedes L15's cost half). **A new subsystem extends this row, never adds one** |
 | `plans/cr-coverage-audit.md` | Whether the plan can *express* the frozen CR: the type-surface method, its calibration bar, and the findings register. `specdb.py orphaned`/`audit` confirm it; they are not the instrument |
 | `plans/backlog.md` | Everything off the critical path — one entry per mechanic: the surface that can't express the rule, rough size, what it blocks. **Not designs** — a mechanic graduates out to an architecture doc. Excluded from `orphaned`'s ownership set on purpose; §1 says why |
-| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7) |
+| `plans/engineering-practices.md` | Process: this file's budget, the comment rule, the two card pools, phase sizing, the specdb gate, module layout, trace pages (§7), **the rules pass (§8)** |
 | `plans/atomic-tests/sessions/*.md` | The spec corpus — atomic tests from a close read of the CR. Authored; never generated. (`summaries/` is an authoring trail; nothing reads it) |
 | `MTG-Rules/versions/*.txt` | The CR itself. `tmnt.txt` is the baseline the engine targets |
 | `plans/handoffs/*.md` | Where to resume a half-finished phase. Delete when the work lands |
@@ -176,7 +176,9 @@ one-consumer-per-PR rule and where review findings go. `gh` is installed; openin
 - **Comment the *why*, and only where it is not recoverable from the code plus one rule
   number.** A war story goes in the commit message or the architecture doc, not the source.
   → `engineering-practices.md` §2.
-- Don't refactor speculatively.
+- Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
+- **Before deferring a rules question, read the rule that *watches* the one you are
+  implementing** — it is in another chapter. → `engineering-practices.md` §8.
 - Test cards in `src/cards/phase_XX_cards.rs`; integration tests in
   `tests/phase_XX_integration_test.rs`. **Register every card you write**; a phase that
   opens a new engine path also adds one to `PERFORMANCE_POOL`. → `engineering-practices.md` §3.

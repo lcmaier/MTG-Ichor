@@ -784,7 +784,7 @@ smaller sample shows it, which is why the table above is the re-run. Stress is
 unchanged to the digit, because no `stress` deck put two draw doublers on one
 battlefield in these 50 games.
 
-**The rule that generalises**, and it applies to every suppression this codebase
+**The rule that generalizes**, and it applies to every suppression this codebase
 has: *answer-preserving is not stream-preserving.* An A/B whose arms differ by a
 prompt cannot be read as "byte-identical or the change is wrong" — the check is
 that the **gameplay aggregates** hold and the counters move by less than a game.
@@ -968,6 +968,107 @@ four-player game costs about four and a half times a two-player one and lasts
 twice as long, so the turn is twice as expensive, which is the board being
 twice as wide; `stress` avg turns 66.3, 80/57/49/13 and one draw, 22.8 and
 34.2, gathers 2502.
+
+**Re-recorded 2026-09-13 for RE-7** (CR 800.4a; `replacement-architecture.md`
+§9). `PERFORMANCE_POOL` unchanged at 81 and the stress pool at 133 — RE-7
+registers no card — so unlike every re-record above, **this whole table is an
+engine reading and not a pool one**, and it is the first four-player diff the
+project has taken.
+
+**The two-player table above is not re-recorded, and that is the reading rather
+than an omission.** RE-7 is CR 800.4, which CR 800.1 scopes to a game that
+*began* with more than two players, so both two-player pools are byte-identical
+to `main` outside `=== Timing ===` — there is no number to write down. The two
+tables are not alternatives: **a phase re-records whichever ones it moves**, and
+from RE-6 on that is a question with two answers rather than one. A phase that
+changes a two-player path re-records the table above; a phase whose rules only
+exist at three or more re-records this one; a phase that moves the pool
+re-records both, because the decks changed under each.
+
+**The row it exists to move: "Departed-owned permanents" 32.2 → 0.0 and
+34.2 → 0.0** at 200 games, 32.7/32.8 → 0.0/0.0 at the 50 below.
+`codebase-state.md` item 108 closed with it. **Every engine-work row moves and
+one number says why: `Frames/walk` 21.22 → 18.69.** A walk fills the whole
+working set (LI-1), and the working set is a board about 32 permanents smaller,
+so each one got cheaper: `Memo hits` −11.8%, `Layer frames` −8.0%,
+`Dependency checks` 307 → 171. CPU/game median **−15.8% and −14.0%** across
+two sittings, `ms / 1,000 walks` −19.4% and −17.7%, `CPU/turn p50` 0.860 →
+0.800 and 0.840 → 0.800. **That is not a speed-up the engine earned**; it is a board it
+stopped carrying, and it is the size of what item 108 was costing every
+four-player number measured before it.
+
+**`Layer walks` is the one row that goes *up*, 802 → 838, and it is CR 603.6c's
+price.** A permanent leaving the game carries the CR 603.10a frame a
+leaves-the-battlefield trigger will read, and the frame is an uncached walk
+each — about 33 per game across three departures, +4.5%, and **zero at two
+seats**. It buys back more than it costs here and would not on a wider board;
+recording it as a rate rather than as a total is what makes that checkable
+later.
+
+`Replacement gathers` 2104 → 2102 and `Restriction queries` 2107 → 2107 —
+flat, as predicted: this PR adds no proposal. **Both two-player pools are
+`IDENTICAL` outside `=== Timing ===`**, which is CR 800.1's doing rather than a
+gate's: the section is about what two-player games cannot do.
+
+**The gameplay rows below are a different board, not a delta** — the departed
+players' creatures stopped blocking and attacking — so `Avg turns`, `Total
+damage` and the seat shares moved and should be read as a fresh fixture.
+**Both of `stress`'s outliers resolved, and reading them before the averages
+is what found them**: `Hit turn limit` 1 → 0 (seed 12413 ran to turn 200 with
+**99** departed-owned permanents on the board and now ends at 196), `Draw`
+1 → 0 (seed 12492's CR 104.4a draw is a game that diverged, not a rule that
+changed: with three seats' boards gone it ends at turn 43 instead of 46), and
+**`Wins by effect` 0 → 1** — seed 12410 is Thought Reflection beside Laboratory
+Maniac in a draw step, the first card the last in the library and the second
+replaced by the win. RE-6's "games ended by a win: zero on every table" loses
+its zero here. Zero errors and zero panics on both pools, both arms; three
+shell runs at one seed and `--players 4` identical outside `=== Timing ===`.
+
+| 4 players, 50 games / seed 12345 | performance (81 cards) | stress (133 cards) |
+|---|---|---|
+| Wins by seat | 27 (54%) / 9 (18%) / 10 (20%) / 4 (8%) | 26 (52%) / 15 (30%) / 6 (12%) / 3 (6%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 63.8 | 62.7 |
+| Spells cast | 47.2 | 45.0 |
+| Lands played | 37.9 | 36.4 |
+| Combat w/ atk | 26.5 | 23.7 |
+| Creatures died | 16.3 | 9.2 |
+| Damage events | 56.5 | 51.4 |
+| Total damage | 162.2 | 138.2 |
+| Life changes | 39.0 | 34.5 |
+| Turns after a departure | 23.9 | 20.0 |
+| **Departed-owned permanents** | **0.0** | **0.0** |
+| **Layer walks** | **899** | **1,112** |
+| **Board walks** | **569** | **601** |
+| **Memo hits** | **201,330** | **224,139** |
+| **Layer frames** | **17,314** | **17,982** |
+| **Frames/walk** | **19.26** | **16.17** |
+| **Dependency checks** | **137** | **153** |
+| **Replacement gathers** | **2238** | **2220** |
+| **Restriction queries** | **2243** | **2226** |
+| Prevention allocations | 0.00 | 0.02 |
+
+At 200 games the same run reads: `performance` avg turns 61.0, wins by seat
+95/58/34/13, turns after a departure 20.8, departed-owned permanents 0.0,
+gathers 2102, `Layer walks` 838, CPU/game median 56.27 ms with `CPU/turn p50`
+0.80 ms; `stress` avg turns 66.2, 91/53/41/14 and one win by effect, 22.6 and
+0.0, gathers 2517, `Layer walks` 1,240 — where `main`'s was 1,239, so the
+frame's cost and the smaller board cancel almost exactly on the wider pool.
+**Do not carry the milliseconds across sittings**: the same two binaries read
+58.87/48.00 ms in one sitting and 66.85/56.27 in the next, which is §8's point
+about a stored ms, and the ratio is the finding.
+
+**What a seat costs, measured in one sitting on one binary so the ratio means
+something** (200 games / seed 12345, `performance`, `--threads 1`): two players
+**14.94 ms/game** and `CPU/turn p50` **0.430 ms** over 29.9 turns; four players
+**56.70 ms/game** and **0.800 ms** over 61.0. So a four-player game costs
+**3.8×** a two-player one, lasts **2.0×** as long, and its turn is **1.86×** as
+expensive — the last figure being the board being wider, and the one RE-7 moved
+(it was 2× when item 108 left 32 permanents on the table). **This pair is the
+number v1 reads**, since `CLAUDE.md` names four-player Commander and highly
+parallel CLI games as the two use cases, and it is worth re-taking whenever a
+phase claims to be flat: "flat at two seats" has been true of a phase that was
+not flat at four.
 
 **One thing this instrument does not measure, found the hard way.** The
 `--require` block counts a card's **casts**, and RD-3's pooled question was
@@ -2225,3 +2326,49 @@ to `grep`, unreachable from `CLAUDE.md`'s authority table, and pinned to a
 commit like the trace around it, so the convention aged like a snapshot when
 it is the one part that must not. Lifted here 2026-09-03. The page keeps its
 section as the historical record; **this is the authority.**
+
+## 8. The rules pass — read the rules that name the *rule*, not just the site
+
+**Before deferring a rules question, search the CR for the rule that watches
+the one you are implementing.** The census habit this project runs — read the
+tree, then read the rule that names each call site — finds what an event *does*
+and is blind to what *observes* it, because the observer is written somewhere
+else entirely.
+
+RE-7 is the scar. CR 800.4a says what becomes of a departing player's
+permanents, and it says nothing about triggers; so "does a leaves-the-
+battlefield ability fire when a permanent leaves the *game*?" was recorded as
+an open question, with `GameEvent::LeftTheGame` shipped without the CR 603.10a
+frame a matcher would need. **CR 603.6c answers it in the sentence that names
+the event** — "leaves-the-battlefield abilities trigger when a permanent moves
+from the battlefield to another zone, **or when a phased-in permanent leaves
+the game because its owner leaves the game**" — and the search that would have
+found it is one `grep` for the rule number of the *other* side.
+
+**The habit, three greps and about two minutes:**
+
+1. `grep` the chapter that owns the thing you are changing (800.4 for a
+   departure) — this is the census's own step, and it is the one that is never
+   skipped.
+2. `grep` the chapter that owns the thing that *watches* it. For an event
+   that is CR 603 (triggers) and CR 614 (replacement); for a characteristic,
+   CR 613; for a zone change, CR 400.7 and CR 603.10.
+3. `grep` the *name* of what you are building, in the CR's own words, across
+   the whole file. "leaves the game" appears in 603.6c, and 603.6c is nowhere
+   near 800.4.
+
+**What makes this worth a section rather than a comment**: the failure is
+silent and it is *shaped like progress*. A deferral with a reachability line
+and a size reads exactly like a deferral that was researched, and the ledger
+cannot tell them apart — `codebase-state.md`'s rule catches an entry longer
+than its fix, not an entry whose premise was never checked. The counter-example
+is `replacement-architecture.md` §11 item 64, where the same search *was* run
+and CR 604.2 plus CR 614.4 closed a design question two rules away from the one
+being implemented; the difference between the two was a few minutes of reading,
+not a difference in difficulty.
+
+**And it applies to the corpus, not only to code.** `ATOM-800.4c-001`'s board
+could not reach its own rule — it had the creature's owner leave, which
+CR 800.4a's first clause forbids — and that is the same failure from the
+authoring side: a scenario written against one rule without the rule that
+overrides it. → `replacement-architecture.md` §11 items 70 and 73.

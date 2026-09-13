@@ -448,7 +448,7 @@ fn push_if_applicable(
     // which is why `Restriction::ApplyReplacement` is closed at one arm
     // (`cant-effects-architecture.md` §3.3). `is_regeneration` gains the second
     // reader its own doc calls "the smell", and that is correct rather than a
-    // violation: CR 701.19c needs to *recognise* a shield in order to withhold
+    // violation: CR 701.19c needs to *recognize* a shield in order to withhold
     // one, and nothing about a shield's pattern, rewrite or rider distinguishes
     // it from any other `Prevent`-with-a-rider. Phase RD widens the `bool` to a
     // `ReplacementKind` when CR 615.12's prevention half arrives (§9 finding 3).

@@ -71,7 +71,7 @@ impl GameState {
                     .to_string(),
             );
         }
-        self.on_turn_begin()?;
+        self.on_turn_begin(ctx)?;
         self.drain(None, None, false, true, ctx)?;
         Ok(())
     }
@@ -156,7 +156,7 @@ impl GameState {
                         // next iteration proposes the turn after it.
                         continue;
                     }
-                    self.on_turn_begin()?;
+                    self.on_turn_begin(ctx)?;
                     turn_began = true;
                     phase = None;
                 }
@@ -178,11 +178,28 @@ impl GameState {
     /// because a turn that does not begin is not an event a replacement effect
     /// could have replaced. RE-6 is what makes `player_lost` true for a reason;
     /// this is the site it will use.
+    ///
+    /// **And CR 800.4m is the same moment read from the other side.** "Any
+    /// continuous effects with durations that last until that player's next
+    /// turn ... will last until that turn would have begun. They neither expire
+    /// immediately nor last indefinitely." A departed player's turn never
+    /// begins, so `on_turn_begin` never runs for them and the rows would last
+    /// for the rest of the game; the moment their turn *would have* begun is
+    /// the moment this function passes their seat, which is the only place that
+    /// knows. Idempotent, so the next rotation past the same seat finds
+    /// nothing. Its other half — "or until a specific point in that turn" — has
+    /// no rows: step- and phase-scoped durations are `backlog.md` §2.12's.
+    /// `turn_number + 1` is the number that turn would have carried: this runs
+    /// while the drainer is still deciding whose turn is next, so nothing has
+    /// advanced it yet.
     fn next_turn_taker(&mut self) -> Option<PlayerId> {
         while let Some(player) = self.turn_queue.pop() {
             if !self.player_lost[player] {
                 return Some(player);
             }
+            // A queued extra turn is a turn of theirs too, and CR 500.7 puts
+            // it at the same place in the rotation this one would have been.
+            self.expire_until_your_next_turn(player, self.turn_number + 1);
         }
         let n = self.num_players();
         for _ in 0..n {
@@ -190,6 +207,7 @@ impl GameState {
             if !self.player_lost[self.turn_rotation] {
                 return Some(self.turn_rotation);
             }
+            self.expire_until_your_next_turn(self.turn_rotation, self.turn_number + 1);
         }
         None
     }
@@ -235,16 +253,29 @@ impl GameState {
     /// CR 614.10a's "a skipped turn expires nothing" is the same sentence from
     /// the other side — this hook runs only for a turn whose proposal
     /// survived.
-    fn on_turn_begin(&mut self) -> Result<(), String> {
+    fn on_turn_begin(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let player = self.active_player;
         let turn = self.turn_number;
+        self.expire_until_your_next_turn(player, turn);
+        // CR 800.4c again, beside the other expiry — see the cleanup step.
+        self.exile_objects_no_player_in_game_controls(ctx)
+    }
+
+    /// CR 611.2b's "until your next turn", on all three duration registries.
+    ///
+    /// Two calls rather than three: RS-0 made `ReplacementEffectRegistry` an
+    /// alias of the generic `DurationRegistry`, which the restrictions share.
+    ///
+    /// `turn` is the turn that is beginning — or, for CR 800.4m, the turn that
+    /// *would have* begun; the registries use it only to refuse an expiry on
+    /// the turn the row was created.
+    fn expire_until_your_next_turn(&mut self, player: PlayerId, turn: u32) {
         self.continuous_effects.remove_expired_at_turn_start(player, turn);
         // CR 611.2b applies to replacement effects with a duration the same
         // way — a regeneration shield or "prevent all damage this turn" ends
         // when its duration does.
         self.replacement_effects.remove_expired_at_turn_start(player, turn);
         self.restrictions.remove_expired_at_turn_start(player, turn);
-        Ok(())
     }
 
     // --- Phase lifecycle callbacks ---
@@ -331,6 +362,13 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
+                // CR 800.4c — a control-changing effect that has just ended
+                // leaves its object with no player in the game controlling it,
+                // and "this is not a state-based action. It happens as soon as
+                // the control-changing effect ends." So it is asked here,
+                // beside the expiry, rather than at the next sweep. Free until
+                // somebody has left.
+                self.exile_objects_no_player_in_game_controls(ctx)?;
 
                 // Normally no priority during cleanup (rule 514.3)
                 // Rule 514.3a: If SBAs would be performed or triggered abilities

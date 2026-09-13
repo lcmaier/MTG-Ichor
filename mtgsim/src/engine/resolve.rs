@@ -872,6 +872,14 @@ impl GameState {
             Primitive::CreateToken(token_def, amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
                 let controller = self.resolve_player_for_self(recipient, ctx);
+                // CR 800.4b — "if a token would be created under the control of
+                // a player who has left the game, no token is created" — and
+                // CR 800.4d's first sentence at the same line, because CR 111.2
+                // makes a token's owner the player who controls the effect that
+                // created it, so the two rules name one player here.
+                if self.is_multiplayer() && !self.in_game(controller) {
+                    return Ok(());
+                }
                 let data = token_card_data(token_def);
                 for _ in 0..count {
                     // CR 111.2 — a token's owner is the player who controls the

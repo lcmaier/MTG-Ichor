@@ -19,7 +19,7 @@
 //! So these are the same kind of measurement as "creatures died: 8.6" — a pure
 //! function of the seed and the card pool, comparable across machines and across
 //! months, and a change to one means **the engine's cost model moved** the way a
-//! change to that row means its behaviour moved. They belong in the fixtures
+//! change to that row means its behavior moved. They belong in the fixtures
 //! table for the same reason and are read the same way.
 //!
 //! # What is deliberately not here

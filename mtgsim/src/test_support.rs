@@ -330,7 +330,7 @@ impl DecisionProvider for RecordingDecisionProvider {
         self.seen.borrow_mut().push("allocate".to_string());
         // Greedy in bucket order, respecting each maximum. Dumping the whole
         // total into bucket 0 was legal only while every test's pool had one
-        // type in it; a two-colour pool has a bucket whose maximum is zero
+        // type in it; a two-color pool has a bucket whose maximum is zero
         // (`ask_choose_generic_mana_allocation` clamps each to what the pips
         // leave over), and the asker asserts against it.
         let mut out = vec![0; buckets.len()];
@@ -425,6 +425,29 @@ pub fn put_on_battlefield(
     game.add_object(obj);
     let mods = game.default_enter_mods(id, player);
     let entry = game.place_on_battlefield(id, player, &mods);
+    entry.entered_battlefield_turn = 0;
+    entry.controller_since_turn = 0;
+    id
+}
+
+/// [`put_on_battlefield`] with an owner and a CR 110.2b default controller that
+/// need not be the same player.
+///
+/// Bribery's board, which no other helper can build: "put that card onto the
+/// battlefield under your control" leaves the card its owner's and the
+/// permanent yours by default, and CR 800.4a's fourth clause and CR 800.4c are
+/// both about exactly that gap.
+pub fn put_on_battlefield_under(
+    game: &mut GameState,
+    card_data: Arc<CardData>,
+    owner: PlayerId,
+    controller: PlayerId,
+) -> ObjectId {
+    let obj = GameObject::new(card_data, owner, Zone::Battlefield);
+    let id = obj.id;
+    game.add_object(obj);
+    let mods = game.default_enter_mods(id, controller);
+    let entry = game.place_on_battlefield(id, controller, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
     id

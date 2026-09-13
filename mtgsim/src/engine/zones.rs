@@ -106,6 +106,29 @@ impl GameState {
         Ok(())
     }
 
+    /// Take an object out of the game entirely (CR 800.4a's first sentence).
+    ///
+    /// The counterpart to [`Self::move_object`] for a destination that is not
+    /// a zone: CR 400.11 lists the seven zones and outside the game is not one
+    /// of them, so there is nothing to add the object to and no `to` to write.
+    /// Everything else is the same performer — the departing zone's state is
+    /// cleaned up while it can still be read, the zone's collection gives the
+    /// object up, and the object store does.
+    ///
+    /// **Performs and announces nothing**, like `move_object`: the
+    /// `GameEvent::LeftTheGame` is emitted by the `GameAction::PlayerLoses`
+    /// arm, which is the only caller and knows whose departure this is.
+    pub(crate) fn remove_from_game(&mut self, id: ObjectId) -> Result<(), String> {
+        let from = self.get_object(id)?.zone;
+        self.cleanup_zone_state(id, from);
+        self.remove_from_zone_collection(id, from)?;
+        // A spell or ability on the stack keeps its entry beside the object;
+        // `remove_from_zone_collection` drops it for the stack arm, and a
+        // card in any other zone never had one.
+        self.remove_object(id);
+        Ok(())
+    }
+
     /// Draw a card: move top of library to hand.
     ///
     /// Returns `Ok(Some(id))` if a card was drawn, `Ok(None)` if the library

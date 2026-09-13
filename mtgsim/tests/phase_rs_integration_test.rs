@@ -263,7 +263,7 @@ fn test_sigarda_does_not_stop_a_spell_her_own_controller_cast() {
     // is not one, so the prompt appears and the creature dies.
     //
     // This is the assertion that would fail if `by` were dropped and the
-    // restriction were modelled as `EventPattern` + `AffectedSet` alone, which
+    // restriction were modeled as `EventPattern` + `AffectedSet` alone, which
     // is what §2.6 found the census had assumed.
     // Sigarda is the only creature, so the one candidate offered is *her* — the
     // sharpest form of the assertion, since it shows the restriction not even

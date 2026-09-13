@@ -104,13 +104,13 @@
 //!
 //! | Card | `source` | `combat` | Rewrite |
 //! |---|---|---|---|
-//! | [`circle_of_protection_red`] | chosen **and** a colour | — | whole-event `Prevent`, `Uses::Once` |
+//! | [`circle_of_protection_red`] | chosen **and** a color | — | whole-event `Prevent`, `Uses::Once` |
 //! | [`reverse_damage`] | chosen, no property | — | `Prevent` with a rider that reads the prevented amount |
 //! | [`dark_sphere`] | chosen, no property | — | `PreventHalf(Down)` from a registry row |
 //! | [`guardian_seraph`] | a controller, nothing chosen | — | `PreventUpTo(1)` on a player |
 //! | [`daunting_defender`] | none — any source | — | `PreventUpTo(1)` on a filtered object set |
 //! | [`fog`] | none | `Some(true)` | `Prevent`, every permanent and every player |
-//! | [`torbran_thane_of_red_fell`] | colour **and** controller | — | `Plus(2)` |
+//! | [`torbran_thane_of_red_fell`] | color **and** controller | — | `Plus(2)` |
 //! | [`pyroclasm`] | — (it is a *source*, not a watcher) | — | — |
 //!
 //! Pyroclasm is the odd row and belongs there: CR 615.10's example is a
@@ -322,7 +322,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
 ///   by mistake.
 /// - *If multiple replacement effects would modify how damage would be dealt,
 ///   the player being dealt damage (or the controller of the permanent) chooses
-///   the order* → the Ghosts/Furnace test generalised to a prevention:
+///   the order* → the Ghosts/Furnace test generalized to a prevention:
 ///   Gisela's half beside an opponent's Furnace on 5 damage is prevent-3-then-
 ///   double-2 or double-to-10-then-prevent-5.
 /// - *If damage … is being divided or assigned among multiple permanents an
@@ -1805,7 +1805,7 @@ mod tests {
     // rechecks the source's properties. If the properties no longer match, the
     // damage isn't prevented or replaced ... the shield isn't used up."
     //
-    // The id still matches; the colour does not, and that is what makes this
+    // The id still matches; the color does not, and that is what makes this
     // two fields rather than one.
     //
     // COVERS: ATOM-615.9-001
@@ -2101,7 +2101,7 @@ mod tests {
         assert_eq!(damage_dealt(&game), before, "no damage event at all");
     }
 
-    // A red creature, so a `SourcePattern`'s colour clause has a printed board
+    // A red creature, so a `SourcePattern`'s color clause has a printed board
     // to be asked on. Not a registered card: it exists to *be* a source.
     fn lightning_bolt_creature() -> Arc<CardData> {
         CardDataBuilder::new("Red Probe")

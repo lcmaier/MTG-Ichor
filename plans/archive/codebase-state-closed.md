@@ -573,6 +573,54 @@ It was a record for item 70's fix — the answer was right, re-derived
      **Sized:** none. The doc line is corrected in place.
 
 
+## Found by RD-4 — redirection and unpreventable damage (2026-09-09)
+
+108. **A player who has left the game keeps their permanents, and CR 800.4a
+     says they should not.** `GameState::player_lost[p]` is set by the SBAs and
+     read by `Game::check_game_over`, by `entering_controller`'s opponent list
+     and now by CR 614.9's re-check. Nothing removes that player's objects from
+     the battlefield, their cards from their zones, or their spells from the
+     stack, which CR 800.4a requires.
+
+     **Reachability (2026-09-09):** unreachable in a two-player game, where the
+     loss ends the game in the same SBA sweep. Reachable the moment a game has
+     three or more players — which is v1's target, not a corner
+     (`v1-is-commander-and-parallel-ai`). `fuzz_games` plays two.
+
+     **Sized:** CR 800.4a is a list of six clauses over five zones plus the
+     stack plus control-change effects, each proposing through `change_zone`;
+     it is the multiplayer phase's, not a patch. Phase 9 (`roadmap-v2.md`,
+     formats and multiplayer) owns it. RD-4's own test builds the state by
+     hand and says so.
+
+     **Owner (2026-09-11, re-cut on review): RE-7** — `replacement-architecture.md`
+     §9, RE decision 5 — immediately after RE-6, which builds the `PlayerLoses`
+     performer this hangs from, the rotation half (800.4j/k, item 113) and the
+     `--players 4` fuzz mode. The first cut left this with B3; the review's
+     objection stands: the day RE-6 lands this is *reachable and wrong* in
+     the four-player run, and the ledger's rule is that a reachable wrong answer
+     is fixed first. CR 802's defending player stays "Before Commander" item 4's.
+
+     **Reachability (2026-09-12, RE-6 landed): reachable, wrong today, and
+     measured.** `fuzz_games --players 4` plays it in every game that has a
+     departure before the end, and the harness prints the wrong answer as a
+     row: **"Departed-owned permanents"** is the count of battlefield
+     permanents a player who has left still owns when the game ends, and
+     **"Turns after a departure"** is how long they stayed. Both are in
+     `engineering-practices.md` §3's four-player table, recorded as RE-7's
+     starting point; RE-7 zeroes the first. The two-player verdict above
+     stands unchanged: a loss there ends the game in the same sweep. **Owner
+     unchanged: RE-7**, and the closer is the one named there — CR 800.4a
+     inside the `PlayerLoses` performer.
+
+     **Reachability (2026-09-13): closed — RE-7.** CR 800.4a's four clauses run
+     inside the `PlayerLoses` performer and are gated on CR 800.1's seat count,
+     so a two-player game is untouched to the byte and a game that began with
+     three or more takes the rule. The four-player `performance` run's
+     "Departed-owned permanents" row went 32.7 → 0.0 and `stress`'s 32.8 → 0.0
+     (`engineering-practices.md` §3). The closer is the one the entry named.
+
+
 ## Before Layers (CR 613) — now DURING Layers
 
 1. **Pre-layer P/T shim — ✅ done.** `PermanentState.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.

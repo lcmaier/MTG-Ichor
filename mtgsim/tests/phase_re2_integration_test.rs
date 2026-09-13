@@ -49,7 +49,7 @@ use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// A nameless card with no abilities, to be the source of a fixture
 /// resolution or the out-of-set member of a boundary test. Built inline rather
-/// than pulled from the registry, so no real card's behaviour leaks into a
+/// than pulled from the registry, so no real card's behavior leaks into a
 /// board that is only about the draw.
 fn fixture_object() -> Arc<CardData> {
     CardDataBuilder::new("Fixture").build()
@@ -664,7 +664,7 @@ fn the_opponents_other_instructions_still_happen() {
 /// The whole of it is the lineage. Player 1 would draw; player 0's Thief is the
 /// only applicable one (nobody is their own opponent), so the draw becomes
 /// player 0's — the same event, new subject. Player 1's Thief now applies to
-/// *that* draw and player 0's cannot, because the applied set travelled with
+/// *that* draw and player 0's cannot, because the applied set traveled with
 /// it. The draw comes back to player 1, both Thieves are spent, and player 1
 /// draws. As riders the two would have traded it forever.
 #[test]
@@ -718,7 +718,7 @@ fn three_notion_thieves_pass_the_draw_once_each_in_the_rulings_order() {
     // player 2 — three hops, three applications, one card, and no effect
     // applied twice.
     assert!(dp.is_empty(), "two prompts — the third hop has one candidate");
-    assert_eq!(total_drawn(&game), 1, "one draw, however far it travelled");
+    assert_eq!(total_drawn(&game), 1, "one draw, however far it traveled");
     assert_eq!(drawn_by(&game, 2), 1, "the last Thief to apply is the one that keeps it");
     assert_eq!(drawn_by(&game, 0), 0);
     assert_eq!(drawn_by(&game, 1), 0);

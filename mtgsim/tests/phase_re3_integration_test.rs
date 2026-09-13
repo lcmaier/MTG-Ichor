@@ -40,7 +40,7 @@ use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// A nameless card with no abilities, to be the source of a fixture
 /// resolution. Built inline rather than pulled from the registry, so no real
-/// card's behaviour leaks into a board that is only about life.
+/// card's behavior leaks into a board that is only about life.
 fn fixture_object() -> Arc<CardData> {
     CardDataBuilder::new("Fixture").build()
 }

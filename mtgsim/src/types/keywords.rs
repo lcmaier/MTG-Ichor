@@ -45,7 +45,7 @@
 ///   `equip {3}` on every Sword, `equip {1}` on Skullclamp. And CR 702.6d
 ///   lets a permanent have *several* equip abilities, which a `HashSet` of one
 ///   variant structurally cannot express.
-/// - **Enchant** (CR 702.5a) is a static ability, and it was already modelled
+/// - **Enchant** (CR 702.5a) is a static ability, and it was already modeled
 ///   properly elsewhere: `CardData::enchant_filter` is what the Aura targeting
 ///   path actually reads. The variant was a duplicate of a working field.
 /// - **Protection** (CR 702.16a) is quadrant ②. Rules branch on it (702.16b–e
@@ -71,7 +71,7 @@
 ///   different job from this one. Wanted by UI display and by cards that
 ///   reference a keyword by name.
 /// - `Hexproof` here is CR 702.11's base form, which is fieldless and correct.
-///   "Hexproof from [quality]" (702.11d) is quadrant ② and is not modelled.
+///   "Hexproof from [quality]" (702.11d) is quadrant ② and is not modeled.
 ///
 /// See `codebase-state.md` Deferred Migrations item 10.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -1364,7 +1364,13 @@ impl GameState {
                 }
                 self.player_lost[player] = true;
                 self.events.emit(GameEvent::PlayerLost { player_id: player, reason });
-                Ok(())
+                // CR 104.3 — a player who loses the game leaves it — and
+                // CR 800.4a's four clauses follow here rather than at the next
+                // state-based check, because the rule says "this is not a
+                // state-based action. It happens as soon as the player leaves
+                // the game". Clause 4's exile is a result of the departure, so
+                // its nested batch joins this one (§4.2).
+                self.player_left_the_game(player, _ctx)
             }
 
             // CR 104.1 — "immediately". The result is recorded here and read by
@@ -1474,6 +1480,14 @@ impl GameState {
         cause: Option<ZoneChangeCause>,
         ctx: &ActionContext,
     ) -> Result<bool, String> {
+        // CR 800.4b — "if an object would be put onto the battlefield ... under
+        // the control of a player who has left the game, that object remains in
+        // its current zone". A rule, checked at the site like CR 508.8's and
+        // CR 800.4k's: there is no event here for a replacement effect to see,
+        // and `false` is exactly "nothing moved and nothing entered".
+        if self.is_multiplayer() && !self.in_game(controller) {
+            return Ok(false);
+        }
         let seed = self.default_enter_mods(object, controller);
         let mods = crate::engine::replacement::strip_prohibited_counters(
             self, object, controller, &EnterMods::NONE, &seed, None,

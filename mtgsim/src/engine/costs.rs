@@ -64,7 +64,7 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 /// **CR 601.2h gives the order to the player** — "they pay all costs that
 /// don't involve random elements or moving objects from the library to a
 /// public zone, in any order" — and the engine picks one of them. (That
-/// sentence's own two groups are not modelled: no `Cost` arm is random and
+/// sentence's own two groups are not modeled: no `Cost` arm is random and
 /// none moves a card out of a library, so the second group is empty for every
 /// cost that exists, and an arm nothing can reach is worse than a missing
 /// one. `ATOM-601.2h-003` is the atom for handing the order to the player.)
@@ -90,7 +90,7 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 /// **This is 601.2h and 602.2b only.** A resolving spell's instructions are
 /// CR 608.2c's — "in the order written" — and reach `resolve_effect`, never
 /// this function; a resolution-time payment routed through `pay_costs` would
-/// be silently reordered by it. 601.2h's *own* two groups are not modelled
+/// be silently reordered by it. 601.2h's *own* two groups are not modeled
 /// because the second is empty for every `Cost` arm; `codebase-state.md`
 /// item 80 owns the day it stops being.
 ///

@@ -349,7 +349,7 @@ impl Application<'_> {
 // effect, what it applies to, or what it does to any of the things it applies
 // to." Each of those is a read of some frame field, and every modification
 // writes a known set of them, so disjoint sets settle a pair without touching
-// the board. Text is layer 3 and is not modelled.
+// the board. Text is layer 3 and is not modeled.
 // ---------------------------------------------------------------------------
 
 /// A set of `EffectiveCharacteristics` fields.

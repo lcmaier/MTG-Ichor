@@ -184,7 +184,7 @@ pub struct GameState {
     /// **Diagnostic only; nothing may branch on it.** It is on `GameState`
     /// rather than in a thread-local for the reason `GameState.rng` is: ambient
     /// state that a game can reach is state a fork or a replay cannot account
-    /// for. A read of these numbers changing behaviour would make them
+    /// for. A read of these numbers changing behavior would make them
     /// unmeasurable, which is why every accessor is read-only and no engine
     /// module imports them.
     pub counters: crate::state::diagnostics::EngineCounters,
@@ -654,6 +654,21 @@ impl GameState {
     /// Is `player` still in the game? CR 104.5: a player who has lost has left.
     pub fn in_game(&self, player: PlayerId) -> bool {
         !self.player_lost[player]
+    }
+
+    /// CR 800.1 — "a multiplayer game is a game that begins with more than two
+    /// players", which is the scope of every rule in CR 800.
+    ///
+    /// **The gate on CR 800.4, and it is the rule's own.** A two-player game
+    /// ends the moment a player leaves (CR 104.2a), so the section that says
+    /// what becomes of their objects has nothing to be about there — 800.4's
+    /// own first sentence is "unlike two-player games, multiplayer games can
+    /// continue after one or more players have left the game". Read off the
+    /// seat count the game *began* with, which is what 800.1 says and what
+    /// `players` still holds after any number of departures: a four-player
+    /// game down to two is a multiplayer game.
+    pub fn is_multiplayer(&self) -> bool {
+        self.players.len() > 2
     }
 
     /// The next player in turn order after `after` who is still in the game,
@@ -1161,7 +1176,7 @@ impl GameState {
             // long as this card is in your graveyard and you control an Island,
             // creatures you control have flying") is the stock example.
             //
-            // When those are modelled, this fallback is not the fix. CR 613.7d
+            // When those are modeled, this fallback is not the fix. CR 613.7d
             // gives an object a timestamp when it enters *any* zone, but we
             // only store one on `PermanentState`, so a graveyard Wonder has
             // nowhere to read one from. The timestamp has to move onto the

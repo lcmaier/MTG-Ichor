@@ -177,18 +177,18 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
-| 800 | General multiplayer rules (active player turn order, multiple opponents) | 🟡 `GameState.players: Vec<PlayerState>`, `active_player: usize`, `priority_player: usize` support N players architecturally; priority round logic and targeting assume 2-player semantics in several places | `state/game_state.rs`, `engine/priority.rs` |
+| 800 | General multiplayer rules (active player turn order, multiple opponents) | 🟢 **800.4 is built** (RE-6, RE-7): the turn rotation and the priority loop pass over a departed seat (800.4j/k), their objects leave the game and what they controlled is exiled (800.4a, 800.4c), the four refusals hold (800.4b/d/e) and 800.4m expires at the turn that would have begun. 800.1's seat count is the gate — `GameState::is_multiplayer`. **Left: CR 800.4f–i**, the choices and the last known information a departed player owes, which are "Before Commander" item 4's | `engine/leaving.rs`, `engine/turns.rs`, `engine/priority.rs` |
 | 801 | Limited range of influence | n/a for Commander (uses range = all) |
 | 802 | Attack Multiple Players option | ❌ combat assumes single defender |
-| 806 | **Free-for-All** — the default Commander game structure | ❌ not implemented. No turn-order rotation past 2 players; no player-elimination handling (when a player loses in a 3+ player game, their permanents, stack entries, and triggers need specific resolution per 800.4) |
+| 806 | **Free-for-All** — the default Commander game structure | 🟡 the rotation and the elimination are built (800.4, above) and measured at four seats by `fuzz_games --players 4`; what is missing is the *format* — `GameConfig::commander()` and the designation step, "Before Commander" items 2 and 3 |
 | 810 | Two-Headed Giant | ❌ |
 | others | Grand Melee, Team vs Team, Emperor, Alternating Teams | ❌ |
 
 **Known multiplayer-shaped gaps in existing 2-player code** — under the v1 redefinition this list is the design checklist for CR 800, not a backlog. The cheap way to buy multiplayer is to write CR 614 and CR 603 N-player-shaped as they land (CR 616.1's affected-player ordering and CR 603's APNAP queue both take a player set in the CR); retrofitting is the expensive path. CR 800.4 elimination is the piece most likely to be underestimated — a leaving player's permanents, stack objects, and effects each need specific resolution:
-- `engine/combat/validation.rs` assumes attacks go at "the defender" (single opponent).
-- Priority passes loop player0 → player1 → back; no general N-player priority-pass loop.
+- `engine/combat/validation.rs` assumes attacks go at "the defender" (single opponent). **Half closed 2026-09-12 (RE-6):** CR 506.2 filters the attack-target list to the active player's opponents, so a departed seat is not offered; CR 802's *choice* of defending player is still the harness's.
+- ~~Priority passes loop player0 → player1 → back; no general N-player priority-pass loop.~~ ✅ **closed 2026-09-12 (RE-6)** — the loop rotates through `next_player_in_game` and 800.4j passes over a departed seat.
 - Targeting prompts don't enumerate 3+ players as target candidates in most paths (SPECIAL-8 blocker pre-filter doesn't need to, but spell targeting does).
-- No player-elimination SBA (rule 800.4a — "a player who has left the game is treated as though they don't exist").
+- ~~No player-elimination SBA (rule 800.4a)~~ ✅ **closed 2026-09-13 (RE-7)**, and it is **not** a state-based action — CR 800.4a says so in as many words. It runs inside the `PlayerLoses` performer (`engine/leaving.rs`), which is what the old bullet's "treated as though they don't exist" was reaching for.
 
 ### CR 9 — Casual Variants
 
@@ -525,11 +525,11 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **Two cards, one per half of `EnterMods`**: Idyllic Beachfront (CR 110.5b) and Chainbreaker (CR 122.6a). `PERFORMANCE_POOL` 57 → 59; `engineering-practices.md` §3's table re-recorded. A third, **Adaptive Shimmerer**, is registered into the stress pool alone: a 0/0 is the only board state that dies if CR 122.6a's counters arrive after the entry is observable, and until it existed that claim rested on a fixture the registered pool could not build (§3.3).
 - **Event-stream check**: at 40 games / seed 12345, canonicalized and diffed against a same-day `main` binary with the new cards unregistered, **the only difference is one added `ETB` line per land drop** — 708 on `performance`, 699 on `stress`, zero deletions, zero reorderings.
 
-**One performance finding, and it is about the measurement rather than the code.** RC-2 is the first phase to put static replacement sources into `PERFORMANCE_POOL`, so `gather`'s board-level fast path — "is anything here a replacement source" — is true from the first tapland onward and the sweep walked *every* permanent with a full `compute_characteristics` per proposed action. The exit-criterion A/B ran with the new cards unregistered and so measured the gate closed. A **per-permanent** gate (the same predicate one object at a time, exact by the same argument, byte-identical event streams) is worth **10.3% of total game time on `performance` and 9.2% on `stress`**. The lesson generalises past this phase: *an A/B that neutralises a PR's card additions measures the engine and not the game*, and both numbers are worth having.
+**One performance finding, and it is about the measurement rather than the code.** RC-2 is the first phase to put static replacement sources into `PERFORMANCE_POOL`, so `gather`'s board-level fast path — "is anything here a replacement source" — is true from the first tapland onward and the sweep walked *every* permanent with a full `compute_characteristics` per proposed action. The exit-criterion A/B ran with the new cards unregistered and so measured the gate closed. A **per-permanent** gate (the same predicate one object at a time, exact by the same argument, byte-identical event streams) is worth **10.3% of total game time on `performance` and 9.2% on `stress`**. The lesson generalizes past this phase: *an A/B that neutralises a PR's card additions measures the engine and not the game*, and both numbers are worth having.
 
 **Two known-wrong answers it leaves, both RC-3's one line** (`compute.rs`'s `game.battlefield.contains_key` gate in `effect_applies_to`): no filter-scoped `ContinuousEffect` reaches an entering permanent, so Blood Moon does not strip an entering tapland's "enters tapped" (the real ruling says it does), and `default_enter_mods` would miss a planeswalker made one by a filter-scoped Layer 4 effect. `tests/phase_rc_integration_test.rs::test_blood_moon_does_not_yet_strip_an_entering_taplands_ability` asserts the wrong answer on purpose so RC-3 has to flip it.
 
-**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `AffectedSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `AffectedSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::object_matches_filter` matches `ReplacementDef.affected` and `RestrictionDef.affected` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalisable error is naming a mechanism by its type rather than by its call path** — "an `AffectedSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
+**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `AffectedSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `AffectedSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::object_matches_filter` matches `ReplacementDef.affected` and `RestrictionDef.affected` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalizable error is naming a mechanism by its type rather than by its call path** — "an `AffectedSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
 
 **Status 2026-08-26: Phase RB ✅ — the CR 616.1 pipeline is live and three consumers use it.** All nine of `replacement-architecture.md` §9's RB items shipped. What landed:
 
@@ -1870,7 +1870,7 @@ section never asked.
     bespoke fixture can cover an atom while the registered pool cannot build the
     same scenario, so **`specdb` coverage and fuzz reachability are different
     measurements and neither implies the other.** → `engineering-practices.md`
-    §3.3, which generalises both halves into a rule.
+    §3.3, which generalizes both halves into a rule.
 
     **Sized as two cards and zero engine change; the second half of that was
     wrong.** Both are non-legendary enchantments whose battlefield-side
@@ -2657,7 +2657,7 @@ measurement; what follows is what a later phase has to know.
     Runeclaw Bear, devour 3 and devour 5 — gives the right answer with the rule
     deleted. It bites when one effect *writes into* the zone the next one reads:
     devour into a graveyard, then Sutured Ghoul's exile. **Found by the mutation
-    pass, not by the design**, and the lesson generalises: `§10`'s
+    pass, not by the design**, and the lesson generalizes: `§10`'s
     "mutation-check every assertion" can report a weak *board* rather than a
     weak assertion.
 
@@ -3908,43 +3908,12 @@ audit is at the end.
      anyway, because it is one `||` of a sentence the engine either implements
      or does not.
 
-108. **A player who has left the game keeps their permanents, and CR 800.4a
-     says they should not.** `GameState::player_lost[p]` is set by the SBAs and
-     read by `Game::check_game_over`, by `entering_controller`'s opponent list
-     and now by CR 614.9's re-check. Nothing removes that player's objects from
-     the battlefield, their cards from their zones, or their spells from the
-     stack, which CR 800.4a requires.
-
-     **Reachability (2026-09-09):** unreachable in a two-player game, where the
-     loss ends the game in the same SBA sweep. Reachable the moment a game has
-     three or more players — which is v1's target, not a corner
-     (`v1-is-commander-and-parallel-ai`). `fuzz_games` plays two.
-
-     **Sized:** CR 800.4a is a list of six clauses over five zones plus the
-     stack plus control-change effects, each proposing through `change_zone`;
-     it is the multiplayer phase's, not a patch. Phase 9 (`roadmap-v2.md`,
-     formats and multiplayer) owns it. RD-4's own test builds the state by
-     hand and says so.
-
-     **Owner (2026-09-11, re-cut on review): RE-7** — `replacement-architecture.md`
-     §9, RE decision 5 — immediately after RE-6, which builds the `PlayerLoses`
-     performer this hangs from, the rotation half (800.4j/k, item 113) and the
-     `--players 4` fuzz mode. The first cut left this with B3; the review's
-     objection stands: the day RE-6 lands this is *reachable and wrong* in
-     the four-player run, and the ledger's rule is that a reachable wrong answer
-     is fixed first. CR 802's defending player stays "Before Commander" item 4's.
-
-     **Reachability (2026-09-12, RE-6 landed): reachable, wrong today, and
-     measured.** `fuzz_games --players 4` plays it in every game that has a
-     departure before the end, and the harness prints the wrong answer as a
-     row: **"Departed-owned permanents"** is the count of battlefield
-     permanents a player who has left still owns when the game ends, and
-     **"Turns after a departure"** is how long they stayed. Both are in
-     `engineering-practices.md` §3's four-player table, recorded as RE-7's
-     starting point; RE-7 zeroes the first. The two-player verdict above
-     stands unchanged: a loss there ends the game in the same sweep. **Owner
-     unchanged: RE-7**, and the closer is the one named there — CR 800.4a
-     inside the `PlayerLoses` performer.
+108. **~~A player who has left the game keeps their permanents, and CR 800.4a
+     says they should not~~ — ✅ CLOSED 2026-09-13 (RE-7).** CR 800.4a's four
+     clauses run inside the `PlayerLoses` performer, where the rule puts them,
+     and the four-player run's "Departed-owned permanents" row is 0.0.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Found by RD-4 —
+     redirection and unpreventable damage (2026-09-09)" item 108.
 
 109. **The `EachOther` fix stopped one site short of the sites that have a
      source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
@@ -5393,6 +5362,43 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    `lki` frame, retiring the three ad-hoc reads, ~100–150 lines, inside
    critical-path item 6.
 
+6. **CR 603.6c's *phased-in* qualifier has no implementation, and the matcher
+   will need it.** The rule names CR 800.4a's departure in as many words —
+   "leaves-the-battlefield abilities trigger when a permanent moves from the
+   battlefield to another zone, **or when a phased-in permanent leaves the game
+   because its owner leaves the game**" — so a `GameEvent::LeftTheGame` from
+   the battlefield fires them, and RE-7 puts the CR 603.10a frame on the event
+   for the matcher to read. What it cannot express is the qualifier: a permanent
+   that is **phased out** does not trigger, and phasing (CR 702.26) is not built
+   (this file, "Phasing (CR 702.26) — sized 2026-08-26, not started"). Every
+   permanent is phased in today, so the frame is unconditional and correct;
+   the day phasing lands it needs a condition, and the day the matcher lands it
+   needs to know that.
+
+   **Reachability (2026-09-13):** unreachable twice over — no trigger matcher
+   reads the event, and nothing can phase a permanent out. It stops being
+   unreachable when *either* lands, which is why the line names both.
+
+   **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
+   ~5 lines, inside whichever of the two arrives second.
+
+7. **CR 800.4d's second sentence has no site until the dispatcher exists.** "If
+   a triggered ability that would be controlled by a player who has left the
+   game would be put onto the stack, it isn't put on the stack" — a refusal at
+   the moment CR 603.3 puts an ability on the stack, which is the one moment
+   this engine does not have. Its first sentence (an object owned by a departed
+   player is not created) landed with RE-7 at `Primitive::CreateToken`;
+   `ATOM-800.4d-001` is `COVERS-PARTIAL` on that test and names this half as
+   the reason. The rule's own example is Astral Slide's delayed trigger, which
+   is also the shape that will reach it first: a *delayed* trigger outlives the
+   departure that its source did not.
+
+   **Reachability (2026-09-13):** unreachable — no ability is put onto the
+   stack by a trigger, so there is nothing to refuse.
+
+   **Sized:** one `in_game` read at the dispatcher's put-on-stack site,
+   ~5 lines and a four-player fixture, inside critical-path item 6.
+
 ### Before Commander (CR 903)
 
 1. **Commander damage increment — ✅ done (2026-04-18).** — archived.
@@ -5443,9 +5449,31 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    is recorded in `engineering-practices.md` §3 as RE-7's baseline. The mode
    was ~90 harness lines rather than ~50, because "a flag" was the optimistic
    reading: the deck loop, the copies count and the outcome key all had two
-   players in them. **Reachability (2026-09-12):** the rest of this item —
-   800.4a–e, 800.4m (RE-7) and CR 802 — is *reachable* now in every
-   four-player game with a departure, which is most of them at 200 games.
+   players in them.
+
+   **✅ CR 800.4a–e, 800.4c and 800.4m landed 2026-09-13 (RE-7)**, in
+   `engine/leaving.rs` and at the four refusal sites, with CR 800.1's seat
+   count as their gate (`GameState::is_multiplayer`). Item 108 closed with
+   them. **What is left of this item, and it is the whole residual:** CR 802's
+   choice of defending player, and CR 800.4f–i — a cost a departed player would
+   pay (800.4f), a choice they would make (800.4g/h) and the last known
+   information about them (800.4i). Each is a *choice-delegation* facility
+   rather than an object sweep, which is why RE-7 did not absorb them: 800.4g's
+   "the controller of the object chooses another player" has no shape in
+   `DecisionProvider` and no printed customer in the pool, and 800.4i wants the
+   LKI system this engine only has for zone changes.
+
+   **Reachability (2026-09-13):** CR 802 is reachable in every four-player
+   game — the defending player is chosen by the harness rather than by the
+   attacking player, which is a missing prompt and not a wrong answer.
+   800.4f–i are unreachable: the pool prints no cost or choice a player who is
+   not the object's controller makes, so a departed seat is never asked for
+   one.
+
+   **Sized:** CR 802's defending-player choice ~60 lines at
+   `candidate_priority_actions`' attack-target list plus a `ChoiceKind`;
+   800.4f–h ~120 with the delegation rule and a fixture each; 800.4i waits on
+   the LKI facility and is not sized here.
 
 ### Cross-cutting — keep this section honest
 

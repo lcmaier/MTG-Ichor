@@ -13,7 +13,7 @@
 //! `o:/skip.*then/` returns empty, and RE's census (2026-09-11) confirmed it at
 //! zero: there is nothing to write the follow-up action onto, and a fixture
 //! wearing the rule would assert the engine's guess rather than a printed
-//! card's behaviour. Recorded here rather than annotated anywhere
+//! card's behavior. Recorded here rather than annotated anywhere
 //! (`replacement-architecture.md` §9, RE decision 6).
 //!
 //! CR 500.7 likewise has **no atom in the corpus** — `backlog.md` §2.17 said it
