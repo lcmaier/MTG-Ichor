@@ -175,9 +175,11 @@ pub(crate) fn compute_characteristics_uncached(
 /// graveyard, or a spell — up to `ceiling`: its printed characteristics and
 /// its own CDAs, which CR 604.3 makes function in every zone.
 ///
-/// No row applies here by construction of the working set: a filter row
-/// needs the battlefield zone, a `Fixed` row's targets are members, a `Host`
-/// row's host is a permanent. What a CDA here reads of *another* object goes
+/// No row applies here by construction of the working set: a filter row needs
+/// one of the zones it names and an object in such a zone is a member (LJ —
+/// before it, a filter row needed the battlefield and this sentence read
+/// "needs the battlefield zone"), a `Fixed` row's targets are members, a
+/// `Host` row's host is a permanent. What a CDA here reads of *another* object goes
 /// through `board.frame_of` — a member's live frame inside a pass, its
 /// memoized frame outside one, and another non-member at a strictly lower
 /// ceiling, which is what bounds the recursion (§13b, decision 4).
@@ -198,7 +200,9 @@ pub(super) fn compute_non_member(
     let mut chars = seed_frame(&obj.card_data, controller, 0);
 
     // The common case, and worth its own exit: with no CDA there is nothing
-    // any layer can do to an object off the battlefield.
+    // any layer can do to an object **no row reaches** — which is what being a
+    // non-member means. Before LJ this said "off the battlefield", and that
+    // was the same statement only because no row could reach further.
     if !crate::engine::layers::cda::has_any_cda(&chars) {
         return Some(chars);
     }

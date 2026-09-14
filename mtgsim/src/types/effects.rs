@@ -489,6 +489,21 @@ pub enum EffectRecipient {
     /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
     /// a static ability's "you" the source's *current* controller.
     FilteredPermanents(ObjectFilter),
+    /// Every object matching the filter, in any of the named zones — Yixlid
+    /// Jailer's "cards in graveyards", Mycosynth Lattice's "all cards that
+    /// aren't on the battlefield".
+    ///
+    /// **The general form; [`Self::FilteredPermanents`] is the battlefield
+    /// spelling and stays the one to use for permanents**, exactly as
+    /// [`ObjectSet::filter`] is the battlefield spelling of
+    /// [`ObjectSet::filter_in`] one layer down. They lower through the same
+    /// function to the same value, so there is nowhere for them to disagree.
+    ///
+    /// **Static abilities only.** A resolution primitive that sweeps this
+    /// would need a zone sweep at resolution time, and no printed card asks
+    /// for one, so `resolve.rs` refuses it by name rather than falling into a
+    /// catch-all — an arm the engine cannot apply is worse than a missing one.
+    FilteredObjectsIn(ObjectFilter, ZoneSet),
     /// The permanent this one is attached to — "enchanted creature" on an
     /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
     /// Static abilities only, like `FilteredPermanents`; lowers to

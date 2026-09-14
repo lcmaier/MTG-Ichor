@@ -74,6 +74,7 @@ impl GameState {
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::FilteredPermanents { .. }
+            | EffectRecipient::FilteredObjectsIn { .. }
             | EffectRecipient::Host => {
                 if !targets.is_empty() {
                     return Err("Spell has no targets but targets were provided".to_string());
@@ -503,6 +504,7 @@ impl GameState {
             | EffectRecipient::Controller
             | EffectRecipient::Choose(_, _)
             | EffectRecipient::FilteredPermanents { .. }
+            | EffectRecipient::FilteredObjectsIn { .. }
             | EffectRecipient::Host => true,
             EffectRecipient::Target(_, _) => {
                 targets.iter().any(|t| {

@@ -167,6 +167,26 @@ impl<'l> Board<'l> {
                 }
             }
         }
+        // LJ — the objects a zone-reaching row can name. Appended **last**, so
+        // `battlefield_entities` keeps naming the prefix every count slices,
+        // and in each zone's own order (CR 404.3 for a graveyard), which is
+        // what a member outside the battlefield has instead of a timestamp.
+        //
+        // `beyond_battlefield` is empty on every board that plays no
+        // zone-reaching card, which is what makes this loop free rather than
+        // cheap — the alternative is every library in the game, ~400 members a
+        // pass at four seats instead of ~40.
+        //
+        // The look-ahead's own rows are deliberately not consulted: a
+        // `would_be` row's candidates are `[source]` alone (§5b's asymmetry),
+        // so it never reads a member it did not already have.
+        for zone in game.continuous_effects.summary().reachable_zones.beyond_battlefield().iter() {
+            for id in game.zone_ids_ordered(zone) {
+                if game.objects.contains_key(&id) && seen.insert(id) {
+                    members.push(id);
+                }
+            }
+        }
 
         let track_started = game.continuous_effects.summary().any_multi_row_group
             || lookahead.is_some_and(|l| l.summary.any_multi_row_group);
@@ -277,7 +297,13 @@ impl<'l> Board<'l> {
         if let Some(frame) = self.frames.get(&id) {
             return Some(FrameRef::Live(frame));
         }
-        if !self.live && game.battlefield.contains_key(&id) {
+        // A member's frame comes from the pass (memoized), never from a lone
+        // walk. Read through `membership` rather than off `game.battlefield`
+        // so it stays the same answer the top-level entry gives: since LJ a
+        // member need not be a battlefield entity, and answering one here with
+        // `compute_non_member` would drop exactly the zone-reaching row that
+        // made it a member.
+        if !self.live && matches!(membership(game, id), Membership::Member) {
             return crate::engine::layers::compute::compute_characteristics(game, id).map(FrameRef::Shared);
         }
         if let Some(frame) = self.sub.borrow().get(&(id, ceiling)) {
@@ -1325,9 +1351,9 @@ pub(super) fn compute_board_traced<'l>(
 /// Whether `id` belongs to the working set, which decides how the
 /// top-level entry computes it.
 pub(super) enum Membership {
-    /// A battlefield entity, or an object a `Fixed` row names: a member of
-    /// every pass. Rows are scanned rather than summarised — `Fixed` rows
-    /// are few, and a miss is already a walk.
+    /// A battlefield entity, an object a `Fixed` row names, or an object in a
+    /// zone some row reaches: a member of every pass. Rows are scanned rather
+    /// than summarised — `Fixed` rows are few, and a miss is already a walk.
     Member,
     /// In the battlefield zone with no entity: a member of the pass that
     /// asks about it (see [`Board::seed`]).
@@ -1347,7 +1373,23 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
         .continuous_effects
         .iter()
         .any(|e| matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id)));
-    if fixed_named { Membership::Member } else { Membership::NonMember }
+    if fixed_named {
+        return Membership::Member;
+    }
+    // LJ — in a zone some row reaches. Summarised rather than scanned, unlike
+    // `Fixed` above: this is asked for every card in every hidden zone the
+    // oracle ever queries, and the summary answers `EMPTY` in one compare on
+    // any board with no zone-reaching row. It must agree with `Board::seed`,
+    // which reads the same field — a member the seed adds and this call
+    // reports as a non-member would be walked alone, without the row that
+    // made it a member.
+    let beyond = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
+    if !beyond.is_empty()
+        && matches!(game.objects.get(&id), Some(obj) if beyond.contains(obj.zone))
+    {
+        return Membership::Member;
+    }
+    Membership::NonMember
 }
 
 /// `id`'s frame as of the end of layer `ceiling - 1`, from outside any pass:

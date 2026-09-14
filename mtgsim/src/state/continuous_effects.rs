@@ -7,6 +7,7 @@ use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Lay
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::zones::ZoneSet;
 
 /// CR 613.7's storage order: layer first, then timestamp, with the registry's
 /// own id breaking ties. `effects_in_layer` binary-searches on it.
@@ -155,6 +156,26 @@ pub struct RegistryScopeSummary {
     /// rather than its source set (`cost-architecture.md` §3.1).
     pub any_granted_cost_modification: bool,
     pub any_copied_cost_modification: bool,
+
+    /// The union of every row's [`ObjectSet::reachable_zones`] — which zones
+    /// the registry can name an object in at all.
+    ///
+    /// **The guard that keeps a zone-reaching filter free** (LJ,
+    /// `layers-architecture.md` §13c decision 2). `Board::seed`'s working set
+    /// is the battlefield plus whatever `beyond_battlefield()` names, so on
+    /// every board that plays no zone-reaching card this is
+    /// `ZoneSet::BATTLEFIELD` and the seed, `membership` and
+    /// `compute_non_member` all behave exactly as they did before the field
+    /// existed. That is a structural zero rather than a measured one, which
+    /// matters because the alternative is walking every card in every library:
+    /// four seats is ~400 members a pass instead of ~40.
+    ///
+    /// **Not `touches_hidden_zones: bool`**, which is what
+    /// `layers-architecture.md` §5.1 specified before there was a consumer. A
+    /// set confines the sweep to the zone a card actually reaches instead of
+    /// to "hidden or not", which is the narrowing item 9 asks for in its own
+    /// last paragraph — Yixlid Jailer costs graveyards, not libraries.
+    pub reachable_zones: ZoneSet,
 }
 
 impl RegistryScopeSummary {
@@ -173,6 +194,7 @@ impl RegistryScopeSummary {
             if !seen.insert(effect.group()) {
                 summary.any_multi_row_group = true;
             }
+            summary.reachable_zones |= effect.affected_objects.reachable_zones();
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {

@@ -1,0 +1,322 @@
+//! Phase LJ integration tests: a continuous effect that reaches another zone
+//! (`layers-architecture.md` §13c).
+//!
+//! The headline test is ATOM-614.12-001, which is the CR's own worked example
+//! for 614.12 and needs **both** halves of this phase at once: the filter has
+//! to reach a graveyard at all (LJ's working-set change), and the look-ahead
+//! has to keep it out of the entry (RC-4's overlay). A unit test of the filter
+//! would prove the first and say nothing about the second, which is why the
+//! atom is tested here rather than beside `Board::in_zones_or_entering`.
+//!
+//! The rest assert the guard: on a board with no zone-reaching row, nothing
+//! about the working set moves. That is `RegistryScopeSummary::reachable_zones`
+//! earning its place — the claim is a structural zero, so it is testable.
+
+use mtgsim::cards::phase_lf_cards::humility;
+use mtgsim::cards::phase_lj_cards::{scarwood_treefolk, yixlid_jailer};
+use mtgsim::engine::actions::ZoneChangeCause;
+use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::state::game_state::GameState;
+use mtgsim::test_support::{
+    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
+    vanilla_creature,
+};
+use mtgsim::types::effects::ObjectSet;
+use mtgsim::types::ids::ObjectId;
+use mtgsim::types::zones::{Zone, ZoneSet};
+
+/// Move a card from its owner's graveyard onto the battlefield, the way a
+/// reanimation spell's resolution does.
+fn reanimate(game: &mut GameState, id: ObjectId) {
+    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
+        .expect("it enters");
+}
+
+// ---------------------------------------------------------------------------
+// The facility: a filter row reaches a graveyard
+// ---------------------------------------------------------------------------
+
+/// Yixlid Jailer strips a graveyard card's abilities — the thing that was
+/// inexpressible before this phase.
+///
+/// Before LJ a graveyard card was a `NonMember` of every pass and received
+/// printed characteristics plus its own CDAs; no filter row could name it,
+/// whatever the filter said. The assertion is on the *oracle*, not on the
+/// registry, because registry membership is not effect existence
+/// (`CLAUDE.md`): the row has to be re-read and applied at Layer 6 for this
+/// to come out empty.
+#[test]
+fn test_a_graveyard_cards_abilities_are_stripped_by_a_zone_reaching_row() {
+    let mut game = setup_two_player_game();
+
+    let treefolk = put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    assert!(
+        !get_effective_abilities(&game, treefolk).is_empty(),
+        "the Treefolk prints an ability, and in a graveyard with no Jailer it keeps it"
+    );
+
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    assert!(
+        get_effective_abilities(&game, treefolk).is_empty(),
+        "CR 613 layer 6: cards in graveyards lose all abilities"
+    );
+}
+
+/// And it stops the moment the Jailer leaves — the row is re-read every pass,
+/// never captured at ETB.
+///
+/// This is one of the card's own printed rulings, and it costs no code: the
+/// effect exists exactly while its source has the ability
+/// (CR 604.2), so removing the source retires it.
+#[test]
+fn test_the_strip_ends_when_the_source_leaves_the_battlefield() {
+    let mut game = setup_two_player_game();
+
+    let treefolk = put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    assert!(get_effective_abilities(&game, treefolk).is_empty(), "stripped while it is out");
+
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .expect("it dies");
+
+    assert!(
+        !get_effective_abilities(&game, treefolk).is_empty(),
+        "the Treefolk has its ability back the moment the Jailer stops having its"
+    );
+}
+
+/// A battlefield-scoped row does **not** reach a graveyard card, which is the
+/// other half of the gate being a gate.
+///
+/// Humility is "all creatures lose all abilities" over
+/// `ObjectFilter::ByType(Creature)` on the battlefield. The Treefolk in a
+/// graveyard is a creature card by every characteristic, and Humility still
+/// must not touch it — if it did, the zone field would be decorative.
+#[test]
+fn test_a_battlefield_scoped_row_does_not_reach_a_graveyard_card() {
+    let mut game = setup_two_player_game();
+
+    let treefolk = put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    put_on_battlefield(&mut game, humility(), 1);
+
+    assert!(
+        !get_effective_abilities(&game, treefolk).is_empty(),
+        "Humility is battlefield-scoped; a card in a graveyard is not a creature it reaches"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// ATOM-614.12-001 — the CR's worked example, and why it needs both halves
+// ---------------------------------------------------------------------------
+
+/// **The atom.** Scarwood Treefolk enters from a graveyard while Yixlid Jailer
+/// is out, and it enters **tapped** — even though it had no abilities at all
+/// in the graveyard a moment earlier.
+///
+/// CR 614.12: an entry replacement is checked against the permanent as it
+/// *would exist on the battlefield*. On the battlefield the Jailer does not
+/// reach it, so "this creature enters tapped" is on the frame the look-ahead
+/// builds, and the entry is modified.
+///
+/// **Both halves of this phase are load-bearing and the test fails without
+/// either.** Without LJ's working-set change the Jailer reaches nothing, the
+/// Treefolk keeps its ability in the graveyard, and it enters tapped for the
+/// wrong reason — the assertion passes while proving nothing, which is why the
+/// test above it asserts the strip separately. Without the entering arm of
+/// `Board::in_zones_or_entering` the Jailer *does* reach the entering object,
+/// the ability is stripped before `gather` reads it, and the Treefolk enters
+/// untapped — the wrong answer, and the one a naive `zones.contains(obj.zone)`
+/// gives, since an entering object is still in its source zone.
+// COVERS: ATOM-614.12-001
+#[test]
+fn test_a_treefolk_reanimated_under_yixlid_jailer_still_enters_tapped() {
+    let mut game = setup_two_player_game();
+
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    let treefolk = put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+
+    // The premise, asserted rather than assumed: in the graveyard it has
+    // nothing, so a look-ahead that read the card *where it is* would find no
+    // entry modification at all.
+    assert!(
+        get_effective_abilities(&game, treefolk).is_empty(),
+        "premise: the Jailer has taken its abilities away while it is in the graveyard"
+    );
+
+    reanimate(&mut game, treefolk);
+
+    assert!(
+        game.battlefield.get(&treefolk).expect("it is on the battlefield").tapped,
+        "CR 614.12: checked as it would exist on the battlefield, where the Jailer does not reach"
+    );
+    assert!(
+        !get_effective_abilities(&game, treefolk).is_empty(),
+        "and it has its ability on the battlefield, which is the same sentence from the other side"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The guard — `reachable_zones` is what makes the cost structurally zero
+// ---------------------------------------------------------------------------
+
+/// With no zone-reaching row registered, the registry reaches the battlefield
+/// and nothing else.
+///
+/// The claim §13c decision 2 rests on: the seed's zone loop does not run, so a
+/// board that plays none of these cards pays nothing for the facility. A
+/// measurement could only say "small"; this says "none".
+#[test]
+fn test_an_ordinary_board_reaches_no_zone_beyond_the_battlefield() {
+    let mut game = setup_two_player_game();
+
+    put_on_battlefield(&mut game, humility(), 1);
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    put_in_hand(&mut game, scarwood_treefolk(), 0);
+
+    let reach = game.continuous_effects.summary().reachable_zones;
+    assert_eq!(reach, ZoneSet::BATTLEFIELD, "every registered row is battlefield-scoped");
+    assert!(
+        reach.beyond_battlefield().is_empty(),
+        "so the seed adds no member outside the battlefield"
+    );
+}
+
+/// The Jailer turns exactly one zone on, and not the hidden ones.
+///
+/// The narrowing item 9 asks for in its own words, and the reason this is a
+/// `ZoneSet` rather than §5.1's `touches_hidden_zones: bool` — a graveyard row
+/// must not drag libraries and hands into the working set.
+#[test]
+fn test_the_jailer_reaches_graveyards_and_only_graveyards() {
+    let mut game = setup_two_player_game();
+
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    let reach = game.continuous_effects.summary().reachable_zones;
+    assert!(reach.contains(Zone::Graveyard), "the Jailer names graveyards");
+    assert_eq!(
+        reach.beyond_battlefield(),
+        ZoneSet::GRAVEYARD,
+        "and no other zone joins the working set"
+    );
+    assert!(
+        !reach.touches_hidden_zones(),
+        "a graveyard is public (CR 400.2); no library or hand is walked for this card"
+    );
+}
+
+/// A card in a hand is untouched by a graveyard-scoped row, which is the
+/// per-zone half of the same claim.
+#[test]
+fn test_a_graveyard_row_does_not_reach_a_card_in_hand() {
+    let mut game = setup_two_player_game();
+
+    let in_hand = put_in_hand(&mut game, scarwood_treefolk(), 0);
+    let in_graveyard = put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    assert!(
+        get_effective_abilities(&game, in_graveyard).is_empty(),
+        "the graveyard copy is stripped"
+    );
+    assert!(
+        !get_effective_abilities(&game, in_hand).is_empty(),
+        "the hand copy is not: the row names graveyards, and the gate reads the object's zone"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Determinism — the walk order of a member outside the battlefield
+// ---------------------------------------------------------------------------
+
+/// Zone members enter the working set in their zone's own order, seat first,
+/// and that order is the same on every run.
+///
+/// CR 613.7 orders *effects* by timestamp and says nothing about the objects
+/// they apply to, so a member here needs a deterministic position rather than
+/// a timestamp — which is what lets this phase leave CR 613.7d to A5. The
+/// containers are `Vec`s, so nothing reaches a `HashMap` (`CLAUDE.md`,
+/// determinism at the decision boundary).
+#[test]
+fn test_zone_members_are_enumerated_in_their_zones_own_order() {
+    let mut game = setup_two_player_game();
+
+    let p0: Vec<ObjectId> = (0..3)
+        .map(|_| put_in_graveyard(&mut game, scarwood_treefolk(), 0))
+        .collect();
+    let p1: Vec<ObjectId> = (0..2)
+        .map(|_| put_in_graveyard(&mut game, scarwood_treefolk(), 1))
+        .collect();
+
+    let expected: Vec<ObjectId> = p0.iter().chain(p1.iter()).copied().collect();
+    assert_eq!(
+        game.zone_ids_ordered(Zone::Graveyard),
+        expected,
+        "seat order, then each player's graveyard in its own order (CR 404.3)"
+    );
+    for _ in 0..8 {
+        assert_eq!(
+            game.zone_ids_ordered(Zone::Graveyard),
+            expected,
+            "and the same order every time it is asked"
+        );
+    }
+}
+
+/// `battlefield_entities` still means the battlefield, so a zone-reaching row
+/// is invisible to a count.
+///
+/// The finding that shaped the phase: every CR-level count slices that prefix,
+/// so a graveyard member appended anywhere but last would join every
+/// "creatures you control" count in the game. Asserted through a count that a
+/// card actually reads rather than through the field, which is private.
+#[test]
+fn test_a_graveyard_member_is_invisible_to_a_battlefield_count() {
+    let mut game = setup_two_player_game();
+
+    put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    let before = game.battlefield_ids_ordered().len();
+
+    for _ in 0..4 {
+        put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    }
+
+    assert_eq!(
+        game.battlefield_ids_ordered().len(),
+        before,
+        "four new members of the working set, and none of them is on the battlefield"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The recipient lowers to the set it says it does
+// ---------------------------------------------------------------------------
+
+/// `FilteredObjectsIn` lowers to `ObjectSet::filter_in`, and the registered
+/// row carries the zones.
+///
+/// One assertion on the seam between a card definition and the registry,
+/// because everything above reads through the oracle and would pass on a row
+/// that reached the right objects for the wrong reason.
+#[test]
+fn test_the_jailers_registered_row_is_graveyard_scoped() {
+    let mut game = setup_two_player_game();
+
+    let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    let rows: Vec<&ObjectSet> = game
+        .continuous_effects
+        .iter()
+        .filter(|e| e.source == jailer)
+        .map(|e| &e.affected_objects)
+        .collect();
+    assert_eq!(rows.len(), 1, "one ability, one row");
+    assert!(
+        matches!(rows[0], ObjectSet::Filter { zones, .. } if *zones == ZoneSet::GRAVEYARD),
+        "the row names graveyards and not the battlefield: {:?}",
+        rows[0]
+    );
+}
