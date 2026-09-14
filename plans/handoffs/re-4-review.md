@@ -155,3 +155,88 @@ feature, and the rule in Theme B is the answer to the ones that were cheap.
 For the unsized: the one unsized item on the route is critical-path item 6,
 and its rule is already "write the doc first". The ledger's audit row to watch
 is "reachable, wrong today" (4), which is the real bug list.
+
+## Second pass (2026-09-13) — questions on themes A, B, C; nothing changed yet
+
+**R17. Is the nesting guard a loop detector, or a guard against another
+two-Collectors board?** Neither. It cannot fire on a rules loop and it is not
+meant to catch one: after theme A a replacement-only chain is bounded by
+CR 614.5 by construction, so the only way past `BATCH_NESTING_LIMIT` is an
+engine defect of the shape theme A fixed — a nested batch that starts without
+the lineage it should carry, or a rider encoding that re-proposes its own
+event. It turns that stack overflow into an error naming the invariant.
+A *legitimate* mandatory loop through triggers (item 6's) is CR 104.4b's and
+is R21's business, not this constant's. **Doc:** the constant's comment says
+"a loop of its own making", which is right, and should say in one more
+sentence that it is not the CR 104.4b detector. The 32 is a placeholder until
+the re-measurement reads the `Max batch depth` row; the doc should carry that
+number when it exists.
+
+**R18. Performance of carrying lineage.** Bounded by the number of instances
+that applied to one event — single digits on any printed board — and no walks
+or frames: a rider's set is one clone per rider queued (riders are rare), the
+`Option<HashSet>` handed to `execute_actions` is a move, and an empty set
+allocates nothing. The one growth is a doubled-draw chain, where each level's
+set is one entry larger and cloned once per level — quadratic in a chain
+length that is the number of draw instances on the board (four, on the widest
+registered one). The re-measurement is the check; the two-seat `performance`
+identity is what should hold.
+
+**R19. Does "attacking" go in the entry seed too?** Yes, the same door —
+CR 508.4 is "put onto the battlefield attacking", a fact about how it enters
+— but not a `bool`: it names what is attacked, and it means nothing outside
+the combat steps 508.4 allows. So `EnterMods` gains `attacking:
+Option<AttackTarget>` and `place_on_battlefield`'s wake writes the combat
+state. On growth: CR 614.1c's vocabulary is bounded — tapped, counters,
+attacking, face-down (Layer 1, the one that "changes everything"),
+transformed, as a copy, attached to — six or seven fields ever, and every
+reader that must decide about a new one is a full destructure that the
+compiler breaks (R10). The risk is semantic, not arity: a field that feeds a
+*characteristic* (face-down, copy) breaks the entry-shape premise, and that
+is the case the predicate's expiry list already names.
+
+**R20. "the def" is undefined in isolation.** Agreed. The crate says *def* for
+every card-authored definition — `TokenDef`, `ReplacementDef`,
+`RestrictionDef`, `AbilityDef` — as distinct from an *instance* (a def on a
+board, with a source and a controller) and an *object*. **Fix:** a glossary
+entry beside **instance**, `def` on the watchlist, and the test doc line
+reworded to "the token's def, never the entry's frame". Small; with E/F.
+
+**R21. The loop watcher.** Recorded where the owner remembers it: `roadmap.md`
+D11 (mandatory loop detection, "post-v1 / stretch") and D26 (divergent loop
+shortcutting — `GameNumber` with `Finite`/`Shortcut`/`Relative`,
+`LoopDeclaration` with `Concrete`/`MatchPlusN`, `ask_declare_loop_count`
+through `pick_number`; the rule it cites as 727 is 731 in `tmnt`), with
+"Loop detection Tiers 1–3 and D26 survive, re-based on performed-action
+transcripts" in the archive's item 3, and `replacement-architecture.md` §12's
+one-line pointer. The tiers doc it names, `state-tracking-architecture.md`, is
+not in the tree under that name. **What theme A changes about the premise:**
+the mandatory half cannot be a replacement-only loop any more, so it is a
+*trigger* question (item 6) and the buffer-of-N-batches-with-state-hashes
+watcher belongs to the trigger phase's design, reading the performed stream
+RA built; the optional half — a player *declaring* a loop as a choice
+sequence plus an expected per-iteration delta, the engine running one
+iteration to check the delta and then applying it N times as one batch — is
+CR 731.2's procedure and the piece no simulator has, and it is the AI
+harness's infinite-mana question. **Proposed:** a `backlog.md` entry, "Loops
+(CR 104.4b, 731)", holding the sketch, the two halves, what each depends on
+(item 6; item 40's discipline for a state hash; the `DecisionProvider`
+surface), and D11/D26 struck as graduated into it — a capture, not a design;
+the design is its own doc when it is scheduled.
+
+**R22. How many suppression shapes, and organize now?** Five, one per phase
+since RC-4, and the sixth candidate is already on the board: Divine
+Visitation beside Parallel Lives is asked and has one outcome (a multiplier
+and a replace-by-"that many" commute; the test asks both ways). The shapes are
+ad hoc proofs over a whole bucket; the organization they want is pairwise —
+classify each `Rewrite` on an event kind into a commutation class
+(multiplicative, additive, absorbing exit, mods-adding, idempotent
+substitute) and a table of which classes commute, with the common clauses
+(static, rider-less, not optional, not a counter) factored out and one debug
+check per class rather than per shape. **Not in this PR**: the five each have
+a printed board and a check, and the table is a ~150-line refactor of a
+predicate the standing question has corrected three times, which wants a
+session of its own. **The trigger is the sixth shape**, which RE-5's counter
+doublers beside Hardened Scales will force (a multiplier and an additive do
+not commute, which the table states and a sixth predicate would have to
+re-derive). Recorded as a backlog entry with that trigger.
