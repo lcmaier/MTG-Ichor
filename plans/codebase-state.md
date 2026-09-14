@@ -5553,99 +5553,78 @@ migration.
 ### Found by RE-4 — tokens (2026-09-13)
 
 **Shipped:** `GameAction::CreateTokens { defs, controller }` and
-`EventPattern::CreateTokens`; `Rewrite::Amount(Multiplier)` over a `Vec`,
-repeating each def in place; a performer that creates the objects and
-proposes every entry as one contained batch, un-creating a dropped member
-(CR 111.5); `GameAction::CreateTokenIn { object, zone }` as the substitute
-for a token's entry, with `GameState::put_token_into` and
-`GameEvent::TokenCreated` (two callers of one emitter — the entry performer's
-token arm and `CreateTokenIn`'s); `TokenDef` with `abilities`, `supertypes`,
-`rules_text`, `enchant_filter`, an `Option` name (CR 111.4's default) and
-`Option` power and toughness (CR 208.3), lowered by `TokenDef::card_data`;
-Parallel Lives, Raise the Alarm (both pooled), Hordeling Outburst, Hallowed
-Moonlight. Items 46 and 52 and "Before card breadth" item 8 closed. **Left
-absent, each with its customer named:**
+`EventPattern::CreateTokens { kind }` — a `TokenKind` matched against each
+def, since the tokens are not objects when the pattern is asked; `Rewrite::
+Amount(Multiplier)` over the `Vec`, repeating in place the defs the kind
+matched; `GameActionTemplate::CreateTokens { def, count, mode }`, the
+kind-changing substitution over a creation (`Replace`: Divine Visitation's
+"that many Angels instead", one in each matched def's place and keeping how
+the effect said it enters; `Append`: Chatterfang's "those tokens plus that
+many Squirrels", Xorn's "plus an additional Treasure"); a performer that
+creates the objects and proposes every entry as one contained batch,
+un-creating a dropped member (CR 111.5); `GameAction::CreateTokenIn {
+object, zone }` as the substitute for a token's entry, with
+`GameState::put_token_into` and `GameEvent::TokenCreated` (two callers of one
+emitter — the entry performer's token arm and `CreateTokenIn`'s); `TokenDef`
+with `abilities`, `supertypes`, `rules_text`, `enchant_filter`,
+`enters_tapped`, an `Option` name (CR 111.4's default) and `Option` power and
+toughness (CR 208.3), lowered by `TokenDef::card_data`; Parallel Lives, Raise
+the Alarm (both pooled), Hordeling Outburst, Hallowed Moonlight, Divine
+Visitation, Bard, King of Dale. Items 46 and 52 and "Before card breadth"
+item 8 closed. **The review's rule** (`engineering-practices.md` §4): an arm
+the PR's own type opens, with a printed customer and sized under about eighty
+lines, ships in that PR — which is why the kind, the template and
+`enters_tapped` are above rather than below this line. **Left absent, each
+with its customer named:**
 
-126. **`EventPattern::CreateTokens` has no kind field, and five printed cards
-     want one.** "If one or more *creature* tokens would be created under
-     your control" (Divine Visitation, Ojer Taq, Jinnie Fay), "*Treasure*
-     tokens" (Xorn), "a *Clue, Food, or Treasure* token" (Academy Manufactor)
-     constrain which defs the effect is about, and the arm today matches any
-     nonempty creation. `GainLife`'s rule (wait for the customer, size the
-     retrofit) applies: none of the five is registered, and a field nothing
-     reads is a field every author decides about.
-
-     **Reachability (2026-09-13):** unreachable — no registered def is
-     constrained by kind; Parallel Lives is "one or more tokens".
-
-     **Sized:** a `kind: Option<TokenKindPattern>` (types and subtypes,
-     matched against each `TokenDef` — the objects do not exist at gather
-     time, so `ObjectFilter` cannot be reused), one `pattern_watches` clause
-     ("any def matches"), `apply_rewrite`'s `Multiplier` leg repeating only
-     the matching defs, and `reads_the_amount` unchanged; ~40 lines, with
-     the first of the five.
-
-127. **`AmountRewrite::Plus` over a creation is refused, and Xorn is the
-     customer.** "If you would create one or more Treasure tokens, instead
-     create that many plus one" — `Plus(1)` over a `Vec<TokenDef>` has to
-     say *which* def the extra one repeats, which is unambiguous only once
-     item 126's kind field has narrowed the creation to one def. The
-     pipeline returns an authoring error today rather than guessing
-     (`amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest`).
+126. **A kind-changing substitution from a *draw* to a creation has no leg.**
+     Hullbreacher — "if an opponent would draw a card except the first one
+     they draw in each of their draw steps, instead you create a Treasure
+     token" — is `Instead(CreateTokens { .. })` applied to a `DrawCard`,
+     which `substitute` refuses today (its `CreateTokens` leg pairs the
+     template with a creation only). One leg, ~15 lines, `template_amount`
+     already knowing a draw has no "that many"; the customer also needs a
+     Treasure def, which is `backlog.md` §2.19's.
 
      **Reachability (2026-09-13):** unreachable — no registered def pairs
-     `Plus` with `CreateTokens`.
+     the template with a draw.
 
-     **Sized:** ~15 lines in the `Multiplier` leg's sibling, after item 126.
+     **Sized:** ~15 lines in `substitute`, with Hullbreacher, after §2.19.
 
-128. **No `GameActionTemplate::CreateTokens`, so "instead create [other
-     tokens]" is not a rewrite yet.** Divine Visitation ("that many 4/4 white
-     Angel creature tokens … are created instead"), Jinnie Fay, Chatterfang's
-     "those tokens plus that many Squirrels" and the kind-changing "if you
-     would draw, create a token instead" family (Bard King of Dale, and the
-     *Words of* shape RE-2's ledger row named) each substitute the creation's
-     defs. `Rewrite::Instead` has no template for it, and `ATOM-614.16-001` is
-     `COVERS-PARTIAL` for exactly this reason — its board's "instead create a
-     1/1 Spirit" is a substitute where Kalitas's Zombie is a rider.
+127. **A creation template with a *choice* of def has no shape.** Jinnie Fay,
+     Jetmir's Second — "you may instead create that many 2/2 green Cat
+     creature tokens with haste or that many 3/1 green Dog creature tokens
+     with vigilance" — is optional (the pipeline has that) and offers two
+     defs, chosen as the replacement applies. `GameActionTemplate::CreateTokens`
+     carries one def; the choice is a `ChoiceKind` asked in `apply_rewrite`
+     the way CR 614.13's auxiliary move is, and the modal template is the
+     field that holds the alternatives.
 
-     **Reachability (2026-09-13):** unreachable — nothing registered
-     substitutes a creation.
+     **Reachability (2026-09-13):** unreachable — the only printed customer
+     is unregistered.
 
-     **Sized:** a template `CreateTokens { def, count: TemplateAmount }`
-     (`ReplacedAmount` for "that many"), one `substitute` leg, one
-     `template_is_instance_invariant` arm; ~60 lines, with Divine Visitation,
-     which also wants item 126.
+     **Sized:** ~40 lines and a `ChoiceKind`, with Jinnie Fay.
 
-129. **A creation carries no `EnterMods`, so "create … tapped and
-     attacking" is not expressible.** Parallel Lives' second ruling uses it as
-     its example of what the extra tokens inherit, and it is printed on 121
-     cards, 78 of which create tokens (Scryfall, `o:"tapped and attacking"`,
-     2026-09-13). The entry each token proposes seeds its mods from the rules
-     alone (`default_enter_mods`), and the creation has no field to add
-     "tapped" or "attacking" to that seed.
+128. **"Create … tapped and attacking" has the first half and not the
+     second.** `TokenDef::enters_tapped` is CR 110.5b's word on the entry;
+     "attacking" is CR 508.4's — a permanent put onto the battlefield
+     attacking is attacking without having been declared, which is a
+     combat-state write the entry performer does not have and combat's
+     validation has never been asked about. 121 printed cards say it
+     (Scryfall, `o:"tapped and attacking"`, 2026-09-13), every one a trigger.
 
-     **Reachability (2026-09-13):** unreachable — no registered def enters
-     modified.
+     **Reachability (2026-09-13):** unreachable — no registered def says
+     "attacking", and nothing could until CR 603.
 
-     **Sized:** `TokenDef` (or `CreateTokens`) gains an `EnterMods` the
-     performer merges into each entry's seed, ~20 lines; "attacking" also
-     needs a combat-state write the entry performer does not have today
-     (CR 508.4's "put onto the battlefield attacking" is its own rule and a
-     combat question), so the tapped half is cheap and the attacking half is
-     combat's.
+     **Sized:** a field beside `enters_tapped` and a write into the combat
+     state in `place_on_battlefield`'s wake, ~30 lines, with the first
+     trigger that creates one — combat's phase to size, not this one's.
 
-130. **`Subtype::word` spells three multi-word subtypes and would misspell a
-     fourth.** CR 111.4's default name is built from the printed subtype
-     words; the variant name is the word for every subtype but "Power-Plant",
-     "Urza's" and "Time Lord", which the function spells. A new multi-word
-     subtype (none in the CR's creature or land lists beyond those three;
-     planar and dungeon types are several words each and no token has one)
-     lands as its variant name until a line is added.
-
-     **Reachability (2026-09-13):** not wrong today — the three are spelled,
-     and no other multi-word subtype is a token's.
-
-     **Sized:** one line per subtype, at the moment a token def carries one.
+What is *not* a ledger line, and where each waits: Xorn's and Chatterfang's
+Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
+any-color mana); Academy Manufactor's "one of each" is §2.27's library;
+Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
+`cost-architecture.md`'s.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

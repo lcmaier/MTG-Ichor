@@ -3157,7 +3157,7 @@ this time a third of the overage is the two lineage findings (§11 items
 77–78, ~90 lines with their fixtures). Zero warnings; 1,375 tests. The review
 (`plans/handoffs/re-4-review.md`) then added what the owner asked in: a
 rider carrying its lineage, the one-exit suppression shape, the token
-pattern's kind, the creation template, and three more cards.
+pattern's kind, the creation template, and two more cards.
 
 **Glossary triage** (`check_glossary.py --suggest`): nine candidates, no
 coinage. *Ruling* and *rulings* are Scryfall's word and §3.4's; *pooled*,

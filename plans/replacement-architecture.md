@@ -3622,8 +3622,10 @@ and Hallowed Moonlight registered. Sized 1,650–1,850, shipped **+1,867 /
 lineage assertion is per lineage). `PERFORMANCE_POOL` 81 → 83. **Trace page: no**,
 decided at the close. The design record, the shape as built, the measurement
 and the findings are in `plans/archive/replacement-architecture-landed.md`,
-"RE-4"; `codebase-state.md`'s RE-4 lines (items 126–130) are what was left
-absent, each with its customer named.
+"RE-4"; `codebase-state.md`'s RE-4 lines (items 126–128) are what was left
+absent, each with its customer named. The review added a rider carrying its
+lineage (§11 item 77), the one-exit suppression shape (81), and the creation
+pattern's kind, the creation template and two more cards (82).
 
 #### RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a; item 43, `backlog.md` §2.16)
 
@@ -6094,6 +6096,25 @@ found them.
     a pattern arm that names every field) and the fourth is now —
     `EnterModsTemplate::is_fixed` destructures the struct — so whoever adds
     the field is sent to the premise by the compiler and not by a sentence.
+
+82. **Four ledger lines were arms the PR had the type open for, and the
+    review made three of them code** (`plans/handoffs/re-4-review.md`, theme
+    B; the rule is `engineering-practices.md` §4's). `EventPattern::
+    CreateTokens { kind }` — a `TokenKind` asked of each def, since a
+    creation's tokens are not objects when the pattern is — with Divine
+    Visitation as its customer; `GameActionTemplate::CreateTokens { def,
+    count, mode }`, the fourth template arm decision 0 did not foresee, whose
+    `Replace` is Divine Visitation and whose `Append` is Chatterfang's and
+    Xorn's shape; and `TokenDef::enters_tapped`. **`AmountRewrite::Plus` over
+    a creation was the wrong arm for Xorn**, and the review's "why leave it
+    half done" is what found it: the printed "plus" adds *an additional
+    Treasure token*, a named def, which is the template's `Append` with
+    `Fixed(1)` and not arithmetic — so `Plus` stays refused, for a reason
+    that is now the right one. Bard, King of Dale came in with them once R5
+    found it is a draw doubler and a token doubler with both halves built,
+    not a draw-to-token card (that is Hullbreacher). What is still recorded
+    — a draw-to-creation leg, a template with a choice of def, "attacking"
+    — is three lines instead of five, each naming the facility it waits on.
 
 ## 12. Explicitly out of scope
 

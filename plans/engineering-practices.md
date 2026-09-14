@@ -2125,6 +2125,19 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
   degrades; the themes exist because the rows inside one share a mental model.
 - **`git log main..HEAD` lies after a squash-merge** (same content, new SHA).
   Check content: `git diff --stat origin/main HEAD`.
+- **An arm the PR's own type opens, with a printed customer and sized under
+  about eighty lines, ships in that PR** — adopted at RE-4's review
+  (2026-09-13, `plans/handoffs/re-4-review.md`, theme B). RE-4 opened
+  `TokenDef` and `EventPattern::CreateTokens` and recorded four arms on them
+  as ledger lines, each with its customers named and each under the size;
+  the review's question was why they were plates to juggle rather than
+  commits, and there was no answer. The ledger is for *facilities* that do
+  not exist yet, an arm whose type is open in the PR is a normal diff, and
+  deferring it costs a second pass over the same code. The band still holds
+  — RE-4 landed at the top of it with the arms in — and the exception is an
+  arm whose customer needs a facility the PR does not have (Xorn's template
+  exists; its Treasure does not), which is a ledger line pointing at that
+  facility.
 
 ---
 

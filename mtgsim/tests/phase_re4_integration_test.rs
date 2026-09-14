@@ -583,6 +583,11 @@ fn hallowed_moonlight_creates_the_token_in_exile_and_it_ceases_to_exist() {
 /// Hallowed Moonlight's second ruling: *"won't affect any creature that was
 /// cast, no matter which zone it was cast from and whether or not its mana
 /// cost was paid."*
+///
+/// Cast from the hand here, which is the only zone the gate admits; "no
+/// matter which zone" owes a second board — a creature cast from a graveyard
+/// or from exile under the Moonlight — to the PR that opens `backlog.md`
+/// §2.3, and §2.3 says so.
 #[test]
 fn hallowed_moonlight_does_not_affect_a_creature_that_was_cast() {
     let mut game = setup_two_player_game();

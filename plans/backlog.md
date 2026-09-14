@@ -139,6 +139,11 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 - **Atoms** — **none re-filed, and that is the finding.** Every atom about
   casting from a non-hand zone (601.2a-003, 601.3f-001/002, and the CR 702
   keyword family) is already filed at Phase 8, correctly. See §4's second note.
+  **One test is owed here by RE-4** (its review, R16): Hallowed Moonlight's
+  ruling that it "won't affect any creature that was cast, no matter which
+  zone it was cast from" is tested from the hand only, and the first PR
+  that opens the gate adds the board where a creature is cast from a
+  graveyard or from exile under the Moonlight and enters.
 - **Owner** — none yet.
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes
@@ -921,7 +926,10 @@ mechanic rather than a migration, which is why it is here and not in
 - **Blocks** — Command Tower, Birds of Paradise, Chromatic Lantern, City of
   Brass, Mana Confluence, Gemstone Mine, Exotic Orchard; every Treasure and
   Gold token; Cavern of Souls' second mode; every mana filter ("{1}: Add one
-  mana of any color"). Any Commander-viable mana base.
+  mana of any color"). Any Commander-viable mana base. **And every effect
+  that makes a Treasure** (RE-4's review, 2026-09-13): the Treasure def in
+  §2.27's library, and with it Xorn, Chatterfang and Hullbreacher, whose
+  replacement shapes `GameActionTemplate::CreateTokens` already carries.
 - **Atoms** — ATOM-111.10-001's expected result prints the text; ATOM-605.3c-001's
   board is a mana filter that adds "one mana of any color". Neither is about
   this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
@@ -1176,6 +1184,19 @@ mechanic rather than a migration, which is why it is here and not in
   which wants the information model (§2.9) before it can reveal what it made.
   The library graduates entry by entry, Walker first, since it is the one that
   needs nothing.
+- **Plan** (2026-09-13, the RE-4 review's question about Clue and Treasure) —
+  **three steps, in this order.** (1) `cards::tokens`, one small PR: Walker,
+  Clue, Food, Blood, Map, Junk, Lander, Mutagen, Shard and Powerstone as
+  `TokenDef` constructors — every one needs only `Primitive::Sacrifice` as a
+  cost, which CM-3 shipped — with `Primitive::Investigate` (138 printed
+  "investigate" say Clue without the word) and one card per token type that
+  makes it. (2) **§2.19, next on the mana side**: a Treasure def needs "add one
+  mana of any color", and so does every Commander mana base; Treasure and
+  Gold land with it, and so do Xorn, Chatterfang and Hullbreacher (RE-4's
+  template has their shape and waits on the def). (3) The Roles with
+  attach-on-creation, Wicked Role with CR 603, Incubator with CV-5's back
+  face. The vocabulary for all twenty exists since RE-4; nothing in the
+  library needs a type change.
 
 ---
 
