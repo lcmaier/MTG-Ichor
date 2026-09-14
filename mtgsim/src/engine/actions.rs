@@ -270,8 +270,14 @@ pub enum GameAction {
     ///
     /// `n` is a maximum: removing three counters from a permanent that has one
     /// removes one, which is CR 701.2's "as much as it can" and what
-    /// `PermanentState::remove_counters` already reports. No `by`: nothing
-    /// printed asks who *removes* a counter.
+    /// `PermanentState::remove_counters` already reports. **That is the rule
+    /// for an effect's instruction, and a cost never reaches it**: CR 118.3
+    /// lets no player pay a cost they cannot pay in full, so a cost that
+    /// removes counters — paying {E}, a loyalty ability's minus — is validated
+    /// against the count before it proposes anything, where `Cost::Sacrifice`
+    /// counts its candidates (`engine::costs`; `Cost::RemoveCounters` is the
+    /// unimplemented arm there). No `by`: nothing printed asks who *removes* a
+    /// counter.
     RemoveCounters {
         subject: CounterSubject,
         counter: CounterType,

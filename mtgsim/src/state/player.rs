@@ -75,7 +75,10 @@ impl PlayerState {
 
     /// Take up to `n` counters of `kind` off this player; the number actually
     /// taken — CR 701.2's "as much as it can", `PermanentState::remove_counters`'
-    /// mirror. A kind that reaches zero leaves the map, so "has a counter"
+    /// mirror, and for an *effect's* instruction only: a cost paid in
+    /// counters ("you can't pay more energy counters than you have", CR 118.3)
+    /// is validated in full before it proposes a removal (`engine::costs`).
+    /// A kind that reaches zero leaves the map, so "has a counter"
     /// (CR 701.34a's proliferate) is `counters` being non-empty.
     pub fn remove_counters(&mut self, kind: CounterType, n: u32) -> u32 {
         let Some(count) = self.counters.get_mut(&kind) else {

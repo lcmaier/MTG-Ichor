@@ -212,7 +212,8 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   (702.8), impending (702.176), warp (702.185), first/double strike
   (702.4, 702.7), and **infect (702.90), wither (702.80) and toxic (702.164)
   with their CR 120.3b/d/g results of damage** — named here 2026-09-08 because
-  the ledger's `T21c` pointed at this entry and this entry did not mention them
+  the ledger's `T21c` pointed at this entry and this entry did not mention them;
+  and **suspend (702.62)**, named 2026-09-14, for the store it needs below
 - **Verdict** — mostly card breadth rather than a missing surface, which is why
   audit §6 retired `audit --dark` over exactly this material: it is *depth*, and
   it belongs beside the phases that need it. Two exceptions worth naming
@@ -232,6 +233,21 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   flag there and one block in `perform_action`'s `DealDamage` arm — with the
   difference that these three read the *source's* keywords where 120.3c/e read
   the target's types. `codebase-state.md` item 86 carries the dated line.
+- **Counters on an object off the battlefield** (RE-5's review, 2026-09-14,
+  R3) — the store, not the subject. `CounterSubject::Object(ObjectId)` names
+  any object and CR 122.1a/b already speak of "a creature card in a zone
+  other than the battlefield", so the event vocabulary is done; what is not
+  is that counters live on `PermanentState`, `perform_action`'s counter arms
+  refuse an object off the battlefield, and `move_object` drops the entity,
+  which is CR 122.2 by construction. Suspend's time counters on an exiled
+  card, Darigaaz Reincarnated's egg counters, and Skullbriar, the Walking
+  Grave's "counters remain on Skullbriar as it moves to any zone other than
+  a player's hand or library" all want `counters` on the `GameObject`, with
+  `PermanentState` keeping only CR 613.7c's timestamps — and Skullbriar's
+  ruling that the retained counters "aren't 'placed'" means no `AddCounters`
+  is proposed for them and Doubling Season does not see them: a zone-change
+  performer question, not a pipeline one. ~60 lines with the first
+  exiled-with-counters card; nothing owed until then.
 - **Blocks** — nothing structural. Protection also needs §2.8's SBA legality
   re-check for Auras and Equipment.
 - **Atoms** — 20, not re-filed.

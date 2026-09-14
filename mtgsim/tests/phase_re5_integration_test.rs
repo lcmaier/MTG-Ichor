@@ -507,7 +507,11 @@ fn a_player_gets_counters_through_the_same_event() {
 }
 
 /// A removal from a player takes as much as it can (CR 701.2) and announces
-/// only a transition, the object arm's mirror.
+/// only a transition, the object arm's mirror. That clamp is for an
+/// *effect's* instruction; a cost that removes counters — paying {E}, a
+/// loyalty ability's minus — is validated in full before it is paid
+/// (CR 118.3, `engine::costs`), so a player with one energy never reaches
+/// this arm with a cost of three.
 #[test]
 fn a_player_removal_takes_as_much_as_it_can() {
     let mut game = setup_two_player_game();
@@ -890,24 +894,6 @@ fn winding_constrictor_does_not_apply_to_its_own_entry() {
     let snake = reanimate(&mut game, winding_constrictor(), 0);
 
     assert_eq!(count(&game, snake, CounterType::PlusOnePlusOne), 2);
-}
-
-// --- Live Fast -------------------------------------------------------------
-
-/// The producer, as printed: two cards, two life, two energy — and the energy
-/// is the player's, on no permanent.
-#[test]
-fn live_fast_gives_its_caster_two_energy() {
-    let mut game = setup_two_player_game();
-    fill_library(&mut game, 0, 5);
-    let life = game.players[0].life_total;
-
-    resolve_card(&mut game, 0, live_fast(), &test_dp());
-
-    assert_eq!(game.players[0].library.len(), 3, "two drawn");
-    assert_eq!(game.players[0].life_total, life - 2);
-    assert_eq!(game.players[0].counter_count(CounterType::Energy), 2);
-    assert_eq!(game.players[1].counter_count(CounterType::Energy), 0);
 }
 
 // --- Primal Vigor ----------------------------------------------------------

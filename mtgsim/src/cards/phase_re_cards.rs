@@ -2290,7 +2290,9 @@ pub fn winding_constrictor() -> Arc<CardData> {
 ///
 /// - *"Energy counters are a kind of counter that a player may have. They're
 ///   not associated with any specific permanents."* → `PlayerState::counters`
-///   has the kind and no permanent does; `live_fast_gives_its_caster_two_energy`.
+///   has the kind and no permanent does — the engine's own test,
+///   `a_player_gets_counters_through_the_same_event`; the card as printed
+///   is card breadth's to test, when fixtures move to set folders.
 /// - *"Any effects that interact with counters a player gets, has, or loses
 ///   can interact with energy counters."* → Vorinclex's and Winding
 ///   Constrictor's player halves, on this card.
@@ -2299,7 +2301,8 @@ pub fn winding_constrictor() -> Arc<CardData> {
 ///   first card (`backlog.md` §2.16's close).
 ///
 /// **Registered and not pooled**: a three-mana cantrip whose counters nothing
-/// pooled reads.
+/// pooled reads. Its job in this phase is to be Vorinclex's and Winding
+/// Constrictor's producer.
 pub fn live_fast() -> Arc<CardData> {
     CardDataBuilder::new("Live Fast")
         .mana_cost(ManaCost::build(&[ManaType::Black], 2))

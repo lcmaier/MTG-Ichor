@@ -84,7 +84,9 @@ its own PR; the recommendation is its own PR off this branch, since it is
 the predicate's fourth correction and §4.1 says to ask the standing question
 of every clause.
 
-## Theme C — the store, and costs (R3, R6)
+## Theme C — the store, and costs (R3, R6) — ✅ closed 2026-09-14
+
+*R3 is `backlog.md` §2.6's new bullet; R6 is a sentence on the performer arm, the player store and the test.*
 
 **R3 — is `CounterSubject` extensible to Skullbriar and suspend?** The
 *subject* is: `Object(ObjectId)` names any object, and CR 122.1a/b already
@@ -112,7 +114,9 @@ counters than you have" — is that arm's player twin). A validated cost
 never reaches the clamp. **Doc:** say so on the performer arm and on the
 two tests' docs, and name the validation arm as the cost's site.
 
-## Theme D — the test that is a card and not a rule (R7)
+## Theme D — the test that is a card and not a rule (R7) — ✅ closed 2026-09-14
+
+*Deleted; Live Fast's doc points at the engine test.*
 
 **R7 — the Live Fast card test.** The engine test earlier in the file
 covers `GetCounters`, the map and the log line; the card's other two
@@ -121,6 +125,20 @@ breadth's, when fixtures move to set folders. Vorinclex's player-half test
 still uses Live Fast as its producer, which is the card doing a job.
 **Fix:** delete `live_fast_gives_its_caster_two_energy`; the card's doc
 points at the engine test instead.
+
+## Second pass (2026-09-14), on theme A — both closed the same day
+
+**R8 — `CountersPut` or `CountersAdded`?** Neither: every other arm bears its
+`GameAction`'s name (`DealDamage`, `CreateTokens`, `PlayerLoses`), so the
+pair is `EventPattern::AddCounters` and `EventPattern::RemoveCounters`, the
+same words as the action and the primitive, and the collision is the
+convention rather than a headache. **Fixed.**
+
+**R9 — `None | Some(You)` in `resolve_putter`.** Two names for one player; a
+smell. The primitives' `by` is a plain `PlayerRef` and every printed one-shot
+writes `You`. The template's `Option` stays, since there `None` is a
+different player — the entering object's controller, CR 122.6a's default,
+which no `PlayerRef` can name. **Fixed.**
 
 ## Order
 
