@@ -77,8 +77,10 @@ pub enum Restriction {
     /// `pattern` and `affected` are the replacement pipeline's, reused verbatim:
     /// "this permanent can't be destroyed" is the same predicate over the same
     /// proposal as "if this permanent would be destroyed, instead …", minus the
-    /// instead. [`Self::Event::by`] is the one addition — CR 101.2 scoped by
-    /// what *caused* the event, which is §2.6's Sigarda family.
+    /// instead. [`Self::Event::by`] is the one addition — which source
+    /// *caused* the event, §2.6's Sigarda family. That clause is printed on
+    /// cards rather than stated by CR 101.2, which says only that a "can't"
+    /// wins; see [`SourceFilter`].
     Event {
         pattern: EventPattern,
         /// The objects this forbids the event about. **Half a pair**, like
@@ -146,10 +148,16 @@ pub enum Restriction {
     },
 }
 
-/// CR 101.2 scoped by what caused the event — §2.6's Sigarda family.
+/// What *caused* an event, as a predicate — §2.6's Sigarda family.
 ///
 /// > Sigarda, Host of Herons — "Spells and abilities your opponents control
 /// > can't cause you to sacrifice permanents."
+///
+/// **Not a rule of CR 101.2's**, though [`Restriction::Event::by`] sits under
+/// one: 101.2 says only that a "can't" takes precedence, and the cause clause
+/// is a shape printed on cards. The fact it reads is fixed elsewhere — the
+/// resolving spell or ability (CR 608.2) and its controller, which CR 109.5
+/// makes the effect's "you".
 ///
 /// The provenance this reads is already threaded: `ActionContext::resolution`
 /// carries the resolving spell or ability, so this is a field rather than a
@@ -160,8 +168,9 @@ pub enum Restriction {
 /// omission — Sigarda does not stop CR 704.5's sacrifices, and there are none
 /// to stop.
 ///
-/// **Read by a replacement effect too, from RE-8 on.** CR 101.2's "by" and
-/// CR 614's are one question asked at two sites: Tamiyo, Collector of Tales'
+/// **Read by a replacement effect too, from RE-8 on.** The "can't" side and
+/// the CR 614 side are one question asked at two sites: Tamiyo, Collector of
+/// Tales'
 /// "spells and abilities your opponents control can't cause you to discard
 /// cards" and Nephalia Academy's "if a spell or ability an opponent controls
 /// causes you to discard a card" name the same provenance, so

@@ -78,8 +78,12 @@ three interleaved rounds: `main` 16.65 ms, engine 16.26 (−2.3%), registered
 walk — `ms / 1,000 queries` is −1.6%. **Reachability**, `--require`, 200 games
 — `performance`: Mind Rot cast 173, resolved 172, in **129 of 200 games
 (64%)**, copies/deck 1.43; Opt cast 210, resolved 209, in **139 of 200 (70%)**,
-1.52. `stress`: Hymn to Tourach cast 149, resolved 129, in **94 of 200 (47%)**,
-1.28; Nephalia Academy cast 221, resolved 221, in **149 of 200 (74%)**, 1.31;
+1.52 — unchanged by the counter fix below, `performance` holding none of the
+three cards that replace a resolution's last move. `stress`: Hymn to Tourach cast 149, resolved
+**146** (re-read at the review: the first pass counted `cause == Resolved`,
+and seventeen Hymns had resolved under a Leyline of the Void, which replaces
+CR 608.2m's graveyard move — §11 item 91), in **102 of 200 (51%)**, 1.28;
+Nephalia Academy cast 221, resolved 221, in **149 of 200 (74%)**, 1.31;
 **Eligeth, Crossroads Augur** cast 121, resolved 121, in **99 of 200 (50%)**,
 1.23 — the first `--require` row this project has for a card whose name
 contains a comma, which the now-repeatable flag is what bought. Zero errors,

@@ -24,8 +24,12 @@
 // first perturbing the second.
 //
 // **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events
-// and `resolved` counts departures from the stack, and a countered spell has
-// the first without the second. The other direction is impossible — a spell
+// and `resolved` counts departures from the stack that were not countered or
+// fizzled, and a countered spell has the first without the second. It is not
+// `cause == Resolved`: CR 608.2m's move to the graveyard can itself be
+// replaced, so under Leyline of the Void a spell that resolved perfectly well
+// leaves the stack as `Exiled` (RE-8, 2026-09-14 — it was 13 of 142 casts in
+// one 200-game `stress` run). The other direction is impossible — a spell
 // cannot resolve without having been cast — and the harness checks it in
 // every game, flag or no flag: see `uncast_resolutions`. `resolved > cast` in
 // this table was how `codebase-state.md` item 16c was found.
@@ -587,6 +591,28 @@ fn extract_stats<'a>(
         }
     };
 
+    // Collected because the stack-departure arm below needs one fact from a
+    // *later* pass than its own — see `countered`. One `Vec` of references per
+    // game, over a log this function already walks end to end.
+    let events: Vec<&GameEvent> = events.collect();
+
+    // The spells that left the stack without resolving (CR 701.5's counter, and
+    // CR 608.3b's game-rules counter when every target became illegal). Read by
+    // the stack-departure arm below, which cannot tell the two apart by cause.
+    let mut countered: std::collections::HashSet<mtgsim::types::ids::ObjectId> =
+        std::collections::HashSet::new();
+    if !watch.is_empty() {
+        for event in &events {
+            match event {
+                GameEvent::SpellCountered { spell_id, .. }
+                | GameEvent::SpellFizzled { spell_id } => {
+                    countered.insert(*spell_id);
+                }
+                _ => {}
+            }
+        }
+    }
+
     for event in events {
         match event {
             GameEvent::SpellCast { spell_id, .. } => {
@@ -615,18 +641,28 @@ fn extract_stats<'a>(
                     }
                 }
             }
-            GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } => {
+            GameEvent::ZoneChange { object_id, from, to, lki, .. } => {
                 use mtgsim::types::zones::Zone;
                 // CR 608 — a spell finishes resolving by leaving the stack.
                 // An instant or sorcery goes to the graveyard; a permanent
                 // spell goes to the battlefield. Both are the path having run.
-                if !watch.is_empty()
-                    && *from == Zone::Stack
-                    && matches!(
-                        cause,
-                        mtgsim::types::zones::ZoneChangeCause::Resolved
-                    )
-                {
+                //
+                // **Read as "left the stack, and was not countered", not as
+                // `cause == Resolved`** — which is what this was until RE-8's
+                // own measurement caught it. CR 608.2m's move to the graveyard
+                // is an event like any other, so a replacement effect can
+                // change it: under Leyline of the Void a resolved sorcery
+                // leaves the stack as `Stack -> Exile [Exiled]`, and the old
+                // test read that as never having resolved. It was **13 of
+                // Hymn to Tourach's 142 casts** in 200 `stress` games, which
+                // is what made the row look wrong; every `--require` row this
+                // project has recorded on a board with Leyline, Kalitas or a
+                // finality counter on it under-counts the same way.
+                //
+                // The cause cannot discriminate, because Leyline replaces a
+                // *countered* spell's graveyard move too — so the countered
+                // ids are tracked and subtracted instead.
+                if !watch.is_empty() && *from == Zone::Stack && !countered.contains(object_id) {
                     bump(&mut stats, named(*object_id), false);
                 }
                 if *from == Zone::Hand && *to == Zone::Battlefield {

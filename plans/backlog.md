@@ -614,6 +614,36 @@ critical path, which lists neither; that is the owner's line to add.
 - **Atoms** — 4 here, plus **CR 400.2, which slice 1 filed under §3.2 in
   error**: "public zones are zones in which all players can see the cards" is
   this entry, not a zone guard. Corrected in §3.2's table.
+- **Asked at RE-8's close (2026-09-14): should this move up beside CR 113.6?
+  No — but it becomes a named *seam* in item 6's doc, which is a different
+  thing.** CR 113.6 moved because it **gates** the next item on the spine and
+  because RE-8 had five printed cards physically unbuildable without it. This
+  entry gates no spine item before Phase 8, and everything RE-8 touched is a
+  no-op rather than a wrong answer: a "reveal" and a "look at" change nothing
+  observable in an engine whose every decision provider already sees the whole
+  board, so Nephalia Academy's clause and Opt's reminder text cost nothing
+  being absent. `CLAUDE.md`'s interleave already puts it before Phase 8's
+  reveal cards and before Phase 10, which is where the GUI and the parallel AI
+  harness — the two halves of v1 — actually need it.
+
+  **What RE-8 did change is that item 6 must not answer this question by
+  accident.** CR 603.10a is written about *visibility*, not zones —
+  "abilities that trigger when an object that **all players can see** is put
+  into a hand or library" — and
+  `atomic-tests/supplemental-docs/603-2f-complexity.md`'s board is the proof:
+  Future Sight and Telepathy flip the answer without moving a card. So the
+  trigger phase's doc names the seam and consumes `Zone::is_public()` — the
+  coarse, viewer-independent classifier that still has **zero callers**, the
+  fifth no-consumer find above — rather than folding "hidden zone" into
+  CR 113.6's zone predicate, where this entry would later arrive to find its
+  answer already written in the wrong place.
+
+  **RE-8's own customers, for whoever takes this:** Nephalia Academy's "you
+  may reveal that card" and Opt's "look at the top card", both no-ops today;
+  CR 701.9c's undefined characteristics for a discard put into a hidden zone
+  *without being revealed* (`codebase-state.md`, "Found by RE-8", item 130);
+  Kenessos, Priest of Thassa's second ability, which is why that card is a
+  fixture here and not a registration; and §2.24's "draw and reveal" four.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

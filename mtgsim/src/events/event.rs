@@ -177,7 +177,8 @@ pub enum GameEvent {
     PlayerWon { player_id: PlayerId },
 
     // --- Scry ---
-    /// A player scried (CR 701.22a). `n` is the instruction's number.
+    /// A player scried (CR 701.22a). `n` is the instruction's number and
+    /// `looked_at` is how many cards were really there to look at.
     ///
     /// **Emitted after the process, not before it, and emitted even when the
     /// library was short.** CR 701.22d: "an ability that triggers whenever a
@@ -186,13 +187,24 @@ pub enum GameEvent {
     /// scry 2 against a one-card library is still a scry and still announces
     /// one.
     ///
+    /// **Both numbers, because a printed card reads each and they differ.**
+    /// `n` is what the instruction said, which is CR 615.5's "that many" and
+    /// what Eligeth, Crossroads Augur draws. `looked_at` is Elrond, Master of
+    /// Healing's, whose ruling is explicit: its trigger "cares about the
+    /// number of cards you **actually** looked at. For example, if you were
+    /// supposed to scry 3 but only had two cards in your library, X would be
+    /// 2." Carried rather than derived because it is unrecoverable a moment
+    /// later — the performer has rewritten the library by the time anything
+    /// reads this, and a library of two after a scry 3 could have had any
+    /// history. Elrond's trigger itself is item 6's.
+    ///
     /// **Not a zone change, even when cards moved.** A card going to the
     /// bottom of its own library does not change zones (CR 400.1's zones are
     /// the seven, and "top" and "bottom" are positions inside one), so there
     /// is nothing for `announce_zone_change` to say and this is the only line
     /// a scry writes. A scry 0 writes none at all — CR 701.22b, enforced at
     /// the proposal by `replacement::never_happens`.
-    Scried { player_id: PlayerId, n: u64 },
+    Scried { player_id: PlayerId, n: u64, looked_at: u64 },
 
     // --- Counters ---
     /// Counters were put on or taken off a permanent or a player (CR 122.1).

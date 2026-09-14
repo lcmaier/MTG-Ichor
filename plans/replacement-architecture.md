@@ -6221,6 +6221,57 @@ found them.
     its validation and its payment arms. So nothing reads a characteristic of
     a card discarded this way. `codebase-state.md`, "Found by RE-8".
 
+90. **A discard whose graveyard move is replaced loses the fact that it was a
+    discard.** Found by reading a `--dump-events` log at RE-8's review, on a
+    board the pool builds unforced: under Leyline of the Void a Hymn to
+    Tourach's two cards leave the hand as `ZoneChange { to: Exile, cause:
+    Exiled }`, because `GameActionTemplate::ZoneChangeTo` carries the
+    substitute's cause and overwrites the original's. The card was still
+    discarded — Dodecapod's and Wilt-Leaf Liege's rulings say so in as many
+    words ("you've still discarded it. Abilities that trigger whenever you
+    discard a card will trigger"), and CR 701.9c calls such a card "discarded"
+    while describing exactly this move into a hidden zone. So item 6's
+    discard-watchers would miss it.
+
+    **Not RE-8's to fix, and not a thirty-line one.** The field is RB's and its
+    three customers set it deliberately (CR 122.1h's finality counter,
+    CR 903.9b's commander, Kalitas). What the CR seems to want is that a
+    substitution about the *destination* keeps the reason the object was
+    moving, which is a change to `ZoneChangeTo`'s shape — `cause:
+    Option<ZoneChangeCause>` meaning "keep the original", or a rule that the
+    original's cause survives unless the template names one — and to what every
+    RB def means. It is reachable **13 times in 200 `stress` games** already and
+    wrong the day item 6 lands, which is why it is a Deferred Migration rather
+    than a backlog entry. `codebase-state.md`, "Found by RE-8", item 131.
+
+91. **`fuzz_games` counted a resolution by its cause, and CR 608.2m's move is
+    replaceable like any other.** The `--require` block read `resolved` as a
+    stack departure with `ZoneChangeCause::Resolved`, so a spell that resolved
+    under a Leyline of the Void — leaving the stack as `Exiled` — read as never
+    having resolved. It was **13 of Hymn to Tourach's 142 casts** in one
+    200-game `stress` run, which is what made that row look wrong on review and
+    is the only reason it was found. The cause cannot discriminate, because
+    Leyline replaces a *countered* spell's graveyard move too; the fix tracks
+    the countered and fizzled ids and subtracts them. **Every `--require` row
+    this project has recorded on a board holding Leyline, Kalitas or a finality
+    counter under-counted the same way** — `performance` has none of the three,
+    so only `stress` rows are affected, and RE-8's is re-read here (Hymn to
+    Tourach 149 / **146**).
+
+92. **`substitute` grows with templates, not with templates × actions, and the
+    count says when to split it.** Asked at RE-8's review, whose worry was a
+    1,500-line function once card breadth starts. Seven `GameActionTemplate`
+    variants today and 235 lines, 86 of them comment — about 21 lines of code
+    each — and only two carry a nested match over the event's kind
+    (`ZoneChangeTo` and `DrawCards`); the other five take any event through
+    `subject_of` and `template_amount` in four lines. Templates went 3 → 7
+    across RB, RC, RD and RE, roughly one a phase, against §3.2c's census of
+    574 printed "would … instead" clauses that needed zero new `Rewrite` arms.
+    A thousand lines would take about fifty templates. **The split is
+    mechanical whenever it is wanted** — one function per template, since
+    nothing in the match shares state — and the trigger is written at the
+    function: **when a third template needs a nested match.**
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.

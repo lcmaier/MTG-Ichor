@@ -170,12 +170,14 @@ pub(crate) fn gather(
 ) -> Vec<ReplacementInstance> {
     game.counters.record_replacement_gather();
 
-    // CR 101.2's "by", read off the proposal for [`ReplacementDef::by`] — who
-    // controls the spell or ability that proposed this event, or `None` for a
-    // turn-based or state-based action, which no `SourceFilter` matches. The
-    // same expression the pipeline hands `Query::Event::cause` one line above
-    // its call to this function, because a "can't" and a replacement effect
-    // ask CR 101.2 the same question.
+    // What *caused* this event, for [`ReplacementDef::by`]: the controller of
+    // the resolving spell or ability that proposed it (CR 608.2's resolution,
+    // whose controller is CR 109.5's "you"), or `None` for a turn-based or
+    // state-based action, which has none. The same expression the pipeline
+    // hands `Query::Event::cause` one line above its call to this function,
+    // because "a spell or ability an opponent controls causes you to …" is one
+    // predicate whether a card prints it on a replacement effect or on a
+    // "can't".
     let cause = ctx.resolution.map(|r| r.controller);
 
     // CR 614.17c's filter is applied at the door rather than at the end: with
@@ -499,7 +501,7 @@ fn push_if_applicable(
 /// Three halves of one CR 614.1 question, not three unrelated checks: an
 /// effect applies when it *watches* this kind of event, **and** *affects* the
 /// object the event is about, **and** — from RE-8 — admits what *caused* the
-/// event (CR 101.2's "by", `ReplacementDef::by`).
+/// event ([`ReplacementDef::by`]).
 ///
 /// `pub(super)` for one caller beyond the sweep: the CR 616.1f loop re-asks it
 /// of an effect it has just applied, which is how an exempt effect's
@@ -512,10 +514,10 @@ pub(super) fn applies_to(
     cause: Option<PlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    // CR 101.2's "by" as a third clause, asked of the *effect* rather than of
-    // the event — which is why it reads `def.by` and not the pattern. `None`
-    // is "however caused" and every def written before RE-8; a `Some` against
-    // a turn-based or state-based action's `None` cause is `false`, so
+    // What caused the event, as a third clause, asked of the *effect* rather
+    // than of the event — which is why it reads `def.by` and not the pattern.
+    // `None` is "however caused" and every def written before RE-8; a `Some`
+    // against a turn-based or state-based action's `None` cause is `false`, so
     // Nephalia Academy leaves CR 514.1's cleanup discard alone.
     instance
         .def

@@ -248,7 +248,8 @@ fn matches(
     }
 }
 
-/// CR 101.2 scoped by what caused the event — §2.6's Sigarda family.
+/// Which source caused the event — §2.6's Sigarda family. Not a rule of
+/// CR 101.2's; see [`SourceFilter`].
 ///
 /// `None` means "however caused" and matches everything, including the causeless
 /// events (turn-based and state-based actions) that no [`SourceFilter`] matches.

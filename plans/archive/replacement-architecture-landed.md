@@ -4006,7 +4006,13 @@ arm at both seat counts.
 resolved **172**, in **129 of 200 games (64%)**, copies/deck 1.43; Opt cast
 **210**, resolved **209**, in **139 of 200 (70%)**, 1.52 — the highest-reaching
 pooled pair since Raise the Alarm, and both are cheap. `stress`: Hymn to
-Tourach cast 149, resolved 129, in **94 of 200 (47%)**, 1.28; Nephalia Academy
+Tourach cast 149, resolved **146**, in **102 of 200 (51%)**, 1.28 — and the
+gap between those two numbers is what the review caught: the first reading was
+129, and the missing seventeen had resolved perfectly well under a Leyline of
+the Void, which replaced CR 608.2m's move to the graveyard so the spell left
+the stack as `Exiled` rather than `Resolved`. The harness counted the cause;
+it counts "left the stack and was not countered" now (§11 item 91), and
+reading the same log is what found §11 item 90 beside it. Nephalia Academy
 cast 221, resolved 221, in **149 of 200 (74%)**, 1.31 — it is a land, so every
 deck runs it; **Eligeth, Crossroads Augur** cast 121, resolved 121, in **99 of
 200 (50%)**, 1.23, which is the first reachability row this project has for a

@@ -82,8 +82,9 @@ pub struct ReplacementDef {
     /// what [`ReplacementDef::new`] gives it.
     pub affected_players: PlayerSet,
 
-    /// CR 101.2's "by", scoped to a replacement effect — what must have
-    /// *caused* the event for this to apply.
+    /// What must have *caused* the event for this effect to apply — the
+    /// clause "a spell or ability an opponent controls causes you to …"
+    /// prints, read against the resolution that proposed the event.
     ///
     /// Nephalia Academy's "if a spell or ability an opponent controls causes
     /// you to discard a card" is `Some(ControlledBy(Opponent))`; sixteen of the
@@ -103,7 +104,9 @@ pub struct ReplacementDef {
     /// `SourceFilter::matches`, so Tamiyo, Collector of Tales' "can't cause you
     /// to discard cards" and Nephalia Academy's "causes you to discard a card"
     /// are one predicate — which is `cant-effects-architecture.md` §3.1's claim
-    /// said about the cause axis.
+    /// said about the cause axis. **No CR rule defines the predicate**: CR 101.2
+    /// is only why a "can't" *wins*, and the cause clause is a shape printed on
+    /// cards, over a fact CR 608.2 and CR 109.5 already fix.
     ///
     /// **A causeless event matches no `Some`.** CR 514.1's cleanup discard is a
     /// turn-based action with no resolution, so Nephalia Academy leaves it
@@ -503,9 +506,17 @@ pub enum EventPattern {
     /// is the scrying player.
     ///
     /// **No fields**, and the census is why: `o:"would scry"` returns two
-    /// cards (Scryfall, 2026-09-14), Eligeth, Crossroads Augur and Goggles of
-    /// Night, and both say "a number of cards" without constraining the
-    /// number. Goggles is a *trigger* and waits for item 6.
+    /// cards (Scryfall, re-run 2026-09-14 after the first reading named the
+    /// wrong second card) — Eligeth, Crossroads Augur and **Kenessos, Priest
+    /// of Thassa**, "if you would scry a number of cards, scry that many cards
+    /// plus one instead". Both say "a number of cards" and neither constrains
+    /// the number.
+    ///
+    /// **Kenessos is why `Rewrite::Amount` has a scry leg.** Its static is
+    /// `Amount(Plus(1))` over this pattern, buildable and tested as a fixture;
+    /// the *card* waits, because its second ability looks at the top card of
+    /// the library and acts on what it is, which is `backlog.md` §2.9's
+    /// information model.
     Scry,
 
     /// CR 104.3 — "if you would lose the game". The event's subject is the
@@ -711,12 +722,15 @@ impl EventPattern {
             EventPattern::LoseLife { .. } => false,
             // Zones, a cause and a filter on the moving object.
             EventPattern::ZoneChange { .. } => false,
-            // A scry's amount is read by Eligeth's *rewrite*
-            // (`TemplateAmount::ReplacedAmount`) and by nothing in this
-            // pattern, which asks only that the event is a scry. So no
-            // application can carry a scry out of this arm's reach, and the
-            // suppression premise this answers holds — vacuously, since no
-            // arithmetic rewrite over a scry is printed either.
+            // **The arm has no fields, so there is nothing here to read an
+            // amount with** — which is the whole of the answer, and it is not
+            // vacuous: Kenessos, Priest of Thassa is an `Amount(Plus(1))` over
+            // this pattern, so applications really do change the number. A
+            // scry of any size still matches, so no application can carry one
+            // out of another member's reach, which is what this predicate is
+            // asked. Eligeth reads the amount in its *rewrite*
+            // (`TemplateAmount::ReplacedAmount`), which is a different
+            // question and one CR 615.5 answers.
             EventPattern::Scry => false,
             // One individual draw. CR 121.2 makes it one card, so there is no
             // amount for a field to read.

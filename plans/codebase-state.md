@@ -5724,9 +5724,35 @@ named:**
      `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
      a flag written by one card is the shape §2.9 exists to replace.
 
+131. **A discard whose graveyard move is replaced stops looking like a
+     discard.** `GameActionTemplate::ZoneChangeTo` carries the substitute's
+     `ZoneChangeCause` and overwrites the replaced event's, so under Leyline of
+     the Void a discarded card's performed event is `ZoneChange { to: Exile,
+     cause: Exiled }` and the `Discarded` cause is gone. The card *was*
+     discarded: Dodecapod's and Wilt-Leaf Liege's rulings say "you've still
+     discarded it. Abilities that trigger whenever you discard a card will
+     trigger", and CR 701.9c calls a card put into a hidden zone this way
+     "discarded" while describing the move. Found by reading a `--dump-events`
+     log at RE-8's review (`replacement-architecture.md` §11 item 90).
+
+     **Reachability (2026-09-14):** reachable, and **not wrong today** — only
+     the replacement pipeline and the trigger matcher may branch on a cause,
+     and there is no trigger matcher. It is wrong the day item 6 lands, and the
+     board is unforced: **13 times in 200 `stress` games**.
+
+     **Sized:** not thirty lines. The field is RB's with three deliberate
+     customers (CR 122.1h's finality counter, CR 903.9b's commander, Kalitas),
+     and the question is what a substitution *about the destination* should do
+     to the reason the object is moving — `cause: Option<ZoneChangeCause>`
+     meaning "keep the original", or that rule by default. ~80 lines plus a
+     re-reading of every RB def, and it belongs to whoever builds item 6's
+     zone-change matcher, who is the first reader that can tell it is wrong.
+
 What is *not* a ledger line, and where each waits: the to-battlefield entry
 substitution and the five cards that print it are CR 113.6's, critical-path
-item 6a (§11 item 87); CR 701.9b's third chooser — "another player chooses",
+item 6a (§11 item 87); `fuzz_games`' `resolved` counter read a cause where it
+meant "was not countered", which RE-8's own measurement caught and RE-8 fixed
+(§11 item 91) — a harness bug, so no line here; CR 701.9b's third chooser — "another player chooses",
 Coercion — is `backlog.md` §2.5's with its first card, and wants §2.9's reveal
 beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
 effect making more than one player scry, and the corpus already defers it;

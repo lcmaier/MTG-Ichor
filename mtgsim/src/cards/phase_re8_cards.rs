@@ -283,8 +283,13 @@ pub fn opt() -> Arc<CardData> {
 /// nothing to model in a game (`cost-architecture.md`'s Commander track owns
 /// deck construction). Flying is a keyword flag.
 ///
-/// **Goggles of Night prints the same sentence and waits for item 6**, because
-/// it scries from a *trigger* rather than replacing one.
+/// **The other printed "would scry" card is Kenessos, Priest of Thassa** —
+/// "scry that many cards plus one instead", which is `Rewrite::Amount` over
+/// the same pattern rather than an `Instead`, built here and tested against a
+/// fixture. The card itself waits on `backlog.md` §2.9: its second ability
+/// looks at the top card of the library and acts on what it is. The cards that
+/// *watch* a scry — Elrond, Master of Healing, and Goggles of Night, which
+/// scries from a trigger rather than replacing one — are item 6's.
 ///
 /// Its printed rulings are seven and every one of them is about Partner —
 /// color identity, two commanders in the command zone, commander damage

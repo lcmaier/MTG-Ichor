@@ -38,7 +38,11 @@ use mtgsim::test_support::{
     fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game,
     test_dp,
 };
-use mtgsim::types::effects::{AmountExpr, DiscardChooser, Effect, EffectRecipient, Primitive};
+use mtgsim::types::card_types::CardType;
+use mtgsim::types::effects::{
+    AffectedSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, PlayerSet, Primitive,
+};
+use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
@@ -50,6 +54,8 @@ const PICK_DISCARD: ChoiceKind = ChoiceKind::Discard { source: None };
 const PICK_SCRY: ChoiceKind = ChoiceKind::Scry { source: None, n: 0 };
 /// CR 701.22a's "in any order", either group.
 const ORDER_SCRY: ChoiceKind = ChoiceKind::ScryOrder { source: None, bottom: false };
+/// CR 616.1's choice between two applicable effects.
+const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
 /// CR 616.1's "you may … instead" prompt.
 const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
     affected_object: None,
@@ -83,6 +89,34 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
                     mtgsim::types::effects::SelectionFilter::Player,
                     mtgsim::types::effects::TargetCount::Exactly(1),
                 ),
+            ),
+        })
+        .build()
+}
+
+/// A fixture sorcery whose text is several primitives in order, all aimed at
+/// one target player — CR 608.2c's "A, then B".
+fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(
+                primitives
+                    .into_iter()
+                    .map(|p| {
+                        Effect::Atom(
+                            p,
+                            EffectRecipient::Target(
+                                mtgsim::types::effects::SelectionFilter::Player,
+                                mtgsim::types::effects::TargetCount::Exactly(1),
+                            ),
+                        )
+                    })
+                    .collect(),
             ),
         })
         .build()
@@ -325,29 +359,75 @@ fn test_a_cleanup_discard_of_three_is_one_prompt_and_one_batch() {
     assert!(dp.is_empty(), "asked once for all four");
 }
 
-/// Notion Thief's ruling — *"the opponent still discards"* — against printed
-/// cards for the first time. RE-2 asserted it on a fixture draw-then-discard
-/// resolution because `Primitive::Discard` did not exist.
+/// Notion Thief's ruling, which is about **one** instruction and not two:
+///
+/// > If an opponent is instructed to draw a card **then discard a card**, and
+/// > Notion Thief causes you to draw a card instead, that opponent still
+/// > discards a card. The same is true of any other actions that opponent is
+/// > instructed to do.
+///
+/// So the board is a single resolution that draws and then discards — a
+/// looting effect — and the claim is that replacing the *draw* leaves the rest
+/// of the instruction alone. Two separate spells would prove nothing: nobody
+/// doubts that a later Mind Rot still discards.
+///
+/// RE-2 asserted this against a fixture because `Primitive::Discard` did not
+/// exist; the fixture is still a fixture here — no printed card makes an
+/// *opponent* loot — but both halves are real primitives now, and the discard
+/// is the one that could not be written before.
 #[test]
-fn test_a_draw_the_thief_stole_still_discards() {
+fn test_a_looting_instruction_whose_draw_the_thief_stole_still_discards() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, notion_thief(), 0);
     fill_library(&mut game, 0, 5);
     fill_library(&mut game, 1, 5);
+    let hand = deal_hand(&mut game, 1, 3);
+    let dp = test_dp();
+    dp.expect_pick_n(PICK_DISCARD, vec![0]);
+
+    // "Target player draws a card, then discards a card", resolved by the
+    // Thief's controller at the opponent — one resolution, two instructions.
+    let looting = fixture_sequence(
+        "Fixture Loot",
+        vec![
+            Primitive::DrawCards(AmountExpr::Fixed(1)),
+            Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected),
+        ],
+    );
+    resolve_spell_at(&mut game, looting, 0, 1, &dp);
+
+    assert_eq!(game.players[0].hand.len(), 1, "the Thief drew instead");
+    assert_eq!(
+        game.players[1].hand.len(),
+        2,
+        "the opponent drew nothing and still discarded one of the three they had"
+    );
+    assert_eq!(game.players[1].graveyard, vec![hand[0]]);
+    assert!(dp.is_empty());
+}
+
+/// The control board for the one above: with no Notion Thief, the same
+/// instruction draws *and* discards, so the hand size is unchanged and the
+/// discard is still one card.
+#[test]
+fn test_a_looting_instruction_draws_then_discards() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 1, 5);
     deal_hand(&mut game, 1, 3);
     let dp = test_dp();
+    dp.expect_pick_n(PICK_DISCARD, vec![0]);
 
-    // The Thief takes the opponent's draw …
-    let draw = fixture_spell("Fixture Draw", Primitive::DrawCards(AmountExpr::Fixed(1)));
-    resolve_spell_at(&mut game, draw, 0, 1, &dp);
-    assert_eq!(game.players[1].hand.len(), 3, "the opponent drew nothing");
-    assert_eq!(game.players[0].hand.len(), 1, "the Thief drew instead");
+    let looting = fixture_sequence(
+        "Fixture Loot",
+        vec![
+            Primitive::DrawCards(AmountExpr::Fixed(1)),
+            Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected),
+        ],
+    );
+    resolve_spell_at(&mut game, looting, 0, 1, &dp);
 
-    // … and the discard still lands on the opponent, out of the hand they had.
-    dp.expect_pick_n(PICK_DISCARD, vec![0, 1]);
-    resolve_spell_at(&mut game, mind_rot(), 0, 1, &dp);
-    assert_eq!(game.players[1].hand.len(), 1);
-    assert_eq!(game.players[1].graveyard.len(), 2);
+    assert_eq!(game.players[1].hand.len(), 3, "drew one, discarded one");
+    assert_eq!(game.players[1].graveyard.len(), 1);
 }
 
 // ===========================================================================
@@ -505,6 +585,160 @@ fn test_an_empty_library_still_scrys_and_asks_nobody() {
 
     assert!(dp.is_empty());
     assert!(game.events.events().any(|e| matches!(e, GameEvent::Scried { n: 2, .. })));
+}
+
+/// Elrond, Master of Healing's ruling is that its trigger "cares about the
+/// number of cards you **actually** looked at. For example, if you were
+/// supposed to scry 3 but only had two cards in your library, X would be 2."
+/// So the event carries both numbers, and this is the board where they differ.
+///
+/// The trigger itself is critical-path item 6's; what is asserted here is that
+/// the fact it will read is *in the log*, because a moment later the performer
+/// has rewritten the library and it is unrecoverable.
+#[test]
+fn test_a_scry_announces_what_was_actually_looked_at() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 2);
+    let dp = test_dp();
+    // Two cards there, not three: one prompt for the split and — with both
+    // staying on top — one for their order.
+    dp.expect_pick_n(PICK_SCRY, vec![]);
+    dp.expect_ordering(ORDER_SCRY, vec![0, 1]);
+
+    let scry3 = fixture_spell("Fixture Scry Three", Primitive::Scry(AmountExpr::Fixed(3)));
+    resolve_spell_at(&mut game, scry3, 0, 0, &dp);
+
+    let scried: Vec<(u64, u64)> = game
+        .events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::Scried { n, looked_at, .. } => Some((*n, *looked_at)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(scried, vec![(3, 2)], "Elrond's X is 2 where CR 615.5's \"that many\" is 3");
+}
+
+/// The two numbers agree whenever the library is long enough, which is every
+/// other board in this file.
+#[test]
+fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 9);
+    let dp = test_dp();
+    dp.expect_pick_n(PICK_SCRY, vec![]);
+    dp.expect_ordering(ORDER_SCRY, vec![0, 1, 2]);
+
+    let scry3 = fixture_spell("Fixture Scry Three", Primitive::Scry(AmountExpr::Fixed(3)));
+    resolve_spell_at(&mut game, scry3, 0, 0, &dp);
+
+    assert!(game
+        .events
+        .events()
+        .any(|e| matches!(e, GameEvent::Scried { n: 3, looked_at: 3, .. })));
+}
+
+// ===========================================================================
+// Kenessos' shape — `Rewrite::Amount` over a scry
+// ===========================================================================
+
+/// Kenessos, Priest of Thassa — "if you would scry a number of cards, scry
+/// that many cards plus one instead" — is the second of the two printed
+/// "would scry" clauses and the only arithmetic one.
+///
+/// **A fixture, and the card is named rather than worn.** Kenessos' other
+/// ability looks at the top card of its controller's library and acts on what
+/// it is, which is `backlog.md` §2.9's information model, so the card cannot
+/// be registered whole — and a fixture must not wear a real card's name while
+/// behaving differently (`engineering-practices.md` §3). The arm is built
+/// because the CR states the event and a printed card wants it.
+fn scry_plus_one() -> Arc<CardData> {
+    CardDataBuilder::new("Fixture Scry Doubler")
+        .card_type(CardType::Enchantment)
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(
+                ReplacementDef::new(
+                    EventPattern::Scry,
+                    AffectedSet::NO_OBJECTS,
+                    Rewrite::Amount(AmountRewrite::Plus(1)),
+                )
+                .affecting_players(PlayerSet::You),
+            )),
+        })
+        .build()
+}
+
+/// A scry 1 under Kenessos' shape looks at two cards, and the event says so.
+#[test]
+fn test_an_amount_rewrite_over_a_scry_makes_it_bigger() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, scry_plus_one(), 0);
+    fill_library(&mut game, 0, 5);
+    let before = library_top_down(&game, 0);
+    let dp = test_dp();
+    // Two cards looked at rather than one, so both prompts are real.
+    dp.expect_pick_n(PICK_SCRY, vec![0]);
+
+    resolve_spell(&mut game, opt(), 0, &dp);
+
+    assert!(
+        game.events
+            .events()
+            .any(|e| matches!(e, GameEvent::Scried { n: 2, looked_at: 2, .. })),
+        "scry 1 plus one is scry 2"
+    );
+    // The first card went to the bottom, the second stayed on top and was
+    // then drawn by Opt's second instruction.
+    assert_eq!(game.players[0].hand[0], before[1]);
+    assert_eq!(*library_top_down(&game, 0).last().expect("non-empty"), before[0]);
+    assert!(dp.is_empty());
+}
+
+/// CR 701.22b ahead of the pipeline again: a scry 0 is no event, so there is
+/// nothing for an arithmetic rewrite to add one to. "Scry 0" does not become
+/// "scry 1".
+#[test]
+fn test_an_amount_rewrite_has_no_scry_zero_to_enlarge() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, scry_plus_one(), 0);
+    fill_library(&mut game, 0, 5);
+    let before = library_top_down(&game, 0);
+    let dp = test_dp();
+
+    let scry0 = fixture_spell("Fixture Scry Zero", Primitive::Scry(AmountExpr::Fixed(0)));
+    resolve_spell_at(&mut game, scry0, 0, 0, &dp);
+
+    assert_eq!(library_top_down(&game, 0), before, "nothing was looked at");
+    assert!(!game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })));
+    assert!(dp.is_empty());
+}
+
+/// Eligeth beside Kenessos' shape is a real CR 616.1 choice, and the two
+/// orders differ: add one then draw two, or draw one and leave nothing to add
+/// to. The affected player chooses — here, the scrying player.
+#[test]
+fn test_a_scry_doubler_beside_eligeth_is_a_real_choice() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, scry_plus_one(), 0);
+    put_on_battlefield(&mut game, eligeth_crossroads_augur(), 0);
+    fill_library(&mut game, 0, 9);
+    let dp = test_dp();
+    // Index 0 is the first candidate in battlefield timestamp order — the
+    // enchantment, which entered first. Applying it first makes the scry 2,
+    // and Eligeth then draws that many.
+    dp.expect_pick_n(PICK_REPLACEMENT, vec![0]);
+
+    let scry1 = fixture_spell("Fixture Scry One", Primitive::Scry(AmountExpr::Fixed(1)));
+    resolve_spell_at(&mut game, scry1, 0, 0, &dp);
+
+    assert_eq!(game.players[0].hand.len(), 2, "plus one, then draw that many");
+    assert!(!game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })));
+    assert!(dp.is_empty());
 }
 
 // ===========================================================================

@@ -726,6 +726,13 @@ pub fn ask_scry(
     n: u64,
     source: Option<ObjectId>,
 ) -> (Vec<ObjectId>, Vec<ObjectId>) {
+    // **Not a scry 0** — CR 701.22b makes that no event at all, and
+    // `replacement::never_happens` drops it before any performer runs. This is
+    // a scry of one or more against an **empty library**, which CR 701.22d
+    // says still happens ("even if some or all of those actions were
+    // impossible"): the event is announced, and there is simply nothing to
+    // ask about. Silent for CR 102.2's reason, the same one that skips the
+    // ordering prompts below.
     if looked_at.is_empty() {
         return (Vec::new(), Vec::new());
     }

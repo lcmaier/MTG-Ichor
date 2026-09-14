@@ -1584,8 +1584,14 @@ impl GameState {
                 p.library = rebuilt;
 
                 // CR 701.22d — announced after the process, and announced even
-                // when the library had nothing to look at.
-                self.events.emit(GameEvent::Scried { player_id: player, n });
+                // when the library had nothing to look at. `k` is Elrond,
+                // Master of Healing's count and `n` the instruction's; the
+                // two differ exactly when the library was short.
+                self.events.emit(GameEvent::Scried {
+                    player_id: player,
+                    n,
+                    looked_at: k as u64,
+                });
                 Ok(())
             }
 

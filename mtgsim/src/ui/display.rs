@@ -495,7 +495,12 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
             };
             format!("CountersChanged: {} {:?} counter(s) {} {}", added.abs(), counter, verb, whom)
         }
-        Scried { player_id, n } => format!("Scried: P{} scry {}", player_id, n),
+        Scried { player_id, n, looked_at } => {
+            // Both numbers, and they differ only on a short library — which is
+            // the case Elrond, Master of Healing's ruling is about, so a log
+            // that showed one would hide it.
+            format!("Scried: P{} scry {} (looked at {})", player_id, n, looked_at)
+        }
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
         }

@@ -191,18 +191,22 @@ fn event_amount(action: &GameAction) -> Option<u64> {
     }
 }
 
-/// CR 101.2's "by" from a proposal's context: who controls the spell or
-/// ability that proposed the event.
+/// What *caused* a proposed event: the controller of the resolving spell or
+/// ability that proposed it (CR 608.2's resolution; CR 109.5 makes that
+/// controller the effect's "you").
 ///
 /// `None` for a turn-based action, a state-based action, cost payment or
 /// combat damage — none of which belongs to a resolution, and none of which
 /// any [`SourceFilter`](crate::types::restriction::SourceFilter) matches.
 ///
-/// One expression with three readers — `Query::Event::cause`, `gather`'s
-/// `ReplacementDef::by`, and the exemption check's re-ask — named here rather
-/// than spelled out at each, because a "can't" and a replacement effect must
-/// answer CR 101.2 the same way or Tamiyo, Collector of Tales and Nephalia
-/// Academy stop agreeing about one discard.
+/// **No rule defines this predicate; it is a shape printed on cards** — "a
+/// spell or ability an opponent controls causes you to …", which seventeen
+/// discard cards and Sigarda's family say. So it is one expression with three
+/// readers — `Query::Event::cause`, `gather`'s `ReplacementDef::by`, and the
+/// exemption check's re-ask — named here rather than spelled out at each,
+/// because a "can't" and a replacement effect printing that clause must answer
+/// it the same way or Tamiyo, Collector of Tales and Nephalia Academy stop
+/// agreeing about one discard.
 fn cause_of(ctx: &ActionContext) -> Option<PlayerId> {
     ctx.resolution.map(|r| r.controller)
 }
@@ -236,11 +240,20 @@ fn cause_of(ctx: &ActionContext) -> Option<PlayerId> {
 /// difference is that the rules say so in one case and not the other.
 /// CR 701.22b: "If a player is instructed to scry 0, **no scry event occurs**.
 /// Abilities that trigger whenever a player scries won't trigger." That is
-/// CR 120.8's and CR 119.10's sentence about a third event. CR 121.2 says only
-/// that a player performs that many individual draws, which is zero of them —
-/// RE-2 decision 3, and it stands. It matters twice here: an Eligeth would
-/// otherwise turn a scry 0 into a draw of zero, and the performer would write
-/// a `Scried` line CR 701.22b says must fire nothing.
+/// CR 120.8's and CR 119.10's sentence about a third event, so scry joins them.
+///
+/// **Nothing here says a card is drawn when N is 0, and nothing ever draws
+/// one.** The event a `DrawCards { n: 0 }` describes is CR 121.2a's
+/// *instruction* — the thing a replacement effect "that refers to the number
+/// of cards drawn" modifies — and performing it runs a loop zero times, so no
+/// `DrawCard` is proposed and no `CardDrawn` is emitted. What is being said is
+/// narrower than it looks: no rule states that an instruction of zero is not an
+/// event, where CR 120.8, 119.10 and now 701.22b each state exactly that about
+/// their own. RE-2 decision 3 made the call and it stands.
+///
+/// Scry 0 matters twice: an Eligeth would otherwise turn it into a draw of
+/// zero, and the performer would write a `Scried` line CR 701.22b says must
+/// fire nothing.
 fn never_happens(action: &GameAction) -> bool {
     match action {
         GameAction::DealDamage { amount, .. } => *amount == 0,
@@ -404,9 +417,10 @@ pub(crate) fn apply_replacements(
                 game,
                 &Query::Event {
                     action: event,
-                    // CR 101.2 scoped by cause (§2.6). `ActionContext` already
-                    // threads the resolution that proposed this; a turn-based
-                    // or state-based action has none, and no `SourceFilter`
+                    // Which source caused this, for a "can't" that names one
+                    // (§2.6's Sigarda family). `ActionContext` already threads
+                    // the resolution that proposed this; a turn-based or
+                    // state-based action has none, and no `SourceFilter`
                     // matches it.
                     cause: cause_of(ctx),
                     lookahead: Some(&frame),
@@ -1839,6 +1853,28 @@ fn apply_rewrite(
                 ))
             }
 
+            // CR 701.22's count, and the arm Kenessos, Priest of Thassa is:
+            // "if you would scry a number of cards, scry that many cards plus
+            // one instead" — the second of the two printed "would scry" clauses
+            // and the only arithmetic one. The same `counter_arithmetic` the
+            // counter legs use, because the question is identical: a plain
+            // count with no life total under it, so the prevention arms and the
+            // floor are the pairing errors they are there too.
+            //
+            // A scry the arithmetic takes to 0 is **not** `never_happens`'
+            // business on the way out: CR 701.22b is written about a player
+            // being *instructed* to scry 0, and the loop re-asks
+            // `never_happens` at the top of its next iteration anyway, which is
+            // where a 0 is dropped and where a Kenessos would find nothing left
+            // to add one to.
+            GameAction::Scry { player, n } => {
+                let after = counter_arithmetic(chosen, *amount_rewrite, n as u32)? as u64;
+                Ok((
+                    Some(GameAction::Scry { player, n: after }),
+                    Applied { took_effect: after != n, prevented: 0 },
+                ))
+            }
+
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports. The
             // wording is about the *arm* and not about the event, because
@@ -2006,6 +2042,30 @@ fn template_amount(
 /// because CR 614.13's entry arm needs it; this one is extracted because
 /// [`ordering_cannot_change_outcome`]'s fourth shape rests on the purity, and
 /// its debug check calls this against an event it must not mutate.
+///
+/// # How big this gets, counted rather than guessed
+///
+/// **One arm per [`GameActionTemplate`] variant, and a nested match only
+/// where a template reads the replaced event's *fields*.** Seven templates
+/// today and 235 lines, 86 of them comment — about 21 lines of code each, and
+/// two of the seven carry a nested match: `ZoneChangeTo`, which reads `object`
+/// and `from`, and `DrawCards`, which reads the subject and the cause off three
+/// event kinds. The other five take any event through [`subject_of`] and
+/// [`template_amount`] and are four lines apiece, which is why `GainLife`,
+/// `LoseLife` and `PlayerWins` cost nothing as the `GameAction` vocabulary
+/// grows.
+///
+/// So this does **not** grow as templates × actions. It grows with templates,
+/// which grew 3 → 7 across RB, RC, RD and RE — roughly one a phase — against a
+/// census of 574 printed "would … instead" clauses (§3.2c) that needed zero new
+/// `Rewrite` arms. A thousand lines would take about fifty templates.
+///
+/// **The split, when it is wanted, is mechanical**: one `fn substitute_<name>`
+/// per template, or a method on the template itself. Nothing here reads
+/// anything but `chosen`, the event and the subject, so the functions do not
+/// share state — which is exactly why it is not being done speculatively now.
+/// **Do it when a third template needs a nested match**, because that is the
+/// point at which the arms stop being readable side by side.
 ///
 /// The two things it reads off `chosen` are exactly the two
 /// [`template_is_instance_invariant`] is about: CR 609.6's source for a
