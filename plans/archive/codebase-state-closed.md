@@ -853,6 +853,50 @@ It was a record for item 70's fix — the answer was right, re-derived
      (`engineering-practices.md` §3). The closer is the one the entry named.
 
 
+## Found by the fork-and-search question (2026-09-01)
+
+43. **CR 122.6a names a player and `EnterMods` does not carry one (recorded
+    2026-09-01, RC-2) — ✅ CLOSED 2026-09-13 (RE-5).** "If an object enters the battlefield with counters on
+    it, the effect causing the object to be given counters **may specify which
+    player puts those counters on it**. If the effect doesn't specify a player,
+    the object's controller puts them on." `EnterMods.counters` is
+    `Vec<(CounterType, u32)>`, so only the default half exists.
+
+    **Nothing in reach needs the named half** — no registered card specifies a
+    player, and ATOM-122.6a-001 is covered by the default. What needs it is
+    Phase **RE**: the atom's own expected result says so, because Doubling
+    Season doubles counters *you* put on, so a doubler has to know who put them
+    on before it can decide whether it applies. The field is one `Option<PlayerId>`
+    per entry and the merge already coalesces by kind, which is the thing that
+    would have to change — two effects giving counters of the same kind on
+    behalf of different players cannot share a row. **Size it before RE writes
+    its first doubler, not after.**
+
+    **Reachability (2026-09-03):** unreachable — no registered effect names the
+    player who puts the counters; `EnterMods.counters` is still
+    `Vec<(CounterType, u32)>`.
+
+    **Sized:** an `Option<PlayerId>` per entry on both `EnterMods`
+    and `EnterModsTemplate`, with `merge` keyed on `(kind, player)` instead of
+    `kind`, ~60–80 lines plus tests; the first commit of RE's doubler, before
+    the doubler is written.
+
+    **Owner (2026-09-11):** RE-5 — `replacement-architecture.md` §9, RE
+    decision 4; Vorinclex, Monstrous Raider is the field's first reader.
+
+    **Closed (2026-09-13, RE-5):** the rules pass ran before the field was
+    written. CR 122.6a's first sentence — an effect that "may specify which
+    player puts those counters on it" — has no printed customer: three
+    Scryfall queries return nothing, and the seven printed "would put one or
+    more counters" watchers all read the default. The premise that Doubling
+    Season "doubles counters *you* put on" was wrong about the card, whose
+    counter half reads "a permanent you control"; Vorinclex, Monstrous Raider
+    is the reader, and what it reads at an entry is CR 122.6a's default off
+    the entry's `controller`, which CR 616.1b settles ahead of anything that
+    asks. The `Option<PlayerId>` per counters entry and the `(kind, player)`
+    merge key are recorded on `EnterMods::counters` for the card that prints
+    one. `replacement-architecture.md` §11 item 83.
+
 ## Before Layers (CR 613) — now DURING Layers
 
 1. **Pre-layer P/T shim — ✅ done.** `PermanentState.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.

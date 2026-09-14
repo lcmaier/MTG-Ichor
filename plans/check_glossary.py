@@ -82,8 +82,8 @@ WATCHLIST = [
     "decomposition", "departed", "departing", "donor", "drainer", "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event",
-    "memo", "performer", "pool", "position", "proposal", "queue", "registry",
-    "rider", "schedule", "shield", "source", "step", "subject",
+    "memo", "performer", "pool", "position", "proposal", "putter", "queue",
+    "registry", "rider", "schedule", "shield", "source", "step", "subject",
     "subject group", "sweep", "unit", "walk",
 ]
 

@@ -37,6 +37,96 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-13 for RE-5** (CR 614.16's counter half, 122.1, 122.6,
+122.6a; `replacement-architecture.md` §9). `PERFORMANCE_POOL` +1 — Hardened
+Scales, 83 → 84 — and the stress pool +6 (139 → 145: Doubling Season,
+Vorinclex, Monstrous Raider, Winding Constrictor, Live Fast, Primal Vigor),
+so **both tables are a re-record and neither column is an engine reading**.
+The engine's reading is the four arms (`replacement-architecture.md` §11
+item 80): `main`; **engine**, the branch with the cards *unregistered*;
+**registered**, the old pool; **pooled**, as shipped.
+
+**Engine and registered `IDENTICAL` to `main` outside `=== Timing ===` on
+`performance` at two seats and at four, and the engine arm `IDENTICAL` on
+`stress` at both** (200 games / seed 12345) — the counter pattern's entry
+door is an arm no def in the old pool or in `main`'s registry reaches, the
+`Amount` legs are never entered, and the subject enum changes no proposal's
+count. CPU/game +0.1% (engine) and +1.1% (registered) at two seats, −0.5%
+and −1.5% at four; `CPU/turn p50` 0.400 → 0.400 and 0.710 → 0.710 — flat.
+
+**The pooled column is a re-record, and the row the section said would move
+is the one that did.** `Replacement prompts` 0.74 → 1.14 per game at two
+seats and 1.83 → 2.44 at four on `performance`: Hardened Scales beside a
+second Scales, and beside Master Biomancer at an entry's second iteration —
+additive pairs with one outcome, asked because the predicate has no shape
+for them yet (`backlog.md` §2.29). `Replacement gathers` 1043 → 1060 at two
+seats, the sweep Scales opens on every `AddCounters` and counter-bearing
+entry; avg turns 30.7 → 31.4, total damage 69.3 → 59.0, a different board.
+CPU/game −0.4% and +1.3%, `ms / 1,000 queries` −2.4% and −0.7%: flat.
+**Reachability**, `--require`, 200 games — `performance`: Hardened Scales
+cast 226, resolved 226, in **136 of 200 games (68%)**, copies/deck 1.54;
+`stress`: Doubling Season cast 119, resolved 119, in **97 of 200 (48%)**, 1.29; Winding Constrictor cast 150, resolved 148, in **112 of 200 (56%)**, 1.23; Live Fast cast 133, resolved 119, in **91 of 200 (46%)**, 1.26; Primal Vigor cast 136, resolved 136, in **101 of 200 (50%)**, 1.33. Zero errors, zero panics, every arm; the two
+two-seat `stress` turn limits are `main`'s own stall (seeds 12386 and
+12538), reproduced line for line by the engine arm and reshuffled away by
+the registered decks.
+
+| | performance (84 cards) | stress (145 cards) |
+|---|---|---|
+| P0 / P1 | 28 (56.0%) / 22 (44.0%) | 25 (50.0%) / 25 (50.0%) |
+| Avg turns | 31.4 | 31.4 |
+| Spells cast | 25.1 | 22.1 |
+| Lands played | 19.0 | 17.6 |
+| Combat w/ atk | 11.6 | 9.3 |
+| Creatures died | 7.7 | 4.5 |
+| Damage events | 24.2 | 20.0 |
+| Total damage | 60.9 | 57.3 |
+| Life changes | 15.9 | 17.1 |
+| **Layer walks** | **395** | **498** |
+| **Board walks** | **256** | **327** |
+| **Memo hits** | **67,768** | **103,220** |
+| **Layer frames** | **5,098** | **6,975** |
+| **Frames/walk** | **12.92** | **14.00** |
+| **Dependency checks** | **16** | **11** |
+| **Replacement gathers** | **1085** | **1090** |
+| **Restriction queries** | **1087** | **1092** |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 2.14 | 1.80 |
+| Max batch depth | 6 | 5 |
+
+**The four-player table, re-recorded** — the pool moved, so this one moves
+with it. Engine and registered are `IDENTICAL` to `main` on `performance`
+here too, and the pooled column is the same re-record: `Replacement
+prompts` 1.83 → 2.44 at 200 games, `Layer walks` 839 → 826, gathers
+2145 → 2145, CPU/game +1.3% (`CPU/turn p50` 0.710 → 0.685). No turn limit
+and no draw on any arm at four seats. Three shell runs at one seed and
+`--players 4`: `IDENTICAL` outside `=== Timing ===` on both pools.
+
+| 4 players, 50 games / seed 12345 | performance (84 cards) | stress (145 cards) |
+|---|---|---|
+| Wins by seat | 22 (44%) / 19 (38%) / 6 (12%) / 3 (6%) | 24 (48%) / 14 (28%) / 9 (18%) / 3 (6%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 59.4 | 61.5 |
+| Spells cast | 44.2 | 44.5 |
+| Lands played | 35.9 | 36.6 |
+| Combat w/ atk | 24.3 | 23.8 |
+| Creatures died | 15.1 | 11.2 |
+| Damage events | 51.4 | 57.0 |
+| Total damage | 144.8 | 166.2 |
+| Life changes | 36.1 | 42.5 |
+| Turns after a departure | 21.1 | 18.4 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **820** | **1,083** |
+| **Board walks** | **531** | **618** |
+| **Memo hits** | **183,415** | **251,028** |
+| **Layer frames** | **15,628** | **19,436** |
+| **Frames/walk** | **19.06** | **17.95** |
+| **Dependency checks** | **116** | **227** |
+| **Replacement gathers** | **2072** | **2256** |
+| **Restriction queries** | **2076** | **2262** |
+| Prevention allocations | 0.00 | 0.02 |
+| Replacement prompts | 3.12 | 5.04 |
+| Max batch depth | 6 | 6 |
+
 **Re-recorded 2026-09-13 for RE-4** (CR 614.16's token half;
 `replacement-architecture.md` §9) — **re-measured after its review**, whose
 three themes moved the engine (a rider carries its lineage; an exit beside

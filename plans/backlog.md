@@ -731,7 +731,17 @@ Misanthropic Guide, whose hand-size clause is CR 613.11's own worked example.*
   modification half has none. Corpus-thin — see §5.
 - **Owner** — none yet.
 
-### 2.16 Counters on players (CR 122.1)
+### 2.16 Counters on players (CR 122.1) — ✅ graduated 2026-09-13 (RE-5)
+
+*Built as this entry designed it: `PlayerState.counters` is the kind → count
+map (a `BTreeMap`, so a walk is process-independent) sharing `CounterType`
+with a permanent's, `CounterType::{Poison, Energy}` are its first kinds,
+CR 704.5c reads it, `GameAction::AddCounters { subject: CounterSubject::Player
+(..) }` puts them on and `Primitive::GetCounters` is Oracle's "you get". Live
+Fast is the producer; Vorinclex's and Winding Constrictor's player halves the
+watchers. Costs paid in energy wait for their first card
+(`cost-architecture.md`'s CP-1 slot). The entry is kept as written for the
+record.*
 
 - **Rules** — CR 122.1's player half; proliferate reads it (CR 701.34a)
 - **Verdict** — `PlayerState.poison_counters: u32` hardcodes one kind where
@@ -1252,7 +1262,21 @@ mechanic rather than a migration, which is why it is here and not in
   question (`engineering-practices.md` §4.1) has corrected three times; wants
   a session of its own, at the sixth shape.
 - **Blocks** — nothing today; a needless prompt per uncovered pair.
-- **Owner** — none; raised at RE-4's review (R22).
+- **Owner** — none; raised at RE-4's review (R22). **RE-5 added no shape
+  (2026-09-13) and put the pairs it makes reachable on this list instead.**
+  Season beside Season is the multiplier bucket and asks nothing; Season
+  beside Scales is a multiplier beside a plus, does not commute, and the
+  prompt is Scales' own ruling. What is asked and has one outcome: Scales
+  beside Scales (additive, `two_hardened_scales_add_two` asserts the
+  prompt), and a plus beside an `EnterWith` of the **same** kind at an
+  entry. **A plus beside an `EnterWith` of a *different* kind is a real
+  order** — CR 614.5 gives the plus one opportunity, so a kind the
+  `EnterWith` adds afterwards is not raised — which means the table's
+  classes need the kind axis, not the rewrite alone; the sixth shape's
+  session should build it that way. RE-5 also fired item 47's condition (c)
+  from the multiplier side: a pattern arm that reads an entry's mods, so the
+  multiplier clause asks `affected_is_mods_invariant` of an entry's members
+  now, the clause the `EnterWith` shape always asked.
 
 ---
 

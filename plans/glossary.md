@@ -154,6 +154,12 @@ announces. Performers are loud about failure; callers check legality.
 and carried as `EventSubject`. A damage event has a subject and a source, and
 they are not the same field.
 
+**putter** — the player putting counters on an object or player: CR 122.6a's
+"which player puts those counters on it", carried as `AddCounters::by` and
+asked by `EventPattern::CounterChange`'s `by`. For counters a permanent enters
+with it is the rule's default, the controller it enters under. Vorinclex,
+Monstrous Raider is the reader; a removal has none.
+
 **subject group** — the members of one batch that share a subject — two
 blockers' damage to one attacker. CR 616.1's unit is the group, not the member:
 one pass of the rule, one chooser, one applied set — so an effect applies to the
