@@ -1354,7 +1354,7 @@ CPU/game and Bone Splinters +11.9% for the identical set of paths, so the pool
 carries Bone Splinters and Altar's Reap stays registered as CR 601.2h's own
 example. An inert 73rd card costs +14.0%, which is the finding underneath
 both numbers: the tax is the slot, not the mechanic
-(`engineering-practices.md` §3.1a).
+(`fuzz-record.md` §3.1a).
 
 #### CM-4 — the mana window and the payer — ✅ 2026-09-08
 
