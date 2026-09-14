@@ -44,7 +44,10 @@ Vorinclex, Monstrous Raider, Winding Constrictor, Live Fast, Primal Vigor),
 so **both tables are a re-record and neither column is an engine reading**.
 The engine's reading is the four arms (`replacement-architecture.md` §11
 item 80): `main`; **engine**, the branch with the cards *unregistered*;
-**registered**, the old pool; **pooled**, as shipped.
+**registered**, the old pool; **pooled**, as shipped. **Re-measured after
+the review's theme A (2026-09-14) — the named putter and the split pattern
+arms — and every row below is identical**: the pooled fixture tables are
+byte-for-byte the ones here, CPU flat on all four arms.
 
 **Engine and registered `IDENTICAL` to `main` outside `=== Timing ===` on
 `performance` at two seats and at four, and the engine arm `IDENTICAL` on

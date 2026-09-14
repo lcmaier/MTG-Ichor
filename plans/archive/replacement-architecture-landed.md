@@ -3584,6 +3584,40 @@ pools, two seats and four: `IDENTICAL` outside `=== Timing ===`.
 **`PERFORMANCE_POOL` 83 → 84, every arm's header read, and both §3 tables
 re-recorded** — `plans/fuzz-record.md`, at the top.
 
+##### Reviewed (2026-09-14) — theme A of `plans/handoffs/re-5-review.md`
+
+**The named putter is built, and the pattern pair is two arms.** The owner's
+review rejected item 43's close on an empty Scryfall query — the CR is the
+customer, a printed card is the test (`engineering-practices.md` §4, the
+rule this review adopted) — and pointed at Bold Plagiarist, whose trigger has
+the *opponent* put counters on a creature they do not control: the putter is
+an authored fact on a proposal too, which RE-5 had not looked for. Built as
+the review file sized it: `EntryCounters { counter, n, by: Option<PlayerId> }`
+rows on `EnterMods` merged on `(kind, putter)`, `EntryCountersTemplate` with
+an `Option<PlayerRef>` resolved by `pipeline::putter_of`, the door and the
+CR 101.2 check reading each row's putter ahead of the entry's controller,
+and `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters`
+resolved by `resolve_putter`. `EventPattern::CounterChange { adding }` became
+`CountersPut { counter, by }` and `CountersRemoved { counter }` — one arm per
+`GameAction` variant, and the "`by` must be `None` on a removal" caveat gone
+with the test that asserted it. Four tests in: the named putter at an entry
+read ahead of the controller (2 where the default would halve to none), one
+kind from two putters as two rows under Vorinclex, Bold Plagiarist's shape on
+a proposal, and a `Prevent` over `CountersRemoved`. 1,423 tests, zero
+warnings; §11 item 83 rewritten, item 43 reopened and closed as built.
+
+**Re-measured, four arms at two seats and four, and nothing moved.** Every
+counter row is identical to the landing's run: engine and registered
+`IDENTICAL` to `main` outside `=== Timing ===` on `performance` at both seat
+counts, the engine arm `IDENTICAL` on `stress` at both, and the pooled arm's
+50-game fixture tables byte-identical to the ones recorded on 2026-09-13 —
+every registered producer writes the default putter, and a row keyed on
+`(kind, None)` merges as a kind did. CPU/game +0.7% (engine), +0.1%
+(registered), +0.8% (pooled) at two seats; −0.9%, −0.7%, +0.9% at four;
+`CPU/turn p50` 0.400 → 0.410 and 0.730 → 0.720 — flat, both signs.
+`deterministic: yes` on every arm. Hardened Scales `--require` 226 / 226 in
+136 of 200, as at landing.
+
 ### Trace-page decisions — the phases that produced a candidate and declined it
 
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*

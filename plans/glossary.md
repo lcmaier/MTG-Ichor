@@ -154,6 +154,14 @@ announces. Performers are loud about failure; callers check legality.
 and carried as `EventSubject`. A damage event has a subject and a source, and
 they are not the same field.
 
+**customer** — what a facility exists for. The *customer* of an arm, a field
+or a rule-stated facility is the CR rule that states it; a *printed customer*
+is a card in print that exercises it, and it is the facility's **test**, not
+the reason it is owed — a facility with none gets a fixture test and a
+reachability line that says "no printed producer" (`engineering-practices.md`
+§4, adopted at RE-5's review). "An arm the pipeline cannot apply is worse
+than a missing one" is about an arm with no customer of either kind.
+
 **putter** — the player putting counters on an object or player: CR 122.6a's
 "which player puts those counters on it", carried as `AddCounters::by` and
 asked by `EventPattern::CountersPut`'s `by`. For counters a permanent enters
