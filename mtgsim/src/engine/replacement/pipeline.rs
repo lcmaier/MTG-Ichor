@@ -1962,14 +1962,25 @@ fn counter_arithmetic(
 /// [`Rewrite::Amount`]'s arithmetic over a **plain count** — a number with no
 /// life total under it and nothing to prevent.
 ///
-/// Two callers and two widths, which is why this sits between them rather than
-/// inside either: a count of counters is a `u32` (`PermanentState`'s map), so
-/// [`counter_arithmetic`] narrows afterwards and names the number it could not
-/// hold; a scry's N is CR 701.22a's `u64` and narrows to nothing, so Kenessos,
-/// Priest of Thassa's leg calls this directly. The scry leg borrowed the
-/// counter one at first, which cast a `u64` down to `u32` and back — a silent
-/// wrap on a number no board can reach but a card could author, and a
-/// counter's error message on a scry (RE-8 review, 2026-09-14).
+/// **Why this is a second function and not `counter_arithmetic` widened to
+/// `u64`** — asked at RE-8's review, and the answer is a count. The narrowing
+/// is not that helper being lazy about its type; it is where the ceiling
+/// actually is. `GameAction::AddCounters::n` and `EntryCounters::n` are both
+/// `u32`, because `PermanentState`'s and `PlayerState`'s counter maps are, and
+/// **those are the two call sites** — so a `u64`-returning
+/// `counter_arithmetic` would hand each of them a number it still had to
+/// narrow, with the same `try_from` and the same "which no permanent or player
+/// can hold" message written twice, or a third helper holding it. One wrapper
+/// is cheaper than either.
+///
+/// A scry's N is CR 701.22a's `u64` and narrows to nothing, which is the whole
+/// difference. The scry leg borrowed the counter helper at first and cast a
+/// `u64` down to `u32` and back — a silent wrap on a number no board can reach
+/// but a card could author, and a counter's error message on a scry.
+///
+/// The names stay two words apart on purpose: `count_arithmetic` beside
+/// `counter_arithmetic` would be the coin flip at every call site that
+/// `ReplacementDef::affecting_players` already refused once.
 ///
 /// **The refused arms are refused here, once.** A prevention arm (CR 615) is
 /// about damage and a [`AmountRewrite::LifeFloor`] is about a life total; over
