@@ -113,7 +113,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                         cause: None,
                         object: None,
                     },
-                    ObjectSet::filter(ObjectFilter::And(
+                    ObjectSet::battlefield_filter(ObjectFilter::And(
                             Box::new(ObjectFilter::ByType(CardType::Creature)),
                             Box::new(ObjectFilter::And(
                                 Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
@@ -214,7 +214,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 },
                 // "a card or token" — no owner clause, no type clause, and
                 // no `Not(Token)`. Everything that would hit a graveyard.
-                ObjectSet::filter(ObjectFilter::All),
+                ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -289,7 +289,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     cause: None,
                     object: None,
                 },
-                ObjectSet::filter(ObjectFilter::And(
+                ObjectSet::battlefield_filter(ObjectFilter::And(
                         // "a card" — CR 111.1, a token is not one.
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                         // "an opponent's graveyard" — CR 400.3 sends it to the

@@ -117,7 +117,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
+                affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
                 affected_players: PlayerSet::Nobody,
                 by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
             }))),

@@ -1726,7 +1726,7 @@ impl GameState {
                 Some(ObjectSet::filter_in(filter.clone(), *zones))
             }
             EffectRecipient::FilteredPermanents(filter) => {
-                Some(ObjectSet::filter(filter.clone()))
+                Some(ObjectSet::battlefield_filter(filter.clone()))
             }
             EffectRecipient::Implicit => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is

@@ -368,7 +368,7 @@ pub fn root_maze() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::filter(ObjectFilter::Or(
+                ObjectSet::battlefield_filter(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Land)),
                     )),
@@ -447,7 +447,7 @@ pub fn containment_priest() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                ObjectSet::filter(ObjectFilter::And(
+                ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                     )),
@@ -855,7 +855,7 @@ pub fn master_biomancer() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::filter(ObjectFilter::And(
+                ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     )),

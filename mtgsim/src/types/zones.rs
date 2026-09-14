@@ -33,9 +33,24 @@ impl Zone {
 /// every library in the game), so a sound inference must widen to "all zones"
 /// at any `Not` and the fast path dies on exactly the cards it exists for.
 ///
-/// A `ZoneSet` cannot express a complement, and that is the correct limit: no
-/// printed card says "everywhere but the battlefield". The five that function
-/// in every zone say "from anywhere", which is [`Self::ALL`].
+/// **A complement is an ordinary value here, and that is the point of the set
+/// being concrete.** `ALL.without(BATTLEFIELD)` is a bitmask like any other:
+/// bounded, readable off the row, and costing `Board::seed` one `iter()`. What
+/// a filter *tree* cannot have is a zone leaf under a `Not`, because there the
+/// complement is only recoverable by an abstract interpretation that has to
+/// widen to "all zones" to stay sound. The limit is on where the complement
+/// lives, not on whether one exists — and the first cut of this comment had
+/// that wrong (owner review, 2026-09-14).
+///
+/// Printed cards want it. Grist, the Hunger Tide is "as long as Grist isn't on
+/// the battlefield, it's a 1/1 Insect creature in addition to its other
+/// types", and its ruling is "anywhere but on the battlefield, Grist is a
+/// Legendary Planeswalker Creature — Grist Insect" (Scryfall, verified
+/// 2026-09-14). Mycosynth Lattice and Painter's Servant open on the same
+/// shape: "all cards that aren't on the battlefield". And the rule outranks
+/// the card list anyway — the CR permits the expression, custom cards are a
+/// post-v1 goal, so a facility the CR states is owed whether or not a card
+/// prints it (`engineering-practices.md` §4, RE-5's review).
 ///
 /// A hand-rolled bitmask following `engine::layers::board::Channels` rather
 /// than a `bitflags` dependency the crate does not have.
@@ -55,13 +70,24 @@ impl ZoneSet {
     /// the battlefield, spells, and permanents".
     pub const ALL: ZoneSet = ZoneSet((1 << 7) - 1);
 
+    /// Everywhere but the battlefield — Grist's "as long as [it] isn't on the
+    /// battlefield", Mycosynth Lattice's "all cards that aren't on the
+    /// battlefield". Spelled as a constant because it is the complement the
+    /// CR actually names; any other is [`Self::without`].
+    pub const EVERYWHERE_BUT_BATTLEFIELD: ZoneSet = ZoneSet(ZoneSet::ALL.0 & !ZoneSet::BATTLEFIELD.0);
+
+    /// This set minus `other` — the general complement.
+    pub const fn without(self, other: ZoneSet) -> ZoneSet {
+        ZoneSet(self.0 & !other.0)
+    }
+
     /// The zones this set holds that are **not** the battlefield.
     ///
     /// What [`ZoneSet::BATTLEFIELD`]-only rows cost nothing for, and the exact
     /// question `Board::seed` asks: the battlefield is already every pass's
     /// working set, so only these zones add members.
     pub fn beyond_battlefield(self) -> ZoneSet {
-        ZoneSet(self.0 & !ZoneSet::BATTLEFIELD.0)
+        self.without(ZoneSet::BATTLEFIELD)
     }
 
     const fn bit(zone: Zone) -> u8 {

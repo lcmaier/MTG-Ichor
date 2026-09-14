@@ -378,7 +378,7 @@ fn orb_shaped() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::filter(ObjectFilter::All),
+                ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -795,7 +795,7 @@ fn kismet_shaped() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::filter(ObjectFilter::ByController(
+                ObjectSet::battlefield_filter(ObjectFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,
                     )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),

@@ -175,6 +175,20 @@ pub struct RegistryScopeSummary {
     /// set confines the sweep to the zone a card actually reaches instead of
     /// to "hidden or not", which is the narrowing item 9 asks for in its own
     /// last paragraph — Yixlid Jailer costs graveyards, not libraries.
+    ///
+    /// **It is also the blast radius a finer memo invalidation would need**
+    /// (owner review, 2026-09-14). The memo is keyed on `layer_epoch`, which
+    /// is global: any registry mutation invalidates every stored frame. The
+    /// standing idea is to invalidate only the entries a change can reach, and
+    /// the hard part of that is naming them — which for a row arriving or
+    /// leaving is exactly this field, the zones whose objects can have moved,
+    /// plus the battlefield. So this narrows rather than complicates that
+    /// work: without it a zone-reaching row's radius is "every object in the
+    /// game", and with it the radius is one zone. The interaction to get right
+    /// when it is built is that the radius must be the **union** of the masks
+    /// before and after the mutation — a row being *removed* stops reaching
+    /// the zone it reached, and the objects it was reaching are the ones whose
+    /// frames are now stale.
     pub reachable_zones: ZoneSet,
 }
 

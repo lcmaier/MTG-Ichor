@@ -1676,12 +1676,31 @@ the set is right:
 - **Reach has to be readable syntactically** for decision 2 to hold.
   `reachable_zones` is a union over rows, O(1) each, with no board access.
   Inside `ObjectFilter`'s boolean algebra it would not be:
-  `Not(InZone(Battlefield))` is a *complement*, its reach is every other zone,
-  and computing reach would need an abstract interpretation that
-  over-approximates to "all zones" at any `Not` — defeating the fast path on
-  exactly the cards that motivate it. A `ZoneSet` field cannot express an
-  unbounded reach, which is the right expressive limit: no CR effect reaches
-  "every zone but one".
+  `Not(InZone(Battlefield))` is a *complement* recoverable only by an abstract
+  interpretation over the filter tree, which has to widen to "all zones" at any
+  `Not` to stay sound — defeating the fast path on exactly the cards that
+  motivate it.
+
+  **The first cut of this decision drew the wrong conclusion from that, and the
+  owner's review caught it (2026-09-14).** It said a `ZoneSet` "cannot express
+  a complement, which is the right expressive limit: no CR effect reaches
+  'every zone but one'." Both halves were wrong. A complement *on a concrete
+  bitmask* is bit arithmetic — `ALL.without(BATTLEFIELD)` is a bounded,
+  syntactically readable set like any other, and `ZoneSet::
+  EVERYWHERE_BUT_BATTLEFIELD` is now a constant. And the CR does reach it:
+  **Grist, the Hunger Tide** is "as long as Grist isn't on the battlefield,
+  it's a 1/1 Insect creature in addition to its other types", whose ruling
+  reads "anywhere but on the battlefield, Grist is a Legendary Planeswalker
+  Creature — Grist Insect"; Mycosynth Lattice and Painter's Servant both open
+  on "all cards that aren't on the battlefield". The rule would outrank the
+  card list regardless — §4's "the CR is the customer" means a facility the
+  rules permit is owed whether or not a card prints it, and custom cards are a
+  post-v1 goal.
+
+  **So the limit is on where a complement lives, not on whether one exists**,
+  which is the same sentence the rest of this decision makes: the zone belongs
+  on the set, where its reach is a value, not in the tree, where it is a
+  search.
 - **`targeting.rs`'s four matchers must not see it.** A selection filter's
   zone is already carried by `SelectionFilter`'s own variant —
   `Creature` is the battlefield, `SpellOnStack` the stack. A leaf would oblige
@@ -1821,6 +1840,40 @@ in its own words).
 **Aminatou** is four systems deep and a Phase 8 card. Neither is reached for
 here — and the next section is why that sentence is structural rather than a
 scoping preference.
+
+### What can *see* a zone-reaching effect — and the fixture that closes the loop
+
+Asked at the review, and it is the sharpest question the phase got: *if nothing
+reads a graveyard card's abilities, how is Yixlid Jailer being tested at all?*
+
+**The honest answer is that the Jailer's own effect is not observable in
+gameplay yet.** Abilities are a characteristic (CR 109.3), so the layer walk
+computes them for a graveyard card and the Jailer removes them; but the things
+that would *read* a graveyard card's abilities — flashback, retrace, Bridge
+from Below's trigger — are each gated on CR 113.6, which is A5. So the Jailer's
+tests assert through `get_effective_abilities`, a direct read of the mechanism
+rather than of a consequence. That is a real gap in the evidence, not a
+technicality.
+
+**A *color* in a graveyard is observable today**, and closing the loop needs
+nothing this PR does not already have. `Condition::CardInGraveyard` reads a
+graveyard card's characteristics, and decision 5's fold gave it `ObjectFilter`,
+so it can ask `ByColor`. Two fixtures in `phase_lj_cards.rs` — **Graveyard
+Painter** ("cards in graveyards are red in addition to their other colors",
+Painter's Servant's clause narrowed to one zone) and **Graveyard Reveler**
+("+2/+2 as long as there's a red card in your graveyard", Kird Ape's shape) —
+make the chain:
+
+> a zone-reaching row applies at Layer 5 → a black card in the graveyard is now
+> also red → CR 604.2's existence check on the Reveler's own ability sees a red
+> card there → its Layer 7c row exists → the Reveler is 3/3.
+
+Every link is a rule, and the assertion is the Reveler's **power** — two cards
+and two layers away from the row under test. `test_a_zone_reaching_row_changes_
+a_characteristic_a_rule_reads`, with the reverse (removing the Painter turns it
+back off) beside it, since CR 604.2 is re-asked and never latched.
+
+Registered nowhere, per the fixture convention `registry.rs` names by card.
 
 ### What LJ can and cannot express — the source/affected split
 

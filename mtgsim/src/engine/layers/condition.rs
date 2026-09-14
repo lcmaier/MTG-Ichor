@@ -97,9 +97,8 @@ pub(super) fn holds(
                 return false;
             };
             let Some(player) = game.players.get(you) else { return false };
-            let graveyard = player.graveyard.clone();
             let mut players = FilterPlayers::for_source(source, game, board, layer_index);
-            graveyard.iter().any(|&card| {
+            player.graveyard.iter().any(|&card| {
                 board
                     .frame_of(game, card, layer_index)
                     .is_some_and(|chars| object_matches_filter(filter, card, &chars, &mut players))

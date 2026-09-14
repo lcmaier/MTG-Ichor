@@ -288,8 +288,11 @@ impl ObjectSet {
     /// Named rather than written as a struct literal at ~60 call sites: the
     /// battlefield is the overwhelming default, and a constructor that says so
     /// keeps [`ObjectSet::filter_in`] visibly exceptional at the handful of
-    /// sites that reach another zone.
-    pub fn filter(filter: ObjectFilter) -> ObjectSet {
+    /// sites that reach another zone. **`battlefield_filter` and not `filter`**
+    /// (owner review, 2026-09-14): a bare `filter` reads as "the filter case"
+    /// rather than as one of two, which is the reading that would let a
+    /// zone-reaching row be written battlefield-scoped by accident.
+    pub fn battlefield_filter(filter: ObjectFilter) -> ObjectSet {
         ObjectSet::Filter { filter, zones: ZoneSet::BATTLEFIELD }
     }
 

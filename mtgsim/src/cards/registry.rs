@@ -807,6 +807,12 @@ impl CardRegistry {
             phase_re8_cards::eligeth_crossroads_augur,
         );
 
+        // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
+        // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and
+        // opens no engine path, so it is registered and unpooled.
+        // `phase_lj_cards::graveyard_painter` and `graveyard_reveler` — the
+        // pair that proves a rule can *read* a zone-reaching change — are
+        // fixtures registered nowhere.
         registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
         registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
 

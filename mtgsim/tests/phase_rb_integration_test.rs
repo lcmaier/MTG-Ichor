@@ -975,7 +975,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,

@@ -17,10 +17,24 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
-use crate::types::effects::{Duration, Effect, EffectRecipient, ObjectFilter, Primitive};
+use crate::types::effects::{
+    AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
+    Primitive,
+};
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
+
+fn static_ability(effect: Effect) -> AbilityDef {
+    AbilityDef {
+        is_characteristic_defining: false,
+        activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+        id: new_ability_id(),
+        ability_type: AbilityType::Static,
+        costs: Vec::new(),
+        effect,
+    }
+}
 
 /// Yixlid Jailer — {1}{B}
 /// Creature — Zombie Wizard, 2/1
@@ -122,5 +136,76 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
                 ),
             )),
         })
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// Two fixtures, for the question "what can *see* a zone-reaching effect?"
+// ---------------------------------------------------------------------------
+
+/// **Fixture.** "Cards in graveyards are red in addition to their other colors."
+///
+/// Painter's Servant's second clause narrowed to one zone — the real card is
+/// "all cards that aren't on the battlefield, spells, and permanents are the
+/// chosen color", which is `ZoneSet::ALL` and an as-enters color choice.
+///
+/// **It exists because Yixlid Jailer's effect is not observable yet, and that
+/// is a fair thing to ask of a first consumer** (owner review, 2026-09-14).
+/// The Jailer strips *abilities* from graveyard cards, and abilities on a card
+/// in a graveyard are read today by exactly nothing: flashback, retrace and
+/// Bridge from Below's trigger are all gated on CR 113.6, which is A5. So the
+/// Jailer's own tests assert the mechanism through `get_effective_abilities`,
+/// which is a direct read rather than a consequence.
+///
+/// A *color* in a graveyard is different: `Condition::CardInGraveyard` reads
+/// it, and since LJ folded `CardFilter` into `ObjectFilter` that condition can
+/// ask `ByColor`. So this fixture closes the loop — a zone-reaching row
+/// changes a graveyard card's characteristics, and a **rule** reads the
+/// change and turns another permanent's ability on. Nothing in that chain is
+/// an oracle query from a test.
+pub fn graveyard_painter() -> Arc<CardData> {
+    CardDataBuilder::new("Graveyard Painter")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("Cards in graveyards are red in addition to their other colors.")
+        .ability(static_ability(Effect::Atom(
+            Primitive::ChangeColor(ColorChange::Add(Color::Red), Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::GRAVEYARD),
+        )))
+        .build()
+}
+
+/// **Fixture.** "This creature gets +2/+2 as long as there's a red card in
+/// your graveyard."
+///
+/// The reader in [`graveyard_painter`]'s loop, and Kird Ape's shape with
+/// `Condition::CardInGraveyard` in place of `ControlPermanent`. The condition
+/// is evaluated by `engine::layers::condition` against the *live* board at the
+/// row's layer, so the color it asks about is the post-Layer-5 color — which
+/// is what makes the Painter visible to it.
+///
+/// `ByColor` is the leaf that makes this fixture possible at all: before LJ
+/// folded the two filter types together, `CardInGraveyard` took a `CardFilter`
+/// whose three variants could ask about a type or a color but never about an
+/// owner or a controller. The color half is what this needs.
+pub fn graveyard_reveler() -> Arc<CardData> {
+    CardDataBuilder::new("Graveyard Reveler")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 1))
+        .color(Color::Black)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Zombie))
+        .power_toughness(1, 1)
+        .rules_text("This creature gets +2/+2 as long as there's a red card in your graveyard.")
+        .ability(static_ability(Effect::Conditional(
+            Condition::CardInGraveyard(ObjectFilter::ByColor(Color::Red)),
+            Box::new(Effect::Atom(
+                Primitive::ModifyPowerToughness(
+                    AmountExpr::Fixed(2),
+                    AmountExpr::Fixed(2),
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::Implicit,
+            )),
+        )))
         .build()
 }

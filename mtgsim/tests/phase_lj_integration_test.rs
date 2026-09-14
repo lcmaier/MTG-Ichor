@@ -13,9 +13,11 @@
 //! earning its place — the claim is a structural zero, so it is testable.
 
 use mtgsim::cards::phase_lf_cards::humility;
-use mtgsim::cards::phase_lj_cards::{scarwood_treefolk, yixlid_jailer};
+use mtgsim::cards::phase_lj_cards::{
+    graveyard_painter, graveyard_reveler, scarwood_treefolk, yixlid_jailer,
+};
 use mtgsim::engine::actions::ZoneChangeCause;
-use mtgsim::oracle::characteristics::get_effective_abilities;
+use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
@@ -318,5 +320,174 @@ fn test_the_jailers_registered_row_is_graveyard_scoped() {
         matches!(rows[0], ObjectSet::Filter { zones, .. } if *zones == ZoneSet::GRAVEYARD),
         "the row names graveyards and not the battlefield: {:?}",
         rows[0]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// What can *see* a zone-reaching effect — the owner's review question
+// ---------------------------------------------------------------------------
+
+/// **A zone-reaching row changes a graveyard card's characteristics, and a
+/// game rule reads the change.** No oracle query anywhere in the chain.
+///
+/// Asked at the review, and it is the right question: Yixlid Jailer strips
+/// *abilities* from graveyard cards, and nothing in the engine reads a
+/// graveyard card's abilities yet — flashback, retrace and Bridge from Below
+/// are each gated on CR 113.6, which is A5. So the Jailer's tests above assert
+/// the mechanism directly, and something had to assert a *consequence*.
+///
+/// A **color** in a graveyard is read today, by `Condition::CardInGraveyard`,
+/// and since this PR folded `CardFilter` into `ObjectFilter` that condition can
+/// ask `ByColor`. The loop is therefore: Graveyard Painter's row reaches the
+/// graveyard at Layer 5, so a black card there is now also red; Graveyard
+/// Reveler's CR 604.2 condition sees a red card in its controller's graveyard;
+/// its `ModifyPowerToughness` row exists; the Reveler is 3/3.
+///
+/// **Every link is a rule.** The assertion is the Reveler's power, which is
+/// two layers and two cards away from the row under test.
+#[test]
+fn test_a_zone_reaching_row_changes_a_characteristic_a_rule_reads() {
+    let mut game = setup_two_player_game();
+
+    // A black card in seat 0's graveyard, and the Reveler watching for a red one.
+    put_in_graveyard(&mut game, yixlid_jailer(), 0);
+    let reveler = put_on_battlefield(&mut game, graveyard_reveler(), 0);
+
+    assert_eq!(
+        get_effective_power(&game, reveler),
+        Some(1),
+        "premise: the only card in the graveyard is black, so the condition is false"
+    );
+
+    put_on_battlefield(&mut game, graveyard_painter(), 0);
+
+    assert_eq!(
+        get_effective_power(&game, reveler),
+        Some(3),
+        "the row reached the graveyard, the card there is red, and CR 604.2 turned the row on"
+    );
+}
+
+/// And it switches back off when the row goes, through the same chain.
+///
+/// The half that proves the condition is re-asked rather than latched: CR
+/// 604.2's existence check runs every pass, so removing the Painter removes
+/// the color, which removes the Reveler's bonus.
+#[test]
+fn test_the_rule_stops_reading_it_when_the_row_goes() {
+    let mut game = setup_two_player_game();
+
+    put_in_graveyard(&mut game, yixlid_jailer(), 0);
+    let reveler = put_on_battlefield(&mut game, graveyard_reveler(), 0);
+    let painter = put_on_battlefield(&mut game, graveyard_painter(), 0);
+    assert_eq!(get_effective_power(&game, reveler), Some(3), "on while the Painter is out");
+
+    game.change_zone(painter, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .expect("it dies");
+
+    assert_eq!(
+        get_effective_power(&game, reveler),
+        Some(1),
+        "the row is gone, so the graveyard card is black again and the condition is false"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The working set shrinks when the row that widened it leaves
+// ---------------------------------------------------------------------------
+
+/// The mask closes again when the last zone-reaching row is removed, so the
+/// working set returns to the battlefield.
+///
+/// Asked at the review beside the strip test, and it is a different claim from
+/// "the effect stopped applying": an effect can stop applying while the
+/// objects it reached stay in the working set, which would be a permanent cost
+/// for a card that left play. `RegistryScopeSummary` is recomputed from the
+/// rows on every mutation (`ContinuousEffectRegistry::mutating`), so there is
+/// no drift to accumulate — this asserts that rather than assuming it.
+#[test]
+fn test_the_working_set_narrows_again_when_the_last_zone_row_leaves() {
+    let mut game = setup_two_player_game();
+
+    for _ in 0..3 {
+        put_in_graveyard(&mut game, scarwood_treefolk(), 0);
+    }
+    let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    assert_eq!(
+        game.continuous_effects.summary().reachable_zones.beyond_battlefield(),
+        ZoneSet::GRAVEYARD,
+        "while the Jailer is out, graveyards are in the working set"
+    );
+
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .expect("it dies");
+
+    assert!(
+        game.continuous_effects.summary().reachable_zones.beyond_battlefield().is_empty(),
+        "the row left with its source, so the seed stops adding graveyard members"
+    );
+}
+
+/// Two zone-reaching rows, and removing one does not close the zone the other
+/// still names.
+///
+/// The mask is a union, so it must narrow to what is *left* rather than to
+/// empty — the failure mode a hand-maintained counter has and a recomputed
+/// summary does not.
+#[test]
+fn test_removing_one_of_two_rows_leaves_the_zone_the_other_names() {
+    let mut game = setup_two_player_game();
+
+    let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+    put_on_battlefield(&mut game, graveyard_painter(), 0);
+
+    game.change_zone(jailer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
+        .expect("it dies");
+
+    assert_eq!(
+        game.continuous_effects.summary().reachable_zones.beyond_battlefield(),
+        ZoneSet::GRAVEYARD,
+        "the Painter still names graveyards, so the zone stays open"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Complements — a `ZoneSet` can say "everywhere but the battlefield"
+// ---------------------------------------------------------------------------
+
+/// `EVERYWHERE_BUT_BATTLEFIELD` is an ordinary set, and `without` is general.
+///
+/// The first cut of `ZoneSet`'s doc comment claimed a complement was
+/// inexpressible and called that the correct limit. It is not: Grist, the
+/// Hunger Tide is "as long as Grist isn't on the battlefield, it's a 1/1 Insect
+/// creature in addition to its other types", and Mycosynth Lattice and
+/// Painter's Servant both open on "all cards that aren't on the battlefield".
+/// Corrected at the review — the limit that matters is that a complement may
+/// not hide inside a **filter tree**, where recovering the reach needs an
+/// abstract interpretation. On a concrete bitmask it is bit arithmetic.
+#[test]
+fn test_a_zone_set_can_name_everywhere_but_the_battlefield() {
+    let complement = ZoneSet::EVERYWHERE_BUT_BATTLEFIELD;
+
+    assert!(!complement.contains(Zone::Battlefield), "the one zone it excludes");
+    for zone in [
+        Zone::Library,
+        Zone::Hand,
+        Zone::Graveyard,
+        Zone::Stack,
+        Zone::Exile,
+        Zone::Command,
+    ] {
+        assert!(complement.contains(zone), "{zone:?} is everywhere else");
+    }
+    assert_eq!(
+        complement,
+        ZoneSet::ALL.without(ZoneSet::BATTLEFIELD),
+        "the constant is the general operation, not a special case"
+    );
+    assert_eq!(
+        complement.beyond_battlefield(),
+        complement,
+        "and it is entirely beyond the battlefield, so every zone of it is swept"
     );
 }

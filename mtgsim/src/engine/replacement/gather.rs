@@ -600,10 +600,18 @@ pub(crate) fn set_affects(
             // naive `zones.contains(obj.zone)` would reject exactly the entry
             // CR 614.12 exists for. `CLAUDE.md`: an arm the pipeline cannot
             // apply is worse than a missing one.
+            //
+            // **This assert is scaffolding and A5 deletes it** (owner review,
+            // 2026-09-14). It is not a permanent invariant — a replacement row
+            // over a hand or a graveyard is a thing the CR has and the engine
+            // will; the assert marks the window in which the *type* can express
+            // one and this function cannot honour it. Whoever builds CR 113.6
+            // replaces it with the real gate, and the failing assert is how
+            // they find this site.
             debug_assert_eq!(
                 *zones,
                 ZoneSet::BATTLEFIELD,
-                "a zone-reaching replacement row needs CR 113.6 (roadmap-v2.md A5), not this gate"
+                "zone-reaching replacement row needs CR 113.6 (roadmap-v2.md A5)"
             );
             game.object_matches_filter_of_source(
                 id,

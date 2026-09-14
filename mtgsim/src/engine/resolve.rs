@@ -211,7 +211,7 @@ impl GameState {
                     // a zone-reaching recipient has nothing to be dealt to.
                     EffectRecipient::FilteredObjectsIn(..) => {
                         return Err(format!(
-                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient;                              damage is dealt to permanents and players (CR 119.3).",
+                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 119.3)",
                             ctx.source
                         ));
                     }
@@ -1068,7 +1068,7 @@ impl GameState {
                     // (`roadmap-v2.md` A5) before it could ever fire.
                     EffectRecipient::FilteredObjectsIn(..) => {
                         return Err(format!(
-                            "a `Primitive::CreateReplacement` on {:?} has a zone-reaching                              recipient; a replacement row outside the battlefield needs                              CR 113.6 (roadmap-v2.md A5).",
+                            "a `Primitive::CreateReplacement` on {:?} has a zone-reaching recipient; see roadmap-v2.md A5",
                             ctx.source
                         ));
                     }

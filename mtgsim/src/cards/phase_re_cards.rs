@@ -1260,7 +1260,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::ApplyReplacement {
                             kind: ReplacementKindFilter::Prevention,
-                            to_objects: ObjectSet::filter(ObjectFilter::All),
+                            to_objects: ObjectSet::battlefield_filter(ObjectFilter::All),
                             to_players: PlayerSet::Everyone,
                         }),
                         Duration::UntilEndOfTurn,
@@ -1811,7 +1811,7 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
                     Primitive::CreateReplacement(
                         Box::new(ReplacementDef::new(
                             EventPattern::EnterBattlefield { cast: Some(false) },
-                            ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
+                            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
                             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                                 to: Zone::Exile,
                                 cause: ZoneChangeCause::Exiled,
@@ -1985,7 +1985,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
 fn doubles_counters_on_your_permanents() -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::AddCounters { counter: None, by: None },
-        ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
+        ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
         Rewrite::Amount(AmountRewrite::Multiplier(2)),
     )
 }
@@ -2102,7 +2102,7 @@ pub fn hardened_scales() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            ObjectSet::filter(ObjectFilter::And(
+            ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                 )),
@@ -2175,7 +2175,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::You) },
-                ObjectSet::filter(ObjectFilter::All),
+                ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::Everyone),
@@ -2183,7 +2183,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
-                ObjectSet::filter(ObjectFilter::All),
+                ObjectSet::battlefield_filter(ObjectFilter::All),
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             )
             .affecting_players(PlayerSet::Everyone),
@@ -2258,7 +2258,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
-            ObjectSet::filter(ObjectFilter::And(
+            ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -2384,7 +2384,7 @@ pub fn primal_vigor() -> Arc<CardData> {
         ))
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )))
         .build()

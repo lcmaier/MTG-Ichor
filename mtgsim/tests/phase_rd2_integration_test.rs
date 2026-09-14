@@ -437,7 +437,7 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
+            ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .affecting_players(PlayerSet::You)
