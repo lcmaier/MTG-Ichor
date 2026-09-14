@@ -862,7 +862,16 @@ fn ordering_cannot_change_outcome(
                     || ((t.is_fixed() || Some(c.instance.source) != entering)
                         && affected_is_mods_invariant(&def.affected))
             }
-            Rewrite::Amount(AmountRewrite::Multiplier(_)) => true,
+            // A multiplier of one or more reads nothing a multiplier changes:
+            // the count stays on "one or more"'s side and the kinds are the
+            // kinds. Over an *entry* its `affected` filter reads the CR 614.12
+            // frame, which +1/+1 counters feed — item 47's condition (c),
+            // fired by RE-5's door on `CounterChange` — so an entry's members
+            // answer to the same leaf table the `EnterWith` shape does.
+            Rewrite::Amount(AmountRewrite::Multiplier(_)) => {
+                !matches!(event, GameAction::EnterBattlefield { .. })
+                    || affected_is_mods_invariant(&def.affected)
+            }
             Rewrite::Instead(GameActionTemplate::DrawCards { .. }) => true,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }) if one_exit => true,
             // The fourth shape's members, admitted by
@@ -1693,6 +1702,52 @@ fn apply_rewrite(
                 )),
             },
 
+            // CR 614.16's counter half — Doubling Season's second ability,
+            // Hardened Scales' plus, Vorinclex's halving — over a count of
+            // counters being put on a permanent or a player.
+            GameAction::AddCounters { subject, counter, n, by } => {
+                let after = counter_arithmetic(chosen, *amount_rewrite, n)?;
+                Ok((
+                    Some(GameAction::AddCounters { subject, counter, n: after, by }),
+                    Applied { took_effect: after != n, prevented: 0 },
+                ))
+            }
+
+            // CR 122.6's second door — the counters a permanent is given as
+            // it enters are *put on* it, so the arithmetic applies to each
+            // kind in the entry's mods the pattern matched: its kind, and its
+            // putter, which is the entry's controller (CR 122.6a). "Each of
+            // those kinds" is Vorinclex's and Winding Constrictor's own
+            // phrase. A kind a halving takes to zero leaves the mods: "enters
+            // with counters" is not "enters with zero counters", and the
+            // performer would otherwise spend a CR 613.7c timestamp on nothing.
+            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+                let EventPattern::CounterChange { counter: kind, by, .. } = &chosen.def.pattern
+                else {
+                    return Err(format!(
+                        "replacement {:?} changes an amount on an entry but its pattern is \
+                         {:?}; only a `CounterChange` watches an entry's counters (CR 122.6)",
+                        chosen.id, chosen.def.pattern
+                    ));
+                };
+                let mut took_effect = false;
+                let mut kept = Vec::with_capacity(mods.counters.len());
+                for (k, n) in mods.counters.drain(..) {
+                    let matched = kind.is_none_or(|c| c == k)
+                        && by.as_ref().is_none_or(|set| set.contains(chosen.controller, controller));
+                    let after = if matched { counter_arithmetic(chosen, *amount_rewrite, n)? } else { n };
+                    took_effect |= after != n;
+                    if after > 0 {
+                        kept.push((k, after));
+                    }
+                }
+                mods.counters = kept;
+                Ok((
+                    Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }),
+                    Applied { took_effect, prevented: 0 },
+                ))
+            }
+
             // Its `EventPattern` and its `Rewrite` describe different events —
             // the same card-authoring error every other arm reports. The
             // wording is about the *arm* and not about the event, because
@@ -1755,6 +1810,36 @@ fn apply_rewrite(
         Rewrite::Instead(template) => {
             substitute(chosen, template, event, subject).map(|a| (Some(a), changed))
         }
+    }
+}
+
+/// A [`Rewrite::Amount`] over a count of counters — CR 614.16's counter half:
+/// Doubling Season's multiplier, Hardened Scales' plus, Vorinclex's halving.
+/// The prevention arms are CR 615's and about damage, and the clamp is about
+/// a life total; both are the pairing error every other leg reports. A count
+/// no `u32` can hold is refused rather than wrapped, `CreateTokens`' reason.
+fn counter_arithmetic(
+    chosen: &ReplacementInstance,
+    arm: AmountRewrite,
+    n: u32,
+) -> Result<u32, String> {
+    match arm {
+        AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) | AmountRewrite::Plus(_) => {
+            let after = arm.apply(n as u64);
+            u32::try_from(after).map_err(|_| {
+                format!(
+                    "replacement {:?} takes a counter count to {}, which no permanent or \
+                     player can hold",
+                    chosen.id, after
+                )
+            })
+        }
+        other => Err(format!(
+            "replacement {:?} applies {:?} to counters being put on; CR 614.16's counter \
+             half is arithmetic over a count, and a prevention (CR 615) or a life floor is \
+             about damage or a life total",
+            chosen.id, other
+        )),
     }
 }
 

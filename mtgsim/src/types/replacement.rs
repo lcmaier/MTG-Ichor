@@ -1291,6 +1291,14 @@ pub struct EnterMods {
     /// which is a `Vec` rather than a `HashMap` for the reason every ordered
     /// collection in this engine is one: a `HashMap` walk is not reproducible
     /// across processes, and this list reaches `add_counters`.
+    ///
+    /// **Who puts them on is not a field, and the rules pass is why.** CR
+    /// 122.6a's default — the object's controller — is the entry's own
+    /// `controller`, which is what `EventPattern::CounterChange`'s entry door
+    /// reads for Vorinclex; its first sentence, an effect that "may specify
+    /// which player", has no printed customer (Scryfall, 2026-09-13,
+    /// `codebase-state.md` item 43). The card that prints one adds an
+    /// `Option<PlayerId>` here and keys [`Self::merge`] on `(kind, player)`.
     pub counters: Vec<(CounterType, u32)>,
 }
 

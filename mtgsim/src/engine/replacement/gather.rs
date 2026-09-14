@@ -742,6 +742,24 @@ pub(crate) fn pattern_watches(
             GameAction::RemoveCounters { counter: actual, .. },
         ) => !*adding && by.is_none() && counter.map(|c| c == *actual).unwrap_or(true),
 
+        // CR 122.6's second door: "putting counters on that object ... refers
+        // ... also to an object that's given counters as it enters the
+        // battlefield". The counters are the entry's mods, so a pattern
+        // watching counters being put on watches the entry — asking "one or
+        // more" of each kind, and the putter of CR 122.6a's default, the
+        // controller the permanent enters under, which CR 616.1b settles
+        // ahead of anything that asks here. No printed effect names another
+        // putter (Scryfall, 2026-09-13). Nothing is *removed* as a permanent
+        // enters, so `adding: false` matches no entry.
+        (
+            EventPattern::CounterChange { counter, adding: true, by },
+            GameAction::EnterBattlefield { mods, controller, .. },
+        ) => mods.counters.iter().any(|&(kind, n)| {
+            n >= 1
+                && counter.map(|c| c == kind).unwrap_or(true)
+                && by.as_ref().map(|set| set.contains(you, *controller)).unwrap_or(true)
+        }),
+
         // CR 614.1b's skips. Which *player* the effect is around is
         // `set_affects`'s question, one function below — these ask only which
         // unit the effect names, and `None` asks nothing.
