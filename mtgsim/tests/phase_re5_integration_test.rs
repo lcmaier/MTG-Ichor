@@ -692,8 +692,8 @@ fn the_creatures_controller_orders_scales_beside_an_opponents_vigor() {
 
 /// *"Each additional Hardened Scales you control will increase the number of
 /// +1/+1 counters placed on a creature you control by one."* Two additive
-/// rows have one outcome and are asked anyway — `backlog.md` §2.29's next
-/// row, asserted here as the needless prompt it is.
+/// rows have one outcome, and since the review's commutation table nothing
+/// is asked.
 #[test]
 fn two_hardened_scales_add_two() {
     let mut game = setup_two_player_game();
@@ -705,7 +705,7 @@ fn two_hardened_scales_add_two() {
     resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
 
     assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 3);
-    assert_eq!(dp.prompts(), 1, "additive rows commute, and the predicate has no shape for them yet");
+    assert_eq!(dp.prompts(), 0, "additive rows commute");
 }
 
 // --- Vorinclex, Monstrous Raider -------------------------------------------
@@ -1072,4 +1072,103 @@ fn a_prevention_over_a_removal_watches_counters_removed() {
 
     assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 2, "the removal was prevented");
     assert_eq!(count(&game, bears, CounterType::Charge), 0, "another kind's removal was not");
+}
+
+// ---------------------------------------------------------------------------
+// The commutation table (the review's theme B; `backlog.md` §2.29)
+// ---------------------------------------------------------------------------
+
+/// A plus beside an `EnterWith` that adds to a kind the mods already hold is
+/// one outcome — (3 + 2) + 1 is (3 + 1) + 2 — and the table says so: Adaptive
+/// Shimmerer's own three, Master Biomancer's two and Hardened Scales' one are
+/// six with nothing asked.
+#[test]
+fn a_plus_beside_an_enters_with_of_a_present_kind_asks_nothing() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, hardened_scales(), 0);
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    let shimmerer = reanimate_with(&mut game, adaptive_shimmerer(), 0, &dp);
+
+    assert_eq!(count(&game, shimmerer, CounterType::PlusOnePlusOne), 6);
+    assert_eq!(dp.prompts(), 0);
+}
+
+/// A plus on every kind beside an `EnterWith` that writes a *new* kind is a
+/// real order: CR 614.5 gives the plus one opportunity, so a kind written
+/// after it is not raised. Winding Constrictor, "permanents you control
+/// enter with a charge counter", and Adaptive Shimmerer's own +1/+1 counters:
+/// the charge counter is written first (the entering permanent's own effect
+/// is gathered last), and then the Constrictor before or after the three.
+#[test]
+fn a_plus_on_every_kind_beside_an_enters_with_of_a_new_kind_is_a_real_order() {
+    let run = |pick: usize| -> (u32, u32) {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, winding_constrictor(), 0);
+        put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        let shimmerer = reanimate_with(&mut game, adaptive_shimmerer(), 0, &dp);
+        assert!(dp.is_empty(), "one prompt");
+        (count(&game, shimmerer, CounterType::PlusOnePlusOne), count(&game, shimmerer, CounterType::Charge))
+    };
+    let outcomes = [run(0), run(1)];
+    assert!(
+        outcomes.contains(&(3, 2)) && outcomes.contains(&(4, 2)),
+        "Constrictor first raises only the charge; the three first are raised too — got {:?}",
+        outcomes
+    );
+}
+
+/// A multiplier and a plus on disjoint kinds commute, as do a multiplier and
+/// an `EnterWith` writing a kind it does not touch: a loyalty doubler, a
+/// +1/+1 plus and a "+1/+1 counter on entry" anthem around a planeswalker
+/// entering with printed loyalty — six loyalty, two +1/+1, nothing asked.
+#[test]
+fn arithmetic_on_disjoint_kinds_asks_nothing() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        fixture_static(
+            "Fixture Loyalty Doubler",
+            ReplacementDef::new(
+                EventPattern::AddCounters { counter: Some(CounterType::Loyalty), by: None },
+                AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            ),
+        ),
+        0,
+    );
+    put_on_battlefield(
+        &mut game,
+        fixture_static(
+            "Fixture Plus One",
+            ReplacementDef::new(
+                EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
+                AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+                Rewrite::Amount(AmountRewrite::Plus(1)),
+            ),
+        ),
+        0,
+    );
+    put_on_battlefield(
+        &mut game,
+        fixture_static(
+            "Fixture Anthem of Permanents",
+            ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+                Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 1)),
+            ),
+        ),
+        0,
+    );
+    let dp = RecordingDecisionProvider::picking(0);
+
+    let walker = reanimate_with(&mut game, loyalty_three(), 0, &dp);
+
+    assert_eq!(count(&game, walker, CounterType::Loyalty), 6);
+    assert_eq!(count(&game, walker, CounterType::PlusOnePlusOne), 2);
+    assert_eq!(dp.prompts(), 0);
 }

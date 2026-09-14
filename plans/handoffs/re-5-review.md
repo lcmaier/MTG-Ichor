@@ -62,7 +62,15 @@ would gain `by: Option<PlayerId>` the same day — damage removing loyalty
 has no remover, a cost's payer is one. **Answered by R4**; the test
 `a_removal_pattern_naming_a_putter_matches_nothing` is deleted with it.
 
-## Theme B — the needless prompts (R1)
+## Theme B — the needless prompts (R1) — ✅ closed 2026-09-14
+
+*Built in this PR after all: `ordering_cannot_change_outcome` is the
+commutation table with the kind axis, `classify` exhaustive over the rewrite
+arms, `commutes` the table, `check_order_invariance` dispatching on the
+chosen member's cell. Two Scales, Scales beside Biomancer on a present kind,
+disjoint-kind arithmetic and Visitation beside Parallel Lives ask nothing;
+a plus beside an `EnterWith` writing a new kind stays real. §2.29 graduated.
+Re-measured: see the archive's "Reviewed" paragraph.*
 
 **R1 — Scales beside Scales, and Scales beside Biomancer on one kind, commute
 and are asked.** Yes: both have one outcome, and §11 item 19's rule is that

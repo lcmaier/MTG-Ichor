@@ -694,207 +694,284 @@ fn next_damage_shares(
     Ok(shares[..here.len()].to_vec())
 }
 
-/// §11 item 19 — do the effects CR 616.1 would have the player order here
-/// provably reach one outcome whatever order they apply in, so the prompt is
-/// noise?
+/// Does CR 616.1's ordering prompt here have more than one outcome? `false`
+/// means it does, and the affected player is asked. The name is the
+/// question's, not the implementation's (`codebase-state.md` item 65).
 ///
-/// Two shapes qualify, and a mix of them never does.
+/// **A commutation table, since RE-5's review; a list of shapes before it.**
+/// Each candidate is classified by what its application does to the event
+/// that another candidate could read — [`Commuting`] — and the prompt is
+/// suppressed when every pair of members commutes on every counter kind both
+/// touch. The list it replaces (all `EnterWith`, all multipliers, all draw
+/// doublers, one shared `Instead`, one exit) grew one shape per phase and
+/// was corrected four times (`engineering-practices.md` §4.1; `backlog.md`
+/// §2.29), each time because a pair the list had no word for was asked with
+/// one outcome. The table has a word for every pair, and a pair it has no
+/// commuting cell for is asked.
 ///
-/// **Every member an `EnterWith`.** The theorem, and every clause of the
-/// predicate is a premise of it:
+/// **What it checks** (§4.1's first half). Per member, def data: the rewrite's
+/// arm, the pattern's kind and [`EventPattern::reads_the_amount`], a
+/// template's kinds and whether its amounts read the frame
+/// (`EnterModsTemplate::is_fixed`), the affected set's leaves
+/// ([`affected_is_mods_invariant`]). Plus one board read, for an entry only:
+/// which kinds its mods hold now ([`kinds_present`]). Per pair, [`commutes`],
+/// a pure function of two classes and that kind set. The shared clauses —
+/// mandatory, static, under CR 614.5, not counter-derived, no rider — are
+/// what the whole argument assumes: an optional is a second prompt whose
+/// answer can differ per order; a `Uses::Once` or `NextDamage` spends a
+/// registry row; an exempt effect may re-apply; a counter-derived instance is
+/// re-synthesized per gather; riders queue in choice order and run in queue
+/// order (CR 615.5), so two members that both carry one make the order
+/// observable in the log even when the board is identical.
 ///
-/// - **`EnterWith` only.** `EnterMods::merge` is `|=` and `+`, commutative and
-///   associative, so the mods a member adds land the same whatever went
-///   before. A `Prevent` or an `Instead` drops or replaces the event, and
-///   whether the members after it ever apply is then a real question.
-/// - **Applicability cannot depend on what the others add.** This is the
-///   clause the CR 614.12 frame made necessary: `set_affects` now reads the
-///   pending `EnterMods` through the look-ahead, so a `PowerLE` filter can
-///   match before a `-1/-1` counter lands and stop matching after. Adaptive
-///   Shimmerer under "creatures with power 1 or less enter tapped" enters
-///   tapped or untapped depending on which applies first, and *that* prompt
-///   is real. `affected_is_mods_invariant` admits only leaves no `EnterMods`
-///   field can move.
-/// - **Every amount is constant, or is read off a source that is not the
-///   entering object** (RC-5). The commuting half of the theorem was free
-///   while `EnterModsTemplate` held literals. It is not free now: a
-///   `SourcePower` amount is evaluated through `EntryFrame::frame_of(source)`,
-///   which answers the *hypothetical* permanent when the source is the
-///   entering object — so "enters with a counter for each point of its own
-///   power" gives a different number before and after another member's
-///   `-1/-1`. Master Biomancer is the reason this is the exact premise and not
-///   the conservative "all `Fixed`": its source is a real permanent, so its
-///   amount is read off the board and commutes, and Root Maze beside a
-///   Biomancer keeps its suppressed prompt.
+/// **What happens if it runs twice** (§4.1's second half), per class — the
+/// property each commuting cell rests on, and what [`check_order_invariance`]
+/// computes the other way in debug builds:
+/// - *Multiplier by n ≥ 1*: multiplication commutes and leaves every kind on
+///   "one or more"'s side, so no member falls out of applicability
+///   (re-gather). Over an entry its filter must be mods-invariant, since
+///   +1/+1 counters feed power — item 47's condition (c), fired at RE-5.
+/// - *Additive*: addition commutes with addition on any kind; with a
+///   multiplier only on disjoint kinds (3 → 6 → 8 or 3 → 5 → 10, Torbran's
+///   ruling); with an `EnterWith` only on kinds the mods already hold, since
+///   CR 614.5 gives the plus one opportunity and a kind written afterwards is
+///   not raised (re-gather).
+/// - *Mods-adding*: an `EnterWith` writes kinds and reads none — fixed
+///   amounts, or a source that is not the entering object (the frame it would
+///   read, §5b), and a filter no mods field feeds. Two merge in either order
+///   (re-gather); beside a multiplier it commutes only on disjoint kinds,
+///   since doubling before or after the write differs.
+/// - *Draw doubler*: [`draw_doubler_commutes`] — the product, on inners that
+///   carry one cause (re-gather against the first inner).
+/// - *Substitute*: one instance-invariant, idempotent `Instead` shared by its
+///   peers, so every trace ends at `T(e)` whatever `k` (each suppressed
+///   member substituted, and the chosen one re-applied to its own output).
+///   Beside a multiplier only the kind-changing creation with `count:
+///   ReplacedAmount` and `mode: Replace` commutes — repeating defs and
+///   replacing each matched def reach the same count either way, Divine
+///   Visitation beside Parallel Lives, the pair `backlog.md` §2.29 named as
+///   the sixth shape (re-gather).
+/// - *Exit*: one `Instead(ZoneChangeTo)` on an entry absorbs everything a
+///   mods-shaped member or an arithmetic one writes — applied last it
+///   discards the mods, applied first nothing entry-shaped matches what is
+///   left (substituted against the entry with its mods disturbed). Two exits
+///   are a real choice.
 ///
-/// **Every member an `Amount(Multiplier(n))`, `n ≥ 1`, on `DealDamage`**
-/// (RD-2; `replacement-architecture.md` §11 item 29). Multiplication over
-/// `u64` is commutative and associative — saturating included, since
-/// saturation is monotone — so each member's final amount is the product of
-/// the multipliers that apply to it whatever the order. No multiplier can
-/// remove another's applicability: an amount above 0 stays above 0 under any
-/// `n ≥ 1`, so `never_happens` cannot fire between members, and
-/// `EventPattern::DealDamage`'s two fields are about the *source* and about
-/// CR 510.2's combat flag — neither reads the amount, so no member can fall
-/// out of applicability as another changes the number (re-derived at RD-3,
-/// which added them; `codebase-state.md` item 47's condition (d)). Two
-/// Furnaces of Rath are that shape, and the prompt was
-/// noise a human would resent. **Not `Halve`, `Plus` or any prevention arm**:
-/// `Halve` beside `Multiplier` is the phase's headline non-commuting board
-/// (3 → 1 → 2 or 3 → 6 → 3), `Plus` beside `Multiplier` does not commute
-/// either, `LifeFloor` beside one does not (3 → 1 → 2 or 3 → 6 → 1), and a
-/// prevention arm can empty the event.
-///
-/// The clause is [`EventPattern::reads_the_amount`] and not a list of event
-/// kinds: what the theorem needs is that no member can stop applying as another
-/// member changes the number (§11 item 58).
-///
-/// **Every member an `Instead(DrawCards { n ≥ 1, player: None })` on
-/// `EventPattern::DrawCard`, and every member's pattern admits `DrawCause::Effect`
-/// as well as the event's own cause** (RE-2's review). Two Thought Reflections
-/// are the printed board, and the arithmetic is the multiplier shape's one level
-/// out: a doubler does not compose *within* this loop — its output is a
-/// `DrawCards`, which no `EventPattern::DrawCard` watches — it composes through
-/// the **decomposition**, where each inner meets whichever doublers have not
-/// applied. So the total is the product of the members' `n` in any order.
-///
-/// The second half of the premise is what makes that true rather than nearly
-/// true. A substituted instruction keeps the cause it replaced, and its inners
-/// are the parent's cause once and [`DrawCause::Effect`] thereafter — so a
-/// member that admits the parent but *not* `Effect` applies to the first inner
-/// and to none of the others, and the two orders then differ. Worked: `None`
-/// beside `Some(TurnBased)` at `n = 2` and `n = 3` on a turn-based draw gives 4
-/// one way and 6 the other. Nothing prints a turn-based-only draw replacement,
-/// so the exclusion costs no card; leaving it out would cost the theorem.
-///
-/// `player: None` is the other half. Notion Thief's `Some(You)` moves the
-/// event's *subject*, so with two Thieves the order decides who draws — which
-/// is the whole of its ruling, and a prompt the affected player must be asked.
-///
-/// **Shared by all three shapes — mandatory, static, under CR 614.5, not
-/// counter-derived, no rider.** An optional is a second prompt whose answer
-/// can differ per order; a `Uses::Once` or `NextDamage` spends a registry row;
-/// an exempt effect may re-apply; a counter-derived instance is re-synthesized
-/// per gather; riders queue in choice order and run in queue order
-/// (CR 615.5), so two members that both carry one make the order observable
-/// in the event log even when the board is identical. Each is excluded so the
-/// argument has nothing to say about it.
-///
-/// With every member's applicability fixed and every application commuting,
-/// each member applies exactly once in any order (CR 614.5) and the result is
-/// the same. Root Maze beside Idyllic Beachfront — the fuzz harness's every
-/// land drop under Root Maze — and two Furnaces in one red deck are the cases
-/// this exists for.
-///
-/// **A semantics-assuming shortcut, and it carries its expiry conditions**
-/// (`layers-architecture.md` §12 item 3; `codebase-state.md` item 47). The
-/// entry shape goes false the day `EnterMods` gains a field that feeds a
-/// characteristic — face-down, which is Layer 1 and changes everything — or
-/// `ObjectFilter` gains a leaf that reads P/T, keywords or counters, or
-/// `EventPattern::EnterBattlefield` reads `mods`. **Each of those is a
-/// compile error somewhere, and this is where**: a new `EnterModsTemplate`
-/// field breaks `EnterModsTemplate::is_fixed`, which destructures the struct;
-/// a new `ObjectFilter` leaf breaks [`filter_is_mods_invariant`], which
-/// matches every leaf; a new `EventPattern::EnterBattlefield` field breaks
-/// `gather::pattern_watches`' entry arm, which names every field; and a new
-/// pattern arm breaks [`EventPattern::reads_the_amount`]. Whoever fixes the
-/// error re-reads this premise (`plans/handoffs/re-4-review.md`, R10). The
-/// exit shape goes false the day [`substitute`]'s `ZoneChangeTo` leg reads
-/// the entry's `mods`, which [`check_order_invariance`] asks of every
-/// suppression in debug builds. The multiplier shape goes
-/// false the day a pattern arm answers [`EventPattern::reads_the_amount`]
-/// differently, which is a compile error at that function rather than silence
-/// here, or the day a `Multiplier(0)` is printed (refused here by `n ≥ 1`). The draw shape goes
-/// false the day `EventPattern::DrawCard` gains a field the decomposition can
-/// move, or `GameActionTemplate::DrawCards` gains an `n` that is not a literal.
-/// `check_order_invariance` is the debug-build check that computes it the other
-/// way — and for the draw shape it has to ask about the *inner*, since that is
-/// where the suppressed members apply. The name is the
-/// question's, not the implementation's (item 65): does CR 616.1's ordering
-/// prompt here have more than one outcome.
+/// **Expiry conditions**, each a compile error somewhere (`codebase-state.md`
+/// item 47): a new `EnterModsTemplate` field breaks `is_fixed`; a new
+/// `ObjectFilter` leaf breaks [`filter_is_mods_invariant`]; a new
+/// `EventPattern::EnterBattlefield` field breaks `pattern_watches`' entry arm;
+/// a new pattern arm breaks [`EventPattern::reads_the_amount`]; a new template
+/// arm breaks [`template_is_instance_invariant`] and [`template_is_idempotent`];
+/// a new `Rewrite` or `AmountRewrite` arm breaks [`classify`]. Whoever fixes
+/// the error re-reads the cell it lands in. The exit cell goes false the day
+/// [`substitute`]'s `ZoneChangeTo` leg reads the entry's mods, which the debug
+/// check asks of every exit suppression.
 fn ordering_cannot_change_outcome(
     choosable: &[Candidate],
     entering: Option<ObjectId>,
     event: &GameAction,
 ) -> bool {
-    let all_entries = choosable
-        .iter()
-        .all(|c| matches!(c.instance.def.rewrite, Rewrite::EnterWith(_)));
-    let all_multipliers = choosable.iter().all(|c| {
-        !c.instance.def.pattern.reads_the_amount()
-            && matches!(
-                c.instance.def.rewrite,
-                Rewrite::Amount(AmountRewrite::Multiplier(n)) if n >= 1
-            )
-    });
-    let all_draw_doublers = matches!(event, GameAction::DrawCard { .. })
-        && choosable.iter().all(|c| draw_doubler_commutes(&c.instance.def, event));
-    let all_one_substitution = one_shared_instance_invariant_instead(choosable);
-    // The fifth shape — one exit beside `EnterWith`s on an entry. Whichever
-    // applies first, what performs is the exit's substitute: applied after an
-    // `EnterWith`, it discards the mods that application wrote (a move or an
-    // appearance carries none); applied first, nothing entry-shaped matches
-    // what is left. `substitute` builds it from the event's object and `from`
-    // alone, so it is the same event either way and the affected player's
-    // choice has one outcome. Master Biomancer beside Hallowed Moonlight on a
-    // token is the board that asked for it: the counters it would enter with
-    // are on a token that ceases to exist in exile whichever went first
-    // (`plans/handoffs/re-4-review.md`, R15). Not `EnterAfterMoving`: devour
-    // moves other objects while applying, and exiling the devourer after it
-    // devoured is a different board from exiling it first.
-    let one_exit = matches!(event, GameAction::EnterBattlefield { .. })
-        && choosable.iter().filter(|c| is_exit(&c.instance.def.rewrite)).count() == 1
-        && choosable.iter().all(|c| {
-            is_exit(&c.instance.def.rewrite)
-                || matches!(c.instance.def.rewrite, Rewrite::EnterWith(_))
-        });
-    if !(all_entries || all_multipliers || all_draw_doublers || all_one_substitution || one_exit)
-    {
+    if !choosable.iter().all(|c| shared_clauses_hold(&c.instance)) {
         return false;
     }
-    choosable.iter().all(|c| {
-        let def = &c.instance.def;
-        (match &def.rewrite {
-            // Reads the frame only when the source is the object being
-            // computed, so anything else is a board read and commutes. Beside
-            // an exit none of that matters: what it wrote is discarded.
-            Rewrite::EnterWith(t) => {
-                one_exit
-                    || ((t.is_fixed() || Some(c.instance.source) != entering)
-                        && affected_is_mods_invariant(&def.affected))
-            }
-            // A multiplier of one or more reads nothing a multiplier changes:
-            // the count stays on "one or more"'s side and the kinds are the
-            // kinds. Over an *entry* its `affected` filter reads the CR 614.12
-            // frame, which +1/+1 counters feed — item 47's condition (c),
-            // fired by RE-5's door on `AddCounters` — so an entry's members
-            // answer to the same leaf table the `EnterWith` shape does.
-            Rewrite::Amount(AmountRewrite::Multiplier(_)) => {
-                !matches!(event, GameAction::EnterBattlefield { .. })
-                    || affected_is_mods_invariant(&def.affected)
-            }
-            Rewrite::Instead(GameActionTemplate::DrawCards { .. }) => true,
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }) if one_exit => true,
-            // The fourth shape's members, admitted by
-            // `one_shared_instance_invariant_instead` having already checked
-            // that they are all the *same* rewrite.
-            Rewrite::Instead(t) if all_one_substitution => template_is_instance_invariant(t),
-            _ => false,
-        }) && !def.optional
-            && def.then.is_none()
-            && matches!(def.uses, Uses::Static)
-            && !def.exempt_from_614_5
-            && !matches!(c.instance.id, ReplacementInstanceId::Counter(..))
-    })
+    let Some(classes) = choosable
+        .iter()
+        .map(|c| classify(&c.instance, entering, event))
+        .collect::<Option<Vec<Commuting>>>()
+    else {
+        return false;
+    };
+    let present = kinds_present(event);
+    (0..classes.len())
+        .all(|i| (i + 1..classes.len()).all(|j| commutes(&classes[i], &classes[j], &present)))
 }
 
-/// The exit an entry can take instead of entering — [`ordering_cannot_change_outcome`]'s
-/// fifth shape is exactly one of these beside `EnterWith`s.
+/// The clauses every commuting cell assumes of a member — see
+/// [`ordering_cannot_change_outcome`].
+fn shared_clauses_hold(instance: &ReplacementInstance) -> bool {
+    let def = &instance.def;
+    !def.optional
+        && def.then.is_none()
+        && matches!(def.uses, Uses::Static)
+        && !def.exempt_from_614_5
+        && !matches!(instance.id, ReplacementInstanceId::Counter(..))
+}
+
+/// What a candidate's application does to the event that another candidate
+/// could read — [`ordering_cannot_change_outcome`]'s classes. A candidate with
+/// no class keeps CR 616.1's question.
+#[derive(Debug, Clone, PartialEq)]
+enum Commuting<'a> {
+    /// `Amount(Multiplier(n ≥ 1))` on a pattern that reads no amount, over the
+    /// kinds it touches.
+    Multiplier(Kinds),
+    /// `Amount(Plus(k))`, over the kinds it touches.
+    Additive(Kinds),
+    /// An `EnterWith` that writes these kinds and reads nothing an
+    /// application changes.
+    ModsAdding(Kinds),
+    /// [`draw_doubler_commutes`]'s member.
+    DrawDoubler,
+    /// An instance-invariant, idempotent `Instead`, compared by rewrite
+    /// equality with its peers.
+    Substitute(&'a Rewrite),
+    /// `Instead(ZoneChangeTo)` on an entry.
+    Exit,
+}
+
+/// The counter kinds a member touches: a counter pattern's one kind; every
+/// kind for a pattern with no kind axis, since damage, life and a creation
+/// have one amount; the kinds an `EnterWith` writes.
+#[derive(Debug, Clone, PartialEq)]
+enum Kinds {
+    All,
+    These(Vec<CounterType>),
+}
+
+impl Kinds {
+    fn disjoint(&self, other: &Kinds) -> bool {
+        match (self, other) {
+            (Kinds::These(a), Kinds::These(b)) => a.iter().all(|k| !b.contains(k)),
+            (Kinds::All, Kinds::These(b)) | (Kinds::These(b), Kinds::All) => b.is_empty(),
+            (Kinds::All, Kinds::All) => false,
+        }
+    }
+
+    /// These kinds minus `present` — what an `EnterWith` would write *new*.
+    fn without(&self, present: &[CounterType]) -> Kinds {
+        match self {
+            Kinds::All => Kinds::All,
+            Kinds::These(v) => {
+                Kinds::These(v.iter().copied().filter(|k| !present.contains(k)).collect())
+            }
+        }
+    }
+}
+
+/// The kinds a pattern is about — a counter pattern's kind, or every kind.
+fn kinds_of(pattern: &EventPattern) -> Kinds {
+    match pattern {
+        EventPattern::AddCounters { counter: Some(k), .. } => Kinds::These(vec![*k]),
+        _ => Kinds::All,
+    }
+}
+
+/// The kinds an entry's mods hold now, with one or more of each; empty for
+/// any other event.
+fn kinds_present(event: &GameAction) -> Vec<CounterType> {
+    match event {
+        GameAction::EnterBattlefield { mods, .. } => {
+            mods.counters.iter().filter(|r| r.n >= 1).map(|r| r.counter).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// A member's class on this event, or `None` for one the table has no word
+/// for. **Matched exhaustively over `Rewrite` and `AmountRewrite`**, so a new
+/// arm has to classify itself rather than defaulting to "safe" — the one
+/// place the expiry conditions are a compile error for the arithmetic.
+fn classify<'a>(
+    instance: &'a ReplacementInstance,
+    entering: Option<ObjectId>,
+    event: &GameAction,
+) -> Option<Commuting<'a>> {
+    let def = &instance.def;
+    let on_entry = matches!(event, GameAction::EnterBattlefield { .. });
+    // A filter over an entering permanent reads the CR 614.12 frame, which
+    // +1/+1 counters feed; over a finished permanent it reads the board,
+    // which no count in the proposal touches.
+    let arithmetic_ok = !def.pattern.reads_the_amount()
+        && (!on_entry || affected_is_mods_invariant(&def.affected));
+    match &def.rewrite {
+        Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
+            (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
+        }
+        Rewrite::Amount(AmountRewrite::Plus(_)) => {
+            arithmetic_ok.then(|| Commuting::Additive(kinds_of(&def.pattern)))
+        }
+        // A halving can carry a kind from one to zero, out of "one or more";
+        // the prevention arms spend a count or allocate; the floor reads a
+        // life total. Each is a real order beside anything.
+        Rewrite::Amount(
+            AmountRewrite::Halve(_)
+            | AmountRewrite::PreventHalf(_)
+            | AmountRewrite::PreventUpTo(_)
+            | AmountRewrite::PreventRemaining
+            | AmountRewrite::LifeFloor(_),
+        ) => None,
+        // Reads the frame only when the source is the object being computed,
+        // so anything else is a board read and commutes.
+        Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
+            && affected_is_mods_invariant(&def.affected))
+        .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
+        // Devour prompts and moves the board; a control change is CR 616.1b's
+        // own forced step; a prevention and a redirection change what the
+        // others read.
+        Rewrite::EnterAfterMoving(_)
+        | Rewrite::EnterUnderControlOf(_)
+        | Rewrite::Prevent
+        | Rewrite::Retarget(_) => None,
+        Rewrite::Instead(template) => {
+            if on_entry && is_exit(&def.rewrite) {
+                return Some(Commuting::Exit);
+            }
+            if draw_doubler_commutes(def, event) {
+                return Some(Commuting::DrawDoubler);
+            }
+            (template_is_instance_invariant(template) && template_is_idempotent(template))
+                .then(|| Commuting::Substitute(&def.rewrite))
+        }
+    }
+}
+
+/// The table: do two members' applications reach one outcome in either
+/// order? `present` is the kinds an entry's mods hold before either applies.
+/// The cells that commute are listed; every other pair is a real choice.
+fn commutes(a: &Commuting, b: &Commuting, present: &[CounterType]) -> bool {
+    use Commuting::*;
+    match (a, b) {
+        (Multiplier(_), Multiplier(_)) | (Additive(_), Additive(_)) => true,
+        (Multiplier(m), Additive(p)) | (Additive(p), Multiplier(m)) => m.disjoint(p),
+        (Multiplier(m), ModsAdding(w)) | (ModsAdding(w), Multiplier(m)) => m.disjoint(w),
+        (Additive(p), ModsAdding(w)) | (ModsAdding(w), Additive(p)) => {
+            p.disjoint(&w.without(present))
+        }
+        (ModsAdding(_), ModsAdding(_)) => true,
+        (DrawDoubler, DrawDoubler) => true,
+        (Substitute(x), Substitute(y)) => x == y,
+        (Multiplier(_), Substitute(r)) | (Substitute(r), Multiplier(_)) => {
+            replaces_that_many(r)
+        }
+        (Exit, ModsAdding(_) | Multiplier(_) | Additive(_))
+        | (ModsAdding(_) | Multiplier(_) | Additive(_), Exit) => true,
+        _ => false,
+    }
+}
+
+/// The one substitute a multiplier commutes with: a creation replaced
+/// kind-for-kind by "that many" — repeating each def and replacing each
+/// matched def reach the same count either way. An `Append` does not
+/// (the appended count is read once), and every other template is about a
+/// different event.
+fn replaces_that_many(rewrite: &Rewrite) -> bool {
+    matches!(
+        rewrite,
+        Rewrite::Instead(GameActionTemplate::CreateTokens {
+            count: TemplateAmount::ReplacedAmount,
+            mode: TokenSubstitution::Replace,
+            ..
+        })
+    )
+}
+
+/// The exit an entry can take instead of entering — [`Commuting::Exit`].
 fn is_exit(rewrite: &Rewrite) -> bool {
     matches!(rewrite, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }))
 }
 
-/// One member of [`ordering_cannot_change_outcome`]'s draw shape: a doubler that
+/// [`Commuting::DrawDoubler`]'s clause: a doubler that
 /// leaves the draw where it is and admits every cause the decomposition can
 /// stamp on an inner.
 ///
@@ -918,64 +995,11 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
         && cause.map(|c| c == DrawCause::Effect).unwrap_or(true)
 }
 
-/// [`ordering_cannot_change_outcome`]'s fourth shape: every member carries the
-/// **same** [`Rewrite`], and that rewrite is an `Instead` whose substitute is a
-/// pure function of the event.
-///
-/// Two Tainted Remedies are the printed board, and the argument does not mention
-/// the pattern at all. Every member is the same pure function `T` of the event,
-/// so applying some subset of them in some order leaves `T^k(e)` for some
-/// `k ≥ 1` — and **`T` is idempotent**, so every such trace ends at `T(e)`.
-/// Neither which members applied nor how many is observable.
-///
-/// **Two clauses, and neither is free.** [`template_is_instance_invariant`]:
-/// a substitute that embeds the *applying* instance's source or controller is a
-/// different `T` per member, and then even `k = 1` differs.
-/// [`template_is_idempotent`]: without it `k` matters, and `k` is not pinned by
-/// the premise — see below.
-///
-/// **Why `k` is not pinned, which is the step this comment got wrong until the
-/// review asked what the check actually checks.** The first draft argued that
-/// after one application "the same set of members is still applicable, since
-/// applicability is decided against that event". It is not: `applies_to`
-/// resolves `affected_objects` / `affected_players` against *each instance's own*
-/// controller and source, so two defs that are `==` as data can differ on the
-/// same event — `PlayerSet::Opponents` around two different permanents is the
-/// printed case. So order can change **which** members apply and **how many**.
-/// Idempotence is what makes that not matter, and it is the clause that was
-/// doing the work unstated.
-///
-/// `Rewrite` derives `PartialEq`, so "the same rewrite" is the *def data* being
-/// equal. Nothing here compares game state: the release-mode predicate reads no
-/// board at all, and the debug check compares one `GameAction` to one
-/// `GameAction`. Running the loop twice and diffing the board is not available
-/// — an application may prompt, spend a use and nest a batch — which is why the
-/// premise is discharged by argument and spot-checked rather than by replay.
-///
-/// **The residual, named:** a candidate that becomes applicable only after the
-/// rewrite (CR 616.2) joins a later `choosable` alongside whichever members have
-/// not applied, and those differ by order. Their *outcomes* are equal, by the
-/// argument above; what is not identical is the source-object list a prompt
-/// would name. No printed card reaches it, and it is a different question from
-/// the one this predicate answers.
-fn one_shared_instance_invariant_instead(choosable: &[Candidate]) -> bool {
-    let Some(first) = choosable.first() else {
-        return false;
-    };
-    let Rewrite::Instead(template) = &first.instance.def.rewrite else {
-        return false;
-    };
-    template_is_instance_invariant(template)
-        && template_is_idempotent(template)
-        && choosable
-            .iter()
-            .all(|c| c.instance.def.rewrite == first.instance.def.rewrite)
-}
 
 /// Does this template produce the same `GameAction` whichever instance applies
 /// it?
 ///
-/// The leaf table [`one_shared_instance_invariant_instead`] rests on. Matched
+/// The leaf table [`Commuting::Substitute`] rests on. Matched
 /// exhaustively, so a new template arm has to classify itself rather than
 /// defaulting to "safe" — and the two `false`s are the reason the table is not
 /// a constant.
@@ -1010,7 +1034,7 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
 
 /// Does applying this template to its own output produce that output again?
 ///
-/// [`one_shared_instance_invariant_instead`]'s second clause, and the one that
+/// [`Commuting::Substitute`]'s second clause, and the one that
 /// is actually load-bearing: order can change how many of the shared members
 /// apply, so the shape needs `T^k(e) = T(e)`.
 ///
@@ -1025,6 +1049,25 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
 /// answer `false` is one whose output depends on the event in a way that
 /// compounds — "loses twice that much life instead" as a template rather than
 /// as an `AmountRewrite`, which is why doubling lives on that type.
+///
+/// **Why `k` is not pinned, which is the step the substitute cell's first
+/// draft got wrong until the review asked what the check actually checks.**
+/// It argued that after one application "the same set of members is still
+/// applicable, since applicability is decided against that event". It is
+/// not: `applies_to` resolves `affected_objects` / `affected_players` against
+/// *each instance's own* controller and source, so two defs that are `==` as
+/// data can differ on the same event — `PlayerSet::Opponents` around two
+/// different permanents is the printed case. Order can change **which**
+/// members apply and **how many**; idempotence is what makes that not matter,
+/// and it is the clause that was doing the work unstated. `Rewrite` derives
+/// `PartialEq`, so "the same rewrite" is the *def data* being equal; nothing
+/// here compares game state. **The residual, named:** a candidate that
+/// becomes applicable only after the rewrite (CR 616.2) joins a later
+/// `choosable` alongside whichever members have not applied, and those
+/// differ by order. Their *outcomes* are equal, by the argument above; what
+/// is not identical is the source-object list a prompt would name. No
+/// printed card reaches it, and it is a different question from the one
+/// the predicate answers.
 fn template_is_idempotent(template: &GameActionTemplate) -> bool {
     match template {
         GameActionTemplate::ZoneChangeTo { .. } => true,
@@ -1117,7 +1160,7 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
 /// taken against the **first inner**, which is the one carrying the parent's
 /// cause; the premise's `Effect` clause is what makes checking one inner enough.
 ///
-/// **And the fourth shape asks a different *question*, not a different event.**
+/// **And the substitute cell asks a different *question*, not a different event.**
 /// Its members share one `Instead`, so a suppressed one does not have to keep
 /// applying — Tainted Remedy's own ruling is that it stops. What that shape
 /// claims instead is that every member would have produced the *same* event, so
@@ -1144,7 +1187,7 @@ fn check_order_invariance(
         return;
     }
 
-    // The fourth shape: one shared `Instead`, so the claim is sameness of
+    // The substitute cell: one shared `Instead`, so the claim is sameness of
     // output rather than continued applicability.
     if let Rewrite::Instead(_) = &chosen.def.rewrite {
         if mine.iter().all(|(i, _)| i.def.rewrite == chosen.def.rewrite) {
@@ -1185,14 +1228,13 @@ fn check_order_invariance(
         }
     }
 
-    // The fifth shape, chosen the way that stops the others applying: the
-    // exit was taken first, so the suppressed `EnterWith`s no longer match
-    // and continued applicability is not the claim. The claim is that the
-    // exit's substitute ignores whatever they would have written, checked by
-    // substituting against the same entry with its mods disturbed.
-    if is_exit(&chosen.def.rewrite)
-        && mine.iter().all(|(i, _)| matches!(i.def.rewrite, Rewrite::EnterWith(_)))
-    {
+    // The exit cell, chosen the way that stops the others applying: the exit
+    // was taken first, so the suppressed mods-shaped and arithmetic members
+    // no longer match and continued applicability is not the claim. The
+    // claim is that the exit's substitute ignores whatever they would have
+    // written, checked by substituting against the same entry with its mods
+    // disturbed.
+    if is_exit(&chosen.def.rewrite) {
         if let (
             Rewrite::Instead(template),
             GameAction::EnterBattlefield { object, from, controller, mods, cause },

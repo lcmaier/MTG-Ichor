@@ -6142,9 +6142,16 @@ found them.
     writes after it is not raised, and
     `a_multiplier_beside_an_enters_with_is_a_real_order` shows the same for
     a multiplier (6 loyalty and 1 charge, or 6 and 2). Recorded on
-    `backlog.md` §2.29 rather than built: the sixth shape's session should
-    factor commutation per `(rewrite class, kind)`, and RE-5's needless
-    prompts — two Scales, Scales beside Biomancer — are its first two rows.
+    `backlog.md` §2.29 at landing; **built at the review (theme B,
+    2026-09-14)**: `ordering_cannot_change_outcome` is the commutation table
+    §2.29 designed, per `(class, kinds)` with one board read — the kinds an
+    entry's mods hold — so two Scales, Scales beside Biomancer on a present
+    kind, disjoint-kind arithmetic and Divine Visitation beside Parallel Lives
+    ask nothing, while a plus beside an `EnterWith` writing a new kind, a
+    multiplier beside a plus on a shared kind, and a multiplier beside any
+    `EnterWith` it touches stay real. `classify` is exhaustive over `Rewrite`
+    and `AmountRewrite`, which is where the predicate's expiry conditions are
+    a compile error now.
 
 86. **A cost that puts counters must not be an effect that puts counters,
     and the event has no field for it yet.** Doubling Season's ruling: loyalty

@@ -5670,8 +5670,9 @@ was closed on an empty Scryfall query and built at the review (§11 item
 83); Doubling Season's battles are
 `backlog.md` §2.23's; paying {E} is a cost, `cost-architecture.md`'s CP-1
 slot with its first card; proliferate (CR 701.34a) is `backlog.md` §2.5's
-and reads the map this phase built; the additive commutation shapes are
-§2.29's, with RE-5's pairs recorded there (§11 item 85).
+and reads the map this phase built; the additive commutation shapes were
+§2.29's and are built — the review's theme B made the predicate the
+commutation table that entry designed (§11 item 85).
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

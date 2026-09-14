@@ -1256,7 +1256,19 @@ mechanic rather than a migration, which is why it is here and not in
   for both halves until then.
 - **Owner** — none; raised at RE-4's review (R21).
 
-### 2.29 The suppression predicate as a commutation table
+### 2.29 The suppression predicate as a commutation table — ✅ graduated 2026-09-14 (RE-5's review, theme B)
+
+*Built as this entry designed it, in `pipeline::ordering_cannot_change_outcome`:
+a [`Commuting`] class per member — multiplicative, additive, mods-adding,
+draw-doubling, idempotent substitute, absorbing exit — carrying the counter
+kinds it touches, the shared clauses factored into `shared_clauses_hold`,
+and a pairwise `commutes` table with the one board read the kind axis needs,
+which kinds the entry's mods hold now. `classify` is exhaustive over
+`Rewrite` and `AmountRewrite`, so a new arm is a compile error at the table.
+The sixth shape — Divine Visitation beside Parallel Lives — is a cell, and so
+are RE-5's additive pairs; a plus beside an `EnterWith` writing a new kind is
+a real order and stays asked. `check_order_invariance` dispatches on the
+chosen member's cell. The entry is kept as written for the record.*
 
 - **Rules** — CR 616.1's choice among applicable replacement effects, and
   §11 item 19's rule that a choice with one outcome is not put to a player.
