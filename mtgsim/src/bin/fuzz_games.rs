@@ -23,13 +23,15 @@
 // `--require` run and a timing run come from the same binary without the
 // first perturbing the second.
 //
-// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events
-// and `resolved` counts departures from the stack that were not countered or
-// fizzled, and a countered spell has the first without the second. It is not
-// `cause == Resolved`: CR 608.2m's move to the graveyard can itself be
-// replaced, so under Leyline of the Void a spell that resolved perfectly well
-// leaves the stack as `Exiled` (RE-8, 2026-09-14 — it was 13 of 142 casts in
-// one 200-game `stress` run). The other direction is impossible — a spell
+// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast`
+// events; `resolved` counts stack departures a spell's *own resolution*
+// stamped, which is exact and excludes a counter, a fizzle and an exile off
+// the stack alike. It is deliberately not `cause == Resolved`: CR 608.2m's
+// move to the graveyard can itself be replaced, so under Leyline of the Void a
+// spell that resolved perfectly well leaves the stack as `Exiled` (RE-8,
+// 2026-09-14 — it was 13 of 142 casts in one 200-game `stress` run).
+//
+// The other direction is impossible — a spell
 // cannot resolve without having been cast — and the harness checks it in
 // every game, flag or no flag: see `uncast_resolutions`. `resolved > cast` in
 // this table was how `codebase-state.md` item 16c was found.
@@ -566,7 +568,7 @@ struct GameStats {
 /// doing it per event on every run would be a `HashMap` probe the default path
 /// does not owe.
 fn extract_stats<'a>(
-    events: impl Iterator<Item = &'a GameEvent>,
+    records: impl Iterator<Item = &'a mtgsim::events::event::EventRecord>,
     game: &mtgsim::state::game_state::GameState,
     watch: &[String],
     required_colors: &std::collections::HashSet<Color>,
@@ -591,29 +593,10 @@ fn extract_stats<'a>(
         }
     };
 
-    // Collected because the stack-departure arm below needs one fact from a
-    // *later* pass than its own — see `countered`. One `Vec` of references per
-    // game, over a log this function already walks end to end.
-    let events: Vec<&GameEvent> = events.collect();
-
-    // The spells that left the stack without resolving (CR 701.5's counter, and
-    // CR 608.3b's game-rules counter when every target became illegal). Read by
-    // the stack-departure arm below, which cannot tell the two apart by cause.
-    let mut countered: std::collections::HashSet<mtgsim::types::ids::ObjectId> =
-        std::collections::HashSet::new();
-    if !watch.is_empty() {
-        for event in &events {
-            match event {
-                GameEvent::SpellCountered { spell_id, .. }
-                | GameEvent::SpellFizzled { spell_id } => {
-                    countered.insert(*spell_id);
-                }
-                _ => {}
-            }
-        }
-    }
-
-    for event in events {
+    for record in records {
+        // The stamp is read by exactly one arm below; every other one wants the
+        // event alone, as this function always has.
+        let event = &record.event;
         match event {
             GameEvent::SpellCast { spell_id, .. } => {
                 stats.spells_cast += 1;
@@ -647,22 +630,38 @@ fn extract_stats<'a>(
                 // An instant or sorcery goes to the graveyard; a permanent
                 // spell goes to the battlefield. Both are the path having run.
                 //
-                // **Read as "left the stack, and was not countered", not as
-                // `cause == Resolved`** — which is what this was until RE-8's
-                // own measurement caught it. CR 608.2m's move to the graveyard
-                // is an event like any other, so a replacement effect can
-                // change it: under Leyline of the Void a resolved sorcery
-                // leaves the stack as `Stack -> Exile [Exiled]`, and the old
-                // test read that as never having resolved. It was **13 of
-                // Hymn to Tourach's 142 casts** in 200 `stress` games, which
-                // is what made the row look wrong; every `--require` row this
-                // project has recorded on a board with Leyline, Kalitas or a
-                // finality counter on it under-counts the same way.
+                // **A spell resolved iff its stack departure was stamped by
+                // its own resolution**, which is what `EventStamp::resolution`
+                // says and is exact. `resolve_top_of_stack` performs that move
+                // under `ActionContext::resolving`, so the stamp names the
+                // spell itself; every other way off the stack is stamped by
+                // somebody else or by nobody, which is precisely the
+                // difference being asked about:
                 //
-                // The cause cannot discriminate, because Leyline replaces a
-                // *countered* spell's graveyard move too — so the countered
-                // ids are tracked and subtracted instead.
-                if !watch.is_empty() && *from == Zone::Stack && !countered.contains(object_id) {
+                // - **countered** (CR 701.5) — the move is the *countering*
+                //   spell's, so the stamp names that one;
+                // - **fizzled** (CR 608.3b) — `ActionContext::new`, no stamp;
+                // - **exiled off the stack by another effect** — that effect's
+                //   stamp. Nothing registered does this yet, and the predicate
+                //   is already right for the day one does, which a cause-based
+                //   or a countered-minus-departures reading would not be.
+                //
+                // **This was `cause == Resolved` until RE-8's own measurement
+                // caught it**, and the cause cannot do the job: CR 608.2m's
+                // move to the graveyard is an event like any other, so a
+                // replacement rewrites it — under Leyline of the Void a
+                // resolved sorcery leaves the stack as `Stack -> Exile
+                // [Exiled]`. It was **13 of Hymn to Tourach's 142 casts** in
+                // 200 `stress` games. Leyline replaces a *countered* spell's
+                // graveyard move too, so no cause tells the two apart; the
+                // stamp is untouched by any of it, because a substitution
+                // happens inside the resolution that proposed the event.
+                // → `codebase-state.md` "Found by RE-8", item 131, which is
+                // the same erasure seen from the engine's side.
+                if !watch.is_empty()
+                    && *from == Zone::Stack
+                    && record.resolution().is_some_and(|r| r.source == *object_id)
+                {
                     bump(&mut stats, named(*object_id), false);
                 }
                 if *from == Zone::Hand && *to == Zone::Battlefield {
@@ -1012,7 +1011,7 @@ fn run_one_game(
             uncast_resolutions(game.state.events.events(), &game.state),
             {
                 let mut s = extract_stats(
-                    game.state.events.events(),
+                    game.state.events.records().iter(),
                     &game.state,
                     require_names,
                     &required_colors,

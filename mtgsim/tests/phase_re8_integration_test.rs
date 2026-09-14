@@ -533,7 +533,7 @@ fn test_scry_four_orders_both_groups() {
 // nothing fires today, so what is proved here is the half the rule is written
 // about — *"no scry event occurs"*: nothing is looked at, nobody is asked, and
 // the log holds no `Scried` line for a trigger to read. The trigger half is
-// claimable the day item 6 lands, against this same board.
+// claimable the day critical-path item 6 lands, against this same board.
 /// CR 701.22b — a scry 0 is not a small scry, it is no scry.
 #[test]
 fn test_scry_zero_is_no_event_at_all() {
@@ -617,6 +617,33 @@ fn test_a_scry_announces_what_was_actually_looked_at() {
         })
         .collect();
     assert_eq!(scried, vec![(3, 2)], "Elrond's X is 2 where CR 615.5's \"that many\" is 3");
+}
+
+/// Why the count is carried on the event rather than recomputed from the
+/// library's length later: **Opt empties the library it just looked at.**
+///
+/// A scry moves no card between zones, so `min(n, library.len())` looks like
+/// a derivation that would always work. It does not: "Scry 1. Draw a card."
+/// against a one-card library looks at that card and then draws it, so a
+/// reader arriving afterwards sees an empty library and derives 0 where the
+/// answer is 1. Elrond, Master of Healing's X would be wrong on a card that
+/// is in `PERFORMANCE_POOL`.
+#[test]
+fn test_the_count_looked_at_survives_the_library_it_counted() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 1);
+    let dp = test_dp();
+    dp.expect_pick_n(PICK_SCRY, vec![]);
+
+    resolve_spell(&mut game, opt(), 0, &dp);
+
+    assert!(game.players[0].library.is_empty(), "the scried card was then drawn");
+    assert!(
+        game.events
+            .events()
+            .any(|e| matches!(e, GameEvent::Scried { n: 1, looked_at: 1, .. })),
+        "the event still says one card was looked at, which no later read could recover"
+    );
 }
 
 /// The two numbers agree whenever the library is long enough, which is every

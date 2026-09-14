@@ -9,7 +9,8 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, Primitive, EffectRecipient, PatternFill, PlayerRef,
+    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, PatternFill,
+    PlayerRef, Primitive,
     PlayerSet, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};

@@ -615,7 +615,7 @@ critical path, which lists neither; that is the owner's line to add.
   error**: "public zones are zones in which all players can see the cards" is
   this entry, not a zone guard. Corrected in §3.2's table.
 - **Asked at RE-8's close (2026-09-14): should this move up beside CR 113.6?
-  No — but it becomes a named *seam* in item 6's doc, which is a different
+  No — but it becomes a named *seam* in critical-path item 6's doc, which is a different
   thing.** CR 113.6 moved because it **gates** the next item on the spine and
   because RE-8 had five printed cards physically unbuildable without it. This
   entry gates no spine item before Phase 8, and everything RE-8 touched is a
@@ -626,7 +626,7 @@ critical path, which lists neither; that is the owner's line to add.
   reveal cards and before Phase 10, which is where the GUI and the parallel AI
   harness — the two halves of v1 — actually need it.
 
-  **What RE-8 did change is that item 6 must not answer this question by
+  **What RE-8 did change is that critical-path item 6 must not answer this question by
   accident.** CR 603.10a is written about *visibility*, not zones —
   "abilities that trigger when an object that **all players can see** is put
   into a hand or library" — and

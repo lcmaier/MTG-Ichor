@@ -1567,8 +1567,8 @@ impl GameState {
                 // first, are its tail reversed.
                 let looked_at: Vec<ObjectId> =
                     library.iter().rev().take(k).copied().collect();
-                let (top, bottom) =
-                    ask_scry(_ctx.dp, self, player, &looked_at, n, _ctx.resolution.map(|r| r.source));
+                let source = _ctx.resolution.map(|r| r.source);
+                let (top, bottom) = ask_scry(_ctx.dp, self, player, &looked_at, n, source);
 
                 // Rebuilt rather than rotated: the two groups may each have
                 // been reordered, so the only honest write is the whole

@@ -3704,18 +3704,18 @@ hand, which needs critical-path item 6a; decision 3 below counts it.
   `test_opt_with_eligeth_draws_two_and_never_scrys` — Opt under Eligeth draws
   two and the log holds no scry — proves §4.1a's instruction split and the
   kind-changing `Instead` reading the event's amount; the Goggles of Night
-  form waits for item 6, since Goggles scries from a *trigger*.
+  form waits for critical-path item 6, since Goggles scries from a *trigger*.
 - **Dodecapod, Wilt-Leaf Liege, Loxodon Smiter, Nullhide Ferox** and
-  **Obstinate Baloth** stay out with the entry template, under item 6a: their
+  **Obstinate Baloth** stay out with the entry template, under critical-path item 6a: their
   clause is on a card in *hand*, and `gather` has no source that asks one.
   **Library of Leng** and **Guerrilla Tactics** stay out for their own second
-  facility — a hand size (`backlog.md` §2.15) and item 6 — and the board they
+  facility — a hand size (`backlog.md` §2.15) and critical-path item 6 — and the board they
   make together is `plans/atomic-tests/supplemental-docs/603-2f-complexity.md`,
   whose discriminator is §2.9 rather than either.
 
 **`PERFORMANCE_POOL` +2, Mind Rot and Opt**, predicted: the pool's first
 discard outside cleanup and its first scry, so `ZoneChange { Discarded }` and
-`Scry` become rows item 6 can read from a measured game, and the random agent
+`Scry` become rows critical-path item 6 can read from a measured game, and the random agent
 finally reaches CR 701.9b's choice. Hymn to Tourach, Nephalia Academy and
 Eligeth are registered and not pooled — a second discard spell would double the
 first's measurement, and the other two are a land and a six-drop with nothing
@@ -3726,7 +3726,7 @@ the "not invoked" half asserted as zero prompts); `ATOM-701.22a-001` (whole, on
 a scry-3 fixture, since the ordering is what the atom is about and no
 registered card scries more than one); `ATOM-701.22b-001` as `COVERS-PARTIAL`
 — scry 0 announces nothing and looks at nothing, and "the trigger does not
-fire" waits for item 6; `ATOM-701.9b-002` stays **uncovered**, its third
+fire" waits for critical-path item 6; `ATOM-701.9b-002` stays **uncovered**, its third
 chooser having no card.
 
 ##### Decided before writing, because the section left five open (2026-09-14)
@@ -3799,7 +3799,7 @@ wording beside them. So `GameActionTemplate`'s entry arm would have no printed
 customer at all, which is exactly the exception `engineering-practices.md` §4
 carves out of its own ship-the-arm rule: *an arm whose customer needs a facility
 the PR does not have is a ledger line pointing at that facility.* It is one,
-under item 6a. **`by` keeps a printed customer without the facility**: Nephalia
+under critical-path item 6a. **`by` keeps a printed customer without the facility**: Nephalia
 Academy is a Land, so it is on the battlefield sweep, and its `AffectedSet::
 Filter` reaches a card in hand the way every `Filter` already reaches any object
 in any zone. Its one gap is "you may reveal that card", which is §2.9's
@@ -3815,7 +3815,7 @@ zones. What it announces is `GameEvent::Scried { player, n }`, and CR 701.22d is
 why it must: "an ability that triggers whenever a player scries triggers after
 the process described in rule 701.22a is complete, **even if some or all of
 those actions were impossible**" — so a scry against a one-card library is still
-a scry, and item 6 has a line to read that no zone change would have given it.
+a scry, and critical-path item 6 has a line to read that no zone change would have given it.
 `event_amount` reports `n`, which is CR 615.5's "that much" about a scry and is
 what `AmountExpr::ReplacedAmount` reads for Eligeth; nothing prints a rider over
 a scry, and the arm is written because the match is exhaustive and a
@@ -3955,7 +3955,7 @@ atom's board is five cards, one to the bottom and two reordered on top, and no
 registered card scries more than one, so it is built with a fixture and says
 so. `ATOM-701.22b-001` **partial** — scry 0 looks at nothing, asks nobody and
 writes no `Scried` line, which is the half CR 701.22b is written about; "the
-trigger does not fire" is claimable against the same board the day item 6
+trigger does not fire" is claimable against the same board the day critical-path item 6
 lands. `ATOM-701.9b-002` stays uncovered: its third chooser has no card.
 `specdb owed` is **9 before and 9 after** — none of these is in a shipped
 phase, so the gate cannot move, and Phase 8 goes 9 full to 11 full plus 1

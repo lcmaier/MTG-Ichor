@@ -1868,7 +1868,7 @@ fn apply_rewrite(
             // where a 0 is dropped and where a Kenessos would find nothing left
             // to add one to.
             GameAction::Scry { player, n } => {
-                let after = counter_arithmetic(chosen, *amount_rewrite, n as u32)? as u64;
+                let after = plain_arithmetic(chosen, *amount_rewrite, n)?;
                 Ok((
                     Some(GameAction::Scry { player, n: after }),
                     Applied { took_effect: after != n, prevented: 0 },
@@ -1950,21 +1950,42 @@ fn counter_arithmetic(
     arm: AmountRewrite,
     n: u32,
 ) -> Result<u32, String> {
+    let after = plain_arithmetic(chosen, arm, n as u64)?;
+    u32::try_from(after).map_err(|_| {
+        format!(
+            "replacement {:?} takes a counter count to {}, which no permanent or player can hold",
+            chosen.id, after
+        )
+    })
+}
+
+/// [`Rewrite::Amount`]'s arithmetic over a **plain count** — a number with no
+/// life total under it and nothing to prevent.
+///
+/// Two callers and two widths, which is why this sits between them rather than
+/// inside either: a count of counters is a `u32` (`PermanentState`'s map), so
+/// [`counter_arithmetic`] narrows afterwards and names the number it could not
+/// hold; a scry's N is CR 701.22a's `u64` and narrows to nothing, so Kenessos,
+/// Priest of Thassa's leg calls this directly. The scry leg borrowed the
+/// counter one at first, which cast a `u64` down to `u32` and back — a silent
+/// wrap on a number no board can reach but a card could author, and a
+/// counter's error message on a scry (RE-8 review, 2026-09-14).
+///
+/// **The refused arms are refused here, once.** A prevention arm (CR 615) is
+/// about damage and a [`AmountRewrite::LifeFloor`] is about a life total; over
+/// a plain count each is a def whose pattern and rewrite describe different
+/// events, which is the same card-authoring error every other arm reports.
+fn plain_arithmetic(
+    chosen: &ReplacementInstance,
+    arm: AmountRewrite,
+    n: u64,
+) -> Result<u64, String> {
     match arm {
         AmountRewrite::Multiplier(_) | AmountRewrite::Halve(_) | AmountRewrite::Plus(_) => {
-            let after = arm.apply(n as u64);
-            u32::try_from(after).map_err(|_| {
-                format!(
-                    "replacement {:?} takes a counter count to {}, which no permanent or \
-                     player can hold",
-                    chosen.id, after
-                )
-            })
+            Ok(arm.apply(n))
         }
         other => Err(format!(
-            "replacement {:?} applies {:?} to counters being put on; CR 614.16's counter \
-             half is arithmetic over a count, and a prevention (CR 615) or a life floor is \
-             about damage or a life total",
+            "replacement {:?} applies {:?} to a plain count: counters being put on              (CR 614.16), or cards scried (CR 701.22). That arithmetic is over a number,              and a prevention (CR 615) or a life floor is about damage or a life total",
             chosen.id, other
         )),
     }

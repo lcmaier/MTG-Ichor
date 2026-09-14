@@ -27,7 +27,7 @@
 //! `replacement-architecture.md` §11 item 9 and owned by critical-path item 6a.
 //!
 //! **Library of Leng** needs a maximum hand size (`backlog.md` §2.15) and
-//! **Guerrilla Tactics** needs item 6; the board they make together is
+//! **Guerrilla Tactics** needs critical-path item 6; the board they make together is
 //! `plans/atomic-tests/supplemental-docs/603-2f-complexity.md`, whose
 //! discriminator turns out to be neither — it is §2.9's information model, on
 //! CR 603.10a's own words ("an object that all players can see").
@@ -145,7 +145,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
 /// Land, so the battlefield sweep finds it, and its `AffectedSet::Filter`
 /// reaches a card in its controller's hand the way every `Filter` already
 /// reaches any object in any zone. The other sixteen are either on a card in
-/// hand (the Dodecapod family, item 6a) or need a second facility of their own.
+/// hand (the Dodecapod family, critical-path item 6a) or need a second facility of their own.
 ///
 /// Three things the def says, each a different rule:
 ///
@@ -289,7 +289,7 @@ pub fn opt() -> Arc<CardData> {
 /// fixture. The card itself waits on `backlog.md` §2.9: its second ability
 /// looks at the top card of the library and acts on what it is. The cards that
 /// *watch* a scry — Elrond, Master of Healing, and Goggles of Night, which
-/// scries from a trigger rather than replacing one — are item 6's.
+/// scries from a trigger rather than replacing one — are critical-path item 6's.
 ///
 /// Its printed rulings are seven and every one of them is about Partner —
 /// color identity, two commanders in the command zone, commander damage

@@ -193,10 +193,19 @@ pub enum GameEvent {
     /// Healing's, whose ruling is explicit: its trigger "cares about the
     /// number of cards you **actually** looked at. For example, if you were
     /// supposed to scry 3 but only had two cards in your library, X would be
-    /// 2." Carried rather than derived because it is unrecoverable a moment
-    /// later — the performer has rewritten the library by the time anything
-    /// reads this, and a library of two after a scry 3 could have had any
-    /// history. Elrond's trigger itself is item 6's.
+    /// 2." Elrond's trigger itself is critical-path item 6's.
+    ///
+    /// **They agree on almost every board, and `min(n, library.len())` still
+    /// cannot be derived later — Opt is the counter-example, and it is in the
+    /// pool.** A scry moves no card between zones, so it is tempting to
+    /// recompute the count from the library's length whenever a reader wants
+    /// it. But "Scry 1. Draw a card." against a **one-card library** looks at
+    /// that card and then draws it: by the time a trigger is put on the stack
+    /// the library holds zero, and the derivation gives 0 where the answer is
+    /// 1. Anything that empties or refills a library between the scry and the
+    /// read does the same. The count is a fact about an instant that has
+    /// passed, which is what an event log is for — the same argument
+    /// [`Self::ZoneChange`]'s `lki` frame makes one field over.
     ///
     /// **Not a zone change, even when cards moved.** A card going to the
     /// bottom of its own library does not change zones (CR 400.1's zones are
