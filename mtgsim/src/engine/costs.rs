@@ -726,8 +726,8 @@ mod tests {
         for cost in [
             Cost::SacrificeSelf,
             Cost::Sacrifice(creature_filter(), 1),
-            Cost::Discard(crate::types::effects::CardFilter::All, 1),
-            Cost::ExileFromGraveyard(crate::types::effects::CardFilter::All, 1),
+            Cost::Discard(crate::types::effects::ObjectFilter::All, 1),
+            Cost::ExileFromGraveyard(crate::types::effects::ObjectFilter::All, 1),
         ] {
             assert_eq!(
                 payment_order_rank(&cost), RANK_MOVES_AN_OBJECT,

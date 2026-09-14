@@ -25,7 +25,7 @@ use crate::engine::layers::board::Board;
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AmountExpr, CardFilter, Condition, ObjectFilter};
+use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -84,19 +84,25 @@ pub(super) fn holds(
         // carries no player, and the printed shape it is written for is
         // *your* graveyard; a condition over somebody else's is §15.1's
         // `ZoneContainsCard`, which has an owner on it, when a card wants
-        // one. A graveyard card is a non-member of the pass, so its frame is
-        // its own CDA walk at this ceiling (CR 604.3).
+        // one. A graveyard card may be a non-member of the pass, in which case
+        // its frame is its own CDA walk at this ceiling (CR 604.3).
+        //
+        // **The filter is an `ObjectFilter` since LJ folded `CardFilter` in**,
+        // so this arm reads every leaf the layer walk reads rather than the
+        // three the old enum had — and CR 108.4a is what makes that sound off
+        // the battlefield: a card with no controller uses its owner wherever a
+        // controller is asked for, so `ByController` answers here too.
         Condition::CardInGraveyard(filter) => {
             let Some(you) = controller_of(game, board, source, layer_index) else {
                 return false;
             };
             let Some(player) = game.players.get(you) else { return false };
-            player.graveyard.iter().any(|&card| {
-                board.frame_of(game, card, layer_index).is_some_and(|chars| match filter {
-                    CardFilter::All => true,
-                    CardFilter::ByType(t) => chars.types.contains(t),
-                    CardFilter::ByColor(c) => chars.colors.contains(c),
-                })
+            let graveyard = player.graveyard.clone();
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index);
+            graveyard.iter().any(|&card| {
+                board
+                    .frame_of(game, card, layer_index)
+                    .is_some_and(|chars| object_matches_filter(filter, card, &chars, &mut players))
             })
         }
 
@@ -309,26 +315,26 @@ mod tests {
     fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, bears));
+        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
 
         put_in_graveyard(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, bears));
+        assert!(settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
         assert!(settled_holds(
-            &Condition::CardInGraveyard(CardFilter::ByType(CardType::Land)),
+            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Land)),
             &game,
             bears
         ));
         assert!(!settled_holds(
-            &Condition::CardInGraveyard(CardFilter::ByType(CardType::Creature)),
+            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Creature)),
             &game,
             bears
         ));
-        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::ByColor(Color::Red)), &game, bears));
+        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(!settled_holds(&Condition::CardInGraveyard(CardFilter::All), &game, theirs));
+        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, theirs));
     }
 
     #[test]

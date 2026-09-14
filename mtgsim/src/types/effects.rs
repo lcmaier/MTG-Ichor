@@ -374,14 +374,6 @@ impl PlayerSet {
     }
 }
 
-/// Filter for matching cards (extensible)
-#[derive(Debug, Clone, PartialEq)]
-pub enum CardFilter {
-    All,
-    ByType(crate::types::card_types::CardType),
-    ByColor(Color),
-}
-
 /// Duration for continuous effects (rule 611)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Duration {
@@ -413,7 +405,7 @@ pub enum Condition {
     LifeAtLeast(AmountExpr),
     LifeAtMost(AmountExpr),
     OpponentControlsPermanent(ObjectFilter),
-    CardInGraveyard(CardFilter),
+    CardInGraveyard(ObjectFilter),
     SpellWasKicked,
     ModeChosen(usize),
     SourceOnBattlefield,
