@@ -46,8 +46,18 @@ The engine's reading is the four arms (`replacement-architecture.md` §11
 item 80): `main`; **engine**, the branch with the cards *unregistered*;
 **registered**, the old pool; **pooled**, as shipped. **Re-measured after
 the review's theme A (2026-09-14) — the named putter and the split pattern
-arms — and every row below is identical**: the pooled fixture tables are
-byte-for-byte the ones here, CPU flat on all four arms.
+arms — and every row was identical; re-recorded after theme B the same day
+— the commutation table — whose cells the random agent reaches rarely**:
+`Replacement prompts` 2.14 → 2.12 at two seats and 3.12 → 3.08 at four on
+`performance`, 5.04 → 4.94 on `stress` at four, and the four-player rows
+re-routed by those few games; at 200 games the pooled row reads 1.14 → 1.14
+and 2.44 → 2.42. The prompts the pool still asks are not counter pairs — two
+Guardian Seraphs (`PreventUpTo` beside `PreventUpTo`, the table's next
+cell) and devour beside Master Biomancer (opaque by design). The engine arm
+stays `IDENTICAL` to `main` everywhere but `stress` at four seats, where the
+one new cell in `main`'s registry — Divine Visitation beside Parallel Lives —
+re-routes a game or two (prompts 11.28 → 11.27, gathers 2385 → 2385). CPU
+flat on all four arms, both times.
 
 **Engine and registered `IDENTICAL` to `main` outside `=== Timing ===` on
 `performance` at two seats and at four, and the engine arm `IDENTICAL` on
@@ -76,6 +86,7 @@ the registered decks.
 | | performance (84 cards) | stress (145 cards) |
 |---|---|---|
 | P0 / P1 | 28 (56.0%) / 22 (44.0%) | 25 (50.0%) / 25 (50.0%) |
+| Wins by effect | 0 | 0 |
 | Avg turns | 31.4 | 31.4 |
 | Spells cast | 25.1 | 22.1 |
 | Lands played | 19.0 | 17.6 |
@@ -93,7 +104,7 @@ the registered decks.
 | **Replacement gathers** | **1085** | **1090** |
 | **Restriction queries** | **1087** | **1092** |
 | Prevention allocations | 0.00 | 0.04 |
-| Replacement prompts | 2.14 | 1.80 |
+| Replacement prompts | 2.12 | 1.80 |
 | Max batch depth | 6 | 5 |
 
 **The four-player table, re-recorded** — the pool moved, so this one moves
@@ -106,28 +117,28 @@ and no draw on any arm at four seats. Three shell runs at one seed and
 
 | 4 players, 50 games / seed 12345 | performance (84 cards) | stress (145 cards) |
 |---|---|---|
-| Wins by seat | 22 (44%) / 19 (38%) / 6 (12%) / 3 (6%) | 24 (48%) / 14 (28%) / 9 (18%) / 3 (6%) |
+| Wins by seat | 22 (44.0%) / 19 (38.0%) / 6 (12.0%) / 3 (6.0%) | 24 (48.0%) / 14 (28.0%) / 9 (18.0%) / 3 (6.0%) |
 | Wins by effect | 0 | 0 |
-| Avg turns | 59.4 | 61.5 |
-| Spells cast | 44.2 | 44.5 |
-| Lands played | 35.9 | 36.6 |
-| Combat w/ atk | 24.3 | 23.8 |
-| Creatures died | 15.1 | 11.2 |
-| Damage events | 51.4 | 57.0 |
-| Total damage | 144.8 | 166.2 |
-| Life changes | 36.1 | 42.5 |
-| Turns after a departure | 21.1 | 18.4 |
+| Avg turns | 59.2 | 61.5 |
+| Spells cast | 44.1 | 44.5 |
+| Lands played | 35.9 | 36.5 |
+| Combat w/ atk | 24.2 | 23.9 |
+| Creatures died | 15.0 | 11.2 |
+| Damage events | 51.2 | 57.4 |
+| Total damage | 144.2 | 166.8 |
+| Life changes | 36.1 | 42.6 |
+| Turns after a departure | 20.9 | 18.4 |
 | Departed-owned permanents | 0.0 | 0.0 |
-| **Layer walks** | **820** | **1,083** |
-| **Board walks** | **531** | **618** |
-| **Memo hits** | **183,415** | **251,028** |
-| **Layer frames** | **15,628** | **19,436** |
-| **Frames/walk** | **19.06** | **17.95** |
+| **Layer walks** | **818** | **1,083** |
+| **Board walks** | **529** | **618** |
+| **Memo hits** | **182,914** | **251,639** |
+| **Layer frames** | **15,586** | **19,482** |
+| **Frames/walk** | **19.05** | **17.99** |
 | **Dependency checks** | **116** | **227** |
-| **Replacement gathers** | **2072** | **2256** |
-| **Restriction queries** | **2076** | **2262** |
+| **Replacement gathers** | **2066** | **2258** |
+| **Restriction queries** | **2070** | **2264** |
 | Prevention allocations | 0.00 | 0.02 |
-| Replacement prompts | 3.12 | 5.04 |
+| Replacement prompts | 3.08 | 4.94 |
 | Max batch depth | 6 | 6 |
 
 **Re-recorded 2026-09-13 for RE-4** (CR 614.16's token half;

@@ -1268,7 +1268,11 @@ which kinds the entry's mods hold now. `classify` is exhaustive over
 The sixth shape — Divine Visitation beside Parallel Lives — is a cell, and so
 are RE-5's additive pairs; a plus beside an `EnterWith` writing a new kind is
 a real order and stays asked. `check_order_invariance` dispatches on the
-chosen member's cell. The entry is kept as written for the record.*
+chosen member's cell. Measured in the pool, the cells are rare — `Replacement
+prompts` 2.14 → 2.12 per game at two seats — and what the pool still asks is
+two Guardian Seraphs (`PreventUpTo` beside `PreventUpTo`, one outcome, the
+table's next cell and RD's arm) and devour beside Master Biomancer, opaque by
+design. The entry is kept as written for the record.*
 
 - **Rules** — CR 616.1's choice among applicable replacement effects, and
   §11 item 19's rule that a choice with one outcome is not put to a player.

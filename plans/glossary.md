@@ -154,6 +154,13 @@ announces. Performers are loud about failure; callers check legality.
 and carried as `EventSubject`. A damage event has a subject and a source, and
 they are not the same field.
 
+**cell** — one pair of commutation classes in `pipeline::commutes`, the table
+`ordering_cannot_change_outcome` reads: two members whose applications reach
+one outcome in either order, on the counter kinds both touch. A pair with no
+cell is asked (CR 616.1). "The exit cell", "the substitute cell" name the
+class a chosen member fell in, which is what `check_order_invariance`
+dispatches on. → `backlog.md` §2.29, graduated at RE-5's review.
+
 **customer** — what a facility exists for. The *customer* of an arm, a field
 or a rule-stated facility is the CR rule that states it; a *printed customer*
 is a card in print that exercises it, and it is the facility's **test**, not

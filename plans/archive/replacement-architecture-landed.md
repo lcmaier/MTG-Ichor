@@ -3622,6 +3622,49 @@ every registered producer writes the default putter, and a row keyed on
 `deterministic: yes` on every arm. Hardened Scales `--require` 226 / 226 in
 136 of 200, as at landing.
 
+##### Reviewed (2026-09-14) — theme B, and the second pass on A
+
+**The suppression predicate is the commutation table `backlog.md` §2.29
+designed.** The owner's R1 asked why two Scales, and Scales beside Biomancer,
+were asked when they commute; the answer RE-5 had given — recorded on §2.29,
+the table wants its own session — became the session. `ordering_cannot_
+change_outcome` now classifies each candidate by what its application does
+to the event another could read (`Commuting`: multiplier, additive,
+mods-adding, draw doubler, idempotent substitute, absorbing exit), each
+carrying the counter kinds it touches, and suppresses the prompt when every
+pair commutes on the kinds both touch — one board read, which kinds the
+entry's mods hold now, and `classify` exhaustive over `Rewrite` and
+`AmountRewrite` so the expiry conditions are a compile error at the table.
+New cells with one outcome: two additive members; a plus beside an
+`EnterWith` writing to a kind the mods already hold; arithmetic on disjoint
+kinds; an exit beside arithmetic; and the sixth shape §2.29 named, Divine
+Visitation beside Parallel Lives, whose RE-4 test now asserts no prompt.
+Still asked, and tested as real: a multiplier beside a plus on a shared kind,
+a multiplier beside any `EnterWith` it touches, a plus on every kind beside
+an `EnterWith` writing a new kind, a halving beside anything.
+`check_order_invariance` dispatches on the chosen member's cell and ran
+under every suppression in the suite. 1,425 tests, zero warnings; §2.29
+graduated. The second pass on theme A renamed the arms to the action's
+names and made the primitives' putter a written `PlayerRef::You`.
+
+**Re-measured, and the cells are rare in the pool.** Four arms, two seats
+and four. `Replacement prompts` on the pooled `performance` arm: 1.14 → 1.14
+at 200 games and 2.14 → 2.12 at 50 at two seats; 2.44 → 2.42 and 3.12 → 3.08
+at four; `stress` at four 5.04 → 4.94. So the pool's prompts were not the
+counter pairs the section had assumed: with two Scales and a +1/+1 event, or
+two Biomancers beside a Scales, needed in one game, the cells fire a few
+times in 200, and what the pool asks is two Guardian Seraphs (`PreventUpTo`
+beside `PreventUpTo`, one outcome and the table's next cell — RD's arm, not
+this review's) and devour beside Master Biomancer (opaque by design, since
+it prompts and moves the board). The engine arm is `IDENTICAL` to `main` on
+`performance` at both seat counts and on `stress` at two; at four seats on
+`stress` it differs by the one new cell `main`'s registry can reach —
+Divine Visitation beside Parallel Lives — prompts 11.28 → 11.27, gathers
+2385 → 2385, total damage 158.2 → 158.3: a game or two re-routed. CPU/game
+−0.4% (engine), −0.4% (registered), +1.0% (pooled) at two seats; −0.1%,
+−0.1%, +1.4% at four — flat. Both `fuzz-record.md` tables re-recorded from
+this run.
+
 ### Trace-page decisions — the phases that produced a candidate and declined it
 
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*
