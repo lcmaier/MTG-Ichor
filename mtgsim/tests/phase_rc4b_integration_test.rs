@@ -16,7 +16,7 @@ use std::sync::Arc;
 use mtgsim::cards::alpha;
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::phase_rc_cards::containment_priest;
-use mtgsim::engine::actions::{GameAction, ZoneChangeCause};
+use mtgsim::engine::actions::ZoneChangeCause;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -448,6 +448,9 @@ fn test_a_dropped_token_entry_creates_nothing() {
 #[test]
 #[should_panic(expected = "is not a proposal")]
 fn test_a_zone_change_onto_the_battlefield_is_not_a_proposal() {
+    // Imported here rather than at the top: this is the file's only use, and
+    // the test is debug-only, so a top-level import warns in a release build.
+    use mtgsim::engine::actions::GameAction;
     let mut game = setup_two_player_game();
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
     let _ = game.execute_action(

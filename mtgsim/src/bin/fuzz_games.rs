@@ -6,7 +6,12 @@
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
+//        cargo run --bin fuzz_games -- -r "Opt" -r "Eligeth, Crossroads Augur"
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
+//
+// `--require` takes a comma-separated list **and repeats**: the union of every
+// flag, deduplicated, in the order given. Repeating is how a card whose name
+// contains a comma is named at all.
 //
 // `--require` is the *coverage* instrument, as `--pool` is the *cost* one. It
 // forces one copy of each named card into every deck and reports casts,
@@ -230,13 +235,20 @@ fn parse_args() -> Args {
                     // one. Names are matched exactly — `registry.create` is
                     // case-sensitive, and a near-miss is fatal below rather
                     // than silently required-nothing.
-                    let mut names: Vec<String> = Vec::new();
+                    //
+                    // **Repeatable, from RE-8 on**, and that is the whole fix
+                    // for a name with a comma in it: the comma stays a
+                    // separator, so every existing invocation means what it
+                    // meant, and `--require "Eligeth, Crossroads Augur"` — or
+                    // Vorinclex, Monstrous Raider, which RE-5 had to read
+                    // through its tests instead — is said on its own flag.
+                    // A second separator would have been a second spelling of
+                    // one thing.
                     for n in args[i].split(',').map(|n| n.trim()) {
-                        if !n.is_empty() && !names.iter().any(|s| s == n) {
-                            names.push(n.to_string());
+                        if !n.is_empty() && !result.require.iter().any(|s| s == n) {
+                            result.require.push(n.to_string());
                         }
                     }
-                    result.require = names;
                 }
             }
             "--pool" | "-p" => {
