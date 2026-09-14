@@ -636,7 +636,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        affected_objects: ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));

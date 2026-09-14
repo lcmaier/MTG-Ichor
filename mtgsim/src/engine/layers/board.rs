@@ -57,7 +57,7 @@ use crate::types::effects::{
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::zones::Zone;
+use crate::types::zones::{Zone, ZoneSet};
 
 /// One pass's state: the working set and its live frames.
 ///
@@ -212,14 +212,39 @@ impl<'l> Board<'l> {
 
     /// Is `id` in the battlefield zone, or is it the object entering it?
     ///
-    /// The gate a filter row asks before matching. The *zone* rather than
-    /// entity membership (RC-3), which admits a token created in the zone
-    /// with no entity yet; the look-ahead admits the entering object, still
-    /// in its source zone while its entry is decided (RC-4b) — and nothing
-    /// else. A `Fixed`-named member in a graveyard fails it.
+    /// The *zone* rather than entity membership (RC-3), which admits a token
+    /// created in the zone with no entity yet; the look-ahead admits the
+    /// entering object, still in its source zone while its entry is decided
+    /// (RC-4b) — and nothing else.
+    ///
+    /// [`Self::in_zones_or_entering`] generalised this for LJ and this is now
+    /// that call with [`ZoneSet::BATTLEFIELD`]. Kept as its own name because
+    /// `Condition::SourceOnBattlefield` asks exactly this question and asking
+    /// it through a zone set would read as though the answer could vary.
     pub(super) fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
-        self.entering(id).is_some()
-            || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
+        self.in_zones_or_entering(game, id, ZoneSet::BATTLEFIELD)
+    }
+
+    /// Is `id` in one of `zones` — the gate a filter row asks before matching?
+    ///
+    /// **The entering object is asked about as though it were already on the
+    /// battlefield, and that is CR 614.12 rather than a convenience.** The
+    /// look-ahead exists to ask what the object *would be* once it has
+    /// entered, so a row reaches it iff the row reaches the battlefield; its
+    /// source zone is not the question. That single line is the whole of
+    /// ATOM-614.12-001: Yixlid Jailer's "cards in graveyards lose all
+    /// abilities" is graveyard-scoped, so it does **not** reach a Scarwood
+    /// Treefolk entering *from* a graveyard, the Treefolk's "enters tapped"
+    /// survives the look-ahead, and it enters tapped — which is the printed
+    /// answer, and the CR's own worked example.
+    ///
+    /// A `Fixed`-named member is admitted to the working set wherever it is
+    /// (`Board::seed`), and still fails this gate unless a row names its zone.
+    pub(super) fn in_zones_or_entering(&self, game: &GameState, id: ObjectId, zones: ZoneSet) -> bool {
+        if self.entering(id).is_some() {
+            return zones.contains(Zone::Battlefield);
+        }
+        matches!(game.objects.get(&id), Some(obj) if zones.contains(obj.zone))
     }
 
     fn has_frame(&self, id: ObjectId) -> bool {
@@ -621,7 +646,7 @@ fn effect_channels(
             reads.source |= Channels::ABILITIES;
             conditional_reads_of(game, board, first, layer_index, &mut reads, you_channel);
         }
-        if let ObjectSet::Filter { filter } = &first.affected_objects {
+        if let ObjectSet::Filter { filter, .. } = &first.affected_objects {
             filter_reads(filter, &mut reads, you_channel);
         }
     }
@@ -859,7 +884,7 @@ fn affected_members(
             .filter(|host| board.has_frame(*host))
             .into_iter()
             .collect(),
-        ObjectSet::Filter { filter } => {
+        ObjectSet::Filter { filter, zones } => {
             // §5b's asymmetry (`replacement-architecture.md`): the entering
             // object's own row is in its frame and reaches no other member,
             // because it is not on the battlefield yet and CR 604.3 makes
@@ -874,9 +899,11 @@ fn affected_members(
                 .iter()
                 .copied()
                 .filter(|&id| {
-                    // In the battlefield zone, checked first so a `Fixed`-named
-                    // graveyard card costs no filter evaluation.
-                    board.in_battlefield_zone_or_entering(game, id)
+                    // In one of the row's zones, checked first so a member the
+                    // row does not reach costs no filter evaluation — which is
+                    // every graveyard card on a board whose rows are all
+                    // battlefield-scoped.
+                    board.in_zones_or_entering(game, id, *zones)
                         && object_matches_filter(filter, id, &board.frames[&id], &mut players)
                 })
                 .collect()

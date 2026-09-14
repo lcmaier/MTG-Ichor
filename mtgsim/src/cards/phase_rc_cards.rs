@@ -366,12 +366,10 @@ pub fn root_maze() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::Or(
+                ObjectSet::filter(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Land)),
-                    ),
-                },
+                    )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -447,12 +445,10 @@ pub fn containment_priest() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::And(
+                ObjectSet::filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                    ),
-                },
+                    )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -857,12 +853,10 @@ pub fn master_biomancer() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::And(
+                ObjectSet::filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    ),
-                },
+                    )),
                 Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
                     CounterType::PlusOnePlusOne,
                     AmountExpr::SourcePower,

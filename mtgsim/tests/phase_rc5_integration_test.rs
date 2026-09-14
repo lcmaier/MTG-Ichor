@@ -114,7 +114,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
         .rules_text("Creatures entering have devour N.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Battlefield,
                 filter: ObjectFilter::And(
@@ -140,12 +140,10 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
         .rules_text("Creatures you control enter tapped.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            ObjectSet::filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                )),
             Rewrite::EnterWith(EnterModsTemplate::tapped()),
         )))))
         .build()
@@ -210,7 +208,7 @@ fn grants_graveyard_exile(name: &str) -> Arc<CardData> {
         .rules_text("As a creature enters, exile any number of creature cards from your graveyard.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Graveyard,
                 filter: ObjectFilter::ByType(CardType::Creature),
@@ -246,7 +244,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+            ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
             Rewrite::Prevent,
         )))))
         .build()
@@ -274,9 +272,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: ObjectSet::Filter {
-                    filter: ObjectFilter::ByController(PlayerRef::You),
-                },
+                affected_objects: ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
                 affected_players: PlayerSet::Nobody,
                 by: Some(mtgsim::types::restriction::SourceFilter::ControlledBy(PlayerRef::You)),
             },
@@ -301,9 +297,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: ObjectSet::Filter {
-                    filter: ObjectFilter::ByController(PlayerRef::You),
-                },
+                affected_objects: ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
                 affected_players: PlayerSet::Nobody,
                 by: None,
             },

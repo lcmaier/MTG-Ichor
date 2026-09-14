@@ -96,7 +96,7 @@ fn enter_tapped_when(name: &str, filter: ObjectFilter) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::Filter { filter },
+            ObjectSet::filter(filter),
             Rewrite::EnterWith(EnterModsTemplate::tapped()),
         )))))
         .build()
@@ -210,7 +210,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_objects: ObjectSet::filter(ObjectFilter::ByType(CardType::Land)),
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -221,12 +221,10 @@ fn lands_cant_enter() -> Restriction {
 fn no_minus_counters_on_your_creatures() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::AddCounters { counter: Some(CounterType::MinusOneMinusOne), by: None },
-        affected_objects: ObjectSet::Filter {
-            filter: ObjectFilter::And(
+        affected_objects: ObjectSet::filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::ByController(PlayerRef::You)),
-            ),
-        },
+            )),
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -784,7 +782,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
             "No loyalty counters",
             Restriction::Event {
                 pattern: EventPattern::AddCounters { counter: Some(CounterType::Loyalty), by: None },
-                affected_objects: ObjectSet::Filter { filter: ObjectFilter::All },
+                affected_objects: ObjectSet::filter(ObjectFilter::All),
                 affected_players: PlayerSet::Nobody,
                 by: None,
             },

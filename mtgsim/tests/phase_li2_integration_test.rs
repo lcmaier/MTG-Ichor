@@ -576,12 +576,10 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected_objects: ObjectSet::Filter {
-            filter: ObjectFilter::And(
+        affected_objects: ObjectSet::filter(ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::PowerLE(2)),
-            ),
-        },
+            )),
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(1),
             toughness: PtValue::Fixed(1),

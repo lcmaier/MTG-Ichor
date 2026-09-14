@@ -166,7 +166,7 @@ fn cant_be_prevented_this_turn(game: &mut GameState, source: ObjectId, controlle
         created_on_turn: turn,
         def: RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Prevention,
-            to_objects: ObjectSet::Filter { filter: ObjectFilter::All },
+            to_objects: ObjectSet::filter(ObjectFilter::All),
             to_players: PlayerSet::Everyone,
         }),
     });
@@ -211,7 +211,7 @@ fn leyline_fixture() -> Arc<CardData> {
             effect: Effect::Restriction(Box::new(RestrictionDef::new(
                 Restriction::ApplyReplacement {
                     kind: ReplacementKindFilter::Prevention,
-                    to_objects: ObjectSet::Filter { filter: ObjectFilter::All },
+                    to_objects: ObjectSet::filter(ObjectFilter::All),
                     to_players: PlayerSet::Everyone,
                 },
             ))),

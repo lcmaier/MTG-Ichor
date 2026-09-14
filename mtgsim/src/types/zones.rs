@@ -19,6 +19,115 @@ impl Zone {
     }
 }
 
+/// A set of [`Zone`]s — which zones a continuous effect's filter reaches.
+///
+/// **The reach of an `ObjectSet::Filter`, and the reason it is a field on the
+/// set rather than a leaf inside `ObjectFilter`** (`layers-architecture.md`
+/// §13c decision 3). The layer walk asks two different questions at two
+/// different times: *seeding* asks which objects need a frame at all, once per
+/// pass and before any layer runs; *matching* asks whether one candidate
+/// matches, per layer per candidate. A zone answers only the first. As a
+/// filter leaf it would sit inside a boolean algebra that only *matching*
+/// evaluates, and seeding would have to infer reach by walking the tree —
+/// where `Not` makes the answer a complement (`Not(InZone(Battlefield))` is
+/// every library in the game), so a sound inference must widen to "all zones"
+/// at any `Not` and the fast path dies on exactly the cards it exists for.
+///
+/// A `ZoneSet` cannot express a complement, and that is the correct limit: no
+/// printed card says "everywhere but the battlefield". The five that function
+/// in every zone say "from anywhere", which is [`Self::ALL`].
+///
+/// A hand-rolled bitmask following `engine::layers::board::Channels` rather
+/// than a `bitflags` dependency the crate does not have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct ZoneSet(u8);
+
+impl ZoneSet {
+    pub const EMPTY: ZoneSet = ZoneSet(0);
+    pub const LIBRARY: ZoneSet = ZoneSet(1 << 0);
+    pub const HAND: ZoneSet = ZoneSet(1 << 1);
+    pub const BATTLEFIELD: ZoneSet = ZoneSet(1 << 2);
+    pub const GRAVEYARD: ZoneSet = ZoneSet(1 << 3);
+    pub const STACK: ZoneSet = ZoneSet(1 << 4);
+    pub const EXILE: ZoneSet = ZoneSet(1 << 5);
+    pub const COMMAND: ZoneSet = ZoneSet(1 << 6);
+    /// CR 400.1's seven zones — Mycosynth Lattice's "all cards that aren't on
+    /// the battlefield, spells, and permanents".
+    pub const ALL: ZoneSet = ZoneSet((1 << 7) - 1);
+
+    /// The zones this set holds that are **not** the battlefield.
+    ///
+    /// What [`ZoneSet::BATTLEFIELD`]-only rows cost nothing for, and the exact
+    /// question `Board::seed` asks: the battlefield is already every pass's
+    /// working set, so only these zones add members.
+    pub fn beyond_battlefield(self) -> ZoneSet {
+        ZoneSet(self.0 & !ZoneSet::BATTLEFIELD.0)
+    }
+
+    const fn bit(zone: Zone) -> u8 {
+        match zone {
+            Zone::Library => ZoneSet::LIBRARY.0,
+            Zone::Hand => ZoneSet::HAND.0,
+            Zone::Battlefield => ZoneSet::BATTLEFIELD.0,
+            Zone::Graveyard => ZoneSet::GRAVEYARD.0,
+            Zone::Stack => ZoneSet::STACK.0,
+            Zone::Exile => ZoneSet::EXILE.0,
+            Zone::Command => ZoneSet::COMMAND.0,
+        }
+    }
+
+    pub const fn of(zone: Zone) -> ZoneSet {
+        ZoneSet(ZoneSet::bit(zone))
+    }
+
+    pub fn contains(self, zone: Zone) -> bool {
+        self.0 & ZoneSet::bit(zone) != 0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether any zone in this set is hidden (CR 400.2 — library and hand).
+    ///
+    /// **Not used to refuse anything**, and deliberately so: madness functions
+    /// in hand and Aminatou grants into it, so a hidden zone is a legitimate
+    /// reach. It is here for the constraint §13c decision 4 records for
+    /// `backlog.md` §2.9 — a row over a hidden zone must not make that zone's
+    /// order or contents observable — so whoever builds the information model
+    /// has the predicate already written.
+    pub fn touches_hidden_zones(self) -> bool {
+        self.contains(Zone::Library) || self.contains(Zone::Hand)
+    }
+
+    /// Every zone in this set, in [`Zone`] declaration order.
+    pub fn iter(self) -> impl Iterator<Item = Zone> {
+        const ZONES: [Zone; 7] = [
+            Zone::Library,
+            Zone::Hand,
+            Zone::Battlefield,
+            Zone::Graveyard,
+            Zone::Stack,
+            Zone::Exile,
+            Zone::Command,
+        ];
+        ZONES.into_iter().filter(move |&z| self.contains(z))
+    }
+}
+
+impl std::ops::BitOr for ZoneSet {
+    type Output = ZoneSet;
+    fn bitor(self, rhs: ZoneSet) -> ZoneSet {
+        ZoneSet(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitOrAssign for ZoneSet {
+    fn bitor_assign(&mut self, rhs: ZoneSet) {
+        self.0 |= rhs.0;
+    }
+}
+
 /// Why the engine is moving an object between zones.
 ///
 /// This is the semantic carrier that makes CR 701.8b answerable: `(from, to)`

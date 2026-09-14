@@ -1219,12 +1219,10 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected_objects: ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            affected_objects: ObjectSet::filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                )),
             modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
         };
         game.continuous_effects.add(effect);
@@ -1470,12 +1468,10 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected_objects: ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            affected_objects: ObjectSet::filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                )),
             modification: EffectModification::AddColor(Color::Red),
         };
         game.continuous_effects.add(effect);
@@ -1707,9 +1703,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected_objects: ObjectSet::Filter {
-                filter: ObjectFilter::ByType(CardType::Creature),
-            },
+            affected_objects: ObjectSet::filter(ObjectFilter::ByType(CardType::Creature)),
             modification: EffectModification::AddColor(Color::Red),
         };
         game.continuous_effects.add(l5_effect);
@@ -1826,12 +1820,10 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected_objects: ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            affected_objects: ObjectSet::filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                )),
             modification: EffectModification::ModifyPowerToughness {
                 power: PtValue::Fixed(1),
                 toughness: PtValue::Fixed(1),

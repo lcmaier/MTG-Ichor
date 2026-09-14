@@ -183,7 +183,7 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
 /// two cards whose oracle text is identical would be an authoring bug nothing
 /// could catch.
 fn every_permanent_or_player() -> (ObjectSet, PlayerSet) {
-    (ObjectSet::Filter { filter: ObjectFilter::All }, PlayerSet::Everyone)
+    (ObjectSet::filter(ObjectFilter::All), PlayerSet::Everyone)
 }
 
 /// Furnace of Rath — {1}{R}{R}{R}
@@ -351,9 +351,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::ByController(PlayerRef::Opponent),
-                },
+                ObjectSet::filter(ObjectFilter::ByController(PlayerRef::Opponent)),
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::Opponents),
@@ -361,9 +359,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::ByController(PlayerRef::You),
-                },
+                ObjectSet::filter(ObjectFilter::ByController(PlayerRef::You)),
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
             )
             .affecting_players(PlayerSet::You),
@@ -613,7 +609,7 @@ pub fn safe_passage() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: None },
-                            ObjectSet::Filter { filter: creatures_you_control() },
+                            ObjectSet::filter(creatures_you_control()),
                             Rewrite::Prevent,
                         )
                         .affecting_players(PlayerSet::You),
@@ -966,7 +962,7 @@ pub fn daunting_defender() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            ObjectSet::Filter { filter: clerics_you_control() },
+            ObjectSet::filter(clerics_you_control()),
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
         )))
         .build()
@@ -1094,9 +1090,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::ByController(PlayerRef::Opponent),
-                },
+                ObjectSet::filter(ObjectFilter::ByController(PlayerRef::Opponent)),
                 Rewrite::Amount(AmountRewrite::Plus(2)),
             )
             .affecting_players(PlayerSet::Opponents),
@@ -1215,12 +1209,10 @@ pub fn palisade_giant() -> Arc<CardData> {
              to this creature instead.",
         )
         .ability(static_replacement(all_damage_to_you(
-            ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            ObjectSet::filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     Box::new(ObjectFilter::EachOther),
-                ),
-            },
+                )),
             RetargetSpec::ToEffectSource,
         )))
         .build()

@@ -1685,7 +1685,7 @@ impl GameState {
             // 109.5 wants its *current* one, so `compute::object_matches_filter`
             // does it per layer.
             EffectRecipient::FilteredPermanents(filter) => {
-                Some(ObjectSet::Filter { filter: filter.clone() })
+                Some(ObjectSet::filter(filter.clone()))
             }
             EffectRecipient::Implicit => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is

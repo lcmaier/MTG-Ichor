@@ -2,6 +2,7 @@ use super::colors::Color;
 use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
+use super::zones::ZoneSet;
 
 // ---------------------------------------------------------------------------
 // Supporting types
@@ -239,7 +240,19 @@ pub enum ObjectSet {
     /// it's on" — so a snapshot taken when the source entered is wrong the
     /// moment control of the source changes, and Glorious Anthem kept buffing
     /// the team of whoever controlled it at ETB.
-    Filter { filter: ObjectFilter },
+    ///
+    /// **`zones` is which zones the filter reaches**, and it is read at a
+    /// different time from `filter`: `Board::seed` asks it once per pass to
+    /// decide the working set, before any layer runs, while `filter` is asked
+    /// per layer per candidate. That is why it is a field here and not a leaf
+    /// inside [`ObjectFilter`] — `layers-architecture.md` §13c decision 3 has
+    /// the argument, and the short form is that reach must be readable
+    /// syntactically for the fast path to be sound, which a `Not` inside a
+    /// filter tree makes impossible.
+    ///
+    /// Build with [`ObjectSet::filter`] for the battlefield (almost every row)
+    /// or [`ObjectSet::filter_in`] for a row that reaches further.
+    Filter { filter: ObjectFilter, zones: ZoneSet },
     /// A fixed set captured at effect creation time.
     /// Pump spells use this — the target is locked at resolution.
     Fixed(Vec<ObjectId>),
@@ -268,6 +281,43 @@ impl ObjectSet {
     /// walk, the restriction sweep and the replacement pipeline — where a
     /// spelling of an existing value costs them nothing.
     pub const NO_OBJECTS: ObjectSet = ObjectSet::Fixed(Vec::new());
+
+    /// A filter over the battlefield — what "creatures you control" means, and
+    /// what every row meant before the zone field existed.
+    ///
+    /// Named rather than written as a struct literal at ~60 call sites: the
+    /// battlefield is the overwhelming default, and a constructor that says so
+    /// keeps [`ObjectSet::filter_in`] visibly exceptional at the handful of
+    /// sites that reach another zone.
+    pub fn filter(filter: ObjectFilter) -> ObjectSet {
+        ObjectSet::Filter { filter, zones: ZoneSet::BATTLEFIELD }
+    }
+
+    /// A filter that reaches beyond the battlefield — Yixlid Jailer's "cards in
+    /// graveyards", Mycosynth Lattice's "all cards that aren't on the
+    /// battlefield".
+    ///
+    /// The zones are named positively and cannot be a complement; see
+    /// [`ZoneSet`].
+    pub fn filter_in(filter: ObjectFilter, zones: ZoneSet) -> ObjectSet {
+        ObjectSet::Filter { filter, zones }
+    }
+
+    /// Which zones this set can name an object in — the union `Board::seed`
+    /// and `RegistryScopeSummary` read.
+    ///
+    /// **Only `Filter` can answer from its own shape.** `Fixed` names objects
+    /// directly and they are members wherever they are (`Board::seed` adds
+    /// them unconditionally, and has since before this field existed);
+    /// `SourceOnly` and `Host` name a permanent. So the other three report
+    /// `EMPTY` — they add no *zone* to sweep, which is a different statement
+    /// from adding no members.
+    pub fn reachable_zones(&self) -> ZoneSet {
+        match self {
+            ObjectSet::Filter { zones, .. } => *zones,
+            ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::EMPTY,
+        }
+    }
 }
 
 /// Which **players** a replacement or prevention effect applies to — CR 614.1's
