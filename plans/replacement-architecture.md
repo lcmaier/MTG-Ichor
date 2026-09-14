@@ -3489,7 +3489,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 | **RE-5 — counters, on permanents and players** | `CounterChange`'s entry door and `by`; `AddCounters.by` and its `CounterSubject`; item 43's `EnterMods` player half; `Amount` on an entry's mods; `PlayerState`'s counter map (§2.16) | `pattern_watches` **1** more arm; `AddCounters` constructions **2** + performer **1**; `EnterMods`/`EnterModsTemplate` merge **2**; `apply_rewrite`'s `Amount` arm **1**; `poison_counters` readers **4** (one production, `sba.rs:142`) → the map. Predicted **~650 engine, ~550 cards, ~800 tests ≈ 1,900–2,100** | medium-high — top of the band; an `Amount` arm that edits `EnterMods` is new, and the subject enum touches every counter site |
 | **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
 | **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
-| **RE-8 — the producers (CR 701.9, 701.22)** | `Primitive::Discard` with 701.9b's chooser; `caused_by` on the zone-change pattern; the to-battlefield leg; `GameAction::Scry`, its arm, `Primitive::Scry` and `ChoiceKind::Scry` | `resolve.rs` stubs **2** made real; `pattern_watches` **1** field + **1** arm; `apply_rewrite`'s `Instead(ZoneChangeTo)` **1** leg; exhaustive matches **3** for `Scry`; `DecisionProvider` impls **3** for the scry choice. Predicted **~450 engine, ~400 cards, ~500 tests ≈ 1,300–1,500** | low-medium — two producers of the plainest kind; the leg's frame rebuild is already how the loop runs |
+| **RE-8 — the producers (CR 701.9, 701.22)** — ✅ landed | `Primitive::Discard` with 701.9b's chooser; **`ReplacementDef::by`** rather than the `caused_by` this row sized onto the zone-change pattern; `GameAction::Scry`, its arm, `Primitive::Scry` and two scry choice kinds. **The to-battlefield leg did not ship** — every printed customer is on a card in hand, which is CR 113.6 and item 6a (§11 item 87) | `resolve.rs` stubs **2** made real; `pattern_watches` **1** arm and no field, the cause predicate having moved off the pattern; exhaustive matches **3** for `Scry` plus `display.rs`, compiler-forced as in RE-4; `DecisionProvider` impls **0** — the CLI's prompt text only, the others being generic. Predicted at the design check **~200 types, ~430 engine, ~330 cards, ~600 tests, ~15 harness ≈ 1,575**; shipped **+1,737 / −115** — types 195, engine 445, cards 371, tests 710, harness 16 | low-medium, and it landed there; the risk that showed up was neither producer but CR 514.1's cleanup discard, which had been N events where the rule says one |
 | **RE-10 — extra phases, and the turn plan** | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300** | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
 | **RE-9 — mana** | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped` from the activation | exhaustive matches **3**; writers **2** → **1**; `resolve_mana_effect` **1**, `Primitive::ProduceMana` **1**; `pattern_watches` **1**. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150** | low on shape, **the one whose A/B could say no** — a proposal on every land tap |
 
@@ -3732,240 +3732,38 @@ decided at the close.
 → As sized, as built and as measured: `plans/archive/replacement-architecture-landed.md`,
 "RE-7" (evicted 2026-09-13).
 
-#### RE-8 — the producers (CR 701.9, 701.9b, 701.22)
+#### RE-8 — the producers (CR 701.9, 701.9b, 701.22) — ✅ landed 2026-09-14
 
-**Builds:** decision 8, with the design check below overturning three of its
-pieces — `Primitive::Discard(n, DiscardChooser)` with `ChoiceKind::Discard` (the
-cleanup discard's, widened) and "at random" from `GameState.rng`; `by:
-Option<SourceFilter>` on `ReplacementDef` rather than a `caused_by` on the
-zone-change pattern; `GameAction::Scry { player, n }`, its arm,
-`GameEvent::Scried`, `Primitive::Scry` and two scry choice kinds. **The
-to-battlefield leg is not built** — every printed customer functions from the
-hand, which needs critical-path item 6a; decision 3 below counts it.
-**Consumers:**
+*Body evicted to `plans/archive/replacement-architecture-landed.md` under the
+same heading: the section as sized, the design check's nine decisions, what was
+built, what it measured, and the trace-page argument.*
 
-- **Mind Rot** — "Target player discards two cards." The default chooser;
-  the target's choice through `EffectRecipient::Target` on a player. Its test
-  is Notion Thief's ruling from RE-2, now against a printed card: a
-  draw-then-discard the Thief modified still discards.
-- **Hymn to Tourach** — "Target player discards two cards at random." The
-  second chooser, from the owned `rng` (`CLAUDE.md`: randomness is never
-  ambient), so `tests/determinism_test.rs` covers it by construction.
-- **Nephalia Academy** — "If a spell or ability an opponent controls causes
-  you to discard a card, you may reveal that card and put it on top of your
-  library instead of putting it anywhere else." `by`'s printed customer, and
-  the one in the family that does not need the hand: a Land, so the
-  battlefield sweep finds it and its `Filter` reaches a card in hand the way
-  every `Filter` already reaches any object in any zone. `optional`, so it is
-  a real CR 616.1 prompt. Its "you may reveal" is §2.9's information model
-  and a no-op in an omniscient engine, recorded on the card.
-- **Opt** — "Scry 1. Draw a card." The scry producer, and CR 608.2c's "A,
-  then B" in one resolution.
-- **Eligeth, Crossroads Augur** — "Flying. If you would scry a number of
-  cards, draw that many cards instead. Partner." `EventPattern::Scry`, `You`,
-  `Instead(DrawCards { n: ReplacedAmount, player: None })`. Partner is
-  CR 702.124's deck-construction ability with no in-game text, so nothing is
-  dead under the name. Its test is §10's acid test with a different producer:
-  `test_opt_with_eligeth_draws_two_and_never_scrys` — Opt under Eligeth draws
-  two and the log holds no scry — proves §4.1a's instruction split and the
-  kind-changing `Instead` reading the event's amount; the Goggles of Night
-  form waits for item 6, since Goggles scries from a *trigger*.
-- **Dodecapod, Wilt-Leaf Liege, Loxodon Smiter, Nullhide Ferox** and
-  **Obstinate Baloth** stay out with the entry template, under item 6a: their
-  clause is on a card in *hand*, and `gather` has no source that asks one.
-  **Library of Leng** and **Guerrilla Tactics** stay out for their own second
-  facility — a hand size (`backlog.md` §2.15) and item 6 — and the board they
-  make together is `plans/atomic-tests/supplemental-docs/603-2f-complexity.md`,
-  whose discriminator is §2.9 rather than either.
+**Shipped:** `Primitive::Discard(n, DiscardChooser)` with CR 701.9b's default
+and "at random" choosers, N cards as one batch of N members; `GameAction::Scry`
+with `EventPattern::Scry`, `GameEvent::Scried` and a performer that reorders
+the library in the arm and proposes nothing; CR 701.22b as `never_happens`'
+fourth arm; `ChoiceKind::{Discard, Scry, ScryOrder}`; `ReplacementDef::by:
+Option<SourceFilter>` — CR 101.2's "by" asked of a replacement effect, and
+**not** the `caused_by` on `EventPattern::ZoneChange` decision 8 wrote, because
+`Restriction::Event` reuses that pattern and already carries a `by`;
+`GameActionTemplate::DrawCards.n` as a `TemplateAmount`. CR 514.1's cleanup
+discard reshaped to the same one-batch unit the rule describes. Mind Rot, Hymn
+to Tourach, Nephalia Academy, Opt and Eligeth, Crossroads Augur; **`PERFORMANCE_
+POOL` +2**, Mind Rot and Opt.
 
-**`PERFORMANCE_POOL` +2, Mind Rot and Opt**, predicted: the pool's first
-discard outside cleanup and its first scry, so `ZoneChange { Discarded }` and
-`Scry` become rows item 6 can read from a measured game, and the random agent
-finally reaches CR 701.9b's choice. Hymn to Tourach, Nephalia Academy and
-Eligeth are registered and not pooled — a second discard spell would double the
-first's measurement, and the other two are a land and a six-drop with nothing
-in the pool to work on.
+**Not shipped, with the facility named:** the to-battlefield entry
+substitution and the five cards that print it — Dodecapod, Wilt-Leaf Liege,
+Loxodon Smiter, Nullhide Ferox, Obstinate Baloth. All five put the clause on a
+card in **hand**, and `gather` has no source that asks one; that is CR 113.6,
+critical-path item 6a, sized at §11 item 9 and found here by §8's rules pass
+(§11 item 87). Nephalia Academy is a *Land* and is what gave `by` a printed
+customer without it.
 
-**Atoms:** `ATOM-701.9b-001` (the random discard, whole — Hymn to Tourach, with
-the "not invoked" half asserted as zero prompts); `ATOM-701.22a-001` (whole, on
-a scry-3 fixture, since the ordering is what the atom is about and no
-registered card scries more than one); `ATOM-701.22b-001` as `COVERS-PARTIAL`
-— scry 0 announces nothing and looks at nothing, and "the trigger does not
-fire" waits for item 6; `ATOM-701.9b-002` stays **uncovered**, its third
-chooser having no card.
-
-##### Decided before writing, because the section left five open (2026-09-14)
-
-**1. The cause-side predicate is `ReplacementDef.by: Option<SourceFilter>`, and
-it is not a field on the pattern.** The section wrote `caused_by:
-Option<PlayerRef>` on `EventPattern::ZoneChange`; both halves are overturned,
-and the readers were counted first. On the pattern it costs a parameter on
-`pattern_watches` (two callers, `gather::applies_to` and
-`restriction::predicate`) and two arms of it, since a zone-change pattern
-watches an entry through a second door; on the def it costs one conjunct in
-`applies_to`, one builder, one line in `ReplacementDef::new` — the struct is
-built by a literal in exactly one place — and `pattern_watches` is not touched,
-so the restriction file is not either. Six sites against five, which decides
-nothing. **What decides it is that `Restriction::Event` reuses `EventPattern`
-verbatim and already has a `by`.** A cause predicate on the pattern would give
-a "can't" two of them, with one meaning: Tamiyo, Collector of Tales' "spells and
-abilities your opponents control can't cause you to discard cards" would be
-writable as the restriction's `by` or as the pattern's, and nothing would
-choose. One quality, two spellings is the defect `ObjectFilter::Token`'s own doc
-refuses. The second half of the argument is the growth contract: `EventPattern`'s
-arms constrain *the event's fields*, and who controls the proposing spell is not
-one — it is `ActionContext::resolution`, provenance rather than payload, which
-is why CR 101.2's `by` sits outside the pattern on a restriction already.
-
-`SourceFilter` over `PlayerRef` follows from the same sentence. CR 101.2's "by"
-*is* this type; `PlayerRef::Opponent`'s own doc is "a targeted or otherwise
-identified opponent" — one player — where `SourceFilter::ControlledBy(Opponent)`
-already means "any opponent of the effect's controller", evaluated by
-`cause_matches`. So Dodecapod's "a spell or ability an opponent controls causes
-you to discard" and Tamiyo's "can't cause you to discard" become literally one
-predicate with one evaluator, which is `cant-effects-architecture.md` §3.1's
-claim that a "can't" is the same predicate as the effect it withholds, said
-about the cause axis for the first time. `cause_matches` moves out of
-`restriction/predicate.rs` onto the type as `SourceFilter::matches`, so both
-readers ask the enum rather than one file asking the other.
-
-**2. A causeless event matches no `by`, and the rule is already written.** The
-cleanup discard is CR 514.1's turn-based action, proposed under
-`ActionContext::new` with `resolution: None`, so `cause` is `None` and
-`cause_matches` returns `false` for any `Some(by)` — never `true`, never
-"however caused". That is the right answer and not an omission, and it is the
-answer the existing doc already argues for Sigarda and CR 704.5's sacrifices:
-a turn-based or state-based action has no controller, so no `SourceFilter`
-matches one. Read forward it says Nephalia Academy does not redirect a card
-discarded to hand size, and read backward it says a hypothetical "spells and
-abilities your opponents control can't cause you to discard cards" does not
-exempt its controller from CR 514.1 — which is Tamiyo's printed behaviour, and
-the reason Library of Leng has to print "you have no maximum hand size"
-separately. RE-8 adds no rule here; it adds a second customer for one.
-
-**3. The to-battlefield leg does not ship, and neither do five of the section's
-six consumers — because they function from the hand and `gather` has no source
-that asks a card off the battlefield.** Found by the §8 rules pass: CR 701.9's
-neighbours are silent, and the rule that watches it from the ability side is
-CR 113.6, whose 113.6m puts an ability whose effect moves the object it is on
-out of a zone in *that* zone. `gather`'s five sources are the CR 903.9b rule,
-the entering permanent (CR 614.12), the battlefield sweep, the counters and the
-registry; a card in hand is in none of them, so Dodecapod's and Wilt-Leaf
-Liege's clauses would be dead text, and `replacement_ability_sources` is
-populated at ETB, so no gate would see them either. That facility is
-**critical-path item 6a**, sized at §11 item 9, and item 9 says in as many words
-that it is not this phase's to build.
-
-**What that costs, counted rather than assumed.** Scryfall, 2026-09-14: eleven
-cards say "onto the battlefield instead", six are a sorcery's own instruction,
-and **every replacement effect among them is this one family** — Loxodon Smiter,
-Nullhide Ferox, Obstinate Baloth, Wilt-Leaf Liege, with Dodecapod's variant
-wording beside them. So `GameActionTemplate`'s entry arm would have no printed
-customer at all, which is exactly the exception `engineering-practices.md` §4
-carves out of its own ship-the-arm rule: *an arm whose customer needs a facility
-the PR does not have is a ledger line pointing at that facility.* It is one,
-under item 6a. **`by` keeps a printed customer without the facility**: Nephalia
-Academy is a Land, so it is on the battlefield sweep, and its `AffectedSet::
-Filter` reaches a card in hand the way every `Filter` already reaches any object
-in any zone. Its one gap is "you may reveal that card", which is §2.9's
-information model and a no-op in an engine whose every decision provider sees
-the whole board — the same no-op CR 701.22a's "look at the top N cards" is in
-this same PR.
-
-**4. Scry is an event, it announces one, and CR 701.22b is a `never_happens`
-arm.** `GameAction::Scry { player, n }`, subject the player, because Eligeth,
-Crossroads Augur replaces it; its performer asks the choices and reorders the
-library in the arm, proposing nothing, since CR 701.22 moves no card between
-zones. What it announces is `GameEvent::Scried { player, n }`, and CR 701.22d is
-why it must: "an ability that triggers whenever a player scries triggers after
-the process described in rule 701.22a is complete, **even if some or all of
-those actions were impossible**" — so a scry against a one-card library is still
-a scry, and item 6 has a line to read that no zone change would have given it.
-`event_amount` reports `n`, which is CR 615.5's "that much" about a scry and is
-what `AmountExpr::ReplacedAmount` reads for Eligeth; nothing prints a rider over
-a scry, and the arm is written because the match is exhaustive and a
-fallthrough would report "no meaning outside a CR 615.5 rider" from inside one.
-
-**`never_happens` gains its fourth arm and RE-2's `DrawCards { n: 0 }` still
-does not, and the difference is the rules' own words.** CR 701.22b: "If a player
-is instructed to scry 0, **no scry event occurs**. Abilities that trigger
-whenever a player scries won't trigger." That is CR 614.7a's shape exactly —
-CR 120.8's "does not deal damage at all" and CR 119.10's "no life gain event
-would occur" — where CR 121.2 says only that the player performs that many
-individual draws, which is RE-2's decision 3 and stands. It is load-bearing
-twice: a scry 0 that reached the loop would let Eligeth turn it into a draw of
-zero, and it would put a `Scried` line in the log that CR 701.22b says must fire
-nothing.
-
-**The choices are CR 701.22a read literally, and CR 102.2 keeps them off the
-prompt when they are forced.** One `pick_n` over the cards looked at — which go
-on the bottom, bounds `(0, k)`, "any number of them" — then one
-`choose_ordering` per group that holds two or more, "in any order" twice. Opt is
-scry 1, so it asks once and never orders; `ATOM-701.22a-001`'s scry 3 is a
-fixture, and it is the atom that wanted the ordering built rather than deferred.
-`k` is the cards actually there, not `n`: CR 701.22a looks at the top N and a
-short library has fewer, which 701.22d's "even if some or all of those actions
-were impossible" then covers.
-
-**5. Discard is one batch of N members, and CR 701.9b's chooser is a field on
-the primitive.** `Primitive::Discard(AmountExpr, DiscardChooser)` with
-`DiscardChooser::{Affected, AtRandom}` — the rule's first two shapes, and its
-third ("allow another player to choose") waits for its card, so the enum has two
-arms and not three. One batch on `Primitive::Mill`'s argument: the cards are
-chosen and then move together, and CR 603.2c wants "whenever one or more cards
-are discarded" to fire once for Mind Rot. Each card is still its own member and
-its own subject, which is what Library of Leng's ruling describes from the other
-side — *"the Library allows you to decide whether or not to use it on each of
-the cards"* — one CR 616.1 decision per member, in the batch's order, which is
-also that ruling's "you get to decide the order the cards are placed on the
-library". A hand shorter than the amount discards what is there (CR 101.3), the
-way `Primitive::Mill` already mills what is there.
-
-**The chooser is not a `ChoiceKind`.** `ChoiceKind::DiscardToHandSize` becomes
-`ChoiceKind::Discard { source: Option<ObjectId> }` — one kind for one question,
-with `None` naming CR 514.1's turn-based action and `Some` the spell or ability
-that caused it, which is the "why am I being asked this" field
-`ChooseAuxiliaryZoneChange` and `ApplyOptionalReplacement` already carry.
-`AtRandom` asks nothing at all, which is `ATOM-701.9b-001`'s own expected
-result.
-
-**6. `GameActionTemplate::DrawCards.n` becomes a `TemplateAmount`.** Eligeth is
-"draw **that many** cards instead", which is `ReplacedAmount` read off the scry
-through `event_amount` — decision 2's amount on decision 1's template, as the
-section wrote. Thought Reflection and Notion Thief become `Fixed(2)` and
-`Fixed(1)`, and `pipeline::draw_doubler_commutes` reads the `Fixed` arm and
-classifies a `ReplacedAmount` as no class at all: an identity substitution
-commutes with anything, but nothing prints one, and a member with no class keeps
-CR 616.1's question, which is the safe direction for a premise.
-
-**7. Hymn to Tourach draws from `GameState.rng`, and the check that it does is
-`tests/determinism_test.rs` by construction.** `GameState::rng` is seeded by
-`Game::reseed`, and the determinism test builds its deck from
-`default_registry`, so a registered Hymn is in every deck of every seeded game
-it plays. Two runs in one process share a `RandomState` but **not** a
-`rand::rng()` thread-local — that generator advances between them — so a random
-discard drawn from ambient randomness diverges on the second run and the test
-fails on the log comparison. The three shell `fuzz_games` runs at one seed are
-the end-to-end half, with `--require "Hymn to Tourach"` forcing a copy into
-every deck so the path is walked rather than hoped for.
-
-**8. `--require` becomes repeatable, and that is the ten-line fix.** The flag
-splits its argument on commas, so "Eligeth, Crossroads Augur" cannot be named —
-Vorinclex, Monstrous Raider hit the same wall in RE-5 and was read through its
-tests instead. A second phase reading a consumer's reachability off its tests is
-the tell. The fix is not a new separator, which would have to be documented and
-would leave two spellings: **the flag accumulates**, so `--require A --require
-"B, C"` is the union of both, every existing invocation means what it meant, and
-a name with a comma is said on its own.
-
-**9. Sized:** types ~200 (the `Scry` action and pattern, the `Scried` event, the
-chooser enum, `by` and its builder, two choice kinds, the template amount),
-engine ~430 (two performers, `ask_discard`/`ask_scry`, the `by` conjunct with
-its cause threaded through `gather`, the `Scry` substitute arm, the three
-exhaustive matches, `cause_matches` moved), cards ~330 with a rulings pass each,
-tests ~600, harness ~15 — **~1,575**, near the band's floor and the smallest RE
-PR since RE-7. `PERFORMANCE_POOL` +2, Mind Rot and Opt. Trace page: decided at
-the close.
+**Measured:** a **fifth** arm with CR 514.1's old loop restored is `IDENTICAL`
+to `main` on both pools at both seat counts, which attributes the engine arm's
+whole movement to that reshape and leaves the two producers costing a board
+with nothing watching them exactly nothing. Pooled is a re-record. → the
+archive, and `plans/fuzz-record.md`.
 
 #### RE-9 — mana (CR 106.6a; RA's unnamed debt)
 
@@ -4281,8 +4079,29 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   what item 108 was costing every four-player number taken before it. The
   gameplay rows are a different board and not a delta. → `fuzz-record.md`'s
   table, re-recorded there.
-- **RE-8:** +1 gather per discard and per scry that resolves, on the shipped
-  arm only (no pooled card discards or scries before it); middle arm flat.
+- **RE-8 — measured 2026-09-14, and the middle arm's prediction held to the
+  byte once a fifth arm said which change was which.** Four arms plus
+  **engine-oldcleanup**, this branch with CR 514.1's one-card-at-a-time cleanup
+  loop restored — and *that* arm is **`IDENTICAL` to `main` outside
+  `=== Timing ===` on both pools at two seats and at four**. So the two new
+  producers, `by`'s third clause in `applies_to`, a `GameAction` variant with
+  its three exhaustive arms and a `TemplateAmount` on a template cost a board
+  with nothing watching them nothing at all. What moved the engine arm is the
+  cleanup reshape alone — one prompt of N where there were N of one, which
+  spends the agent's RNG differently from that turn on: **23 of 200 games on
+  `performance` and 29 of 200 on `stress`** reach a cleanup discard of two or
+  more, and the aggregates move by tenths (avg turns 31.4 → 31.3, gathers
+  1060 → 1052). The pooled arm is a re-record and a *smaller* board — two
+  nonland cards in 36 slots dilute Hardened Scales, so `Replacement prompts`
+  1.14 → **0.57** at two seats with gathers 1060 → 1018 and avg turns
+  31.4 → 30.4. CPU flat or down everywhere: two seats 16.65 → 16.26 (engine),
+  16.40 (registered), 15.16 (pooled); four seats 55.07 → +0.8%, −2.0%, −2.0%.
+  `--require`: Mind Rot 173 / 172 in **129 of 200 (64%)**, 1.43 copies/deck;
+  Opt 210 / 209 in **139 (70%)**, 1.52; on `stress`, **Eligeth, Crossroads
+  Augur** 121 / 121 in 99 of 200 (50%) — the first reachability row this
+  project has for a card whose name contains a comma, which is what the
+  repeatable `--require` bought. Zero errors, zero panics and zero turn limits
+  on every arm. → `fuzz-record.md`'s tables, both re-recorded.
 - **RE-9:** +1 gather per mana ability that resolves — every land tap, several
   per turn — and the same fast-path argument as RE-1. The prediction is flat
   CPU and a moved `Replacement gathers` row; a fourth binary with the proposal
@@ -4304,7 +4123,7 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
 The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
 pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's and RE-7's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's, RE-7's and RE-8's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4317,7 +4136,8 @@ Thought Reflection in the draw step, and Alms Collector is traced in **both**
 encodings, because the difference between them is a loop and a test can only
 show that the loop does not happen.
 
-**RE-3: no**, **RE-6: no**, **RE-7: no**, **RE-4: no**, **RE-5: no** — each decided at that
+**RE-3: no**, **RE-6: no**, **RE-7: no**, **RE-4: no**, **RE-5: no**, **RE-8:
+no** — each decided at that
 PR's close, each recorded because the phase produced a candidate, and each
 argued where the phase's own record is:
 `plans/archive/replacement-architecture-landed.md`, "Trace-page decisions". The
@@ -6340,6 +6160,66 @@ found them.
     `LifeLossCause::Cost`'s shape on `AddCounters` — so that CR 614.16's
     "the effect of a resolving spell or ability" is what the pattern reads.
     `codebase-state.md`, "Found by RE-5", item 129.
+
+87. **`gather` has no source that asks a card off the battlefield, and
+    five of RE-8's six consumers needed one.** Found by `engineering-
+    practices.md` §8's rules pass: CR 701.9's own neighbours say nothing about
+    where a discard-watching ability lives, and the rule that does is
+    CR 113.6 — whose 113.6m puts an ability whose effect moves the object it
+    is on out of a zone *in that zone*. Dodecapod's and Wilt-Leaf Liege's
+    clause is therefore in the **hand**, and `gather`'s five sources are the
+    CR 903.9b rule, the entering permanent (CR 614.12), the battlefield sweep,
+    the counters and the registry. None asks a card in a hand, and
+    `replacement_ability_sources` is populated at ETB, so no gate would see
+    one either.
+
+    **Counted rather than assumed** (Scryfall, 2026-09-14): eleven cards print
+    "onto the battlefield instead", six are a sorcery's own instruction, and
+    every replacement effect among them is that one family — Loxodon Smiter,
+    Nullhide Ferox, Obstinate Baloth, Wilt-Leaf Liege, with Dodecapod's
+    variant wording. So `GameActionTemplate`'s entry arm would have shipped
+    with no printed customer at all, which is the exception
+    `engineering-practices.md` §4 carves out of its own ship-the-arm rule: an
+    arm whose customer needs a facility the PR does not have is a ledger line
+    pointing at that facility. Both the arm and the five cards are one, under
+    item 6a.
+
+    **Nephalia Academy is what kept `by` honest.** It is a *Land*, so the
+    battlefield sweep finds it and its `AffectedSet::Filter` reaches a card in
+    hand the way every `Filter` already reaches any object in any zone — which
+    is also the reading that says this is **not** item 9's source 2. That item
+    is a **sweep over other zones** for effects about *other* objects
+    (flashback, madness, Wonder, Leyline's opening-hand clause) and it needs
+    CR 113.6's predicate; what the Dodecapod family wants is source 1a's
+    shape, the object the event is about contributing its `SourceOnly`
+    replacements. The two are one PR's worth of work together and item 6a
+    owns both.
+
+88. **CR 514.1's cleanup discard was N events and the rule says one.** The
+    rule: the active player "discards **enough cards** to reduce their hand
+    size to that number" — one turn-based action over N of them. The engine
+    asked one card at a time in a `while` loop and moved each through its own
+    `change_zone`, so a hand of ten made three batches where CR 603.2c's
+    "whenever one or more cards are discarded" should see one. Fixed in this
+    PR rather than recorded, on `codebase-state.md`'s thirty-line rule, and it
+    is the one thing that moved RE-8's engine arm — a fifth arm with the loop
+    restored is **`IDENTICAL` to `main` on both pools**, which is what
+    attributes the movement exactly.
+
+89. **A discard redirected into a hidden zone has undefined characteristics,
+    and RE-8 is the first PR that can produce one.** CR 701.9c: "If a card is
+    discarded, but an effect causes it to be put into a hidden zone instead of
+    into its owner's graveyard without being revealed, all values of that
+    card's characteristics are considered to be undefined." Nephalia Academy
+    does exactly that — hand to library, both hidden — and its "you **may**
+    reveal that card" is the clause that avoids the rule, which the engine
+    does not model because §2.9's information model does not exist.
+
+    **Unreachable, and the rule says why in its own second sentence**: the
+    consequence is that a *cost* specifying a characteristic of the discarded
+    card becomes an illegal payment, and `Cost::Discard` returns `Err` at both
+    its validation and its payment arms. So nothing reads a characteristic of
+    a card discarded this way. `codebase-state.md`, "Found by RE-8".
 
 ## 12. Explicitly out of scope
 

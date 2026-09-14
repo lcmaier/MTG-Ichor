@@ -152,7 +152,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
 /// - **`by`** is CR 101.2's provenance — "a spell or ability an opponent
 ///   controls" — and it is what makes the card leave CR 514.1's cleanup
 ///   discard alone: a turn-based action has no controller, so no
-///   `SourceFilter` matches it. That is the printed behaviour, and it is why
+///   `SourceFilter` matches it. That is the printed behavior, and it is why
 ///   Library of Leng has to print "you have no maximum hand size" as a
 ///   separate sentence rather than relying on this one.
 /// - **`optional`** is "you **may**", so this is a real CR 616.1 prompt of the
@@ -162,7 +162,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
 ///   so a card moved there arrives on top. `Primitive::Mill` reads the same
 ///   end.
 ///
-/// **"You may reveal that card" is not modelled, and nothing is lost today.**
+/// **"You may reveal that card" is not modeled, and nothing is lost today.**
 /// A reveal is a disclosure, and this engine has no per-viewer visibility at
 /// all (`backlog.md` §2.9, whose own verdict is that nothing in the tree
 /// answers "can player N see this object?"). Every decision provider already

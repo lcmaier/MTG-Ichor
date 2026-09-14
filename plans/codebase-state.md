@@ -5674,6 +5674,65 @@ and reads the map this phase built; the additive commutation shapes were
 §2.29's and are built — the review's theme B made the predicate the
 commutation table that entry designed (§11 item 85).
 
+### Found by RE-8 — the producers: discard and scry (2026-09-14)
+
+**Shipped:** `Primitive::Discard(AmountExpr, DiscardChooser)` with CR 701.9b's
+default and "at random" choosers, moving N cards as **one batch of N members**
+(`Primitive::Mill`'s argument, and CR 603.2c's unit); `GameState::
+random_cards_from`, the first "at random" that is not a shuffle, drawn from the
+game's own `rng`; `GameAction::Scry { player, n }` with `EventPattern::Scry`,
+`GameEvent::Scried` and a performer that reorders the library in the arm and
+proposes nothing (CR 701.22 moves no card between zones); CR 701.22b as
+`never_happens`' fourth arm, where RE-2's `DrawCards { n: 0 }` still has none;
+`ChoiceKind::{Discard, Scry, ScryOrder}` — `Discard` widened from
+`DiscardToHandSize`, one kind for CR 514.1's turn-based action and a
+resolution's instruction alike, with `source` the only difference;
+`ReplacementDef::by: Option<SourceFilter>`, CR 101.2's "by" asked of a
+replacement effect, with `SourceFilter::matches` moved onto the type so a
+"can't" and a replacement ask one question with one evaluator, and
+`pipeline::cause_of` naming the expression that answers it from a proposal's
+context; `GameActionTemplate::DrawCards.n` as a `TemplateAmount`, and
+`substitute`'s third draw leg turning a scry into a draw. Mind Rot, Hymn to
+Tourach, Nephalia Academy (pooled: Mind Rot and Opt), Opt, Eligeth, Crossroads
+Augur. `backlog.md` §2.5's RE-8 line struck; `--require` made repeatable.
+
+**And CR 514.1's cleanup discard was reshaped rather than recorded**, on this
+section's own thirty-line rule: the rule is one turn-based action over "enough
+cards" and the engine asked one card at a time in a `while` loop, so a hand of
+ten made three batches where a CR 603.2c trigger should see one
+(`replacement-architecture.md` §11 item 88). **Left absent, with its customer
+named:**
+
+130. **A discard redirected into a hidden zone has undefined characteristics,
+     and nothing models it.** CR 701.9c: a card discarded but put "into a
+     hidden zone instead of into its owner's graveyard **without being
+     revealed**" has every characteristic undefined, and a cost that named one
+     of those characteristics becomes an illegal payment (CR 732). Nephalia
+     Academy produces the board — hand to library, both hidden — and its "you
+     may reveal that card" is the clause that avoids the rule, which the
+     engine does not model at all: `Zone::is_public` exists with **zero
+     callers** and no query takes a viewing player (`backlog.md` §2.9).
+
+     **Reachability (2026-09-14):** unreachable — the rule's consequence is
+     about a *cost*, and `Cost::Discard` returns `Err` at both its validation
+     and its payment arms (`engine/costs.rs`), so nothing reads a
+     characteristic of a card discarded this way. `ATOM-701.9c-001` is the
+     corpus's board and is uncovered, filed Phase 8.
+
+     **Sized:** a `revealed: bool` on the discard's zone change or, better,
+     §2.9's per-viewer query answering it; plus the validation half of
+     `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
+     a flag written by one card is the shape §2.9 exists to replace.
+
+What is *not* a ledger line, and where each waits: the to-battlefield entry
+substitution and the five cards that print it are CR 113.6's, critical-path
+item 6a (§11 item 87); CR 701.9b's third chooser — "another player chooses",
+Coercion — is `backlog.md` §2.5's with its first card, and wants §2.9's reveal
+beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
+effect making more than one player scry, and the corpus already defers it;
+`Cost::Discard` itself is `backlog.md` §2.5's unimplemented half and was not
+made reachable by this phase.
+
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

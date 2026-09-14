@@ -191,7 +191,19 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   captured their tickets; the remainder stay on their shipped phases —
   `orphaned --bucket unbuilt` lists them under CR 701 (11 at the 2026-08-31
   re-count). Nothing of this section remains in `owed`.
-- **`Discard` and `Scry` are RE-8's (2026-09-11)** — on RD-1's precedent
+- **~~`Discard` and `Scry` are RE-8's (2026-09-11)~~ — ✅ built 2026-09-14.**
+  `Primitive::Discard(n, DiscardChooser)` with CR 701.9b's default and random
+  choosers, `Primitive::Scry` with `GameAction::Scry`, `GameEvent::Scried` and
+  CR 701.22a's three choices; the cause predicate landed as
+  `ReplacementDef::by: Option<SourceFilter>` rather than a `caused_by` on the
+  zone-change pattern, with Nephalia Academy as its printed customer. Mind Rot,
+  Hymn to Tourach, Opt and Eligeth, Crossroads Augur beside it; Mind Rot and
+  Opt pooled. **Two halves stayed behind, each with its facility named**: the
+  to-battlefield leg and the five cards that print it (Dodecapod, Wilt-Leaf
+  Liege, Loxodon Smiter, Nullhide Ferox, Obstinate Baloth), whose clause is on
+  a card in *hand* and so wants CR 113.6 — critical-path item 6a,
+  `replacement-architecture.md` §11 item 87 — and 701.9b's third chooser,
+  below. *Original entry:* — on RD-1's precedent
   (`Primitive::Mill` landed inside a replacement PR because a rider needed it).
   The replacement arm for discards has existed since RB (`EventPattern::
   ZoneChange { cause: Some(Discarded) }`); RE-8 builds the producer with
