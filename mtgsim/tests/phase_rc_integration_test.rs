@@ -398,11 +398,18 @@ fn orb_shaped() -> Arc<CardData> {
 /// intrinsic one, so a tapland under Blood Moon enters **untapped** — the real
 /// ruling, and now the engine's answer.
 ///
-/// It needed one predicate: `effect_applies_to` gated a filter-scoped
-/// `ContinuousEffect` on `game.battlefield` *membership*, and an entering
-/// permanent is in the battlefield **zone** with no entry yet. Blood Moon is
-/// one of CR 614.12 clause (3)'s "continuous effects that already exist and
-/// would apply to the object", so the filter has to be allowed to match it.
+/// It needed one predicate: the layer gate (then `effect_applies_to`, now
+/// `Board::in_zones_or_entering`) gated a filter-scoped `ContinuousEffect` on
+/// `game.battlefield` *membership*, and an entering permanent is in the
+/// battlefield **zone** with no entry yet. Blood Moon is one of CR 614.12
+/// clause (3)'s "continuous effects that already exist and would apply to the
+/// object", so the filter has to be allowed to match it.
+///
+/// **Still partial, and the atom is no longer owed.** This board is
+/// battlefield-scoped, so it exercises the look-ahead's clause (3) and not the
+/// atom's own board, whose effect reaches a *graveyard*. That is LJ's
+/// `test_a_treefolk_reanimated_under_yixlid_jailer_still_enters_tapped`
+/// (`tests/phase_lj_integration_test.rs`), which carries the full `COVERS:`.
 // COVERS-PARTIAL: ATOM-614.12-001
 #[test]
 fn test_blood_moon_strips_an_entering_taplands_ability() {

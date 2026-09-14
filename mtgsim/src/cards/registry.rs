@@ -163,7 +163,7 @@ const PERFORMANCE_POOL: [&str; 87] = [
     "Master Biomancer",
     // LH-1 — the pool's first Aura, and so its first `Host` row:
     // membership is a `battlefield` read per candidate per layer rather than
-    // a filter match, a new arm in `effect_applies_to`. Also the first spell
+    // a filter match, a new arm in `board::affected_members`. Also the first spell
     // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
     // fizzle and CR 704.5m/n in front of a random game.
     "Holy Strength",

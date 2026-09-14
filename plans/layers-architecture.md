@@ -587,20 +587,21 @@ Continuous effects can and do touch hidden zones. Mycosynth Lattice ("All cards 
 
 What we *can* do is a **runtime fast path**: in the vast majority of games, no continuous effect targets objects outside the battlefield/stack. Detect that condition cheaply and skip the pipeline when it holds.
 
-**Mechanism:** the `ContinuousEffectRegistry` maintains a summary flag set computed on every `add`/`remove`:
+**Mechanism:** the `ContinuousEffectRegistry` maintains a summary flag set computed on every `add`/`remove`. **The three fields below were this section's plan and are not what shipped** — `RegistryScopeSummary` exists, carried eight fields by RE-8, and LJ added the zone field as a `ZoneSet` rather than as the two bools (§13c decision 2):
 
 ```rust
 pub struct RegistryScopeSummary {
-    /// True iff any active effect's `affected_objects` could match objects in
-    /// hand / library / graveyard / exile. Set on register; cleared on
-    /// the last applicable effect's removal.
-    pub touches_hidden_zones: bool,
-    /// True iff any active effect could match stack objects.
-    pub touches_stack: bool,
-    /// True iff any active CDA exists at all.
-    pub has_active_cdas: bool,
+    /// The union of every row's reachable zones — LJ. A set, not
+    /// `touches_hidden_zones: bool`, so a graveyard-scoped row costs
+    /// graveyards and not libraries; `beyond_battlefield()` is what
+    /// `Board::seed` adds members for, and it is empty on an ordinary board.
+    pub reachable_zones: ZoneSet,
+    // ...plus eight gate flags added by Layer 2, RS-1, CV-1, CM-1 and RE-8;
+    // `state/continuous_effects.rs` is the list, each with its own reason.
 }
 ```
+
+`touches_stack` and `has_active_cdas` were never built. The stack half is subsumed: `ZoneSet::STACK` is a zone like any other. The CDA half is not a registry question at all — CR 604.3a(3) keeps CDAs out of the registry entirely (§6), so the fast path's CDA term is `cda::has_any_cda` read off the object's own list, which is where `compute_non_member` already asks it.
 
 Then `compute_characteristics(game, id, zone)` dispatches:
 
@@ -1561,6 +1562,8 @@ read is answered, and the three boards above are its findings.
 
 ## 13c. Phase LJ — the zone-reaching `ObjectSet` (live plan, 2026-09-14)
 
+#### LJ — the zone-reaching `ObjectSet` — ✅ landed 2026-09-14
+
 **Lettered for the reason §13a and §13b are**, and written before LJ-1 the way
 both of those were written before their first PR: the finding that sets the
 scope, the decisions the phase was asked to settle first, the pieces, and a
@@ -1718,7 +1721,7 @@ its meaning and `battlefield_ids` is byte-identical (the finding above).
 check even though the answer today is no: the layer walk holds **zero**
 `DecisionProvider`, prompt or log sites — it is pure computation producing
 frames, and a frame is observable only by querying that object. Nothing
-serialises member order. The first consumer additionally reaches only
+serializes member order. The first consumer additionally reaches only
 **graveyards, which CR 400.2 makes a *public* zone**; library and hand are the
 hidden ones. So LJ has no hidden-zone exposure at all.
 
@@ -1737,7 +1740,7 @@ landed on 2026-09-08, so the fold would put a sweep across the cost surface
 inside a PR already changing the working set. That is only a risk if the cost
 surface *reads* the filter, and it does not: the `CardFilter` inside
 `Cost::Discard` and `Cost::ExileFromGraveyard` is **inert** — every consumer
-in `engine/costs.rs` matches it as `_`. There is no behaviour in the cost half
+in `engine/costs.rs` matches it as `_`. There is no behavior in the cost half
 to break, only a type the compiler swaps. The one live matcher is the
 three-arm one at `condition.rs:96–98` under `Condition::CardInGraveyard`,
 which becomes a call to `object_matches_filter`.

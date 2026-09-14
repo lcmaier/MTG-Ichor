@@ -35,7 +35,8 @@
 //! permanent. That is false, and it was never true.** There are two filter
 //! paths and they are different functions:
 //!
-//! - `compute.rs::effect_applies_to` gates on `game.battlefield.contains_key`
+//! - the layer gate (then `compute.rs::effect_applies_to`, since RC-3
+//!   `board.rs::Board::in_zones_or_entering`) gates on `game.battlefield.contains_key`
 //!   and governs **`ContinuousEffect`** — the layer registry. That is the gate
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
@@ -120,7 +121,8 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 ///
 /// **It does not, and this card is what found out.** Blood Moon's row is a
 /// `ContinuousEffect` whose `ObjectSet` is a `Filter`, and
-/// `compute.rs::effect_applies_to` returns `false` for a filter effect against
+/// the layer gate (then `compute.rs::effect_applies_to`, now
+/// `board.rs::Board::in_zones_or_entering`) returns `false` for a filter effect against
 /// an object that is not on the battlefield — so the *layer registry* reaches
 /// no entering permanent. That gate is Phase **RC-3**'s one line, and until it
 /// moves the strip is real everywhere except at the instant it matters here.

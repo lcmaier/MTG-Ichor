@@ -231,7 +231,7 @@ pub enum ObjectSet {
     /// A data-driven filter ("creatures you control").
     ///
     /// **The filter is stored unresolved.** `ObjectFilter::ByController`
-    /// carries a `PlayerRef`, and `compute::effect_applies_to` resolves it
+    /// carries a `PlayerRef`, and `compute::object_matches_filter` resolves it
     /// during the layer walk against the source's *effective* controller.
     ///
     /// This used to carry a `controller: Option<PlayerId>` that

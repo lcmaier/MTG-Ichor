@@ -245,7 +245,7 @@ impl<'l> Board<'l> {
     /// entering object, still in its source zone while its entry is decided
     /// (RC-4b) — and nothing else.
     ///
-    /// [`Self::in_zones_or_entering`] generalised this for LJ and this is now
+    /// [`Self::in_zones_or_entering`] generalized this for LJ and this is now
     /// that call with [`ZoneSet::BATTLEFIELD`]. Kept as its own name because
     /// `Condition::SourceOnBattlefield` asks exactly this question and asking
     /// it through a zone set would read as though the answer could vary.

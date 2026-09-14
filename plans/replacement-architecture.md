@@ -4467,7 +4467,13 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
 
    **The phase should close without it, and the count is not why.** The sweep
    is the easy half — one loop over a zone list instead of
-   `battlefield_ids_ordered`. What source 2 actually needs is **CR 113.6**, the
+   `battlefield_ids_ordered`. **That sentence was wrong, and LJ is what found
+   out** (2026-09-14): the loop is not the work, because the filter's
+   candidates come from `Board::members` and a graveyard card was never one.
+   It is a *working-set* change — `Board::seed`, `membership` and
+   `compute_non_member`'s fast exit all have to agree that an object off the
+   battlefield can be reached at all — and the guard that keeps it free is
+   what carries the cost, not the sweep. See `layers-architecture.md` §13c. What source 2 actually needs is **CR 113.6**, the
    fourteen-subrule answer to "which of an object's abilities function in which
    zone", and the engine has that nowhere. A graveyard sweep that does not ask
    113.6 gathers Wonder's flying grant and Bridge from Below's trigger
@@ -4486,8 +4492,25 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
    battlefield, which the layer system owes anyway; (c) a **gate leg per zone**
    — `replacement_ability_sources` is populated at ETB, so a hand, graveyard or
    stack source is invisible to `gather`'s fast path, which is `CLAUDE.md`'s own
-   "a new gather source needs a gate leg" rule; (d) the sweep. Schedule it with
-   (b), after RE, not inside it.
+   "a new gather source needs a gate leg" rule; (d) the sweep.
+
+   **Re-stated against what shipped (2026-09-14).** The last sentence used to
+   read "Schedule it with (b), after RE, not inside it", and `roadmap-v2.md` A5
+   overruled it on 2026-09-14 — three PRs *ahead* of RE-9 and RE-10, the second
+   of which is LJ. **(d) has landed** and was the whole of that PR; it turned
+   out to be the working-set change above rather than a sweep, and it cost
+   nothing from (a), (b) or (c). **(b) is not (d)'s prerequisite and never
+   was** — CR 613.7 orders *effects*, and a row's timestamp is read off its
+   **source**, so a battlefield source reaching a graveyard needs no object
+   timestamp at all. (a), (b) and (c) stay owed and go together, because the
+   three of them are one facility from three doors: a source that *functions*
+   off the battlefield. That is A5, and Wonder is its card.
+
+   **This is the third time this document has held two answers** — item 46 is
+   about the first two, and item 41 about the exemption reversed in another
+   file three days ago. The rule item 46 states applies to itself: a scope
+   paragraph for an unsized phase goes stale in the merge that builds part of
+   it.
 
 10. **Skullbriar is the wrong reason to change the counter model, and there is
     a right one** (F1). Two cards want CR 122.2's exception — Skullbriar, the

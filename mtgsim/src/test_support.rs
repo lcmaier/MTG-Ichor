@@ -609,7 +609,7 @@ pub fn registered(
 
 /// As [`registered`], but selecting the source through [`ObjectSet::SourceOnly`].
 ///
-/// `SourceOnly` and `Fixed(vec![source])` agree in `effect_applies_to` when the source is
+/// `SourceOnly` and `Fixed(vec![source])` agree in `affected_members` when the source is
 /// the only member, so the two are interchangeable *today*. They are kept as separate
 /// constructors anyway: they are different enum variants, and a test that was written
 /// against one should not silently start exercising the other.

@@ -245,7 +245,7 @@ pub(super) fn compute_non_member(
 /// fallback rather than inside it.
 ///
 /// RC-3 is where this is fixed because RC-3 is where it became askable of an
-/// *entering* permanent: `effect_applies_to` no longer stops a filter at the
+/// *entering* permanent: the layer gate no longer stops a filter at the
 /// battlefield boundary, so `ObjectFilter::ByController` now reads this
 /// value for every entry. It was already wrong on the replacement path, where
 /// `set_affects` has never had a gate.
