@@ -144,7 +144,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::ids::new_ability_id;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
+    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::keywords::KeywordFlag;
@@ -182,8 +182,8 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
 /// word, so they share this rather than each spelling it: a divergence between
 /// two cards whose oracle text is identical would be an authoring bug nothing
 /// could catch.
-fn every_permanent_or_player() -> (AffectedSet, PlayerSet) {
-    (AffectedSet::Filter { filter: ObjectFilter::All }, PlayerSet::Everyone)
+fn every_permanent_or_player() -> (ObjectSet, PlayerSet) {
+    (ObjectSet::Filter { filter: ObjectFilter::All }, PlayerSet::Everyone)
 }
 
 /// Furnace of Rath — {1}{R}{R}{R}
@@ -351,7 +351,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::Opponent),
                 },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
@@ -361,7 +361,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
@@ -379,7 +379,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
 /// > many cards.
 ///
 /// The phase's only prevention consumer, and the only effect in it that is
-/// about **no object at all**: `AffectedSet::Fixed(vec![])` beside
+/// about **no object at all**: `ObjectSet::Fixed(vec![])` beside
 /// `PlayerSet::You`. Its rider is what makes `Rider.subject` an `EventSubject`
 /// rather than an `Option<ObjectId>` — "mill" needs to name the player the
 /// damage was aimed at (`codebase-state.md` item 27) — and "twice that many"
@@ -417,7 +417,7 @@ pub fn angel_of_suffering() -> Arc<CardData> {
             // `SourceOnly` would make the Angel shield *itself*.
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Prevent,
             )
             .affecting_players(PlayerSet::You)
@@ -493,7 +493,7 @@ fn prevent_the_next_this_turn(n: u64) -> Primitive {
         Box::new(
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::PreventRemaining),
             )
             .next_damage(n),
@@ -613,7 +613,7 @@ pub fn safe_passage() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DealDamage { source: None, combat: None },
-                            AffectedSet::Filter { filter: creatures_you_control() },
+                            ObjectSet::Filter { filter: creatures_you_control() },
                             Rewrite::Prevent,
                         )
                         .affecting_players(PlayerSet::You),
@@ -691,7 +691,7 @@ fn the_next_damage_from_a_chosen_source(
     };
     ReplacementDef::new(
         EventPattern::DealDamage { source: Some(source), combat: None },
-        AffectedSet::NO_OBJECTS,
+        ObjectSet::NO_OBJECTS,
         rewrite,
     )
     .affecting_players(PlayerSet::You)
@@ -922,7 +922,7 @@ pub fn guardian_seraph() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
             )
             .affecting_players(PlayerSet::You),
@@ -966,7 +966,7 @@ pub fn daunting_defender() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::Filter { filter: clerics_you_control() },
+            ObjectSet::Filter { filter: clerics_you_control() },
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
         )))
         .build()
@@ -1094,7 +1094,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
                     ))),
                     combat: None,
                 },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::Opponent),
                 },
                 Rewrite::Amount(AmountRewrite::Plus(2)),
@@ -1115,7 +1115,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
 /// where the damage came from, and both cards' first ruling is that redirected
 /// combat damage is still combat damage — which is a fact about the *rewrite*
 /// (it does not touch `is_combat`) rather than about the pattern.
-fn all_damage_to_you(objects: AffectedSet, spec: RetargetSpec) -> ReplacementDef {
+fn all_damage_to_you(objects: ObjectSet, spec: RetargetSpec) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DealDamage { source: None, combat: None },
         objects,
@@ -1171,7 +1171,7 @@ pub fn pariah() -> Arc<CardData> {
              creature instead.",
         )
         .ability(static_replacement(all_damage_to_you(
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             RetargetSpec::ToHost,
         )))
         .build()
@@ -1215,7 +1215,7 @@ pub fn palisade_giant() -> Arc<CardData> {
              to this creature instead.",
         )
         .ability(static_replacement(all_damage_to_you(
-            AffectedSet::Filter {
+            ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     Box::new(ObjectFilter::EachOther),
@@ -1606,7 +1606,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         let row = rows[0];
         assert_eq!(row.def.uses, Uses::NextDamage(4));
-        assert_eq!(row.def.affected_objects, AffectedSet::NO_OBJECTS);
+        assert_eq!(row.def.affected_objects, ObjectSet::NO_OBJECTS);
         assert_eq!(row.def.affected_players, PlayerSet::Fixed(vec![1]));
         assert_eq!(row.duration, Duration::UntilEndOfTurn);
         assert_eq!(row.source, spell);
@@ -1623,7 +1623,7 @@ mod tests {
         let bear = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
         resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bear)]);
         let row = rows(&game)[0];
-        assert_eq!(row.def.affected_objects, AffectedSet::Fixed(vec![bear]));
+        assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![bear]));
         assert_eq!(row.def.affected_players, PlayerSet::Nobody);
     }
 
@@ -2186,7 +2186,7 @@ mod tests {
             0,
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: Some(true) },
-                AffectedSet::Fixed(vec![host]),
+                ObjectSet::Fixed(vec![host]),
                 Rewrite::Prevent,
             ),
         );
@@ -2225,7 +2225,7 @@ mod tests {
             0,
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: Some(true) },
-                AffectedSet::Fixed(vec![host]),
+                ObjectSet::Fixed(vec![host]),
                 Rewrite::Prevent,
             ),
         );

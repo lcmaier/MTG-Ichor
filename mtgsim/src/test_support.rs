@@ -44,7 +44,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
@@ -582,7 +582,7 @@ pub fn equipment(name: &str) -> Arc<CardData> {
 // broke every inline copy of the Lightning Bolt builder at once.
 // ---------------------------------------------------------------------------
 
-/// One registry row applying to `id` alone, via [`AffectedSet::Fixed`].
+/// One registry row applying to `id` alone, via [`ObjectSet::Fixed`].
 ///
 /// The row is `EffectOrigin::Resolution` and `Duration::UntilEndOfTurn` — a pump-spell
 /// shaped effect, not a static ability. Tests that need a static ability's origin (so the
@@ -602,12 +602,12 @@ pub fn registered(
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected_objects: AffectedSet::Fixed(vec![id]),
+        affected_objects: ObjectSet::Fixed(vec![id]),
         modification,
     }
 }
 
-/// As [`registered`], but selecting the source through [`AffectedSet::SourceOnly`].
+/// As [`registered`], but selecting the source through [`ObjectSet::SourceOnly`].
 ///
 /// `SourceOnly` and `Fixed(vec![source])` agree in `effect_applies_to` when the source is
 /// the only member, so the two are interchangeable *today*. They are kept as separate
@@ -620,7 +620,7 @@ pub fn registered_source_only(
     modification: EffectModification,
 ) -> ContinuousEffect {
     ContinuousEffect {
-        affected_objects: AffectedSet::SourceOnly,
+        affected_objects: ObjectSet::SourceOnly,
         ..registered(source, layer, timestamp, modification)
     }
 }

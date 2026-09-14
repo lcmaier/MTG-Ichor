@@ -21,7 +21,7 @@ use mtgsim::test_support::{
     test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
-use mtgsim::types::effects::{AffectedSet, CounterType, Effect, ObjectFilter};
+use mtgsim::types::effects::{ObjectSet, CounterType, Effect, ObjectFilter};
 use mtgsim::types::ids::{new_ability_id, ObjectId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
@@ -75,7 +75,7 @@ fn enters_with(
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(mods),
             ))),
         })
@@ -298,7 +298,7 @@ fn test_two_entry_replacements_accumulate() {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -310,7 +310,7 @@ fn test_two_entry_replacements_accumulate() {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::Charge, 2)),
             ))),
         })
@@ -361,7 +361,7 @@ fn test_one_entry_replacement_applies_once() {
 /// Orb of Dreams' shape: one static replacement over *every* permanent.
 ///
 /// A fixture rather than the card, for [`enters_with`]'s reason — it varies one
-/// axis, and the axis here is `AffectedSet::Filter` on the entering permanent's
+/// axis, and the axis here is `ObjectSet::Filter` on the entering permanent's
 /// own ability. Registered cards make the same claim from the other side:
 /// `root_maze` is a filter on a permanent already on the battlefield.
 fn orb_shaped() -> Arc<CardData> {
@@ -378,7 +378,7 @@ fn orb_shaped() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::Filter { filter: ObjectFilter::All },
+                ObjectSet::Filter { filter: ObjectFilter::All },
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -690,7 +690,7 @@ fn test_rc2_cards_read_as_printed() {
 ///
 /// Root Maze is on the battlefield, so it is not a look-ahead question: it is
 /// one of CR 614.12 clause (3)'s effects that "already exist". `set_affects`
-/// matches its `AffectedSet::Filter` through
+/// matches its `ObjectSet::Filter` through
 /// `GameState::object_matches_filter`, which has no battlefield gate — the
 /// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
 /// reason this test passes against the pre-RC-3 tree too.
@@ -788,7 +788,7 @@ fn kismet_shaped() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::ByController(
                         mtgsim::types::effects::PlayerRef::Opponent,
                     ),

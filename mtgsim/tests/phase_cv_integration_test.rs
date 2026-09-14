@@ -36,7 +36,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -556,7 +556,7 @@ fn test_mirrorform_includes_the_donor_and_excludes_lands() {
         .find(|e| matches!(e.modification, EffectModification::CopyFrom(_)))
         .expect("one copy row");
     match &row.affected_objects {
-        mtgsim::engine::layers::types::AffectedSet::Fixed(ids) => assert!(
+        mtgsim::engine::layers::types::ObjectSet::Fixed(ids) => assert!(
             ids.contains(&donor),
             "CR 707.4 — Mirrorform says 'each nonland permanent you control', \
              not 'each other', so the donor is affected"
@@ -727,7 +727,7 @@ fn pump(game: &mut GameState, id: ObjectId, power: i32, toughness: i32) {
         controller: 0,
         created_on_turn: game.turn_number,
         timestamp,
-        affected_objects: AffectedSet::Fixed(vec![id]),
+        affected_objects: ObjectSet::Fixed(vec![id]),
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(power),
             toughness: PtValue::Fixed(toughness),
@@ -748,7 +748,7 @@ fn steal(game: &mut GameState, id: ObjectId, to: PlayerId) {
         controller: to,
         created_on_turn: game.turn_number,
         timestamp,
-        affected_objects: AffectedSet::Fixed(vec![id]),
+        affected_objects: ObjectSet::Fixed(vec![id]),
         modification: EffectModification::SetController(PlayerRef::Player(to)),
     });
 }
@@ -787,7 +787,7 @@ fn restriction_creature() -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: AffectedSet::Filter {
+                affected_objects: ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 affected_players: PlayerSet::Nobody,

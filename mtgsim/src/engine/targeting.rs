@@ -301,7 +301,7 @@ impl GameState {
     /// control" has to mean the same thing to SBA 704.5n that it would mean to
     /// a static ability.
     ///
-    /// Third caller as of Phase RB: `AffectedSet::Filter` on a `ReplacementDef`
+    /// Third caller as of Phase RB: `ObjectSet::Filter` on a `ReplacementDef`
     /// asks it too, which is what makes Kalitas's "a nontoken creature an
     /// opponent controls" the same predicate a targeting restriction would
     /// use.
@@ -385,7 +385,7 @@ impl GameState {
     /// whether a continuous effect applies mid-layer-walk and resolves
     /// `PlayerRef` through the effect's source; this one asks whether an
     /// object is a legal selection, or inside a replacement's or restriction's
-    /// `AffectedSet`, and resolves it against `you`.
+    /// `ObjectSet`, and resolves it against `you`.
     ///
     /// `other_than` is what [`ObjectFilter::EachOther`] is other than — `None`
     /// in a selection context, where there is no such object and the leaf is

@@ -25,7 +25,7 @@
 //! | SBA | Measured | Blocker |
 //! |---|---|---|
 //! | 704.5q counter annihilation | 0 | **none** — this file |
-//! | 704.5m/n Aura | 0 | CR 608.3b, *and* no `AffectedSet` reaches an Aura's host |
+//! | 704.5m/n Aura | 0 | CR 608.3b, *and* no `ObjectSet` reaches an Aura's host |
 //! | 704.5p Equipment detach | 0 | Equip (CR 702.6); nothing can attach an Equipment |
 //! | 704.5i planeswalker death | 0 -> **4 / 400** | ~~loyalty abilities + CR 120.3c~~ — RD-1 |
 //!

@@ -11,7 +11,7 @@
 //! consumers of it in the same scenario. These do.
 
 
-use mtgsim::engine::layers::{AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer};
+use mtgsim::engine::layers::{ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer};
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::oracle::characteristics::is_creature;
 use mtgsim::types::card_types::{CardType, Supertype};
@@ -39,7 +39,7 @@ fn add_layer4(game: &mut GameState, id: ObjectId, modification: EffectModificati
         controller: 0,
         created_on_turn: turn,
         timestamp,
-        affected_objects: AffectedSet::Fixed(vec![id]),
+        affected_objects: ObjectSet::Fixed(vec![id]),
         modification,
     });
 }

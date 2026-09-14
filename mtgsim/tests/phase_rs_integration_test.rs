@@ -21,7 +21,7 @@ use mtgsim::test_support::{
     place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
 };
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -181,14 +181,14 @@ fn resolve_edict_effect(
 /// A plain creature — one that is not the restriction's own source.
 ///
 /// Sigarda protects everything her controller controls, herself included, so
-/// this is not about protection scope. It is about telling `AffectedSet::Filter`
-/// apart from `AffectedSet::SourceOnly`: with only Sigarda on the board, a
+/// this is not about protection scope. It is about telling `ObjectSet::Filter`
+/// apart from `ObjectSet::SourceOnly`: with only Sigarda on the board, a
 /// restriction that (wrongly) applied to its source alone would suppress the
 /// same single prompt and pass the same assertion. A second creature is what
 /// makes the two answers differ.
 ///
 /// Verified rather than reasoned: flipping Sigarda's `affected` to
-/// `AffectedSet::SourceOnly` fails both zero-prompt tests and nothing else.
+/// `ObjectSet::SourceOnly` fails both zero-prompt tests and nothing else.
 fn bear(game: &mut GameState, owner: PlayerId) -> ObjectId {
     put_on_battlefield(game, vanilla_creature(2, 2, &[]), owner)
 }
@@ -242,7 +242,7 @@ fn test_without_sigarda_the_same_edict_prompts_once_and_takes_a_creature() {
 
 #[test]
 fn test_sigarda_does_not_protect_a_player_whose_permanents_she_is_not_on() {
-    // The `AffectedSet` half. "…can't cause **you** to sacrifice permanents" is
+    // The `ObjectSet` half. "…can't cause **you** to sacrifice permanents" is
     // `ByController(PlayerRef::You)`, resolved against Sigarda's controller —
     // so P1's own creatures are untouched by P0's Sigarda.
     let mut game = setup_two_player_game();
@@ -263,7 +263,7 @@ fn test_sigarda_does_not_stop_a_spell_her_own_controller_cast() {
     // is not one, so the prompt appears and the creature dies.
     //
     // This is the assertion that would fail if `by` were dropped and the
-    // restriction were modeled as `EventPattern` + `AffectedSet` alone, which
+    // restriction were modeled as `EventPattern` + `ObjectSet` alone, which
     // is what §2.6 found the census had assumed.
     // Sigarda is the only creature, so the one candidate offered is *her* — the
     // sharpest form of the assertion, since it shows the restriction not even
@@ -561,7 +561,7 @@ fn test_a_resolution_created_restriction_expires_with_its_stated_duration() {
             created_on_turn: 1,
             def: RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                to_objects: AffectedSet::Fixed(vec![bear]),
+                to_objects: ObjectSet::Fixed(vec![bear]),
                 to_players: PlayerSet::Nobody,
             }),
         });
@@ -589,7 +589,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                to_objects: AffectedSet::Fixed(Vec::new()),
+                to_objects: ObjectSet::Fixed(Vec::new()),
                 to_players: PlayerSet::Nobody,
             }),
             Duration::UntilEndOfTurn,
@@ -609,7 +609,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
     };
     game.resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new()).unwrap();
 
-    let sets: Vec<AffectedSet> = game
+    let sets: Vec<ObjectSet> = game
         .restrictions
         .iter()
         .map(|r| match &r.def.what {
@@ -619,7 +619,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         .collect();
     assert_eq!(
         sets,
-        vec![AffectedSet::Fixed(vec![a]), AffectedSet::Fixed(vec![b])],
+        vec![ObjectSet::Fixed(vec![a]), ObjectSet::Fixed(vec![b])],
         "one row per target, each naming only its own permanent"
     );
 }
@@ -636,7 +636,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
 
     let effect = Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
         pattern: EventPattern::Destroy { source: None },
-        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));

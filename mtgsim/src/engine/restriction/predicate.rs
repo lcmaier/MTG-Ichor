@@ -13,7 +13,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, Effect, PlayerSet};
+use crate::types::effects::{ObjectSet, Effect, PlayerSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -269,7 +269,7 @@ fn cause_matches(
 ///
 /// **Asked only of the event's own subject, and that is exact rather than a
 /// shortcut.** Every keyword-derived restriction below is
-/// `AffectedSet::SourceOnly`, so the only object whose synthesized restriction
+/// `ObjectSet::SourceOnly`, so the only object whose synthesized restriction
 /// can match an event about X is X itself. Sweeping the battlefield instead
 /// would cost one full `compute_characteristics` walk per permanent per proposed
 /// action, where this costs the one walk `is_blocked` already paid. The
@@ -290,9 +290,9 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
         debug_assert!(
             matches!(
                 def.what,
-                Restriction::Event { affected_objects: AffectedSet::SourceOnly, .. }
+                Restriction::Event { affected_objects: ObjectSet::SourceOnly, .. }
             ),
-            "a keyword-derived restriction that is not `AffectedSet::SourceOnly` \
+            "a keyword-derived restriction that is not `ObjectSet::SourceOnly` \
              cannot be found by asking the event's subject about its own \
              keywords — it has to join the battlefield sweep, and until it does \
              it silently forbids nothing. See `keyword_prohibits`."
@@ -335,7 +335,7 @@ fn keyword_restrictions(game: &GameState, id: ObjectId) -> Vec<RestrictionDef> {
     if has_keyword(game, id, KeywordFlag::Indestructible) {
         out.push(RestrictionDef::new(Restriction::Event {
             pattern: EventPattern::Destroy { source: None },
-            affected_objects: AffectedSet::SourceOnly,
+            affected_objects: ObjectSet::SourceOnly,
             affected_players: PlayerSet::Nobody,
             by: None,
         }));

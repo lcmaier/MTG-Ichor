@@ -106,7 +106,7 @@ fn would_be_rows(
         // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
         for (primitive, recipient) in GameState::static_ability_atoms(ability, &card.name) {
-            let Some(affected) = GameState::static_affected_set(recipient, &card.name) else {
+            let Some(affected) = GameState::static_object_set(recipient, &card.name) else {
                 continue;
             };
             for (layer, modification) in GameState::static_primitive_rows(primitive) {

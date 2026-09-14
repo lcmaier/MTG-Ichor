@@ -298,8 +298,8 @@ argument for `compute_characteristics` re-checking ability existence at every
 layer: each re-check reads a strictly lower ceiling, so the recursion descends
 and cannot oscillate. Not an optimization. → `layers-architecture.md` §5.2.
 
-**host** — the object an Aura or Equipment is attached to; as an `AffectedSet`
-arm, `AffectedSet::Host` resolves `attached_to` during the walk. Named `Host`
+**host** — the object an Aura or Equipment is attached to; as an `ObjectSet`
+arm, `ObjectSet::Host` resolves `attached_to` during the walk. Named `Host`
 rather than `AttachedTo`, whose longer form read as "the things attached to me"
 — the wrong direction — and because "host" is what every attach site already
 called it. → `layers-architecture.md` §13a decision 4.

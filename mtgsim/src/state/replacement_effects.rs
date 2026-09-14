@@ -279,7 +279,7 @@ impl PreventionAllocationScope {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::effects::AffectedSet;
+    use crate::types::effects::ObjectSet;
     use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
     use uuid::Uuid;
 
@@ -293,7 +293,7 @@ mod tests {
             targets: Vec::new(),
             def: ReplacementDef::new(
                 EventPattern::Destroy { source: None },
-                AffectedSet::Fixed(vec![source]),
+                ObjectSet::Fixed(vec![source]),
                 Rewrite::Prevent,
             ),
         }
@@ -310,7 +310,7 @@ mod tests {
             targets: Vec::new(),
             def: ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::Fixed(vec![source]),
+                ObjectSet::Fixed(vec![source]),
                 Rewrite::Amount(AmountRewrite::PreventRemaining),
             )
             .next_damage(n),

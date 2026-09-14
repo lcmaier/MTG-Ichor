@@ -1,7 +1,7 @@
 //! The CR 614.12 frame of the object a proposed event is about.
 //!
 //! Computed at most once per pipeline iteration, and only when something asks
-//! — a filter-scoped `AffectedSet`, or `gather`'s source 1a reading the
+//! — a filter-scoped `ObjectSet`, or `gather`'s source 1a reading the
 //! entering permanent's own abilities. `SourceOnly` and `Fixed` match by id
 //! and never need it. CR 616.1(1)'s "replacement effects that have already
 //! modified how it enters" is why the frame is per *iteration*: the loop

@@ -12,7 +12,7 @@
 
 use mtgsim::cards::{basic_lands, creatures, dual_lands, phase_ld_cards, phase_lf_cards, phase_li_cards};
 use mtgsim::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{
@@ -576,7 +576,7 @@ fn test_a_power_reading_row_older_than_a_counter_waits_for_the_counter() {
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected_objects: AffectedSet::Filter {
+        affected_objects: ObjectSet::Filter {
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::PowerLE(2)),

@@ -3,7 +3,7 @@
 //! A CDA is not a registry effect. CR 604.3a(3) says a CDA "does not directly
 //! affect the characteristics of any other objects", which is a criterion
 //! rather than an observation about Tarmogoyf: **every CDA applies to exactly
-//! the object that has it**. So there is nothing for an `AffectedSet` to
+//! the object that has it**. So there is nothing for an `ObjectSet` to
 //! select, no filter to evaluate, and no row to register. The pass (`board.rs`)
 //! applies them straight off the object's own live ability list, and four things
 //! fall out that the registry shape would have had to build:
@@ -26,7 +26,7 @@
 //!
 //! - **CR 604.3's "function in all zones".** This reads `game.objects`, not
 //!   `game.battlefield`, so a Tarmogoyf in a graveyard has a power and toughness
-//!   without any of Deferred Migrations item 9's zone-aware `AffectedSet` work.
+//!   without any of Deferred Migrations item 9's zone-aware `ObjectSet` work.
 //!   That item is about *filter-based* effects reaching other zones, which is a
 //!   different shape.
 //!

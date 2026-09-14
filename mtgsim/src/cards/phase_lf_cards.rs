@@ -103,7 +103,7 @@ mod tests {
 /// been in `static_primitive_rows` since the Layer 6 phase with nothing
 /// reaching it: every `GrantAbility` in the pool arrives through a resolution
 /// (`resolve::register_granted_static_effects`), which is a different code
-/// path with a different `AffectedSet` shape — `Fixed`, locked to the spell's
+/// path with a different `ObjectSet` shape — `Fixed`, locked to the spell's
 /// targets, rather than a live `Filter`.
 ///
 /// **Why this one works when "a static ability granting a static ability over a

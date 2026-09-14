@@ -37,7 +37,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
+    ObjectSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -62,17 +62,17 @@ pub struct ReplacementDef {
     /// Kalitas protects nothing it applies to. Same name as
     /// `ContinuousEffect::affected_objects` because it is the same question.
     ///
-    /// Reuses the layer system's `AffectedSet`, and the reuse is load-bearing:
+    /// Reuses the layer system's `ObjectSet`, and the reuse is load-bearing:
     /// `SourceOnly` vs. `Filter` is exactly CR 614.12's "affects only that
     /// permanent (as opposed to a general subset of permanents that includes
     /// it)". If a future refactor collapses those variants, 614.12 breaks
     /// silently (`replacement-architecture.md` §11 item 2).
-    pub affected_objects: AffectedSet,
+    pub affected_objects: ObjectSet,
 
     /// Which **players** it applies to — the other half of CR 614.1's
     /// "whatever they're affecting", unioned with [`Self::affected_objects`].
     ///
-    /// A second field rather than an `AffectedSet` variant, for the reason
+    /// A second field rather than an `ObjectSet` variant, for the reason
     /// [`PlayerSet`]'s own docs give. Furnace of Rath is `Filter { All }` plus
     /// `Everyone`, because "a permanent **or player**" is genuinely both
     /// questions; Angel of Suffering is `Fixed(vec![])` plus `You`, an effect
@@ -380,7 +380,7 @@ pub enum EventPattern {
     /// event's subject is the permanent that is entering.
     ///
     /// **`affected` does the object-side work, and it reads the CR 614.12
-    /// frame.** Root Maze's "artifacts and lands" is an `AffectedSet::Filter`,
+    /// frame.** Root Maze's "artifacts and lands" is an `ObjectSet::Filter`,
     /// matched against the permanent *as it would exist on the battlefield*
     /// (`layers::compute_as_entering`), never against the card where it came
     /// from. So this arm carries no object filter of its own; its one
@@ -633,7 +633,7 @@ impl TokenKind {
 /// is unregistered for an unrelated reason, so it is recorded here and not
 /// written.
 ///
-/// **`AffectedSet` is not reusable for this**, which is worth saying because
+/// **`ObjectSet` is not reusable for this**, which is worth saying because
 /// the shapes rhyme. That type answers "which objects is this effect around",
 /// and its `SourceOnly`/`Host`/`Fixed` arms are all about the effect's own
 /// source; this one answers "which object dealt the damage", where the same
@@ -996,7 +996,7 @@ pub enum RetargetSpec {
     ToEffectSource,
     /// "…is dealt to **enchanted creature** instead" — CR 303.4m's host, read
     /// off `attached_to` at application rather than captured, exactly as
-    /// [`AffectedSet::Host`] reads it. Pariah.
+    /// [`ObjectSet::Host`] reads it. Pariah.
     ToHost,
     /// "…is dealt to **that source's controller** instead" — the controller of
     /// the *damage's* source, not of this effect. Reflect Damage.
@@ -1385,7 +1385,7 @@ impl EnterModsTemplate {
 /// proposal, exactly the way CR 306.5b's loyalty does today.
 ///
 /// A *hypothetical* "creatures your opponents control enter face down" would
-/// additionally need `AffectedSet::Filter` to reach an entering permanent,
+/// additionally need `ObjectSet::Filter` to reach an entering permanent,
 /// which is Phase RC-3 — the same gate that stops Root Maze and Kismet.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EnterMods {
@@ -1720,7 +1720,7 @@ impl ReplacementDef {
     /// Named constructors rather than a `Default`, because `class` and
     /// `exempt_from_614_5` are the two fields where a wrong default is a rules
     /// bug rather than a style choice.
-    pub fn new(pattern: EventPattern, affected_objects: AffectedSet, rewrite: Rewrite) -> Self {
+    pub fn new(pattern: EventPattern, affected_objects: ObjectSet, rewrite: Rewrite) -> Self {
         let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,
@@ -1748,7 +1748,7 @@ impl ReplacementDef {
     /// alongside this for one commit and was removed on review: two functions
     /// whose names differ by an inflection, one a constructor and one a
     /// builder, is a coin flip at every call site. An effect about players and
-    /// no object writes `AffectedSet::NO_OBJECTS` for its object half, which
+    /// no object writes `ObjectSet::NO_OBJECTS` for its object half, which
     /// names the empty set where the call site can see it.
     pub fn affecting_players(mut self, players: PlayerSet) -> Self {
         self.affected_players = players;
@@ -1979,7 +1979,7 @@ mod tests {
     fn regeneration_is_a_prevent_that_is_not_a_prevention_effect() {
         let next_three = ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .next_damage(3);
@@ -1988,27 +1988,27 @@ mod tests {
 
         let that_damage = ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Prevent,
         );
         assert!(that_damage.is_prevention());
         assert!(ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Up)),
         )
         .is_prevention());
 
         let doubler = ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         );
         assert!(!doubler.is_prevention());
 
         let regeneration = ReplacementDef::new(
             EventPattern::Destroy { source: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Prevent,
         )
         .once()
@@ -2058,7 +2058,7 @@ mod tests {
                 ))),
                 combat: None,
             },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::Plus(2)),
         );
         assert!(!torbran.is_prevention(), "adding damage is not preventing it");
@@ -2086,7 +2086,7 @@ mod tests {
     fn new_defs_name_no_player() {
         let def = ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Prevent,
         );
         assert_eq!(def.affected_players, PlayerSet::Nobody);

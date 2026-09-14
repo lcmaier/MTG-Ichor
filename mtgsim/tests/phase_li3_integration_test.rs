@@ -134,7 +134,7 @@ fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
 //
 // Rune of Flight's third line, as a fixture (`phase_li_cards`): "As long as
 // enchanted permanent is a creature, it has flying." The condition is
-// `HostMatches`, read off `attached_to` the way `AffectedSet::Host` is, so
+// `HostMatches`, read off `attached_to` the way `ObjectSet::Host` is, so
 // reattaching the Aura moves both the condition and the grant.
 // ---------------------------------------------------------------------------
 

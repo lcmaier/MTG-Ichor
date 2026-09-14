@@ -25,7 +25,7 @@ use crate::types::mana::ManaCost;
 /// that includes it)" (`replacement-architecture.md` §11 item 2). The enum is
 /// pure data over `types`, and `src/types/` has no `crate::engine` edge to
 /// spend, so the shared vocabulary lives where both readers can reach it.
-pub use crate::types::effects::AffectedSet;
+pub use crate::types::effects::ObjectSet;
 
 /// Unique identifier for a registered continuous effect.
 pub type EffectId = u64;
@@ -63,7 +63,7 @@ pub enum Layer {
     /// **Nothing is ever registered into this layer.** CR 604.3a(3) says a CDA
     /// "does not directly affect the characteristics of any other objects", so
     /// a CDA always applies to exactly the object that has it — which means it
-    /// needs no `AffectedSet`, no filter, and no registry row. `layers::cda`
+    /// needs no `ObjectSet`, no filter, and no registry row. `layers::cda`
     /// applies them straight off the object's own effective ability list.
     /// `ContinuousEffectRegistry::add` asserts this.
     ///
@@ -141,7 +141,7 @@ pub enum EffectModification {
 
     // --- Layer 2 ---
     /// CR 613.1b. A `PlayerRef` rather than a resolved `PlayerId`, for the
-    /// reason `AffectedSet::Filter` stores its filter unresolved: CR 109.5 makes
+    /// reason `ObjectSet::Filter` stores its filter unresolved: CR 109.5 makes
     /// a static ability's "you" the *current* controller of the object it is on,
     /// so an id captured at registration goes stale the moment the source
     /// changes hands. `compute::resolve_set_controller` resolves it per walk.
@@ -255,7 +255,7 @@ pub struct ContinuousEffect {
     /// Timestamp for ordering within the same layer (CR 613.7).
     pub timestamp: Timestamp,
     /// Which objects this effect applies to.
-    pub affected_objects: AffectedSet,
+    pub affected_objects: ObjectSet,
     /// What the effect does to each affected object.
     pub modification: EffectModification,
 }

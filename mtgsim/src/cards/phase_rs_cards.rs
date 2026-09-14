@@ -18,7 +18,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
+    ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -55,13 +55,13 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 ///   destruction — 701.21b says a sacrificed permanent is not destroyed, which
 ///   is why the cause is its own variant and why Sigarda stops none of the
 ///   CR 704.5 state-based actions.
-/// - **"permanents"**, scoped to *yours*, is the `AffectedSet`:
+/// - **"permanents"**, scoped to *yours*, is the `ObjectSet`:
 ///   `ByController(PlayerRef::You)`, resolved against Sigarda's **current**
 ///   controller at the instant the question is asked (CR 109.5). Stealing
 ///   Sigarda moves the protection, and the filter being stored unresolved is
 ///   what makes that free.
 /// - **"spells and abilities your opponents control"** is the `by` filter — the
-///   one thing this arm needed beyond `EventPattern` + `AffectedSet`, and the
+///   one thing this arm needed beyond `EventPattern` + `ObjectSet`, and the
 ///   reason it exists at all. Read against the resolution `ActionContext`
 ///   already threads, so it is a field rather than a mechanism.
 ///
@@ -117,7 +117,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: AffectedSet::Filter {
+                affected_objects: ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 affected_players: PlayerSet::Nobody,

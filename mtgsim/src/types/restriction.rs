@@ -2,7 +2,7 @@
 //!
 //! A "can't" is discovered exactly the way a replacement effect is and differs
 //! from one only in what it is asked at (`cant-effects-architecture.md` §3.1).
-//! So this module borrows [`EventPattern`], [`AffectedSet`] and [`PlayerSet`]
+//! So this module borrows [`EventPattern`], [`ObjectSet`] and [`PlayerSet`]
 //! verbatim and adds one field of its own; the vocabulary that would have been
 //! new is vocabulary the replacement pipeline already owns.
 //!
@@ -31,7 +31,7 @@
 //! that silently does nothing, and a normal diff fails to compile at every
 //! reader instead.
 
-use crate::types::effects::{AffectedSet, PlayerRef, PlayerSet};
+use crate::types::effects::{ObjectSet, PlayerRef, PlayerSet};
 use crate::types::ids::PlayerId;
 use crate::types::replacement::EventPattern;
 
@@ -86,7 +86,7 @@ pub enum Restriction {
         /// The objects this forbids the event about. **Half a pair**, like
         /// [`Self::ApplyReplacement::to_objects`] and for the same reason: the
         /// two sets are unioned and neither is primary.
-        affected_objects: AffectedSet,
+        affected_objects: ObjectSet,
         /// The other half — CR 101.2 about an event whose subject is a
         /// *player*. "Players can't gain life" (Skullcrack, Leyline of
         /// Punishment, 25 cards) is the family, and CR 119.7 spells out what it
@@ -127,7 +127,7 @@ pub enum Restriction {
         /// bare `to` beside a `to_players` reads as the whole set with a
         /// modifier hung off it, and it is not — the two are unioned and
         /// neither is primary (RD-4 review, 2026-09-09).
-        to_objects: AffectedSet,
+        to_objects: ObjectSet,
         /// The other half of "whatever they're affecting" — CR 615.12's
         /// "damage can't be prevented" is about damage dealt to *players* as
         /// much as to permanents, and a prevention effect's subject is a

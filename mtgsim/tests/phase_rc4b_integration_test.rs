@@ -28,7 +28,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
@@ -122,7 +122,7 @@ fn lands_cant_enter() -> Restriction {
             cause: None,
             object: None,
         },
-        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
+        affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Land) },
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -134,7 +134,7 @@ fn lands_cant_enter() -> Restriction {
 fn creatures_cant_enter() -> Restriction {
     Restriction::Event {
         pattern: EventPattern::EnterBattlefield { cast: None },
-        affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+        affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
         affected_players: PlayerSet::Nobody,
         by: None,
     }
@@ -178,7 +178,7 @@ fn moonlight_shaped() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: Some(false) },
-            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,

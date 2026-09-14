@@ -295,7 +295,7 @@ impl ContinuousEffectRegistry {
     /// `effects_in_layer`.
     pub fn add(&mut self, effect: ContinuousEffect) -> EffectId {
         // CR 604.3a(3) — a CDA affects only the object that has it, so it needs
-        // no `AffectedSet` and never becomes a registry row. `layers::cda`
+        // no `ObjectSet` and never becomes a registry row. `layers::cda`
         // applies them off the object's own ability list instead. Layer 7a is
         // the CDA-only sublayer, so a row landing here means someone routed a
         // CDA through registration; catch it at the door rather than letting it

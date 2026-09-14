@@ -220,9 +220,11 @@ pub enum ObjectFilter {
     Not(Box<ObjectFilter>),
 }
 
-/// Selects which objects a continuous effect applies to.
+/// Selects which objects an effect applies to — read by the layer walk, the
+/// restriction sweep and the replacement pipeline, which is why the name is
+/// the set's contents rather than any one reader's verb.
 #[derive(Debug, Clone, PartialEq)]
-pub enum AffectedSet {
+pub enum ObjectSet {
     /// The source permanent itself ("this creature has flying").
     SourceOnly,
     /// A data-driven filter ("creatures you control").
@@ -251,7 +253,7 @@ pub enum AffectedSet {
     Host,
 }
 
-impl AffectedSet {
+impl ObjectSet {
     /// A set with no objects in it.
     ///
     /// Named rather than written as `Fixed(Vec::new())` at a call site, where
@@ -261,21 +263,21 @@ impl AffectedSet {
     /// paired with a [`PlayerSet`]), and a resolution whose targets have all
     /// left before the row was written.
     ///
-    /// A constant and **not** an `AffectedSet::Nobody` variant: a new arm would
+    /// A constant and **not** an `ObjectSet::Nobody` variant: a new arm would
     /// have to be classified by all three of this type's readers — the layer
     /// walk, the restriction sweep and the replacement pipeline — where a
     /// spelling of an existing value costs them nothing.
-    pub const NO_OBJECTS: AffectedSet = AffectedSet::Fixed(Vec::new());
+    pub const NO_OBJECTS: ObjectSet = ObjectSet::Fixed(Vec::new());
 }
 
 /// Which **players** a replacement or prevention effect applies to — CR 614.1's
-/// "whatever they're affecting", for the half [`AffectedSet`] cannot name.
+/// "whatever they're affecting", for the half [`ObjectSet`] cannot name.
 ///
-/// **A second field on `ReplacementDef`, not an `AffectedSet` variant.** That
+/// **A second field on `ReplacementDef`, not an `ObjectSet` variant.** That
 /// type has three readers — the layer walk's `row_affected`, the restriction
 /// sweep and the replacement pipeline — and a `Player` arm would be a variant
 /// two of the three must reject at every match. The two sets union: an event
-/// about an object asks `AffectedSet`, an event about a player asks this one.
+/// about an object asks `ObjectSet`, an event about a player asks this one.
 ///
 /// The damage family is what makes it necessary, which is why it lands in
 /// Phase RD-1 rather than with RE's draw cards. Furnace of Rath's "a permanent
@@ -300,7 +302,7 @@ pub enum PlayerSet {
     /// Every player, including the controller — Furnace of Rath, Fog.
     Everyone,
     /// A set captured when the effect was created, the way
-    /// [`AffectedSet::Fixed`] captures objects: a resolution filling in the
+    /// [`ObjectSet::Fixed`] captures objects: a resolution filling in the
     /// player it targeted, or an empty set for a static ability that scopes by
     /// [`Self::You`] and names no object.
     Fixed(Vec<PlayerId>),
@@ -367,7 +369,7 @@ pub enum Condition {
     SourceOnBattlefield,
     /// "as long as enchanted/equipped [permanent] is [X]" — a predicate on
     /// whatever the source is attached to (CR 303.4m reads it fresh, as
-    /// `AffectedSet::Host` does). Rune of Flight's two clauses are both this
+    /// `ObjectSet::Host` does). Rune of Flight's two clauses are both this
     /// leaf. `Host` rather than `AttachedTo` for the reason §13a decision 4
     /// gives: one word for one relationship across the whole engine.
     ///
@@ -448,7 +450,7 @@ pub enum EffectRecipient {
     /// The permanent this one is attached to — "enchanted creature" on an
     /// Aura (CR 303.4m), "equipped creature" on an Equipment (CR 301.5a).
     /// Static abilities only, like `FilteredPermanents`; lowers to
-    /// `AffectedSet::Host`, which reads `attached_to` during the
+    /// `ObjectSet::Host`, which reads `attached_to` during the
     /// layer walk rather than capturing it, because registration happens
     /// before the attach.
     Host,
@@ -1103,7 +1105,7 @@ pub enum Primitive {
     /// (`cant-effects-architecture.md` §9 finding 1). Same reason
     /// [`Self::ModifyPowerToughness`] takes one.
     ///
-    /// `AffectedSet::Fixed` inside the def is how a card names its resolved
+    /// `ObjectSet::Fixed` inside the def is how a card names its resolved
     /// targets; the primitive does not fill it in, because a restriction on
     /// *players* ("players can't gain life this turn") has no targets to fill.
     Restrict(crate::types::restriction::RestrictionDef, Duration),
@@ -1210,7 +1212,7 @@ pub enum Primitive {
     /// `remove_by_source` outlives its subject without bound
     /// (`copy-effects-architecture.md` §5.3).
     ///
-    /// The affected set is `AffectedSet::Fixed`, locked as the effect begins
+    /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
     /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —
     /// which is what makes a copy row independent of every other layer 1 effect
     /// and so keeps this off critical-path item 7.

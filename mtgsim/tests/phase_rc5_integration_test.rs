@@ -32,7 +32,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::ids::ObjectId;
@@ -97,7 +97,7 @@ fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Optio
 /// An enchantment granting every entering creature a devour-`n` effect, the way
 /// the plane card in CR 614.13b's example grants devour 5.
 ///
-/// `AffectedSet::Filter`, so it is a second, *separate* replacement effect on
+/// `ObjectSet::Filter`, so it is a second, *separate* replacement effect on
 /// the same entry — which is the whole point of 614.13b: two effects, one
 /// candidate, one choice.
 ///
@@ -114,7 +114,7 @@ fn grants_devour(name: &str, n: u32) -> Arc<CardData> {
         .rules_text("Creatures entering have devour N.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Battlefield,
                 filter: ObjectFilter::And(
@@ -140,7 +140,7 @@ fn creatures_enter_tapped(name: &str) -> Arc<CardData> {
         .rules_text("Creatures you control enter tapped.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter {
+            ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -162,7 +162,7 @@ fn enters_with_counters_equal_to_its_own_power(name: &str, p: i32, t: i32) -> Ar
         .power_toughness(p, t)
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
                 CounterType::PlusOnePlusOne,
                 AmountExpr::SourcePower,
@@ -210,7 +210,7 @@ fn grants_graveyard_exile(name: &str) -> Arc<CardData> {
         .rules_text("As a creature enters, exile any number of creature cards from your graveyard.")
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::EnterAfterMoving(AuxiliaryMove {
                 from: Zone::Graveyard,
                 filter: ObjectFilter::ByType(CardType::Creature),
@@ -246,7 +246,7 @@ fn prevents_your_creatures_dying(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+            ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Prevent,
         )))))
         .build()
@@ -274,7 +274,7 @@ fn your_own_abilities_cant_sacrifice(name: &str) -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: AffectedSet::Filter {
+                affected_objects: ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 affected_players: PlayerSet::Nobody,
@@ -301,7 +301,7 @@ fn cant_sacrifice_your_creatures(name: &str) -> Arc<CardData> {
                     cause: Some(ZoneChangeCause::Sacrificed),
                     object: None,
                 },
-                affected_objects: AffectedSet::Filter {
+                affected_objects: ObjectSet::Filter {
                     filter: ObjectFilter::ByController(PlayerRef::You),
                 },
                 affected_players: PlayerSet::Nobody,
@@ -883,7 +883,7 @@ fn test_biomancer_gives_counters_equal_to_its_current_power() {
 
 /// The Biomancer does not give itself counters, and it needs no "other" clause
 /// to say so: gather source 1 sweeps the battlefield, where an entering object
-/// is not, and source 1a admits only `AffectedSet::SourceOnly`.
+/// is not, and source 1a admits only `ObjectSet::SourceOnly`.
 #[test]
 fn test_a_biomancer_entering_alone_gives_itself_nothing() {
     let mut game = setup_two_player_game();
@@ -1137,7 +1137,7 @@ fn test_a_prevented_sacrifice_is_not_counted() {
 ///
 /// **What no test here can separate** is the effect's controller from the
 /// entering permanent's, because on every reachable board they are the same
-/// player: devour is `AffectedSet::SourceOnly`, so `gather` source 1a hands it
+/// player: devour is `ObjectSet::SourceOnly`, so `gather` source 1a hands it
 /// the proposal's controller, and no printed entry replacement sacrifices a
 /// creature its own controller does not control. `codebase-state.md` item 62
 /// is where the two come apart, and it is unreachable by construction.

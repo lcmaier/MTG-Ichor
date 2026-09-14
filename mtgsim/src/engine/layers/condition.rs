@@ -141,7 +141,7 @@ pub(super) fn holds(
             .is_some_and(|player| player.library.is_empty()),
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
-        // every layer, exactly as `AffectedSet::Host` is. An unattached
+        // every layer, exactly as `ObjectSet::Host` is. An unattached
         // source matches nothing, so its conditional effect does not exist.
         Condition::HostMatches(filter) => {
             let Some(host) = game.battlefield.get(&source).and_then(|e| e.attached_to) else {
@@ -361,7 +361,7 @@ mod tests {
     }
 
     /// An unattached source is attached to nothing, so nothing matches — the
-    /// same answer `AffectedSet::Host` gives, and the reason an Aura's
+    /// same answer `ObjectSet::Host` gives, and the reason an Aura's
     /// conditional effect simply does not exist before it is attached.
     #[test]
     fn an_unattached_source_matches_no_host() {

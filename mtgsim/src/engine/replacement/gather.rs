@@ -28,7 +28,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
+    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::{ObjectId, PlayerId};
@@ -64,7 +64,7 @@ pub enum CounterEffectKind {
 /// What a proposed event is *about* — CR 614.1's "whatever they're affecting"
 /// and CR 616.1's "the affected object ... or the affected player".
 ///
-/// Named for the *event*, not for the effect, because `AffectedSet` already
+/// Named for the *event*, not for the effect, because `ObjectSet` already
 /// answers the other question — which objects an effect applies to — and the
 /// two are asked one line apart in [`applies_to`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -297,7 +297,7 @@ pub(crate) fn gather(
     // copied replacement ability is on the effective ability list and in neither
     // ETB-recorded set, so `any_copied_replacement` is its leg here as well as
     // on the global gate. It is not attributed to an object, exactly as
-    // `any_granted_replacement` is not — a copy row's `AffectedSet` names the
+    // `any_granted_replacement` is not — a copy row's `ObjectSet` names the
     // copies, but the summary is registry-wide, and narrowing it to an object
     // would mean resolving a filter per permanent per gate check.
     let summary = game.continuous_effects.summary();
@@ -364,7 +364,7 @@ pub(crate) fn gather(
 /// > only that permanent (as opposed to a general subset of permanents that
 /// > includes it) …
 ///
-/// So an entering permanent contributes its `AffectedSet::SourceOnly`
+/// So an entering permanent contributes its `ObjectSet::SourceOnly`
 /// replacements ("this land enters tapped") and **not** its filter-scoped ones.
 /// Orb of Dreams says "Permanents enter tapped" and enters untapped; without
 /// this the entering Orb finds its own row through `set_affects`, which matches
@@ -378,7 +378,7 @@ pub(crate) fn gather(
 enum SelfScope {
     /// The battlefield sweep. Every replacement ability the object has counts.
     OnBattlefield,
-    /// Source 1a. Only `AffectedSet::SourceOnly` counts (CR 614.12).
+    /// Source 1a. Only `ObjectSet::SourceOnly` counts (CR 614.12).
     EnteringSelf,
 }
 
@@ -439,7 +439,7 @@ fn push_static_ability_replacements(
             }
             _ => continue,
         };
-        if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, AffectedSet::SourceOnly) {
+        if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, ObjectSet::SourceOnly) {
             continue;
         }
         push_if_applicable(
@@ -540,7 +540,7 @@ pub(super) fn applies_to(
 /// "whatever they're affecting"?
 ///
 /// **Two sets, unioned, because the CR names two kinds of subject.** An event
-/// about an object asks `AffectedSet`; an event about a player asks
+/// about an object asks `ObjectSet`; an event about a player asks
 /// [`PlayerSet`]. Furnace of Rath's "a permanent or player" is `Filter { All }`
 /// plus `Everyone` and is one effect either way — which is why this is one
 /// function with two parameters rather than two functions
@@ -562,7 +562,7 @@ pub(super) fn applies_to(
 /// player is not an object and no layer computes one.
 pub(crate) fn set_affects(
     game: &GameState,
-    affected: &AffectedSet,
+    affected: &ObjectSet,
     affected_players: &PlayerSet,
     source: ObjectId,
     controller: PlayerId,
@@ -577,11 +577,11 @@ pub(crate) fn set_affects(
         EventSubject::Player(pid) => return affected_players.contains(controller, pid),
     };
     match affected {
-        AffectedSet::SourceOnly => source == id,
-        AffectedSet::Fixed(ids) => ids.contains(&id),
+        ObjectSet::SourceOnly => source == id,
+        ObjectSet::Fixed(ids) => ids.contains(&id),
         // CR 303.4m, by id like the two above: an entering permanent is
         // attached to by nothing, so the frame has nothing to say.
-        AffectedSet::Host => {
+        ObjectSet::Host => {
             game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
         }
         // **Asked on behalf of the effect, not of a selection**, and the
@@ -589,7 +589,7 @@ pub(crate) fn set_affects(
         // effect's `source`, which this function has and a selection does not.
         // Palisade Giant's "other permanents you control" is the printed card
         // that needs it (`codebase-state.md` item 103).
-        AffectedSet::Filter { filter } => game
+        ObjectSet::Filter { filter } => game
             .object_matches_filter_of_source(
                 id,
                 filter,
@@ -896,7 +896,7 @@ fn counter_replacements(
                 EventPattern::Destroy {
                     source: Some(crate::types::replacement::DestructionSourcePattern::Effect),
                 },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::RemoveCountersFromAffected {
                     counter: CounterType::Shield,
                     n: 1,
@@ -915,7 +915,7 @@ fn counter_replacements(
             CounterEffectKind::Prevention,
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Prevent,
             )
             .with_then(remove_one_counter(CounterType::Shield)),
@@ -930,7 +930,7 @@ fn counter_replacements(
             CounterEffectKind::Replacement,
             ReplacementDef::new(
                 EventPattern::Untap,
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::RemoveCountersFromAffected {
                     counter: CounterType::Stun,
                     n: 1,
@@ -956,7 +956,7 @@ fn counter_replacements(
                     cause: None,
                     object: None,
                 },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -1063,7 +1063,7 @@ fn commander_zone_replacement(
             cause: None,
             object: None,
         },
-        AffectedSet::Fixed(vec![*object]),
+        ObjectSet::Fixed(vec![*object]),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
             to: Zone::Command,
             cause: ZoneChangeCause::CommanderZoneReplacement,

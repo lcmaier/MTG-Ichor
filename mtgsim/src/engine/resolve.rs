@@ -2,7 +2,7 @@ use crate::engine::actions::{
     ActionContext, DestructionSource, DrawCause, GameAction, LifeLossCause, ZoneChangeCause,
 };
 use crate::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::{CounterSubject, DamageTarget, LossReason};
 use crate::objects::card_data::AbilityDef;
@@ -662,7 +662,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
                     // CR 608.2h — a resolving spell locks its value in as it
                     // resolves, so this is `Fixed` even though the card text
                     // said "X". Static abilities are the ones that stay live.
@@ -692,7 +692,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
                     modification: crate::engine::layers::EffectModification::SetPowerToughness {
                         power: crate::engine::layers::types::PtValue::Fixed(power),
                         toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
@@ -722,7 +722,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
                     modification: crate::engine::layers::EffectModification::SwitchPowerToughness,
                 };
                 self.continuous_effects.add(effect);
@@ -752,7 +752,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids),
                     modification,
                 };
                 self.continuous_effects.add(effect);
@@ -824,7 +824,7 @@ impl GameState {
                         controller: ctx.controller,
                         created_on_turn: self.turn_number,
                         timestamp,
-                        affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids.clone()),
+                        affected_objects: crate::engine::layers::ObjectSet::Fixed(target_ids.clone()),
                         modification,
                     };
                     self.continuous_effects.add(effect);
@@ -951,7 +951,7 @@ impl GameState {
                         .unwrap_or(ctx.controller);
                     let def = ReplacementDef::new(
                         EventPattern::Destroy { source: None },
-                        AffectedSet::Fixed(vec![object]),
+                        ObjectSet::Fixed(vec![object]),
                         Rewrite::Prevent,
                     )
                     .once()
@@ -1016,11 +1016,11 @@ impl GameState {
                 };
                 let def = &def;
 
-                let authored_empty = matches!(def.affected_objects, AffectedSet::Fixed(ref ids) if ids.is_empty())
+                let authored_empty = matches!(def.affected_objects, ObjectSet::Fixed(ref ids) if ids.is_empty())
                     && def.affected_players == PlayerSet::Nobody;
                 let fill_object = |id: ObjectId| {
                     let mut row = (*def).clone();
-                    row.affected_objects = AffectedSet::Fixed(vec![id]);
+                    row.affected_objects = ObjectSet::Fixed(vec![id]);
                     row
                 };
                 let fill_player = |pid: PlayerId| {
@@ -1035,7 +1035,7 @@ impl GameState {
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
                              recipient authored a non-empty affected set, which the \
                              resolution then overwrote with its own targets. Write \
-                             `AffectedSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
+                             `ObjectSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
                             ctx.source
                         );
                         ctx.targets
@@ -1081,7 +1081,7 @@ impl GameState {
                                 "a `Primitive::CreateReplacement` on {:?} names no target, \
                                  no filter and no player, so its row could never apply. \
                                  Give it a `Target` recipient, a `FilteredPermanents` \
-                                 recipient, or an `AffectedSet::Filter`/`PlayerSet` of \
+                                 recipient, or an `ObjectSet::Filter`/`PlayerSet` of \
                                  its own.",
                                 ctx.source
                             ));
@@ -1115,7 +1115,7 @@ impl GameState {
             // One registry row per resolved target, and the **resolution
             // supplies the affected set** — a card file cannot name a target it
             // has not yet chosen, which is the same reason
-            // `Primitive::Regenerate` above builds its own `AffectedSet::Fixed`.
+            // `Primitive::Regenerate` above builds its own `ObjectSet::Fixed`.
             // The authored set is therefore required to be an empty `Fixed`, and
             // the `debug_assert` says so rather than silently discarding what an
             // author wrote there.
@@ -1149,16 +1149,16 @@ impl GameState {
                 // filling from targets would have produced no row at all, and
                 // the debug assertion this condition replaces would have fired
                 // on the half that says "damage can't be prevented"
-                // (`AffectedSet::Filter { All }`, complete on the card).
+                // (`ObjectSet::Filter { All }`, complete on the card).
                 let mut rows: Vec<RestrictionDef> = Vec::new();
                 let (objects, players) = restriction_scope(def);
-                if matches!(objects, AffectedSet::Fixed(ids) if ids.is_empty())
+                if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
                     && matches!(players, PlayerSet::Nobody)
                 {
                     for object in self.collect_battlefield_targets(ctx) {
                         let mut filled = def.clone();
-                        *restriction_affected_set_mut(&mut filled) =
-                            AffectedSet::Fixed(vec![object]);
+                        *restriction_object_set_mut(&mut filled) =
+                            ObjectSet::Fixed(vec![object]);
                         rows.push(filled);
                     }
                 } else {
@@ -1328,7 +1328,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected_objects: AffectedSet::Fixed(target_ids),
+                    affected_objects: ObjectSet::Fixed(target_ids),
                     // `You` rather than `ctx.controller`, though they name the
                     // same player: on a `Resolution` row, `FilterPlayers::you()`
                     // reads `ContinuousEffect.controller`, which CR 611.2c
@@ -1393,7 +1393,7 @@ impl GameState {
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected_objects: AffectedSet::Fixed(targets),
+            affected_objects: ObjectSet::Fixed(targets),
             modification,
         });
         Some(timestamp)
@@ -1459,7 +1459,7 @@ impl GameState {
         let atoms = GameState::static_ability_atoms(granted, &context);
 
         for (primitive, recipient) in atoms {
-            let Some(affected) = GameState::static_affected_set(recipient, &context) else {
+            let Some(affected) = GameState::static_object_set(recipient, &context) else {
                 continue;
             };
 
@@ -1574,7 +1574,7 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         use crate::engine::layers::types::{
-            AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+            ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
         };
 
         // --- 1. The two roles -------------------------------------------
@@ -1652,7 +1652,7 @@ impl GameState {
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected_objects: AffectedSet::Fixed(affected.clone()),
+            affected_objects: ObjectSet::Fixed(affected.clone()),
             modification: EffectModification::CopyFrom(Box::new(values.clone())),
         });
 
@@ -2006,7 +2006,7 @@ impl GameState {
 /// set with the resolution's targets without caring which arm it is. Matched
 /// exhaustively, so a new arm has to say where its objects live rather than
 /// silently keeping whatever the card wrote.
-fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
+fn restriction_object_set_mut(def: &mut RestrictionDef) -> &mut ObjectSet {
     match &mut def.what {
         Restriction::Event { affected_objects, .. } => affected_objects,
         Restriction::ApplyReplacement { to_objects, .. } => to_objects,
@@ -2015,12 +2015,12 @@ fn restriction_affected_set_mut(def: &mut RestrictionDef) -> &mut AffectedSet {
 
 /// Both halves of a [`RestrictionDef`]'s scope, whichever arm it is.
 ///
-/// The read-only sibling of [`restriction_affected_set_mut`], and it returns
+/// The read-only sibling of [`restriction_object_set_mut`], and it returns
 /// the *pair* because that is the question `Primitive::Restrict` asks: a
 /// restriction naming no objects and no players is the one whose subject the
 /// resolution supplies. Either half alone would answer it wrongly — Skullcrack
 /// names no object and every player.
-fn restriction_scope(def: &RestrictionDef) -> (&AffectedSet, &PlayerSet) {
+fn restriction_scope(def: &RestrictionDef) -> (&ObjectSet, &PlayerSet) {
     match &def.what {
         Restriction::Event { affected_objects, affected_players, .. } => (affected_objects, affected_players),
         Restriction::ApplyReplacement { to_objects, to_players, .. } => (to_objects, to_players),
