@@ -131,7 +131,7 @@ was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- (none — nothing half-finished)
+- `plans/handoffs/re-5-review.md`
 
 ## What this file deliberately does not know
 
