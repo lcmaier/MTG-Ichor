@@ -259,6 +259,54 @@
 //! line — a token created in exile — needs a token creation under the row in
 //! the same turn, which two pooled cards and a random agent reach rarely;
 //! that reachability is a `--require` row rather than a slot.
+//!
+//! # RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a)
+//!
+//! **Six printed cards on two axes: which subject the effect is around — a
+//! permanent, a player, or either — and what it does to the count.** CR 122.6
+//! makes an entry that gives a permanent counters the same "put on" event, so
+//! every watcher here meets two doors, an `AddCounters` proposal and an
+//! `EnterBattlefield` whose mods carry a kind, and every one of them has a
+//! ruling saying it "affects permanents that enter with counters".
+//!
+//! | Card | Around | Does |
+//! |---|---|---|
+//! | [`doubling_season`] | permanents you control (and tokens, RE-4's half) | `Amount(Multiplier(2))`, every kind |
+//! | [`hardened_scales`] | creatures you control, +1/+1 only | `Amount(Plus(1))` — RD-3's arm, second kind |
+//! | [`vorinclex_monstrous_raider`] | every permanent and player, *by who puts them on* | `Multiplier(2)` if you, `Halve(Down)` if an opponent |
+//! | [`winding_constrictor`] | artifacts and creatures you control; and you | `Plus(1)` of each kind, twice |
+//! | [`live_fast`] | you | the producer — `Primitive::GetCounters`, two energy |
+//! | [`primal_vigor`] | every creature, +1/+1; every token | `Multiplier(2)`, `Everyone` |
+//!
+//! **Who puts the counters on rides on the event.** `AddCounters::by` is the
+//! resolving effect's controller, and at the entry door it is CR 122.6a's
+//! default — the controller the permanent enters under, settled at
+//! CR 616.1b before anything asks. Vorinclex is the only reader; Doubling
+//! Season's counter half reads the *permanent's* controller and nothing
+//! about the putter, which its text says and `ATOM-122.6a-001`'s example
+//! gets wrong. No printed effect specifies another putter (Scryfall,
+//! 2026-09-13), so `EnterMods` carries none.
+//!
+//! **A multiplier and a plus do not commute, and the prompt is real.**
+//! Doubling Season beside Hardened Scales is 1 → 2 → 3 or 1 → 2 → 4, and
+//! Scales' own ruling says the creature's controller chooses "no matter who
+//! controls the sources". Two Seasons are a bucket of multipliers and ask
+//! nothing; two Scales are additive and ask, though their outcome is one —
+//! `backlog.md` §2.29's next row, recorded there and not built here.
+//!
+//! # What a random deck can draw
+//!
+//! Hardened Scales is the pooled card: `{G}`, so every green deck casts it on
+//! turn one, and it opens the sweep on every `AddCounters` (Battlegrowth is
+//! pooled) and every counter-bearing entry — Chainbreaker's, Master
+//! Biomancer's grants, Loyalty Probe's in `stress` — for as long as it is on
+//! the battlefield. Doubling Season is registered and stays out: five mana,
+//! and its token half would double the pool's Soldiers, a gameplay change
+//! the A/B should not carry with the engine change. Vorinclex is six mana and
+//! legendary, Winding Constrictor two colors, Primal Vigor the Season with
+//! `Everyone`, and Live Fast a cantrip whose energy nothing pooled reads:
+//! each is the same path Scales opens at one mana, or a path with no second
+//! card to meet.
 
 use std::sync::Arc;
 
@@ -268,7 +316,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
+    AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::ids::new_ability_id;
@@ -276,7 +324,7 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
-    Rewrite, TemplateAmount, TokenKind, TokenSubstitution,
+    Rewrite, Rounding, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
@@ -1918,5 +1966,434 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You),
         ))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-5 — counters, on permanents and players
+// ---------------------------------------------------------------------------
+
+/// CR 614.16's counter half over every kind, for a permanent you control —
+/// Doubling Season's second ability, the def three cards here share a shape
+/// with.
+fn doubles_counters_on_your_permanents() -> ReplacementDef {
+    ReplacementDef::new(
+        EventPattern::CounterChange { counter: None, adding: true, by: None },
+        AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        Rewrite::Amount(AmountRewrite::Multiplier(2)),
+    )
+}
+
+/// Doubling Season — {4}{G}
+/// Enchantment
+///
+/// > If an effect would create one or more tokens under your control, it
+/// > creates twice that many of those tokens instead.
+/// > If an effect would put one or more counters on a permanent you control,
+/// > it puts twice that many of those counters on that permanent instead.
+///
+/// **Both halves of CR 614.16, on one card.** The token half is Parallel
+/// Lives' def word for word (RE-4); the counter half is the first
+/// `CounterChange` watcher, and it reads *the permanent's controller* — "a
+/// permanent you control" — and nothing about who puts the counters on, which
+/// is Vorinclex's question and not this card's. The two are two instances
+/// with two CR 614.5 identities: the token half is applied at a creation and
+/// the counter half at each entry the creation contains (CR 616.1g), and
+/// neither is offered at the other's step.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"Planeswalkers will enter with double the normal number of loyalty
+///   counters."* → CR 306.5b's seed through the entry door;
+///   `doubling_season_doubles_a_planeswalkers_loyalty`.
+/// - *"However, if you activate an ability whose cost has you put loyalty
+///   counters on a planeswalker, the number you put on isn't doubled. This
+///   is because those counters are put on as a cost, not as an effect."* →
+///   not asserted: `Cost::AddCounters` is unimplemented, and the fact the
+///   payment will need on the event is `codebase-state.md`'s "Found by
+///   RE-5" line.
+/// - *"Everything that is specified by the effect creating the original
+///   token or tokens will also be true about the additional token or
+///   tokens"* → RE-4's `the_extra_tokens_are_the_same_tokens`, on the def
+///   this half shares.
+/// - *"Doubling Season affects permanents that enter with counters."* →
+///   Chainbreaker enters with four -1/-1 counters;
+///   `doubling_season_doubles_the_counters_a_permanent_enters_with`. And
+///   Master Biomancer's grant, the CR 616.2 board: the Season is not
+///   applicable until Biomancer has written the counters, so nothing is
+///   asked and the grant is doubled;
+///   `doubling_season_doubles_master_biomancers_grant_and_asks_nothing`.
+/// - *"Battles will enter with double the normal number of defense
+///   counters."* → `backlog.md` §2.23; no battle exists.
+/// - *"If there are two Doubling Seasons on the battlefield, then the number
+///   of tokens or counters is four times the original number."* → both
+///   halves, `test_two_doubling_seasons_quadruple` — §10's acid test, on the
+///   counter half by the route RB could not reach.
+///
+/// **Registered and not pooled.** Five mana, and its token half would double
+/// the pool's Soldiers — a gameplay change the A/B should not carry with the
+/// engine change (`replacement-architecture.md` §9).
+pub fn doubling_season() -> Arc<CardData> {
+    CardDataBuilder::new("Doubling Season")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 4))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If an effect would create one or more tokens under your control, it creates \
+             twice that many of those tokens instead.\nIf an effect would put one or more \
+             counters on a permanent you control, it puts twice that many of those counters \
+             on that permanent instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .ability(static_replacement(doubles_counters_on_your_permanents()))
+        .build()
+}
+
+/// Hardened Scales — {G}
+/// Enchantment
+///
+/// > If one or more +1/+1 counters would be put on a creature you control,
+/// > that many plus one +1/+1 counters are put on it instead.
+///
+/// **`AmountRewrite::Plus`'s second kind** — RD-3 landed the arm for Torbran's
+/// damage — and the first additive counter replacement. It does not commute
+/// with a multiplier, which is why beside Doubling Season the affected
+/// permanent's controller is asked, and why beside a second Scales the
+/// prompt is asked too though its outcome is one (`backlog.md` §2.29).
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"If a creature you control would enter the battlefield with a number of
+///   +1/+1 counters on it, it enters with that many plus one instead."* → the
+///   entry door on Master Biomancer's grant;
+///   `hardened_scales_adds_one_to_the_counters_a_creature_enters_with`.
+/// - *"If two or more effects attempt to modify how many counters would be
+///   put on a creature you control, you choose the order to apply those
+///   effects, no matter who controls the sources of those effects."* → an
+///   opponent's Primal Vigor beside your Scales, and the creature's
+///   controller is asked — 1 → 2 → 3 or 1 → 2 → 4;
+///   `the_creatures_controller_orders_scales_beside_an_opponents_vigor`.
+/// - *"Each additional Hardened Scales you control will increase the number
+///   of +1/+1 counters placed on a creature you control by one."* → two
+///   rows, each applied once; `two_hardened_scales_add_two`.
+///
+/// **Pooled**, `PERFORMANCE_POOL` +1 — the module doc says why.
+pub fn hardened_scales() -> Arc<CardData> {
+    CardDataBuilder::new("Hardened Scales")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 0))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If one or more +1/+1 counters would be put on a creature you control, that many \
+             plus one +1/+1 counters are put on it instead.",
+        )
+        .ability(static_replacement(ReplacementDef::new(
+            EventPattern::CounterChange {
+                counter: Some(CounterType::PlusOnePlusOne),
+                adding: true,
+                by: None,
+            },
+            AffectedSet::Filter {
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                ),
+            },
+            Rewrite::Amount(AmountRewrite::Plus(1)),
+        )))
+        .build()
+}
+
+/// Vorinclex, Monstrous Raider — {4}{G}{G}
+/// Legendary Creature — Phyrexian Praetor 6/6
+///
+/// > Trample, haste
+/// > If you would put one or more counters on a permanent or player, put
+/// > twice that many of each of those kinds of counters on that permanent or
+/// > player instead.
+/// > If an opponent would put one or more counters on a permanent or player,
+/// > they put half that many of each of those kinds of counters on that
+/// > permanent or player instead, rounded down.
+///
+/// **The reader of `AddCounters::by`, and the first `Halve` over counters.**
+/// Both halves are `Filter { All }` plus `Everyone` — "a permanent or player"
+/// is genuinely both questions, Furnace of Rath's shape — and differ only in
+/// `by`: `PlayerSet::You` against `PlayerSet::Opponents`, resolved against
+/// this card's controller. "Each of those kinds" is the entry door's own
+/// arithmetic, applied per kind in the mods.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"Unlike many similar effects, Vorinclex cares deeply about who is
+///   putting the counters on the permanent or player to determine which of
+///   its two last abilities applies."* → an opponent's Battlegrowth on your
+///   creature puts half of one, rounded down — none — and yours on theirs
+///   puts two; `vorinclex_reads_who_is_putting_the_counters_on`.
+/// - *"If a permanent enters the battlefield with counters on it, the effect
+///   causing the permanent to be given counters may specify which player
+///   puts those counters on it. If the effect doesn't specify a player, the
+///   object's controller puts those counters on it."* → CR 122.6a's default
+///   at the entry door: your Loyalty Probe enters with six, an opponent's
+///   with one; `vorinclex_reads_the_entering_controller_as_the_putter`.
+/// - *"If two or more effects attempt to modify how many counters would be
+///   put onto a permanent you control, you choose the order to apply those
+///   effects, no matter who controls the sources of those effects."* →
+///   beside your Hardened Scales, both orders;
+///   `you_order_vorinclex_beside_hardened_scales`.
+///
+/// The "or player" half is built, not recorded: your Live Fast under your
+/// Vorinclex gets four energy, and an opponent's gets one;
+/// `vorinclex_doubles_and_halves_the_counters_a_player_gets`.
+///
+/// **Registered and not pooled**: six mana, legendary, and a body whose
+/// engine path Hardened Scales opens at one.
+pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
+    CardDataBuilder::new("Vorinclex, Monstrous Raider")
+        .mana_cost(ManaCost::build(&[ManaType::Green, ManaType::Green], 4))
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .supertype(Supertype::Legendary)
+        .subtype(Subtype::Creature(CreatureType::Phyrexian))
+        .subtype(Subtype::Creature(CreatureType::Praetor))
+        .power_toughness(6, 6)
+        .keyword_flag(KeywordFlag::Trample)
+        .keyword_flag(KeywordFlag::Haste)
+        .rules_text(
+            "Trample, haste\nIf you would put one or more counters on a permanent or player, \
+             put twice that many of each of those kinds of counters on that permanent or \
+             player instead.\nIf an opponent would put one or more counters on a permanent \
+             or player, they put half that many of each of those kinds of counters on that \
+             permanent or player instead, rounded down.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CounterChange {
+                    counter: None,
+                    adding: true,
+                    by: Some(PlayerSet::You),
+                },
+                AffectedSet::Filter { filter: ObjectFilter::All },
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::Everyone),
+        ))
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CounterChange {
+                    counter: None,
+                    adding: true,
+                    by: Some(PlayerSet::Opponents),
+                },
+                AffectedSet::Filter { filter: ObjectFilter::All },
+                Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
+            )
+            .affecting_players(PlayerSet::Everyone),
+        ))
+        .build()
+}
+
+/// Winding Constrictor — {B}{G}
+/// Creature — Snake 2/3
+///
+/// > If one or more counters would be put on an artifact or creature you
+/// > control, that many plus one of each of those kinds of counters are put
+/// > on that permanent instead.
+/// > If you would get one or more counters, you get that many plus one of
+/// > each of those kinds of counters instead.
+///
+/// **Two `Plus(1)` rows, one per subject.** The object half is Hardened
+/// Scales' shape over every kind and an artifact-or-creature filter; the
+/// player half is the second player-subject watcher, `NO_OBJECTS` plus
+/// `PlayerSet::You`, Rhox Faithmender's shape over a counter event.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"If an artifact or creature you control would enter the battlefield
+///   with a number of any kind of counters on it, it enters with that many
+///   plus one instead."* → the entry door on Master Biomancer's grant;
+///   `winding_constrictor_adds_one_to_the_counters_a_creature_enters_with`.
+/// - *"If an effect includes multiple instructions to put one or more
+///   counters on an artifact or creature, such as Lifecrafter's Gift does,
+///   Winding Constrictor's effect applies to each of those instructions."*
+///   → two `Primitive::AddCounters` in one resolution are two proposals;
+///   `winding_constrictor_applies_to_each_instruction`.
+/// - *"If you control two Winding Constrictors, the number of counters
+///   placed on the artifact or creature is the original number plus two."*
+///   → `two_winding_constrictors_add_two`.
+/// - *"If you would get counters of multiple kinds at the same time, Winding
+///   Constrictor increases the number of each of those kinds of counters by
+///   one. The same is true if counters of multiple kinds would be placed on
+///   an artifact or creature you control."* → an entry carrying two kinds,
+///   each plus one; `winding_constrictor_adds_one_of_each_kind_an_entry_carries`.
+/// - *"Winding Constrictor's effect can't apply to itself as it's entering
+///   the battlefield or to any other permanent entering the battlefield at
+///   the same time as it."* → RC-3's membership rule, asserted on the first
+///   half: the Constrictor entering under Master Biomancer gets Biomancer's
+///   two and not its own plus one;
+///   `winding_constrictor_does_not_apply_to_its_own_entry`. The second half
+///   is RE-4's plural batch, and no registered card puts the Constrictor in
+///   one.
+/// - *"If a nonartifact, noncreature permanent … would enter the battlefield
+///   with counters on it and become an artifact or a creature on the
+///   battlefield due to another card's effect (such as that of Mycosynth
+///   Lattice), Winding Constrictor's effect will give that permanent another
+///   of those counters."* → the CR 614.12 frame, RC-4's; the filter is asked
+///   of the permanent as it would exist. No such Layer 4 effect is
+///   registered, so it is not asserted here.
+///
+/// **Registered and not pooled**: two colors, and the same engine path as
+/// Hardened Scales with a second subject the pool has no producer for.
+pub fn winding_constrictor() -> Arc<CardData> {
+    CardDataBuilder::new("Winding Constrictor")
+        .mana_cost(ManaCost::build(&[ManaType::Black, ManaType::Green], 0))
+        .color(Color::Black)
+        .color(Color::Green)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Snake))
+        .power_toughness(2, 3)
+        .rules_text(
+            "If one or more counters would be put on an artifact or creature you control, \
+             that many plus one of each of those kinds of counters are put on that permanent \
+             instead.\nIf you would get one or more counters, you get that many plus one of \
+             each of those kinds of counters instead.",
+        )
+        .ability(static_replacement(ReplacementDef::new(
+            EventPattern::CounterChange { counter: None, adding: true, by: None },
+            AffectedSet::Filter {
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::Or(
+                        Box::new(ObjectFilter::ByType(CardType::Artifact)),
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    )),
+                    Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                ),
+            },
+            Rewrite::Amount(AmountRewrite::Plus(1)),
+        )))
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CounterChange { counter: None, adding: true, by: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Plus(1)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Live Fast — {2}{B}
+/// Sorcery
+///
+/// > You draw two cards, lose 2 life, and get {E}{E} (two energy counters).
+///
+/// **The producer of a player's counters, with nothing else in it**: RE-2's
+/// draw instruction, RA's life loss, and `Primitive::GetCounters` — the one
+/// new primitive, resolved to its controller.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"Energy counters are a kind of counter that a player may have. They're
+///   not associated with any specific permanents."* → `PlayerState::counters`
+///   has the kind and no permanent does; `live_fast_gives_its_caster_two_energy`.
+/// - *"Any effects that interact with counters a player gets, has, or loses
+///   can interact with energy counters."* → Vorinclex's and Winding
+///   Constrictor's player halves, on this card.
+/// - *"To pay one or more {E}, you lose that many energy counters. You can't
+///   pay more energy counters than you have."* → a cost, which waits for its
+///   first card (`backlog.md` §2.16's close).
+///
+/// **Registered and not pooled**: a three-mana cantrip whose counters nothing
+/// pooled reads.
+pub fn live_fast() -> Arc<CardData> {
+    CardDataBuilder::new("Live Fast")
+        .mana_cost(ManaCost::build(&[ManaType::Black], 2))
+        .color(Color::Black)
+        .card_type(CardType::Sorcery)
+        .rules_text("You draw two cards, lose 2 life, and get {E}{E} (two energy counters).")
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(vec![
+                Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+                Effect::Atom(
+                    Primitive::GetCounters(CounterType::Energy, AmountExpr::Fixed(2)),
+                    EffectRecipient::Controller,
+                ),
+            ]),
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// Primal Vigor — {4}{G}
+/// Enchantment
+///
+/// > If one or more tokens would be created, twice that many of those tokens
+/// > are created instead.
+/// > If one or more +1/+1 counters would be put on a creature, twice that
+/// > many +1/+1 counters are put on that creature instead.
+///
+/// **Doubling Season with `Everyone` on the token half and no controller on
+/// the counter half** — "it doesn't matter who controls the tokens or the
+/// creature", the ruling says, and the N-player table is where that shows.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"Everything that is specified by the effect creating the original
+///   token or tokens will also be true about the additional token or
+///   tokens"* → RE-4's `the_extra_tokens_are_the_same_tokens`.
+/// - *"It doesn't matter who controls the tokens or the creature that the
+///   +1/+1 counters are being placed on."* → four players: an opponent's
+///   Raise the Alarm makes four, and a third player's Battlegrowth on a
+///   fourth's creature puts two;
+///   `primal_vigor_does_not_care_who_controls_the_tokens_or_the_creature`.
+/// - *"Primal Vigor affects permanents that 'enter the battlefield with' a
+///   certain number of counters. For example, if a creature would normally
+///   enter the battlefield with three +1/+1 counters on it, it will enter
+///   with six."* → Adaptive Shimmerer enters with six;
+///   `primal_vigor_doubles_the_counters_a_creature_enters_with`.
+/// - *"If there are two Primal Vigors on the battlefield, the number of
+///   tokens or +1/+1 counters is four times the original number."* → the
+///   Season's acid test on the symmetric card; `two_primal_vigors_quadruple`.
+///
+/// **Registered and not pooled**, for Doubling Season's reason with
+/// `Everyone` on top of it.
+pub fn primal_vigor() -> Arc<CardData> {
+    CardDataBuilder::new("Primal Vigor")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 4))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If one or more tokens would be created, twice that many of those tokens are \
+             created instead.\nIf one or more +1/+1 counters would be put on a creature, \
+             twice that many +1/+1 counters are put on that creature instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::Everyone),
+        ))
+        .ability(static_replacement(ReplacementDef::new(
+            EventPattern::CounterChange {
+                counter: Some(CounterType::PlusOnePlusOne),
+                adding: true,
+                by: None,
+            },
+            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            Rewrite::Amount(AmountRewrite::Multiplier(2)),
+        )))
         .build()
 }

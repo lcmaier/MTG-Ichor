@@ -1634,7 +1634,7 @@ mod tests {
     // T16: Poison, commander damage, indestructible SBA tests
     // -----------------------------------------------------------------------
 
-    // COVERS: ATOM-104.3d-001, ATOM-704.5c-001
+    // COVERS: ATOM-104.3d-001, ATOM-704.5c-001, ATOM-122.1f-001
     #[test]
     fn test_sba_poison_10_loses() {
         // 704.5c — A player with 10 or more poison counters loses the game.

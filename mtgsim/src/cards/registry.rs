@@ -729,6 +729,20 @@ impl CardRegistry {
         registry.register("Divine Visitation", phase_re_cards::divine_visitation);
         registry.register("Bard, King of Dale", phase_re_cards::bard_king_of_dale);
 
+        // RE-5 — counters. Six cards on two axes: which subject the effect
+        // is around (a permanent, a player, or either) and what it does to
+        // the count. Hardened Scales is pooled; the module doc says why the
+        // other five stay out.
+        registry.register("Doubling Season", phase_re_cards::doubling_season);
+        registry.register("Hardened Scales", phase_re_cards::hardened_scales);
+        registry.register(
+            "Vorinclex, Monstrous Raider",
+            phase_re_cards::vorinclex_monstrous_raider,
+        );
+        registry.register("Winding Constrictor", phase_re_cards::winding_constrictor);
+        registry.register("Live Fast", phase_re_cards::live_fast);
+        registry.register("Primal Vigor", phase_re_cards::primal_vigor);
+
         registry
     }
 

@@ -13,14 +13,22 @@
 
 use std::sync::Arc;
 
+use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker, master_biomancer};
+use mtgsim::cards::phase_rd_cards::loyalty_probe;
+use mtgsim::cards::phase_re_cards::{
+    doubling_season, hardened_scales, live_fast, primal_vigor, raise_the_alarm,
+    vorinclex_monstrous_raider, winding_constrictor,
+};
+use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, static_ability,
-    test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
+    fill_library, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
+    setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -553,4 +561,426 @@ fn a_player_removal_takes_as_much_as_it_can() {
         vec![(CounterSubject::Player(0), CounterType::Energy, -3)],
         "one transition, and the removal of nothing announced nothing"
     );
+}
+
+// ---------------------------------------------------------------------------
+// The printed cards
+// ---------------------------------------------------------------------------
+
+/// Resolve a registered instant or sorcery's spell ability for `player` with
+/// no targets, as its text is written.
+fn resolve_card(game: &mut GameState, player: PlayerId, card: Arc<CardData>, dp: &dyn DecisionProvider) {
+    let effect = card.abilities[0].effect.clone();
+    resolve_targeting(game, player, vec![], &effect, dp);
+}
+
+/// Resolve a registered one-target spell for `player` on `target`.
+fn resolve_card_on(
+    game: &mut GameState,
+    player: PlayerId,
+    card: Arc<CardData>,
+    target: ObjectId,
+    dp: &dyn DecisionProvider,
+) {
+    let effect = card.abilities[0].effect.clone();
+    resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
+}
+
+/// Every token on the battlefield, in timestamp order.
+fn tokens(game: &GameState) -> Vec<ObjectId> {
+    game.battlefield_ids_ordered()
+        .into_iter()
+        .filter(|id| game.objects.get(id).is_some_and(|o| o.is_token))
+        .collect()
+}
+
+// --- Doubling Season -------------------------------------------------------
+
+/// *"Planeswalkers will enter with double the normal number of loyalty
+/// counters."*
+#[test]
+fn doubling_season_doubles_a_planeswalkers_loyalty() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+
+    let probe = reanimate(&mut game, loyalty_probe(), 0);
+
+    assert_eq!(count(&game, probe, CounterType::Loyalty), 6);
+}
+
+/// *"Doubling Season affects permanents that enter with counters."* —
+/// Chainbreaker's own "enters with two -1/-1 counters", doubled at its entry.
+#[test]
+fn doubling_season_doubles_the_counters_a_permanent_enters_with() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+
+    let chained = reanimate(&mut game, chainbreaker(), 0);
+
+    assert_eq!(count(&game, chained, CounterType::MinusOneMinusOne), 4);
+}
+
+/// The CR 616.2 board decision 4 names: the Season is not applicable to an
+/// entry until Master Biomancer's `EnterWith` has written counters into it,
+/// so the two never share an iteration, nothing is asked, and the grant is
+/// doubled.
+#[test]
+fn doubling_season_doubles_master_biomancers_grant_and_asks_nothing() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    let bears = reanimate_with(&mut game, vanilla_creature(2, 2, &[]), 0, &dp);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4);
+    assert_eq!(dp.prompts(), 0);
+}
+
+/// §10's acid test, on both halves: *"If there are two Doubling Seasons on
+/// the battlefield, then the number of tokens or counters is four times the
+/// original number."* Two multipliers are one bucket and ask nothing.
+#[test]
+fn test_two_doubling_seasons_quadruple() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+    put_on_battlefield(&mut game, doubling_season(), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
+    resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4);
+    assert_eq!(tokens(&game).len(), 8);
+    assert_eq!(dp.prompts(), 0, "two buckets of multipliers, each with one outcome");
+}
+
+/// CR 616.1g on the card that is its example: the token half is applied
+/// once at the creation, the counter half once at each entry the creation
+/// contains, and neither is offered at the other's step — four Soldiers,
+/// each entering with Biomancer's two doubled to four.
+// COVERS: ATOM-616.1g-001
+#[test]
+fn doubling_seasons_two_halves_apply_at_the_creation_and_at_each_entry() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, doubling_season(), 0);
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+
+    let soldiers = tokens(&game);
+    assert_eq!(soldiers.len(), 4, "two, doubled at the creation");
+    for soldier in &soldiers {
+        assert_eq!(count(&game, *soldier, CounterType::PlusOnePlusOne), 4, "two, doubled at the entry");
+    }
+    assert_eq!(dp.prompts(), 0);
+}
+
+// --- Hardened Scales -------------------------------------------------------
+
+/// *"If a creature you control would enter the battlefield with a number of
+/// +1/+1 counters on it, it enters with that many plus one instead."*
+#[test]
+fn hardened_scales_adds_one_to_the_counters_a_creature_enters_with() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, hardened_scales(), 0);
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+
+    let bears = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 3);
+}
+
+/// *"You choose the order to apply those effects, no matter who controls the
+/// sources of those effects."* An opponent's Primal Vigor beside your Scales
+/// on your creature: a multiplier and a plus do not commute, and the
+/// creature's controller chooses — 1 → 2 → 3 or 1 → 2 → 4.
+#[test]
+fn the_creatures_controller_orders_scales_beside_an_opponents_vigor() {
+    let run = |pick: usize| -> u32 {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, hardened_scales(), 0);
+        put_on_battlefield(&mut game, primal_vigor(), 1);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
+        assert!(dp.is_empty(), "one prompt");
+        count(&game, bears, CounterType::PlusOnePlusOne)
+    };
+    let outcomes = [run(0), run(1)];
+    assert!(
+        outcomes.contains(&3) && outcomes.contains(&4),
+        "Scales then Vigor is 4, Vigor then Scales is 3 — got {:?}",
+        outcomes
+    );
+}
+
+/// *"Each additional Hardened Scales you control will increase the number of
+/// +1/+1 counters placed on a creature you control by one."* Two additive
+/// rows have one outcome and are asked anyway — `backlog.md` §2.29's next
+/// row, asserted here as the needless prompt it is.
+#[test]
+fn two_hardened_scales_add_two() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, hardened_scales(), 0);
+    put_on_battlefield(&mut game, hardened_scales(), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 3);
+    assert_eq!(dp.prompts(), 1, "additive rows commute, and the predicate has no shape for them yet");
+}
+
+// --- Vorinclex, Monstrous Raider -------------------------------------------
+
+/// *"Vorinclex cares deeply about who is putting the counters on the
+/// permanent or player."* An opponent's Battlegrowth on your creature puts
+/// half of one, rounded down; yours on theirs puts two.
+#[test]
+fn vorinclex_reads_who_is_putting_the_counters_on() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+    let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    resolve_card_on(&mut game, 1, battlegrowth(), mine, &test_dp());
+    resolve_card_on(&mut game, 0, battlegrowth(), theirs, &test_dp());
+
+    assert_eq!(count(&game, mine, CounterType::PlusOnePlusOne), 0, "the opponent put on half of one");
+    assert_eq!(count(&game, theirs, CounterType::PlusOnePlusOne), 2, "I put on twice one");
+}
+
+/// CR 122.6a's default, read by the one printed card that asks: "if the
+/// effect doesn't specify a player, the object's controller puts those
+/// counters on it". Your Loyalty Probe enters with six; an opponent's, whose
+/// controller is an opponent putting them on, with one.
+///
+/// **The atom's own example is corrected here.** ATOM-122.6a-001 says the
+/// default matters because "Doubling Season only applies to counters placed
+/// by you"; the Season's counter half reads "a permanent you control"
+/// (Scryfall, 2026-09-13) and nothing about the putter. Vorinclex is the
+/// effect the atom was reaching for. The rule's first sentence — an effect
+/// that "may specify which player" — has no printed customer, so only the
+/// default is built (`codebase-state.md` item 43).
+// COVERS: ATOM-122.6a-001
+#[test]
+fn vorinclex_reads_the_entering_controller_as_the_putter() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+
+    let mine = reanimate(&mut game, loyalty_probe(), 0);
+    let theirs = reanimate(&mut game, loyalty_probe(), 1);
+
+    assert_eq!(count(&game, mine, CounterType::Loyalty), 6);
+    assert_eq!(count(&game, theirs, CounterType::Loyalty), 1, "three, halved down by the opponent's own entry");
+}
+
+/// *"You choose the order to apply those effects"* — Vorinclex's doubler
+/// beside your Hardened Scales on your creature, both orders.
+#[test]
+fn you_order_vorinclex_beside_hardened_scales() {
+    let run = |pick: usize| -> u32 {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+        put_on_battlefield(&mut game, hardened_scales(), 0);
+        let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let dp = ScriptedDecisionProvider::new();
+        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        resolve_card_on(&mut game, 0, battlegrowth(), bears, &dp);
+        assert!(dp.is_empty(), "one prompt");
+        count(&game, bears, CounterType::PlusOnePlusOne)
+    };
+    let outcomes = [run(0), run(1)];
+    assert!(outcomes.contains(&3) && outcomes.contains(&4), "got {:?}", outcomes);
+}
+
+/// The "or player" half, built: your Live Fast under your Vorinclex gets four
+/// energy, and an opponent's gets one.
+#[test]
+fn vorinclex_doubles_and_halves_the_counters_a_player_gets() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    fill_library(&mut game, 1, 5);
+    put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+
+    resolve_card(&mut game, 0, live_fast(), &test_dp());
+    resolve_card(&mut game, 1, live_fast(), &test_dp());
+
+    assert_eq!(game.players[0].counter_count(CounterType::Energy), 4);
+    assert_eq!(game.players[1].counter_count(CounterType::Energy), 1);
+}
+
+// --- Winding Constrictor ---------------------------------------------------
+
+/// *"If an artifact or creature you control would enter the battlefield with
+/// a number of any kind of counters on it, it enters with that many plus one
+/// instead."*
+#[test]
+fn winding_constrictor_adds_one_to_the_counters_a_creature_enters_with() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, winding_constrictor(), 0);
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+
+    let bears = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 3);
+}
+
+/// *"If an effect includes multiple instructions to put one or more counters
+/// on an artifact or creature ... Winding Constrictor's effect applies to
+/// each of those instructions."* Two instructions are two proposals.
+#[test]
+fn winding_constrictor_applies_to_each_instruction() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, winding_constrictor(), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let one = Effect::Atom(
+        Primitive::AddCounters(CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
+        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+    );
+    let twice = Effect::Sequence(vec![one.clone(), one]);
+
+    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &twice, &test_dp());
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4, "one plus one, twice");
+}
+
+/// *"If you control two Winding Constrictors, the number of counters placed
+/// on the artifact or creature is the original number plus two."*
+#[test]
+fn two_winding_constrictors_add_two() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, winding_constrictor(), 0);
+    put_on_battlefield(&mut game, winding_constrictor(), 0);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+
+    resolve_card_on(&mut game, 0, battlegrowth(), bears, &RecordingDecisionProvider::picking(0));
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 3);
+}
+
+/// *"The same is true if counters of multiple kinds would be placed on an
+/// artifact or creature you control"* — an entry carrying two kinds, each
+/// plus one.
+#[test]
+fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, winding_constrictor(), 0);
+    put_on_battlefield(
+        &mut game,
+        fixture_static(
+            "Fixture Two-Kind Anthem",
+            ReplacementDef::new(
+                EventPattern::EnterBattlefield { cast: None },
+                AffectedSet::Filter {
+                    filter: ObjectFilter::And(
+                        Box::new(ObjectFilter::ByType(CardType::Creature)),
+                        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+                    ),
+                },
+                Rewrite::EnterWith(EnterModsTemplate {
+                    tapped: false,
+                    counters: vec![
+                        (CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
+                        (CounterType::Charge, AmountExpr::Fixed(1)),
+                    ],
+                }),
+            ),
+        ),
+        0,
+    );
+    let dp = RecordingDecisionProvider::picking(0);
+
+    let bears = reanimate_with(&mut game, vanilla_creature(2, 2, &[]), 0, &dp);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 2);
+    assert_eq!(count(&game, bears, CounterType::Charge), 2);
+    assert_eq!(dp.prompts(), 0);
+}
+
+/// *"Winding Constrictor's effect can't apply to itself as it's entering the
+/// battlefield"* — RC-3's membership rule: the Constrictor under Master
+/// Biomancer gets Biomancer's two and not its own plus one.
+#[test]
+fn winding_constrictor_does_not_apply_to_its_own_entry() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+
+    let snake = reanimate(&mut game, winding_constrictor(), 0);
+
+    assert_eq!(count(&game, snake, CounterType::PlusOnePlusOne), 2);
+}
+
+// --- Live Fast -------------------------------------------------------------
+
+/// The producer, as printed: two cards, two life, two energy — and the energy
+/// is the player's, on no permanent.
+#[test]
+fn live_fast_gives_its_caster_two_energy() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    let life = game.players[0].life_total;
+
+    resolve_card(&mut game, 0, live_fast(), &test_dp());
+
+    assert_eq!(game.players[0].library.len(), 3, "two drawn");
+    assert_eq!(game.players[0].life_total, life - 2);
+    assert_eq!(game.players[0].counter_count(CounterType::Energy), 2);
+    assert_eq!(game.players[1].counter_count(CounterType::Energy), 0);
+}
+
+// --- Primal Vigor ----------------------------------------------------------
+
+/// *"It doesn't matter who controls the tokens or the creature that the +1/+1
+/// counters are being placed on."* Four players: an opponent's Raise the
+/// Alarm makes four, and a third player's Battlegrowth on a fourth's creature
+/// puts two.
+#[test]
+fn primal_vigor_does_not_care_who_controls_the_tokens_or_the_creature() {
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, primal_vigor(), 0);
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 3);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card(&mut game, 1, raise_the_alarm(), &dp);
+    resolve_card_on(&mut game, 2, battlegrowth(), theirs, &dp);
+
+    assert_eq!(tokens(&game).len(), 4);
+    assert_eq!(count(&game, theirs, CounterType::PlusOnePlusOne), 2);
+    assert_eq!(dp.prompts(), 0);
+}
+
+/// *"If a creature would normally enter the battlefield with three +1/+1
+/// counters on it, it will enter with six."* Adaptive Shimmerer's three.
+#[test]
+fn primal_vigor_doubles_the_counters_a_creature_enters_with() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, primal_vigor(), 1);
+
+    let shimmerer = reanimate(&mut game, adaptive_shimmerer(), 0);
+
+    assert_eq!(count(&game, shimmerer, CounterType::PlusOnePlusOne), 6);
+}
+
+/// *"If there are two Primal Vigors on the battlefield, the number of tokens
+/// or +1/+1 counters is four times the original number."*
+#[test]
+fn two_primal_vigors_quadruple() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, primal_vigor(), 0);
+    put_on_battlefield(&mut game, primal_vigor(), 1);
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card_on(&mut game, 1, battlegrowth(), bears, &dp);
+    resolve_card(&mut game, 1, raise_the_alarm(), &dp);
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4);
+    assert_eq!(tokens(&game).len(), 8);
+    assert_eq!(dp.prompts(), 0);
 }
