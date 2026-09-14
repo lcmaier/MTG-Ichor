@@ -177,15 +177,19 @@ pub enum GameEvent {
     PlayerWon { player_id: PlayerId },
 
     // --- Counters ---
-    /// Counters were put on or taken off a permanent (CR 122.1).
+    /// Counters were put on or taken off a permanent or a player (CR 122.1).
     ///
     /// One event for both directions rather than two, because `added` is a
     /// signed count and a reader that cares about the direction reads its sign.
     /// It is emitted only on an actual change: `RemoveCounters` reports how
     /// many were really there (CR 701.2's "as much as it can"), and removing
     /// none announces nothing — the same transition rule CR 603.2e gives
-    /// tapping.
-    CountersChanged { object_id: ObjectId, counter: CounterType, added: i32 },
+    /// tapping. One event for both subjects too: "whenever one or more
+    /// counters are put on a permanent" and "whenever you get one or more
+    /// counters" read the same line and branch on the subject. Counters a
+    /// permanent is *given as it enters* are part of the entry (CR 122.6) and
+    /// announce nothing here.
+    CountersChanged { subject: CounterSubject, counter: CounterType, added: i32 },
 
     /// +1/+1 and -1/-1 counters annihilated each other on a permanent (rule 704.5q).
     ///
@@ -305,6 +309,21 @@ pub enum LossReason {
 pub enum DamageTarget {
     Player(PlayerId),
     Object(ObjectId),
+}
+
+/// What counters are being put on or taken off — CR 122.1's "a marker placed
+/// on an object or player".
+///
+/// [`DamageTarget`]'s shape, for the same reason it has one: the two halves are
+/// ids, CR 616.1's chooser is the object's controller for one and the player
+/// for the other, and a `PlayerState` holds counters of the same
+/// `CounterType` a permanent does because CR 701.34a's proliferate sweeps
+/// "permanents and/or players" in one pass. `Copy` because a rewritten
+/// proposal carries it while the original is still read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CounterSubject {
+    Object(ObjectId),
+    Player(PlayerId),
 }
 
 /// Identifies a set of events performed as one.

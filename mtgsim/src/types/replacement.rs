@@ -374,14 +374,43 @@ pub enum EventPattern {
         cast: Option<bool>,
     },
 
-    /// CR 122.1's counter mutations. No RB customer watches one — the arm
-    /// exists because `GameAction::AddCounters`/`RemoveCounters` do, and
-    /// CR 614.16's counter doublers (Doubling Season's second ability, Vorinclex)
-    /// are its Phase RE customers.
+    /// CR 122.1's counter mutations, and — since RE-5 — an entry that gives
+    /// the permanent counters (CR 122.6).
+    ///
+    /// **Two doors, one event.** CR 122.6: "putting counters on that object
+    /// ... refers to putting counters on that object while it's on the
+    /// battlefield and also to an object that's given counters as it enters
+    /// the battlefield". So with `adding: true` this watches an `AddCounters`
+    /// *and* an `EnterBattlefield` whose `mods.counters` carries a matching
+    /// kind with one or more counters, exactly as [`Self::ZoneChange`] watches
+    /// an entry as the move. Doubling Season's counter half, Hardened Scales,
+    /// Vorinclex, Monstrous Raider, Winding Constrictor and Primal Vigor are
+    /// the printed customers, and every one of them has a ruling that says
+    /// "affects permanents that enter with counters".
+    ///
+    /// **"One or more" is the one count this arm reads** — CR 614.16's own
+    /// phrase, asked of the proposal's `n` and of each kind in an entry's
+    /// mods — and `reads_the_amount` says why that is not an amount: a
+    /// multiplier of one or more, or a plus, keeps every kind on the side of
+    /// that line it was on. `Halve` can carry a kind from one to zero and is
+    /// admitted to no suppressed bucket.
     CounterChange {
         counter: Option<CounterType>,
-        /// `true` matches `AddCounters`, `false` matches `RemoveCounters`.
+        /// `true` matches `AddCounters` and an entry's counters, `false`
+        /// matches `RemoveCounters`.
         adding: bool,
+        /// Who is putting the counters on — Vorinclex's "if *you* would put"
+        /// and "if *an opponent* would put", asked of `AddCounters::by` and,
+        /// for an entry, of CR 122.6a's default, the entry's controller.
+        /// `None` asks nothing, which is every other printed watcher.
+        ///
+        /// A [`PlayerSet`] and not a `PlayerRef`: "an opponent" is any of
+        /// them, which is `PlayerSet::Opponents`, and `PlayerSet::contains`
+        /// resolves it against the effect's controller with no board. Asked
+        /// of a putter only — nothing prints a *remover* — so with `adding:
+        /// false` it must be `None`, and a removal pattern that names one
+        /// matches nothing.
+        by: Option<PlayerSet>,
     },
 
     /// CR 614.1b / 614.10 — "skip your next turn". The event's subject is the
@@ -629,9 +658,12 @@ impl EventPattern {
             EventPattern::EnterBattlefield { .. } => false,
             // CR 701.8b's two ways.
             EventPattern::Destroy { .. } => false,
-            // A counter kind and a direction, never a count: CR 122.6's
-            // doublers are written about "one or more", which is every
-            // `AddCounters` this can match.
+            // A counter kind, a direction and a putter, never a count:
+            // CR 614.16's doublers are written about "one or more", which the
+            // arm asks of the proposal's `n` and of each kind in an entry's
+            // mods — and a multiplier of one or more, or a plus, leaves every
+            // kind on the side of that line it was on. `Halve` can cross it
+            // (one to zero) and is admitted to no suppressed bucket.
             EventPattern::CounterChange { .. } => false,
             // A turn, a phase, a step. CR 614.10's units are not amounts.
             EventPattern::Untap

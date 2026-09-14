@@ -23,7 +23,7 @@
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::condition::settled_holds;
-use crate::events::event::DamageTarget;
+use crate::events::event::{CounterSubject, DamageTarget};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
@@ -93,8 +93,14 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         // player, and CR 616.1's chooser is that player.
         GameAction::CreateTokens { controller, .. } => EventSubject::Player(*controller),
         GameAction::CreateTokenIn { object, .. } => EventSubject::Object(*object),
-        GameAction::AddCounters { object, .. } => EventSubject::Object(*object),
-        GameAction::RemoveCounters { object, .. } => EventSubject::Object(*object),
+        // CR 122.1's "on an object or player": CR 616.1's chooser is the
+        // permanent's controller or the player getting them.
+        GameAction::AddCounters { subject, .. } | GameAction::RemoveCounters { subject, .. } => {
+            match subject {
+                CounterSubject::Object(id) => EventSubject::Object(*id),
+                CounterSubject::Player(pid) => EventSubject::Player(*pid),
+            }
+        }
         GameAction::Attach { attachment, .. } => EventSubject::Object(*attachment),
         // CR 614.10's three units are all about a *player* — "skip **your**
         // next turn", "**players** skip their upkeep steps" — so CR 616.1's
@@ -715,14 +721,26 @@ pub(crate) fn pattern_watches(
             source.map(|p| p.matches(*actual)).unwrap_or(true)
         }
 
+        // CR 614.16's "one or more counters" is the one count this arm reads
+        // (the rule's own phrase, as `CreateTokens` reads "one or more
+        // tokens"); `by` is Vorinclex's "if *you* would put", asked of the
+        // proposal's putter. Which *permanent or player* the effect is around
+        // is `set_affects`'s question.
         (
-            EventPattern::CounterChange { counter, adding },
-            GameAction::AddCounters { counter: actual, .. },
-        ) => *adding && counter.map(|c| c == *actual).unwrap_or(true),
+            EventPattern::CounterChange { counter, adding, by },
+            GameAction::AddCounters { counter: actual, n, by: putter, .. },
+        ) => {
+            *adding
+                && *n >= 1
+                && counter.map(|c| c == *actual).unwrap_or(true)
+                && by.as_ref().map(|set| set.contains(you, *putter)).unwrap_or(true)
+        }
+        // Nothing prints a *remover*, so a removal pattern asks nothing of
+        // `by` and one that does matches nothing.
         (
-            EventPattern::CounterChange { counter, adding },
+            EventPattern::CounterChange { counter, adding, by },
             GameAction::RemoveCounters { counter: actual, .. },
-        ) => !*adding && counter.map(|c| c == *actual).unwrap_or(true),
+        ) => !*adding && by.is_none() && counter.map(|c| c == *actual).unwrap_or(true),
 
         // CR 614.1b's skips. Which *player* the effect is around is
         // `set_affects`'s question, one function below — these ask only which

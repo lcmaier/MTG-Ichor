@@ -4,7 +4,7 @@ use crate::engine::actions::{
 use crate::engine::layers::types::{
     AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
-use crate::events::event::{DamageTarget, LossReason};
+use crate::events::event::{CounterSubject, DamageTarget, LossReason};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
@@ -1208,14 +1208,16 @@ impl GameState {
                 let n = self.evaluate_amount(amount_expr, ctx)? as u32;
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously, which is what lets a single CR 614.16
-                // doubler see all of them.
+                // doubler see all of them. The putter is the effect's
+                // controller (CR 122.6a's shape, read by Vorinclex).
                 let batch = self
                     .collect_battlefield_targets(ctx)
                     .into_iter()
                     .map(|object| GameAction::AddCounters {
-                        object,
+                        subject: CounterSubject::Object(object),
                         counter: *counter_type,
                         n,
+                        by: ctx.controller,
                     })
                     .collect();
                 self.execute_actions(batch, &actx)?;
@@ -1228,12 +1230,30 @@ impl GameState {
                     .collect_battlefield_targets(ctx)
                     .into_iter()
                     .map(|object| GameAction::RemoveCounters {
-                        object,
+                        subject: CounterSubject::Object(object),
                         counter: *counter_type,
                         n,
                     })
                     .collect();
                 self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // "You get {E}{E}" — the same event with a player as its subject,
+            // so Winding Constrictor's "if you would get one or more counters"
+            // watches it through the one arm.
+            Primitive::GetCounters(counter_type, amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+                let player = self.resolve_player_for_self(recipient, ctx);
+                self.execute_action(
+                    GameAction::AddCounters {
+                        subject: CounterSubject::Player(player),
+                        counter: *counter_type,
+                        n,
+                        by: ctx.controller,
+                    },
+                    &actx,
+                )?;
                 Ok(())
             }
 

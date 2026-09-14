@@ -223,6 +223,7 @@ fn no_minus_counters_on_your_creatures() -> Restriction {
         pattern: EventPattern::CounterChange {
             counter: Some(CounterType::MinusOneMinusOne),
             adding: true,
+            by: None,
         },
         affected_objects: AffectedSet::Filter {
             filter: ObjectFilter::And(
@@ -786,7 +787,7 @@ fn test_the_rules_own_entry_counters_go_through_the_same_door() {
         static_restriction(
             "No loyalty counters",
             Restriction::Event {
-                pattern: EventPattern::CounterChange { counter: Some(CounterType::Loyalty), adding: true },
+                pattern: EventPattern::CounterChange { counter: Some(CounterType::Loyalty), adding: true, by: None },
                 affected_objects: AffectedSet::Filter { filter: ObjectFilter::All },
                 affected_players: PlayerSet::Nobody,
                 by: None,

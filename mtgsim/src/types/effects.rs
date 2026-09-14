@@ -655,13 +655,28 @@ impl TokenDef {
     }
 }
 
-/// Counter types that can be placed on permanents/players
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Counter types that can be placed on permanents/players.
+///
+/// One enum for both subjects — CR 701.34a's proliferate gives "each one
+/// additional counter of each kind that permanent or player already has" in
+/// one sweep, and a kind is a kind wherever it sits. `Ord` because a player's
+/// counters are a `BTreeMap` keyed on this: a map that iterates in enum order
+/// is process-independent, which `CLAUDE.md`'s determinism rule asks of any
+/// collection that reaches a count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CounterType {
     PlusOnePlusOne,
     MinusOneMinusOne,
     Loyalty,
     Charge,
+    // --- Counters a player has (CR 122.1's "or player") ---
+    /// CR 122.1f — ten or more and the player loses (CR 704.5c). Read off
+    /// `PlayerState::counter_count`; infect's poison half (CR 120.3b) is the
+    /// producer that is not built yet.
+    Poison,
+    /// CR 107.14 — the energy symbol {E} is one of these. Live Fast's "get
+    /// {E}{E}" is the producer; paying {E} is a cost that waits for its card.
+    Energy,
     // Keyword counters (rule 122.1b)
     Flying,
     Deathtouch,
@@ -742,6 +757,8 @@ impl CounterType {
             | CounterType::MinusOneMinusOne
             | CounterType::Loyalty
             | CounterType::Charge
+            | CounterType::Poison
+            | CounterType::Energy
             | CounterType::Shield
             | CounterType::Stun
             | CounterType::Finality => return None,
@@ -949,6 +966,13 @@ pub enum Primitive {
     AddCounters(CounterType, AmountExpr),
     /// Remove N counters of a type from target
     RemoveCounters(CounterType, AmountExpr),
+    /// A player gets N counters of a type — Oracle's verb for a player ("you
+    /// get {E}{E}", "that player gets a poison counter"), and its own
+    /// primitive because [`Self::AddCounters`] resolves its recipient as
+    /// permanents and one primitive answering for both would make
+    /// `EffectRecipient::Controller` mean two things. The recipient is
+    /// resolved as `GainLife`'s is.
+    GetCounters(CounterType, AmountExpr),
 
     // === Tokens ===
     /// Create N tokens (CR 701.7a) — resolved as one

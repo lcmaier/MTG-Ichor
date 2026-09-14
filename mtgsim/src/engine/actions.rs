@@ -4,7 +4,7 @@ use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
-use crate::events::event::{DamageTarget, GameEvent, LossReason, ResolutionStamp};
+use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, ResolutionStamp};
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
@@ -234,7 +234,7 @@ pub enum GameAction {
         host: ObjectId,
     },
 
-    /// Put counters on a permanent (CR 122.1).
+    /// Put counters on a permanent, or give them to a player (CR 122.1).
     ///
     /// A proposal rather than a direct write because CR 614.16's counter
     /// doublers replace it — "If one or more counters would be put on a
@@ -242,22 +242,38 @@ pub enum GameAction {
     /// because CR 122.1c/d's own replacement effects have to be able to *make*
     /// one: a stun counter's effect is literally "instead remove a stun counter
     /// from it", which is a proposed event and not bookkeeping.
+    ///
+    /// **Not the event for counters a permanent enters with.** CR 122.6 folds
+    /// those into the entry — "an object that's given counters as it enters"
+    /// is *put counters on* — so they ride on `EnterBattlefield`'s `mods` and
+    /// `EventPattern::CounterChange` watches the entry through a second door.
+    ///
+    /// `by` is the player putting them on: the controller of the resolving
+    /// spell or ability, or of the replacement whose rider proposed it.
+    /// Vorinclex, Monstrous Raider is the reader — its ruling says it "cares
+    /// deeply about who is putting the counters on" — and it is a `PlayerId`
+    /// rather than an `Option` because every producer has one. A cost that
+    /// puts counters (a loyalty ability's) is not an effect and must not be
+    /// matched by CR 614.16's watchers; no cost produces this yet
+    /// (`codebase-state.md`, "Found by RE-5").
     AddCounters {
-        object: ObjectId,
+        subject: CounterSubject,
         counter: CounterType,
         n: u32,
+        by: PlayerId,
     },
 
-    /// Take counters off a permanent (CR 122.1).
+    /// Take counters off a permanent, or away from a player (CR 122.1).
     ///
     /// The substituted event for CR 122.1c's shield counter and CR 122.1d's
     /// stun counter, and the CR 615.5 rider for the shield's prevention half.
     ///
     /// `n` is a maximum: removing three counters from a permanent that has one
     /// removes one, which is CR 701.2's "as much as it can" and what
-    /// `PermanentState::remove_counters` already reports.
+    /// `PermanentState::remove_counters` already reports. No `by`: nothing
+    /// printed asks who *removes* a counter.
     RemoveCounters {
-        object: ObjectId,
+        subject: CounterSubject,
         counter: CounterType,
         n: u32,
     },
@@ -1140,7 +1156,7 @@ impl GameState {
                     if let DamageTarget::Object(id) = &target {
                         self.execute_action(
                             GameAction::RemoveCounters {
-                                object: *id,
+                                subject: CounterSubject::Object(*id),
                                 counter: CounterType::Loyalty,
                                 n: amount as u32,
                             },
@@ -1311,48 +1327,64 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::AddCounters { object, counter, n } => {
+            // A count of zero is a no-op here and not in
+            // `replacement::never_happens`: CR 614.7a is written about damage
+            // and life gain, and "one or more" is asked by the pattern instead
+            // (`gather::pattern_watches`), so a count a halving took to zero
+            // matches nothing further and arrives here.
+            GameAction::AddCounters { subject, counter, n, by: _ } => {
                 if n == 0 {
                     return Ok(());
                 }
-                if !self.battlefield.contains_key(&object) {
-                    return Err(format!(
-                        "Cannot put counters on {}: not on the battlefield", object
-                    ));
+                match subject {
+                    CounterSubject::Object(object) => {
+                        if !self.battlefield.contains_key(&object) {
+                            return Err(format!(
+                                "Cannot put counters on {}: not on the battlefield", object
+                            ));
+                        }
+                        self.add_counters(object, counter, n);
+                        // A permanent that just gained a CR 122.1 replacement
+                        // counter is a replacement source now. The hint set is
+                        // what keeps `gather`'s fast path exact for static
+                        // abilities; counters are scanned rather than cached,
+                        // so nothing has to be recorded here — see
+                        // `gather::any_replacement_counter`.
+                    }
+                    CounterSubject::Player(player) => {
+                        self.get_player_mut(player)?.add_counters(counter, n);
+                    }
                 }
-                self.add_counters(object, counter, n);
-                // A permanent that just gained a CR 122.1 replacement counter is
-                // a replacement source now. The hint set is what keeps
-                // `gather`'s fast path exact for static abilities; counters are
-                // scanned rather than cached, so nothing has to be recorded
-                // here — see `gather::any_replacement_counter`.
-                self.events.emit(GameEvent::CountersChanged {
-                    object_id: object,
-                    counter,
-                    added: n as i32,
-                });
+                self.events.emit(GameEvent::CountersChanged { subject, counter, added: n as i32 });
                 Ok(())
             }
 
-            GameAction::RemoveCounters { object, counter, n } => {
+            GameAction::RemoveCounters { subject, counter, n } => {
                 if n == 0 {
                     return Ok(());
                 }
-                if !self.battlefield.contains_key(&object) {
-                    return Err(format!(
-                        "Cannot remove counters from {}: not on the battlefield", object
-                    ));
-                }
-                // CR 701.2 — do as much as possible. `remove_counters` reports
-                // how many were actually there, and a removal of nothing is not
-                // an event: CR 603.2e's transition rule is the same shape the
+                // CR 701.2 — do as much as possible. Both removers report how
+                // many were actually there, and a removal of nothing is not an
+                // event: CR 603.2e's transition rule is the same shape the
                 // `Tap`/`Untap` arms follow.
-                let removed = self.remove_counters(object, counter, n);
+                let removed = match subject {
+                    CounterSubject::Object(object) => {
+                        if !self.battlefield.contains_key(&object) {
+                            return Err(format!(
+                                "Cannot remove counters from {}: not on the battlefield", object
+                            ));
+                        }
+                        self.remove_counters(object, counter, n)
+                    }
+                    CounterSubject::Player(player) => {
+                        self.get_player_mut(player)?.remove_counters(counter, n)
+                    }
+                };
                 if removed == 0 {
                     return Ok(());
                 }
                 self.events.emit(GameEvent::CountersChanged {
-                    object_id: object,
+                    subject,
                     counter,
                     added: -(removed as i32),
                 });

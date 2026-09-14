@@ -490,7 +490,7 @@ mod tests {
         // Set poison to 10; the SBA check ahead of the upkeep's first priority
         // grant performs player 1's loss, and CR 104.1 ends the game there —
         // nobody is asked to pass in a game that has ended.
-        game.state.players[1].poison_counters = 10;
+        game.state.players[1].add_counters(crate::types::effects::CounterType::Poison, 10);
         game.run_turn(&decisions).unwrap();
         assert!(game.is_over());
         assert_eq!(game.result(), Some(GameResult::Winner(0)));

@@ -12,7 +12,7 @@ use mtgsim::cards::phase_rb_cards::{
     kalitas_traitor_of_ghet, leyline_of_the_void, rest_in_peace,
 };
 use mtgsim::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneChangeCause};
-use mtgsim::events::event::{DamageTarget, GameEvent};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -333,7 +333,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
 
 /// Counters placed the way the engine places them, through the chokepoint.
 fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { object: id, counter, n }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(id), counter, n, by: 0 }, &test_ctx())
         .unwrap();
 }
 
@@ -342,9 +342,11 @@ fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
     game.events
         .events()
         .filter_map(|e| match e {
-            GameEvent::CountersChanged { object_id, counter, added } => {
-                Some((*object_id, *counter, *added))
-            }
+            GameEvent::CountersChanged {
+                subject: CounterSubject::Object(object_id),
+                counter,
+                added,
+            } => Some((*object_id, *counter, *added)),
             _ => None,
         })
         .collect()

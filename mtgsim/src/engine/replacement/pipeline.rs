@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
-use crate::events::event::DamageTarget;
+use crate::events::event::{CounterSubject, DamageTarget};
 use crate::types::card_types::CardType;
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
@@ -1871,7 +1871,11 @@ fn substitute(
 
         (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
             match subject_object(subject) {
-                Some(object) => Ok(GameAction::RemoveCounters { object, counter: *counter, n: *n }),
+                Some(object) => Ok(GameAction::RemoveCounters {
+                    subject: CounterSubject::Object(object),
+                    counter: *counter,
+                    n: *n,
+                }),
                 None => Err(format!(
                     "a `RemoveCountersFromAffected` rewrite on {:?} has no affected \
                      object to take counters from",
@@ -2202,8 +2206,11 @@ fn entering_controller(
 /// creature you control that would enter with -1/-1 counters enters with none
 /// — and Solemnity's.
 ///
-/// `cause` is who is putting them on: the replacement's controller, or `None`
-/// for CR 306.5b's loyalty, which a rule gives rather than a player.
+/// `cause` is CR 101.2's — who controls the effect that proposed them: the
+/// replacement's controller, or `None` for CR 306.5b's loyalty, which a rule
+/// gives rather than a player. The synthetic event's putter is CR 122.6a's
+/// default, the controller the permanent enters under, which is what the
+/// entry door reads too.
 ///
 /// `tapped` passes through untouched. No printed "can't" refuses a status, and
 /// ATOM-614.17d-001's "creatures can't enter the battlefield tapped" is a
@@ -2222,7 +2229,12 @@ pub(crate) fn strip_prohibited_counters(
     let frame = EntryFrame::for_entering(game, object, controller, so_far);
     let mut kept = EnterMods { tapped: extra.tapped, counters: Vec::with_capacity(extra.counters.len()) };
     for &(counter, n) in &extra.counters {
-        let action = GameAction::AddCounters { object, counter, n };
+        let action = GameAction::AddCounters {
+            subject: CounterSubject::Object(object),
+            counter,
+            n,
+            by: controller,
+        };
         let refused = is_prohibited(
             game,
             &Query::Event { action: &action, cause, lookahead: Some(&frame) },
