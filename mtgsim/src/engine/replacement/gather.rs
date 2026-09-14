@@ -742,8 +742,11 @@ pub(crate) fn pattern_watches(
 
         // CR 614.16's "one or more tokens" — the rule's own phrase is the one
         // count this arm reads, and no multiplier the pipeline admits crosses
-        // it. Which *player* the effect is around is `set_affects`'s question.
-        (EventPattern::CreateTokens, GameAction::CreateTokens { defs, .. }) => !defs.is_empty(),
+        // it — of the kind the pattern names, asked of each def. Which
+        // *player* the effect is around is `set_affects`'s question.
+        (EventPattern::CreateTokens { kind }, GameAction::CreateTokens { defs, .. }) => {
+            defs.iter().any(|d| kind.as_ref().is_none_or(|k| k.matches(d)))
+        }
 
         _ => false,
     }

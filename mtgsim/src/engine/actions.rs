@@ -1719,7 +1719,15 @@ impl GameState {
             obj.is_token = true;
             let id = self.add_object(obj);
             ids.push(id);
-            if let Some(entry) = self.entry_proposal(id, None, controller, None) {
+            if let Some(mut entry) = self.entry_proposal(id, None, controller, None) {
+                // "Create a tapped …" is the creating effect's own word on
+                // how the token enters, so it joins the seed the rules give
+                // the entry, ahead of any replacement (CR 614.1c).
+                if def.enters_tapped {
+                    if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+                        mods.merge(&EnterMods::tapped());
+                    }
+                }
                 entries.push(entry);
             }
         }

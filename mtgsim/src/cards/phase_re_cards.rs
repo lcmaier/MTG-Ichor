@@ -217,6 +217,12 @@
 //! | [`hordeling_outburst`] | a sorcery | three Goblins |
 //! | [`parallel_lives`] | a static, `You` | `Amount(Multiplier(2))` on the creation — the **outer** event |
 //! | [`hallowed_moonlight`] | a resolution, until end of turn | `Instead(ZoneChangeTo { Exile })` on each entry — the **contained** one |
+//! | [`divine_visitation`] | a static, `You`, *creature* tokens | `Instead(CreateTokens { Angel, ReplacedAmount, Replace })` — the kind-changing substitution over a creation |
+//! | [`bard_king_of_dale`] | a static, `You`, twice | Alhammarret's Archive's draw half beside Parallel Lives' token half — both halves already built, so the card cost nothing but its registration |
+//!
+//! Divine Visitation and Bard came in at the review (`plans/handoffs/re-4-review.md`,
+//! theme B): a template and a kind field whose customers were in print and
+//! whose type this phase had open.
 //!
 //! **Parallel Lives is applied once, at the creation; Hallowed Moonlight once
 //! per token.** That is CR 616.1g — "the second effect can't be chosen until
@@ -270,7 +276,7 @@ use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
-    Rewrite, TemplateAmount,
+    Rewrite, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
 use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
@@ -1564,6 +1570,7 @@ fn vanilla_token(
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     }
 }
 
@@ -1686,7 +1693,7 @@ pub fn parallel_lives() -> Arc<CardData> {
         )
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::CreateTokens,
+                EventPattern::CreateTokens { kind: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
@@ -1766,6 +1773,150 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
             ]),
+        ))
+        .build()
+}
+
+/// The 4/4 white Angel with flying and vigilance Divine Visitation makes —
+/// "Angel Token" by CR 111.4.
+pub fn angel_token() -> TokenDef {
+    TokenDef {
+        name: None,
+        colors: vec![Color::White],
+        types: vec![CardType::Creature],
+        subtypes: vec![Subtype::Creature(CreatureType::Angel)],
+        supertypes: Vec::new(),
+        power: Some(4),
+        toughness: Some(4),
+        keyword_flags: vec![KeywordFlag::Flying, KeywordFlag::Vigilance],
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+    }
+}
+
+/// Divine Visitation — {3}{W}{W}
+/// Enchantment
+///
+/// > If one or more creature tokens would be created under your control, that
+/// > many 4/4 white Angel creature tokens with flying and vigilance are
+/// > created instead.
+///
+/// **The kind-changing substitution over a creation, and the kind field's
+/// first customer.** `EventPattern::CreateTokens { kind: creature }` matches
+/// the creation if any def is a creature, and the template replaces exactly
+/// those defs — a Clue created beside a Soldier stays a Clue — with "that
+/// many" Angels, where that many is the number the kind matched.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"The token's characteristics are entirely replaced … It doesn't have any
+///   abilities the token would have been created with. Anything else
+///   specified in the effect creating the token (such as tapped, attacking,
+///   …) still applies."* → the template's def replaces the matched def whole,
+///   and `enters_tapped` is carried over from the def it replaced.
+///   → `divine_visitation_replaces_the_creatures_and_keeps_how_they_entered`
+/// - *"If you create a noncreature token that will be a creature as it enters
+///   the battlefield (March of the Machines), Divine Visitation's effect
+///   doesn't apply"* → the kind is asked of the def's printed types, never of
+///   the entry's frame. → `divine_visitation_reads_the_def_and_not_the_frame`
+/// - *"If an effect changes under whose control a token would be created, that
+///   effect applies before Divine Visitation's"* → CR 616.1b's ladder, which
+///   `must_choose_among` already walks; no control-changing creation
+///   replacement is registered to walk it with.
+///
+/// Beside Parallel Lives the affected player chooses the order and the
+/// answer is four Angels either way — a multiplier and a replacement by
+/// "that many" commute — which the test states by asking both ways.
+///
+/// **Registered and not pooled**: five mana for an effect two pooled cards
+/// reach, and the creation path is measured by the Alarm already.
+pub fn divine_visitation() -> Arc<CardData> {
+    CardDataBuilder::new("Divine Visitation")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If one or more creature tokens would be created under your control, that many \
+             4/4 white Angel creature tokens with flying and vigilance are created instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::CreateTokens {
+                    def: angel_token(),
+                    count: TemplateAmount::ReplacedAmount,
+                    mode: TokenSubstitution::Replace,
+                }),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Bard, King of Dale — {4}{W}{U}
+/// Legendary Creature — Human Noble Archer 3/5
+///
+/// > Reach, vigilance
+/// > If you would draw a card except the first one you draw in each of your
+/// > draw steps, draw two cards instead.
+/// > If one or more tokens would be created under your control, twice that
+/// > many of those tokens are created instead.
+///
+/// Alhammarret's Archive's draw half beside Parallel Lives' token half. RE-2's
+/// ledger row named Bard as waiting on "RE-4's token doubler"; the review
+/// found both halves built and registered it (`plans/handoffs/re-4-review.md`,
+/// R5 — the review also caught this file's first draft calling it a card that
+/// replaces draws with tokens, which is Hullbreacher).
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"If you control two, cards drawn will be multiplied by four … the last
+///   ability is cumulative: two, four times the number of tokens."* → two
+///   Bards, both halves. → `two_bards_quadruple_both_halves`
+/// - *"If an effect creates more than one kind of token, it'll create twice as
+///   many of each kind."* → a heterogeneous creation, `[A, B]` → `[A, A, B,
+///   B]`. → `bard_doubles_each_kind_of_a_mixed_creation`
+/// - *"Copies of permanent spells that resolve become tokens … not created and
+///   will not be doubled."* → CR 111.13; `GameEvent::TokenCreated`'s doc is
+///   where the engine draws that line, and CV-4 is where the spell copy
+///   exists.
+/// - *"All of the tokens enter the battlefield simultaneously … same name,
+///   color, type …"* → RE-4's batch; `the_extra_tokens_are_the_same_tokens`.
+/// - *"If the token … has 'enters with' abilities, first determine how many
+///   tokens are being created, then apply those abilities individually for
+///   each one."* → CR 616.1g as the order of two loops;
+///   `two_devour_tokens_created_together_are_each_asked_and_never_offered_each_other`.
+///
+/// **Registered and not pooled**: six mana and legendary.
+pub fn bard_king_of_dale() -> Arc<CardData> {
+    CardDataBuilder::new("Bard, King of Dale")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Blue], 4))
+        .color(Color::White)
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .supertype(Supertype::Legendary)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Noble))
+        .subtype(Subtype::Creature(CreatureType::Archer))
+        .power_toughness(3, 5)
+        .keyword_flag(KeywordFlag::Reach)
+        .keyword_flag(KeywordFlag::Vigilance)
+        .rules_text(
+            "Reach, vigilance\nIf you would draw a card except the first one you draw in each \
+             of your draw steps, draw two cards instead.\nIf one or more tokens would be \
+             created under your control, twice that many of those tokens are created instead.",
+        )
+        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
         ))
         .build()
 }

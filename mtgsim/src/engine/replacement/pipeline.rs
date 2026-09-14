@@ -11,6 +11,7 @@ use crate::state::game_state::GameState;
 use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
+use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
@@ -991,6 +992,9 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
         // the drawing player, who is also its controller by the def's
         // `PlayerSet::You`, so no instance's own field reaches the event.
         GameActionTemplate::PlayerWins => true,
+        // Built from the template's def and the event's defs; the applying
+        // instance contributes its pattern's kind, which is def data.
+        GameActionTemplate::CreateTokens { .. } => true,
     }
 }
 
@@ -1025,7 +1029,28 @@ fn template_is_idempotent(template: &GameActionTemplate) -> bool {
         // whatever the loop computes. Two Laboratory Maniacs on one draw are
         // therefore one outcome with no prompt, which is this table's job.
         GameActionTemplate::PlayerWins => true,
+        // Replacing is idempotent — the Angels a second Visitation would
+        // replace are Angels already. Appending is not: a second Chatterfang
+        // joins Squirrels to the Squirrels, and how many is the order's, so
+        // two of them keep CR 616.1's question.
+        GameActionTemplate::CreateTokens { mode, .. } => {
+            matches!(mode, TokenSubstitution::Replace)
+        }
     }
+}
+
+/// The kind a creation pattern names, or `None` for any pattern that is not
+/// one — a rewrite over a creation reads it off the applying instance.
+fn pattern_kind(pattern: &EventPattern) -> Option<&TokenKind> {
+    match pattern {
+        EventPattern::CreateTokens { kind } => kind.as_ref(),
+        _ => None,
+    }
+}
+
+/// Does `def` fall under `kind`? No kind is every kind.
+fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
+    kind.is_none_or(|k| k.matches(def))
 }
 
 /// Can no `EnterMods` field change whether this set matches the entering
@@ -1624,17 +1649,18 @@ fn apply_rewrite(
 
             // CR 614.16's token half — Parallel Lives, Anointed Procession,
             // Doubling Season's first ability. A multiplier repeats each def
-            // **in place** (`[A, B]` → `[A, A, B, B]`): "twice as many of
-            // each kind" is Anointed Procession's ruling, and keeping a
-            // kind's tokens adjacent keeps the batch order — and so CR 613.7's
-            // timestamps — the creation's own.
+            // the pattern's kind matched **in place** (`[A, B]` → `[A, A, B,
+            // B]`): "twice as many of each kind" is Anointed Procession's
+            // ruling, and keeping a kind's tokens adjacent keeps the batch
+            // order — and so CR 613.7's timestamps — the creation's own. A
+            // def the kind did not match is repeated once, which is to say
+            // left alone (Ojer Taq's "creature tokens" beside a Clue).
             //
-            // Every other arm is refused as the authoring error it is. `Plus`
-            // is the one with a printed customer — Xorn's "that many plus
-            // one" — and it waits, because "plus one *of what*" is a question
-            // a heterogeneous `Vec` cannot answer until
-            // `EventPattern::CreateTokens` can name a kind
-            // (`codebase-state.md`, RE-4's Deferred Migrations line).
+            // Every other arm is refused as the authoring error it is —
+            // including `Plus`: the printed "plus" (Xorn's "plus an additional
+            // Treasure token") adds a *named* token, which is
+            // `GameActionTemplate::CreateTokens { mode: Append }`, not
+            // arithmetic.
             GameAction::CreateTokens { defs, controller } => match amount_rewrite {
                 AmountRewrite::Multiplier(n) => {
                     let n = usize::try_from(*n).map_err(|_| {
@@ -1644,9 +1670,15 @@ fn apply_rewrite(
                             chosen.id, n
                         )
                     })?;
+                    let kind = pattern_kind(&chosen.def.pattern);
                     let before = defs.len();
-                    let defs: Vec<TokenDef> =
-                        defs.into_iter().flat_map(|d| std::iter::repeat_n(d, n)).collect();
+                    let defs: Vec<TokenDef> = defs
+                        .into_iter()
+                        .flat_map(|d| {
+                            let times = if kind_matches(kind, &d) { n } else { 1 };
+                            std::iter::repeat_n(d, times)
+                        })
+                        .collect();
                     let took_effect = defs.len() != before;
                     Ok((
                         Some(GameAction::CreateTokens { defs, controller }),
@@ -1655,8 +1687,8 @@ fn apply_rewrite(
                 }
                 other => Err(format!(
                     "replacement {:?} applies {:?} to a token creation; CR 614.16's token \
-                     half is a multiplier, and no other arithmetic has a printed customer \
-                     this pipeline can apply",
+                     half is a multiplier, and the printed \"plus\" adds a named token, \
+                     which is `GameActionTemplate::CreateTokens` and not arithmetic",
                     chosen.id, other
                 )),
             },
@@ -1881,6 +1913,54 @@ fn substitute(
                 cause,
             }),
 
+        // CR 614.16's kind-changing substitution over a creation: the defs
+        // the pattern's kind matched are replaced (Divine Visitation) or
+        // joined (Chatterfang, Xorn) by `count` of the template's def, and
+        // "that many" is the number the kind matched. The defs it did not
+        // match are untouched, in their order; the template's tokens come
+        // last, so a creation's timestamps stay the creation's.
+        (
+            GameActionTemplate::CreateTokens { def, count, mode },
+            GameAction::CreateTokens { defs, controller },
+        ) => {
+            let kind = pattern_kind(&chosen.def.pattern);
+            let matched = defs.iter().filter(|d| kind_matches(kind, d)).count();
+            let n = match count {
+                TemplateAmount::Fixed(n) => *n,
+                TemplateAmount::ReplacedAmount => matched as u64,
+            };
+            let n = usize::try_from(n).map_err(|_| {
+                format!("replacement {:?} substitutes {} tokens, which no board can hold", chosen.id, n)
+            })?;
+            let out: Vec<TokenDef> = match (mode, count) {
+                // "That many … instead": each matched def becomes one of the
+                // template's, in its place, keeping how the creating effect
+                // said it enters — Divine Visitation's ruling is that the
+                // characteristics are replaced and "anything else specified
+                // in the effect creating the token (such as tapped …) still
+                // applies".
+                (TokenSubstitution::Replace, TemplateAmount::ReplacedAmount) => defs
+                    .into_iter()
+                    .map(|d| {
+                        if kind_matches(kind, &d) {
+                            TokenDef { enters_tapped: d.enters_tapped, ..def.clone() }
+                        } else {
+                            d
+                        }
+                    })
+                    .collect(),
+                (TokenSubstitution::Replace, TemplateAmount::Fixed(_)) => defs
+                    .into_iter()
+                    .filter(|d| !kind_matches(kind, d))
+                    .chain(std::iter::repeat_n(def.clone(), n))
+                    .collect(),
+                (TokenSubstitution::Append, _) => {
+                    defs.into_iter().chain(std::iter::repeat_n(def.clone(), n)).collect()
+                }
+            };
+            Ok(GameAction::CreateTokens { defs: out, controller })
+        }
+
         // CR 614.1a's kind-changing substitutions, and the pair is what
         // §10's Eligeth test wanted: a draw becomes a life gain (Words of
         // Worship), a gain becomes a loss (Tainted Remedy).
@@ -1948,6 +2028,12 @@ fn substitute(
             "replacement {:?} rewrites to a draw but matched {:?}, which is not an \
              individual card draw. Its `EventPattern` and its `Rewrite` describe \
              different events.",
+            chosen.id, other
+        )),
+        // Its `EventPattern` and its `Rewrite` describe different events —
+        // the same card-authoring error every other arm reports.
+        (GameActionTemplate::CreateTokens { .. }, other) => Err(format!(
+            "replacement {:?} substitutes a token creation but matched {:?}, which is not one",
             chosen.id, other
         )),
         (GameActionTemplate::ZoneChangeTo { .. }, other) => Err(format!(

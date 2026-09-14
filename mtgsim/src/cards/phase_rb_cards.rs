@@ -324,6 +324,7 @@ fn zombie_token() -> TokenDef {
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     }
 }
 

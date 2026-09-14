@@ -18,8 +18,9 @@ use std::sync::Arc;
 use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
 use mtgsim::cards::phase_rc_cards::{master_biomancer, root_maze, thunder_thrash_elder};
 use mtgsim::cards::phase_re_cards::{
-    alms_collector, goblin_token, hallowed_moonlight, hordeling_outburst, parallel_lives,
-    raise_the_alarm, soldier_token, thought_reflection,
+    alms_collector, bard_king_of_dale, divine_visitation, goblin_token,
+    hallowed_moonlight, hordeling_outburst, parallel_lives, raise_the_alarm, soldier_token,
+    thought_reflection,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolutionContext;
@@ -46,7 +47,10 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Rewrite};
+use mtgsim::types::replacement::{
+    AmountRewrite, EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
+    TokenKind, TokenSubstitution,
+};
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -416,6 +420,7 @@ fn two_biomancer_tokens_entering_together_give_each_other_nothing() {
         abilities: master_biomancer().abilities.clone(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
 
     create(&mut game, 0, biomancer_token, 2, &test_dp());
@@ -504,6 +509,7 @@ fn two_devour_tokens_created_together_are_each_asked_and_never_offered_each_othe
         abilities: thunder_thrash_elder().abilities.clone(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
     let dp = RecordingDecisionProvider::picking_all();
 
@@ -722,7 +728,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
     let mut game = setup_two_player_game();
     let plus_one = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
-            EventPattern::CreateTokens,
+            EventPattern::CreateTokens { kind: None },
             AffectedSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )
@@ -767,6 +773,7 @@ fn a_legendary_token_created_twice_meets_the_legend_rule() {
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
 
     create(&mut game, 0, boo, 2, &test_dp());
@@ -804,6 +811,7 @@ fn an_artifact_token_enters_tapped_under_root_maze() {
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
 
     create(&mut game, 0, trinket, 1, &test_dp());
@@ -835,6 +843,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
     assert_eq!(dwarves.effective_name(), "Dwarf Berserker Token", "CR 111.4's example");
     let data = dwarves.card_data();
@@ -861,6 +870,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         ))))],
         rules_text: "Enchanted creature has base power and toughness 1/1.".to_string(),
         enchant_filter: Some(SelectionFilter::Creature),
+        enters_tapped: false,
     };
     let data = role.card_data();
     assert_eq!(data.name, "Cursed", "CR 111.9 / 111.10j: the name the rule gives");
@@ -943,4 +953,222 @@ fn one_reflection_beside_one_collector_ends() {
     // P0 drew one (the Collector made two into one), P1 drew one (the rider).
     assert_eq!(game.players[0].hand.len(), 1 + 1, "the fixture spell and one drawn card");
     assert_eq!(game.players[1].hand.len(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// The review's arms — the kind, the template, and a def that enters tapped
+// ---------------------------------------------------------------------------
+
+/// An artifact token with no abilities, to sit beside creatures in one
+/// creation. Its name is its own; no printed token is being imitated.
+fn trinket() -> TokenDef {
+    TokenDef {
+        name: Some("Trinket".to_string()),
+        colors: Vec::new(),
+        types: vec![CardType::Artifact],
+        subtypes: Vec::new(),
+        supertypes: Vec::new(),
+        power: None,
+        toughness: None,
+        keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+    }
+}
+
+/// A creation of several kinds at once, proposed directly: Academy
+/// Manufactor's shape, which no registered card produces yet.
+fn create_mixed(game: &mut GameState, player: PlayerId, defs: Vec<TokenDef>, dp: &dyn DecisionProvider) {
+    game.execute_actions(
+        vec![GameAction::CreateTokens { defs, controller: player }],
+        &ActionContext::new(dp),
+    )
+    .expect("the creation performs");
+}
+
+/// Divine Visitation's first ruling: the characteristics are entirely
+/// replaced — two Soldiers become two 4/4 Angels with flying and vigilance
+/// and nothing of the Soldier — and "anything else specified in the effect
+/// creating the token (such as tapped …) still applies": a creation that
+/// enters tapped still does.
+#[test]
+fn divine_visitation_replaces_the_creatures_and_keeps_how_they_entered() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, divine_visitation(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+
+    let angels = tokens(&game);
+    assert_eq!(angels.len(), 2, "that many: two Soldiers, two Angels");
+    for id in &angels {
+        assert_eq!(get_effective_name(&game, *id), "Angel Token");
+        assert_eq!((get_effective_power(&game, *id), get_effective_toughness(&game, *id)), (Some(4), Some(4)));
+        assert!(get_effective_subtypes(&game, *id).contains(&Subtype::Creature(CreatureType::Angel)));
+        assert!(!get_effective_subtypes(&game, *id).contains(&Subtype::Creature(CreatureType::Soldier)));
+        assert!(!game.battlefield.get(id).unwrap().tapped);
+    }
+    assert_eq!(dp.prompts(), 0);
+
+    // The same effect, said to enter tapped: the Angels do.
+    let tapped_soldier = TokenDef { enters_tapped: true, ..soldier_token() };
+    create(&mut game, 0, tapped_soldier, 1, &test_dp());
+    let all = tokens(&game);
+    assert_eq!(all.len(), 3);
+    let newest = *all.last().unwrap();
+    assert_eq!(get_effective_name(&game, newest), "Angel Token");
+    assert!(game.battlefield.get(&newest).unwrap().tapped, "how the effect said it enters carries over");
+}
+
+/// The kind is asked of the def, never of the entry's frame — Divine
+/// Visitation's second ruling, about a noncreature token that would be a
+/// creature on the battlefield. Here the plain case: a Trinket created beside
+/// a Soldier is not a creature token, so the Soldier becomes an Angel and the
+/// Trinket stays a Trinket, in its place.
+#[test]
+fn divine_visitation_reads_the_def_and_not_the_frame() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, divine_visitation(), 0);
+
+    create_mixed(&mut game, 0, vec![trinket(), soldier_token(), trinket()], &test_dp());
+
+    let names: Vec<String> = tokens(&game).iter().map(|id| get_effective_name(&game, *id)).collect();
+    assert_eq!(names, vec!["Trinket", "Angel Token", "Trinket"], "only the creature def is replaced, in its place");
+}
+
+#[test]
+fn divine_visitation_leaves_an_opponents_creation_alone() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, divine_visitation(), 0);
+
+    resolve_card(&mut game, 1, raise_the_alarm(), &test_dp());
+
+    assert!(tokens(&game).iter().all(|id| get_effective_name(&game, *id) == "Soldier Token"));
+}
+
+/// Beside Parallel Lives the creating player chooses the order, and the
+/// answer is four Angels either way: doubling then replacing "that many", or
+/// replacing then doubling, commute. Both orders are asked for, so the test
+/// states the commutation rather than assuming it.
+#[test]
+fn divine_visitation_beside_parallel_lives_is_four_angels_in_either_order() {
+    for pick in [0usize, 1] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, parallel_lives(), 0);
+        put_on_battlefield(&mut game, divine_visitation(), 0);
+        let dp = RecordingDecisionProvider::picking(pick);
+
+        resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+
+        assert_eq!(dp.prompts(), 1, "a multiplier beside a substitution is a real question");
+        let angels = tokens(&game);
+        assert_eq!(angels.len(), 4, "order {pick}");
+        assert!(angels.iter().all(|id| get_effective_name(&game, *id) == "Angel Token"));
+    }
+}
+
+/// The append mode, from a fixture in Xorn's shape — "those tokens plus an
+/// additional one" — and the reason `AmountRewrite::Plus` is refused over a
+/// creation: the additional token is a *named* def.
+#[test]
+fn an_append_template_keeps_the_creation_and_joins_its_own_def() {
+    let mut game = setup_two_player_game();
+    let one_more = static_ability(Effect::Replacement(Box::new(
+        ReplacementDef::new(
+            EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Artifact)) },
+            AffectedSet::NO_OBJECTS,
+            Rewrite::Instead(GameActionTemplate::CreateTokens {
+                def: trinket(),
+                count: TemplateAmount::Fixed(1),
+                mode: TokenSubstitution::Append,
+            }),
+        )
+        .affecting_players(PlayerSet::You),
+    )));
+    put_on_battlefield(&mut game, enchantment_with("One More Trinket", one_more), 0);
+
+    create_mixed(&mut game, 0, vec![trinket(), soldier_token()], &test_dp());
+
+    let names: Vec<String> = tokens(&game).iter().map(|id| get_effective_name(&game, *id)).collect();
+    assert_eq!(names, vec!["Trinket", "Soldier Token", "Trinket"], "the creation, then the extra");
+
+    // And a creation with no artifact in it is not the pattern's business.
+    let before = tokens(&game).len();
+    resolve_card(&mut game, 0, raise_the_alarm(), &test_dp());
+    assert_eq!(tokens(&game).len(), before + 2);
+}
+
+/// A def that says it enters tapped does, through the same entry seed a
+/// printed "enters tapped" uses — and a replacement that also taps it is not
+/// asked about, since the seed already says so.
+#[test]
+fn a_def_that_enters_tapped_does() {
+    let mut game = setup_two_player_game();
+    let tapped_trinket = TokenDef { enters_tapped: true, ..trinket() };
+
+    create(&mut game, 0, tapped_trinket, 2, &test_dp());
+
+    let trinkets = tokens(&game);
+    assert_eq!(trinkets.len(), 2);
+    assert!(trinkets.iter().all(|id| game.battlefield.get(id).unwrap().tapped));
+}
+
+/// Bard's two halves, and the ruling that two of him multiply both by four.
+#[test]
+fn two_bards_quadruple_both_halves() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 20);
+    put_on_battlefield(&mut game, bard_king_of_dale(), 0);
+    put_on_battlefield(&mut game, bard_king_of_dale(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+
+    resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+    assert_eq!(tokens(&game).len(), 8, "four times the number of tokens");
+
+    let hand_before = game.players[0].hand.len();
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller);
+    resolve_for(&mut game, 0, &draw, &dp);
+    assert_eq!(game.players[0].hand.len(), hand_before + 1 + 4, "the fixture spell, and one draw made four");
+    assert_eq!(dp.prompts(), 0, "two multipliers, and two draw doublers, commute");
+}
+
+/// Bard's ruling: "if an effect creates more than one kind of token, it'll
+/// create twice as many of each kind" — repeated in place, so the kinds stay
+/// adjacent and the creation's order is the tokens'.
+#[test]
+fn bard_doubles_each_kind_of_a_mixed_creation() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, bard_king_of_dale(), 0);
+
+    create_mixed(&mut game, 0, vec![soldier_token(), trinket()], &test_dp());
+
+    let names: Vec<String> = tokens(&game).iter().map(|id| get_effective_name(&game, *id)).collect();
+    assert_eq!(names, vec!["Soldier Token", "Soldier Token", "Trinket", "Trinket"]);
+}
+
+/// A kind the creation does not contain is not a match, and a multiplier on
+/// a kind repeats only that kind — "creature tokens" doubled beside a Trinket
+/// leaves the Trinket single.
+#[test]
+fn a_multiplier_on_a_kind_repeats_only_that_kind() {
+    let mut game = setup_two_player_game();
+    let creatures_twice = static_ability(Effect::Replacement(Box::new(
+        ReplacementDef::new(
+            EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
+            AffectedSet::NO_OBJECTS,
+            Rewrite::Amount(AmountRewrite::Multiplier(2)),
+        )
+        .affecting_players(PlayerSet::You),
+    )));
+    put_on_battlefield(&mut game, enchantment_with("Creatures Twice", creatures_twice), 0);
+
+    create_mixed(&mut game, 0, vec![trinket(), soldier_token()], &test_dp());
+    let names: Vec<String> = tokens(&game).iter().map(|id| get_effective_name(&game, *id)).collect();
+    assert_eq!(names, vec!["Trinket", "Soldier Token", "Soldier Token"]);
+
+    let start = game.events.records().len();
+    create(&mut game, 0, trinket(), 1, &test_dp());
+    assert_eq!(creations(&game, start).len(), 1, "no creature in it: the pattern does not match at all");
 }

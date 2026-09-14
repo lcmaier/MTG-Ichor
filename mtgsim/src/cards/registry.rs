@@ -723,6 +723,11 @@ impl CardRegistry {
         registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
         registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
         registry.register("Hallowed Moonlight", phase_re_cards::hallowed_moonlight);
+        // The review's two: the kind-changing substitution over a creation
+        // (Divine Visitation) and a card both of whose halves RE-2 and RE-4
+        // had already built (Bard, King of Dale). Neither pooled.
+        registry.register("Divine Visitation", phase_re_cards::divine_visitation);
+        registry.register("Bard, King of Dale", phase_re_cards::bard_king_of_dale);
 
         registry
     }

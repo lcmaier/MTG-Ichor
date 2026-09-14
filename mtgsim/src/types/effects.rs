@@ -585,6 +585,13 @@ pub struct TokenDef {
     /// CR 303.4 for an Aura token — CR 111.10j–r's Roles print "enchant
     /// creature". `None` for everything that is not an Aura.
     pub enchant_filter: Option<SelectionFilter>,
+    /// "Create a tapped Treasure token" — how the creating effect says the
+    /// token enters. Merged into the entry's seed mods ahead of any
+    /// replacement, the way CR 110.5b's "enters tapped" on a printed card is
+    /// the card's own before anything else modifies the entry. "Tapped and
+    /// attacking" is CR 508.4's and needs a combat-state write this does not
+    /// carry (`codebase-state.md`, RE-4's lines).
+    pub enters_tapped: bool,
 }
 
 impl TokenDef {

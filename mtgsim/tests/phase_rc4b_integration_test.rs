@@ -213,6 +213,7 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
         abilities: Vec::new(),
         rules_text: String::new(),
         enchant_filter: None,
+        enters_tapped: false,
     };
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
