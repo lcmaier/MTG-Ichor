@@ -5486,8 +5486,8 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 124. **Three types carry an object set called `affected` — ✅ CLOSED
     2026-09-14 (`refactor/object-set-rename`).** — archived.
-    **Reachability (2026-09-14):** closed — both fields are `affected_objects`
-    and the type is `ObjectSet`.
+    **Reachability (2026-09-14):** closed — `refactor/object-set-rename`,
+    PR #136; both fields are `affected_objects` and the type is `ObjectSet`.
     Full entry: `plans/archive/codebase-state-closed.md`, "Cross-cutting —
     keep this section honest" item 124.
 

@@ -1341,7 +1341,7 @@ It was a record for item 70's fix — the answer was right, re-derived
      already object-only, and the name says "affected" where the field name
      now says it twice.
 
-    **Reachability (2026-09-14):** closed — `refactor/object-set-rename`.
+    **Reachability (2026-09-14):** closed — `refactor/object-set-rename`, PR #136.
 
     **What the sweep found that this entry had wrong: there are five fields
     named `affected`, not three.** `board.rs` keeps two more — `TraceStep` and
