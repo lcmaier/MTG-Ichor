@@ -202,13 +202,18 @@ fn bear_costing(generic: u8) -> Arc<CardData> {
 /// way Kalitas's rider does.
 fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> Result<(), String> {
     let def = TokenDef {
-        name: "Zombie".to_string(),
+        name: None,
         colors: vec![Color::Black],
         types: vec![CardType::Creature],
         subtypes: vec![Subtype::Creature(CreatureType::Zombie)],
-        power: 2,
-        toughness: 2,
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(2),
         keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
     };
     let effect = Effect::Atom(
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
@@ -379,8 +384,14 @@ fn test_cr_608_3e_through_worms_of_the_earth_and_the_frame() {
 
 /// Hallowed Moonlight's ruling: a creature token that would enter is created
 /// in exile instead and ceases to exist as a state-based action (CR 704.5d).
-/// No entry is announced, and the one zone change carries no look-back frame,
-/// because there was never a permanent to look back at.
+/// No entry is announced and **no zone change either**: the token was never
+/// anywhere, so its substitute is an appearance in exile
+/// (`GameAction::CreateTokenIn`, RE-4), announced as `TokenCreated { Exile }`.
+///
+/// Until RE-4 this test asserted the cheap answer RC-4b shipped with — one
+/// `ZoneChange { from: Battlefield }` with no look-back frame — which is the
+/// line `codebase-state.md` item 52 recorded a leaves-the-battlefield trigger
+/// would have misread.
 #[test]
 fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
     let mut game = setup_two_player_game();
@@ -393,10 +404,17 @@ fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
     assert!(game.get_object(token).unwrap().is_token);
     assert!(!game.battlefield.contains_key(&token));
     assert!(entries(&game, start).is_empty(), "it never entered");
-    let moves = moves_of(&game, start, token);
-    assert_eq!(moves.len(), 1, "one zone change, into exile");
-    assert_eq!(moves[0].1, Zone::Exile);
-    assert!(!moves[0].3, "no CR 603.10a frame: it was never a permanent");
+    assert!(
+        moves_of(&game, start, token).is_empty(),
+        "no zone change: there was nowhere to move from"
+    );
+    let created: Vec<(ObjectId, Zone)> = log_after(&game, start)
+        .filter_map(|e| match e {
+            GameEvent::TokenCreated { object_id, zone, .. } => Some((*object_id, *zone)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(created, vec![(token, Zone::Exile)], "created in exile, from nowhere");
 
     game.check_state_based_actions(&test_dp()).unwrap();
     assert!(!game.objects.contains_key(&token), "CR 704.5d");

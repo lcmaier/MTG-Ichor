@@ -1183,6 +1183,131 @@ carefully — 45.36 → 70.31 ms is a *different set of games*, not a slower
 engine, since B's p99 sits on A's; CPU/game median moves +1.8%, inside the
 sitting's spread, and ms per 1,000 questions is flat to slightly down.
 
+**Re-recorded 2026-09-13 for RE-4** (CR 614.16's token half;
+`replacement-architecture.md` §9) — **re-measured after its review**, whose
+three themes moved the engine (a rider carries its lineage; an exit beside
+enters-with effects is not asked; the creation pattern's kind and its
+template) and the registry (Divine Visitation, Bard, King of Dale).
+`PERFORMANCE_POOL` +2 — Parallel Lives and Raise the Alarm, 81 → 83 — and the
+stress pool +6 (133 → 139), so **both tables are a re-record and neither
+column is an engine reading**. The engine's reading is the arms, and there
+are four now (`replacement-architecture.md` §11 item 80): `main`; **engine**,
+the branch with the cards *unregistered*, so `main`'s registry in both pools;
+**registered**, the old pool; **pooled**, as shipped.
+
+**Both `performance` pools: engine and registered `IDENTICAL` to `main`
+outside `=== Timing ===` and the two rows the new binary prints**, at two
+seats and at four (200 games / seed 12345). Nothing in the 81 creates a token,
+meets a rider across a Reflection, or puts an exit beside an enters-with, so
+the review's three themes cost the pool nothing and change no seeded stream.
+CPU/game −0.4% and +0.1% at two seats, −1.0% and +0.2% at four; `CPU/turn
+p50` 0.390 → 0.390 and 0.720 → 0.720 — flat.
+
+**The engine arm on `stress` is the reading the middle arm could not give,
+and it is exact.** At two seats 188 of 200 games are byte-identical to
+`main`; eleven differ by exactly one `TokenCreated` line per Zombie Kalitas
+makes (26 lines across them); and **one game diverges** — seed 12441 (game
+97), Containment Priest and Root Maze beside a Dryad Arbor, the one-exit
+prompt theme C stopped asking, after which the random agent's stream is a
+different game. That one game is `Layer walks` 521 → 519 and the win split
+103/97 → 102/98. **No two-seat game was re-routed by theme A**: the boards
+with a Collector and a Reflection (games 150, 153, 168, 182) differ only by
+their creation lines. Four seats: `Layer walks` 1,240 → 1,240, gathers
+2517 → 2513, frames 23,502 → 23,476, seats 91/53/41/14 → 92/54/39/14 — the
+same handful of re-routed games.
+
+**Two rows are new, and both are baselines from here.** `Replacement
+prompts` — CR 616.1 questions actually put to a player, per game — is 0.49 on
+`performance` at two seats (0.74 pooled) and 2.38 at four (1.83 pooled), 2.54
+on the engine arm's `stress` at two seats and 23.80 at four; it is the row a
+phase that widens `ordering_cannot_change_outcome` moves, and nothing else
+should. `Max batch depth` — the deepest nesting any game reached — is **7**,
+on `stress` at both seat counts (6 on `performance`), across 1,600 games;
+`engine::actions::BATCH_NESTING_LIMIT` is 32, which is that with headroom.
+
+*The pooled column is a re-record and a bigger board.* Two 1/1 Soldiers a
+cast are two permanents that attack, block, die and are walked: at 200 games
+on `performance`, `Replacement gathers` 1002 → 1043, `Layer walks` 373 → 386,
+avg turns 29.9 → 30.7, total damage 57.8 → 69.3, max turns 72 → 95 (the p99,
+43 → 78 ms). CPU/game +11.0% this sitting and +12.9% and +9.0% the two before,
+`ms / 1,000 queries` +1.0%, `CPU/turn p50` 0.390 → 0.400: more game, not a
+slower walk. **Reachability**, `--require`, 200 games — `performance`:
+Parallel Lives cast 168, resolved 168, in **116 of 200 games (58%)**,
+copies/deck 1.54; Raise the Alarm 201 / 201 in **140 (70%)**, 1.49; `stress`:
+Divine Visitation 131 / 131 in **98 (49%)**, 1.30; Bard, King of Dale
+135 / 135 in **94 (47%)**, 1.29. Zero errors, zero panics, every arm.
+
+| | performance (83 cards) | stress (139 cards) |
+|---|---|---|
+| P0 / P1 | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 20 (40.0%) |
+| Avg turns | 30.1 | 35.6 |
+| Spells cast | 23.3 | 25.3 |
+| Lands played | 18.3 | 19.4 |
+| Combat w/ atk | 10.8 | 13.6 |
+| Creatures died | 7.5 | 6.7 |
+| Damage events | 23.1 | 27.5 |
+| Total damage | 68.3 | 72.4 |
+| Life changes | 14.5 | 19.0 |
+| **Layer walks** | **389** | **663** |
+| **Board walks** | **249** | **463** |
+| **Memo hits** | **62,489** | **312,875** |
+| **Layer frames** | **4,545** | **18,214** |
+| **Frames/walk** | **11.69** | **27.48** |
+| **Dependency checks** | **23** | **45** |
+| **Replacement gathers** | **1021** | **1513** |
+| **Restriction queries** | **1023** | **1518** |
+| Prevention allocations | 0.02 | 0.00 |
+| Replacement prompts | 0.62 | 18.66 |
+| Max batch depth | 4 | 5 |
+
+**The `stress` column's missing game is a turn limit**, and there are two in
+200: seeds 12386 and 12538, both the Circle of Protection: Red and Words of
+Worship stall — a two-seat endgame the random agent cannot end, RE-3's and
+RD-3's cards on decks the two new registrations reshuffled, with no token in
+either game's last four hundred events (74 Circle activations in one, 58
+Words in the other). Neither is an engine reading, for RE-1's reason.
+
+**The four-player table, re-recorded** — the pool moved, so this one moves
+with it. Engine and registered are `IDENTICAL` to `main` on `performance`
+here too, and the pooled column is the same bigger board: gathers 2102 → 2145
+at 200 games, avg turns 61.0 → 61.4, CPU/game −4.5% (a different board;
+`Dependency checks` 171 → 111). No turn limit and no draw on any arm at four
+seats: the loop RE-4's landing found at seed 12523 is theme A's fixture now,
+and the decks it ran on have moved. Three shell runs at one seed and
+`--players 4` identical outside `=== Timing ===` on both pools.
+
+| 4 players, 50 games / seed 12345 | performance (83 cards) | stress (139 cards) |
+|---|---|---|
+| Wins by seat | 24 (48%) / 13 (26%) / 9 (18%) / 4 (8%) | 25 (50%) / 11 (22%) / 10 (20%) / 4 (8%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 55.8 | 65.5 |
+| Spells cast | 42.0 | 48.5 |
+| Lands played | 33.5 | 38.7 |
+| Combat w/ atk | 22.5 | 26.9 |
+| Creatures died | 14.7 | 12.5 |
+| Damage events | 50.2 | 59.6 |
+| Total damage | 156.0 | 155.8 |
+| Life changes | 35.5 | 41.6 |
+| Turns after a departure | 18.5 | 21.3 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **786** | **1,303** |
+| **Board walks** | **498** | **719** |
+| **Memo hits** | **161,430** | **316,380** |
+| **Layer frames** | **14,310** | **24,881** |
+| **Frames/walk** | **18.21** | **19.10** |
+| **Dependency checks** | **90** | **154** |
+| **Replacement gathers** | **1922** | **2532** |
+| **Restriction queries** | **1926** | **2542** |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 2.82 | 19.18 |
+| Max batch depth | 5 | 7 |
+
+At 200 games the same run reads: `performance` avg turns 61.4, wins by seat
+96/59/31/14, turns after a departure 21.9, gathers 2145, `Layer walks` 839,
+CPU/game median 49.69 ms with `CPU/turn p50` 0.74 ms; `stress` avg turns
+63.6, 89/51/40/20, 20.8, gathers 2385, `Layer walks` 1,189. The stress column
+is not an engine reading, for RE-1's reason: the registry grew by six.
+
 **Re-recorded 2026-09-06 for LI-2** (CR 613.8a/b/c, the dependency loop;
 `layers-architecture.md` §13b). One new card in `performance` — Urborg,
 Tomb of Yawgmoth, 68 → 69 — and three in `stress` — Urborg, Opalescence,
@@ -2021,6 +2146,19 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
   degrades; the themes exist because the rows inside one share a mental model.
 - **`git log main..HEAD` lies after a squash-merge** (same content, new SHA).
   Check content: `git diff --stat origin/main HEAD`.
+- **An arm the PR's own type opens, with a printed customer and sized under
+  about eighty lines, ships in that PR** — adopted at RE-4's review
+  (2026-09-13, `plans/handoffs/re-4-review.md`, theme B). RE-4 opened
+  `TokenDef` and `EventPattern::CreateTokens` and recorded four arms on them
+  as ledger lines, each with its customers named and each under the size;
+  the review's question was why they were plates to juggle rather than
+  commits, and there was no answer. The ledger is for *facilities* that do
+  not exist yet, an arm whose type is open in the PR is a normal diff, and
+  deferring it costs a second pass over the same code. The band still holds
+  — RE-4 landed at the top of it with the arms in — and the exception is an
+  arm whose customer needs a facility the PR does not have (Xorn's template
+  exists; its Treasure does not), which is a ledger line pointing at that
+  facility.
 
 ---
 
@@ -2243,7 +2381,10 @@ RC-4 ✓, RC-4b ✓, CV-1 ✓, RC-5 ✓, item 7 ✓ (twice — LI-1 mid-phase, b
 pass changed every read at once, and the close), RD-2 ✓ (the loop's unit; the
 one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (the
 applied set answered for a decomposed event; one of the two RE phases §9 named,
-decided at its close), **RE-4, RS-2, critical-path item 6**. Budget
+decided at its close), RE-4 ✗ (decided *no* at its close, 2026-09-13: the
+read it was named for was RC-5's page's already, and what it changed is what
+is proposed — the archive's "Trace-page decisions" has the argument),
+**RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.
 

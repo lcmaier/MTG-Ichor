@@ -108,7 +108,7 @@ rules, each of which has already cost something. → `replacement-architecture.m
 - **Deciding is separated from performing (CR 704.3).** A batch decides every member against
   one board, then performs, then runs riders — where CR 101.4's APNAP ordering lives.
 - **Riders resolve after the performed event, never mid-loop (CR 615.5)**, are unconditional
-  once queued (CR 615.12), and re-enter with a fresh applied-set.
+  once queued (CR 615.12), and carry the replaced event's applied set (CR 614.5) — a fresh one loops.
 
 **Growth contracts, enforced in review.** `EventPattern` grows on one axis — an arm per
 `GameAction` variant; `Rewrite` is a closed algebra, so a new arm needs the CR rule permitting

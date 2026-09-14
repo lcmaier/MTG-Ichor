@@ -139,6 +139,11 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 - **Atoms** — **none re-filed, and that is the finding.** Every atom about
   casting from a non-hand zone (601.2a-003, 601.3f-001/002, and the CR 702
   keyword family) is already filed at Phase 8, correctly. See §4's second note.
+  **One test is owed here by RE-4** (its review, R16): Hallowed Moonlight's
+  ruling that it "won't affect any creature that was cast, no matter which
+  zone it was cast from" is tested from the hand only, and the first PR
+  that opens the gate adds the board where a creature is cast from a
+  graveyard or from exile under the Moonlight and enters.
 - **Owner** — none yet.
 
 ### 2.4 Voting, and the `DecisionProvider` choice shapes
@@ -921,7 +926,10 @@ mechanic rather than a migration, which is why it is here and not in
 - **Blocks** — Command Tower, Birds of Paradise, Chromatic Lantern, City of
   Brass, Mana Confluence, Gemstone Mine, Exotic Orchard; every Treasure and
   Gold token; Cavern of Souls' second mode; every mana filter ("{1}: Add one
-  mana of any color"). Any Commander-viable mana base.
+  mana of any color"). Any Commander-viable mana base. **And every effect
+  that makes a Treasure** (RE-4's review, 2026-09-13): the Treasure def in
+  §2.27's library, and with it Xorn, Chatterfang and Hullbreacher, whose
+  replacement shapes `GameActionTemplate::CreateTokens` already carries.
 - **Atoms** — ATOM-111.10-001's expected result prints the text; ATOM-605.3c-001's
   board is a mana filter that adds "one mana of any color". Neither is about
   this mechanic and neither is claimed. The spending-side rules — CR 609.4b's
@@ -1093,6 +1101,158 @@ mechanic rather than a migration, which is why it is here and not in
 - **Owner** — none yet. **Sequenced ahead of full control** by the owner
   (2026-09-08): the census runs first so full control is scheduled against the
   whole stack rather than against the one decorator that happened to need it.
+
+### 2.27 The token vocabulary — a token cannot have an ability — type half ✅ landed 2026-09-13 (RE-4)
+
+- **Rules** — CR 111.10a–v (the twenty predefined token types), CR 111.11
+  (a token created by name), CR 111.4 (a token has the characteristics the
+  effect that created it says), CR 701.16a (investigate = create a Clue).
+- **Verdict** — `TokenDef` (`types/effects.rs`) has **seven** fields — name,
+  colors, types, subtypes, power, toughness, keyword flags — and
+  `resolve.rs::token_card_data` lowers it into a `CardData` that has
+  **seventeen**. Six of the ten it cannot fill are right to be absent:
+  `mana_cost` (CR 111.6 gives a token none), `alternative_costs` and
+  `additional_costs` (cast-time, and a token is never cast), `color_indicator`
+  (a token's colors are stated outright, so nothing is derived), `loyalty` (no
+  printed card creates a planeswalker token — measured, zero) and `defense`
+  (battles, `backlog.md` §2.23). **Four are the gap: `abilities`,
+  `supertypes`, `rules_text` and `enchant_filter`.**
+
+  **So every one of CR 111.10's twenty predefined tokens is inexpressible, and
+  the rule's own text is why**: each of the twenty is *defined by an ability*.
+  Treasure, Food, Gold, Clue, Blood, Powerstone, Map, Junk, Lander, Mutagen and
+  Shard are an activated ability apiece; the six Roles are Auras — `enchant
+  creature` plus a static grant, and Wicked Role's is a *triggered* ability;
+  Incubator is a double-faced token with `{2}: Transform this token`; only
+  Walker (a 2/2 black Zombie named Walker) is expressible, and it is the one
+  of the twenty with no ability at all.
+
+  `token_card_data` does not drop abilities by oversight — there is no field to
+  read. This is the same failure shape as `backlog.md` §2.19's: **a `Vec` whose
+  element type cannot say the thing**, found by counting what the lowering
+  writes against what the target type holds.
+- **Size** — small for the vocabulary, a phase for the library. The type change
+  is ~6 fields plus ~20 lines of `token_card_data`, and a `cards::tokens` module
+  holding CR 111.10's twenty is one constructor each — but eleven of the twenty
+  need `Primitive::Sacrifice` as a *cost* (CM-3 shipped it), Treasure and Gold
+  need **§2.19's any-color mana** and are blocked on it, Wicked Role needs
+  CR 603 and is blocked on critical-path item 6, and the Roles need an Aura
+  token to attach on creation. So: **the type in RE-4's PR, the library in a
+  phase of its own**, and the library graduates entry by entry rather than all
+  at once. CR 111.11's by-name lookup is a separate ~40 lines against
+  `CardRegistry` and wants the information model (§2.9) before it can reveal
+  what it made.
+- **Blocks** — measured on Scryfall 2026-09-13, `unique=cards`: **3,582** cards
+  create a token at all, and **1,085 of them create one this vocabulary cannot
+  express** — 749 that name a CR 111.10 type (Treasure 375, Food 155,
+  Powerstone 44, Blood 43, Role 39, Clue 28, Map 13, Incubator 7, and the
+  rest), 211 that quote an ability inline (`create … token with "…"`), and 138
+  more that say **investigate** without ever printing the word Clue. A further
+  **55** create a *legendary* token, which is the missing `supertypes` field
+  rather than the missing abilities, and **80** printed tokens are double-faced
+  (CV-5's `back_face`, not this entry's). Copy-shaped tokens — "create a token
+  that's a copy of", 270, plus amass — are **CV-3's** and not here.
+
+  **The retrofit argument, which is why this is not simply Phase 8 breadth.**
+  A token with no abilities is not a token that is missing something; it is a
+  token the engine believes has none, and nothing fails. Every card written
+  against the current vocabulary is written *around* it — Academy Manufactor is
+  already recorded as uncastable for exactly this reason
+  (`replacement-architecture.md`, "Out of RE") — and Phase 8 is 643 atoms of
+  writing cards. The same back-stop argument CV-7 won on applies with a larger
+  population: **before Phase 8 card breadth**.
+- **Atoms** — `ATOM-111.10-001` (Treasure) and `-002` (Food), both tagged
+  Phase 8 and uncovered; `ATOM-111.11-001` (token by name). CR 111.4's
+  characteristics atoms are covered where they are. The twenty types do not
+  each owe an atom — CR 111.10 is one rule with twenty rows, and the corpus
+  files it as `BOUNDARY-DEF` with two examples, which is the right granularity.
+- **Owner** — **the type half landed with RE-4 (2026-09-13)**: `TokenDef`
+  carries `abilities`, `supertypes`, `rules_text` and `enchant_filter`, and
+  two things the field count above had not seen — the name is an `Option`,
+  since CR 111.4 names an unnamed token "[subtypes] Token" (Kalitas's Zombie
+  is "Zombie Token"), and power and toughness are `Option`s, since CR 208.3
+  gives a noncreature none and the lowering had been writing `Some(0)` onto
+  one. `resolve.rs::token_card_data` is `TokenDef::card_data`, and every one
+  of the twenty predefined tokens is now *expressible* as a def: a token that
+  carries Master Biomancer's static ability is a test, Boo's supertype meets
+  the legend rule, and a Role-shaped Aura def lowers with its enchant filter.
+  **What is left is the library and the lookup**, both unowned: `cards::tokens`
+  with CR 111.10's twenty as constructors — eleven need `Primitive::Sacrifice`
+  as a cost (CM-3 shipped it), Treasure and Gold need §2.19's any-color mana,
+  Wicked Role needs CR 603, and the Roles need an Aura token to attach on
+  creation; and CR 111.11's by-name lookup, ~40 lines against `CardRegistry`,
+  which wants the information model (§2.9) before it can reveal what it made.
+  The library graduates entry by entry, Walker first, since it is the one that
+  needs nothing.
+- **Plan** (2026-09-13, the RE-4 review's question about Clue and Treasure) —
+  **three steps, in this order.** (1) `cards::tokens`, one small PR: Walker,
+  Clue, Food, Blood, Map, Junk, Lander, Mutagen, Shard and Powerstone as
+  `TokenDef` constructors — every one needs only `Primitive::Sacrifice` as a
+  cost, which CM-3 shipped — with `Primitive::Investigate` (138 printed
+  "investigate" say Clue without the word) and one card per token type that
+  makes it. (2) **§2.19, next on the mana side**: a Treasure def needs "add one
+  mana of any color", and so does every Commander mana base; Treasure and
+  Gold land with it, and so do Xorn, Chatterfang and Hullbreacher (RE-4's
+  template has their shape and waits on the def). (3) The Roles with
+  attach-on-creation, Wicked Role with CR 603, Incubator with CV-5's back
+  face. The vocabulary for all twenty exists since RE-4; nothing in the
+  library needs a type change.
+
+---
+
+### 2.28 Loops (CR 104.4b, 731) — a capture, not a design
+
+- **Rules** — CR 104.4b (a loop of mandatory actions is a draw), CR 731.1–731.2
+  (shortcuts: a player proposes a sequence of choices, the others accept or
+  shorten it). The older design called it rule 727, its number before `tmnt`.
+- **Verdict** — nothing detects a loop. What exists is two bounds that stop
+  the *engine*: `check_state_based_actions_loop`'s cap on a state-based check
+  that keeps performing, and `engine::actions::BATCH_NESTING_LIMIT`, a guard
+  against a lost lineage (`replacement-architecture.md` §11 item 77). After
+  RE-4 no replacement-only chain can loop — CR 614.5 bounds it once every
+  nested batch carries its lineage — so the mandatory half is a **trigger**
+  question and waits for critical-path item 6. Two halves, designed before
+  under `roadmap.md` D11 and D26 (`GameNumber` with `Finite`/`Shortcut`/
+  `Relative`, `LoopDeclaration`, `ask_declare_loop_count` through
+  `pick_number`; "loop detection Tiers 1–3 survive, re-based on
+  performed-action transcripts" — `archive/codebase-state-closed.md`, item 3):
+  (1) a watcher over the performed stream keeping a buffer of the last N
+  batches with a state hash each, flagging a repeated state with no player
+  choice between occurrences — CR 104.4b's draw; (2) a player *declaring* a
+  loop as a choice sequence plus an expected per-iteration delta, the engine
+  running one iteration to verify the delta and applying it N times as one
+  batch — CR 731.2's procedure, the piece no simulator has, and the AI
+  harness's infinite-mana question.
+- **Size** — unsized; (1) needs item 6 and a state hash that is a pure
+  function of `GameState` (item 40's discipline); (2) needs a
+  `DecisionProvider` surface (§2.22) and `GameNumber`.
+- **Blocks** — every combo deck's win; `fuzz_games`' 200-turn limit stands in
+  for both halves until then.
+- **Owner** — none; raised at RE-4's review (R21).
+
+### 2.29 The suppression predicate as a commutation table
+
+- **Rules** — CR 616.1's choice among applicable replacement effects, and
+  §11 item 19's rule that a choice with one outcome is not put to a player.
+- **Verdict** — `pipeline::ordering_cannot_change_outcome` proves that rule
+  five shapes at a time — all `EnterWith`, all multipliers, all draw doublers,
+  one shared `Instead`, one exit beside `EnterWith`s — one shape per phase
+  since RC-4, each a proof over a whole bucket with its own debug check. The
+  organization they want is pairwise: a commutation class per `Rewrite` on an
+  event kind (multiplicative, additive, absorbing exit, mods-adding,
+  idempotent substitute) and a table of which classes commute, with the
+  common clauses (static, rider-less, not optional, not a counter instance)
+  factored out and one debug check per class. **The sixth shape is already on
+  the board and is the trigger**: Divine Visitation beside Parallel Lives is
+  asked today and has one outcome either way (a multiplier and a
+  replace-by-"that many" commute; `phase_re4_integration_test` asks both
+  ways), and RE-5's Hardened Scales beside Doubling Season is the pair the
+  table states as *not* commuting.
+- **Size** — ~150 lines, a refactor of a predicate the standing review
+  question (`engineering-practices.md` §4.1) has corrected three times; wants
+  a session of its own, at the sixth shape.
+- **Blocks** — nothing today; a needless prompt per uncovered pair.
+- **Owner** — none; raised at RE-4's review (R22).
 
 ---
 

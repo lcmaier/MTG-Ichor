@@ -33,7 +33,7 @@ use mtgsim::oracle::characteristics::{
     has_summoning_sickness, is_creature,
 };
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{
+use mtgsim::test_support::{RecordingDecisionProvider, 
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, setup_game,
     setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
 };
@@ -464,23 +464,20 @@ fn test_an_entering_count_does_not_include_the_entering_object() {
 /// and the card is in exile.
 ///
 /// Chainbreaker brings its own "enters with two -1/-1 counters", so the bucket
-/// is an `Instead` beside an `EnterWith` — the shape that keeps CR 616.1
-/// asking (`test_a_non_commuting_entry_replacement_keeps_cr_616_1_asking`) —
-/// and the choice is scripted. Both answers exile it.
+/// is an `Instead` beside an `EnterWith`. Until RE-4's review that kept
+/// CR 616.1 asking; it is the fifth shape `ordering_cannot_change_outcome`
+/// proves now — the exile wins whichever applies first, since the substitute
+/// carries no mods — so nothing is asked and the answer is the same.
 #[test]
 fn test_containment_priest_exiles_a_creature_that_was_not_cast() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, containment_priest(), 1);
 
-    let dp = ScriptedDecisionProvider::new();
+    let dp = RecordingDecisionProvider::picking(0);
     let scarecrow = put_in_graveyard(&mut game, chainbreaker(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(scarecrow) },
-        vec![0],
-    );
     game.change_zone(scarecrow, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
         .expect("the zone change happens; the entry is what gets replaced");
-    assert!(dp.is_empty());
+    assert_eq!(dp.prompts(), 0, "an exit beside an enters-with is one outcome");
 
     assert!(game.exile.contains(&scarecrow));
     assert!(!game.battlefield.contains_key(&scarecrow));
@@ -568,55 +565,34 @@ fn test_dryad_arbor_played_as_a_land_is_exiled_by_containment_priest() {
 
 /// Root Maze taps an entering land; Containment Priest exiles an entering
 /// creature that wasn't cast; Dryad Arbor played is both. Two candidates, one
-/// an `EnterWith` and one an `Instead`, so `ordering_cannot_change_outcome` does
-/// not apply and CR 616.1 asks the land's controller. Either answer exiles
-/// it — but which CR 614.5 slot is spent first is the event log's business,
-/// and the branch this keeps alive is the one RB shipped dead with Kalitas.
-// COVERS-PARTIAL: ATOM-616.1-001
+/// an `EnterWith` and one an `Instead` — and until RE-4's review the shape
+/// CR 616.1 kept asking about, because the predicate could not prove the
+/// order away. It can: the exile's substitute carries no mods, so it is the
+/// same event whether Root Maze tapped the Arbor first or not, and a choice
+/// with one outcome is not put to the player (§11 item 19). The board that
+/// *is* a real choice is the Shimmerer's, two tests down.
 #[test]
-fn test_a_non_commuting_entry_replacement_keeps_cr_616_1_asking() {
+fn test_an_exit_beside_an_enters_tapped_is_one_outcome_and_not_asked() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, root_maze(), 1);
     put_on_battlefield(&mut game, containment_priest(), 1);
 
-    let dp = ScriptedDecisionProvider::new();
+    let dp = RecordingDecisionProvider::picking(0);
     let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(arbor) },
-        vec![0],
-    );
     game.play_land(0, arbor, Zone::Hand, &ActionContext::new(&dp)).unwrap();
 
-    assert!(dp.is_empty(), "CR 616.1 asked, and the answer was consumed");
+    assert_eq!(dp.prompts(), 0, "the exile wins whichever applied first");
     assert!(game.exile.contains(&arbor));
-}
-
-/// The other index is a real candidate: Root Maze's row is gathered by the
-/// battlefield sweep ahead of the Priest's, and choosing the Priest first
-/// exiles the Arbor before Root Maze's slot is spent.
-#[test]
-fn test_the_other_cr_616_1_order_is_available_where_the_order_matters() {
-    let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, root_maze(), 1);
-    put_on_battlefield(&mut game, containment_priest(), 1);
-
-    let dp = ScriptedDecisionProvider::new();
-    let arbor = put_in_hand(&mut game, dryad_arbor(), 0);
-    dp.expect_pick_n(
-        ChoiceKind::ChooseReplacementEffect { affected_object: Some(arbor) },
-        vec![1],
-    );
-    game.play_land(0, arbor, Zone::Hand, &ActionContext::new(&dp)).unwrap();
-
-    assert!(dp.is_empty(), "the second candidate is a real one");
-    assert!(game.exile.contains(&arbor));
+    assert!(!game.battlefield.contains_key(&arbor));
 }
 
 /// The prompt the frame makes real. Adaptive Shimmerer is a 0/0 that enters
 /// with three +1/+1 counters; "creatures with power 1 or less enter tapped"
 /// matches it at 0/0 and not at 3/3. Both apply at the first iteration, and
 /// the order decides whether it enters tapped — so `PowerLE` is not an
-/// invariant leaf, and CR 616.1 asks.
+/// invariant leaf, and CR 616.1 asks. The branch this keeps alive is the one
+/// RB shipped dead with Kalitas.
+// COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn test_a_power_filter_beside_counters_is_a_real_choice() {
     let mut game = setup_two_player_game();

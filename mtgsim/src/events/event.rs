@@ -240,6 +240,34 @@ pub enum GameEvent {
     },
 
     // --- Tokens ---
+    /// A token was created (CR 111.2's first sentence, CR 701.7a) — in
+    /// `zone`, which is the battlefield for a creation performed as the
+    /// effect wrote it and somewhere else for one whose entry a replacement
+    /// substituted: Hallowed Moonlight's "exile it instead", whose ruling is
+    /// that the token "is put into exile instead and then ceases to exist".
+    /// CR 704.5d reads the second kind from there.
+    ///
+    /// **Not a zone change.** The token came from nowhere, so there is no
+    /// `from` to name; the log used to say `ZoneChange { from: Battlefield }`
+    /// for the exiled kind, which is the line a leaves-the-battlefield
+    /// trigger would have read (`codebase-state.md` item 52).
+    ///
+    /// One emitter, `GameState::announce_token_created`, with two callers,
+    /// each of which performed the placement it announces: the
+    /// `EnterBattlefield` performer's token arm, ahead of
+    /// `PermanentEnteredBattlefield` — CR 111.2 is two sentences, the token
+    /// is created and then it enters — and the `CreateTokenIn` performer.
+    /// **CR 111.13 is the line between a token this announces and one it
+    /// does not**: a copy of a permanent spell becomes a token as it
+    /// resolves and "is not 'created' for the purposes of any replacement
+    /// effects or triggered abilities that refer to creating a token" — it
+    /// enters from the stack with a `from`, takes the card arm, and is
+    /// announced by its zone change alone.
+    ///
+    /// `owner` is CR 111.2's "the player who creates a token is its owner";
+    /// a token created in exile has no controller to name.
+    TokenCreated { object_id: ObjectId, owner: PlayerId, zone: Zone },
+
     /// A token in a non-battlefield zone ceased to exist (rule 704.5d).
     /// Not a zone change — the token is simply removed from the game.
     TokenCeasedToExist { object_id: ObjectId },

@@ -55,6 +55,8 @@ pub struct EngineCounters {
     replacement_gathers: Cell<u64>,
     restriction_queries: Cell<u64>,
     prevention_allocations: Cell<u64>,
+    replacement_prompts: Cell<u64>,
+    max_batch_depth: Cell<u64>,
 }
 
 impl EngineCounters {
@@ -126,6 +128,27 @@ impl EngineCounters {
         self.replacement_gathers.set(self.replacement_gathers.get() + 1);
     }
 
+    /// One CR 616.1 question put to a player — which effect to apply, or
+    /// whether to apply an optional one. A reachability count beside the
+    /// gathers: a gather is the engine asking itself, a prompt is the engine
+    /// asking someone, and `pipeline::ordering_cannot_change_outcome` is
+    /// what stands between the two. A phase that widens that predicate
+    /// should move this row and nothing else.
+    pub fn record_replacement_prompt(&self) {
+        self.replacement_prompts.set(self.replacement_prompts.get() + 1);
+    }
+
+    /// The deepest `execute_batch_inner` nesting reached — a proposal inside
+    /// a performer inside a rider inside a resolution. Recorded so
+    /// `engine::actions::BATCH_NESTING_LIMIT` is a measured number: the
+    /// bound is a guard against a lost lineage, and this row is what says
+    /// how far a legitimate game gets.
+    pub fn record_batch_depth(&self, depth: u64) {
+        if depth > self.max_batch_depth.get() {
+            self.max_batch_depth.set(depth);
+        }
+    }
+
     /// One `engine::restriction::is_prohibited` — a CR 101.2 question.
     ///
     /// Worth its own counter rather than folding into the gather count: it is
@@ -186,6 +209,14 @@ impl EngineCounters {
 
     pub fn restriction_queries(&self) -> u64 {
         self.restriction_queries.get()
+    }
+
+    pub fn replacement_prompts(&self) -> u64 {
+        self.replacement_prompts.get()
+    }
+
+    pub fn max_batch_depth(&self) -> u64 {
+        self.max_batch_depth.get()
     }
 
     pub fn prevention_allocations(&self) -> u64 {

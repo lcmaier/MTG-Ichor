@@ -1408,7 +1408,9 @@ fn test_kalitas_exiles_an_opponents_dying_creature_and_makes_a_zombie() {
         .unwrap();
 
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
-    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+    // CR 111.4: the card names the token by its subtype, so the token is
+    // named "Zombie Token" and not "Zombie".
+    assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
     assert_eq!(
         zone_changes(&game),
         vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
@@ -1450,7 +1452,7 @@ fn test_kalitas_ignores_tokens() {
         .unwrap();
 
     assert_eq!(game.get_object(opponent_token).unwrap().zone, Zone::Graveyard);
-    assert!(tokens(&game).iter().all(|n| n != "Zombie"), "no Zombie was made");
+    assert!(tokens(&game).iter().all(|n| n != "Zombie Token"), "no Zombie was made");
     assert!(game.battlefield.contains_key(&kalitas));
 }
 
@@ -1489,7 +1491,7 @@ fn test_kalitas_catches_a_creature_destroyed_by_lethal_damage() {
     game.check_state_based_actions(&dp).unwrap();
 
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Exile);
-    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+    assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
 }
 
 #[test]
@@ -1535,10 +1537,11 @@ fn test_kalitas_simultaneous_deaths_each_exile_and_make_a_zombie() {
 #[test]
 fn test_the_kalitas_rider_runs_after_the_exile_it_rides_on() {
     // §4.1a's timing contract on the card that motivated it: CR 615.5 puts the
-    // rest of the effect "immediately afterward", so the Zombie enters the
-    // battlefield *after* the creature it replaced has left it. Asserted on the
-    // event log, because the end state is identical either way — and the order
-    // is what a leaves-the-battlefield trigger will read.
+    // rest of the effect "immediately afterward", so the Zombie is created and
+    // enters the battlefield *after* the creature it replaced has left it.
+    // Asserted on the event log, because the end state is identical either way
+    // — and the order is what a leaves-the-battlefield trigger will read.
+    // CR 111.2's two sentences are the two token lines: created, then enters.
     let mut game = setup_two_player_game();
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
@@ -1553,11 +1556,12 @@ fn test_the_kalitas_rider_runs_after_the_exile_it_rides_on() {
         .skip(before)
         .map(|e| match e {
             GameEvent::ZoneChange { .. } => "zone-change",
+            GameEvent::TokenCreated { .. } => "token-created",
             GameEvent::PermanentEnteredBattlefield { .. } => "token-entered",
             _ => "other",
         })
         .collect();
-    assert_eq!(kinds, vec!["zone-change", "token-entered"]);
+    assert_eq!(kinds, vec!["zone-change", "token-created", "token-entered"]);
 }
 
 #[test]
@@ -2435,7 +2439,7 @@ fn test_kalitas_and_rest_in_peace_compete_and_choosing_kalitas_makes_a_zombie() 
     // Index 0 is Kalitas: `gather` sweeps the battlefield in timestamp order and
     // Kalitas entered first. Its CR 615.5 rider is what makes the choice
     // *observable* — both effects exile, only one makes a Zombie.
-    assert_eq!(tokens(&game), vec!["Zombie".to_string()]);
+    assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
 }
 
 // COVERS-PARTIAL: ATOM-616.1-001

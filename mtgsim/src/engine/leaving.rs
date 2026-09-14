@@ -56,7 +56,7 @@ impl GameState {
     /// An object in the battlefield *zone* with no entity — a token whose
     /// entry was substituted, for the width of one statement — is in no
     /// collection and is nobody's to find; it is removed by CR 704.5d or by
-    /// `Primitive::CreateToken`'s own refusal.
+    /// `create_tokens`' own CR 111.5 sweep.
     ///
     /// The order among the seven is this function's and not the CR's, which
     /// names none: the board first, because that is what a reader is watching.

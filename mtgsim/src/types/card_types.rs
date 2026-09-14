@@ -57,6 +57,32 @@ pub enum Subtype {
     Battle(BattleType),
 }
 
+impl Subtype {
+    /// The subtype as it is printed — "Zombie", "Power-Plant", "Time
+    /// Lord". Read by CR 111.4's default token name, which is built from
+    /// the subtypes the creating effect set.
+    ///
+    /// The variant name, with the three multi-word subtypes in reach spelled
+    /// out; a fourth gets a line here rather than a table, since the
+    /// variant *is* the word for every other one.
+    pub fn word(&self) -> String {
+        match self {
+            Subtype::Land(LandType::PowerPlant) => "Power-Plant".to_string(),
+            Subtype::Land(LandType::Urzas) => "Urza's".to_string(),
+            Subtype::Creature(CreatureType::TimeLord) => "Time Lord".to_string(),
+            Subtype::Artifact(t) => format!("{t:?}"),
+            Subtype::Enchantment(t) => format!("{t:?}"),
+            Subtype::Land(t) => format!("{t:?}"),
+            Subtype::Creature(t) => format!("{t:?}"),
+            Subtype::Planeswalker(t) => format!("{t:?}"),
+            Subtype::Spell(t) => format!("{t:?}"),
+            Subtype::Planar(t) => format!("{t:?}"),
+            Subtype::Dungeon(t) => format!("{t:?}"),
+            Subtype::Battle(t) => format!("{t:?}"),
+        }
+    }
+}
+
 // --- Artifact subtypes ---
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 81] = [
+const PERFORMANCE_POOL: [&str; 83] = [
     "Plains",
     "Island",
     "Swamp",
@@ -327,6 +327,23 @@ const PERFORMANCE_POOL: [&str; 81] = [
     // registered and stays out: a seven-drop that turns every lethal board
     // into a stall would move average turns by design and not by engine.
     "Laboratory Maniac",
+    // RE-4 — the first plural creation and the first `CreateTokens` watcher.
+    // Raise the Alarm is the producer: `{1}{W}`, so any white deck casts it,
+    // and its two Soldiers are the first plural entry batch a measured game
+    // builds — every entry decided against the board none has entered
+    // (CR 614.12), which is the engine path `codebase-state.md` item 46
+    // wanted measured. Parallel Lives is the outer event's first watcher,
+    // and the first board on which the creation's CR 616.1 loop and the
+    // entries' loops both run in one resolution (CR 616.1g). Kalitas's rider
+    // already makes single tokens in `stress`, so the registered-but-unpooled
+    // arm moves by one gather per Zombie and nothing else.
+    //
+    // Hordeling Outburst stays out: the Alarm's path at `{1}{R}{R}`. Hallowed
+    // Moonlight stays out: its row is RC-4b's substituted entry, and its one
+    // new line — a token created in exile — needs a creation under the row in
+    // the same turn, a `--require` question rather than a slot.
+    "Parallel Lives",
+    "Raise the Alarm",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -696,6 +713,21 @@ impl CardRegistry {
         registry.register("Exquisite Archangel", phase_re_cards::exquisite_archangel);
         registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
         registry.register("Platinum Angel", phase_re_cards::platinum_angel);
+
+        // RE-4 — tokens. Four cards on two axes: what makes a plural creation
+        // (Raise the Alarm, Hordeling Outburst), what doubles one (Parallel
+        // Lives), and what substitutes a token's entry (Hallowed Moonlight).
+        // Parallel Lives and Raise the Alarm are pooled; the module doc says
+        // why the other two stay out.
+        registry.register("Parallel Lives", phase_re_cards::parallel_lives);
+        registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
+        registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
+        registry.register("Hallowed Moonlight", phase_re_cards::hallowed_moonlight);
+        // The review's two: the kind-changing substitution over a creation
+        // (Divine Visitation) and a card both of whose halves RE-2 and RE-4
+        // had already built (Bard, King of Dale). Neither pooled.
+        registry.register("Divine Visitation", phase_re_cards::divine_visitation);
+        registry.register("Bard, King of Dale", phase_re_cards::bard_king_of_dale);
 
         registry
     }

@@ -201,6 +201,64 @@
 //! mana for a replacement of an event most games reach exactly once, and
 //! Stunning Reversal is a one-shot whose engine path the Archangel already
 //! opens; both stay in `stress`.
+//!
+//! # RE-4 — tokens (CR 614.16's token half, 111.5, 616.1g)
+//!
+//! **Four printed cards on two axes: what makes a plural creation, and what
+//! the creation meets.** CR 111's "create three tokens" is one event, and
+//! `GameAction::CreateTokens` is the first proposal in the crate whose
+//! performer proposes a *batch* — one entry per token, decided together
+//! against the board none of them has entered (CR 614.12; `codebase-state.md`
+//! item 46).
+//!
+//! | Card | Is | Does |
+//! |---|---|---|
+//! | [`raise_the_alarm`] | an instant | two Soldiers — the first plural creation, so the first plural entry batch |
+//! | [`hordeling_outburst`] | a sorcery | three Goblins |
+//! | [`parallel_lives`] | a static, `You` | `Amount(Multiplier(2))` on the creation — the **outer** event |
+//! | [`hallowed_moonlight`] | a resolution, until end of turn | `Instead(ZoneChangeTo { Exile })` on each entry — the **contained** one |
+//! | [`divine_visitation`] | a static, `You`, *creature* tokens | `Instead(CreateTokens { Angel, ReplacedAmount, Replace })` — the kind-changing substitution over a creation |
+//! | [`bard_king_of_dale`] | a static, `You`, twice | Alhammarret's Archive's draw half beside Parallel Lives' token half — both halves already built, so the card cost nothing but its registration |
+//!
+//! Divine Visitation and Bard came in at the review (`plans/handoffs/re-4-review.md`,
+//! theme B): a template and a kind field whose customers were in print and
+//! whose type this phase had open.
+//!
+//! **Parallel Lives is applied once, at the creation; Hallowed Moonlight once
+//! per token.** That is CR 616.1g — "the second effect can't be chosen until
+//! after the first effect has been chosen" — read as containment
+//! (`replacement-architecture.md` §3.2d): the creation's CR 616.1 loop runs
+//! to completion, then each entry's runs with a fresh applied set, so a
+//! doubler applied to the creation is not offered again at any entry, and an
+//! entry replacement is offered at every one. Beside Master Biomancer the
+//! Moonlight is a real choice per token, and the test counts the prompts.
+//!
+//! **A token exiled instead was created in exile.** A card's substituted entry
+//! is a zone change from where the card is; a token was nowhere, and its
+//! ruling says where it goes — "put into exile instead and then ceases to
+//! exist" — so the substitute is `GameAction::CreateTokenIn` and the log
+//! holds `TokenCreated { Exile }` and CR 704.5d's `TokenCeasedToExist`, with
+//! no `ZoneChange { from: Battlefield }` for a leaves-the-battlefield trigger
+//! to misread (`codebase-state.md` item 52).
+//!
+//! # What a random deck can draw
+//!
+//! Parallel Lives and Raise the Alarm are the pooled pair. The Alarm is the
+//! producer: a `{1}{W}` instant any white deck casts, and the first plural
+//! entry batch a measured game builds — the engine path item 46 wanted
+//! measured. Parallel Lives is the first `CreateTokens` watcher, and the
+//! first board on which the creation's loop and the entries' loops are both
+//! asked in one resolution. Kalitas's rider already makes single tokens in
+//! `stress`, so the registered-but-unpooled arm moves by one gather per
+//! Zombie and nothing else.
+//!
+//! Hordeling Outburst stays out: the same path as the Alarm at `{1}{R}{R}`,
+//! and a second copy of one path buys a slower fuzz run rather than a wider
+//! one. Hallowed Moonlight stays out too: its row is RC-4b's substituted
+//! entry, which Containment Priest's shape already measures, and its one new
+//! line — a token created in exile — needs a token creation under the row in
+//! the same turn, which two pooled cards and a random agent reach rarely;
+//! that reachability is a `--require` row rather than a slot.
 
 use std::sync::Arc;
 
@@ -211,17 +269,17 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AffectedSet, AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
     AmountRewrite, EventPattern, GameActionTemplate, LifeLossCausePattern, ReplacementDef,
-    Rewrite, TemplateAmount,
+    Rewrite, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
-use crate::types::zones::DrawCause;
+use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
 
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
@@ -1484,5 +1542,381 @@ pub fn platinum_angel() -> Arc<CardData> {
             affected_players: PlayerSet::Opponents,
             by: None,
         }))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// RE-4 — tokens
+// ---------------------------------------------------------------------------
+
+/// A token that carries only what the effect said — CR 111.3's "a token
+/// doesn't have any characteristics not defined by the spell or ability that
+/// created it" — with CR 111.4's default name.
+fn vanilla_token(
+    color: Color,
+    creature_type: CreatureType,
+    power: i32,
+    toughness: i32,
+) -> TokenDef {
+    TokenDef {
+        name: None,
+        colors: vec![color],
+        types: vec![CardType::Creature],
+        subtypes: vec![Subtype::Creature(creature_type)],
+        supertypes: Vec::new(),
+        power: Some(power),
+        toughness: Some(toughness),
+        keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+    }
+}
+
+/// "a 1/1 white Soldier creature token" — named "Soldier Token" (CR 111.4).
+pub fn soldier_token() -> TokenDef {
+    vanilla_token(Color::White, CreatureType::Soldier, 1, 1)
+}
+
+/// "a 1/1 red Goblin creature token" — named "Goblin Token" (CR 111.4).
+pub fn goblin_token() -> TokenDef {
+    vanilla_token(Color::Red, CreatureType::Goblin, 1, 1)
+}
+
+/// Raise the Alarm — {1}{W}
+/// Instant
+///
+/// > Create two 1/1 white Soldier creature tokens.
+///
+/// **The first plural creation in the crate**, and so the first
+/// `GameAction::CreateTokens` whose performer proposes a batch of more than
+/// one entry — `codebase-state.md` item 46's producer. One `Primitive`, one
+/// proposal carrying the def twice, two entries decided against the board
+/// before either Soldier entered (CR 614.12).
+///
+/// Scryfall lists no rulings (2026-09-13). The boards it is on are the
+/// rules' rather than the card's: CR 614.16 under Parallel Lives, CR 616.1g
+/// beside Hallowed Moonlight, CR 614.12 under Master Biomancer, CR 111.5
+/// under a "can't enter".
+///
+/// **Pooled**, with Parallel Lives — the module doc says why.
+pub fn raise_the_alarm() -> Arc<CardData> {
+    CardDataBuilder::new("Raise the Alarm")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text("Create two 1/1 white Soldier creature tokens.")
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(
+                Primitive::CreateToken(soldier_token(), AmountExpr::Fixed(2)),
+                EffectRecipient::Controller,
+            ),
+        ))
+        .build()
+}
+
+/// Hordeling Outburst — {1}{R}{R}
+/// Sorcery
+///
+/// > Create three 1/1 red Goblin creature tokens.
+///
+/// Raise the Alarm's shape one wider, and a sorcery: the second plural
+/// creation, so that "the batch is the creation's order" (CR 613.7m's
+/// decision point, not asked — `replacement-architecture.md` §9, RE
+/// decision 3) is asserted on more than a pair.
+///
+/// Scryfall lists no rulings (2026-09-13). **Registered and not pooled** —
+/// the same engine path as the Alarm at `{1}{R}{R}`.
+pub fn hordeling_outburst() -> Arc<CardData> {
+    CardDataBuilder::new("Hordeling Outburst")
+        .mana_cost(ManaCost::build(&[ManaType::Red, ManaType::Red], 1))
+        .color(Color::Red)
+        .card_type(CardType::Sorcery)
+        .rules_text("Create three 1/1 red Goblin creature tokens.")
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(
+                Primitive::CreateToken(goblin_token(), AmountExpr::Fixed(3)),
+                EffectRecipient::Controller,
+            ),
+        ))
+        .build()
+}
+
+/// Parallel Lives — {3}{G}
+/// Enchantment
+///
+/// > If an effect would create one or more tokens under your control, it
+/// > creates twice that many of those tokens instead.
+///
+/// **CR 614.16's token half, and the first watcher of the outer event.** The
+/// subject of a `CreateTokens` is the player the tokens are created under, so
+/// "under your control" is [`PlayerSet::You`] and the object set is empty —
+/// Rhox Faithmender's shape over a different event. The rewrite is the same
+/// arm too, and over a `Vec` a multiplier repeats each def in place, which is
+/// what "twice that many of those tokens" says.
+///
+/// Doubling Season's first ability is this card's text word for word; the
+/// Season is registered whole in RE-5, when its counter half has an event to
+/// watch.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"If you control two Parallel Lives, then the number of tokens created is
+///   four times the original number. If you control three, then … eight times
+///   the original number, and so on."* → the Furnace pair's third kind: two
+///   commuting multipliers on one event, applied both without a CR 616.1
+///   prompt. → `two_parallel_lives_create_four_times_as_many_and_ask_nothing`
+/// - *"Everything that is specified by the effect creating the original token
+///   or tokens will also be true about the additional token or tokens created
+///   by Parallel Lives's replacement effect. For example, if an effect tells
+///   you to create a token 'tapped and attacking,' the additional tokens will
+///   also be tapped and attacking."* → structurally true of a repeated def,
+///   asserted on every token's characteristics. "Tapped and attacking" is
+///   not a shape this engine's creation can carry yet — a creation has no
+///   `EnterMods` — and the ruling's *structure* is what the test proves.
+///   → `the_extra_tokens_are_the_same_tokens`
+///
+/// **Pooled**, with Raise the Alarm — the module doc says why.
+pub fn parallel_lives() -> Arc<CardData> {
+    CardDataBuilder::new("Parallel Lives")
+        .mana_cost(ManaCost::build(&[ManaType::Green], 3))
+        .color(Color::Green)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If an effect would create one or more tokens under your control, it creates \
+             twice that many of those tokens instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Hallowed Moonlight — {1}{W}
+/// Instant
+///
+/// > Until end of turn, if a creature would enter and it wasn't cast, exile
+/// > it instead.
+/// > Draw a card.
+///
+/// **Containment Priest's row from a resolution, and without the "nontoken"**
+/// — which is the whole reason it is here. The Priest excludes tokens, so no
+/// registered card ever substituted a *token's* entry, and the engine's answer
+/// for one was the cheap one: a `ZoneChange { from: Battlefield }` for a token
+/// that was never there (`codebase-state.md` item 52). This card reaches it,
+/// and the answer is now `GameAction::CreateTokenIn` — the token is created in
+/// exile.
+///
+/// Every piece exists since RC-4b and RD-2: `Primitive::CreateReplacement`
+/// with an `UntilEndOfTurn` row, `EventPattern::EnterBattlefield { cast:
+/// Some(false) }`, a creature filter over the CR 614.12 frame, and
+/// `Instead(ZoneChangeTo { Exile })`. "A creature" is every creature — no
+/// controller clause — so the row is about the object and names no player.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"After Hallowed Moonlight resolves, if a creature token would be put
+///   onto the battlefield, it's put into exile instead and then ceases to
+///   exist. Creature tokens are never cast, even if the spell that created
+///   them was."* → the log holds `TokenCreated { Exile }` and CR 704.5d's
+///   `TokenCeasedToExist`, and **no `ZoneChange`** for the token at all — the
+///   line Dour Port-Mage would have read, asserted absent.
+///   → `hallowed_moonlight_creates_the_token_in_exile_and_it_ceases_to_exist`
+/// - *"Hallowed Moonlight won't affect any creature that was cast, no matter
+///   which zone it was cast from and whether or not its mana cost was paid."*
+///   → Grizzly Bears cast from hand resolves and enters under it.
+///   → `hallowed_moonlight_does_not_affect_a_creature_that_was_cast`
+///
+/// **Registered and not pooled** — the module doc says why.
+pub fn hallowed_moonlight() -> Arc<CardData> {
+    CardDataBuilder::new("Hallowed Moonlight")
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .color(Color::White)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Until end of turn, if a creature would enter and it wasn't cast, exile it \
+             instead.\nDraw a card.",
+        )
+        .ability(one_shot(
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::CreateReplacement(
+                        Box::new(ReplacementDef::new(
+                            EventPattern::EnterBattlefield { cast: Some(false) },
+                            AffectedSet::Filter {
+                                filter: ObjectFilter::ByType(CardType::Creature),
+                            },
+                            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
+                                to: Zone::Exile,
+                                cause: ZoneChangeCause::Exiled,
+                            }),
+                        )),
+                        Duration::UntilEndOfTurn,
+                        PatternFill::Authored,
+                    ),
+                    EffectRecipient::Implicit,
+                ),
+                Effect::Atom(
+                    Primitive::DrawCards(AmountExpr::Fixed(1)),
+                    EffectRecipient::Controller,
+                ),
+            ]),
+        ))
+        .build()
+}
+
+/// The 4/4 white Angel with flying and vigilance Divine Visitation makes —
+/// "Angel Token" by CR 111.4.
+pub fn angel_token() -> TokenDef {
+    TokenDef {
+        name: None,
+        colors: vec![Color::White],
+        types: vec![CardType::Creature],
+        subtypes: vec![Subtype::Creature(CreatureType::Angel)],
+        supertypes: Vec::new(),
+        power: Some(4),
+        toughness: Some(4),
+        keyword_flags: vec![KeywordFlag::Flying, KeywordFlag::Vigilance],
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
+    }
+}
+
+/// Divine Visitation — {3}{W}{W}
+/// Enchantment
+///
+/// > If one or more creature tokens would be created under your control, that
+/// > many 4/4 white Angel creature tokens with flying and vigilance are
+/// > created instead.
+///
+/// **The kind-changing substitution over a creation, and the kind field's
+/// first customer.** `EventPattern::CreateTokens { kind: creature }` matches
+/// the creation if any def is a creature, and the template replaces exactly
+/// those defs — a Clue created beside a Soldier stays a Clue — with "that
+/// many" Angels, where that many is the number the kind matched.
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"The token's characteristics are entirely replaced … It doesn't have any
+///   abilities the token would have been created with. Anything else
+///   specified in the effect creating the token (such as tapped, attacking,
+///   …) still applies."* → the template's def replaces the matched def whole,
+///   and `enters_tapped` is carried over from the def it replaced.
+///   → `divine_visitation_replaces_the_creatures_and_keeps_how_they_entered`
+/// - *"If you create a noncreature token that will be a creature as it enters
+///   the battlefield (March of the Machines), Divine Visitation's effect
+///   doesn't apply"* → the kind is asked of the def's printed types, never of
+///   the entry's frame. → `divine_visitation_reads_the_def_and_not_the_frame`
+/// - *"If an effect changes under whose control a token would be created, that
+///   effect applies before Divine Visitation's"* → CR 616.1b's ladder, which
+///   `must_choose_among` already walks; no control-changing creation
+///   replacement is registered to walk it with.
+///
+/// Beside Parallel Lives the affected player chooses the order and the
+/// answer is four Angels either way — a multiplier and a replacement by
+/// "that many" commute — which the test states by asking both ways.
+///
+/// **Registered and not pooled**: five mana for an effect two pooled cards
+/// reach, and the creation path is measured by the Alarm already.
+pub fn divine_visitation() -> Arc<CardData> {
+    CardDataBuilder::new("Divine Visitation")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::White], 3))
+        .color(Color::White)
+        .card_type(CardType::Enchantment)
+        .rules_text(
+            "If one or more creature tokens would be created under your control, that many \
+             4/4 white Angel creature tokens with flying and vigilance are created instead.",
+        )
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Instead(GameActionTemplate::CreateTokens {
+                    def: angel_token(),
+                    count: TemplateAmount::ReplacedAmount,
+                    mode: TokenSubstitution::Replace,
+                }),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
+        .build()
+}
+
+/// Bard, King of Dale — {4}{W}{U}
+/// Legendary Creature — Human Noble Archer 3/5
+///
+/// > Reach, vigilance
+/// > If you would draw a card except the first one you draw in each of your
+/// > draw steps, draw two cards instead.
+/// > If one or more tokens would be created under your control, twice that
+/// > many of those tokens are created instead.
+///
+/// Alhammarret's Archive's draw half beside Parallel Lives' token half. RE-2's
+/// ledger row named Bard as waiting on "RE-4's token doubler"; the review
+/// found both halves built and registered it (`plans/handoffs/re-4-review.md`,
+/// R5 — the review also caught this file's first draft calling it a card that
+/// replaces draws with tokens, which is Hullbreacher).
+///
+/// # The rulings (Scryfall, 2026-09-13), and where each is tested
+///
+/// - *"If you control two, cards drawn will be multiplied by four … the last
+///   ability is cumulative: two, four times the number of tokens."* → two
+///   Bards, both halves. → `two_bards_quadruple_both_halves`
+/// - *"If an effect creates more than one kind of token, it'll create twice as
+///   many of each kind."* → a heterogeneous creation, `[A, B]` → `[A, A, B,
+///   B]`. → `bard_doubles_each_kind_of_a_mixed_creation`
+/// - *"Copies of permanent spells that resolve become tokens … not created and
+///   will not be doubled."* → CR 111.13; `GameEvent::TokenCreated`'s doc is
+///   where the engine draws that line, and CV-4 is where the spell copy
+///   exists.
+/// - *"All of the tokens enter the battlefield simultaneously … same name,
+///   color, type …"* → RE-4's batch; `the_extra_tokens_are_the_same_tokens`.
+/// - *"If the token … has 'enters with' abilities, first determine how many
+///   tokens are being created, then apply those abilities individually for
+///   each one."* → CR 616.1g as the order of two loops;
+///   `two_devour_tokens_created_together_are_each_asked_and_never_offered_each_other`.
+///
+/// **Registered and not pooled**: six mana and legendary.
+pub fn bard_king_of_dale() -> Arc<CardData> {
+    CardDataBuilder::new("Bard, King of Dale")
+        .mana_cost(ManaCost::build(&[ManaType::White, ManaType::Blue], 4))
+        .color(Color::White)
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .supertype(Supertype::Legendary)
+        .subtype(Subtype::Creature(CreatureType::Human))
+        .subtype(Subtype::Creature(CreatureType::Noble))
+        .subtype(Subtype::Creature(CreatureType::Archer))
+        .power_toughness(3, 5)
+        .keyword_flag(KeywordFlag::Reach)
+        .keyword_flag(KeywordFlag::Vigilance)
+        .rules_text(
+            "Reach, vigilance\nIf you would draw a card except the first one you draw in each \
+             of your draw steps, draw two cards instead.\nIf one or more tokens would be \
+             created under your control, twice that many of those tokens are created instead.",
+        )
+        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement(
+            ReplacementDef::new(
+                EventPattern::CreateTokens { kind: None },
+                AffectedSet::NO_OBJECTS,
+                Rewrite::Amount(AmountRewrite::Multiplier(2)),
+            )
+            .affecting_players(PlayerSet::You),
+        ))
         .build()
 }

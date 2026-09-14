@@ -37,7 +37,7 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet,
+    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::ObjectId;
@@ -442,6 +442,58 @@ pub enum EventPattern {
     /// preclude that player from winning", which is exactly the sentence that
     /// puts it outside the pipeline.
     PlayerWins,
+
+    /// CR 614.16 — "if an effect would create one or more tokens". The
+    /// event's subject is the player the tokens are created under, and which
+    /// player the effect is around is [`ReplacementDef::affected_players`]'s
+    /// question: Parallel Lives is `You`.
+    ///
+    /// `kind` is the printed constraint on *which* tokens — "creature tokens"
+    /// (Divine Visitation, Ojer Taq, Jinnie Fay), "Treasure tokens" (Xorn),
+    /// "a Clue, Food, or Treasure token" (Academy Manufactor) — matched
+    /// against each [`TokenDef`] of the creation, because the tokens do not
+    /// exist as objects when the pattern is asked. `None` is "one or more
+    /// tokens" of any kind. A rewrite on this pattern touches only the defs
+    /// the kind matches: Divine Visitation leaves a Clue alone.
+    ///
+    /// **Reads no amount**, for [`Self::GainLife`]'s reason: the one count
+    /// `pattern_watches` asks is the rule's own "one or more", and no
+    /// multiplier `pipeline::ordering_cannot_change_outcome` admits (n ≥ 1)
+    /// can carry a creation across that line in either direction.
+    CreateTokens {
+        kind: Option<TokenKind>,
+    },
+}
+
+/// Which tokens a creation pattern or rewrite is about — CR 614.16's "one
+/// or more *creature* tokens", "*Treasure* tokens" — asked of a
+/// [`TokenDef`] rather than of an object, since at the moment a creation is
+/// proposed its tokens are descriptions and not yet objects.
+///
+/// Every listed type must be among the def's types; any one listed subtype
+/// suffices, because the printed form that names several ("a Clue, Food, or
+/// Treasure token") names alternatives. Empty lists ask nothing.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TokenKind {
+    pub types: Vec<crate::types::card_types::CardType>,
+    pub subtypes: Vec<crate::types::card_types::Subtype>,
+}
+
+impl TokenKind {
+    /// "creature tokens", "artifact tokens".
+    pub fn of_type(card_type: crate::types::card_types::CardType) -> Self {
+        TokenKind { types: vec![card_type], subtypes: Vec::new() }
+    }
+
+    /// "Treasure tokens"; "a Clue, Food, or Treasure token" with three.
+    pub fn any_of(subtypes: Vec<crate::types::card_types::Subtype>) -> Self {
+        TokenKind { types: Vec::new(), subtypes }
+    }
+
+    pub fn matches(&self, def: &TokenDef) -> bool {
+        self.types.iter().all(|t| def.types.contains(t))
+            && (self.subtypes.is_empty() || self.subtypes.iter().any(|s| def.subtypes.contains(s)))
+    }
 }
 
 /// CR 609.7's source-side predicate — "a **red** source of your choice", "a
@@ -589,6 +641,11 @@ impl EventPattern {
             | EventPattern::BeginStep { .. } => false,
             // The game's end has no number at all, and neither arm has a field.
             EventPattern::PlayerLoses | EventPattern::PlayerWins => false,
+            // "One or more" is the only count, and a multiplier of one or more
+            // keeps a creation on whichever side of it the creation was. The
+            // kind is asked of each def and a multiplier repeats defs, so it
+            // moves no def across that line either.
+            EventPattern::CreateTokens { .. } => false,
         }
     }
 }
@@ -1133,7 +1190,11 @@ impl EnterModsTemplate {
     /// ordering prompt is real. `codebase-state.md` item 47 carries the
     /// expiry conditions this is one of.
     pub fn is_fixed(&self) -> bool {
-        self.counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
+        // Destructured in full, so that a new field here is a compile error
+        // at the one function whose premise assumes every field is a status
+        // or a constant amount (`codebase-state.md` item 47's condition (a)).
+        let EnterModsTemplate { tapped: _, counters } = self;
+        counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
     }
 }
 
@@ -1255,6 +1316,15 @@ impl EnterMods {
 /// **Grows per card, and that is the design.** It is the unbounded arm's
 /// payload; the bound is that a template can only produce a `GameAction` the
 /// engine already proposes.
+/// How [`GameActionTemplate::CreateTokens`] treats the defs its kind matched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenSubstitution {
+    /// "… are created instead": the matched defs go, the template's come.
+    Replace,
+    /// "those tokens plus …": the matched defs stay, the template's join them.
+    Append,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameActionTemplate {
     /// Send the event's object somewhere else instead, keeping its `from`.
@@ -1317,6 +1387,27 @@ pub enum GameActionTemplate {
     /// reading `Some(Damage)` is what makes that distinction load-bearing
     /// rather than cosmetic.
     LoseLife { amount: TemplateAmount },
+
+    /// CR 614.16's kind-changing substitution — the creation, with the defs
+    /// the pattern's [`TokenKind`] matched **replaced** by `count` of `def`
+    /// (Divine Visitation: "that many 4/4 white Angel creature tokens … are
+    /// created instead") or **kept and joined** by them (Chatterfang: "those
+    /// tokens plus that many 1/1 black Squirrel creature tokens"; Xorn:
+    /// "those tokens plus an additional Treasure token", `Fixed(1)`).
+    ///
+    /// `count: ReplacedAmount` is CR 614.16's "that many" — the number of
+    /// defs the kind matched, not the creation's whole length, so Divine
+    /// Visitation beside a Clue replaces the creatures and leaves the Clue.
+    /// The defs the kind did not match are untouched in both modes.
+    ///
+    /// **Why not `AmountRewrite::Plus` for Xorn**: "plus one" of *what* is a
+    /// def, and the printed answer is a named token — a template's business,
+    /// not arithmetic's (`plans/handoffs/re-4-review.md`, R8).
+    CreateTokens {
+        def: TokenDef,
+        count: TemplateAmount,
+        mode: TokenSubstitution,
+    },
 
     /// Win the game instead — CR 614.1a, from a draw.
     ///

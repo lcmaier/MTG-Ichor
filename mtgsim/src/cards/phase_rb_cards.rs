@@ -309,16 +309,22 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .build()
 }
 
-/// The 2/2 black Zombie Kalitas makes.
+/// The 2/2 black Zombie Kalitas makes — named "Zombie Token" by CR 111.4,
+/// since the card gives it no name.
 fn zombie_token() -> TokenDef {
     TokenDef {
-        name: "Zombie".to_string(),
+        name: None,
         colors: vec![Color::Black],
         types: vec![CardType::Creature],
         subtypes: vec![Subtype::Creature(CreatureType::Zombie)],
-        power: 2,
-        toughness: 2,
+        supertypes: Vec::new(),
+        power: Some(2),
+        toughness: Some(2),
         keyword_flags: Vec::new(),
+        abilities: Vec::new(),
+        rules_text: String::new(),
+        enchant_filter: None,
+        enters_tapped: false,
     }
 }
 

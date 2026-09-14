@@ -6,7 +6,6 @@ use crate::engine::layers::types::{
 };
 use crate::events::event::{DamageTarget, LossReason};
 use crate::objects::card_data::AbilityDef;
-use crate::objects::object::GameObject;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
@@ -852,23 +851,15 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.7 — create a token.
+            // CR 701.7a — create N tokens: **one proposal, whatever N is**.
             //
-            // **Not a `GameAction`, and that is deliberate.** §3.1 schedules
-            // `CreateTokens { defs: Vec<TokenDef> }` for Phase RE, where the
-            // CR 614.16 doublers that replace it live (Doubling Season,
-            // Academy Manufactor, Chatterfang). Until one of those exists there
-            // is nothing to replace.
-            //
-            // The token's *entering* is a proposal, though, and has been since
-            // RC-2: CR 111.1 makes a token a permanent like any other, so
-            // "enters tapped" and "enters with counters" have to reach it. That
-            // is `propose_entry` below, not a `CreateTokens` action — the
-            // creation and the entry are different events, and only the second
-            // one exists yet.
-            //
-            // Kalitas's rider is the first customer, and it needs the tokens to
-            // exist, not to be replaceable.
+            // "Create three 1/1 Soldiers" is one event by CR 111's own shape
+            // and by CR 614.16's — "if an effect would create one or more
+            // tokens" — and the performer is where its entries become one
+            // batch (`GameState::create_tokens`). The def is repeated `count`
+            // times rather than paired with the count, which is what lets a
+            // doubler repeat each def in place and a future "one of each" stay
+            // one event (`replacement-architecture.md` §3.1).
             Primitive::CreateToken(token_def, amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
                 let controller = self.resolve_player_for_self(recipient, ctx);
@@ -876,48 +867,17 @@ impl GameState {
                 // a player who has left the game, no token is created" — and
                 // CR 800.4d's first sentence at the same line, because CR 111.2
                 // makes a token's owner the player who controls the effect that
-                // created it, so the two rules name one player here.
+                // created it, so the two rules name one player here. A rule,
+                // checked ahead of the proposal like CR 508.8's: there is no
+                // event here for a replacement effect to see.
                 if self.is_multiplayer() && !self.in_game(controller) {
                     return Ok(());
                 }
-                let data = token_card_data(token_def);
-                for _ in 0..count {
-                    // CR 111.2 — a token's owner is the player who controls the
-                    // effect that created it, and CR 111.1's `is_token` is what
-                    // makes CR 704.5d and `ObjectFilter::Token` able to see
-                    // it. Both are set before it reaches the battlefield,
-                    // because `register_static_effects` runs inside
-                    // `place_on_battlefield` and would otherwise register
-                    // against an object that does not yet know what it is.
-                    let mut obj = GameObject::new(data.clone(), controller, Zone::Battlefield);
-                    obj.is_token = true;
-                    let id = obj.id;
-                    self.add_object(obj);
-                    // In the battlefield zone, in no collection and with no
-                    // entity until its entry is decided: created *in* the zone
-                    // rather than moved into it, so the entry has no `from` and
-                    // no cause. CR 110.2b — a token's controller is the player
-                    // the creating effect gave it to, and it is already its
-                    // owner (CR 111.2), so `default_enter_controller` would
-                    // answer the same thing. Passed explicitly because a token
-                    // never passed through the stack and so is never
-                    // `GameState::resolving`.
-                    let performed = self.propose_entry(
-                        id, None, controller, None, &ActionContext::resolving(dp, ctx),
-                    )?;
-                    // CR 111.5 — "if a spell or ability would create a token,
-                    // but a rule or effect states that a permanent with one or
-                    // more of that token's characteristics can't enter the
-                    // battlefield, the token is not created." A dropped entry
-                    // leaves the object where `add_object` put it, which is
-                    // nowhere observable, and un-creating it is no more an
-                    // event than creating it was. A *substituted* entry moved
-                    // it — to exile, say — and CR 704.5d takes it from there.
-                    if !performed {
-                        self.remove_object(id);
-                    }
-                }
-                Ok(())
+                let defs = vec![token_def.clone(); count as usize];
+                self.execute_action(
+                    GameAction::CreateTokens { defs, controller },
+                    &ActionContext::resolving(dp, ctx),
+                )
             }
 
             // === Regeneration (CR 701.19) ===
@@ -2136,33 +2096,3 @@ mod tests {
     }
 }
 
-/// Lower a [`TokenDef`](crate::types::effects::TokenDef) into the `CardData`
-/// its `GameObject` reads.
-///
-/// CR 111.4: "a token has the characteristics of the spell or ability that
-/// created it" — and no mana cost (CR 111.6 makes its mana value 0), which
-/// falls out of `CardDataBuilder`'s default rather than being set.
-///
-/// One `Arc` per `CreateToken` resolution, shared by every token that
-/// resolution makes. They are separate objects with separate `ObjectId`s; what
-/// they share is their printed characteristics, which is exactly what
-/// `Arc<CardData>` means everywhere else in this engine.
-fn token_card_data(
-    def: &crate::types::effects::TokenDef,
-) -> std::sync::Arc<crate::objects::card_data::CardData> {
-    let mut builder = crate::objects::card_data::CardDataBuilder::new(&def.name)
-        .power_toughness(def.power, def.toughness);
-    for color in &def.colors {
-        builder = builder.color(*color);
-    }
-    for card_type in &def.types {
-        builder = builder.card_type(*card_type);
-    }
-    for subtype in &def.subtypes {
-        builder = builder.subtype(subtype.clone());
-    }
-    for keyword in &def.keyword_flags {
-        builder = builder.keyword_flag(*keyword);
-    }
-    builder.build()
-}

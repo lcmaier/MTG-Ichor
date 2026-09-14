@@ -129,6 +129,50 @@ impl GameState {
         Ok(())
     }
 
+    /// Put a token that has just been created into a zone that is not the
+    /// battlefield — the `GameAction::CreateTokenIn` performer, and the
+    /// counterpart to [`Self::move_object`] for an object that is in no
+    /// collection yet.
+    ///
+    /// A token is created in the battlefield *zone* with no entity and in no
+    /// collection until its entry is decided (`create_tokens`); one whose
+    /// entry a replacement substituted is added to `zone`'s collection from
+    /// there, its zone written and the zone-change epoch stamped — CR 704.5d's
+    /// sweep orders by that stamp, and a token that never moved would carry
+    /// the pregame 0. Loud about the battlefield, which is an entry with a
+    /// performer of its own; about a non-token, which is never created
+    /// anywhere; and about a token that is already somewhere.
+    ///
+    /// **Performs and announces nothing**, like `move_object`: the
+    /// `CreateTokenIn` arm emits `TokenCreated`.
+    pub(crate) fn put_token_into(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
+        if zone == Zone::Battlefield {
+            return Err(format!(
+                "creating token {} on the battlefield is an entry, not an appearance",
+                id
+            ));
+        }
+        let obj = self.get_object(id)?;
+        if !obj.is_token {
+            return Err(format!("{} is not a token and cannot be created in {:?}", id, zone));
+        }
+        if obj.zone != Zone::Battlefield || self.battlefield.contains_key(&id) {
+            return Err(format!(
+                "token {} is already in {:?}; only a token whose entry is being decided can \
+                 be created elsewhere",
+                id, obj.zone
+            ));
+        }
+        self.add_to_zone_collection(id, zone)?;
+        let epoch = self.next_zone_change_epoch;
+        self.next_zone_change_epoch += 1;
+        let obj = self.get_object_mut(id)?;
+        obj.zone = zone;
+        obj.zone_change_epoch = epoch;
+        self.bump_layer_epoch();
+        Ok(())
+    }
+
     /// Draw a card: move top of library to hand.
     ///
     /// Returns `Ok(Some(id))` if a card was drawn, `Ok(None)` if the library
