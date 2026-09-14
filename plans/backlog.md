@@ -1200,6 +1200,60 @@ mechanic rather than a migration, which is why it is here and not in
 
 ---
 
+### 2.28 Loops (CR 104.4b, 731) — a capture, not a design
+
+- **Rules** — CR 104.4b (a loop of mandatory actions is a draw), CR 731.1–731.2
+  (shortcuts: a player proposes a sequence of choices, the others accept or
+  shorten it). The older design called it rule 727, its number before `tmnt`.
+- **Verdict** — nothing detects a loop. What exists is two bounds that stop
+  the *engine*: `check_state_based_actions_loop`'s cap on a state-based check
+  that keeps performing, and `engine::actions::BATCH_NESTING_LIMIT`, a guard
+  against a lost lineage (`replacement-architecture.md` §11 item 77). After
+  RE-4 no replacement-only chain can loop — CR 614.5 bounds it once every
+  nested batch carries its lineage — so the mandatory half is a **trigger**
+  question and waits for critical-path item 6. Two halves, designed before
+  under `roadmap.md` D11 and D26 (`GameNumber` with `Finite`/`Shortcut`/
+  `Relative`, `LoopDeclaration`, `ask_declare_loop_count` through
+  `pick_number`; "loop detection Tiers 1–3 survive, re-based on
+  performed-action transcripts" — `archive/codebase-state-closed.md`, item 3):
+  (1) a watcher over the performed stream keeping a buffer of the last N
+  batches with a state hash each, flagging a repeated state with no player
+  choice between occurrences — CR 104.4b's draw; (2) a player *declaring* a
+  loop as a choice sequence plus an expected per-iteration delta, the engine
+  running one iteration to verify the delta and applying it N times as one
+  batch — CR 731.2's procedure, the piece no simulator has, and the AI
+  harness's infinite-mana question.
+- **Size** — unsized; (1) needs item 6 and a state hash that is a pure
+  function of `GameState` (item 40's discipline); (2) needs a
+  `DecisionProvider` surface (§2.22) and `GameNumber`.
+- **Blocks** — every combo deck's win; `fuzz_games`' 200-turn limit stands in
+  for both halves until then.
+- **Owner** — none; raised at RE-4's review (R21).
+
+### 2.29 The suppression predicate as a commutation table
+
+- **Rules** — CR 616.1's choice among applicable replacement effects, and
+  §11 item 19's rule that a choice with one outcome is not put to a player.
+- **Verdict** — `pipeline::ordering_cannot_change_outcome` proves that rule
+  five shapes at a time — all `EnterWith`, all multipliers, all draw doublers,
+  one shared `Instead`, one exit beside `EnterWith`s — one shape per phase
+  since RC-4, each a proof over a whole bucket with its own debug check. The
+  organization they want is pairwise: a commutation class per `Rewrite` on an
+  event kind (multiplicative, additive, absorbing exit, mods-adding,
+  idempotent substitute) and a table of which classes commute, with the
+  common clauses (static, rider-less, not optional, not a counter instance)
+  factored out and one debug check per class. **The sixth shape is already on
+  the board and is the trigger**: Divine Visitation beside Parallel Lives is
+  asked today and has one outcome either way (a multiplier and a
+  replace-by-"that many" commute; `phase_re4_integration_test` asks both
+  ways), and RE-5's Hardened Scales beside Doubling Season is the pair the
+  table states as *not* commuting.
+- **Size** — ~150 lines, a refactor of a predicate the standing review
+  question (`engineering-practices.md` §4.1) has corrected three times; wants
+  a session of its own, at the sixth shape.
+- **Blocks** — nothing today; a needless prompt per uncovered pair.
+- **Owner** — none; raised at RE-4's review (R22).
+
 ---
 
 ## 3. Dispositioned — sections that need no entry of their own
