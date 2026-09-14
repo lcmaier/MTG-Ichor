@@ -68,12 +68,20 @@ use crate::types::zones::{Zone, ZoneSet};
 /// The evaluators ask [`Board::frame_of`] and never care which.
 pub(super) struct Board<'l> {
     /// Members in walk order: battlefield entities by CR 613.7 timestamp,
-    /// then the entering object, then `Fixed`-named objects in row order.
+    /// then the entering object, then `Fixed`-named objects in row order,
+    /// then the objects a zone-reaching row names, in their zones' own order.
     members: Vec<ObjectId>,
     /// How many of `members`, from the front, are battlefield entities —
     /// the prefix a count over the battlefield enumerates (§5b's boundary:
     /// the entering object is visible to filters and invisible to counts).
-    entities: usize,
+    ///
+    /// **Named for the battlefield because it must keep meaning it.** Every
+    /// CR-level count the walk makes slices this prefix, so a member appended
+    /// anywhere but after it joins every "creatures you control" count in the
+    /// game — which is what a zone-reaching row would otherwise do to a
+    /// graveyard card. `entities` and not `objects`: CR 109.1's "object"
+    /// spans every zone, which is exactly what this excludes.
+    battlefield_entities: usize,
     frames: HashMap<ObjectId, EffectiveCharacteristics>,
     live: bool,
     /// CR 613.6 — the set of members a CR-level effect first applied to,
@@ -116,7 +124,7 @@ impl<'l> Board<'l> {
     pub(super) fn settled() -> Self {
         Board {
             members: Vec::new(),
-            entities: 0,
+            battlefield_entities: 0,
             frames: HashMap::new(),
             live: false,
             started: HashMap::new(),
@@ -138,7 +146,7 @@ impl<'l> Board<'l> {
     /// them.
     fn seed(game: &GameState, lookahead: Option<&'l Lookahead>, asked: Option<ObjectId>) -> Self {
         let mut members = game.battlefield_ids_ordered();
-        let entities = members.len();
+        let battlefield_entities = members.len();
         let mut seen: HashSet<ObjectId> = members.iter().copied().collect();
         if let Some(l) = lookahead {
             if seen.insert(l.object) {
@@ -165,7 +173,7 @@ impl<'l> Board<'l> {
 
         let mut board = Board {
             members,
-            entities,
+            battlefield_entities,
             frames: HashMap::new(),
             live: true,
             started: HashMap::new(),
@@ -254,7 +262,7 @@ impl<'l> Board<'l> {
     /// The battlefield, in timestamp order, for a count over it.
     pub(super) fn battlefield_ids(&self, game: &GameState) -> Vec<ObjectId> {
         if self.live {
-            self.members[..self.entities].to_vec()
+            self.members[..self.battlefield_entities].to_vec()
         } else {
             game.battlefield_ids_ordered()
         }
