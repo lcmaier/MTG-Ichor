@@ -11,6 +11,7 @@ use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
+use crate::ui::ask::ask_scry;
 use crate::ui::decision::DecisionProvider;
 
 /// Re-exported for every existing reader of `engine::actions::ZoneChangeCause`.
@@ -463,6 +464,30 @@ pub enum GameAction {
     PlayerLoses {
         player: PlayerId,
         reason: LossReason,
+    },
+
+    /// CR 701.22 — a player scries N. The event's subject is the player.
+    ///
+    /// **An event because a card replaces it**: Eligeth, Crossroads Augur's
+    /// "if you would scry a number of cards, draw that many cards instead"
+    /// (the other of the two printed "would scry" clauses is a trigger).
+    ///
+    /// Its performer looks at the top `n`, asks where they go, and reorders
+    /// the library **in the arm** — it proposes nothing, because CR 701.22
+    /// moves no card between zones and there is no `ZoneChange` to make. What
+    /// it announces is [`GameEvent::Scried`](crate::events::event::GameEvent::Scried),
+    /// which CR 701.22d's "an ability that triggers whenever a player scries"
+    /// will read.
+    ///
+    /// `n` is the *instruction's* number, not the count of cards actually
+    /// there: CR 701.22a looks at the top N and a shorter library has fewer,
+    /// which CR 701.22d's "even if some or all of those actions were
+    /// impossible" then covers. `n = 0` never reaches the performer —
+    /// CR 701.22b says no scry event occurs, which is `replacement::
+    /// never_happens`' business ahead of the pipeline.
+    Scry {
+        player: PlayerId,
+        n: u64,
     },
 
     /// CR 104.2b — this player would win the game. The event's subject is the
@@ -1513,6 +1538,54 @@ impl GameState {
             GameAction::BeginStep { step, player: _ } => {
                 self.phase.step = Some(step);
                 self.events.emit(GameEvent::StepBegin { step });
+                Ok(())
+            }
+
+            // > 701.22a To "scry N" means to look at the top N cards of your
+            // > library, then put any number of them on the bottom of your
+            // > library in any order and the rest on top of your library in
+            // > any order.
+            //
+            // **The whole keyword action is in this arm, and it proposes
+            // nothing.** CR 701.22 moves no card between zones — "top" and
+            // "bottom" are positions inside one library, and CR 400.1's zones
+            // are the seven — so there is no `ZoneChange` for the chokepoint
+            // to carry and nothing for a replacement effect to watch below
+            // this event.
+            //
+            // `n` is the instruction's number and `looked_at` is what is
+            // actually there; a short library gives fewer, and CR 701.22d's
+            // "even if some or all of those actions were impossible" is what
+            // makes that still a scry. `n = 0` never arrives — CR 701.22b
+            // makes it no event at all and `replacement::never_happens` drops
+            // it ahead of the pipeline.
+            GameAction::Scry { player, n } => {
+                let library = &self.get_player(player)?.library;
+                let k = (n as usize).min(library.len());
+                // The library's last element is its top (`Primitive::Mill`
+                // reads the same end), so the cards looked at, top-most
+                // first, are its tail reversed.
+                let looked_at: Vec<ObjectId> =
+                    library.iter().rev().take(k).copied().collect();
+                let (top, bottom) =
+                    ask_scry(_ctx.dp, self, player, &looked_at, n, _ctx.resolution.map(|r| r.source));
+
+                // Rebuilt rather than rotated: the two groups may each have
+                // been reordered, so the only honest write is the whole
+                // region. Bottom-most first is the vector's own direction, so
+                // each group goes in reversed — `top`'s and `bottom`'s
+                // element 0 is the card closest to the top of its group.
+                let p = self.get_player_mut(player)?;
+                let keep = p.library.len() - k;
+                let mut rebuilt: Vec<ObjectId> = Vec::with_capacity(p.library.len());
+                rebuilt.extend(bottom.iter().rev().copied());
+                rebuilt.extend(p.library[..keep].iter().copied());
+                rebuilt.extend(top.iter().rev().copied());
+                p.library = rebuilt;
+
+                // CR 701.22d — announced after the process, and announced even
+                // when the library had nothing to look at.
+                self.events.emit(GameEvent::Scried { player_id: player, n });
                 Ok(())
             }
 

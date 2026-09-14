@@ -9,7 +9,7 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AmountExpr, CopyRoles, Duration, Effect, Primitive, EffectRecipient, PatternFill, PlayerRef,
+    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, Primitive, EffectRecipient, PatternFill, PlayerRef,
     PlayerSet, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
@@ -309,6 +309,58 @@ impl GameState {
                     return Ok(());
                 }
                 self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // > 701.9a To discard a card, move it from its owner's hand to
+            // > that player's graveyard.
+            //
+            // **One batch, N members**, on `Primitive::Mill`'s argument: the
+            // cards are chosen and then move together, so CR 603.2c's
+            // "whenever one or more cards are discarded" fires once for a Mind
+            // Rot. Each card is still its own member and its own subject, and
+            // that is what Library of Leng's ruling describes from the other
+            // side — "the Library allows you to decide whether or not to use
+            // it on each of the cards" is one CR 616.1 decision per member,
+            // taken in the batch's order, which is the same ruling's "you get
+            // to decide the order the cards are placed on the library".
+            //
+            // The chooser is CR 701.9b's, and the two shapes differ only in
+            // who picks: [`DiscardChooser::Affected`] asks the player,
+            // `AtRandom` draws from the game's own `rng`.
+            Primitive::Discard(amount_expr, chooser) => {
+                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let hand = self.get_player(player_id)?.hand.clone();
+                let chosen = match chooser {
+                    DiscardChooser::Affected => {
+                        crate::ui::ask::ask_discard(
+                            actx.dp, self, player_id, &hand, count, Some(ctx.source),
+                        )
+                    }
+                    DiscardChooser::AtRandom => self.random_cards_from(&hand, count),
+                };
+                if chosen.is_empty() {
+                    return Ok(());
+                }
+                let batch: Vec<GameAction> = chosen
+                    .into_iter()
+                    .map(|object| GameAction::ZoneChange {
+                        object,
+                        from: Zone::Hand,
+                        to: Zone::Graveyard,
+                        cause: ZoneChangeCause::Discarded,
+                    })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
+            // CR 701.22 — the instruction, and the performer does the rest.
+            Primitive::Scry(amount_expr) => {
+                let n = self.evaluate_amount(amount_expr, ctx)?;
+                let player_id = self.resolve_player_for_self(recipient, ctx);
+                self.execute_action(GameAction::Scry { player: player_id, n }, &actx)?;
                 Ok(())
             }
 
@@ -1292,8 +1344,6 @@ impl GameState {
             | Primitive::PutOnTopOfLibrary
             | Primitive::PutOnBottomOfLibrary
             | Primitive::ShuffleIntoLibrary
-            | Primitive::Discard(_)
-            | Primitive::Scry(_)
             | Primitive::Surveil(_)
             | Primitive::Fight => {
                 Err(format!("Primitive {:?} not yet implemented", primitive))

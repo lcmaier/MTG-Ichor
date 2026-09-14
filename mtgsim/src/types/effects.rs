@@ -129,6 +129,29 @@ pub enum PlayerRef {
     Player(PlayerId),
 }
 
+/// CR 701.9b — who picks which card is discarded.
+///
+/// > 701.9b By default, effects that cause a player to discard a card allow the
+/// > affected player to choose which card to discard. Some effects, however,
+/// > require a random discard or allow another player to choose which card is
+/// > discarded.
+///
+/// **Two arms for the rule's three shapes, and the third waits for its card.**
+/// "Another player chooses" is Coercion's, which also needs the reveal §2.9
+/// owns, and an arm no card can reach is worse than a missing one
+/// (`replacement-architecture.md` §3.2a). Adding it is one variant and one
+/// branch in the performer, with the player to ask as its payload.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiscardChooser {
+    /// 701.9b's default — the discarding player chooses. Mind Rot.
+    Affected,
+    /// "…at random". Hymn to Tourach. Drawn from `GameState::rng` and never
+    /// from `rand::rng()`, so a seeded game replays (`CLAUDE.md`: randomness
+    /// is owned, never ambient), and asked of no `DecisionProvider` at all,
+    /// which is `ATOM-701.9b-001`'s own expected result.
+    AtRandom,
+}
+
 /// A filter over an object's characteristics — type, subtype, supertype,
 /// color, controller — plus the two object facts no layer reaches (`Token`,
 /// `ByOwner`) and one relation to the filter's source (`EachOther`).
@@ -890,8 +913,13 @@ pub enum Primitive {
     ShuffleIntoLibrary,
     /// Mill N cards (rule 701.17)
     Mill(AmountExpr),
-    /// Discard N cards (rule 701.9)
-    Discard(AmountExpr),
+    /// Discard N cards (rule 701.9), chosen as [`DiscardChooser`] says.
+    ///
+    /// The recipient is who discards — `EffectRecipient::Target` on a player
+    /// for Mind Rot's and Hymn to Tourach's "target player discards two
+    /// cards". The amount is a ceiling: CR 101.3 does as much as it can, so a
+    /// hand shorter than the count discards the whole hand.
+    Discard(AmountExpr, DiscardChooser),
 
     // === Damage & life ===
     /// Deal damage (rule 120).
@@ -932,7 +960,11 @@ pub enum Primitive {
     // === Card flow ===
     /// Draw N cards
     DrawCards(AmountExpr),
-    /// Scry N (rule 701.22)
+    /// Scry N (rule 701.22) — one `GameAction::Scry` for the recipient.
+    ///
+    /// The whole keyword action is the performer's: it looks, asks, and
+    /// reorders the library, proposing no zone change (CR 701.22 moves no card
+    /// between zones).
     Scry(AmountExpr),
     /// Surveil N (rule 701.25)
     Surveil(AmountExpr),

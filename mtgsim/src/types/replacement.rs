@@ -41,6 +41,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::restriction::SourceFilter;
 use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
@@ -80,6 +81,35 @@ pub struct ReplacementDef {
     /// [`PlayerSet::Nobody`] on every effect written before Phase RD, which is
     /// what [`ReplacementDef::new`] gives it.
     pub affected_players: PlayerSet,
+
+    /// CR 101.2's "by", scoped to a replacement effect — what must have
+    /// *caused* the event for this to apply.
+    ///
+    /// Nephalia Academy's "if a spell or ability an opponent controls causes
+    /// you to discard a card" is `Some(ControlledBy(Opponent))`; sixteen of the
+    /// seventeen printed "causes you to discard" cards say the same words
+    /// (Scryfall, 2026-09-14). `None` is "however caused", which is every
+    /// effect written before RE-8.
+    ///
+    /// **Here and not on [`EventPattern`]**, which is where §9's decision 8
+    /// put it. Two reasons, and the second is the one that decides: an
+    /// `EventPattern` arm constrains the event's own fields, and who controls
+    /// the proposing spell is `ActionContext::resolution` rather than anything
+    /// on the `GameAction`; and `Restriction::Event` reuses `EventPattern`
+    /// verbatim while already carrying a `by` of its own, so a cause predicate
+    /// on the pattern would give a "can't" two of them with one meaning.
+    ///
+    /// The same [`SourceFilter`] a "can't" uses, evaluated by the same
+    /// `SourceFilter::matches`, so Tamiyo, Collector of Tales' "can't cause you
+    /// to discard cards" and Nephalia Academy's "causes you to discard a card"
+    /// are one predicate — which is `cant-effects-architecture.md` §3.1's claim
+    /// said about the cause axis.
+    ///
+    /// **A causeless event matches no `Some`.** CR 514.1's cleanup discard is a
+    /// turn-based action with no resolution, so Nephalia Academy leaves it
+    /// alone — the printed answer, and why Library of Leng has to say "you have
+    /// no maximum hand size" in a separate sentence.
+    pub by: Option<SourceFilter>,
 
     /// How it rewrites a matching event.
     pub rewrite: Rewrite,
@@ -469,6 +499,15 @@ pub enum EventPattern {
         step: Option<StepType>,
     },
 
+    /// CR 701.22 — "if you would scry a number of cards". The event's subject
+    /// is the scrying player.
+    ///
+    /// **No fields**, and the census is why: `o:"would scry"` returns two
+    /// cards (Scryfall, 2026-09-14), Eligeth, Crossroads Augur and Goggles of
+    /// Night, and both say "a number of cards" without constraining the
+    /// number. Goggles is a *trigger* and waits for item 6.
+    Scry,
+
     /// CR 104.3 — "if you would lose the game". The event's subject is the
     /// player who would lose.
     ///
@@ -672,6 +711,13 @@ impl EventPattern {
             EventPattern::LoseLife { .. } => false,
             // Zones, a cause and a filter on the moving object.
             EventPattern::ZoneChange { .. } => false,
+            // A scry's amount is read by Eligeth's *rewrite*
+            // (`TemplateAmount::ReplacedAmount`) and by nothing in this
+            // pattern, which asks only that the event is a scry. So no
+            // application can carry a scry out of this arm's reach, and the
+            // suppression premise this answers holds — vacuously, since no
+            // arithmetic rewrite over a scry is printed either.
+            EventPattern::Scry => false,
             // One individual draw. CR 121.2 makes it one card, so there is no
             // amount for a field to read.
             EventPattern::DrawCard { .. } => false,
@@ -1470,7 +1516,11 @@ pub enum GameActionTemplate {
     /// the field exists because one of the two customers moves the draw, and
     /// the other one saying so explicitly would be a `PlayerRef` the pipeline
     /// resolves to the same answer it already has.
-    DrawCards { n: u64, player: Option<PlayerRef> },
+    /// `n` is a [`TemplateAmount`] and not a `u64` because of the third
+    /// customer: Eligeth, Crossroads Augur's "draw **that many** cards
+    /// instead" is CR 615.5's "that much" read off the scry it replaced.
+    /// Thought Reflection and Notion Thief name constants.
+    DrawCards { n: TemplateAmount, player: Option<PlayerRef> },
 
     /// Gain life instead — CR 614.1a, from an event of any kind.
     ///
@@ -1662,6 +1712,7 @@ impl ReplacementDef {
             pattern,
             affected,
             affected_players: PlayerSet::Nobody,
+            by: None,
             rewrite,
             then: None,
             class,
@@ -1687,6 +1738,17 @@ impl ReplacementDef {
     /// names the empty set where the call site can see it.
     pub fn affecting_players(mut self, players: PlayerSet) -> Self {
         self.affected_players = players;
+        self
+    }
+
+    /// Builder: apply only to an event a matching source caused
+    /// ([`Self::by`]).
+    ///
+    /// A builder for [`Self::affecting_players`]'s reason: every effect
+    /// written before RE-8 asks nothing about the cause, so `None` is the
+    /// honest default and a card that asks says so.
+    pub fn caused_by(mut self, by: SourceFilter) -> Self {
+        self.by = Some(by);
         self
     }
 

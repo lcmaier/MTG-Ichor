@@ -176,6 +176,24 @@ pub enum GameEvent {
     /// on `GameState::result` when the batch that performed them settles.
     PlayerWon { player_id: PlayerId },
 
+    // --- Scry ---
+    /// A player scried (CR 701.22a). `n` is the instruction's number.
+    ///
+    /// **Emitted after the process, not before it, and emitted even when the
+    /// library was short.** CR 701.22d: "an ability that triggers whenever a
+    /// player scries triggers after the process described in rule 701.22a is
+    /// complete, even if some or all of those actions were impossible." So a
+    /// scry 2 against a one-card library is still a scry and still announces
+    /// one.
+    ///
+    /// **Not a zone change, even when cards moved.** A card going to the
+    /// bottom of its own library does not change zones (CR 400.1's zones are
+    /// the seven, and "top" and "bottom" are positions inside one), so there
+    /// is nothing for `announce_zone_change` to say and this is the only line
+    /// a scry writes. A scry 0 writes none at all — CR 701.22b, enforced at
+    /// the proposal by `replacement::never_happens`.
+    Scried { player_id: PlayerId, n: u64 },
+
     // --- Counters ---
     /// Counters were put on or taken off a permanent or a player (CR 122.1).
     ///

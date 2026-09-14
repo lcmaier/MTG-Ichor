@@ -109,6 +109,9 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         GameAction::BeginTurn { player, .. } => EventSubject::Player(*player),
         GameAction::BeginPhase { player, .. } => EventSubject::Player(*player),
         GameAction::BeginStep { player, .. } => EventSubject::Player(*player),
+        // CR 701.22a's "look at the top N cards of **your** library": the
+        // scrying player, who is CR 616.1's chooser for Eligeth.
+        GameAction::Scry { player, .. } => EventSubject::Player(*player),
         // CR 616.1's "the affected player": the one who would lose or win.
         GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
         GameAction::PlayerWins { player } => EventSubject::Player(*player),
@@ -161,11 +164,19 @@ pub(crate) fn chooser_for(game: &GameState, action: &GameAction) -> Option<Playe
 pub(crate) fn gather(
     game: &GameState,
     action: &GameAction,
-    _ctx: &ActionContext,
+    ctx: &ActionContext,
     blocked: bool,
     frame: &EntryFrame<'_>,
 ) -> Vec<ReplacementInstance> {
     game.counters.record_replacement_gather();
+
+    // CR 101.2's "by", read off the proposal for [`ReplacementDef::by`] — who
+    // controls the spell or ability that proposed this event, or `None` for a
+    // turn-based or state-based action, which no `SourceFilter` matches. The
+    // same expression the pipeline hands `Query::Event::cause` one line above
+    // its call to this function, because a "can't" and a replacement effect
+    // ask CR 101.2 the same question.
+    let cause = ctx.resolution.map(|r| r.controller);
 
     // CR 614.17c's filter is applied at the door rather than at the end: with
     // no self-replacement producer, a blocked event has no candidates at all
@@ -205,7 +216,7 @@ pub(crate) fn gather(
     // `HashMap` lookup and is exact: 903.9b only ever applies to the object the
     // event is already about.
     if let Some(instance) = commander_zone_replacement(game, action) {
-        push_if_applicable(game, &mut candidates, instance, action, subject, frame);
+        push_if_applicable(game, &mut candidates, instance, action, subject, cause, frame);
     }
 
     // --- Source 1a: the permanent that is entering (CR 614.12) -------------
@@ -252,7 +263,7 @@ pub(crate) fn gather(
         if let Some(chars) = frame.frame_of(*object) {
             push_static_ability_replacements(
                 game, &mut entering, *object, *controller, &chars.abilities, action, subject,
-                SelfScope::EnteringSelf, frame,
+                cause, SelfScope::EnteringSelf, frame,
             );
         }
     }
@@ -295,7 +306,7 @@ pub(crate) fn gather(
             let abilities = get_effective_abilities(game, id);
             push_static_ability_replacements(
                 game, &mut candidates, id, controller, &abilities, action, subject,
-                SelfScope::OnBattlefield, frame,
+                cause, SelfScope::OnBattlefield, frame,
             );
         }
 
@@ -312,6 +323,7 @@ pub(crate) fn gather(
                 },
                 action,
                 subject,
+                cause,
                 frame,
             );
         }
@@ -332,6 +344,7 @@ pub(crate) fn gather(
             },
             action,
             subject,
+            cause,
             frame,
         );
     }
@@ -395,6 +408,7 @@ fn push_static_ability_replacements(
     abilities: &[AbilityDef],
     action: &GameAction,
     subject: EventSubject,
+    cause: Option<PlayerId>,
     scope: SelfScope,
     frame: &EntryFrame<'_>,
 ) {
@@ -437,6 +451,7 @@ fn push_static_ability_replacements(
             },
             action,
             subject,
+            cause,
             frame,
         );
     }
@@ -448,6 +463,7 @@ fn push_if_applicable(
     instance: ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
+    cause: Option<PlayerId>,
     frame: &EntryFrame<'_>,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied",
@@ -473,16 +489,17 @@ fn push_if_applicable(
     {
         return;
     }
-    if applies_to(game, &instance, action, subject, Some(frame)) {
+    if applies_to(game, &instance, action, subject, cause, Some(frame)) {
         out.push(instance);
     }
 }
 
 /// Does this effect apply to this event?
 ///
-/// Two halves of one CR 614.1 question, not two unrelated checks: an effect
-/// applies when it *watches* this kind of event **and** *affects* the object
-/// the event is about.
+/// Three halves of one CR 614.1 question, not three unrelated checks: an
+/// effect applies when it *watches* this kind of event, **and** *affects* the
+/// object the event is about, **and** — from RE-8 — admits what *caused* the
+/// event (CR 101.2's "by", `ReplacementDef::by`).
 ///
 /// `pub(super)` for one caller beyond the sweep: the CR 616.1f loop re-asks it
 /// of an effect it has just applied, which is how an exempt effect's
@@ -492,9 +509,20 @@ pub(super) fn applies_to(
     instance: &ReplacementInstance,
     action: &GameAction,
     subject: EventSubject,
+    cause: Option<PlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    pattern_watches(game, &instance.def.pattern, action, instance.controller)
+    // CR 101.2's "by" as a third clause, asked of the *effect* rather than of
+    // the event — which is why it reads `def.by` and not the pattern. `None`
+    // is "however caused" and every def written before RE-8; a `Some` against
+    // a turn-based or state-based action's `None` cause is `false`, so
+    // Nephalia Academy leaves CR 514.1's cleanup discard alone.
+    instance
+        .def
+        .by
+        .as_ref()
+        .is_none_or(|by| by.matches(cause, instance.controller))
+        && pattern_watches(game, &instance.def.pattern, action, instance.controller)
         && set_affects(
             game,
             &instance.def.affected,
@@ -767,6 +795,14 @@ pub(crate) fn pattern_watches(
         (EventPattern::BeginStep { step }, GameAction::BeginStep { step: actual, .. }) => {
             step.map(|s| s == *actual).unwrap_or(true)
         }
+
+        // CR 701.22's scry. No field: both printed "would scry" clauses say
+        // "a number of cards" with no constraint on the number, and which
+        // *player* the effect is around is `set_affects`'s question. The field
+        // a later card could want is a count, and CR 701.22b already answers
+        // the only count the rules single out by making a scry 0 no event at
+        // all (`replacement::never_happens`).
+        (EventPattern::Scry, GameAction::Scry { .. }) => true,
 
         // CR 104's two ends. Which *player* is `set_affects`'s question; the
         // loss's reason is asked by nothing printed (RE decision 5).

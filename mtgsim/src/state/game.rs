@@ -6,7 +6,8 @@ use crate::objects::object::GameObject;
 use crate::state::game_config::GameConfig;
 use crate::state::game_state::{GameResult, GameState, PhaseType, StepType};
 use crate::types::zones::Zone;
-use crate::ui::ask::ask_choose_discard;
+use crate::engine::actions::GameAction;
+use crate::ui::ask::ask_discard;
 use crate::ui::decision::DecisionProvider;
 
 /// A decklist: ordered list of card definitions that make up a player's deck.
@@ -315,28 +316,42 @@ impl Game {
     }
 
     /// Handle cleanup step discard to hand size (rule 514.1).
+    ///
+    /// > 514.1. First, if the active player's hand contains more cards than
+    /// > their maximum hand size (normally seven), they discard **enough
+    /// > cards** to reduce their hand size to that number.
+    ///
+    /// **One discard of N, not N discards of one.** The rule names a single
+    /// turn-based action over "enough cards", so the choice is made once and
+    /// the cards move as one batch — which is what CR 603.2c's "whenever one
+    /// or more cards are discarded" will read, and the same shape
+    /// `Primitive::Discard` builds for Mind Rot. Until RE-8 this was a
+    /// `while` loop asking one card at a time, which put each card in a batch
+    /// of its own and would have fired such a trigger once per card.
     fn handle_cleanup_discard(
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         let active = self.state.active_player;
         let max = self.state.players[active].max_hand_size as usize;
-
-        while self.state.players[active].hand.len() > max {
-            let hand: Vec<_> = self.state.players[active].hand.clone();
-            let card_id = ask_choose_discard(decisions, &self.state, active, &hand)
-                .ok_or("Player must choose a card to discard")?;
-
-            // Verify the chosen card is in hand
-            if !self.state.players[active].hand.contains(&card_id) {
-                return Err("Chosen card is not in hand".to_string());
-            }
-
-            // CR 514.1 cleanup discard — a turn-based action, no resolution.
-            let actx = ActionContext::new(decisions);
-            self.state.change_zone(card_id, Zone::Graveyard, ZoneChangeCause::Discarded, &actx)?;
+        let hand: Vec<_> = self.state.players[active].hand.clone();
+        if hand.len() <= max {
+            return Ok(());
         }
-
+        // No `source`: CR 514.1 is a turn-based action and no spell or ability
+        // caused it, which is also why a `ReplacementDef::by` never matches it.
+        let chosen = ask_discard(decisions, &self.state, active, &hand, hand.len() - max, None);
+        let batch: Vec<GameAction> = chosen
+            .into_iter()
+            .map(|object| GameAction::ZoneChange {
+                object,
+                from: Zone::Hand,
+                to: Zone::Graveyard,
+                cause: ZoneChangeCause::Discarded,
+            })
+            .collect();
+        let actx = ActionContext::new(decisions);
+        self.state.execute_actions(batch, &actx)?;
         Ok(())
     }
 

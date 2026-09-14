@@ -13,7 +13,7 @@ use crate::engine::replacement::{pattern_watches, set_affects, subject_of, Entry
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, Effect, PlayerRef, PlayerSet};
+use crate::types::effects::{AffectedSet, Effect, PlayerSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::EventPattern;
 use crate::types::restriction::{
@@ -257,25 +257,7 @@ fn cause_matches(
     cause: Option<PlayerId>,
     controller: PlayerId,
 ) -> bool {
-    let Some(by) = by else {
-        return true;
-    };
-    // A turn-based or state-based action has no controller, so it satisfies no
-    // source filter. The right answer rather than an omission: Sigarda does not
-    // stop CR 704.5's sacrifices, and there are none to stop.
-    let Some(cause) = cause else {
-        return false;
-    };
-    match by {
-        // Relative to the *restriction's* controller, which is CR 109.5's "you"
-        // for a static ability: Sigarda's "your opponents" is an opponent of
-        // whoever currently controls Sigarda.
-        SourceFilter::ControlledBy(player_ref) => match player_ref {
-            PlayerRef::You | PlayerRef::Owner => cause == controller,
-            PlayerRef::Opponent => cause != controller,
-            PlayerRef::Player(pid) => cause == *pid,
-        },
-    }
+    by.is_none_or(|by| by.matches(cause, controller))
 }
 
 /// Source 3 — the restrictions an object's *keywords* create.

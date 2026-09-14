@@ -632,7 +632,10 @@ fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DrawCard { cause },
         AffectedSet::NO_OBJECTS,
-        Rewrite::Instead(GameActionTemplate::DrawCards { n: 2, player: None }),
+        Rewrite::Instead(GameActionTemplate::DrawCards {
+            n: TemplateAmount::Fixed(2),
+            player: None,
+        }),
     )
     .affecting_players(PlayerSet::You)
 }
@@ -818,7 +821,10 @@ pub fn alms_collector() -> Arc<CardData> {
                 // "That player draws a card": the same instruction with `n`
                 // rewritten to 1, so it keeps this effect's applied set and
                 // whatever doubles it afterwards cannot hand it back.
-                Rewrite::Instead(GameActionTemplate::DrawCards { n: 1, player: None }),
+                Rewrite::Instead(GameActionTemplate::DrawCards {
+                    n: TemplateAmount::Fixed(1),
+                    player: None,
+                }),
             )
             .affecting_players(PlayerSet::Opponents)
             // "And you draw a card": the half that is a different player's
@@ -886,7 +892,7 @@ pub fn notion_thief() -> Arc<CardData> {
                 EventPattern::DrawCard { cause: Some(DrawCause::Effect) },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::DrawCards {
-                    n: 1,
+                    n: TemplateAmount::Fixed(1),
                     player: Some(PlayerRef::You),
                 }),
             )

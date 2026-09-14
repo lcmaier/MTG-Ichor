@@ -495,6 +495,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
             };
             format!("CountersChanged: {} {:?} counter(s) {} {}", added.abs(), counter, verb, whom)
         }
+        Scried { player_id, n } => format!("Scried: P{} scry {}", player_id, n),
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)
         }

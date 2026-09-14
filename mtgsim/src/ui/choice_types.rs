@@ -198,8 +198,44 @@ pub enum ChoiceKind {
     /// choice, not a replacement effect.
     CommanderToCommandZoneSba { commander: ObjectId },
 
+    // --- CR 701 keyword actions ---
+    /// CR 701.9b — which card or cards the affected player discards.
+    ///
+    /// **One kind for both producers.** CR 514.1's cleanup discard and a
+    /// resolving effect's "discards two cards" are the same keyword action
+    /// asked of the same player, and a UI that had to know which was which
+    /// would be reading the engine's call sites rather than the rules.
+    /// `source` is the difference and is the only one: `None` is the
+    /// turn-based action, `Some` the spell or ability that caused it, which
+    /// is the "why am I being asked this" field
+    /// [`Self::ChooseAuxiliaryZoneChange`] and
+    /// [`Self::ApplyOptionalReplacement`] already carry.
+    ///
+    /// Not asked at all for CR 701.9b's "at random" shape, which chooses from
+    /// `GameState::rng`, nor when the count is the whole hand (CR 102.2 — a
+    /// forced choice is not a choice).
+    Discard { source: Option<ObjectId> },
+
+    /// CR 701.22a — which of the cards looked at go on the **bottom** of the
+    /// library. The options are those cards, top-most first; "any number of
+    /// them" is the bounds, `(0, k)`.
+    ///
+    /// `n` is the instruction's number and `k` the cards actually there, and
+    /// they differ when the library is short — CR 701.22d's "even if some or
+    /// all of those actions were impossible". A UI wants the instruction's
+    /// number on the prompt and the options are the truth.
+    Scry { source: Option<ObjectId>, n: u64 },
+
+    /// CR 701.22a's "in any order", asked once per group that has two or more
+    /// cards in it — with one there is no order to choose (CR 102.2), which is
+    /// every Scry 1 and so every prompt Opt makes.
+    ///
+    /// `bottom` says which group: the cards going to the bottom, or the ones
+    /// staying on top. Two prompts and not two kinds, because it is one
+    /// question about two piles and a UI renders it once.
+    ScryOrder { source: Option<ObjectId>, bottom: bool },
+
     // --- State-Based & Cleanup ---
-    DiscardToHandSize,
     LegendRule { legend_name: String },
 }
 

@@ -777,6 +777,35 @@ impl GameState {
         }
     }
 
+    /// CR 701.9b's "at random" — `count` distinct cards out of `from`, drawn
+    /// from the game's own RNG.
+    ///
+    /// Returns them **in `from`'s order**, which for Hymn to Tourach is hand
+    /// order: the rule chooses *which* cards, and nothing in CR 701.9 gives
+    /// the order they reach the graveyard in, so the two choosers agreeing is
+    /// worth more than an order no rule names.
+    ///
+    /// Beside `shuffle_library` for its reason — it needs `rng` and `players`
+    /// borrowed at once — and drawn from `rng` and never `rand::rng()`, which
+    /// is what makes a seeded game replay.
+    pub(crate) fn random_cards_from(
+        &mut self,
+        from: &[ObjectId],
+        count: usize,
+    ) -> Vec<ObjectId> {
+        use rand::seq::SliceRandom;
+        // CR 101.3 — as much as it can, which for a short hand is all of it.
+        let count = count.min(from.len());
+        if count == 0 {
+            return Vec::new();
+        }
+        let mut positions: Vec<usize> = (0..from.len()).collect();
+        positions.shuffle(&mut self.rng);
+        positions.truncate(count);
+        positions.sort();
+        positions.into_iter().map(|i| from[i]).collect()
+    }
+
     // --- Deterministic iteration ---
 
     /// The battlefield, oldest permanent first.
