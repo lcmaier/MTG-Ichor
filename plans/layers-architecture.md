@@ -1600,9 +1600,15 @@ So the change is to **W, the working set** — §13b decision 2's derived set �
 and only then to the gate. Two consequences follow immediately, and both are
 load-bearing:
 
-**`Board::entities` must keep meaning the battlefield.** It is the prefix
-length `battlefield_ids` slices (`board.rs:226`), which is every CR-level
-*count* the walk makes. `replacement-architecture.md` §5b's boundary —
+**`Board::entities` must keep meaning the battlefield — and is renamed
+`battlefield_entities` to say so** (owner, 2026-09-14; 7 sites, all in
+`board.rs`). It is the prefix length `battlefield_ids` slices
+(`board.rs:226`), which is every CR-level *count* the walk makes.
+**`entities` rather than `objects`**: CR 109.1's "object" spans every zone,
+which is exactly what this prefix excludes, and `Board::entity` already calls
+a `PermanentState` an entity. A name that spans zones is the wrong name for
+the one number that must not, in the phase that makes the distinction
+load-bearing. `replacement-architecture.md` §5b's boundary —
 "visible to filters, invisible to counts" — rides on that prefix, and a
 graveyard card appended anywhere but after it would silently join every
 "creatures you control" count in the game. Zone members append last.
@@ -1705,30 +1711,62 @@ in the CR's own words, so for the first consumer the engine's order *is* the
 rule's.
 
 Zone members append **after** the battlefield prefix, the look-ahead object,
-the `asked` object and the `Fixed`-named ones, so `entities` keeps its
-meaning and `battlefield_ids` is byte-identical (the finding above).
+the `asked` object and the `Fixed`-named ones, so `battlefield_entities` keeps
+its meaning and `battlefield_ids` is byte-identical (the finding above).
 
-**5. The `CardFilter` fold does *not* ride, and item 9 does not close over
-it.** Correction 1 plans the fold and it is genuinely small — smaller than
-sized, because the filter inside `Cost::Discard` and `Cost::ExileFromGraveyard`
-is **inert**: every consumer in `engine/costs.rs` matches it as `_`, and the
-only live matcher is the three-arm one at `condition.rs:96–98` under
-`Condition::CardInGraveyard`. But it is orthogonal — a `CardFilter` selects a
-card to *pay a cost with* or tests a graveyard for one; neither is a
-continuous effect reaching a zone, and Yixlid Jailer needs none of it. Two of
-its five uses sit on `Cost`, which CM-4 landed on 2026-09-08, so folding would
-put a mechanical sweep across the cost surface inside a PR that is already
-changing the layer walk's working set — two unrelated risks in one diff,
-against §4's one-consumer rule and the reason item 124's rename was its own PR
-six days ago.
+**Can a zone order leak?** Asked by the owner at this review, and worth the
+check even though the answer today is no: the layer walk holds **zero**
+`DecisionProvider`, prompt or log sites — it is pure computation producing
+frames, and a frame is observable only by querying that object. Nothing
+serialises member order. The first consumer additionally reaches only
+**graveyards, which CR 400.2 makes a *public* zone**; library and hand are the
+hidden ones. So LJ has no hidden-zone exposure at all.
 
-So **item 9 closes on the facility it names** — the zone-reaching set — and
-its stub carries the two pieces that stay owed: the `CardFilter` fold (here)
-and CR 613.7d's timestamps (decision 1, on A5).
+The constraint the facility nonetheless creates, recorded here and pointed at
+from `backlog.md` §2.9 because §2.9 lands before Phase 8 anyway: **a
+zone-reaching row over a hidden zone must not make that zone's order or
+contents observable.** The row itself is safe — it reads. What would not be is
+a later reader that counts members, orders a prompt by them, or logs them, and
+§2.9 is where that question gets an owner. It is filed as a constraint and not
+a deferral because there is no code today that could violate it.
+
+**5. The `CardFilter` fold rides.** Correction 1 plans it, and **the first
+cut of this section deferred it on a risk that sizing dissolved.** The
+argument for waiting was that two of its five uses sit on `Cost`, which CM-4
+landed on 2026-09-08, so the fold would put a sweep across the cost surface
+inside a PR already changing the working set. That is only a risk if the cost
+surface *reads* the filter, and it does not: the `CardFilter` inside
+`Cost::Discard` and `Cost::ExileFromGraveyard` is **inert** — every consumer
+in `engine/costs.rs` matches it as `_`. There is no behaviour in the cost half
+to break, only a type the compiler swaps. The one live matcher is the
+three-arm one at `condition.rs:96–98` under `Condition::CardInGraveyard`,
+which becomes a call to `object_matches_filter`.
+
+**~70 lines, and `engineering-practices.md` §4's RE-4 precedent is exactly
+this case**: a change under about eighty lines on a type the PR already has
+open is a normal diff, and deferring it buys a second pass over the same code.
+`ObjectFilter` is open here by decision 3.
+
+So **item 9 closes owing one piece, not two**: CR 613.7d's timestamps
+(decision 1, on A5). The fold is done.
 
 ### The pieces
 
-One PR. `LJ-1`.
+**One PR, and it is `LJ`, not `LJ-1` — there is no `LJ-2`.** Bare like `RB`,
+because the code names a phase and a number that never gets a sibling claims a
+series the tree does not have. Asked by the owner at this review; the other
+open items in this document's bucket each carry their own trigger and none is
+item 9's: "Before Layers" item 4 (mana-pool persistence, with T12c), item 7's
+grant-over-a-filter half (with the first Aura-granted static or Archetype
+lord), item 7d (`ContinuousEffectDraft`, "a quiet PR of its own" by its own
+note) and item 10 (the Layer 1a/1b split, which `copy-effects-architecture.md`
+owns — nothing in this document produces a layer 1 effect).
+
+**And LJ precedes RE-9, which is already on the record.** `roadmap-v2.md` A5
+says it twice — "three PRs, in this order" and "the owner asked whether to
+pull the three forward, ahead of RE-9 and RE-10: yes" — and the tree agrees:
+RE-9 is mana and RE-10 the turn cursor, neither depends on the zone-reaching
+set or on CR 113.6, while A5 gates A6. The route is **LJ → A5 → RE-9/RE-10**.
 
 | | Site | Size |
 |---|---|---:|
@@ -1738,11 +1776,13 @@ One PR. `LJ-1`.
 | `Board::seed` — append zone members, gated on the mask; `entities` unchanged | `board.rs:140` | ~50 |
 | `membership()` + `compute_non_member`'s fast exit — both gated on the same mask | `board.rs:1304`, `compute.rs:184` | ~45 |
 | `affected_members` — the gate takes the row's zones | `board.rs:862` | ~25 |
+| `Board::entities` → `battlefield_entities` (decision 0) | `board.rs` × 7 | ~10 |
+| `CardFilter` folded into `ObjectFilter` (decision 5) — two inert `Cost` fields, `Condition::CardInGraveyard`, the three-arm matcher → `object_matches_filter` | `types/costs.rs`, `types/effects.rs`, `condition.rs` | ~70 |
 | Yixlid Jailer, Scarwood Treefolk, `PERFORMANCE_POOL` entry | `cards/` | ~90 |
 | Tests — the atom, the mask's zero-cost claim, determinism | `tests/`, unit | ~250 |
 | Docs — item 9's eviction, §11 item 9, A5, §5.1 | `plans/` | ~150 |
 
-**~910 lines**, against item 9's 2026-09-04 estimate of 400–600. The gap is
+**~990 lines**, against item 9's 2026-09-04 estimate of 400–600. The gap is
 decision 3's field: CM-0 and PR #136 both grew `ObjectSet`'s site count since
 that estimate was written, and the estimate predates the finding that this is
 a working-set change. Inside §4's 1,500–2,500 band with room, so one PR.
@@ -1776,7 +1816,66 @@ in its own words).
 
 **Wonder is the second card, not the first** (A5 and the `Condition` AST);
 **Aminatou** is four systems deep and a Phase 8 card. Neither is reached for
-here.
+here — and the next section is why that sentence is structural rather than a
+scoping preference.
+
+### What LJ can and cannot express — the source/affected split
+
+Asked by the owner at this review — *will Wonder or Aminatou be expressible
+after this, and what would it look like?* Answering it surfaced a distinction
+neither sizing of item 9 draws, and it is the one that makes decision 1
+correct rather than merely convenient.
+
+**Every zone-reaching effect asks two zone questions, not one:**
+
+1. Where is the **source** — the object whose static ability this is?
+2. Where are the **affected objects**?
+
+**LJ answers only the second.** The first *is* CR 113.6, which is A5's row and
+this document's item 9 second half. That is why the two split cleanly, and why
+`static_effect_timestamp` is untouched here: a timestamp is read off a
+*source*, and LJ adds no source off the battlefield.
+
+| Card | Source | Affected | After LJ |
+|---|---|---|---|
+| **Yixlid Jailer** — "Cards in graveyards lose all abilities" | battlefield | graveyards | ✅ complete; the first consumer |
+| **Mycosynth Lattice** cl. 2 — "All cards that aren't on the battlefield, spells, and permanents are colorless" | battlefield | every zone | ✅ complete — `zones: ALL`, and `RemoveAllColors` already lowers to `Channels::COLORS` |
+| **Painter's Servant** cl. 2 — "… are the chosen color in addition to their other colors" | battlefield | every zone | ✅ the set; the color choice is an as-enters replacement RC already has |
+| **Deeproot Historian** — "Merfolk and Druid cards in your graveyard have retrace" | battlefield | your graveyard | ✅ the set (§13b decision 2 names it); `retrace` is a keyword the engine lacks |
+| **Aminatou, Veil Piercer** cl. 1 — "Each enchantment card in your hand has miracle" | battlefield | your hand | ⚠ the **grant lands on the frame**; miracle does not *function* from hand (A5) and is trigger-linked (item 6) |
+| **Wonder** — "As long as this card is in your graveyard … creatures you control have flying" | **graveyard** | battlefield | ❌ source-side — A5 **and** CR 613.7d's timestamps |
+
+(Texts verified on Scryfall, 2026-09-14.)
+
+**So Wonder is precisely the card LJ does not unlock**, and that is the
+cleanest statement of decision 1: a source off the battlefield and a timestamp
+it has nowhere to read are the *same* missing facility, so deferring 613.7d
+costs nothing that A5 does not already owe. The `Condition` AST Wonder's "as
+long as … you control an Island" needs already exists — LI-3 landed
+`ControlPermanent`, so that half is not what blocks it.
+
+**Aminatou's crux is reachable as a fixture**, and it is the sharpest test of
+the affected side short of registering the card:
+
+```rust
+// "Each enchantment card in your hand has miracle"
+ObjectSet::Filter {
+    filter: ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Enchantment)),
+        // CR 108.4a — a card with no controller uses its owner, which is
+        // correction 1's whole reason one filter type serves both zones.
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ),
+    zones: ZoneSet::HAND,
+}
+```
+
+with a Layer 6 `GrantAbility` over it, and the assertion that
+`get_effective_abilities` on a card **in hand** returns the granted ability —
+which today it cannot, because that card is a `NonMember` and never receives a
+frame at all. Not registered in LJ: the fixture is the honest form while
+miracle is three systems away, and `CLAUDE.md`'s rule is that a card is
+registered only once the engine can play it.
 
 ---
 
