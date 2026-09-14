@@ -154,6 +154,28 @@ announces. Performers are loud about failure; callers check legality.
 and carried as `EventSubject`. A damage event has a subject and a source, and
 they are not the same field.
 
+**cell** — one pair of commutation classes in `pipeline::commutes`, the table
+`ordering_cannot_change_outcome` reads: two members whose applications reach
+one outcome in either order, on the counter kinds both touch. A pair with no
+cell is asked (CR 616.1). "The exit cell", "the substitute cell" name the
+class a chosen member fell in, which is what `check_order_invariance`
+dispatches on. → `backlog.md` §2.29, graduated at RE-5's review.
+
+**customer** — what a facility exists for. The *customer* of an arm, a field
+or a rule-stated facility is the CR rule that states it; a *printed customer*
+is a card in print that exercises it, and it is the facility's **test**, not
+the reason it is owed — a facility with none gets a fixture test and a
+reachability line that says "no printed producer" (`engineering-practices.md`
+§4, adopted at RE-5's review). "An arm the pipeline cannot apply is worse
+than a missing one" is about an arm with no customer of either kind.
+
+**putter** — the player putting counters on an object or player: CR 122.6a's
+"which player puts those counters on it", carried as `AddCounters::by` and
+asked by `EventPattern::AddCounters`'s `by`. For counters a permanent enters
+with it is the player the effect named, else the rule's default, the
+controller it enters under (`EntryCounters::putter`). Vorinclex, Monstrous
+Raider is the reader; a removal has none.
+
 **subject group** — the members of one batch that share a subject — two
 blockers' damage to one attacker. CR 616.1's unit is the group, not the member:
 one pass of the rule, one chooser, one applied set — so an effect applies to the

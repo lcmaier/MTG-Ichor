@@ -3628,79 +3628,31 @@ absent, each with its customer named. The review added a rider carrying its
 lineage (§11 item 77), the one-exit suppression shape (81), and the creation
 pattern's kind, the creation template and two more cards (82).
 
-#### RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a; item 43, `backlog.md` §2.16)
+#### RE-5 — counters, on permanents and players (CR 614.16's counter half, 122.1, 122.6, 122.6a; item 43, `backlog.md` §2.16) — ✅ landed 2026-09-13
 
-**Builds:** decision 4 — the second door on `CounterChange`, `Amount` on an
-entry's mods, `AddCounters.by` and its `CounterSubject`, item 43's `EnterMods`
-player half with the merge keyed on `(kind, player)`, `CounterChange.by`, and
-`PlayerState`'s kind → count map with CR 704.5c reading it. **Consumers:**
-
-- **Doubling Season** — both abilities, registered whole now that RE-4 built
-  the first. Tokens: Parallel Lives' def. Counters: `CounterChange { counter:
-  None, adding: true, by: None }`, `Filter { ByController(You) }`,
-  `Amount(Multiplier(2))`. Rulings, five, four are tests: *planeswalkers
-  enter with double loyalty* → Loyalty Probe enters with 6, through the entry
-  door; *permanents that enter with counters* → Chainbreaker's rust counters,
-  and Master Biomancer's grant on a creature entering (the CR 616.2 ordering
-  board, decision 4); *loyalty paid as a cost is not doubled* → `Cost::
-  AddCounters` does not propose, and no `CounterChange` sees it — asserted
-  against the RD-1 fixture; *two Seasons quadruple* → §10's
-  `test_two_doubling_seasons_quadruple`, on both halves.
-- **Hardened Scales** — "If one or more +1/+1 counters would be put on a
-  creature you control, that many plus one +1/+1 counters are put on it
-  instead." `CounterChange { counter: Some(PlusOnePlusOne), .. }`, `Filter {
-  Creature ∧ ByController(You) }`, `Amount(Plus(1))` — RD-3's `Plus`, second
-  kind. Rulings, three, all tests: *enters with that many plus one* → the
-  entry door on a +1/+1 entry (Master Biomancer's grant); *you choose the
-  order no matter who controls the sources* → Scales beside an opponent's
-  Doubling Season, the affected permanent's controller asked; *each extra
-  Scales adds one* → two rows, each once.
-- **Vorinclex, Monstrous Raider** — "Trample, haste. If you would put one or
-  more counters on a permanent or player, put twice that many … instead. If
-  an opponent would put one or more counters …, they put half that many …
-  rounded down." Two rows: `CounterChange { by: Some(You) }` +
-  `Multiplier(2)` and `{ by: Some(Opponent) }` + `Halve(Down)`, both over
-  `Filter { All }` + `Everyone` — decision 4's putter predicate on both
-  subjects, and RD-1's rounding on a new kind. Rulings, three: *cares who is
-  putting* → an opponent's Battlegrowth on your creature halves to 0 (a 0
-  count meets the `RemoveCounters`-style no-op guard, not `never_happens` —
-  CR 614.7a is written about damage and life gain, and the test says which
-  guard fired); *122.6a's default* → the entry door with `by` unset reads the
-  controller; *ordering* → as Scales. Its "or player" half is **built**: your
-  Live Fast under your Vorinclex gets four energy.
-- **Winding Constrictor** — "If one or more counters would be put on an
-  artifact or creature you control, that many plus one of each of those
-  kinds …. If you would get one or more counters, you get that many plus one
-  of each of those kinds of counters instead." The second player-subject
-  watcher, on `Plus(1)`, and the object half's "each of those kinds" is
-  `Amount` applied per matching kind, which the entry door already does.
-  Rulings, six, four are tests: *enters with that many plus one* → entry
-  door; *multiple instructions in one effect each get plus one* → two
-  `Primitive::AddCounters` in one resolution, two proposals; *two
-  Constrictors: plus two* → two rows; *can't apply to itself or to anything
-  entering with it* → RC-3's membership rule and RE-4's batch, asserted.
-- **Live Fast** — "You draw two cards, lose 2 life, and get {E}{E}." The
-  producer: `AddCounters { subject: Player(you), counter: Energy, n: 2, by:
-  you }`, and every other instruction it carries exists (RE-2's draw, RA's
-  loss). No rulings beyond energy's definition, which is the test: a player
-  has a map, the map has a kind, and nothing else changes.
-- **Primal Vigor** — "If one or more tokens would be created, twice that many
-  … If one or more +1/+1 counters would be put on a creature, twice that many
-  …" — `Everyone` on both halves, and the ruling "it doesn't matter who
-  controls the tokens or the creature" is the four-player test: an opponent's
-  Raise the Alarm makes four.
-
-**`PERFORMANCE_POOL` +1, Hardened Scales**, predicted: a one-mana static that
-opens the sweep on every `AddCounters` (Battlegrowth is in the pool) and every
-counter-bearing entry (Chainbreaker, Master Biomancer's grants, Loyalty Probe
-in the stress pool). Doubling Season is registered and not pooled — a
-five-drop, and its token half would double the pool's Zombies, which is a
-gameplay change the A/B should not carry with the engine change.
-
-**Atoms:** `ATOM-122.6a-001` moves from the default half to a named-player test
-(item 43's field, read by Vorinclex); `ATOM-122.1f-001` and `ATOM-704.5c-001`
-(Phase 5-Pre, poison — read off the map now, and covered where they are); the
-rest of §2.16 is thin under its phrasings, and the doubling tests say so.
+**Shipped.** A counter's subject is an object or a player —
+`CounterSubject` on `GameAction::AddCounters` and `RemoveCounters` and on
+`GameEvent::CountersChanged` — and the putter rides on the event as
+`AddCounters::by`. CR 122.6's entry counters are watched through a second
+door on `EventPattern::AddCounters`: an `EnterBattlefield` whose mods carry
+a matching kind with one or more, each row carrying its putter — the player
+the effect named, else CR 122.6a's default, the entry's controller;
+`Rewrite::Amount` rewrites a proposal's count and each matched kind in an
+entry's mods. `PlayerState.counters` is
+the kind → count map (`Poison`, `Energy`), CR 704.5c reads it, and
+`Primitive::GetCounters` is Oracle's "you get". Doubling Season whole,
+Hardened Scales (pooled), Vorinclex, Monstrous Raider, Winding Constrictor,
+Live Fast, Primal Vigor. Sized ~1,850, shipped **+1,911 / −101** before the
+docs. `PERFORMANCE_POOL` 83 → 84. Item 43 closed and built — at the review,
+after a first close on an empty Scryfall query that the owner's rule rejects
+(§11 item 83); the review also split `CounterChange { adding }` into
+`AddCounters` and `RemoveCounters`, one arm per variant. Item 47's condition (c) fired from the multiplier side and the
+predicate's entry clause is the re-derivation (item 84); the additive pairs
+RE-5 makes reachable are `backlog.md` §2.29's next rows, not a shape
+(item 85); a cost's counters are `codebase-state.md`'s "Found by RE-5" line.
+**Trace page: no**, decided at the close. The design record, the shape as
+built, the measurement and the findings are in
+`plans/archive/replacement-architecture-landed.md`, "RE-5".
 
 #### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k) — ✅ landed 2026-09-12
 
@@ -4108,9 +4060,17 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   94 (47%). Three shell runs at one seed `IDENTICAL` outside `=== Timing ===`
   at both seat counts on both pools. → `fuzz-record.md`'s tables, both
   re-recorded.
-- **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
-  branch that no def reaches until Hardened Scales is registered, and the
-  subject enum changes no proposal's count.
+- **RE-5 — measured 2026-09-13, and the prediction held to the byte.**
+  Four arms, two seats and four: engine and registered **`IDENTICAL` to
+  `main` outside `=== Timing ===` on `performance`**, and the engine arm
+  `IDENTICAL` on `stress` too — the door is an arm no def in the old pool
+  reaches, and the subject enum changes no proposal's count. CPU/game +0.1%
+  and +1.1% at two seats, −0.5% and −1.5% at four — flat. The pooled arm
+  moved the row the section named: `Replacement prompts` 0.74 → 1.14 and
+  1.83 → 2.44, Hardened Scales' additive pairs (§2.29), and gathers
+  1043 → 1060 at two seats. `--require`: Scales 226 / 226 in **136 of 200
+  (68%)**, 1.54 copies/deck. → `fuzz-record.md`'s tables, both re-recorded;
+  the whole reading is in the archive, "RE-5".
 - **RE-6 — measured 2026-09-12, and the prediction held to the digit.**
   `Replacement gathers` **999 → 1000** and `Restriction queries` **1001 →
   1002** per game on `performance` (200 games / seed 12345) — the loss,
@@ -4167,7 +4127,7 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
 The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
 pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-6's and RE-7's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's and RE-7's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4180,11 +4140,11 @@ Thought Reflection in the draw step, and Alms Collector is traced in **both**
 encodings, because the difference between them is a loop and a test can only
 show that the loop does not happen.
 
-**RE-3: no**, **RE-6: no**, **RE-7: no**, **RE-4: no** — each decided at that
+**RE-3: no**, **RE-6: no**, **RE-7: no**, **RE-4: no**, **RE-5: no** — each decided at that
 PR's close, each recorded because the phase produced a candidate, and each
 argued where the phase's own record is:
 `plans/archive/replacement-architecture-landed.md`, "Trace-page decisions". The
-four share one shape, which is the summary this heading keeps: a phase that
+five share one shape, which is the summary this heading keeps: a phase that
 changes what is *proposed*, or where an answer is written down, or how wide the
 board is, changes no read's path. RE-4 was the second phase this section named
 in advance, and the read it was named for — an entry decided against a board
@@ -6125,6 +6085,84 @@ found them.
     not a draw-to-token card (that is Hullbreacher). What is still recorded
     — a draw-to-creation leg, a template with a choice of def, "attacking"
     — is three lines instead of five, each naming the facility it waits on.
+
+### Found by building RE-5 (2026-09-13)
+
+83. **CR 122.6a's named putter was closed on an empty Scryfall query, and
+    the review reopened and built it.** RE-5 sized item 43's field, ran the
+    rules pass, found no printed effect that specifies who puts entry
+    counters on, and closed the item on that — finding on the way that the
+    premise behind it (Doubling Season "doubles counters *you* put on") and
+    `ATOM-122.6a-001`'s expected result name the wrong card: the Season's
+    counter half reads "a permanent you control", and Vorinclex is the
+    reader. The owner's review rejected the close: a rule the CR states is
+    owed whether or not a card prints it, since a card can be printed next
+    set and custom card creation is a post-v1 goal — the CR is the customer,
+    a printed card is the test (`engineering-practices.md` §4). And Bold
+    Plagiarist shows the shape on a *proposal*, which RE-5 had not looked
+    for: "whenever an opponent puts one or more counters on a creature they
+    control, *they* put the same number and kind of counters on this
+    creature" — the opponent puts counters on a creature they do not
+    control, so `Primitive::AddCounters` writing its own controller as the
+    putter was the same shortcut. Built at the review (theme A):
+    `EntryCounters { counter, n, by: Option<PlayerId> }` and its template
+    with `Option<PlayerRef>`, `merge` keyed on `(kind, putter)`, the door and
+    the CR 101.2 check reading each row's putter ahead of the entry's
+    controller, and `by: Option<PlayerRef>` on the two primitives, resolved
+    by `resolve_putter`. The atom stays covered on its default half with the
+    card correction in the test's doc; the corpus line is not edited, since
+    the session files are authored and this is an erratum against a card.
+
+84. **Item 47's condition (c) fired, from the multiplier side, and the
+    re-derivation is recorded.** The condition was written as "`EventPattern::
+    EnterBattlefield` gains a field that reads `mods`"; what arrived is a
+    *different* arm reading `mods` — `AddCounters`'s entry door — which is
+    the same hazard for the multiplier shape rather than the `EnterWith` one.
+    Two reads: which kinds the mods carry, and whether each carries one or
+    more. A multiplier of one or more changes neither, so a suppressed
+    member stays applicable — but its `affected` filter over an entering
+    permanent reads the CR 614.12 frame, which +1/+1 counters feed, and a
+    `PowerLE` doubler stops applying once another doubler has raised the
+    count past it. The multiplier clause now asks
+    `affected_is_mods_invariant` of an entry's members, the clause the
+    `EnterWith` shape always asked, and
+    `a_multiplier_reading_power_is_asked_at_the_entry_door_only` shows the
+    prompt is real there (2 or 4) and absent over a proposal (4). §4.1's two
+    halves, answered: the clause compares one `AffectedSet`'s leaves to the
+    fields `EnterMods` feeds; run twice, a multiplier of one or more leaves
+    every kind on "one or more"'s side, which `check_order_invariance`'s
+    re-gather confirms per member in debug builds.
+
+85. **Additive beside mods-adding commutes on one kind and not across
+    kinds, so §2.29's table needs the kind axis.** Hardened Scales beside
+    Master Biomancer at an entry's second iteration has one outcome — both
+    add to +1/+1, and 2 + 1 is 1 + 2 — and is asked. A plus beside an
+    `EnterWith` that adds a *different* kind is a real order: CR 614.5
+    gives the plus one opportunity, so a charge counter the `EnterWith`
+    writes after it is not raised, and
+    `a_multiplier_beside_an_enters_with_is_a_real_order` shows the same for
+    a multiplier (6 loyalty and 1 charge, or 6 and 2). Recorded on
+    `backlog.md` §2.29 at landing; **built at the review (theme B,
+    2026-09-14)**: `ordering_cannot_change_outcome` is the commutation table
+    §2.29 designed, per `(class, kinds)` with one board read — the kinds an
+    entry's mods hold — so two Scales, Scales beside Biomancer on a present
+    kind, disjoint-kind arithmetic and Divine Visitation beside Parallel Lives
+    ask nothing, while a plus beside an `EnterWith` writing a new kind, a
+    multiplier beside a plus on a shared kind, and a multiplier beside any
+    `EnterWith` it touches stay real. `classify` is exhaustive over `Rewrite`
+    and `AmountRewrite`, which is where the predicate's expiry conditions are
+    a compile error now.
+
+86. **A cost that puts counters must not be an effect that puts counters,
+    and the event has no field for it yet.** Doubling Season's ruling: loyalty
+    paid as a cost "isn't doubled … because those counters are put on as a
+    cost, not as an effect." `Cost::AddCounters` is unimplemented (`costs.rs`
+    returns `Err` for both its validation and its payment), so nothing can
+    be asserted; when `backlog.md` §2.11 builds loyalty abilities, the
+    payment's proposal needs a fact `pattern_watches` can refuse —
+    `LifeLossCause::Cost`'s shape on `AddCounters` — so that CR 614.16's
+    "the effect of a resolving spell or ability" is what the pattern reads.
+    `codebase-state.md`, "Found by RE-5", item 129.
 
 ## 12. Explicitly out of scope
 

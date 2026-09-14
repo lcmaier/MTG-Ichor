@@ -403,6 +403,7 @@ fn obj_name(game: &GameState, id: ObjectId) -> String {
 
 /// Format a single GameEvent with resolved card names.
 pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -> String {
+    use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
     match event {
         ZoneChange { object_id, owner, from, to, cause, lki } => {
@@ -486,15 +487,13 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
             format!("PlayerLost: P{} ({:?})", player_id, reason)
         }
         PlayerWon { player_id } => format!("PlayerWon: P{}", player_id),
-        CountersChanged { object_id, counter, added } => {
+        CountersChanged { subject, counter, added } => {
             let verb = if *added >= 0 { "put on" } else { "removed from" };
-            format!(
-                "CountersChanged: {} {:?} counter(s) {} {}",
-                added.abs(),
-                counter,
-                verb,
-                obj_name(game, *object_id)
-            )
+            let whom = match subject {
+                CounterSubject::Object(id) => obj_name(game, *id),
+                CounterSubject::Player(pid) => format!("P{}", pid),
+            };
+            format!("CountersChanged: {} {:?} counter(s) {} {}", added.abs(), counter, verb, whom)
         }
         CountersAnnihilated { object_id, pairs_removed } => {
             format!("CountersAnnihilated: {} ({} pairs)", obj_name(game, *object_id), pairs_removed)

@@ -26,7 +26,7 @@ use mtgsim::cards::phase_rd_cards::{
 use mtgsim::cards::basic_lands::plains;
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
-use mtgsim::events::event::{BatchId, DamageTarget, GameEvent};
+use mtgsim::events::event::{BatchId, CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
@@ -127,7 +127,7 @@ fn counts(game: &GameState) -> Vec<u64> {
 
 /// Counters placed the way the engine places them, through the chokepoint.
 fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32) {
-    game.execute_action(GameAction::AddCounters { object: id, counter, n }, &test_ctx())
+    game.execute_action(GameAction::AddCounters { subject: CounterSubject::Object(id), counter, n, by: 0 }, &test_ctx())
         .unwrap();
 }
 

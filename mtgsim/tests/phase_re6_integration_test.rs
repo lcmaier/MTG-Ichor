@@ -34,7 +34,7 @@ use mtgsim::test_support::{
     vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
+    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -485,7 +485,7 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
         .ability(gain_instead)
         .build();
     put_on_battlefield(&mut game, mirror, 0);
-    game.players[0].poison_counters = 10;
+    game.players[0].add_counters(CounterType::Poison, 10);
 
     game.check_state_based_actions_loop(&test_dp()).unwrap();
 
@@ -845,7 +845,7 @@ fn exquisite_archangel_applies_to_a_poison_loss_and_then_the_poison_still_loses(
     let mut game = setup_game(2);
     let archangel = put_on_battlefield(&mut game, exquisite_archangel(), 0);
     game.players[0].life_total = 40;
-    game.players[0].poison_counters = 10;
+    game.players[0].add_counters(CounterType::Poison, 10);
 
     game.check_state_based_actions_loop(&test_dp()).unwrap();
 
@@ -1024,7 +1024,7 @@ fn platinum_angel_refuses_every_state_based_loss_and_the_game_goes_on() {
     let mut game = setup_game(2);
     put_on_battlefield(&mut game, platinum_angel(), 0);
     game.players[0].life_total = -10;
-    game.players[0].poison_counters = 10;
+    game.players[0].add_counters(CounterType::Poison, 10);
     draw_one(&mut game, 0, &test_dp());
     let queries = game.counters.restriction_queries();
 
@@ -1042,7 +1042,7 @@ fn platinum_angel_leaving_the_battlefield_lets_the_next_check_lose() {
     let mut game = setup_game(2);
     let angel = put_on_battlefield(&mut game, platinum_angel(), 0);
     game.players[0].life_total = 0;
-    game.players[0].poison_counters = 10;
+    game.players[0].add_counters(CounterType::Poison, 10);
     assert!(!sba(&mut game, &test_dp()));
 
     game.change_zone(angel, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();

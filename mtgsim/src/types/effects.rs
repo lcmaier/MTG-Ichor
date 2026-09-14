@@ -655,13 +655,28 @@ impl TokenDef {
     }
 }
 
-/// Counter types that can be placed on permanents/players
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Counter types that can be placed on permanents/players.
+///
+/// One enum for both subjects — CR 701.34a's proliferate gives "each one
+/// additional counter of each kind that permanent or player already has" in
+/// one sweep, and a kind is a kind wherever it sits. `Ord` because a player's
+/// counters are a `BTreeMap` keyed on this: a map that iterates in enum order
+/// is process-independent, which `CLAUDE.md`'s determinism rule asks of any
+/// collection that reaches a count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum CounterType {
     PlusOnePlusOne,
     MinusOneMinusOne,
     Loyalty,
     Charge,
+    // --- Counters a player has (CR 122.1's "or player") ---
+    /// CR 122.1f — ten or more and the player loses (CR 704.5c). Read off
+    /// `PlayerState::counter_count`; infect's poison half (CR 120.3b) is the
+    /// producer that is not built yet.
+    Poison,
+    /// CR 107.14 — the energy symbol {E} is one of these. Live Fast's "get
+    /// {E}{E}" is the producer; paying {E} is a cost that waits for its card.
+    Energy,
     // Keyword counters (rule 122.1b)
     Flying,
     Deathtouch,
@@ -742,6 +757,8 @@ impl CounterType {
             | CounterType::MinusOneMinusOne
             | CounterType::Loyalty
             | CounterType::Charge
+            | CounterType::Poison
+            | CounterType::Energy
             | CounterType::Shield
             | CounterType::Stun
             | CounterType::Finality => return None,
@@ -945,10 +962,37 @@ pub enum Primitive {
     ProduceMana(ManaOutput),
 
     // === Counters ===
-    /// Add N counters of a type to target
-    AddCounters(CounterType, AmountExpr),
+    /// Put `amount` `counter` counters on each recipient permanent
+    /// (CR 122.1).
+    ///
+    /// `by` is who puts them on — the fact Vorinclex, Monstrous Raider reads
+    /// off `GameAction::AddCounters::by`. `PlayerRef::You` is the effect's
+    /// controller, which is every printed one-shot and is written out rather
+    /// than defaulted; anything else is an effect whose text names another
+    /// player, Bold Plagiarist's "*they* put the same number and kind of
+    /// counters on this creature" — the opponent puts counters on a creature
+    /// they do not control, and neither the effect's controller nor the
+    /// object's is the answer. Resolved at resolution (`resolve_putter`):
+    /// `You` the controller, `Player` itself, `Owner` the source's owner,
+    /// `Opponent` the resolution's player target or the only opponent.
+    AddCounters {
+        counter: CounterType,
+        amount: AmountExpr,
+        by: PlayerRef,
+    },
     /// Remove N counters of a type from target
     RemoveCounters(CounterType, AmountExpr),
+    /// A player gets `amount` `counter` counters — Oracle's verb for a player
+    /// ("you get {E}{E}", "that player gets a poison counter"), and its own
+    /// primitive because [`Self::AddCounters`] resolves its recipient as
+    /// permanents and one primitive answering for both would make
+    /// `EffectRecipient::Controller` mean two things. The recipient is
+    /// resolved as `GainLife`'s is; `by` as [`Self::AddCounters`]'s.
+    GetCounters {
+        counter: CounterType,
+        amount: AmountExpr,
+        by: PlayerRef,
+    },
 
     // === Tokens ===
     /// Create N tokens (CR 701.7a) — resolved as one

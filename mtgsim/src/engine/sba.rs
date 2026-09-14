@@ -179,8 +179,9 @@ impl GameState {
             if drew_from_empty[i] {
                 player_losses.push(sba_player_loses(i, LossReason::DrawnFromEmptyLibrary));
             }
-            // 704.5c — ten or more poison counters.
-            if self.players[i].poison_counters >= 10 {
+            // 704.5c — ten or more poison counters, read off the player's
+            // kind → count map (CR 122.1f).
+            if self.players[i].counter_count(CounterType::Poison) >= 10 {
                 player_losses.push(sba_player_loses(i, LossReason::PoisonCounters));
             }
         }
@@ -1633,12 +1634,12 @@ mod tests {
     // T16: Poison, commander damage, indestructible SBA tests
     // -----------------------------------------------------------------------
 
-    // COVERS: ATOM-104.3d-001, ATOM-704.5c-001
+    // COVERS: ATOM-104.3d-001, ATOM-704.5c-001, ATOM-122.1f-001
     #[test]
     fn test_sba_poison_10_loses() {
         // 704.5c — A player with 10 or more poison counters loses the game.
         let mut game = GameState::new(2, 20);
-        game.players[0].poison_counters = 10;
+        game.players[0].add_counters(crate::types::effects::CounterType::Poison, 10);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(performed);
@@ -1660,7 +1661,7 @@ mod tests {
     fn test_sba_poison_9_survives() {
         // 704.5c — A player with 9 poison counters does NOT lose.
         let mut game = GameState::new(2, 20);
-        game.players[0].poison_counters = 9;
+        game.players[0].add_counters(crate::types::effects::CounterType::Poison, 9);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
         assert!(!performed);

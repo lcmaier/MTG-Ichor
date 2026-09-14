@@ -72,6 +72,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `RE-2` — plans/replacement-architecture.md
 - `RE-3` — plans/replacement-architecture.md
 - `RE-4` — plans/replacement-architecture.md
+- `RE-5` — plans/replacement-architecture.md
 - `RE-6` — plans/replacement-architecture.md
 - `RE-7` — plans/replacement-architecture.md
 - `RS-1` — plans/cant-effects-architecture.md
@@ -80,9 +81,9 @@ says nothing about progress, so there is one answer and it is derived.
 
 | | |
 |---|---:|
-| Cards registered | 139 |
-| …of them in `PERFORMANCE_POOL` | 83 |
-| `#[test]` functions | 1384 |
+| Cards registered | 145 |
+| …of them in `PERFORMANCE_POOL` | 84 |
+| `#[test]` functions | 1424 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -90,9 +91,9 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 5424 of 5639 lines (96%) |
-| Numbered items | 177 |
-| …closed, still recorded | 46 |
+| Section size | 5465 of 5680 lines (96%) |
+| Numbered items | 178 |
+| …closed, still recorded | 47 |
 | …open — unreachable, and says why | 79 |
 | **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 20 |

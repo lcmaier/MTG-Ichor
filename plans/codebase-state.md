@@ -80,7 +80,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 119 | Life changes | ✅ with source attribution | `events/event.rs`, `engine/actions.rs` |
 | 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅. **CR 120.3's results are a list, decomposed off the target's effective types (RD-1, 2026-09-08)**: 120.3a proposes a contained `LoseLife { cause: Damage }` in the damage's batch, 120.3c proposes `RemoveCounters { Loyalty }` — so a planeswalker can die (CR 704.5i fires 4× in 400 stress games) — 120.3e is gated on the target being a creature, and 120.3f was already lifelink's. **The event carries `unpreventable` from RD-4 (2026-09-09)** — CR 615.12's per-event shape, set by the effect that proposes the damage and carried through a CR 614.9 redirect, because "the same damage" is what a redirect moves. **120.3b/d/g/h ❌** — poison, wither's counters, toxic, a battle's defense counters; each is one more arm on the same `DamageResults`, and each has an owner (`backlog.md` §2.6 and §2.23; Deferred Migrations items 86 and 87) | `engine/actions.rs` (`DamageResults`), `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
 | 121 | Drawing | ✅ basic | `engine/actions.rs` |
-| 122 | Counters | ✅ 19 counter types (12 evergreen keyword + +1/+1, -1/-1, loyalty, charge, poison, commander damage), per-entity HashMap | `types/effects.rs`, `state/battlefield.rs`, `state/player.rs` |
+| 122 | Counters | ✅ 21 counter kinds in one `CounterType` (12 evergreen keyword, +1/+1, -1/-1, loyalty, charge, shield, stun, finality, poison, energy); a permanent's in `PermanentState.counters` with CR 613.7c timestamps, a player's in `PlayerState.counters` (RE-5, 2026-09-13); both put on through `GameAction::AddCounters { subject: CounterSubject, by }`, and CR 122.6's entry counters watched through the entry's mods | `types/effects.rs`, `state/battlefield.rs`, `state/player.rs`, `engine/replacement/gather.rs` |
 | 123 | Mana (pool, persistence, restrictions) | ✅ full `ManaPool` with restricted sidecar, persistence, grants, context-aware spending (T12b landed) | `types/mana.rs` (1370 lines) |
 
 ### CR 2 — Parts of a Card
@@ -243,6 +243,13 @@ the axis the rows split on** (2026-09-13, RE-4's review). "Unreachable" says
 no fuzz game can produce the wrong answer today, never that the answer is
 right — an item that wrote "unreachable rather than wrong" meant "wrong, and
 unreachable", and the phrase is retired.
+
+**And an item is not closed by an empty Scryfall query** (2026-09-14, RE-5's
+review). A facility the CR states is owed whether or not a card prints it —
+a card can be printed next set, and custom card creation is a post-v1 goal.
+The reachability line says "no printed producer", never "nothing owed", and
+a fixture test is the customer until a card is. `engineering-practices.md`
+§4; item 43 is the one that was closed that way and reopened.
 
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
@@ -2261,34 +2268,19 @@ section never asked.
     `TraceSink` ("Before Triggered abilities" item 5) or the first fork harness,
     whichever first.
 
-43. **CR 122.6a names a player and `EnterMods` does not carry one (recorded
-    2026-09-01, RC-2).** "If an object enters the battlefield with counters on
-    it, the effect causing the object to be given counters **may specify which
-    player puts those counters on it**. If the effect doesn't specify a player,
-    the object's controller puts them on." `EnterMods.counters` is
-    `Vec<(CounterType, u32)>`, so only the default half exists.
+43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
+    2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
+    `EntryCountersTemplate.by`, the merge keyed on `(kind, putter)`, the entry
+    door reading each row's putter ahead of the entry's controller, and a
+    `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters` for
+    Bold Plagiarist's shape on a proposal. RE-5 had closed it on 2026-09-13
+    on an empty Scryfall query, which the review's rule rejects — the CR is
+    the customer, a printed card is the test (`engineering-practices.md` §4;
+    `replacement-architecture.md` §11 item 83).
+    → `plans/archive/codebase-state-closed.md`.
 
-    **Nothing in reach needs the named half** — no registered card specifies a
-    player, and ATOM-122.6a-001 is covered by the default. What needs it is
-    Phase **RE**: the atom's own expected result says so, because Doubling
-    Season doubles counters *you* put on, so a doubler has to know who put them
-    on before it can decide whether it applies. The field is one `Option<PlayerId>`
-    per entry and the merge already coalesces by kind, which is the thing that
-    would have to change — two effects giving counters of the same kind on
-    behalf of different players cannot share a row. **Size it before RE writes
-    its first doubler, not after.**
-
-    **Reachability (2026-09-03):** unreachable — no registered effect names the
-    player who puts the counters; `EnterMods.counters` is still
-    `Vec<(CounterType, u32)>`.
-
-    **Sized:** an `Option<PlayerId>` per entry on both `EnterMods`
-    and `EnterModsTemplate`, with `merge` keyed on `(kind, player)` instead of
-    `kind`, ~60–80 lines plus tests; the first commit of RE's doubler, before
-    the doubler is written.
-
-    **Owner (2026-09-11):** RE-5 — `replacement-architecture.md` §9, RE
-    decision 4; Vorinclex, Monstrous Raider is the field's first reader.
+    **Reachability (2026-09-14):** closed — built; no printed producer names
+    a putter at an entry, and the fixture tests do.
 
 44. **`is_prohibited`'s battlefield sweep has the gate defect `gather` just had,
     and it measures flat — which is the finding (recorded 2026-09-01, RC-2
@@ -5632,6 +5624,55 @@ Treasure and Hullbreacher's are `backlog.md` §2.19's (a Treasure def needs
 any-color mana); Academy Manufactor's "one of each" is §2.27's library;
 Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 `cost-architecture.md`'s.
+
+### Found by RE-5 — counters, on permanents and players (2026-09-13)
+
+**Shipped:** `CounterSubject { Object, Player }` on `GameAction::AddCounters`
+and `RemoveCounters` and on `GameEvent::CountersChanged`; `AddCounters::by`,
+the player putting them on — the resolving effect's controller, and at an
+entry CR 122.6a's default; `EventPattern::AddCounters { counter, by:
+Option<PlayerSet> }` and `RemoveCounters { counter }` — one arm per variant,
+split at the review from a shared `CounterChange { adding }` — the first
+watching an `AddCounters` and, CR 122.6's second door, an `EnterBattlefield`
+whose mods carry a matching kind with one or more, asking "one or more" as
+the rule does; `EntryCounters { counter, n, by }` rows on `EnterMods`, merged
+on `(kind, putter)`, and `by: Option<PlayerRef>` on the two counter
+primitives (the review's theme A); `Rewrite::Amount`'s two counter
+legs (a proposal's count; each matched kind in an entry's mods, a kind at
+zero leaving them); `PlayerState.counters: BTreeMap<CounterType, u32>` in
+place of `poison_counters`, `CounterType::{Poison, Energy}`, CR 704.5c
+reading the map; `Primitive::GetCounters`; the multiplier shape's entry
+clause (item 47's condition (c), §11 item 84). Doubling Season, Hardened
+Scales (pooled), Vorinclex, Monstrous Raider, Winding Constrictor, Live Fast,
+Primal Vigor. Item 43 closed and evicted; `backlog.md` §2.16 graduated.
+**Left absent, with its customer named:**
+
+129. **A cost that puts counters has no fact on the event that says so.**
+     Doubling Season's ruling — loyalty paid as a cost "isn't doubled …
+     because those counters are put on as a cost, not as an effect" — and
+     CR 614.16's own "the effect of a resolving spell or ability" both
+     exclude a cost's counters from the counter doublers. `Cost::AddCounters`
+     is unimplemented today (`engine/costs.rs` returns `Err` for validation
+     and payment), so no proposal a cost makes exists to be wrongly matched.
+     When it does, the payment's `AddCounters` needs a cause the pattern's
+     `AddCounters` arm refuses — `LifeLossCause::Cost`'s shape — and
+     `pattern_watches` one clause.
+
+     **Reachability (2026-09-13):** unreachable — no cost puts counters;
+     `backlog.md` §2.11's loyalty abilities are the producer.
+
+     **Sized:** a `CounterCause { Effect, Cost }` on `AddCounters`, written
+     by every producer, one clause in `pattern_watches`, ~20 lines, with
+     §2.11's first loyalty ability.
+
+What is *not* a ledger line, and where each waits: CR 122.6a's named putter
+was closed on an empty Scryfall query and built at the review (§11 item
+83); Doubling Season's battles are
+`backlog.md` §2.23's; paying {E} is a cost, `cost-architecture.md`'s CP-1
+slot with its first card; proliferate (CR 701.34a) is `backlog.md` §2.5's
+and reads the map this phase built; the additive commutation shapes were
+§2.29's and are built — the review's theme B made the predicate the
+commutation table that entry designed (§11 item 85).
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

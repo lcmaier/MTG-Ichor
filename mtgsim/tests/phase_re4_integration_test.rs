@@ -1053,25 +1053,25 @@ fn divine_visitation_leaves_an_opponents_creation_alone() {
     assert!(tokens(&game).iter().all(|id| get_effective_name(&game, *id) == "Soldier Token"));
 }
 
-/// Beside Parallel Lives the creating player chooses the order, and the
-/// answer is four Angels either way: doubling then replacing "that many", or
-/// replacing then doubling, commute. Both orders are asked for, so the test
-/// states the commutation rather than assuming it.
+/// Beside Parallel Lives the answer is four Angels either way: doubling then
+/// replacing "that many", or replacing then doubling, commute — and since
+/// RE-5's review the commutation table says so, so the creating player is not
+/// asked. This was the sixth shape `backlog.md` §2.29 named as the table's
+/// trigger; until then both orders were asked for and the test stated the
+/// commutation by hand.
 #[test]
 fn divine_visitation_beside_parallel_lives_is_four_angels_in_either_order() {
-    for pick in [0usize, 1] {
-        let mut game = setup_two_player_game();
-        put_on_battlefield(&mut game, parallel_lives(), 0);
-        put_on_battlefield(&mut game, divine_visitation(), 0);
-        let dp = RecordingDecisionProvider::picking(pick);
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, parallel_lives(), 0);
+    put_on_battlefield(&mut game, divine_visitation(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
 
-        resolve_card(&mut game, 0, raise_the_alarm(), &dp);
+    resolve_card(&mut game, 0, raise_the_alarm(), &dp);
 
-        assert_eq!(dp.prompts(), 1, "a multiplier beside a substitution is a real question");
-        let angels = tokens(&game);
-        assert_eq!(angels.len(), 4, "order {pick}");
-        assert!(angels.iter().all(|id| get_effective_name(&game, *id) == "Angel Token"));
-    }
+    assert_eq!(dp.prompts(), 0, "a multiplier and a replace-by-that-many commute");
+    let angels = tokens(&game);
+    assert_eq!(angels.len(), 4);
+    assert!(angels.iter().all(|id| get_effective_name(&game, *id) == "Angel Token"));
 }
 
 /// The append mode, from a fixture in Xorn's shape — "those tokens plus an
