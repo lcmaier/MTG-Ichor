@@ -3702,6 +3702,126 @@ gameplay change the A/B should not carry with the engine change.
 (Phase 5-Pre, poison — read off the map now, and covered where they are); the
 rest of §2.16 is thin under its phrasings, and the doubling tests say so.
 
+##### Decided before writing, because the section left four open (2026-09-13)
+
+**1. The entry door is the entry's mods, not a proposal the performer
+contains.** CR 122.6 does not describe a second event: "putting counters on
+that object ... refers ... also to an object that's given counters as it
+enters the battlefield" folds the entry's counters into the one event the
+entry already is, the way CR 614.1c folds "enters with" into it and RC-4b's
+zone-change door reads the same entry as the move. So `EventPattern::
+CounterChange` watches an `EnterBattlefield` whose `mods.counters` carries a
+matching kind with one or more counters, and `Rewrite::Amount` over an entry
+rewrites each matching kind's count in the mods — decision 4's reading, and
+three things decide it against the contained shape. The performer's ordering
+guarantee stays: a creature entering with +1/+1 counters is never a 0/0 on
+the battlefield while a nested pipeline sweeps the board (`place_on_
+battlefield`'s doc). Hardened Scales' ruling — "you choose the order to apply
+those effects, no matter who controls the sources" — is one CR 616.1 step
+over `EnterWith` and `Amount` members together, which a contained proposal
+would split into two steps with the order fixed. And no new event line is
+written for an entry, so the engine arm is predicted byte-identical to `main`
+on both pools (Chainbreaker is pooled and enters with counters in most games).
+The tests either way: Doubling Season's own ruling (Loyalty Probe enters with
+**6**), CR 616.1g on Raise the Alarm under Master Biomancer and the Season —
+the token half applied once at the creation, the counter half once at each
+of the four entries, neither offered at the other's step — and CR 122.6a's
+default read off the entry: an opponent's Loyalty Probe under my Vorinclex
+enters with **1**, because the opponent puts its counters on.
+
+**2. `CounterSubject { Object, Player }` on both counter actions, in
+`events/event.rs` beside `DamageTarget`.** Counted before choosing:
+`AddCounters` has six producers and `RemoveCounters` two, and the readers
+that branch on the field are `subject_of`, `pattern_watches` and
+`perform_action` — two arms each — plus `strip_prohibited_counters`'
+synthetic event, the `RemoveCountersFromAffected` leg of `substitute`, the
+new `Amount` leg, `display.rs` and three tests. The pair is one kind through
+`CounterChange.adding`, so a subject on one and an id on the other would
+make `subject_of` answer them differently; `GameEvent::CountersChanged`
+carries the subject too, since CR 122.1's "on an object or player" is what a
+"whenever you get" trigger and a "whenever a permanent gets" trigger will
+read off it. A player removal performs (CR 701.2's as-much-as-possible, the
+object arm's mirror) and has no producer until energy is paid.
+
+**3. `PlayerState.poison_counters` is replaced, not aliased.** A `BTreeMap<
+CounterType, u32>` — `CounterType` gains `Ord` so the map iterates in enum
+order, process-independent, which `CLAUDE.md`'s determinism rule asks of any
+collection reaching a count — and `CounterType::{Poison, Energy}`. Eight
+readers and four test writes, all mechanical; CR 704.5c reads
+`counter_count(Poison)`. An alias would be a second name for one fact.
+
+**4. `by` is a `PlayerId` on `AddCounters`, an `Option<PlayerSet>` on the
+pattern, and absent from `RemoveCounters`.** The section wrote `PlayerRef`,
+and `PlayerRef::Opponent`'s own doc is "a targeted or otherwise identified
+opponent" — one player. Vorinclex's "if an opponent would put" is any
+opponent, `PlayerSet::Opponents` is exactly that, and `PlayerSet::contains
+(you, putter)` already exists. Nothing prints a *remover*, so the removal
+arm matches only a pattern that asks nothing. The putter is the
+resolution's controller for a primitive and a rider, and for entry counters
+it is CR 122.6a's default: the entry's `controller` field, which CR 616.1b
+settles ahead of every 616.1e effect that could ask.
+
+**5. Item 43's named half is not built, and the item closes.** CR 122.6a's
+first sentence — the effect "may specify which player puts those counters on
+it" — has no printed customer: three Scryfall queries on 2026-09-13
+(`enters with ... You/An opponent/That player put`, `"enters with" "put on it
+by"`, `counters on it as it enters` outside an "enters with") return nothing,
+and the seven printed "would put one or more counters" watchers all read the
+default. The door reads the default off the entry; the `Option<PlayerId>`
+per counters entry and the `(kind, player)` merge key that item 43 sized are
+recorded on `EnterMods::counters` for the card that prints one. `ATOM-122.
+6a-001` is covered on its default half, and its own expected result is
+corrected in the test's annotation: Doubling Season's counter half reads
+"a permanent you control" (Scryfall, 2026-09-13), not who put them on, so
+the effect the atom names as caring about the putter does not, and
+Vorinclex is the reader.
+
+**6. `backlog.md` §2.29: RE-5 adds no shape, and records what it makes
+reachable.** Season beside Season is the multiplier bucket (suppressed,
+correct — the product); Season beside Scales does not commute (a real
+prompt, Scales' own ruling); Scales beside Scales and Scales beside
+Biomancer's `EnterWith` at its second iteration are additive on one kind,
+one outcome either way, and are asked — the table's next two rows, needless
+and not wrong. Item 47's condition (c) fires here in the form the multiplier
+shape can see: a pattern that reads an entry's mods. The re-derivation is
+that the door reads two things a multiplier of one or more leaves invariant
+— which kinds the mods carry, and whether each carries one or more — and a
+member's `affected` filter over an entering permanent reads the CR 614.12
+frame, which +1/+1 counters feed; so the multiplier clause asks
+`affected_is_mods_invariant` of an entry's members, the clause the
+`EnterWith` shape already asked. `reads_the_amount` stays `false` for
+`CounterChange`: `Halve` can carry a kind from one to zero and is admitted
+to no suppressed bucket.
+
+**7. A player's counters have their own primitive, `Primitive::
+GetCounters`.** Oracle's verb for a player is "get" ("you get {E}{E}", "that
+player gets a poison counter"), and `Primitive::AddCounters` resolves its
+recipient as permanents; one primitive answering for both would make
+`EffectRecipient::Controller` mean two things. Resolved through
+`resolve_player_for_self`, as `GainLife` is.
+
+**8. "One or more" is read by the pattern, and a zero meets the performer.**
+`pattern_watches`' `AddCounters` arm asks `n >= 1` — CR 614.16's own phrase,
+the line `CreateTokens` draws with `!defs.is_empty()` — and the door asks it
+of each kind. A count Vorinclex halves to zero matches nothing further and
+meets `perform_action`'s no-op guard, not `never_happens`, whose rule is
+written about damage and life gain; the test names the guard.
+
+**9. The cost half is a ledger line.** `Cost::AddCounters` is unimplemented,
+so Doubling Season's "loyalty paid as a cost is not doubled" cannot be
+asserted against anything; when `backlog.md` §2.11 builds loyalty costs the
+payment needs a fact on the event that says it is a cost — `LifeLossCause::
+Cost`'s shape — so that CR 614.16's "the effect of a resolving spell or
+ability" is what the pattern matches. `codebase-state.md`, "Found by RE-5".
+
+**10. Sized:** types ~160 (the subject, the pattern's `by`, two counter
+kinds, the primitive), engine ~330 (two performer arms, the door, the two
+`Amount` legs, the player map and its CR 704.5c reader, the premise clause),
+cards ~380 with a rulings pass each, tests ~950, fixture updates ~40 —
+**~1,850**, at the band's top for RE-3's, RE-4's and RE-7's reason: the
+rulings become tests. `PERFORMANCE_POOL` +1 as predicted. Trace page:
+decided at the close.
+
 #### RE-6 — the game's end (CR 104.2b, 104.3e, 104.4a, 704.5a–c, 704.7, 119.5, 800.4j–k) — ✅ landed 2026-09-12
 
 **Shipped.** `GameAction::{PlayerLoses, PlayerWins}` with two fieldless
