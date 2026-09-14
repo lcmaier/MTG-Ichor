@@ -29,9 +29,14 @@ pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneC
 /// lineage (a decomposition inherits, a rider inherits, a contained event
 /// starts fresh), CR 614.5 bounds every replacement chain — each instance
 /// applies once — so a chain deeper than any legitimate one means a lineage
-/// was lost or a rider re-proposes its own event. `fuzz_games` prints the
-/// deepest nesting a run reached (`Max batch depth`); the bound here is that
-/// number with headroom, and a run that moves it is the place to re-read it.
+/// was lost or a rider re-proposes its own event. **Not CR 104.4b's
+/// detector**: a mandatory loop the rules allow runs through triggers, which
+/// do not exist yet, and its detector is `backlog.md`'s loop entry when it is
+/// written; this cannot fire on a rules loop, only on the engine. `fuzz_games`
+/// prints the deepest nesting a run reached (`Max batch depth`); the bound
+/// here is that number with headroom — **7** across 1,600 games, both pools
+/// at two seats and four, 2026-09-13 — and a run that moves it is the place
+/// to re-read it.
 const BATCH_NESTING_LIMIT: usize = 32;
 
 /// Who is asking for a mutation, and what resolution it belongs to.

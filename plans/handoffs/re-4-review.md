@@ -4,14 +4,15 @@ Owner's review of PR #132, captured before fixing anything
 (`engineering-practices.md` §4). Verdicts are mine; each names what it changes.
 Delete this file when the last theme lands.
 
-**Status (2026-09-13):** themes A (`fcf161b`), C (`c74ff47`) and B
-(`d98c9be` code, docs in the commit after) are on the branch. **Theme D is
-its own PR, immediately after #132 merges** — the owner's call, since it is
-a large mechanical diff about nothing to do with tokens. Themes E and F and
-the re-measurement (the engine moved in A, B and C, so the A/B, the
-determinism runs and the §3 tables are stale) **wait for the owner to review
-the three commits.** The ledger lines the code replaced are items 126–128
-now; R2/R6/R8/R14 below refer to the numbering they had at the review.
+**Status (2026-09-13):** themes A (`fcf161b`), C (`c74ff47`), B (`d98c9be`
+code, `f183191` docs), E and F, the glossary's *def* (R20) and the
+re-measurement are on the branch. **Theme D is its own PR, immediately after
+#132 merges** — the owner's call, since it is a large mechanical diff about
+nothing to do with tokens. **Two proposals wait on the owner**: R21's
+`backlog.md` entry for loops (CR 104.4b and 731) and R22's entry for the
+commutation table, each a capture and not a design. The ledger lines the
+code replaced are items 126–128 now; R2/R6/R8/R14 below refer to the
+numbering they had at the review.
 
 ## Theme A — the loop was the engine's, not the rules'
 

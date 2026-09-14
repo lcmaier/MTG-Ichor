@@ -170,6 +170,14 @@ carries stays valid.
 the members it applies to. A candidate is not yet applied; `must_choose_among`
 narrows candidates to the ladder's first non-empty step.
 
+**def** — a *definition*: the data a card author writes and the engine
+reads — `TokenDef`, `ReplacementDef`, `RestrictionDef`, `AbilityDef`. Not
+an **instance** (a def on a board, with a source and a controller) and not
+an object; a `TokenDef` in particular is the description a token is created
+*from*, which is why a creation's kind is asked of the def and never of an
+object (`EventPattern::CreateTokens`). → `types/effects.rs`,
+`types/replacement.rs`.
+
 **instance** — `ReplacementInstance`, keyed by `ReplacementInstanceId`: one
 replacement *effect*, which is the granularity CR 614.5's "affects an event only
 once" is about. Not the object that generated it and not the card. →

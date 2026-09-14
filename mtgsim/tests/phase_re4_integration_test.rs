@@ -1027,7 +1027,7 @@ fn divine_visitation_replaces_the_creatures_and_keeps_how_they_entered() {
     assert!(game.battlefield.get(&newest).unwrap().tapped, "how the effect said it enters carries over");
 }
 
-/// The kind is asked of the def, never of the entry's frame — Divine
+/// The kind is asked of the token's def, never of the entry's frame — Divine
 /// Visitation's second ruling, about a noncreature token that would be a
 /// creature on the battlefield. Here the plain case: a Trinket created beside
 /// a Soldier is not a creature token, so the Soldier becomes an Angel and the

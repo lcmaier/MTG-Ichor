@@ -4039,7 +4039,13 @@ Three arms per PR through `plans/fuzz_ab.py` against a same-day `main`
 worktree, both pools, the middle arm being the engine with `registry.rs` and
 `PERFORMANCE_POOL` unchanged — and unlike RD, **five of the nine middle arms
 add proposals**, so the counters will move on those and each PR predicts the
-number before running:
+number before running. **Corrected at RE-4's review (§11 item 80): that
+middle arm reads the engine on `performance` only.** On `stress` the registry
+*is* the pool, so registering a card changes every deck there and the arm
+reads the decks. A phase that registers cards and wants the engine's `stress`
+cost builds a fourth binary — its engine with the cards *unregistered*, so
+`main`'s registry in both pools — and that is the arm to call "engine";
+"registered" is read on `performance`, and "pooled" is the re-record.
 
 - **RE-1 — measured 2026-09-11, and it is the one number the rest of RE reads.**
   `Replacement gathers` **+447 per game** (507 → 954 on `performance`, 200
@@ -4077,33 +4083,30 @@ number before running:
   that needs no second card to do anything. `stress` moves much further (gathers
   987 → 1143, avg turns 29.0 → 32.3) with all six cards in the deck, and
   `stress` milliseconds are a threshold rather than a comparison (§3.1).
-- **RE-4 — measured 2026-09-13, and the prediction held everywhere it could
-  be read.** The middle arm is **`IDENTICAL` to `main` outside `=== Timing
-  ===` on `performance` at two seats and at four** (200 games / seed 12345):
-  nothing in the 81 creates a token, so no creation is ever proposed.
-  CPU/game +2.1% and −1.3% across two sittings at two seats, +1.0% and −0.6%
-  at four — flat, inside the spread and straddling it. On `stress` the
-  registry grew by four and every row reads the deck (§11 item 80), so a
-  **fourth arm** — the engine commit with the cards unregistered, `main`'s
-  decks in both pools — carried the engine's reading there: `IDENTICAL` on
-  `performance`, and on `stress` a log that differs from `main`'s by exactly
-  one `TokenCreated` line per Zombie Kalitas makes (26 in 200 two-seat
-  games), with the predicted +1 gather per creation visible as `Layer frames`
-  7,166 → 7,169 per game — the gather's walk of Kalitas, about 23 frames each
-  — and rounded away in `Replacement gathers` (1114 → 1114); four seats
-  2517 → 2518 gathers, 1,240 → 1,241 walks. The pooled arm is a re-record and
-  a bigger board: `Replacement gathers` 1002 → 1043 per game, `Layer walks`
-  373 → 386, avg turns 29.9 → 30.7, total damage 57.8 → 69.3 — two Soldiers a
-  cast — with CPU/game +12.9% and +9.0% across two sittings, `CPU/turn p50`
-  0.400 → 0.410 and `ms / 1,000 queries` +2.7%: more game, not a slower walk.
-  `--require`: Parallel Lives cast 168, resolved 168, in **116 of 200 games
-  (58%)**, copies/deck 1.54; Raise the Alarm 201 / 201 in **140 (70%)**,
-  1.49. **What the four-seat `stress` run found is §11 items 77–78**: seed
-  12523 overflowed the stack on both new arms and on neither `main` nor the
-  fourth arm, and ends normally now that a rider carries its lineage. Three
-  shell runs at one seed `IDENTICAL` outside
-  `=== Timing ===` at both seat counts on both pools. → `engineering-practices.md`
-  §3's tables, both re-recorded.
+- **RE-4 — measured 2026-09-13 at landing and again after its review, and
+  the prediction held everywhere it could be read.** Four arms, not three
+  (§11 item 80): `main`; **engine**, the branch with the cards unregistered;
+  **registered**, the old pool; **pooled**. Engine and registered are
+  **`IDENTICAL` to `main` outside `=== Timing ===` on `performance` at two
+  seats and at four** (200 games / seed 12345), so RE-4 and its review cost
+  the pool nothing: CPU/game −0.4% and +0.1%, −1.0% and +0.2%, `CPU/turn p50`
+  flat. On `stress` the engine arm is exact: at two seats 188 games
+  byte-identical to `main`, eleven differing by exactly one `TokenCreated`
+  line per Zombie Kalitas makes, and one re-routed — the one-exit prompt
+  theme C stopped asking, on a Dryad Arbor under Containment Priest and Root
+  Maze; theme A re-routed none. The pooled arm is a re-record and a bigger
+  board: gathers 1002 → 1043 per game, walks 373 → 386, avg turns 29.9 →
+  30.7, total damage 57.8 → 69.3, CPU/game +11.0% with `CPU/turn p50` 0.390 →
+  0.400 and `ms / 1,000 queries` +1.0% — more game, not a slower walk. Two
+  rows are new and are baselines from here: `Replacement prompts` (0.49 per
+  game on `performance` at two seats, 2.38 at four) and `Max batch depth`,
+  **7** across 1,600 games, which is what `BATCH_NESTING_LIMIT`'s 32 is
+  headroom over. `--require`: Parallel Lives 168 / 168 in **116 of 200 (58%)**,
+  1.54 copies/deck; Raise the Alarm 201 / 201 in **140 (70%)**, 1.49; on
+  `stress`, Divine Visitation 131 / 131 in 98 (49%) and Bard 135 / 135 in
+  94 (47%). Three shell runs at one seed `IDENTICAL` outside `=== Timing ===`
+  at both seat counts on both pools. → `engineering-practices.md` §3's
+  tables, both re-recorded.
 - **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
   branch that no def reaches until Hardened Scales is registered, and the
   subject enum changes no proposal's count.
@@ -6062,19 +6065,25 @@ found them.
     attacking"). Each is a `GainLife`-shaped wait: the retrofit is sized and
     nothing registered reads it.
 
-80. **The middle arm cannot isolate the engine on `stress` when the registry
-    grows, and a fourth arm can.** Registering four cards changes every
-    `stress` deck, so "registered, old pool" against `main` reads the deck
-    change on that pool (RE-3 noted it; RE-4's read `differ` in every row).
-    A fourth binary — the engine commit with the cards *unregistered*, so
-    the registry and both pools are `main`'s — is `IDENTICAL` to `main` on
-    `performance` and differs on `stress` by exactly one `TokenCreated` line
-    per Zombie Kalitas makes (26 in 200 games), with the one extra gather's
-    walk of Kalitas showing as `Layer frames` 7,166 → 7,169 per game and
-    invisible in the rounded `Replacement gathers` row. It is also the arm
-    that showed item 77's loop was the *decks'* to reach and not the engine's
-    to cause. Cheap enough to be the rule: a phase that registers cards and
-    wants the engine's `stress` cost builds it.
+80. **The middle arm was the wrong instrument for `stress`, not the
+    byte-identical check.** The owner's review read the fourth arm as a
+    workaround for the identity check; the check is the strongest instrument
+    the A/B has — whole-game trace equality, which is what made "flat" a
+    checkable claim rather than a timing spread — and what was wrong was the
+    *arm's definition*. "Registered, old pool" is an engine reading only on
+    `performance`, because on `stress` registration *is* the pool change, so
+    that arm reads the decks there (RE-3 noted it; RE-4's read `differ` in
+    every row). The arm that reads the engine on both pools is the engine
+    with the cards *unregistered* — `main`'s registry, `main`'s decks — and
+    RE-4's was `IDENTICAL` on `performance` and differed on `stress` by
+    exactly one `TokenCreated` line per Zombie Kalitas makes (26 in 200
+    games), the one extra gather's walk of Kalitas showing as `Layer frames`
+    7,166 → 7,169 per game. It is also the arm that showed item 77's loop was
+    the decks' to reach and not the engine's to cause. So the three arms are
+    **engine** (cards unregistered — the engine reading on both pools),
+    **registered** (old pool — read on `performance`, and the `stress`
+    re-record's first half), and **pooled** (the re-record); the Measured
+    section's recipe says so.
 
 81. **An exit beside `EnterWith`s is one outcome, and the predicate now
     says so** — the owner's review (`plans/handoffs/re-4-review.md`, R15),

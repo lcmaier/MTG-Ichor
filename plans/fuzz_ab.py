@@ -28,7 +28,10 @@ Determinism falls out for free: every timing round's output outside
 `=== Timing ===` must equal the threaded counter run's, which checks both
 thread-independence and run-to-run identity without extra runs. The first
 arm is the baseline; every other arm's counters are diffed against it, so a
-"registered but not pooled" arm that should reproduce `main` is checked by
+"registered but not pooled" arm that should reproduce `main` on
+`performance` is checked by construction — on `stress` registration changes
+the decks, and the engine's reading there is an arm with the cards
+*unregistered* (`replacement-architecture.md` §11 item 80). Checked by
 construction.
 
 Reads the counters, not the milliseconds: the timing table prints ms per

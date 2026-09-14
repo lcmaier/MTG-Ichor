@@ -3051,7 +3051,9 @@ way "one or more creatures die" does.
 
 **2. The outer reports the event as decided; the log counts creations.**
 Three tokens proposed and one dropped: `execute_actions` returns
-`CreateTokens { defs: [3] }` as performed — the event as CR 616.1 left it —
+`CreateTokens { defs: [3] }` as performed — the event as CR 616.1 left it
+(and nothing reads a `CreateTokens` member of `performed` today; the
+precedent is for the log and for whoever reads `performed` later) —
 and the log holds two `TokenCreated`s. CR 111.5 says the third "is not
 created", and un-creating it is no more an event than `add_object` was. The
 precedent is `DrawCards { n }` against a library that runs out: the
@@ -3159,85 +3161,97 @@ this time a third of the overage is the two lineage findings (§11 items
 rider carrying its lineage, the one-exit suppression shape, the token
 pattern's kind, the creation template, and two more cards.
 
-**Glossary triage** (`check_glossary.py --suggest`): nine candidates, no
-coinage. *Ruling* and *rulings* are Scryfall's word and §3.4's; *pooled*,
-*producer* and *multiplier* are this project's vocabulary since RC and RD
-(`AmountRewrite::Multiplier` is a type); *asserted*, *carry*, *module* and
-*offered* are English. RE-3's, RE-6's and RE-7's outcome, a fourth time.
+**Glossary triage** (`check_glossary.py --suggest`): nine candidates at
+landing and twenty-four after the review, one coinage between them — *def*,
+which the review asked about (R20) and which is defined now, beside
+*instance*. *Ruling* and *rulings* are Scryfall's word and §3.4's; *pooled*,
+*producer*, *doubler*, *multiplier*, *pattern* and *template* are this
+project's vocabulary since RC and RD (three of them are type names);
+*asserted*, *carry*, *module*, *offered*, *nesting*, *guard* and the rest are
+English.
 
-##### Measured (2026-09-13)
+##### Measured (2026-09-13, at landing and again after the review)
 
-Four arms, not three. `main` (4271b1d, rebuilt), `registered` (this branch
-with the four cards registered and `PERFORMANCE_POOL` at 81), `pooled` (as
-shipped, 83 and 137), and — added when the `stress` columns turned out to
-read the deck — `engine` (the engine commit with the cards unregistered, so
-`main`'s registry and decks in both pools; §11 item 80). Two seats and four,
-200 games / seed 12345 through `plans/fuzz_ab.py`, two timing sittings at
-each seat count.
+Four arms. `main` (4271b1d, rebuilt); **engine**, the branch with the cards
+*unregistered*, so `main`'s registry and decks in both pools — the arm §11
+item 80 made the standing engine reading, after the middle arm turned out to
+read the `stress` decks; **registered**, the branch with the old pool;
+**pooled**, as shipped (83 and 139). Two seats and four, 200 games / seed
+12345, `plans/fuzz_ab.py`, one timing sitting per seat count after the review
+and two before it.
 
-**The middle arm is `IDENTICAL` to `main` outside `=== Timing ===` on
-`performance` at both seat counts.** No pooled card creates a token, so the
-creation proposal, the batch performer and the `TokenCreated` line never run
-in a measured game until Raise the Alarm is pooled. CPU/game median +2.1% and
-−1.3% at two seats (13.77 → 14.06 ms, then 14.54 → 14.35 across the two
-sittings), +1.0% and −0.6% at four (51.58 → 52.10, 54.29 → 53.96); `ms /
-1,000 walks` the same pairs; `CPU/turn p50` 0.400 → 0.410 and 0.420 → 0.420,
-0.720 → 0.720 and 0.770 → 0.770. Flat, both signs, inside the sitting's
-spread.
+**Engine and registered are `IDENTICAL` to `main` outside `=== Timing ===`
+on `performance` at both seat counts** — line for line, once the two rows the
+new binary prints are set aside. No pooled card creates a token, meets a
+rider across a Reflection, or puts an exit beside an enters-with, so nothing
+RE-4 or its review built runs in a measured `performance` game until Raise the
+Alarm is pooled. CPU/game −0.4% and +0.1% at two seats (13.58 → 13.53 and
+13.60 ms), −1.0% and +0.2% at four (52.04 → 51.54 and 52.14); `CPU/turn p50`
+0.390 → 0.390 and 0.720 → 0.720. Flat, both signs, inside the spread; the
+two sittings at landing read +2.1%/−1.3% and +1.0%/−0.6% the same way.
 
-**The `stress` columns of the middle arm are the deck's, not the engine's,
-and the fourth arm is what says what the engine cost there.** Registering
-four cards changes every `stress` deck, so the middle arm reads `differ` in
-every gameplay row at both seat counts (avg turns 31.8 → 31.2, `Layer walks`
-521 → 508 at two seats; 66.2 → 64.9 and 1,240 → 1,177 at four). The `engine`
-arm, with `main`'s decks: `IDENTICAL` on `performance` at both seat counts,
-and on `stress` a 200-game two-seat event dump that differs from `main`'s by
-**exactly one `TokenCreated` line per Zombie Kalitas makes — 26 lines across
-eleven games and nothing else**. The predicted +1 gather per creation is
-there: `Layer frames` 7,166 → 7,169 per game (the gather walks Kalitas, the
-one replacement source on that board, at about 23 frames a walk) while
-`Replacement gathers` rounds to 1114 both ways (+26 over 200 games is +0.13
-per game); four seats 2517 → 2518 gathers, 1,240 → 1,241 walks, 23,502 →
-23,533 frames, every outcome row equal.
+**The engine arm's `stress` reading is exact, and it separates the three
+themes.** Two seats: 188 of 200 games byte-identical to `main`; eleven games
+differing by exactly one `TokenCreated` line per Zombie Kalitas makes (26
+lines: the +1 gather per creation, visible as `Layer frames` 7,166 → 7,116 —
+the gather's walk of Kalitas — and rounding away in `Replacement gathers`,
+1114 → 1113); and **one game re-routed**, seed 12441, Containment Priest and
+Root Maze beside a Dryad Arbor — the one-exit prompt theme C stopped asking,
+after which the random agent's stream is a different game (`Layer walks`
+521 → 519, wins 103/97 → 102/98). Theme A re-routed none: the boards holding
+an Alms Collector or a Notion Thief across from a Thought Reflection (games
+150, 153, 168, 182) differ only by their creation lines, which is CR 614.5
+giving the same answer whether a rider's draw carries its lineage or not on
+every board short of the symmetric one. Four seats: `Layer walks` 1,240 →
+1,240, gathers 2517 → 2513, frames 23,502 → 23,476, seats 91/53/41/14 →
+92/54/39/14, every outcome row otherwise equal.
 
-**The pooled arm is a re-record, and the two cards make a bigger board.**
-Two seats, `performance`: `Replacement gathers` 1002 → 1043 per game — a
-creation and two entries per Alarm, plus Parallel Lives' gather on each —
-`Layer walks` 373 → 386, `Memo hits` 59,005 → 64,893, avg turns 29.9 → 30.7,
-combats with attackers 10.2 → 10.7, creatures died 7.0 → 7.5, total damage
-57.8 → 69.3; max turns 72 → 95, and that game is the p99 (43 → 78 ms).
-CPU/game +12.9% and +9.0% across the two sittings; `ms / 1,000 walks` +9.1%
-and +5.3%; `ms / 1,000 queries` +2.7% and −0.8%; `CPU/turn p50` 0.400 → 0.410
-and 0.420 → 0.420. Read as RE-3's finding was: the walk did not get slower,
-there is more game — two 1/1s a cast are two permanents that attack, block,
-die and are walked. Four seats, `performance`: gathers 2102 → 2145, walks 838
-→ 839, avg turns 61.0 → 61.4, `Dependency checks` 171 → 111 (a different
-board), CPU/game −3.6% and −2.0%, `CPU/turn p50` 0.720 → 0.730.
+**The pooled arm is a re-record and a bigger board.** Two seats,
+`performance`: `Replacement gathers` 1002 → 1043 per game — a creation and
+two entries per Alarm, plus Parallel Lives' gather on each — `Layer walks`
+373 → 386, `Memo hits` 59,005 → 64,893, avg turns 29.9 → 30.7, combats with
+attackers 10.2 → 10.7, creatures died 7.0 → 7.5, total damage 57.8 → 69.3;
+max turns 72 → 95, and that game is the p99 (43 → 78 ms). CPU/game +11.0%
+this sitting, +12.9% and +9.0% the two at landing; `ms / 1,000 queries` +1.0%,
++2.7% and −0.8%; `CPU/turn p50` 0.390 → 0.400. Read as RE-3's finding was: the
+walk did not get slower, there is more game — two 1/1s a cast are two
+permanents that attack, block, die and are walked. Four seats, `performance`:
+gathers 2102 → 2145, walks 838 → 839, avg turns 61.0 → 61.4, `Dependency
+checks` 171 → 111 (a different board), CPU/game −4.5%, `CPU/turn p50` 0.720 →
+0.740.
 
-**Reachability**, `--require "Parallel Lives,Raise the Alarm"` on
-`performance`, 200 games: Parallel Lives cast **168**, resolved **168**, in
-**116 of 200 games (58%)**, copies/deck 1.54; Raise the Alarm cast **201**,
-resolved **201**, in **140 (70%)**, copies/deck 1.49; board diversity 100%.
-So the board on which a doubled creation is decided and then its entries
-are — CR 616.1g in a measured game — is one most games reach, and the
-plural entry batch item 46 wanted measured is built in seven games of ten.
+**Two rows are new** (the review's R12 and R15): `Replacement prompts`, the
+CR 616.1 questions actually put to a player per game — 0.49 on `performance`
+at two seats and 2.38 at four on the engine arm, 0.74 and 1.83 pooled, 2.54
+and 23.80 on `stress` — the row `ordering_cannot_change_outcome` moves and
+nothing else should; and `Max batch depth`, the deepest nesting any game
+reached — **7** on `stress` at both seat counts, 6 on `performance`, across
+1,600 games — which is what `BATCH_NESTING_LIMIT`'s 32 is headroom over, and
+the number that makes it measured rather than magic.
 
-**What the four-seat `stress` run found** is §11 items 77–78: seed 12523
-overflowed the stack on both new arms and on neither `main` nor the fourth
-arm — the new decks reached a rider loop older than this phase, a rider's
-proposals starting a fresh applied set where CR 614.5 says they continue the
-event's — and it ends normally now that a rider carries its lineage. The one other outlier is seed 12538,
-which runs to the 200-turn limit: a two-seat endgame in which Words of
-Worship and Circle of Protection: Red let the random agent gain five life
-per draw and prevent every point of red damage for a hundred and fifty turns
-— RE-3's and RD-3's cards and the agent's habits, with no token in the last
-four hundred events. Zero errors and zero panics on every arm, both pools,
-both seat counts. Three shell runs at one seed, `--threads 1`, both pools,
-two seats and four: `IDENTICAL` outside `=== Timing ===`.
+**Reachability**, `--require`, 200 games. `performance`: Parallel Lives cast
+**168**, resolved **168**, in **116 of 200 games (58%)**, copies/deck 1.54;
+Raise the Alarm cast **201**, resolved **201**, in **140 (70%)**, copies/deck
+1.49; board diversity 100%. `stress`: Divine Visitation cast **131**, resolved
+**131**, in **98 (49%)**, 1.30; Bard, King of Dale **135** / **135** in **94
+(47%)**, 1.29; diversity 99%. So a doubled creation decided and then its
+entries — CR 616.1g in a measured game — is a board most games reach, and the
+kind-changing substitution is reached in every other `stress` game.
 
-**`PERFORMANCE_POOL` 81 → 83, both arms' headers read, and both §3 tables
-re-recorded** — the pool moved, so both columns of both tables are the
-pool's.
+**Outliers.** At landing the four-seat `stress` run overflowed the stack at
+seed 12523 (§11 item 77) and ran one game to the turn limit (seed 12538, a
+Circle of Protection: Red and Words of Worship stall); after the review the
+four-seat arms hit no turn limit and no draw, and the two-seat `stress`
+registered arms hit the limit twice in 200 (seeds 12386 and 12538) on the
+same stall, with no token in either game's last four hundred events — RE-3's
+and RD-3's cards and the random agent, on decks the two new registrations
+reshuffled. Zero errors and zero panics on every arm, both pools, both seat
+counts. Three shell runs at one seed, `--threads 1`, both pools, two seats and
+four: `IDENTICAL` outside `=== Timing ===`.
+
+**`PERFORMANCE_POOL` 81 → 83, every arm's header read, and both §3 tables
+re-recorded twice** — at landing and after the review, since the pool and
+then the engine moved.
 
 ### Trace-page decisions — the phases that produced a candidate and declined it
 

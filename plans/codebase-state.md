@@ -238,6 +238,12 @@ beside them, 22 (the counter fast path's set, 15) and 50 (one enumeration per
 CDA, 30), and one harness diagnostic, 104 (an activation counter, 20). The
 other small-sized items are each one card or one system away and stay.
 
+**Every open item is a wrong answer or a missing facility; reachability is
+the axis the rows split on** (2026-09-13, RE-4's review). "Unreachable" says
+no fuzz game can produce the wrong answer today, never that the answer is
+right — an item that wrote "unreachable rather than wrong" meant "wrong, and
+unreachable", and the phrase is retired.
+
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
 subsection, and one run each inside "Before Layers", "Before card breadth",
