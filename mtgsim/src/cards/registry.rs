@@ -48,7 +48,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 83] = [
+const PERFORMANCE_POOL: [&str; 84] = [
     "Plains",
     "Island",
     "Swamp",
@@ -344,6 +344,18 @@ const PERFORMANCE_POOL: [&str; 83] = [
     // the same turn, a `--require` question rather than a slot.
     "Parallel Lives",
     "Raise the Alarm",
+    // RE-5 — the first `CounterChange` watcher, at one mana. Hardened Scales
+    // opens the sweep on every `AddCounters` (Battlegrowth is pooled) and on
+    // every counter-bearing entry — Chainbreaker's, Master Biomancer's
+    // grants — through the door RE-5 added, and beside a second Scales it is
+    // the pool's first additive pair, which the predicate asks about
+    // (`backlog.md` §2.29). Doubling Season stays out: five mana, and its
+    // token half would double the pool's Soldiers, a gameplay change the
+    // A/B should not carry with the engine change. Vorinclex, Winding
+    // Constrictor, Primal Vigor and Live Fast stay out for the module doc's
+    // reasons — the same path at more mana, or a subject nothing pooled
+    // produces.
+    "Hardened Scales",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
