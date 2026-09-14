@@ -40,7 +40,7 @@
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
 //! - `gather::set_affects` → `GameState::object_matches_filter` governs
-//!   **`ReplacementDef.affected`**, and it has **no gate at all**.
+//!   **`ReplacementDef.affected_objects`**, and it has **no gate at all**.
 //!
 //! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
 //! `EnterWith(tapped)`) already taps an entering land, and with
@@ -126,7 +126,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// moves the strip is real everywhere except at the instant it matters here.
 ///
 /// **The gate is not "no filter reaches an entry", which is what RC-2 wrote
-/// (corrected 2026-09-02).** `ReplacementDef.affected` is matched by
+/// (corrected 2026-09-02).** `ReplacementDef.affected_objects` is matched by
 /// `gather::set_affects` through a different and ungated function, so
 /// `root_maze` taps this land on the way in without any help from RC-3. The
 /// two paths are separated in this module's doc comment.

@@ -662,7 +662,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
                     // CR 608.2h — a resolving spell locks its value in as it
                     // resolves, so this is `Fixed` even though the card text
                     // said "X". Static abilities are the ones that stay live.
@@ -692,7 +692,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
                     modification: crate::engine::layers::EffectModification::SetPowerToughness {
                         power: crate::engine::layers::types::PtValue::Fixed(power),
                         toughness: crate::engine::layers::types::PtValue::Fixed(toughness),
@@ -722,7 +722,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
                     modification: crate::engine::layers::EffectModification::SwitchPowerToughness,
                 };
                 self.continuous_effects.add(effect);
@@ -752,7 +752,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: crate::engine::layers::AffectedSet::Fixed(target_ids),
+                    affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids),
                     modification,
                 };
                 self.continuous_effects.add(effect);
@@ -824,7 +824,7 @@ impl GameState {
                         controller: ctx.controller,
                         created_on_turn: self.turn_number,
                         timestamp,
-                        affected: crate::engine::layers::AffectedSet::Fixed(target_ids.clone()),
+                        affected_objects: crate::engine::layers::AffectedSet::Fixed(target_ids.clone()),
                         modification,
                     };
                     self.continuous_effects.add(effect);
@@ -1016,11 +1016,11 @@ impl GameState {
                 };
                 let def = &def;
 
-                let authored_empty = matches!(def.affected, AffectedSet::Fixed(ref ids) if ids.is_empty())
+                let authored_empty = matches!(def.affected_objects, AffectedSet::Fixed(ref ids) if ids.is_empty())
                     && def.affected_players == PlayerSet::Nobody;
                 let fill_object = |id: ObjectId| {
                     let mut row = (*def).clone();
-                    row.affected = AffectedSet::Fixed(vec![id]);
+                    row.affected_objects = AffectedSet::Fixed(vec![id]);
                     row
                 };
                 let fill_player = |pid: PlayerId| {
@@ -1328,7 +1328,7 @@ impl GameState {
                     controller: ctx.controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: AffectedSet::Fixed(target_ids),
+                    affected_objects: AffectedSet::Fixed(target_ids),
                     // `You` rather than `ctx.controller`, though they name the
                     // same player: on a `Resolution` row, `FilterPlayers::you()`
                     // reads `ContinuousEffect.controller`, which CR 611.2c
@@ -1393,7 +1393,7 @@ impl GameState {
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected: AffectedSet::Fixed(targets),
+            affected_objects: AffectedSet::Fixed(targets),
             modification,
         });
         Some(timestamp)
@@ -1525,7 +1525,7 @@ impl GameState {
                     controller,
                     created_on_turn: self.turn_number,
                     timestamp,
-                    affected: affected.clone(),
+                    affected_objects: affected.clone(),
                     modification,
                 });
             }
@@ -1652,7 +1652,7 @@ impl GameState {
             controller: ctx.controller,
             created_on_turn: self.turn_number,
             timestamp,
-            affected: AffectedSet::Fixed(affected.clone()),
+            affected_objects: AffectedSet::Fixed(affected.clone()),
             modification: EffectModification::CopyFrom(Box::new(values.clone())),
         });
 

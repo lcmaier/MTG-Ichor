@@ -929,7 +929,7 @@ fn classify<'a>(
     // +1/+1 counters feed; over a finished permanent it reads the board,
     // which no count in the proposal touches.
     let arithmetic_ok = !def.pattern.reads_the_amount()
-        && (!on_entry || affected_is_mods_invariant(&def.affected));
+        && (!on_entry || affected_is_mods_invariant(&def.affected_objects));
     match &def.rewrite {
         Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
             (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
@@ -950,7 +950,7 @@ fn classify<'a>(
         // Reads the frame only when the source is the object being computed,
         // so anything else is a board read and commutes.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
-            && affected_is_mods_invariant(&def.affected))
+            && affected_is_mods_invariant(&def.affected_objects))
         .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
         // Devour prompts and moves the board; a control change is CR 616.1b's
         // own forced step; a prevention and a redirection change what the

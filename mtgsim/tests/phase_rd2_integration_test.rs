@@ -654,7 +654,7 @@ fn samite_censer_bearer_makes_a_separate_count_on_each_creature_at_resolution() 
     let rows: Vec<&RegisteredReplacementEffect> = game.replacement_effects.iter().collect();
     assert_eq!(rows.len(), 3, "one per creature, and none for the Censer-Bearer");
     for (row, creature) in rows.iter().zip(&originals) {
-        assert_eq!(row.def.affected, AffectedSet::Fixed(vec![*creature]));
+        assert_eq!(row.def.affected_objects, AffectedSet::Fixed(vec![*creature]));
         assert_eq!(row.def.uses, Uses::NextDamage(1));
         assert_eq!(row.source, bearer, "CR 113.7a");
     }

@@ -140,7 +140,7 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected: AffectedSet::Filter {
+        affected_objects: AffectedSet::Filter {
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::PowerLE(2)),

@@ -39,7 +39,7 @@ fn add_layer4(game: &mut GameState, id: ObjectId, modification: EffectModificati
         controller: 0,
         created_on_turn: turn,
         timestamp,
-        affected: AffectedSet::Fixed(vec![id]),
+        affected_objects: AffectedSet::Fixed(vec![id]),
         modification,
     });
 }

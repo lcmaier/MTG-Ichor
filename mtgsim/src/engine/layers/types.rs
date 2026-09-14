@@ -19,7 +19,7 @@ use crate::types::mana::ManaCost;
 ///
 /// The definition moved to `types::effects` when Phase RB gave it a second
 /// consumer: CR 614.1's replacement effects "act like shields around whatever
-/// they're affecting", and `ReplacementDef.affected` is the same question the
+/// they're affecting", and `ReplacementDef.affected_objects` is the same question the
 /// layer system asks — `SourceOnly` vs. `Filter` is precisely CR 614.12's
 /// "affects only that permanent (as opposed to a general subset of permanents
 /// that includes it)" (`replacement-architecture.md` §11 item 2). The enum is
@@ -255,7 +255,7 @@ pub struct ContinuousEffect {
     /// Timestamp for ordering within the same layer (CR 613.7).
     pub timestamp: Timestamp,
     /// Which objects this effect applies to.
-    pub affected: AffectedSet,
+    pub affected_objects: AffectedSet,
     /// What the effect does to each affected object.
     pub modification: EffectModification,
 }

@@ -1403,7 +1403,7 @@ impl GameState {
                         controller,
                         created_on_turn: self.turn_number,
                         timestamp,
-                        affected: affected.clone(),
+                        affected_objects: affected.clone(),
                         modification,
                     };
                     self.continuous_effects.add(effect);
@@ -1525,7 +1525,7 @@ impl GameState {
                             controller,
                             created_on_turn: self.turn_number,
                             timestamp,
-                            affected: affected_set.clone(),
+                            affected_objects: affected_set.clone(),
                             modification,
                         });
                     }

@@ -363,6 +363,6 @@ mod tests {
         let Effect::Replacement(def) = &card.abilities[0].effect else {
             panic!("expected a replacement");
         };
-        assert!(matches!(def.affected, AffectedSet::Filter { .. }));
+        assert!(matches!(def.affected_objects, AffectedSet::Filter { .. }));
     }
 }

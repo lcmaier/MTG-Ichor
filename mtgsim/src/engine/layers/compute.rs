@@ -1219,7 +1219,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected: AffectedSet::Filter {
+            affected_objects: AffectedSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -1271,7 +1271,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp,
-            affected: AffectedSet::Host,
+            affected_objects: AffectedSet::Host,
             modification: EffectModification::ModifyPowerToughness {
                 power: PtValue::Fixed(1),
                 toughness: PtValue::Fixed(2),
@@ -1470,7 +1470,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Filter {
+            affected_objects: AffectedSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -1707,7 +1707,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Filter {
+            affected_objects: AffectedSet::Filter {
                 filter: ObjectFilter::ByType(CardType::Creature),
             },
             modification: EffectModification::AddColor(Color::Red),
@@ -1826,7 +1826,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected: AffectedSet::Filter {
+            affected_objects: AffectedSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),

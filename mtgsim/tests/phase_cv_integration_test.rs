@@ -555,7 +555,7 @@ fn test_mirrorform_includes_the_donor_and_excludes_lands() {
         .iter()
         .find(|e| matches!(e.modification, EffectModification::CopyFrom(_)))
         .expect("one copy row");
-    match &row.affected {
+    match &row.affected_objects {
         mtgsim::engine::layers::types::AffectedSet::Fixed(ids) => assert!(
             ids.contains(&donor),
             "CR 707.4 — Mirrorform says 'each nonland permanent you control', \
@@ -727,7 +727,7 @@ fn pump(game: &mut GameState, id: ObjectId, power: i32, toughness: i32) {
         controller: 0,
         created_on_turn: game.turn_number,
         timestamp,
-        affected: AffectedSet::Fixed(vec![id]),
+        affected_objects: AffectedSet::Fixed(vec![id]),
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(power),
             toughness: PtValue::Fixed(toughness),
@@ -748,7 +748,7 @@ fn steal(game: &mut GameState, id: ObjectId, to: PlayerId) {
         controller: to,
         created_on_turn: game.turn_number,
         timestamp,
-        affected: AffectedSet::Fixed(vec![id]),
+        affected_objects: AffectedSet::Fixed(vec![id]),
         modification: EffectModification::SetController(PlayerRef::Player(to)),
     });
 }

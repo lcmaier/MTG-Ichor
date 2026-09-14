@@ -49,7 +49,7 @@ fn register_anthem(
         controller,
         created_on_turn: game.turn_number,
         timestamp,
-        affected: AffectedSet::Filter { filter },
+        affected_objects: AffectedSet::Filter { filter },
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(1),
             toughness: PtValue::Fixed(1),

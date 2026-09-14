@@ -439,7 +439,7 @@ fn push_static_ability_replacements(
             }
             _ => continue,
         };
-        if scope == SelfScope::EnteringSelf && !matches!(def.affected, AffectedSet::SourceOnly) {
+        if scope == SelfScope::EnteringSelf && !matches!(def.affected_objects, AffectedSet::SourceOnly) {
             continue;
         }
         push_if_applicable(
@@ -527,7 +527,7 @@ pub(super) fn applies_to(
         && pattern_watches(game, &instance.def.pattern, action, instance.controller)
         && set_affects(
             game,
-            &instance.def.affected,
+            &instance.def.affected_objects,
             &instance.def.affected_players,
             instance.source,
             instance.controller,

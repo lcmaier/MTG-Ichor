@@ -119,7 +119,7 @@ fn would_be_rows(
                     controller,
                     created_on_turn: game.turn_number,
                     timestamp,
-                    affected: affected.clone(),
+                    affected_objects: affected.clone(),
                     modification,
                 });
             }

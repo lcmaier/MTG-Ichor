@@ -698,7 +698,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
         controller: 0,
         created_on_turn: 1,
         timestamp: 100,
-        affected: AffectedSet::Fixed(vec![victim]),
+        affected_objects: AffectedSet::Fixed(vec![victim]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
     assert_eq!(get_effective_controller(&game, victim), Some(0));
@@ -713,7 +713,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
         controller: 1,
         created_on_turn: 1,
         timestamp: 200,
-        affected: AffectedSet::Fixed(vec![source]),
+        affected_objects: AffectedSet::Fixed(vec![source]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
 

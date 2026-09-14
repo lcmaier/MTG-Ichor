@@ -48,7 +48,7 @@ use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, Zon
 ///
 /// CR 614.1: replacement effects "watch for a particular event that would
 /// happen" around "whatever they're affecting". [`Self::pattern`] is what it
-/// watches for and [`Self::affected`] is what it is affecting.
+/// watches for and [`Self::affected_objects`] is what it is affecting.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReplacementDef {
     /// Which proposed events this watches (CR 614.1, 615.1).
@@ -60,17 +60,17 @@ pub struct ReplacementDef {
     /// every replacement effect, but in *this* codebase "shield" is taken —
     /// CR 701.19a's regeneration shield and CR 122.1c's shield counter — and
     /// Kalitas protects nothing it applies to. Same name as
-    /// `ContinuousEffect::affected` because it is the same question.
+    /// `ContinuousEffect::affected_objects` because it is the same question.
     ///
     /// Reuses the layer system's `AffectedSet`, and the reuse is load-bearing:
     /// `SourceOnly` vs. `Filter` is exactly CR 614.12's "affects only that
     /// permanent (as opposed to a general subset of permanents that includes
     /// it)". If a future refactor collapses those variants, 614.12 breaks
     /// silently (`replacement-architecture.md` §11 item 2).
-    pub affected: AffectedSet,
+    pub affected_objects: AffectedSet,
 
     /// Which **players** it applies to — the other half of CR 614.1's
-    /// "whatever they're affecting", unioned with [`Self::affected`].
+    /// "whatever they're affecting", unioned with [`Self::affected_objects`].
     ///
     /// A second field rather than an `AffectedSet` variant, for the reason
     /// [`PlayerSet`]'s own docs give. Furnace of Rath is `Filter { All }` plus
@@ -1701,7 +1701,7 @@ pub enum Uses {
     /// uses** — 615.7's last sentence is "such effects count only the amount of
     /// damage; the number of events or sources dealing it doesn't matter", and
     /// a first name, `DamagePoints`, could be read as either. The word "shield"
-    /// is deliberately not in the name: [`ReplacementDef::affected`]'s docs
+    /// is deliberately not in the name: [`ReplacementDef::affected_objects`]'s docs
     /// reserve it for CR 122.1c's counter and CR 701.19a's regeneration, and
     /// §9's glossary says why this is a third thing.
     ///
@@ -1720,11 +1720,11 @@ impl ReplacementDef {
     /// Named constructors rather than a `Default`, because `class` and
     /// `exempt_from_614_5` are the two fields where a wrong default is a rules
     /// bug rather than a style choice.
-    pub fn new(pattern: EventPattern, affected: AffectedSet, rewrite: Rewrite) -> Self {
+    pub fn new(pattern: EventPattern, affected_objects: AffectedSet, rewrite: Rewrite) -> Self {
         let class = ReplacementClass::from_rewrite(&rewrite);
         ReplacementDef {
             pattern,
-            affected,
+            affected_objects,
             affected_players: PlayerSet::Nobody,
             by: None,
             rewrite,

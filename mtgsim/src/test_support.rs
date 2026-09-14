@@ -602,7 +602,7 @@ pub fn registered(
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected: AffectedSet::Fixed(vec![id]),
+        affected_objects: AffectedSet::Fixed(vec![id]),
         modification,
     }
 }
@@ -620,7 +620,7 @@ pub fn registered_source_only(
     modification: EffectModification,
 ) -> ContinuousEffect {
     ContinuousEffect {
-        affected: AffectedSet::SourceOnly,
+        affected_objects: AffectedSet::SourceOnly,
         ..registered(source, layer, timestamp, modification)
     }
 }

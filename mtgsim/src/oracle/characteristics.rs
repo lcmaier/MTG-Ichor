@@ -368,7 +368,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected: AffectedSet::Fixed(vec![id]),
+            affected_objects: AffectedSet::Fixed(vec![id]),
             modification: EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(0) },
         };
         game.continuous_effects.add(effect);

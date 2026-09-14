@@ -2497,7 +2497,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
         controller: 0,
         created_on_turn: 1,
         timestamp: 100,
-        affected: AffectedSet::Fixed(vec![stolen]),
+        affected_objects: AffectedSet::Fixed(vec![stolen]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
     assert_eq!(

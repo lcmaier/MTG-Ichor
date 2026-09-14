@@ -151,7 +151,7 @@ impl<'l> Board<'l> {
             }
         }
         for effect in game.continuous_effects.iter() {
-            if let AffectedSet::Fixed(ids) = &effect.affected {
+            if let AffectedSet::Fixed(ids) = &effect.affected_objects {
                 for id in ids {
                     if game.objects.contains_key(id) && seen.insert(*id) {
                         members.push(*id);
@@ -621,7 +621,7 @@ fn effect_channels(
             reads.source |= Channels::ABILITIES;
             conditional_reads_of(game, board, first, layer_index, &mut reads, you_channel);
         }
-        if let AffectedSet::Filter { filter } = &first.affected {
+        if let AffectedSet::Filter { filter } = &first.affected_objects {
             filter_reads(filter, &mut reads, you_channel);
         }
     }
@@ -843,7 +843,7 @@ fn affected_members(
     would_be: bool,
     layer_index: usize,
 ) -> Vec<ObjectId> {
-    match &effect.affected {
+    match &effect.affected_objects {
         AffectedSet::SourceOnly => {
             if board.has_frame(effect.source) { vec![effect.source] } else { Vec::new() }
         }
@@ -1311,7 +1311,7 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     let fixed_named = game
         .continuous_effects
         .iter()
-        .any(|e| matches!(&e.affected, AffectedSet::Fixed(ids) if ids.contains(&id)));
+        .any(|e| matches!(&e.affected_objects, AffectedSet::Fixed(ids) if ids.contains(&id)));
     if fixed_named { Membership::Member } else { Membership::NonMember }
 }
 

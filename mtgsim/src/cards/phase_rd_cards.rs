@@ -1606,7 +1606,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         let row = rows[0];
         assert_eq!(row.def.uses, Uses::NextDamage(4));
-        assert_eq!(row.def.affected, AffectedSet::NO_OBJECTS);
+        assert_eq!(row.def.affected_objects, AffectedSet::NO_OBJECTS);
         assert_eq!(row.def.affected_players, PlayerSet::Fixed(vec![1]));
         assert_eq!(row.duration, Duration::UntilEndOfTurn);
         assert_eq!(row.source, spell);
@@ -1623,7 +1623,7 @@ mod tests {
         let bear = place_vanilla_creature(&mut game, 1, 2, 2, &[]);
         resolve_spell(&mut game, mending_hands(), 0, vec![ResolvedTarget::Object(bear)]);
         let row = rows(&game)[0];
-        assert_eq!(row.def.affected, AffectedSet::Fixed(vec![bear]));
+        assert_eq!(row.def.affected_objects, AffectedSet::Fixed(vec![bear]));
         assert_eq!(row.def.affected_players, PlayerSet::Nobody);
     }
 
