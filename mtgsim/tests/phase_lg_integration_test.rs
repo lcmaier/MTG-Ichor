@@ -10,7 +10,7 @@
 
 use mtgsim::cards::{phase5_pre_cards, phase_le_cards, phase_lf_cards, phase_lg_cards};
 use mtgsim::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer,
 };
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::objects::object::GameObject;
@@ -698,7 +698,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
         controller: 0,
         created_on_turn: 1,
         timestamp: 100,
-        affected: AffectedSet::Fixed(vec![victim]),
+        affected_objects: ObjectSet::Fixed(vec![victim]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
     assert_eq!(get_effective_controller(&game, victim), Some(0));
@@ -713,7 +713,7 @@ fn test_a_resolution_control_effect_does_not_follow_its_source() {
         controller: 1,
         created_on_turn: 1,
         timestamp: 200,
-        affected: AffectedSet::Fixed(vec![source]),
+        affected_objects: ObjectSet::Fixed(vec![source]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
 

@@ -31,7 +31,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::effects::{AffectedSet, Duration, ObjectFilter, PlayerSet};
+use mtgsim::types::effects::{ObjectSet, Duration, ObjectFilter, PlayerSet};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -260,7 +260,7 @@ fn a_partly_spent_count_keeps_its_remainder_when_the_source_stops_matching() {
                 source: Some(SourcePattern::matching(ObjectFilter::ByColor(Color::Red))),
                 combat: None,
             },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .affecting_players(PlayerSet::You)
@@ -312,7 +312,7 @@ fn a_count_over_one_applicable_source_of_two_asks_nobody() {
                 source: Some(SourcePattern::matching(ObjectFilter::ByColor(Color::Red))),
                 combat: None,
             },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .affecting_players(PlayerSet::You)

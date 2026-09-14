@@ -316,7 +316,7 @@ Multiplied are the same shape. Five clauses, moved 2026-08-27; Tier 1e fell from
 **What it costs the model:** a source filter on `Restriction::Event`. The
 provenance is already threaded — `ActionContext` carries the resolution — so
 this is a field, not a mechanism. It is the one thing §3.3's `Event` arm needs
-beyond `EventPattern` + `AffectedSet`.
+beyond `EventPattern` + `ObjectSet`.
 
 #### Three more, found on the second pass (2026-08-30)
 
@@ -383,7 +383,7 @@ Splitting them would be building `gather` twice.
 ///
 /// Deliberately *not* shaped like `ReplacementDef`. A replacement effect is a
 /// shield around a thing (CR 614.1's own words), so it splits into a `pattern`
-/// and an `affected`. A restriction is a prohibition on an **action**, and
+/// and an `affected_objects`. A restriction is a prohibition on an **action**, and
 /// CR 508.1c, 509.1b and 601.3 all phrase it that way — so the subject varies
 /// per arm and lives inside it.
 pub struct RestrictionDef {
@@ -407,14 +407,14 @@ would have to become a struct at that point across every reader.
 ```rust
 pub enum Restriction {
     // ---- Axis 1: an event the engine proposes (CR 614.17) ----------------
-    /// **Almost zero new vocabulary.** `EventPattern` and `AffectedSet` are the
+    /// **Almost zero new vocabulary.** `EventPattern` and `ObjectSet` are the
     /// replacement pipeline's, reused verbatim: "this permanent can't be
     /// destroyed" is the same predicate over the same proposal as "if this
     /// permanent would be destroyed, instead …", minus the instead. The one
     /// addition is `by`, CR 101.2 scoped by what *caused* the event — Sigarda
     /// and the four cards §2.6 names. Provenance is already threaded through
     /// `ActionContext`, so it is a field rather than a mechanism.
-    Event { pattern: EventPattern, affected: AffectedSet, by: Option<SourceFilter> },
+    Event { pattern: EventPattern, affected: ObjectSet, by: Option<SourceFilter> },
 
     // ---- Axis 2: a choice a player makes (one arm per `ChoiceKind`) ------
     /// CR 508.1c. `ChoiceKind::DeclareAttackers`.
@@ -439,7 +439,7 @@ pub enum Restriction {
     /// CR 602.5. `ChoiceKind::PriorityAction`.
     ActivateAbility { source: ObjectFilter, ability: Option<AbilityFilter> },
     /// CR 115.6. `ChoiceKind::SelectRecipients`.
-    BeTargeted { object: AffectedSet, by: Option<SourceFilter> },
+    BeTargeted { object: ObjectSet, by: Option<SourceFilter> },
     /// CR 614.17b and CR 118. The cost-payment choice kinds.
     PayCost { player: PlayerRef, cost: CostFilter, purpose: Option<CostPurpose> },
 
@@ -463,7 +463,7 @@ pub enum Restriction {
     /// would be a claim that the engine applies effects somewhere else.
     ApplyReplacement {
         kind: ReplacementKindFilter,
-        to: AffectedSet,
+        to: ObjectSet,
         // RD-4: the player half, for CR 615.12 over damage dealt to a player.
         to_players: PlayerSet,
     },
@@ -686,7 +686,7 @@ re-asked per iteration.
 data. Indestructible stops being `has_keyword(game, *object, Indestructible)`
 inside a `GameAction::Destroy` arm and becomes a keyword-derived
 `Restriction::Event { pattern: EventPattern::Destroy { source: None },
-affected: AffectedSet::SourceOnly }` — which is source 3, synthesized during the
+affected: ObjectSet::SourceOnly }` — which is source 3, synthesized during the
 sweep, and reads identically to how `counter_replacements` synthesizes CR
 122.1c's shield.
 
@@ -929,7 +929,7 @@ player state, not a filter); Aggressive Mining and Conduit of Worlds
 (`PlayLand`, and the two are opposite signs of the same predicate — Conduit
 *grants* the permission Aggressive Mining removes, which is why permission and
 prohibition want one query); Rakdos, Lord of Riots (a self-imposed restriction,
-`AffectedSet::SourceOnly` in `spell`, and the printed ruling confirms it is a
+`ObjectSet::SourceOnly` in `spell`, and the printed ruling confirms it is a
 cast restriction and not an ETB one: "Rakdos can be put onto the battlefield by
 another spell or ability even if no opponent has lost life that turn").
 
@@ -1277,7 +1277,7 @@ waiting on it.
 
 **One boundary to preserve.** CR 614.17d's "may come from the permanent itself
 if they affect only that permanent (as opposed to a general subset of permanents
-that includes it)" is the same `AffectedSet::SourceOnly` vs. `Filter`
+that includes it)" is the same `ObjectSet::SourceOnly` vs. `Filter`
 distinction CR 614.12 draws, and `replacement-architecture.md` §5 already
 records that collapsing those variants breaks 614.12 silently. It now breaks
 614.17d silently too. Same rule, second customer.
@@ -1305,7 +1305,7 @@ against it. The population above splits on *which event* the "can't" watches:
   stays in the graveyard — the frame's answer, not the card's. Grafdigger's
   Cage and its three siblings keep reading the card in its source zone, as
   their ruling says, through the pattern's `object` filter: **`pattern` reads
-  the source zone, `affected` reads the frame**, and that is the rule. A
+  the source zone, `affected_objects` reads the frame**, and that is the rule. A
   refused entry of a resolved permanent spell is CR 608.3e's graveyard trip.
 - **"Can't have counters put on it"** (Melira, Darksteel Angel, Solemnity,
   Melira's Keepers, Tatterkite) modifies *how* it enters. CR 122.6 says counters
@@ -1381,7 +1381,7 @@ supersedes it and `codebase-state.md` records that.
 ///
 /// The atom's `EffectRecipient` supplies the subject, exactly as it does for
 /// every other primitive — which is what lets "Destroy target creature. It
-/// can't be regenerated." name its target without a new `AffectedSet` variant.
+/// can't be regenerated." name its target without a new `ObjectSet` variant.
 ///
 /// **`Duration` is authored, never inferred** — CR 608.2c (§9 finding 1).
 Restrict(Box<RestrictionDef>, Duration),

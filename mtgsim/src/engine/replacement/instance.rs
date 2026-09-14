@@ -71,7 +71,7 @@ pub enum GameRuleReplacement {
 #[derive(Debug, Clone)]
 pub struct ReplacementInstance {
     pub id: ReplacementInstanceId,
-    /// The object generating it. Resolves `AffectedSet::SourceOnly` and is what
+    /// The object generating it. Resolves `ObjectSet::SourceOnly` and is what
     /// a CR 616.1 prompt names.
     pub source: ObjectId,
     /// CR 109.5's "you" for this effect's filters — the source's *effective*

@@ -497,7 +497,7 @@ fn resolve_set_controller(
 /// `players` resolves the `PlayerRef` in a `ByController` node. Controller is
 /// matched here rather than beside the filter, which is how the snapshot bug
 /// hid: `ByController` used to return `true` unconditionally and defer to a
-/// field on `AffectedSet::Filter`, so the two halves of one question lived in
+/// field on `ObjectSet::Filter`, so the two halves of one question lived in
 /// two places and only one of them was re-asked during the walk.
 ///
 /// `id` is the object `chars` describes. Almost every leaf answers from the
@@ -1219,7 +1219,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected: AffectedSet::Filter {
+            affected_objects: ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -1271,7 +1271,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp,
-            affected: AffectedSet::Host,
+            affected_objects: ObjectSet::Host,
             modification: EffectModification::ModifyPowerToughness {
                 power: PtValue::Fixed(1),
                 toughness: PtValue::Fixed(2),
@@ -1470,7 +1470,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Filter {
+            affected_objects: ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -1707,7 +1707,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: game.allocate_timestamp(),
-            affected: AffectedSet::Filter {
+            affected_objects: ObjectSet::Filter {
                 filter: ObjectFilter::ByType(CardType::Creature),
             },
             modification: EffectModification::AddColor(Color::Red),
@@ -1826,7 +1826,7 @@ mod tests {
             controller: 0,
             created_on_turn: 1,
             timestamp: 1,
-            affected: AffectedSet::Filter {
+            affected_objects: ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),

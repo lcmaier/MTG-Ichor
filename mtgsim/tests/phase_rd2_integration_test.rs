@@ -36,7 +36,7 @@ use mtgsim::test_support::{
     test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -300,7 +300,7 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventUpTo(1)),
         )
         .affecting_players(PlayerSet::You),
@@ -437,7 +437,7 @@ fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+            ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Amount(AmountRewrite::PreventRemaining),
         )
         .affecting_players(PlayerSet::You)
@@ -515,7 +515,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
             Box::new(
                 ReplacementDef::new(
                     EventPattern::DealDamage { source: None, combat: None },
-                    AffectedSet::NO_OBJECTS,
+                    ObjectSet::NO_OBJECTS,
                     Rewrite::Amount(AmountRewrite::PreventRemaining),
                 )
                 .next_damage(3)
@@ -578,7 +578,7 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
         1,
         ReplacementDef::new(
             EventPattern::DealDamage { source: None, combat: None },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::PreventHalf(Rounding::Down)),
         )
         .affecting_players(PlayerSet::You)
@@ -654,7 +654,7 @@ fn samite_censer_bearer_makes_a_separate_count_on_each_creature_at_resolution() 
     let rows: Vec<&RegisteredReplacementEffect> = game.replacement_effects.iter().collect();
     assert_eq!(rows.len(), 3, "one per creature, and none for the Censer-Bearer");
     for (row, creature) in rows.iter().zip(&originals) {
-        assert_eq!(row.def.affected, AffectedSet::Fixed(vec![*creature]));
+        assert_eq!(row.def.affected_objects, ObjectSet::Fixed(vec![*creature]));
         assert_eq!(row.def.uses, Uses::NextDamage(1));
         assert_eq!(row.source, bearer, "CR 113.7a");
     }

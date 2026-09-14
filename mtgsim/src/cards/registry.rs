@@ -543,7 +543,7 @@ impl CardRegistry {
         // false for as long as this line was missing.
         registry.register("Adaptive Shimmerer", phase_rc_cards::adaptive_shimmerer);
 
-        // Phase RC-3 — the first registered `AffectedSet::Filter` replacement,
+        // Phase RC-3 — the first registered `ObjectSet::Filter` replacement,
         // and the card that makes CR 616.1's multi-candidate branch reachable in
         // a fuzz game. RC-2 recorded that branch as blocked on RC-3's gate; it
         // was blocked on nothing (`phase_rc_cards::root_maze`).
@@ -582,7 +582,7 @@ impl CardRegistry {
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
         // LH-1 — the first Aura. Its static ability is the first to lower to
-        // `AffectedSet::Host`, and it is the first spell whose
+        // `ObjectSet::Host`, and it is the first spell whose
         // recipient comes from `enchant_filter` (CR 303.4a) rather than a
         // spell ability — which is what makes CR 608.3b and CR 704.5m/n
         // reachable from a fuzz game at all (`phase_lh_cards`).

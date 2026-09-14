@@ -26,7 +26,7 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::types::effects::{
-    AffectedSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    ObjectSet, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -77,7 +77,7 @@ fn undying_probe(name: &str) -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::Destroy { source: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Prevent,
             ))),
         })
@@ -324,7 +324,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
                     cause: None,
                     object: None,
                 },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::Prevent,
             ))),
         })
@@ -733,7 +733,7 @@ fn exile_watcher(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Prevent,
         ),
     )
@@ -754,7 +754,7 @@ fn self_matching_probe(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
@@ -932,7 +932,7 @@ fn test_batch_members_each_get_their_own_applied_set() {
     // a shared applied set from a per-event one, because each permanent's
     // effect has its own instance id either way — a first draft of this test
     // used counters and passed under a deliberately shared set. This one has a
-    // single source with an `AffectedSet::Filter`, so a shared set exiles the
+    // single source with an `ObjectSet::Filter`, so a shared set exiles the
     // first creature and sends the other two to the graveyard.
     let mut game = setup_two_player_game();
     let _watcher = put_on_battlefield(&mut game, all_creatures_exile_watcher(), 0);
@@ -963,7 +963,7 @@ fn test_batch_members_each_get_their_own_applied_set() {
 /// A creature with "if a creature would be put into a graveyard from the
 /// battlefield, exile it instead" — Kalitas's shape without Kalitas's filter.
 ///
-/// One source, an `AffectedSet::Filter` over other objects: the only shape in
+/// One source, an `ObjectSet::Filter` over other objects: the only shape in
 /// which a batch-wide applied set is distinguishable from a per-event one.
 fn all_creatures_exile_watcher() -> Arc<CardData> {
     replacement_creature(
@@ -975,7 +975,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
@@ -1113,7 +1113,7 @@ fn static_regenerator(name: &str) -> Arc<CardData> {
         name,
         ReplacementDef::new(
             EventPattern::Destroy { source: None },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Prevent,
         )
         .regeneration()
@@ -1257,7 +1257,7 @@ fn cant_be_regenerated() -> Primitive {
     Primitive::Restrict(
         RestrictionDef::new(Restriction::ApplyReplacement {
             kind: ReplacementKindFilter::Regeneration,
-            to_objects: AffectedSet::Fixed(Vec::new()),
+            to_objects: ObjectSet::Fixed(Vec::new()),
             to_players: PlayerSet::Nobody,
         }),
         Duration::UntilEndOfTurn,
@@ -1460,7 +1460,7 @@ fn test_kalitas_ignores_tokens() {
 
 #[test]
 fn test_kalitas_does_not_replace_its_own_death() {
-    // `AffectedSet::Filter` is CR 614.12's "a general subset of permanents", and
+    // `ObjectSet::Filter` is CR 614.12's "a general subset of permanents", and
     // the subset is the *opponent's* creatures. `SourceOnly` would have made
     // Kalitas immortal, which a test asserting only "the victim was exiled"
     // would never have noticed.
@@ -2025,7 +2025,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
             cause: None,
             object: None,
         },
-        AffectedSet::Fixed(vec![victim]),
+        ObjectSet::Fixed(vec![victim]),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
             to: Zone::Graveyard,
             cause: ZoneChangeCause::Sacrificed,
@@ -2068,7 +2068,7 @@ fn exempt_row(
 ) -> RegisteredReplacementEffect {
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange { from: None, to: Some(to), cause: None, object: None },
-        AffectedSet::Fixed(vec![victim]),
+        ObjectSet::Fixed(vec![victim]),
         Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
             to: becomes,
             cause: ZoneChangeCause::Sacrificed,
@@ -2190,7 +2190,7 @@ fn library_tucker(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Library,
                 cause: ZoneChangeCause::PutIntoLibrary,
@@ -2393,7 +2393,7 @@ fn exile_on_death(name: &str) -> Arc<CardData> {
                 cause: None,
                 object: None,
             },
-            AffectedSet::SourceOnly,
+            ObjectSet::SourceOnly,
             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
@@ -2497,7 +2497,7 @@ fn test_leyline_reads_ownership_where_kalitas_reads_control() {
         controller: 0,
         created_on_turn: 1,
         timestamp: 100,
-        affected: AffectedSet::Fixed(vec![stolen]),
+        affected_objects: ObjectSet::Fixed(vec![stolen]),
         modification: EffectModification::SetController(PlayerRef::You),
     });
     assert_eq!(

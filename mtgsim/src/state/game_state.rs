@@ -891,7 +891,7 @@ impl GameState {
     /// and the players' graveyards in `move_object`; the entity in
     /// `place_on_battlefield`; its counters in `add_counters` /
     /// `remove_counters`; its `attached_to` in `attach` / `detach`
-    /// (`AffectedSet::Host` reads it at every layer); the
+    /// (`ObjectSet::Host` reads it at every layer); the
     /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
     /// `set_stack_entry` / `take_stack_entry`; `resolving` in
     /// `resolve_top_of_stack`; the registry's rows through its own
@@ -1086,7 +1086,7 @@ impl GameState {
     ///
     /// The one writer of those fields, for the reason `add_counters` is the one
     /// route to the entity's counters: `attached_to` is a layer-walk input —
-    /// `AffectedSet::Host` reads it at every layer — so the write bumps the
+    /// `ObjectSet::Host` reads it at every layer — so the write bumps the
     /// epoch, and a writer that bypassed this would leave the memo serving
     /// "enchanted creature gets +1/+2" to nobody until something else bumped.
     /// Writes nothing, and burns no bump, unless both permanents are on the
@@ -1349,7 +1349,7 @@ impl GameState {
             }
 
             // CR 604.3a(3) — a characteristic-defining ability affects only the
-            // object that has it, so it needs no `AffectedSet` and no row here.
+            // object that has it, so it needs no `ObjectSet` and no row here.
             // `engine::layers::cda` applies it off the object's own effective
             // ability list instead, which is also what makes it work in every
             // zone (CR 604.3) and what lets Layer 6 remove it before Layer 7a
@@ -1361,7 +1361,7 @@ impl GameState {
             let atoms = Self::static_ability_atoms(ability, &card_name);
 
             for (primitive, recipient) in atoms {
-                let Some(affected) = Self::static_affected_set(recipient, &card_name) else {
+                let Some(affected) = Self::static_object_set(recipient, &card_name) else {
                     continue;
                 };
 
@@ -1403,7 +1403,7 @@ impl GameState {
                         controller,
                         created_on_turn: self.turn_number,
                         timestamp,
-                        affected: affected.clone(),
+                        affected_objects: affected.clone(),
                         modification,
                     };
                     self.continuous_effects.add(effect);
@@ -1493,7 +1493,7 @@ impl GameState {
                 let atoms = Self::static_ability_atoms(ability, &context);
 
                 for (primitive, recipient) in atoms {
-                    let Some(affected_set) = Self::static_affected_set(recipient, &context) else {
+                    let Some(affected_set) = Self::static_object_set(recipient, &context) else {
                         continue;
                     };
                     let rows = Self::static_primitive_rows(primitive);
@@ -1525,7 +1525,7 @@ impl GameState {
                             controller,
                             created_on_turn: self.turn_number,
                             timestamp,
-                            affected: affected_set.clone(),
+                            affected_objects: affected_set.clone(),
                             modification,
                         });
                     }
@@ -1668,15 +1668,15 @@ impl GameState {
         }
     }
 
-    /// Lower a static atom's recipient into an `AffectedSet`.
+    /// Lower a static atom's recipient into an `ObjectSet`.
     ///
     /// `None` means it could not be lowered; see `static_ability_atoms` for why
     /// that is loud rather than a quiet `continue`.
-    pub(crate) fn static_affected_set(
+    pub(crate) fn static_object_set(
         recipient: &crate::types::effects::EffectRecipient,
         card_name: &str,
-    ) -> Option<crate::engine::layers::types::AffectedSet> {
-        use crate::engine::layers::types::AffectedSet;
+    ) -> Option<crate::engine::layers::types::ObjectSet> {
+        use crate::engine::layers::types::ObjectSet;
         use crate::types::effects::EffectRecipient;
 
         match recipient {
@@ -1685,21 +1685,21 @@ impl GameState {
             // 109.5 wants its *current* one, so `compute::object_matches_filter`
             // does it per layer.
             EffectRecipient::FilteredPermanents(filter) => {
-                Some(AffectedSet::Filter { filter: filter.clone() })
+                Some(ObjectSet::Filter { filter: filter.clone() })
             }
-            EffectRecipient::Implicit => Some(AffectedSet::SourceOnly),
+            EffectRecipient::Implicit => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is
             // what makes it fine that this runs before the Aura is attached.
-            EffectRecipient::Host => Some(AffectedSet::Host),
+            EffectRecipient::Host => Some(ObjectSet::Host),
 
             // `Target` and `Choose` need a resolution to pick with, and
-            // `Controller` names a player where an `AffectedSet` names objects.
+            // `Controller` names a player where an `ObjectSet` names objects.
             // A static ability has none of the three.
             _ => {
                 debug_assert!(
                     false,
                     "static ability on {} has recipient {:?}, which cannot \
-                     become an `AffectedSet`. `Target`/`Choose` require a \
+                     become an `ObjectSet`. `Target`/`Choose` require a \
                      resolution to select with, and a static ability never \
                      resolves; `Controller` names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
@@ -1901,7 +1901,7 @@ mod tests {
     // -----------------------------------------------------------------------
     // The lowering refuses to be quiet
     //
-    // Each arm of `static_ability_atoms` / `static_affected_set` that declines
+    // Each arm of `static_ability_atoms` / `static_object_set` that declines
     // to lower something now asserts. These tests exist because an assertion
     // nothing exercises is indistinguishable from one that does not fire — and
     // the whole point of this batch is that the failure mode being guarded is
@@ -1965,10 +1965,10 @@ mod tests {
 
         #[test]
         fn test_filtered_and_implicit_recipients_lower() {
-            assert!(GameState::static_affected_set(
+            assert!(GameState::static_object_set(
                 &EffectRecipient::FilteredPermanents(ObjectFilter::All), "T"
             ).is_some());
-            assert!(GameState::static_affected_set(&EffectRecipient::Implicit, "T").is_some());
+            assert!(GameState::static_object_set(&EffectRecipient::Implicit, "T").is_some());
         }
 
         // --- the arms that decline, each proven loud ----------------------
@@ -2031,18 +2031,18 @@ mod tests {
         }
 
         #[test]
-        #[should_panic(expected = "cannot become an `AffectedSet`")]
+        #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_targeting_recipient_on_a_static_is_loud() {
-            let _ = GameState::static_affected_set(
+            let _ = GameState::static_object_set(
                 &EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 "Test Card",
             );
         }
 
         #[test]
-        #[should_panic(expected = "cannot become an `AffectedSet`")]
+        #[should_panic(expected = "cannot become an `ObjectSet`")]
         fn test_controller_recipient_on_a_static_is_loud() {
-            let _ = GameState::static_affected_set(&EffectRecipient::Controller, "Test Card");
+            let _ = GameState::static_object_set(&EffectRecipient::Controller, "Test Card");
         }
 
         /// A primitive with no arm in `static_primitive_rows`. This one is

@@ -1,6 +1,6 @@
 //! "You control" on a continuous effect's filter — CR 109.5.
 //!
-//! `AffectedSet::Filter` used to carry a `controller: Option<PlayerId>` that
+//! `ObjectSet::Filter` used to carry a `controller: Option<PlayerId>` that
 //! `register_static_effects` resolved from `PlayerRef::You` at ETB. That is a
 //! *snapshot* of who controlled the source when it entered, and CR 109.5 says
 //! the opposite: "for a static ability, [you] is the **current** controller of
@@ -18,7 +18,7 @@
 
 use mtgsim::cards::{creatures, phase5_pre_cards};
 use mtgsim::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
 use mtgsim::test_support::{put_land_on_battlefield, put_on_battlefield, setup_two_player_game};
@@ -49,7 +49,7 @@ fn register_anthem(
         controller,
         created_on_turn: game.turn_number,
         timestamp,
-        affected: AffectedSet::Filter { filter },
+        affected_objects: ObjectSet::Filter { filter },
         modification: EffectModification::ModifyPowerToughness {
             power: PtValue::Fixed(1),
             toughness: PtValue::Fixed(1),
@@ -120,7 +120,7 @@ fn test_anthem_control_change_is_not_one_way() {
 /// scans for the token, not for the sentence around it, so writing out the pair
 /// even to disclaim it creates the false link. That atom is 611.2c's other clause — the affected *set* locks in at resolution, so a
 /// creature that turns white later is not caught by "all white creatures get
-/// +1/+1". A `Resolution` effect over an `AffectedSet::Filter` does not do
+/// +1/+1". A `Resolution` effect over an `ObjectSet::Filter` does not do
 /// that here; it re-filters every walk. No card produces the combination (all
 /// three production `Filter` sites are static abilities, where re-filtering is
 /// correct per CR 611.3a), so this is a note rather than a Deferred Migrations

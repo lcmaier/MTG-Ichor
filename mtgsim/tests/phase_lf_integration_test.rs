@@ -615,7 +615,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
 // Citanul Hierophants — a *static* ability granting an activated ability over
 // a live filter. The `Primitive::GrantAbility` arm of `static_primitive_rows`
 // had no card reaching it until this one: every other `GrantAbility` in the
-// pool arrives through a resolution, which produces `AffectedSet::Fixed`
+// pool arrives through a resolution, which produces `ObjectSet::Fixed`
 // against the spell's targets rather than a filter re-evaluated every walk.
 //
 // It also crosses out of the layer system into mana enumeration, which is the

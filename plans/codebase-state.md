@@ -266,6 +266,20 @@ collision. The durable fix is a prefix (`DM-46`, `CP-7`, `RA§11-5`) swept
 through every citation as its own mechanical PR; it is step 5 in the audit's
 order below.
 
+**Not done 2026-09-14, and this is where the next person should look.** It was
+put to `refactor/object-set-rename` as a rider — same kind of sweep, same "its
+own PR" argument — and declined, but the reason is not "later": it is that the
+two sweeps are not the same shape. A type rename has a compiler and a
+byte-identity check behind it; a citation prefix has neither, because the
+citations are prose. Re-derived 2026-09-14 against the live tree (`plans/`,
+`CLAUDE.md`, `mtgsim/src`, `mtgsim/tests`, archive excluded): 104 bare
+"item 6"/"item 6's" against 62 already qualified, 166 in all. Deciding which
+namespace each bare one meant is a *reading* of every site, not a
+substitution — a `sed` that guesses wrong makes a citation confidently point
+at the wrong item, which is worse than one that is merely ambiguous. So it is
+owed as a PR with a human-checked table, not as a mechanical pass, and it
+should be sized that way when it is taken.
+
 **Closed items are evicted to `plans/archive/codebase-state-closed.md`
 (2026-09-09).** An item leaves when its dated verdict says `closed` and leaves a
 three-line stub behind — the heading, the verdict's closing sentence, and a
@@ -467,7 +481,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 **Status 2026-09-02: Phase RC-4 ✅ — CR 614.12's look-ahead frame.** `replacement-architecture.md` §9's RC-4 subsection carries the six findings; this is the state ledger. What landed:
 
 - **`layers::compute_as_entering`** — the frame. A `Lookahead` (`engine/layers/lookahead.rs`: the object, its proposed controller, the pending `EnterMods`, and the rows its own static abilities would generate) threaded through `FrameCache`, read by the two accessors every concrete-state read in `compute.rs` now goes through — `entity` for the battlefield-entity facts and `rows_in_layer` for the registry slice. Both answer for the would-be permanent when the object being computed is the entering one and off the real board for everything else, which is how §5b's asymmetry falls out of the structure. A read-side overlay, **no `GameState` clone anywhere** (§11 item 5). It lives on the stack: item 40's test is "drop it and re-derive", and the frame is a pure function of `GameState` and the proposal, so it is bookkeeping.
-- **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` — which since RC-4b is also the zone change onto the battlefield, so the frame has one basis.
+- **`replacement::EntryFrame`** — the frame per pipeline iteration (CR 614.12 clause 1), computed only when a filter-scoped `affected_objects` asks. `gather::set_affects` and `restriction::is_prohibited` both read it, for an `EnterBattlefield` — which since RC-4b is also the zone change onto the battlefield, so the frame has one basis.
 - **CR 614.17d** in its two printed shapes. "Can't enter the battlefield" watches the zone change, because a refused entry would strand the card in the battlefield zone with no permanent (`propose_entry` is still loud about that); "can't have counters put on it" is asked as the `AddCounters` it is (CR 122.6) at the moment an `EnterWith` would add them (`replacement::strip_prohibited_counters`), refusing the counters while the entry goes on — Melira's ruling. `cant-effects-architecture.md` §5.3.
 - **CR 616.1b** — `Rewrite::EnterUnderControlOf(PlayerRef)`, its class derived from the rewrite so a card cannot file it under `Other`. "An opponent of your choice" with several opponents is a prompt to the effect's controller (`ChoiceKind::ChooseEnteringController`), made before the permanent enters — CR 614.12a's timing, claimed partially.
 - **`AmountExpr::CountOf`** — its first static-context evaluator, over `battlefield_ids_ordered` at the current `layer_index`, memoized within the walk. The entering object is invisible to it because it is not on that list: §5a's Thassa boundary, structural.
@@ -502,7 +516,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 **Status 2026-09-02: Phase RC-3 ✅ — CR 614.12's membership rule, both directions.** `replacement-architecture.md` §9's RC-3 subsection carries the findings; this is the state ledger. What landed:
 
 - **`compute.rs::effect_applies_to` gates on the battlefield *zone*, not on `game.battlefield` membership.** `move_object` writes `obj.zone` before the `EnterBattlefield` performer builds the `PermanentState` — RC-2's one-`emit`-wide window — so an entering permanent is in the zone with no entry, and the stricter question kept CR 614.12 clause (3)'s "continuous effects that already exist and would apply to the object" away from every entry. Hidden zones are untouched: a card in hand still has `zone == Hand`, so nothing new reaches a library or a graveyard.
-- **`gather`'s source 1a admits `AffectedSet::SourceOnly` only** (`SelfScope::EnteringSelf`). CR 614.12's parenthesis — "if they affect only that permanent (as opposed to a general subset of permanents that includes it)" — is a membership rule, so it is here rather than in RC-4's overlay. Without it an entering Orb of Dreams finds its own "Permanents enter tapped" through `set_affects`, which matches a `Filter` against any object in any zone, and taps itself.
+- **`gather`'s source 1a admits `ObjectSet::SourceOnly` only** (`SelfScope::EnteringSelf`). CR 614.12's parenthesis — "if they affect only that permanent (as opposed to a general subset of permanents that includes it)" — is a membership rule, so it is here rather than in RC-4's overlay. Without it an entering Orb of Dreams finds its own "Permanents enter tapped" through `set_affects`, which matches a `Filter` against any object in any zone, and taps itself.
 - **RC-2's two known-wrong answers are now right.** The first is the one RC-3 named: a tapland under Blood Moon enters **untapped** (CR 305.7 strips the ability first), reachable in a fuzz game from cards already in the pool. The second was *not* Humility + Chainbreaker — that pair is a further consequence of the same line, real and tested, but RC-2 never listed it. RC-2's second was `default_enter_mods` and a filter-scoped Layer 4 effect, and RC-3's ledger misstated which direction changed (corrected 2026-09-02, RC-4): `default_enter_mods` reads *printed* loyalty and gates on the *effective* type, so "a planeswalker made one by a Layer 4 effect" has `loyalty: None` and enters with no counters either way. What the line changed is the inverse — a planeswalker whose type a filter-scoped effect **removes** now enters with **no** loyalty counters, because CR 306.5b gives the ability to "a planeswalker" and on that battlefield it is not one. `phase_rc4_integration_test::test_a_planeswalker_whose_type_a_filter_effect_removes_enters_with_no_loyalty` is the test; RC-4 routed the read through `compute_as_entering` so it is the CR 614.12 frame that answers, not `has_type` on a printed card.
 - **`base_controller` grew a `resolving` leg.** `resolve_top_of_stack` takes the `StackEntry` before it resolves anything, so the battlefield and stack probes both miss for the whole resolution and the owner fallback answered — right for a land drop, wrong for a spell cast by a non-owner (CR 110.2b). RC-3 owns it because RC-3 is what makes `ObjectFilter::ByController` askable of an entering permanent. **It fixes a wrong answer no registered card can produce**: `check_cast_legality` refuses "another player's spell", so the test builds the owner/controller disagreement after an ordinary cast. Confirmed rather than argued — event streams at 40 games are **40/40 identical on both pools** with and without the leg. The trap it removes belongs to whoever relaxes that check — the Commander track and Phase RE both want to.
 - **One card: Root Maze** (`{G}`, "Artifacts and lands enter tapped"), `PERFORMANCE_POOL` 60 → 61, plus `ObjectFilter::Or`. **Not for RC-3's own claim** — that one needed no new card and the argument is in the card's doc comment: Blood Moon and Humility were already in the pool, both are filter-scoped layer effects, and RC-2 had already put two permanents that enter modified in beside them, so the gate change widens a path the pool walks rather than opening one. Root Maze is for the gap RC-2 left by mistake (see the correction under RC-2 above): **CR 616.1's multi-candidate branch, reachable since RB merged and registered by nobody**, which is the identical failure RB shipped with Kalitas.
@@ -542,7 +556,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 
 **Two known-wrong answers it leaves, both RC-3's one line** (`compute.rs`'s `game.battlefield.contains_key` gate in `effect_applies_to`): no filter-scoped `ContinuousEffect` reaches an entering permanent, so Blood Moon does not strip an entering tapland's "enters tapped" (the real ruling says it does), and `default_enter_mods` would miss a planeswalker made one by a filter-scoped Layer 4 effect. `tests/phase_rc_integration_test.rs::test_blood_moon_does_not_yet_strip_an_entering_taplands_ability` asserts the wrong answer on purpose so RC-3 has to flip it.
 
-**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `AffectedSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `AffectedSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::object_matches_filter` matches `ReplacementDef.affected` and `RestrictionDef.affected` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalizable error is naming a mechanism by its type rather than by its call path** — "an `AffectedSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
+**And one claim it got wrong, corrected 2026-09-02 before RC-3's line was written.** RC-2 recorded in four places — this block, `phase_rc_cards.rs` twice, and `replacement-architecture.md` §9 finding 7 — that *no* `ObjectSet::Filter` effect reaches an entering permanent, and concluded that CR 616.1's multi-candidate branch was unreachable until RC-3. **Both halves are false and neither was ever true.** `ObjectSet` is matched by two different functions on two different paths: `compute.rs::effect_applies_to` (`:629`) gates `ContinuousEffect` on battlefield membership, while `gather::set_affects` → `GameState::object_matches_filter` matches `ReplacementDef.affected_objects` and `RestrictionDef.affected_objects` with **no gate**. Probed on `main`: a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`, `EnterWith(tapped)`) already taps an entering Forest, and with Idyllic Beachfront entering under it the pipeline produces two candidates and `ask_choose_replacement` fires. So the branch has been reachable since RB, one registered card away, and Root Maze / Kismet / Loxodon Gatekeeper / Frozen Aether were never blocked on RC-3. **The generalizable error is naming a mechanism by its type rather than by its call path** — "an `ObjectSet::Filter` effect" reads like one thing and is two — and it cost the project the same unreachable-branch gap twice, after RB shipped Kalitas alone.
 
 **Status 2026-08-26: Phase RB ✅ — the CR 616.1 pipeline is live and three consumers use it.** All nine of `replacement-architecture.md` §9's RB items shipped. What landed:
 
@@ -554,7 +568,7 @@ for nothing, and CV-5 adds it in the commit that populates it.
 - **Commander's two halves**: CR 704.6d as a state-based action and CR 903.9b as the rules' only `exempt_from_614_5` replacement. Since 2026-08-30 (`rb-review.md` H4) 704.6d's accepted moves join the SBA batch instead of being performed one at a time as they are offered — 704.3's "single event" is all of 704, not just 704.5, and each offer being its own event let a later owner decide against a board an earlier owner's move had changed.
 - Eight primitives: four stubs given implementations (`Tap`, `AddCounters`, `RemoveCounters`, `CreateToken`) and four new (`Regenerate`, `CantBeRegenerated`, `RemoveFromCombat`, `RemoveAllDamage`).
 
-**Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships six arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `AffectedSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
+**Five findings where the plan and the tree disagreed, all recorded in `replacement-architecture.md` §9:** `Uses::CounterBacked` does not survive the CR text; CR 122.1c's replacement half is restricted to destruction *by an effect*; `EventPattern` ships six arms and `Rewrite` two, because an arm the pipeline cannot apply is a card that silently does nothing; `ObjectSet` and `ZoneChangeCause` had to move into `types/` to keep the crate's layering; and §4.1's loop **hangs** on a declined `exempt_from_614_5` optional without a second set.
 
 **The blast-radius watch held.** §11 item 7 predicted that every existing test would start traversing the pipeline; **zero new `DecisionProvider` prompts** appeared, §4.1's two-candidate rule was never relaxed, and `fuzz_games --games 50 --seed 12345` is identical to the pre-RB baseline on every line. Perf: 13.01 → 13.04 ms/game at `--games 200`, medians of three interleaved runs in one worktree.
 
@@ -657,7 +671,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Replacement
     effects (CR 614–616)" item 7.
 
-8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/cast.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **Scheduled 2026-09-01 as Phase LH-1** (`layers-architecture.md` §13a), and deliberately *not* as its own PR: **zero registered cards carry an `enchant_filter`**, so the shared helper returns exactly what the three copies return today for every card that exists. Shipping it alone would put a new arm in front of the performance pool that no card can open -- the failure `engineering-practices.md` §3 is written against -- so it ships with Holy Strength, which makes it live. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `AffectedSet` names an Aura's host — `static_affected_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
+8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/cast.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **Scheduled 2026-09-01 as Phase LH-1** (`layers-architecture.md` §13a), and deliberately *not* as its own PR: **zero registered cards carry an `enchant_filter`**, so the shared helper returns exactly what the three copies return today for every card that exists. Shipping it alone would put a new arm in front of the performance pool that no card can open -- the failure `engineering-practices.md` §3 is written against -- so it ships with Holy Strength, which makes it live. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `ObjectSet` names an Aura's host — `static_object_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
 
    **Reachability (2026-09-03):** unreachable — `cast.rs` still never reads
    `enchant_filter`, so no Aura is castable and none is registered; the board
@@ -801,7 +815,7 @@ here. None is blocking RB.
     the fuzz log all key on it, and re-keying is the whole engine — so what
     breaks is every *reference* made before the move. Three kinds hold one:
 
-    - **`AffectedSet::Fixed` rows**, in all three registries. They share
+    - **`ObjectSet::Fixed` rows**, in all three registries. They share
       `DurationRegistry`, so one subject-keyed `retain` serves them: prune
       the mover from every `Fixed` set, drop a row whose set empties (a
       two-target pump keeps applying to the target that stayed), and keep
@@ -1888,7 +1902,7 @@ section never asked.
 
     **Sized as two cards and zero engine change; the second half of that was
     wrong.** Both are non-legendary enchantments whose battlefield-side
-    replacement is the shape Kalitas already proves — `EventPattern::ZoneChange` + `AffectedSet::Filter` +
+    replacement is the shape Kalitas already proves — `EventPattern::ZoneChange` + `ObjectSet::Filter` +
     `Rewrite::Instead(ZoneChangeTo { Exile })`. Text verified on Scryfall
     2026-08-31:
 
@@ -1928,7 +1942,7 @@ section never asked.
 
     **"From anywhere" shipped literal, after a correction in review.** Both cards
     were first written `from: Battlefield`, on the argument that
-    `AffectedSet::Filter` carries an `ObjectFilter` and a card on the stack is
+    `ObjectSet::Filter` carries an `ObjectFilter` and a card on the stack is
     not a permanent. **That argument was wrong about these two cards.** Rest in
     Peace's filter is `All`, which reads nothing; Leyline's is `Not(Token)` and
     `ByOwner`, which read `GameObject.is_token` and `GameObject.owner` — present
@@ -2064,7 +2078,7 @@ section never asked.
 
 38. **The keyword-derived restriction sweep is asked only of the event's
     subject, and the `debug_assert` is what keeps that sound.** Indestructible is
-    `AffectedSet::SourceOnly`, so the only object whose synthesized restriction
+    `ObjectSet::SourceOnly`, so the only object whose synthesized restriction
     can match an event about X is X itself — sweeping the battlefield would cost
     one full `compute_characteristics` walk *per permanent per proposed action*,
     where asking the subject costs the one walk `is_blocked` already paid. §3.5's
@@ -2590,7 +2604,7 @@ measurement; what follows is what a later phase has to know.
     choice is the *entering permanent's* controller's, while a filter-scoped
     effect ("each other creature **you** control enters …") means its own
     controller. RC-5 uses `ReplacementInstance::controller` for both, which is
-    exact for every registered card — devour is `AffectedSet::SourceOnly`, and
+    exact for every registered card — devour is `ObjectSet::SourceOnly`, and
     `gather` source 1a hands it the proposal's controller — and wrong for a
     *granted* devour, where the granting permanent's controller would choose and
     sacrifice their own creatures instead of the entering creature's controller
@@ -3981,6 +3995,17 @@ named RE PR.
      files, ~120 lines net negative. **Its own PR**, so a mechanical sweep does
      not ride inside a rules change.
 
+     **Asked and answered 2026-09-14** (`refactor/object-set-rename`, which is
+     item 124's rename): this does **not** ride along, though both are
+     mechanical and neither is a rules change. A rename can be reviewed by
+     checking one claim — every hunk is the same substitution — and proved by
+     byte-identical fuzz counters. Named constructors are new API, and the two
+     questions they raise are what they are called and which `AbilityDef` field
+     each bakes a default into, which is the very thing this item says turns a
+     style choice into a rules bug. That diff has to be *read*, and putting it
+     inside one that only has to be *scanned* costs the rename its review
+     method while the rename's own proof says nothing about the constructors.
+
 121. **Eon Hub's two trigger-shaped rulings have no test and cannot have one
      until item 6.** *"Upkeep-triggered abilities don't trigger"* and *"any
      triggered abilities that triggered during the untap step will go onto the
@@ -4371,14 +4396,14 @@ CR 608.2b fizzle). They are three copies of the same fourteen lines, so the fix
 is one shared helper that takes the object rather than a fourth copy.
 
 **But fixing it still would not make an Aura registerable, which is the new
-finding.** No `AffectedSet` can name the permanent an Aura is attached to:
-`static_affected_set` has exactly two productive arms, `FilteredPermanents` →
+finding.** No `ObjectSet` can name the permanent an Aura is attached to:
+`static_object_set` has exactly two productive arms, `FilteredPermanents` →
 `Filter` and `Implicit` → `SourceOnly`, and `register_static_effects` runs
 inside `place_on_battlefield` — *before* `resolve_taken` attaches the Aura, so
 even `Fixed` has nothing to capture. `Duration::WhileEnchanted` exists and has
 no consumer. Every faithful Aura's text is about its host, so the Aura half
 needs a layers change on top of item 8 and is a phase, not a card drop. Auras
-were left out of this PR on that basis, and the phase is now written up and scheduled: **Phase LH**, `layers-architecture.md` §13a, before critical-path item 7. **The `AffectedSet` half is small** -- one arm in `effect_applies_to`, resolved during the walk exactly as `ByController` is, so registration running before the attach is not the problem it first looked like. The cost is CR 613.7e instead; see "Before card breadth" item 4.
+were left out of this PR on that basis, and the phase is now written up and scheduled: **Phase LH**, `layers-architecture.md` §13a, before critical-path item 7. **The `ObjectSet` half is small** -- one arm in `effect_applies_to`, resolved during the walk exactly as `ByController` is, so registration running before the attach is not the problem it first looked like. The cost is CR 613.7e instead; see "Before card breadth" item 4.
 
 **`attach_aura_on_etb` (`engine/resolve.rs`) is dead code**, found the same way:
 zero production callers, reached only by its own three unit tests. It implements
@@ -4405,7 +4430,7 @@ Battlegrowth**, so nothing in that table is comparable across this commit.
 **The Aura row closed 2026-09-04 (LH-1, `layers-architecture.md` §13a).** Same
 instrument, same 200 stress games at seed 12345: `[AuraSba]` **0 → 23**, and
 60 under `--require "Holy Strength"`. Both blockers the row named are gone —
-`AffectedSet::Host` reaches the host, and `targeting::spell_recipient`
+`ObjectSet::Host` reaches the host, and `targeting::spell_recipient`
 reads the enchant ability — but only one of the two paths they blocked is
 *reached*: CR 704.5m/n fires because hosts die in combat, while the CR 608.3b
 fizzle, covered by `tests/phase_lh_integration_test.rs`, went **0** in the same
@@ -4541,7 +4566,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **Built as sized**, and the size was right: ~340 lines for the evaluator
     with its tests, ~90 in the existence check and the channel table, ~25 in the
-    lowering. The attachment-host `AffectedSet` LH brought is what
+    lowering. The attachment-host `ObjectSet` LH brought is what
     `HostMatches` reads through.
 7e. **Derivation silently drops non-`Fixed` amounts — ✅ done (2026-08-22).** —
     archived.
@@ -4551,7 +4576,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
 7g. **A static ability that grants a static ability registers no continuous effect (found 2026-09-06, LI-3).** `register_static_effects` lowers `Primitive::GrantAbility` to a layer-6 row and stops. The rows the *granted* ability itself generates are `resolve::register_granted_static_effects`' job, and that function has exactly one caller — `Primitive::GrantAbility` resolving. So an Aura reading "enchanted permanent has 'Equipped creature has flying'" puts the ability on the host's frame and nothing else happens: the equipped creature does not fly. Verified on the board before LI-3's fixture was written, which is why the fixture is Rune of Flight's *third* line rather than its fourth.
 
-    **Not a missing call.** A resolution knows its grantees — `collect_battlefield_targets` names them once and they never change. A static ability's grantees are its `AffectedSet`, decided per pass: `Host` moves when the Aura is reattached, `Filter` gains and loses members every time the board does. So the derived rows would have to be re-derived per pass rather than registered once, which is a new kind of row (one whose source is another row) and a new question for CR 613.7a clause 2's timestamp. **Related to but not the same as** item 9's zone-reaching `AffectedSet`.
+    **Not a missing call.** A resolution knows its grantees — `collect_battlefield_targets` names them once and they never change. A static ability's grantees are its `ObjectSet`, decided per pass: `Host` moves when the Aura is reattached, `Filter` gains and loses members every time the board does. So the derived rows would have to be re-derived per pass rather than registered once, which is a new kind of row (one whose source is another row) and a new question for CR 613.7a clause 2's timestamp. **Related to but not the same as** item 9's zone-reaching `ObjectSet`.
 
     **Reachability:** unreachable — no registered card is a static ability granting a static ability, and it cannot become one quietly for the *lowering*, which is loud; it becomes one quietly for the *behaviour*, which is exactly this item. **Cards it blocks:** Rune of Flight's Equipment clause, and the "enchanted/equipped permanent has '[static]'" shape generally.
 
@@ -4577,12 +4602,12 @@ The layer system's designated single-point change site is `oracle/characteristic
 9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to objects in the battlefield *zone*: `effect_applies_to`'s gate is `in_battlefield_zone_or_entering` (`engine/layers/compute.rs`, since RC-3), and the filter type is `ObjectFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
 
    Two pieces are needed, in this order:
-   - **A card filter and a zone-aware `AffectedSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
+   - **A card filter and a zone-aware `ObjectSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
    - **Timestamps must move off `PermanentState` and onto the object.** CR 613.7d gives an object a timestamp when it enters *any* zone; we store one only on `PermanentState`. Wonder ("as long as this card is in your graveyard and you control an Island, creatures you control have flying" — a static ability functioning from the graveyard, CR 113.6b) has nowhere to read one from, so `GameState::static_effect_timestamp` has no answer for it. Its `None` arm is unreachable today only because `register_static_effects` is called from `place_on_battlefield`.
 
    - **A `reachable_zones` bitmask on `ContinuousEffectRegistry`,** maintained on add/remove. **This now has a home:** `RegistryScopeSummary` exists (`state/continuous_effects.rs`), recomputed on every `add`/`remove`, carrying the one field the CR 604.2 existence check needed. `layers-architecture.md` §5.1 already specifies `touches_hidden_zones` / `touches_stack` / `has_active_cdas` on that same struct — extend it rather than adding a parallel counter. `compute_characteristics` checks the object's zone against it and returns base characteristics on a miss. This keeps the cost at zero until someone actually plays a zone-reaching card, and even then confines it to the one zone that card reaches — queried on demand at castability-check time, never as an eager sweep over every card in the game.
 
-   **Narrowed by the CDA phase (2026-08-22).** This item once carried CR 604.3's "CDAs function in all zones" as well. It doesn't: a CDA has no filter (CR 604.3a(3)), so it never needed a zone-aware `AffectedSet`, and it now works in every zone via the intrinsic pass. What remains here is the original thing — *filter-based* effects reaching other zones. Note for whoever builds the `reachable_zones` fast path: it must not early-out an object that has a CDA of its own, which is why `apply_effects`' existing fast path already has a third term.
+   **Narrowed by the CDA phase (2026-08-22).** This item once carried CR 604.3's "CDAs function in all zones" as well. It doesn't: a CDA has no filter (CR 604.3a(3)), so it never needed a zone-aware `ObjectSet`, and it now works in every zone via the intrinsic pass. What remains here is the original thing — *filter-based* effects reaching other zones. Note for whoever builds the `reachable_zones` fast path: it must not early-out an object that has a CDA of its own, which is why `apply_effects`' existing fast path already has a third term.
 
    The mask also generalizes the existing fast path, which today early-outs only when the registry is *entirely* empty: with it, a card in hand early-outs even with many battlefield effects registered. Worth building **with** the first zone-reaching card, not before — there is nothing to test against otherwise. Note that Aminatou additionally needs item 3 (the cost-modification pipeline) for "its miracle cost is equal to its mana cost reduced by {4}".
 
@@ -4596,7 +4621,7 @@ The layer system's designated single-point change site is `oracle/characteristic
    replacement doc's ~390 sources outside the battlefield, a few hundred
    cards.
 
-   **Sized:** a zone-aware `AffectedSet` with a card filter, CR
+   **Sized:** a zone-aware `ObjectSet` with a card filter, CR
    613.7d timestamps on `GameObject`, and `reachable_zones` on
    `RegistryScopeSummary`: ~400–600 lines; with the first zone-reaching card,
    and `replacement-architecture.md` §3.3 source 2 (Leyline's clause) rides the
@@ -4657,7 +4682,7 @@ The layer system's designated single-point change site is `oracle/characteristic
 
     **CDAs — ✅ done (2026-08-22),** and not the way §6 designed. `Layer::Layer7aCdaPT` is in the enum and in `LAYER_ORDER` (now 10 entries). Tarmogoyf and Culling Drone (Devoid) are in `cards/phase_le_cards.rs`.
 
-    §6 planned `ContinuousEffect.is_cda` plus CDA-first partitioning of each layer's registry slice. **The registry holds no CDAs at all.** CR 604.3a(3) — a CDA "does not directly affect the characteristics of any other objects" — is a criterion, not an observation, so every CDA applies to exactly the object that has it. There is nothing for an `AffectedSet` to select. `engine/layers/cda.rs` applies them off the object's own effective ability list at Layers 4, 5 and 7a, ahead of that layer's registry slice, and `ContinuousEffectRegistry::add` asserts nothing registers into 7a. CR 613.3's ordering, CR 604.2's existence check, and CR 613.8a(c)'s first clause all fall out of that rather than being built.
+    §6 planned `ContinuousEffect.is_cda` plus CDA-first partitioning of each layer's registry slice. **The registry holds no CDAs at all.** CR 604.3a(3) — a CDA "does not directly affect the characteristics of any other objects" — is a criterion, not an observation, so every CDA applies to exactly the object that has it. There is nothing for an `ObjectSet` to select. `engine/layers/cda.rs` applies them off the object's own effective ability list at Layers 4, 5 and 7a, ahead of that layer's registry slice, and `ContinuousEffectRegistry::add` asserts nothing registers into 7a. CR 613.3's ordering, CR 604.2's existence check, and CR 613.8a(c)'s first clause all fall out of that rather than being built.
 
     **This unblocked item 9 rather than depending on it.** The old claim here — "CR 604.3 makes CDAs function in all zones, which ties it to item 9 as well" — was wrong. Item 9 is about *filter-based* effects reaching other zones; a CDA has no filter, and `compute_characteristics` reads `game.objects`, so a Tarmogoyf in a graveyard has a power and toughness with none of item 9's work. `get_effective_power`/`get_effective_toughness` dropped their battlefield gate accordingly.
 
@@ -4794,8 +4819,8 @@ invite a "cleanup" that quietly changes what a test runs against:**
   `put_on_battlefield_this_turn`, which does not. `GameState::new` starts at `turn_number:
   1`, so `layers::cda`'s two-argument version really was the second one, not a shorter
   spelling of the first.
-- `registered` (`AffectedSet::Fixed(vec![id])`) vs `registered_source_only`
-  (`AffectedSet::SourceOnly`). These agree in `effect_applies_to` when the source is the
+- `registered` (`ObjectSet::Fixed(vec![id])`) vs `registered_source_only`
+  (`ObjectSet::SourceOnly`). These agree in `effect_applies_to` when the source is the
   only member, so they are interchangeable *today* — but they are different variants, and
   `state::continuous_effects`' tests were written against `SourceOnly`.
 - `setup_game_with_creature` in `engine/actions.rs` vs `engine/resolve.rs` — same name,
@@ -5319,7 +5344,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
 **~~The existence check is CR 604.2, not CR 613.7a (2026-09-06, LI-1 review).~~ — ✅ swept 2026-09-06.** `static_ability_still_exists` and every comment and doc line around it had called the "does the source still have the ability" question "CR 613.7a" since 2026-08-21. 613.7a is the timestamp rule; the question is CR 604.2 — "these effects are active as long as the permanent with the ability remains on the battlefield and has the ability" — and 611.3b says the same.
 
-**57 lines re-cited** — 30 in the crate, 27 in these docs. 55 now read CR 604.2. **Two read CR 611.3a instead**, and they were a different wrong claim wearing the same number: `tests/filter_controller_test.rs` and item 16's note justified re-filtering an `AffectedSet::Filter` on every walk as "correct per CR 613.7a", which is 611.3a — "a continuous effect generated by a static ability isn't 'locked in'; it applies at any given moment to whatever its text indicates".
+**57 lines re-cited** — 30 in the crate, 27 in these docs. 55 now read CR 604.2. **Two read CR 611.3a instead**, and they were a different wrong claim wearing the same number: `tests/filter_controller_test.rs` and item 16's note justified re-filtering an `ObjectSet::Filter` on every walk as "correct per CR 613.7a", which is 611.3a — "a continuous effect generated by a static ability isn't 'locked in'; it applies at any given moment to whatever its text indicates".
 
 **The ~40 sites that stayed are the timestamp ones, and that is the whole point of the sweep.** Clause 2's `max` (`static_effect_timestamp`), the third sentence's re-stamp (`retime_static_rows`), the 613.7a/613.7b origin split on `EffectOrigin`, Rune of Flight as 613.7a's worked example, and the corpus id `ATOM-613.7a-001` all still cite 613.7a because they are all about *when* an effect applies relative to another, not *whether* it exists. `static_ability_still_exists` keeps its name: the function is named for the question, not the rule.
 
@@ -5459,34 +5484,12 @@ What the *shape* says, as opposed to what one endpoint suggested:
      had no producer, and Rhox Faithmender's, Alhammarret's Archive's and
      Skullcrack's rulings all named it.
 
-124. **Three types carry an object set called `affected`, and two of them now
-     have a player sibling — so the bare name is wrong in two places and will be
-     wrong in a third.** RD-4's review already made this call for
-     `Restriction::ApplyReplacement`, which is `to_objects` / `to_players`: *"a
-     bare `to` beside a `to_players` reads as the whole set with a modifier hung
-     off it, and it is not — the two are unioned and neither is primary."*
-     RE-3 renamed `Restriction::Event.affected` to `affected_objects` on that
-     argument (19 sites). Two are left:
-
-     - **`ReplacementDef.affected`** beside `affected_players`, which is the
-       original instance of the asymmetry and the largest: ~135 field uses
-       across the card files.
-     - **`ContinuousEffect.affected`**, which has no player sibling *yet*. It is
-       the one that will need it: CR 611.1's continuous effects are not all
-       about objects — "you have no maximum hand size", "players can't untap
-       more than one permanent" — and the day one of those is written as a
-       layer row rather than a restriction, this field grows the same pair.
-
-     **Reachability (2026-09-12):** reachable, **not wrong** — a name, not an
-     answer. Every reader of both fields already asks for the object half
-     explicitly.
-
-     **Sized:** a mechanical rename, ~135 + ~24 sites, and it is
-     `AbilityDef`'s named-constructors shape (item 120): **its own PR**, so a
-     sweep does not ride inside a rules change. `AffectedSet` → `ObjectSet`
-     (302 mentions) is the same PR's second half if it is taken — the type is
-     already object-only, and the name says "affected" where the field name
-     now says it twice.
+124. **Three types carry an object set called `affected` — ✅ CLOSED
+    2026-09-14 (`refactor/object-set-rename`).** — archived.
+    **Reachability (2026-09-14):** closed — `refactor/object-set-rename`,
+    PR #136; both fields are `affected_objects` and the type is `ObjectSet`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Cross-cutting —
+    keep this section honest" item 124.
 
 ### Found by RE-6 — the game's end (2026-09-12)
 

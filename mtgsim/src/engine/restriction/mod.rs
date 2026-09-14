@@ -8,7 +8,7 @@
 //! differs from one only in what it is asked at.** So [`predicate`] is
 //! `engine::replacement::gather` with the `Rewrite` half deleted: the same
 //! sources, the same battlefield sweep off *effective* ability lists, the same
-//! `EventPattern`/`AffectedSet` matchers — reused rather than reimplemented.
+//! `EventPattern`/`ObjectSet` matchers — reused rather than reimplemented.
 //!
 //! - [`Query`] names what is being asked.
 //! - [`is_prohibited`] answers it, and is the **only** reader of every

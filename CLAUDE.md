@@ -61,7 +61,7 @@ already cost a redesign:
 ## CDAs are never registry effects
 
 CR 604.3a(3) makes "affects no other object" a *criterion*, so every CDA applies to exactly the
-object that has it — no filter, no `AffectedSet`, no row. `engine/layers/cda.rs` applies them
+object that has it — no filter, no `ObjectSet`, no row. `engine/layers/cda.rs` applies them
 off the object's own effective ability list at layers 4, 5 and 7a; registering one applies it twice.
 
 `AbilityDef.is_characteristic_defining` asserts only what the ability's *text* satisfies. CR
@@ -143,7 +143,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2 any time, item 10
    (CR 400.7) + CV-1b after CV-2, CV-7 (merging) back-stopped before Phase 8
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
-   zone-reaching `AffectedSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
+   zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
    **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3

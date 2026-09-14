@@ -170,7 +170,7 @@ question. Run 2026-08-31.
 | `Primitive` | the unimplemented half of CR 701 | feature by contract |
 | `Cost` | tap/sacrifice a permanent *other than* the source | feature — additive variant |
 | `DecisionProvider` | a vote (CR 701.38); a card name (CR 201.4) | near-miss, §5.2 |
-| `ContinuousEffect` | CR 611.2c's locked set; CR 613.8 dependency | **no gap** — `AffectedSet::Fixed` is exactly 611.2c; 613.8 is critical-path item 7 |
+| `ContinuousEffect` | CR 611.2c's locked set; CR 613.8 dependency | **no gap** — `ObjectSet::Fixed` is exactly 611.2c; 613.8 is critical-path item 7 |
 | `StackEntry` | **what was spent to pay the costs** | **FACT** — §5.1 |
 | `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33 |
 | `PlayerState` | continuous effects on player values and rules (CR 402.2, 613.10–613.11); counter *kinds* on players (CR 122.1) | features — `backlog.md` §2.15, §2.16; probed by Winter, Misanthropic Guide |

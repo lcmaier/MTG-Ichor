@@ -10,7 +10,7 @@
 
 use mtgsim::cards::{artifacts, phase_ld_cards, phase_le_cards, phase_lf_cards, phase_rc_cards};
 use mtgsim::engine::layers::types::{
-    AffectedSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
+    ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, PtValue,
 };
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::oracle::characteristics::{
@@ -140,7 +140,7 @@ fn test_a_counter_older_than_a_power_reading_row_applies_first() {
         controller: 0,
         created_on_turn: 1,
         timestamp,
-        affected: AffectedSet::Filter {
+        affected_objects: ObjectSet::Filter {
             filter: ObjectFilter::And(
                 Box::new(ObjectFilter::ByType(CardType::Creature)),
                 Box::new(ObjectFilter::PowerLE(2)),

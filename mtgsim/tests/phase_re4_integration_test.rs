@@ -41,7 +41,7 @@ use mtgsim::types::card_types::{
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TokenDef,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -643,7 +643,7 @@ fn a_token_that_cannot_enter_is_not_created() {
                 cause: None,
                 object: None,
             },
-            affected_objects: AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             affected_players: PlayerSet::Nobody,
             by: None,
         },
@@ -682,7 +682,7 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
     let may_refuse = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            AffectedSet::Filter {
+            ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -734,7 +734,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
     let plus_one = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: None },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )
         .affecting_players(PlayerSet::You),
@@ -870,7 +870,7 @@ fn a_token_def_lowers_every_field_it_carries() {
         keyword_flags: Vec::new(),
         abilities: vec![static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::Untap,
-            AffectedSet::Host,
+            ObjectSet::Host,
             Rewrite::Prevent,
         ))))],
         rules_text: "Enchanted creature has base power and toughness 1/1.".to_string(),
@@ -1083,7 +1083,7 @@ fn an_append_template_keeps_the_creation_and_joins_its_own_def() {
     let one_more = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Artifact)) },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Instead(GameActionTemplate::CreateTokens {
                 def: trinket(),
                 count: TemplateAmount::Fixed(1),
@@ -1162,7 +1162,7 @@ fn a_multiplier_on_a_kind_repeats_only_that_kind() {
     let creatures_twice = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
-            AffectedSet::NO_OBJECTS,
+            ObjectSet::NO_OBJECTS,
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )
         .affecting_players(PlayerSet::You),

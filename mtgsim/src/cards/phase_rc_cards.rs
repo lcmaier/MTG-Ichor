@@ -31,7 +31,7 @@
 //! # What is *not* reachable — corrected 2026-09-02, and the correction is
 //! the finding
 //!
-//! **RC-2 recorded that no `AffectedSet::Filter` effect reaches an entering
+//! **RC-2 recorded that no `ObjectSet::Filter` effect reaches an entering
 //! permanent. That is false, and it was never true.** There are two filter
 //! paths and they are different functions:
 //!
@@ -40,7 +40,7 @@
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
 //! - `gather::set_affects` → `GameState::object_matches_filter` governs
-//!   **`ReplacementDef.affected`**, and it has **no gate at all**.
+//!   **`ReplacementDef.affected_objects`**, and it has **no gate at all**.
 //!
 //! So a Root-Maze-shaped `ReplacementDef` (`Filter { ByType(Land) }`,
 //! `EnterWith(tapped)`) already taps an entering land, and with
@@ -50,7 +50,7 @@
 //! Frozen Aether were not blocked and never were. `root_maze` is the card
 //! that closes it, in RC-3 rather than a third phase from now.
 //!
-//! What is genuinely out of reach at `AffectedSet::SourceOnly` is **two
+//! What is genuinely out of reach at `ObjectSet::SourceOnly` is **two
 //! entry-modifying abilities on one card** — the whole printed population is
 //! Slumbering Trudge, Chocobo Camp, Steel Dromedary, Rotating Fireplace and
 //! Arixmethes (Scryfall, `o:/enters tapped./ o:/enters with/` plus the counter
@@ -65,7 +65,7 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PlayerRef, Primitive, SelectionFilter, Selector, TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -102,7 +102,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// `resolve_top_of_stack`, with `GameState::resolving` empty, so CR 110.2b's
 /// default controller comes from the owner rather than from the stack entry.
 ///
-/// **`AffectedSet::SourceOnly`, which is CR 614.12's first sentence** — "such
+/// **`ObjectSet::SourceOnly`, which is CR 614.12's first sentence** — "such
 /// effects may come from the permanent itself if they affect only that
 /// permanent (as opposed to a general subset of permanents that includes it)".
 /// That is what lets RC-2 ship without the look-ahead frame: the effect is found
@@ -119,14 +119,14 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// (`replacement-architecture.md` §3.3).
 ///
 /// **It does not, and this card is what found out.** Blood Moon's row is a
-/// `ContinuousEffect` whose `AffectedSet` is a `Filter`, and
+/// `ContinuousEffect` whose `ObjectSet` is a `Filter`, and
 /// `compute.rs::effect_applies_to` returns `false` for a filter effect against
 /// an object that is not on the battlefield — so the *layer registry* reaches
 /// no entering permanent. That gate is Phase **RC-3**'s one line, and until it
 /// moves the strip is real everywhere except at the instant it matters here.
 ///
 /// **The gate is not "no filter reaches an entry", which is what RC-2 wrote
-/// (corrected 2026-09-02).** `ReplacementDef.affected` is matched by
+/// (corrected 2026-09-02).** `ReplacementDef.affected_objects` is matched by
 /// `gather::set_affects` through a different and ungated function, so
 /// `root_maze` taps this land on the way in without any help from RC-3. The
 /// two paths are separated in this module's doc comment.
@@ -144,7 +144,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -209,7 +209,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::MinusOneMinusOne, 2)),
             ))),
         })
@@ -279,7 +279,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterWith(EnterModsTemplate::with_counters(CounterType::PlusOnePlusOne, 3)),
             ))),
         })
@@ -305,7 +305,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
 ///
 /// This card is for a **different** gap, and it is one RC-2 left by mistake.
 /// RC-2 recorded that CR 616.1's multi-candidate branch was unreachable on an
-/// entry until RC-3 opened the gate, on the grounds that no `AffectedSet::Filter`
+/// entry until RC-3 opened the gate, on the grounds that no `ObjectSet::Filter`
 /// effect could match an entering permanent. That was never true of the
 /// *replacement* pipeline: `gather::set_affects` matches a `ReplacementDef`'s
 /// filter through `GameState::object_matches_filter`, which has no
@@ -366,7 +366,7 @@ pub fn root_maze() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Land)),
@@ -407,7 +407,7 @@ pub fn root_maze() -> Arc<CardData> {
 /// - **"wasn't cast"** is `EventPattern::EnterBattlefield { cast: Some(false) }`
 ///   — CR 601's fact projected off the entry's `ZoneChangeCause`. A creature
 ///   spell resolving arrives with `Resolved` and is not matched.
-/// - **"nontoken creature"** is an `AffectedSet::Filter`, matched against
+/// - **"nontoken creature"** is an `ObjectSet::Filter`, matched against
 ///   CR 614.12's frame: the object *as it would exist on the battlefield*. A
 ///   noncreature artifact returned under March of the Machines is a creature to
 ///   the Priest and is exiled — the clause (3) case RC-3's gate opened and this
@@ -447,7 +447,7 @@ pub fn containment_priest() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
@@ -652,7 +652,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
                 // CR 614.12's first sentence — it affects only this permanent,
                 // so it is found on the entering object itself (gather source
                 // 1a) and needs no board sweep.
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterAfterMoving(AuxiliaryMove {
                     from: Zone::Battlefield,
                     // "Creatures" is every creature *you control*: CR 701.21a
@@ -747,7 +747,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::SourceOnly,
+                ObjectSet::SourceOnly,
                 Rewrite::EnterAfterMoving(AuxiliaryMove {
                     // "Your graveyard" is the zone itself, so the scope needs no
                     // `ByController` leaf — a player's graveyard is enumerated
@@ -787,13 +787,13 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 /// `replacement::evaluate_enter_template` gets it right by asking
 /// `EntryFrame::frame_of(source)`, which answers only for the entering object.
 ///
-/// It is also the first `AffectedSet::Filter` entry replacement whose *amount*
+/// It is also the first `ObjectSet::Filter` entry replacement whose *amount*
 /// is dynamic, which is what makes `ordering_cannot_change_outcome`'s new premise
 /// load-bearing rather than theoretical (`codebase-state.md` item 47).
 ///
 /// **"Other" needs no filter leaf.** A Biomancer's own ability cannot apply to
 /// a Biomancer that is entering: gather source 1 sweeps the battlefield, where
-/// the entering object is not, and source 1a admits only `AffectedSet::SourceOnly`
+/// the entering object is not, and source 1a admits only `ObjectSet::SourceOnly`
 /// (CR 614.12's parenthesis). Two Biomancers entering as one event give each
 /// other nothing for the same reason, which is §5b's other worked example.
 ///
@@ -857,7 +857,7 @@ pub fn master_biomancer() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),

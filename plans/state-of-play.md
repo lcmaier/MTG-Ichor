@@ -27,7 +27,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2 any time, item 10
    (CR 400.7) + CV-1b after CV-2, CV-7 (merging) back-stopped before Phase 8
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
-   zone-reaching `AffectedSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
+   zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
    **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
@@ -92,15 +92,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 5569 of 5784 lines (96%) |
+| Section size | 5572 of 5787 lines (96%) |
 | Numbered items | 180 |
-| …closed, still recorded | 47 |
+| …closed, still recorded | 48 |
 | …open — unreachable, and says why | 80 |
 | **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 20 |
+| …open — reachable, not wrong (perf, a name, a harness) | 19 |
 | …open — nothing to build, a record for a later phase | 23 |
 | **…open — reachability *not* stated** | **5** |
-| …open, carrying an explicit `**Sized:**` | 128 of 133 |
+| …open, carrying an explicit `**Sized:**` | 127 of 132 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

@@ -51,7 +51,7 @@ use crate::types::colors::Color;
 use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerRef,
+    ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerRef,
     PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::mana::{ManaCost, ManaType};
@@ -142,7 +142,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
 ///
 /// **`ReplacementDef::by`'s printed customer, and the one card in the
 /// "causes you to discard" family that does not need CR 113.6.** It is a
-/// Land, so the battlefield sweep finds it, and its `AffectedSet::Filter`
+/// Land, so the battlefield sweep finds it, and its `ObjectSet::Filter`
 /// reaches a card in its controller's hand the way every `Filter` already
 /// reaches any object in any zone. The other sixteen are either on a card in
 /// hand (the Dodecapod family, critical-path item 6a) or need a second facility of their own.
@@ -198,7 +198,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
                     // permanent's controller's hand. Ownership rather than
                     // control, because a card in a hand has no controller and
                     // CR 400.3 sends a discard to its owner's graveyard.
-                    AffectedSet::Filter { filter: ObjectFilter::ByOwner(PlayerRef::You) },
+                    ObjectSet::Filter { filter: ObjectFilter::ByOwner(PlayerRef::You) },
                     Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                         to: Zone::Library,
                         cause: ZoneChangeCause::Discarded,
@@ -316,7 +316,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
             effect: Effect::Replacement(Box::new(
                 ReplacementDef::new(
                     EventPattern::Scry,
-                    AffectedSet::NO_OBJECTS,
+                    ObjectSet::NO_OBJECTS,
                     Rewrite::Instead(GameActionTemplate::DrawCards {
                         // "that many" — CR 615.5's amount, read off the scry.
                         n: TemplateAmount::ReplacedAmount,

@@ -20,7 +20,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
     TokenDef,
 };
 use crate::types::ids::new_ability_id;
@@ -47,7 +47,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 ///   same event for the same reason. So the pattern is a `ZoneChange` with
 ///   `from: Battlefield, to: Graveyard` and **no cause**.
 /// - **"a nontoken creature an opponent controls"** is the shield's boundary,
-///   not the pattern: `AffectedSet::Filter`, which is CR 614.12's "a general
+///   not the pattern: `ObjectSet::Filter`, which is CR 614.12's "a general
 ///   subset of permanents" as opposed to `SourceOnly`'s "only that permanent".
 ///   `PlayerRef::Opponent` resolves as "controlled by someone who isn't you",
 ///   which is CR 102.2 in a two-player game and CR 102.3's *set* in
@@ -113,7 +113,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                         cause: None,
                         object: None,
                     },
-                    AffectedSet::Filter {
+                    ObjectSet::Filter {
                         filter: ObjectFilter::And(
                             Box::new(ObjectFilter::ByType(CardType::Creature)),
                             Box::new(ObjectFilter::And(
@@ -181,7 +181,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// # "From anywhere" is literal, and that took a correction
 ///
 /// An earlier draft shipped this `from: Battlefield`, arguing that
-/// `AffectedSet::Filter` carries an `ObjectFilter` and a card on the stack is
+/// `ObjectSet::Filter` carries an `ObjectFilter` and a card on the stack is
 /// not a permanent. **That was wrong about this card.** The filter here is
 /// `All`, which reads nothing at all; `object_matches_filter` resolves it
 /// from `game.objects` in any zone. So `from: None` costs nothing, and the
@@ -216,7 +216,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 },
                 // "a card or token" — no owner clause, no type clause, and
                 // no `Not(Token)`. Everything that would hit a graveyard.
-                AffectedSet::Filter { filter: ObjectFilter::All },
+                ObjectSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -291,7 +291,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     cause: None,
                     object: None,
                 },
-                AffectedSet::Filter {
+                ObjectSet::Filter {
                     filter: ObjectFilter::And(
                         // "a card" — CR 111.1, a token is not one.
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
@@ -357,12 +357,12 @@ mod tests {
     #[test]
     fn kalitas_shields_a_general_subset_rather_than_itself() {
         // CR 614.12's distinction, and §11 item 2's reason for reusing
-        // `AffectedSet`: `SourceOnly` would make Kalitas replace its *own*
+        // `ObjectSet`: `SourceOnly` would make Kalitas replace its *own*
         // death, which is the opposite of what it does.
         let card = kalitas_traitor_of_ghet();
         let Effect::Replacement(def) = &card.abilities[0].effect else {
             panic!("expected a replacement");
         };
-        assert!(matches!(def.affected, AffectedSet::Filter { .. }));
+        assert!(matches!(def.affected_objects, ObjectSet::Filter { .. }));
     }
 }

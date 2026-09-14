@@ -26,7 +26,7 @@
 //! (`depends_on`).
 //!
 //! **What is a member: every object some row can reach**, read off the
-//! `AffectedSet` variants. `Filter` and `Host` rows reach the battlefield;
+//! `ObjectSet` variants. `Filter` and `Host` rows reach the battlefield;
 //! `SourceOnly` rows reach their source, a permanent; `Fixed` rows name what
 //! they name, anywhere. So: every battlefield entity, then the look-ahead's
 //! entering object, then whatever `Fixed` rows name. A variant that reaches
@@ -151,7 +151,7 @@ impl<'l> Board<'l> {
             }
         }
         for effect in game.continuous_effects.iter() {
-            if let AffectedSet::Fixed(ids) = &effect.affected {
+            if let ObjectSet::Fixed(ids) = &effect.affected_objects {
                 for id in ids {
                     if game.objects.contains_key(id) && seen.insert(*id) {
                         members.push(*id);
@@ -621,7 +621,7 @@ fn effect_channels(
             reads.source |= Channels::ABILITIES;
             conditional_reads_of(game, board, first, layer_index, &mut reads, you_channel);
         }
-        if let AffectedSet::Filter { filter } = &first.affected {
+        if let ObjectSet::Filter { filter } = &first.affected_objects {
             filter_reads(filter, &mut reads, you_channel);
         }
     }
@@ -843,23 +843,23 @@ fn affected_members(
     would_be: bool,
     layer_index: usize,
 ) -> Vec<ObjectId> {
-    match &effect.affected {
-        AffectedSet::SourceOnly => {
+    match &effect.affected_objects {
+        ObjectSet::SourceOnly => {
             if board.has_frame(effect.source) { vec![effect.source] } else { Vec::new() }
         }
-        AffectedSet::Fixed(ids) => ids.iter().copied().filter(|id| board.has_frame(*id)).collect(),
+        ObjectSet::Fixed(ids) => ids.iter().copied().filter(|id| board.has_frame(*id)).collect(),
         // CR 303.4m — whatever the source enchants *now*, read off the entity
         // at every layer. `attached_to` only ever names a permanent
         // (`cleanup_zone_state` clears it when the host leaves), so no zone
         // gate is needed; an unattached source matches nothing.
-        AffectedSet::Host => game
+        ObjectSet::Host => game
             .battlefield
             .get(&effect.source)
             .and_then(|e| e.attached_to)
             .filter(|host| board.has_frame(*host))
             .into_iter()
             .collect(),
-        AffectedSet::Filter { filter } => {
+        ObjectSet::Filter { filter } => {
             // §5b's asymmetry (`replacement-architecture.md`): the entering
             // object's own row is in its frame and reaches no other member,
             // because it is not on the battlefield yet and CR 604.3 makes
@@ -1311,7 +1311,7 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     let fixed_named = game
         .continuous_effects
         .iter()
-        .any(|e| matches!(&e.affected, AffectedSet::Fixed(ids) if ids.contains(&id)));
+        .any(|e| matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id)));
     if fixed_named { Membership::Member } else { Membership::NonMember }
 }
 

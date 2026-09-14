@@ -9,7 +9,7 @@ use crate::types::card_types::CardType;
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
+    ObjectSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -759,7 +759,7 @@ fn next_damage_shares(
 /// arm, the pattern's kind and [`EventPattern::reads_the_amount`], a
 /// template's kinds and whether its amounts read the frame
 /// (`EnterModsTemplate::is_fixed`), the affected set's leaves
-/// ([`affected_is_mods_invariant`]). Plus one board read, for an entry only:
+/// ([`object_set_is_mods_invariant`]). Plus one board read, for an entry only:
 /// which kinds its mods hold now ([`kinds_present`]). Per pair, [`commutes`],
 /// a pure function of two classes and that kind set. The shared clauses —
 /// mandatory, static, under CR 614.5, not counter-derived, no rider — are
@@ -929,7 +929,7 @@ fn classify<'a>(
     // +1/+1 counters feed; over a finished permanent it reads the board,
     // which no count in the proposal touches.
     let arithmetic_ok = !def.pattern.reads_the_amount()
-        && (!on_entry || affected_is_mods_invariant(&def.affected));
+        && (!on_entry || object_set_is_mods_invariant(&def.affected_objects));
     match &def.rewrite {
         Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
             (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
@@ -950,7 +950,7 @@ fn classify<'a>(
         // Reads the frame only when the source is the object being computed,
         // so anything else is a board read and commutes.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
-            && affected_is_mods_invariant(&def.affected))
+            && object_set_is_mods_invariant(&def.affected_objects))
         .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
         // Devour prompts and moves the board; a control change is CR 616.1b's
         // own forced step; a prevention and a redirection change what the
@@ -1164,10 +1164,10 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
 /// object? `SourceOnly`, `Fixed` and `Host` match by id; a
 /// `Filter` is invariant iff every leaf is. The entry half of
 /// [`ordering_cannot_change_outcome`]'s premise.
-fn affected_is_mods_invariant(affected: &AffectedSet) -> bool {
+fn object_set_is_mods_invariant(affected: &ObjectSet) -> bool {
     match affected {
-        AffectedSet::SourceOnly | AffectedSet::Fixed(_) | AffectedSet::Host => true,
-        AffectedSet::Filter { filter } => filter_is_mods_invariant(filter),
+        ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => true,
+        ObjectSet::Filter { filter } => filter_is_mods_invariant(filter),
     }
 }
 
@@ -2385,7 +2385,7 @@ fn retarget_destination(
     match spec {
         RetargetSpec::ToEffectSource => Some(DamageTarget::Object(chosen.source)),
         // CR 303.4m, read now rather than captured — the same `attached_to`
-        // read `AffectedSet::Host` makes, because an Aura registered its effect
+        // read `ObjectSet::Host` makes, because an Aura registered its effect
         // before it was attached to anything.
         RetargetSpec::ToHost => game
             .battlefield

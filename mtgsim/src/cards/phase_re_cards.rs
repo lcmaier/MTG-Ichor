@@ -318,7 +318,7 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AffectedSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::ids::new_ability_id;
@@ -395,7 +395,7 @@ fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> Abil
 /// The object set is empty on every one of these: CR 614.10's three units are
 /// about a *player*, so the scope is a [`PlayerSet`] and nothing else.
 fn skip(pattern: EventPattern, players: PlayerSet) -> ReplacementDef {
-    ReplacementDef::new(pattern, AffectedSet::NO_OBJECTS, Rewrite::Prevent)
+    ReplacementDef::new(pattern, ObjectSet::NO_OBJECTS, Rewrite::Prevent)
         .affecting_players(players)
 }
 
@@ -631,7 +631,7 @@ pub fn moment_of_silence() -> Arc<CardData> {
 fn draw_two_instead(cause: Option<DrawCause>) -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::DrawCard { cause },
-        AffectedSet::NO_OBJECTS,
+        ObjectSet::NO_OBJECTS,
         Rewrite::Instead(GameActionTemplate::DrawCards {
             n: TemplateAmount::Fixed(2),
             player: None,
@@ -817,7 +817,7 @@ pub fn alms_collector() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DrawCards { at_least: Some(2) },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 // "That player draws a card": the same instruction with `n`
                 // rewritten to 1, so it keeps this effect's applied set and
                 // whatever doubles it afterwards cannot hand it back.
@@ -890,7 +890,7 @@ pub fn notion_thief() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::DrawCard { cause: Some(DrawCause::Effect) },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::DrawCards {
                     n: TemplateAmount::Fixed(1),
                     player: Some(PlayerRef::You),
@@ -947,7 +947,7 @@ pub fn rhox_faithmender() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::GainLife,
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
@@ -994,7 +994,7 @@ pub fn tainted_remedy() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::GainLife,
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::LoseLife {
                     amount: TemplateAmount::ReplacedAmount,
                 }),
@@ -1049,7 +1049,7 @@ pub fn words_of_worship() -> Arc<CardData> {
                     Box::new(
                         ReplacementDef::new(
                             EventPattern::DrawCard { cause: None },
-                            AffectedSet::NO_OBJECTS,
+                            ObjectSet::NO_OBJECTS,
                             Rewrite::Instead(GameActionTemplate::GainLife {
                                 amount: TemplateAmount::Fixed(5),
                             }),
@@ -1124,7 +1124,7 @@ pub fn ali_from_cairo() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::LoseLife { cause: Some(LifeLossCausePattern::Damage) },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::LifeFloor(1)),
             )
             .affecting_players(PlayerSet::You),
@@ -1171,7 +1171,7 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::GainLife,
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
@@ -1246,7 +1246,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::Event {
                             pattern: EventPattern::GainLife,
-                            affected_objects: AffectedSet::NO_OBJECTS,
+                            affected_objects: ObjectSet::NO_OBJECTS,
                             affected_players: PlayerSet::Everyone,
                             by: None,
                         }),
@@ -1260,7 +1260,7 @@ pub fn skullcrack() -> Arc<CardData> {
                     Primitive::Restrict(
                         RestrictionDef::new(Restriction::ApplyReplacement {
                             kind: ReplacementKindFilter::Prevention,
-                            to_objects: AffectedSet::Filter { filter: ObjectFilter::All },
+                            to_objects: ObjectSet::Filter { filter: ObjectFilter::All },
                             to_players: PlayerSet::Everyone,
                         }),
                         Duration::UntilEndOfTurn,
@@ -1333,7 +1333,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             // draws one at a time and the library empties between them.
             ReplacementDef::new(
                 EventPattern::DrawCard { cause: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::PlayerWins),
             )
             .affecting_players(PlayerSet::You),
@@ -1421,7 +1421,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::PlayerLoses,
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Prevent,
             )
             .affecting_players(PlayerSet::You)
@@ -1509,7 +1509,7 @@ pub fn stunning_reversal() -> Arc<CardData> {
                         Box::new(
                             ReplacementDef::new(
                                 EventPattern::PlayerLoses,
-                                AffectedSet::NO_OBJECTS,
+                                ObjectSet::NO_OBJECTS,
                                 Rewrite::Prevent,
                             )
                             .affecting_players(PlayerSet::You)
@@ -1588,13 +1588,13 @@ pub fn platinum_angel() -> Arc<CardData> {
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
         .ability(static_restriction(Restriction::Event {
             pattern: EventPattern::PlayerLoses,
-            affected_objects: AffectedSet::NO_OBJECTS,
+            affected_objects: ObjectSet::NO_OBJECTS,
             affected_players: PlayerSet::You,
             by: None,
         }))
         .ability(static_restriction(Restriction::Event {
             pattern: EventPattern::PlayerWins,
-            affected_objects: AffectedSet::NO_OBJECTS,
+            affected_objects: ObjectSet::NO_OBJECTS,
             affected_players: PlayerSet::Opponents,
             by: None,
         }))
@@ -1750,7 +1750,7 @@ pub fn parallel_lives() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
@@ -1811,7 +1811,7 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
                     Primitive::CreateReplacement(
                         Box::new(ReplacementDef::new(
                             EventPattern::EnterBattlefield { cast: Some(false) },
-                            AffectedSet::Filter {
+                            ObjectSet::Filter {
                                 filter: ObjectFilter::ByType(CardType::Creature),
                             },
                             Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
@@ -1900,7 +1900,7 @@ pub fn divine_visitation() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Instead(GameActionTemplate::CreateTokens {
                     def: angel_token(),
                     count: TemplateAmount::ReplacedAmount,
@@ -1969,7 +1969,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
@@ -1987,7 +1987,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
 fn doubles_counters_on_your_permanents() -> ReplacementDef {
     ReplacementDef::new(
         EventPattern::AddCounters { counter: None, by: None },
-        AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+        ObjectSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
         Rewrite::Amount(AmountRewrite::Multiplier(2)),
     )
 }
@@ -2055,7 +2055,7 @@ pub fn doubling_season() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::You),
@@ -2104,7 +2104,7 @@ pub fn hardened_scales() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            AffectedSet::Filter {
+            ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -2179,7 +2179,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::You) },
-                AffectedSet::Filter { filter: ObjectFilter::All },
+                ObjectSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::Everyone),
@@ -2187,7 +2187,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
-                AffectedSet::Filter { filter: ObjectFilter::All },
+                ObjectSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             )
             .affecting_players(PlayerSet::Everyone),
@@ -2262,7 +2262,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
         )
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
-            AffectedSet::Filter {
+            ObjectSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
@@ -2275,7 +2275,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Plus(1)),
             )
             .affecting_players(PlayerSet::You),
@@ -2382,14 +2382,14 @@ pub fn primal_vigor() -> Arc<CardData> {
         .ability(static_replacement(
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
             .affecting_players(PlayerSet::Everyone),
         ))
         .ability(static_replacement(ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
-            AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )))
         .build()

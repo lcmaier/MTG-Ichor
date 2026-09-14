@@ -1,7 +1,7 @@
 //! Phase LH-1 — the Aura host becomes addressable
 //! (`layers-architecture.md` §13a).
 //!
-//! Holy Strength is the card; `AffectedSet::Host` is what it
+//! Holy Strength is the card; `ObjectSet::Host` is what it
 //! consumes. Every board below is built from the registered card rather than
 //! a fixture Aura, because the claim being tested is that a *real* Aura's
 //! static ability reaches its host through the layer walk — the fixtures in

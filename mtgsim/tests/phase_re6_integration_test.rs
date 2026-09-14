@@ -34,7 +34,7 @@ use mtgsim::test_support::{
     vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::effects::{
-    AffectedSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
+    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, PlayerSet, Primitive,
     SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -468,7 +468,7 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
         effect: Effect::Replacement(Box::new(
             mtgsim::types::replacement::ReplacementDef::new(
                 EventPattern::PlayerLoses,
-                AffectedSet::NO_OBJECTS,
+                ObjectSet::NO_OBJECTS,
                 mtgsim::types::replacement::Rewrite::Prevent,
             )
             .affecting_players(PlayerSet::You)
@@ -507,7 +507,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
             mtgsim::types::effects::Condition::LibraryEmpty,
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::PlayerLoses,
-                affected_objects: AffectedSet::NO_OBJECTS,
+                affected_objects: ObjectSet::NO_OBJECTS,
                 affected_players: PlayerSet::You,
                 by: None,
             })))),
@@ -696,7 +696,7 @@ fn setting_a_life_total_higher_under_a_cant_gain_does_nothing() {
         Primitive::Restrict(
             RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::GainLife,
-                affected_objects: AffectedSet::NO_OBJECTS,
+                affected_objects: ObjectSet::NO_OBJECTS,
                 affected_players: PlayerSet::Everyone,
                 by: None,
             }),

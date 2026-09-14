@@ -221,7 +221,7 @@ the enforcement.
 | `ActionContext` | `engine/actions.rs` | `{ dp, resolution }`, threaded to every mutation. `dp` is how the pipeline reaches CR 616.1's prompt | grows only if a new ambient input appears |
 | `ZoneChangeCause` | `types/zones.rs` | Why an object moved. No catchall, by design — `(from, to)` cannot tell a sacrifice from a destruction | **grows**, one per distinct reason a mover can name |
 | `DestructionSource` | `types/zones.rs` | Which of CR 701.8b's two routes destroyed it; lowers to a `ZoneChangeCause` | closed by CR 701.8b (effect, lethal damage, deathtouch) |
-| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
+| `ReplacementDef` | `types/replacement.rs` | One replacement effect as data, nine fields in declaration order: `pattern` + `affected_objects` + `rewrite` + `then` + `class` + `uses` + `is_regeneration` + `exempt_from_614_5` + `optional` | grows by *field*, rarely; per-mechanic variety goes in `then` |
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
@@ -232,7 +232,7 @@ the enforcement.
 | `GameRuleReplacement` | `engine/replacement/instance.rs` | A replacement belonging to no object's text. CR 903.9b is the only member | grows with the rules that behave as effects |
 | `ReplacementInstance` | `engine/replacement/instance.rs` | One applicable effect, gathered as a snapshot — the loop mutates state between iterations, so a borrow could not survive a pass | — |
 | `CounterEffectKind` | `engine/replacement/gather.rs` | Which of CR 122.1c's *two* effects a shield counter is. Two effects, one counter, two CR 614.5 identities | grows with CR 122.1's replacement-shaped counters |
-| `EventSubject` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Named for the event because `AffectedSet` already answers the other question, which objects an *effect* applies to | closed by what an event can be about |
+| `EventSubject` | `engine/replacement/gather.rs` | What a proposed event is *about* — an object or a player. Named for the event because `ObjectSet` already answers the other question, which objects an *effect* applies to | closed by what an event can be about |
 | `Rider` | `engine/replacement/pipeline.rs` | A queued `then`, resolved by the caller after the event is performed. CR 615.5 when a *prevention* effect queued it; CR 614.1a/614.6 otherwise — the rest of an "instead" is part of the modified event | — |
 | `ReplacementEffectId` / `RegisteredReplacementEffect` / `ReplacementEffectRegistry` | `state/replacement_effects.rs` | The registry for replacements a *resolution* created, with CR 614.3 durations. Static abilities are **not** here — they are read off the effective ability list | — |
 
@@ -396,10 +396,10 @@ pub struct ReplacementDef {
     pub pattern: EventPattern,
     /// Which objects/players it shields -- CR 614.1's "they act like shields
     /// around whatever they're affecting". Reuses the layer system's
-    /// `AffectedSet`; `SourceOnly` vs `Filter` is exactly CR 614.12's "affects
+    /// `ObjectSet`; `SourceOnly` vs `Filter` is exactly CR 614.12's "affects
     /// only that permanent (as opposed to a general subset of permanents that
     /// includes it)".
-    pub affected: AffectedSet,
+    pub affected: ObjectSet,
     /// How it rewrites a matching event. See 3.2b -- a closed algebra, not an
     /// open taxonomy.
     pub rewrite: Rewrite,
@@ -487,7 +487,7 @@ Within an arm, constraints on the event's fields reuse existing vocabulary —
 inventing per-mechanic predicates. "If a **red source you control** would deal
 damage to an opponent or a permanent an opponent controls" (Torbran, Thane of
 Red Fell) is `And(ByColor(Red), ByController(You))` on the source, and on the
-target it is **both** of CR 614.1's halves: `AffectedSet::Filter {
+target it is **both** of CR 614.1's halves: `ObjectSet::Filter {
 ByController(Opponent) }` for the permanent and `PlayerSet::Opponents` for the
 player, unioned by `set_affects`. Every leaf already existed, which is what
 RD-3 confirmed when it built them (§9, RD-3 as landed, decision 1).
@@ -1212,7 +1212,7 @@ The engine cannot answer that today, and it is not one gap but three:
 |---|---|
 | (1) pending mods | Nothing carries them; `place_on_battlefield` is where "tapped" would be decided, after the fact |
 | (2) own statics | `register_static_effects` runs *inside* `place_on_battlefield`, so the object's own rows do not exist yet |
-| (3) existing effects | `effect_applies_to` hard-requires `game.battlefield.contains_key(&id)` for `AffectedSet::Filter` — an entering object matches no filter-based effect at all |
+| (3) existing effects | `effect_applies_to` hard-requires `game.battlefield.contains_key(&id)` for `ObjectSet::Filter` — an entering object matches no filter-based effect at all |
 
 The fix is a **hypothetical overlay**: a read-side indirection through which
 `compute_to_ceiling` computes the entering object as a permanent under the
@@ -1241,7 +1241,7 @@ pub fn compute_as_entering(
 
 - **Self does not mean self-affecting.** CR 614.12's own Orb of Dreams example:
   a permanent's *replacement* effect applies to itself only if it "affects only
-  that permanent", i.e. `AffectedSet::SourceOnly` — a filter-based one
+  that permanent", i.e. `ObjectSet::SourceOnly` — a filter-based one
   ("Permanents enter tapped") does not. But clause (2) puts **no such
   restriction on the characteristics computation**: an entering creature with
   "Creatures you control get +1/+1" does get its own anthem in the look-ahead
@@ -1278,7 +1278,7 @@ pub fn compute_as_entering(
   | Cost of the perturbation | game-state-shaped | `EffectiveCharacteristics` clone — measured 0.37 → 0.27 µs over N=10–80, i.e. flat (`layers-architecture.md` §12) |
   | Frequency | once per entering permanent | up to O(effects²) per layer, inside a per-permanent walk |
 
-  613.8's check is **frame-level**. "Recompute A's `affected` with B applied" is
+  613.8's check is **frame-level**. "Recompute A's `affected_objects` with B applied" is
   a clone of `chars`, one `EffectModification` applied to it, and one
   `object_matches_filter` call — it never asks whether an object is on the
   battlefield differently than it already is. It does not need the overlay and
@@ -1480,7 +1480,7 @@ returns "will lose that ability before it can trigger… before it can apply…
 
 **Why this is not just another RC-4 card.** §5 split RC on the claim that its first half
 handles "ETB replacements whose applicability does not depend on the frame —
-`AffectedSet::SourceOnly`, unconditional… 'this land enters tapped'". That claim
+`ObjectSet::SourceOnly`, unconditional… 'this land enters tapped'". That claim
 is false, and Dress Down is the proof: whether the entering land *has* its
 enters-tapped ability is itself a frame question. The design collapses two
 questions into one:
@@ -1509,7 +1509,7 @@ Downed Clone as a copy. Sizing RC after this finding is what turned two parts
 into four — see §9.
 
 **De-risking split.** RC-2 implements ETB replacements whose applicability does
-not depend on the frame — `AffectedSet::SourceOnly`, unconditional. That is "this
+not depend on the frame — `ObjectSet::SourceOnly`, unconditional. That is "this
 land enters tapped" and "this enters with N +1/+1 counters", which is the
 overwhelming bulk of the 773 + 580. RC-3 adds the membership gate and the frame's
 ability list per §5c. RC-4 builds the rest of the overlay and turns on
@@ -2186,14 +2186,14 @@ RB currently ships has a *trivial* predicate — shield/stun/finality counters a
 unconditional by design. So `EventPattern` would be **defined in RB under no
 pressure at all** and first stressed two phases later. That is the
 designed-against-the-easy-case failure, and this project has paid for it before:
-`AffectedSet::Filter` carried a controller snapshot until CR 109.5 proved it
+`ObjectSet::Filter` carried a controller snapshot until CR 109.5 proved it
 wrong, because nothing at design time had a moving controller.
 
 **The fix is one card, not a reordering.** Add a filter-based, two-sided
 replacement to RB's card list so the grammar takes real weight the moment its
 type is written. Kalitas, Traitor of Ghet is the natural pick — "If a nontoken
 creature an opponent controls would die, instead exile that card and create a
-2/2 black Zombie creature token" exercises `EventPattern` over a zone change, `AffectedSet::Filter` with
+2/2 black Zombie creature token" exercises `EventPattern` over a zone change, `ObjectSet::Filter` with
 two clauses and an opponent-relative controller, and the `then` half, all at
 once. It also immediately demands one grammar leaf `ObjectFilter` lacks —
 nontoken — which is the *point*: it is a live test of the "two customers before
@@ -2489,19 +2489,19 @@ player* — Scryfall: `o:"prevent all damage that would be dealt to you"` **23**
 scope an effect to a player has no consumers. **So RD-1 builds it**, and RE
 inherits it.
 
-The shape is **a second field, not a variant**. `AffectedSet` is read by three
+The shape is **a second field, not a variant**. `ObjectSet` is read by three
 systems — the layer walk's `row_affected`, the restriction sweep and this
 pipeline — and a `Player` arm would be a variant two of the three must reject at
 every match, which is the "one type with a flag" smell §11 item 2 warns about
 from the other side. `ReplacementDef` gains `affected_players: PlayerSet`
 (`{ Nobody, You, Opponents, Everyone, Fixed(Vec<PlayerId>) }`, resolved against
 the instance's controller exactly as `Filter`'s `PlayerRef` is, CR 109.5), with
-union semantics: `set_affects` consults `affected` for an object subject and
+union semantics: `set_affects` consults `affected_objects` for an object subject and
 `affected_players` for a player subject. Fog is `Filter { All }` + `Everyone`;
 Safe Passage is `Filter { creatures you control }` + `You`; a Circle is
 `Fixed(vec![])` + `You`; a targeted "any target" is filled in at resolution as
 `Fixed([object])` or `Fixed([player])` the way `Primitive::Regenerate` fills its
-set today. Nothing about `AffectedSet` moves, so §11 item 2 holds byte for byte
+set today. Nothing about `ObjectSet` moves, so §11 item 2 holds byte for byte
 and the CR 614.12 `SourceOnly` check in `gather` is untouched.
 `Restriction::ApplyReplacement { to }` needs the same second field for
 "damage can't be prevented" over damage to a player; RD-4 adds it there.
@@ -2831,7 +2831,7 @@ and nothing was ever there to spend.
 
 | PR | Shape | Measured size | Risk |
 |---|---|---|---|
-| **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `AffectedSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
+| **RD-1 — the damage event's two subjects and its results** | `affected_players`; the CR 120.3 decomposition, `LoseLife.cause`, CR 120.3c; `Rewrite::Amount` with `Multiplier`, `Halve` and `PreventHalf`, and `Rounding`; `Rider` carries `EventSubject` and the event's amount, `AmountExpr::ReplacedAmount` and `Multiply`; `Primitive::Mill` (a stub today) for Angel of Suffering's rider | `set_affects` **1**, `chooser_for` **0** (already right), `Rider`/`resolve_rider` **2**; `perform_action`'s arm **1**, `GameAction::LoseLife` constructions **6**; `Rewrite` exhaustive matches **2** (`from_rewrite`, `apply_rewrite`); `ObjectSet` exhaustive matches **3**, all untouched by construction; `evaluate_amount` **2** leaves; `resolve.rs` **1** stub arm made real. Predicted **~560 engine, ~300 cards, ~750 tests ≈ 1,500–1,700** | medium — the decomposition moves a line of every game's log through a nested proposal, and the A/B's middle arm must show it and nothing else |
 | **RD-2 — CR 615.7 prevention shields, and the loop's unit** | `Primitive::CreateReplacement`, `Uses::NextDamage`, `PreventUpTo`/`PreventRemaining`, consume-after-apply (decision 7), per-subject decisions and the per-instance allocation (decision 3), the rider's prevented amount and `AmountExpr::DamagePrevented` | `apply_replacements` **1** (the group form), `execute_batch_inner` **1**, `consume_use` **1**, `apply_rewrite` **1**; `DecisionProvider::allocate` impls **3** + dispatch; `ChoiceKind` exhaustive matches ≤ **3**; `evaluate_amount` **1**; `resolve.rs` **1** new arm beside `Regenerate`. Predicted **~700 engine, ~250 cards, ~800 tests ≈ 1,800–2,000** | **highest** — the only PR that changes the loop's unit, and the one whose defect shape is a silent wrong choice rather than an error |
 | **RD-3 — sources** | `EventPattern::DealDamage { source, combat }`, CR 609.7a's chosen source (`SelectionFilter::DamageSource`, one `ChoiceKind`), 609.7b's recheck, 615.8 next-instance, 615.10 static partial, 609.7c; `AmountRewrite::Plus` (Torbran) and a resolution-created `PreventHalf` (Dark Sphere) | `pattern_watches` **1**, `EventPattern::DealDamage` constructions **4**; `enumerate_legal_selections` + `has_any_legal_choice` **2** (RS-2's rule that enumeration agrees with enforcement); `Cost::Tap`/`SacrificeSelf` already paid. Predicted **~370 engine, ~400 cards, ~700 tests ≈ 1,400–1,600** | medium — axis 2 of §8c takes real weight for the first time on a two-sided predicate (Torbran's; Daunting Defender is 615.10's own example and is target-side only), and the "two customers before a leaf" guard is applied live |
 | **RD-4 — redirection and unpreventable damage** | `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` (16 `Primitive::DealDamage` sites, 25 `GameAction::DealDamage` constructions, mechanical), the restriction consult at application, `PlayerSet` on `ApplyReplacement::to` | `apply_rewrite` **1**, `from_rewrite` **1**, the two site counts above; `is_prohibited` callers **+1**. Predicted **~300 engine, ~200 cards, ~500 tests ≈ 1,000–1,200** | low-medium — two independent features that share only the consume-after-apply rule RD-2 lands |
@@ -4247,7 +4247,7 @@ review, 2026-08-24). Only one needs an answer before code starts:
 | # | Item | Verdict |
 |---|---|---|
 | 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
-| 2 | `AffectedSet` reuse | **Answered.** A constraint to preserve, not a question |
+| 2 | `ObjectSet` reuse | **Answered.** A constraint to preserve, not a question |
 | 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RB, as planned.** RB gave `SelfReplacement` its CR 616.1a bucket and no producer; `ResolutionContext` still has three fields. The field lands with the first card that needs it — and item 12 answers *who sets the class* |
 | 4 | Replacement effects outside the battlefield | **Answered 2026-08-30 — item 9.** Sized at ~390 cards, and the blocker is not the sweep: it is CR 113.6, which the engine has nowhere and the layer system needs for the same cards |
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
@@ -4335,7 +4335,7 @@ rule number) — confirm the merge at labelling time.
    `&dyn DecisionProvider`, which is everything 704.6d needs. Corrected in
    `codebase-state.md` alongside this document.
 
-2. **`AffectedSet` is reused rather than re-invented, and the reuse is
+2. **`ObjectSet` is reused rather than re-invented, and the reuse is
    load-bearing.** `SourceOnly` vs `Filter` is precisely CR 614.12's "affects
    only that permanent (as opposed to a general subset of permanents that
    includes it)". If a future refactor collapses those variants, 614.12 breaks
@@ -4745,7 +4745,7 @@ there, because all three are about **what a rider can reach**.
     `test_a_power_filter_beside_counters_is_a_real_choice` says so. The rule
     that shipped (`pipeline::ordering_cannot_change_outcome`) admits only members
     whose applicability no `EnterMods` field can move: `EnterWith`, mandatory,
-    static, under CR 614.5, not counter-derived, no rider, and an `affected`
+    static, under CR 614.5, not counter-derived, no rider, and an `affected_objects`
     over leaves the counters cannot reach (`filter_is_mods_invariant`). It is
     a semantics-assuming shortcut in `layers-architecture.md` §12's sense, so
     it carries its three expiry conditions in code and in `codebase-state.md`
@@ -4795,7 +4795,7 @@ found them.
     12 "would deal damage to you, prevent", 46 "source of your choice … to
     you", and Furnace of Rath's "permanent or player" — so RD-1 lands
     `ReplacementDef.affected_players: PlayerSet` and RE inherits it. A second
-    field rather than an `AffectedSet` variant, because that type has three
+    field rather than an `ObjectSet` variant, because that type has three
     readers and two of them would have to reject the arm. The module doc and
     `set_affects`'s comment are corrected by RD-1; §3.2a's "lands in Phase RE"
     reads as history from here.
@@ -5279,6 +5279,16 @@ found them.
     `affected`/`affected_players` keeps its own names, where `affected` reads
     as the generic noun rather than as a preposition, and the asymmetry there is
     the older one.
+
+    **The exemption was reversed 2026-09-14** — `codebase-state.md` item 124,
+    built as `refactor/object-set-rename`. It did not survive its own argument
+    being applied twice more: RE-3 renamed `Restriction::Event.affected` on it,
+    which left `ReplacementDef` as the last type spelling the set bare, and "the
+    generic noun" stops reading as generic once it is the odd one out. Both
+    fields are `affected_objects` now and the type is `ObjectSet`. Written here
+    and not only in `codebase-state.md` because item 46 below is about this
+    document holding two answers for twelve days, and an exemption reversed in
+    another file is exactly that shape.
 
 ### Found by RE's sizing (2026-09-11)
 
@@ -6117,15 +6127,15 @@ found them.
     the same hazard for the multiplier shape rather than the `EnterWith` one.
     Two reads: which kinds the mods carry, and whether each carries one or
     more. A multiplier of one or more changes neither, so a suppressed
-    member stays applicable — but its `affected` filter over an entering
+    member stays applicable — but its `affected_objects` filter over an entering
     permanent reads the CR 614.12 frame, which +1/+1 counters feed, and a
     `PowerLE` doubler stops applying once another doubler has raised the
     count past it. The multiplier clause now asks
-    `affected_is_mods_invariant` of an entry's members, the clause the
+    `object_set_is_mods_invariant` of an entry's members, the clause the
     `EnterWith` shape always asked, and
     `a_multiplier_reading_power_is_asked_at_the_entry_door_only` shows the
     prompt is real there (2 or 4) and absent over a proposal (4). §4.1's two
-    halves, answered: the clause compares one `AffectedSet`'s leaves to the
+    halves, answered: the clause compares one `ObjectSet`'s leaves to the
     fields `EnterMods` feeds; run twice, a multiplier of one or more leaves
     every kind on "one or more"'s side, which `check_order_invariance`'s
     re-gather confirms per member in debug builds.
@@ -6185,7 +6195,7 @@ found them.
     critical-path item 6a.
 
     **Nephalia Academy is what kept `by` honest.** It is a *Land*, so the
-    battlefield sweep finds it and its `AffectedSet::Filter` reaches a card in
+    battlefield sweep finds it and its `ObjectSet::Filter` reaches a card in
     hand the way every `Filter` already reaches any object in any zone — which
     is also the reading that says this is **not** item 9's source 2. That item
     is a **sweep over other zones** for effects about *other* objects

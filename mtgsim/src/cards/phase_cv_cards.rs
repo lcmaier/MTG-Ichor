@@ -52,7 +52,7 @@ fn nonlegendary_creature() -> ObjectFilter {
 ///
 /// `copy-effects-architecture.md` §7 names it CV-1's consumer, and it is the
 /// minimum board that exercises the whole spine: a resolution capture (CR
-/// 707.2), an `AffectedSet::Fixed` locked as the effect begins (CR 611.2c), a
+/// 707.2), an `ObjectSet::Fixed` locked as the effect begins (CR 611.2c), a
 /// turn-bounded `Duration`, and a CR 707.4 *choice* that is not a target.
 ///
 /// # Two selections, and only one of them is targeting
@@ -188,7 +188,7 @@ pub fn mirrorform() -> Arc<CardData> {
 /// capture applied to a whole class — and CV-1's answer to that question comes
 /// from what this card actually builds: **one row, not one per creature.** CR
 /// 611.2c locks the affected set as the effect begins, so the row is a single
-/// `AffectedSet::Fixed` carrying a single `Box<CopiableValues>`. `Box` and `Arc`
+/// `ObjectSet::Fixed` carrying a single `Box<CopiableValues>`. `Box` and `Arc`
 /// allocate identically here, and the phases that would tell them apart are the
 /// ones that create a row *per object* (CV-2's entry replacements, the
 /// class-scoped statics).
