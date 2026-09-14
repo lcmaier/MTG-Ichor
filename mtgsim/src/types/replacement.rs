@@ -165,8 +165,8 @@ pub struct ReplacementDef {
 /// nothing replaces an attach, and `CreateTokenIn`, since nothing prints "if a
 /// token would be created in exile" (RE-4). The counter pair was the one place
 /// the projection was not 1:1 — one `CounterChange` arm with an `adding` flag
-/// — until RE-5's review split it into [`Self::CountersPut`] and
-/// [`Self::CountersRemoved`].
+/// — until RE-5's review split it into [`Self::AddCounters`] and
+/// [`Self::RemoveCounters`].
 ///
 /// `DrawCard`, `GainLife` and `LoseLife` gained theirs in RE-2 and RE-3, and
 /// `PlayerLoses`/`PlayerWins` in RE-6, each with the card that watches it.
@@ -398,14 +398,16 @@ pub enum EventPattern {
     /// that line it was on. `Halve` can carry a kind from one to zero and is
     /// admitted to no suppressed bucket.
     ///
-    /// **Its own arm, not a direction flag on a shared one.** RE-5 shipped
-    /// the pair as `CounterChange { adding: bool }`, the one place the growth
-    /// contract's one-arm-per-variant was broken, and the review split it: a
-    /// rewrite cannot say which direction a pattern watches (a `Prevent` or
-    /// a restriction carries no `Plus`), and a field asked of a putter had to
-    /// be documented as meaningless on a removal. Two arms need no such
-    /// caveat.
-    CountersPut {
+    /// **Its own arm, bearing the action's name, not a direction flag on a
+    /// shared one.** RE-5 shipped the pair as `CounterChange { adding: bool }`,
+    /// the one place the growth contract's one-arm-per-variant was broken,
+    /// and the review split it: a rewrite cannot say which direction a
+    /// pattern watches (a `Prevent` or a restriction carries no `Plus`), and
+    /// a field asked of a putter had to be documented as meaningless on a
+    /// removal. The names are `GameAction`'s and `Primitive`'s, as every
+    /// other arm's are (`DealDamage`, `CreateTokens`, `PlayerLoses`): one
+    /// word for one event, wherever it is written.
+    AddCounters {
         counter: Option<CounterType>,
         /// Who is putting the counters on — Vorinclex's "if *you* would put"
         /// and "if *an opponent* would put", asked of `AddCounters::by` and,
@@ -428,7 +430,7 @@ pub enum EventPattern {
     /// day a card does it is a field added here with that card — a compile
     /// error at every reader until it is answered, not a pattern that
     /// silently matches nothing.
-    CountersRemoved {
+    RemoveCounters {
         counter: Option<CounterType>,
     },
 
@@ -683,10 +685,10 @@ impl EventPattern {
             // a multiplier of one or more, or a plus, leaves every kind on
             // the side of that line it was on. `Halve` can cross it (one to
             // zero) and is admitted to no suppressed bucket.
-            EventPattern::CountersPut { .. } => false,
+            EventPattern::AddCounters { .. } => false,
             // A counter kind. CR 701.2 makes a removal "as much as possible",
             // and no field here reads how much.
-            EventPattern::CountersRemoved { .. } => false,
+            EventPattern::RemoveCounters { .. } => false,
             // A turn, a phase, a step. CR 614.10's units are not amounts.
             EventPattern::Untap
             | EventPattern::Tap

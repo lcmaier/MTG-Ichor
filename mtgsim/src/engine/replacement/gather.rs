@@ -727,7 +727,7 @@ pub(crate) fn pattern_watches(
         // proposal's putter. Which *permanent or player* the effect is around
         // is `set_affects`'s question.
         (
-            EventPattern::CountersPut { counter, by },
+            EventPattern::AddCounters { counter, by },
             GameAction::AddCounters { counter: actual, n, by: putter, .. },
         ) => {
             *n >= 1
@@ -735,7 +735,7 @@ pub(crate) fn pattern_watches(
                 && by.as_ref().map(|set| set.contains(you, *putter)).unwrap_or(true)
         }
         (
-            EventPattern::CountersRemoved { counter },
+            EventPattern::RemoveCounters { counter },
             GameAction::RemoveCounters { counter: actual, .. },
         ) => counter.map(|c| c == *actual).unwrap_or(true),
 
@@ -747,9 +747,9 @@ pub(crate) fn pattern_watches(
         // named (CR 122.6a's first sentence), else the controller the
         // permanent enters under, which CR 616.1b settles ahead of anything
         // that asks here. Nothing is *removed* as a permanent enters, so
-        // `CountersRemoved` has no entry door.
+        // `RemoveCounters` has no entry door.
         (
-            EventPattern::CountersPut { counter, by },
+            EventPattern::AddCounters { counter, by },
             GameAction::EnterBattlefield { mods, controller, .. },
         ) => mods.counters.iter().any(|row| {
             row.n >= 1

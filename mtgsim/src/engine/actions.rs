@@ -246,7 +246,7 @@ pub enum GameAction {
     /// **Not the event for counters a permanent enters with.** CR 122.6 folds
     /// those into the entry — "an object that's given counters as it enters"
     /// is *put counters on* — so they ride on `EnterBattlefield`'s `mods` and
-    /// `EventPattern::CountersPut` watches the entry through a second door.
+    /// `EventPattern::AddCounters` watches the entry through a second door.
     ///
     /// `by` is the player putting them on: the controller of the resolving
     /// spell or ability, or of the replacement whose rider proposed it.

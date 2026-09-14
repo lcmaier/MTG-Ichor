@@ -3598,12 +3598,16 @@ an `Option<PlayerRef>` resolved by `pipeline::putter_of`, the door and the
 CR 101.2 check reading each row's putter ahead of the entry's controller,
 and `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters`
 resolved by `resolve_putter`. `EventPattern::CounterChange { adding }` became
-`CountersPut { counter, by }` and `CountersRemoved { counter }` — one arm per
-`GameAction` variant, and the "`by` must be `None` on a removal" caveat gone
-with the test that asserted it. Four tests in: the named putter at an entry
+`AddCounters { counter, by }` and `RemoveCounters { counter }` — one arm per
+`GameAction` variant, bearing the action's name as every other arm does
+(the review's second pass; the first pass had coined `CountersPut`), and the
+"`by` must be `None` on a removal" caveat gone with the test that asserted
+it. The second pass also made the primitives' putter a plain `PlayerRef`
+written as `You` by every printed one-shot, after `None | Some(You)` was
+read as two names for one player. Four tests in: the named putter at an entry
 read ahead of the controller (2 where the default would halve to none), one
 kind from two putters as two rows under Vorinclex, Bold Plagiarist's shape on
-a proposal, and a `Prevent` over `CountersRemoved`. 1,423 tests, zero
+a proposal, and a `Prevent` over `RemoveCounters`. 1,423 tests, zero
 warnings; §11 item 83 rewritten, item 43 reopened and closed as built.
 
 **Re-measured, four arms at two seats and four, and nothing moved.** Every

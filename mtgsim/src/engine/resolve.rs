@@ -1887,22 +1887,18 @@ impl GameState {
     /// Who puts the counters on, for `Primitive::AddCounters` and
     /// `GetCounters` (CR 122.6a's shape on a proposal).
     ///
-    /// `None` and `You` are the effect's controller — every printed one-shot.
-    /// `Opponent` is the resolution's player target when it has one, else the
-    /// only opponent still in the game; with several and no target it is an
-    /// authoring error and loud. Bold Plagiarist's "*they* put" is the
-    /// printed customer, a trigger whose effect names the player who
-    /// triggered it — `Player(id)` once CR 603 fills it.
-    fn resolve_putter(
-        &self,
-        by: &Option<PlayerRef>,
-        ctx: &ResolutionContext,
-    ) -> Result<PlayerId, String> {
+    /// `You` is the effect's controller — every printed one-shot, and the
+    /// card writes it. `Opponent` is the resolution's player target when it
+    /// has one, else the only opponent still in the game; with several and
+    /// no target it is an authoring error and loud. Bold Plagiarist's
+    /// "*they* put" is the printed customer, a trigger whose effect names the
+    /// player who triggered it — `Player(id)` once CR 603 fills it.
+    fn resolve_putter(&self, by: &PlayerRef, ctx: &ResolutionContext) -> Result<PlayerId, String> {
         Ok(match by {
-            None | Some(PlayerRef::You) => ctx.controller,
-            Some(PlayerRef::Player(pid)) => *pid,
-            Some(PlayerRef::Owner) => self.get_object(ctx.source)?.owner,
-            Some(PlayerRef::Opponent) => {
+            PlayerRef::You => ctx.controller,
+            PlayerRef::Player(pid) => *pid,
+            PlayerRef::Owner => self.get_object(ctx.source)?.owner,
+            PlayerRef::Opponent => {
                 let targeted = ctx.targets.iter().find_map(|t| match t {
                     ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
                     _ => None,

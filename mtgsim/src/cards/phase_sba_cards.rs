@@ -44,7 +44,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
+    AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    SelectionFilter,
     TargetCount,
 };
 use crate::types::ids::new_ability_id;
@@ -115,7 +116,7 @@ pub fn battlegrowth() -> Arc<CardData> {
                 Primitive::AddCounters {
                     counter: CounterType::PlusOnePlusOne,
                     amount: AmountExpr::Fixed(1),
-                    by: None,
+                    by: PlayerRef::You,
                 },
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),

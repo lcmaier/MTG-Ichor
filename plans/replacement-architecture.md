@@ -3634,7 +3634,7 @@ pattern's kind, the creation template and two more cards (82).
 `CounterSubject` on `GameAction::AddCounters` and `RemoveCounters` and on
 `GameEvent::CountersChanged` — and the putter rides on the event as
 `AddCounters::by`. CR 122.6's entry counters are watched through a second
-door on `EventPattern::CountersPut`: an `EnterBattlefield` whose mods carry
+door on `EventPattern::AddCounters`: an `EnterBattlefield` whose mods carry
 a matching kind with one or more, each row carrying its putter — the player
 the effect named, else CR 122.6a's default, the entry's controller;
 `Rewrite::Amount` rewrites a proposal's count and each matched kind in an
@@ -3646,7 +3646,7 @@ Live Fast, Primal Vigor. Sized ~1,850, shipped **+1,911 / −101** before the
 docs. `PERFORMANCE_POOL` 83 → 84. Item 43 closed and built — at the review,
 after a first close on an empty Scryfall query that the owner's rule rejects
 (§11 item 83); the review also split `CounterChange { adding }` into
-`CountersPut` and `CountersRemoved`, one arm per variant. Item 47's condition (c) fired from the multiplier side and the
+`AddCounters` and `RemoveCounters`, one arm per variant. Item 47's condition (c) fired from the multiplier side and the
 predicate's entry clause is the re-derivation (item 84); the additive pairs
 RE-5 makes reachable are `backlog.md` §2.29's next rows, not a shape
 (item 85); a cost's counters are `codebase-state.md`'s "Found by RE-5" line.
@@ -6116,7 +6116,7 @@ found them.
 84. **Item 47's condition (c) fired, from the multiplier side, and the
     re-derivation is recorded.** The condition was written as "`EventPattern::
     EnterBattlefield` gains a field that reads `mods`"; what arrived is a
-    *different* arm reading `mods` — `CountersPut`'s entry door — which is
+    *different* arm reading `mods` — `AddCounters`'s entry door — which is
     the same hazard for the multiplier shape rather than the `EnterWith` one.
     Two reads: which kinds the mods carry, and whether each carries one or
     more. A multiplier of one or more changes neither, so a suppressed

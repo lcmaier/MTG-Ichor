@@ -966,19 +966,19 @@ pub enum Primitive {
     /// (CR 122.1).
     ///
     /// `by` is who puts them on — the fact Vorinclex, Monstrous Raider reads
-    /// off `GameAction::AddCounters::by`. `None` is the effect's controller,
-    /// which is every printed one-shot; a `Some` is an effect whose text
-    /// names another player, Bold Plagiarist's "*they* put the same number
-    /// and kind of counters on this creature" — the opponent puts counters on
-    /// a creature they do not control, and neither the effect's controller
-    /// nor the object's is the answer. Resolved at resolution
-    /// (`resolve_putter`): `You` and `None` the controller, `Player` itself,
-    /// `Owner` the source's owner, `Opponent` the resolution's player target
-    /// or the only opponent.
+    /// off `GameAction::AddCounters::by`. `PlayerRef::You` is the effect's
+    /// controller, which is every printed one-shot and is written out rather
+    /// than defaulted; anything else is an effect whose text names another
+    /// player, Bold Plagiarist's "*they* put the same number and kind of
+    /// counters on this creature" — the opponent puts counters on a creature
+    /// they do not control, and neither the effect's controller nor the
+    /// object's is the answer. Resolved at resolution (`resolve_putter`):
+    /// `You` the controller, `Player` itself, `Owner` the source's owner,
+    /// `Opponent` the resolution's player target or the only opponent.
     AddCounters {
         counter: CounterType,
         amount: AmountExpr,
-        by: Option<PlayerRef>,
+        by: PlayerRef,
     },
     /// Remove N counters of a type from target
     RemoveCounters(CounterType, AmountExpr),
@@ -991,7 +991,7 @@ pub enum Primitive {
     GetCounters {
         counter: CounterType,
         amount: AmountExpr,
-        by: Option<PlayerRef>,
+        by: PlayerRef,
     },
 
     // === Tokens ===

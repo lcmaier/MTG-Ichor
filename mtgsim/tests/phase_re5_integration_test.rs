@@ -4,7 +4,7 @@
 //! printed cards in `cards::phase_re_cards` and the engine's own shape: a
 //! counter's subject is an object or a player, the putter rides on the event,
 //! and an entry that gives a permanent counters is watched through a second
-//! door on `EventPattern::CountersPut` rather than proposed as a second
+//! door on `EventPattern::AddCounters` rather than proposed as a second
 //! event.
 //!
 //! **Every board here is about which of two doors an effect meets** — an
@@ -89,7 +89,7 @@ fn put_counters_on(
     dp: &dyn DecisionProvider,
 ) {
     let effect = Effect::Atom(
-        Primitive::AddCounters { counter: kind, amount: AmountExpr::Fixed(n), by: None },
+        Primitive::AddCounters { counter: kind, amount: AmountExpr::Fixed(n), by: PlayerRef::You },
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
     resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
@@ -134,7 +134,7 @@ fn fixture_doubler() -> Arc<CardData> {
     fixture_static(
         "Fixture Counter Doubler",
         ReplacementDef::new(
-            EventPattern::CountersPut { counter: None, by: None },
+            EventPattern::AddCounters { counter: None, by: None },
             AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -147,7 +147,7 @@ fn fixture_doubler_by(by: PlayerSet) -> Arc<CardData> {
     fixture_static(
         "Fixture Putter Doubler",
         ReplacementDef::new(
-            EventPattern::CountersPut { counter: None, by: Some(by) },
+            EventPattern::AddCounters { counter: None, by: Some(by) },
             AffectedSet::Filter { filter: ObjectFilter::All },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -160,7 +160,7 @@ fn fixture_halver() -> Arc<CardData> {
     fixture_static(
         "Fixture Halver",
         ReplacementDef::new(
-            EventPattern::CountersPut { counter: None, by: Some(PlayerSet::Opponents) },
+            EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
             AffectedSet::Filter { filter: ObjectFilter::All },
             Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
         ),
@@ -172,7 +172,7 @@ fn fixture_doubler_on_small_creatures() -> Arc<CardData> {
     fixture_static(
         "Fixture Small Doubler",
         ReplacementDef::new(
-            EventPattern::CountersPut { counter: None, by: None },
+            EventPattern::AddCounters { counter: None, by: None },
             AffectedSet::Filter { filter: ObjectFilter::PowerLE(2) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -476,7 +476,7 @@ fn a_player_gets_counters_through_the_same_event() {
     let mut game = setup_two_player_game();
     let start = game.events.records().len();
     let effect = Effect::Atom(
-        Primitive::GetCounters { counter: CounterType::Energy, amount: AmountExpr::Fixed(2), by: None },
+        Primitive::GetCounters { counter: CounterType::Energy, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
         EffectRecipient::Controller,
     );
 
@@ -492,7 +492,7 @@ fn a_player_gets_counters_through_the_same_event() {
         fixture_static(
             "Fixture Energy Doubler",
             ReplacementDef::new(
-                EventPattern::CountersPut { counter: Some(CounterType::Energy), by: None },
+                EventPattern::AddCounters { counter: Some(CounterType::Energy), by: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
@@ -808,7 +808,7 @@ fn winding_constrictor_applies_to_each_instruction() {
     put_on_battlefield(&mut game, winding_constrictor(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let one = Effect::Atom(
-        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: None },
+        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
     let twice = Effect::Sequence(vec![one.clone(), one]);
@@ -1034,10 +1034,10 @@ fn the_same_kind_from_two_putters_is_two_rows() {
 /// ("*they* put the same number and kind of counters on this creature").
 /// Resolved by me on my own creature naming an opponent, under my
 /// Vorinclex, the opponent puts them on and one is halved to none; naming
-/// nobody, I do, and it doubles.
+/// myself, as every printed one-shot does, it doubles.
 #[test]
 fn a_named_putter_on_a_proposal_is_that_player_not_the_effects_controller() {
-    let put_by = |by: Option<PlayerRef>| -> u32 {
+    let put_by = |by: PlayerRef| -> u32 {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
         let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
@@ -1048,11 +1048,11 @@ fn a_named_putter_on_a_proposal_is_that_player_not_the_effects_controller() {
         resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(mine)], &effect, &test_dp());
         count(&game, mine, CounterType::PlusOnePlusOne)
     };
-    assert_eq!(put_by(Some(PlayerRef::Opponent)), 0, "the opponent put on half of one");
-    assert_eq!(put_by(None), 2, "I put on twice one");
+    assert_eq!(put_by(PlayerRef::Opponent), 0, "the opponent put on half of one");
+    assert_eq!(put_by(PlayerRef::You), 2, "I put on twice one");
 }
 
-/// `CountersRemoved` is the removal's own arm since the review split the
+/// `RemoveCounters` is the removal's own arm since the review split the
 /// pair. No printed replacement watches one and the printed customer is a
 /// restriction (Fear of Sleep Paralysis, RS's); the engine's own `Prevent`
 /// over it is what shows the arm is reached — and that it asks the kind.
@@ -1064,7 +1064,7 @@ fn a_prevention_over_a_removal_watches_counters_removed() {
         fixture_static(
             "Fixture Keeper",
             ReplacementDef::new(
-                EventPattern::CountersRemoved { counter: Some(CounterType::PlusOnePlusOne) },
+                EventPattern::RemoveCounters { counter: Some(CounterType::PlusOnePlusOne) },
                 AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
                 Rewrite::Prevent,
             ),

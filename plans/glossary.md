@@ -164,7 +164,7 @@ than a missing one" is about an arm with no customer of either kind.
 
 **putter** — the player putting counters on an object or player: CR 122.6a's
 "which player puts those counters on it", carried as `AddCounters::by` and
-asked by `EventPattern::CountersPut`'s `by`. For counters a permanent enters
+asked by `EventPattern::AddCounters`'s `by`. For counters a permanent enters
 with it is the player the effect named, else the rule's default, the
 controller it enters under (`EntryCounters::putter`). Vorinclex, Monstrous
 Raider is the reader; a removal has none.

@@ -867,7 +867,7 @@ fn ordering_cannot_change_outcome(
             // the count stays on "one or more"'s side and the kinds are the
             // kinds. Over an *entry* its `affected` filter reads the CR 614.12
             // frame, which +1/+1 counters feed — item 47's condition (c),
-            // fired by RE-5's door on `CountersPut` — so an entry's members
+            // fired by RE-5's door on `AddCounters` — so an entry's members
             // answer to the same leaf table the `EnterWith` shape does.
             Rewrite::Amount(AmountRewrite::Multiplier(_)) => {
                 !matches!(event, GameAction::EnterBattlefield { .. })
@@ -1727,11 +1727,11 @@ fn apply_rewrite(
             // with counters" is not "enters with zero counters", and the
             // performer would otherwise spend a CR 613.7c timestamp on nothing.
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
-                let EventPattern::CountersPut { counter: kind, by } = &chosen.def.pattern
+                let EventPattern::AddCounters { counter: kind, by } = &chosen.def.pattern
                 else {
                     return Err(format!(
                         "replacement {:?} changes an amount on an entry but its pattern is \
-                         {:?}; only a `CountersPut` watches an entry's counters (CR 122.6)",
+                         {:?}; only a `AddCounters` watches an entry's counters (CR 122.6)",
                         chosen.id, chosen.def.pattern
                     ));
                 };

@@ -9,7 +9,7 @@ theme.
 
 *Built as triaged, one commit: `EntryCounters` / `EntryCountersTemplate` with
 `by`, the `(kind, putter)` merge, `putter_of` and `resolve_putter`, `by` on
-the two primitives; `CountersPut` / `CountersRemoved` in place of
+the two primitives; `AddCounters` / `RemoveCounters` in place of
 `CounterChange { adding }`; item 43 reopened and closed as built; §11 item 83
 rewritten; the §4 rule and the Deferred Migrations head sentence; four tests
 in, one out. Re-measured: see the archive's "Reviewed" paragraph.*
@@ -45,7 +45,7 @@ broken, and the rewrite cannot infer it.** The pattern describes the event
 watched, the rewrite what to do, and `Prevent`, `Instead(RemoveCounters
 FromAffected)` and every `Restriction::Event` carry no `Plus` to read the
 direction from. The honest fix is the contract's own: two arms,
-`CountersPut { counter, by }` and `CountersRemoved { counter }`, restoring
+`AddCounters { counter, by }` and `RemoveCounters { counter }`, restoring
 one arm per `GameAction` variant and deleting the "`by` must be `None` when
 `adding` is false" caveat outright. **Fix**, ~40 lines: three
 `pattern_watches` arms, `reads_the_amount`, six cards, two RC-4 fixtures,
@@ -54,7 +54,7 @@ the RE-5 tests, the type's doc and §3.2a's "sixteen arms" paragraph.
 **R5 — "nothing prints a remover" could become false.** Scryfall
 2026-09-14: no printed "would remove" replacement and no "if an opponent
 would remove" (the one "counters can't be removed" is Fear of Sleep
-Paralysis, RS's). With R4's split the trap goes: `CountersRemoved` has no
+Paralysis, RS's). With R4's split the trap goes: `RemoveCounters` has no
 `by`, so the day a card prints a remover it is a field added with that
 card and a compile error at every reader until it is answered, not a
 pattern that silently matches nothing. `RemoveCounters` on the action

@@ -5630,8 +5630,8 @@ Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 **Shipped:** `CounterSubject { Object, Player }` on `GameAction::AddCounters`
 and `RemoveCounters` and on `GameEvent::CountersChanged`; `AddCounters::by`,
 the player putting them on — the resolving effect's controller, and at an
-entry CR 122.6a's default; `EventPattern::CountersPut { counter, by:
-Option<PlayerSet> }` and `CountersRemoved { counter }` — one arm per variant,
+entry CR 122.6a's default; `EventPattern::AddCounters { counter, by:
+Option<PlayerSet> }` and `RemoveCounters { counter }` — one arm per variant,
 split at the review from a shared `CounterChange { adding }` — the first
 watching an `AddCounters` and, CR 122.6's second door, an `EnterBattlefield`
 whose mods carry a matching kind with one or more, asking "one or more" as

@@ -344,7 +344,7 @@ const PERFORMANCE_POOL: [&str; 84] = [
     // the same turn, a `--require` question rather than a slot.
     "Parallel Lives",
     "Raise the Alarm",
-    // RE-5 — the first `CountersPut` watcher, at one mana. Hardened Scales
+    // RE-5 — the first `EventPattern::AddCounters` watcher, at one mana. Hardened Scales
     // opens the sweep on every `AddCounters` (Battlegrowth is pooled) and on
     // every counter-bearing entry — Chainbreaker's, Master Biomancer's
     // grants — through the door RE-5 added, and beside a second Scales it is
