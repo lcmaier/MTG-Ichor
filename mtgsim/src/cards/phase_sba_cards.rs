@@ -112,7 +112,11 @@ pub fn battlegrowth() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
-                Primitive::AddCounters(CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
+                Primitive::AddCounters {
+                    counter: CounterType::PlusOnePlusOne,
+                    amount: AmountExpr::Fixed(1),
+                    by: None,
+                },
                 EffectRecipient::Target(
                     SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
                     TargetCount::Exactly(1),

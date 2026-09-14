@@ -1204,20 +1204,20 @@ impl GameState {
             // replacement effects *produce* one, since "instead remove a stun
             // counter from it" is a substituted event and not bookkeeping.
 
-            Primitive::AddCounters(counter_type, amount_expr) => {
-                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+            Primitive::AddCounters { counter, amount, by } => {
+                let n = self.evaluate_amount(amount, ctx)? as u32;
+                let by = self.resolve_putter(by, ctx)?;
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously, which is what lets a single CR 614.16
-                // doubler see all of them. The putter is the effect's
-                // controller (CR 122.6a's shape, read by Vorinclex).
+                // doubler see all of them.
                 let batch = self
                     .collect_battlefield_targets(ctx)
                     .into_iter()
                     .map(|object| GameAction::AddCounters {
                         subject: CounterSubject::Object(object),
-                        counter: *counter_type,
+                        counter: *counter,
                         n,
-                        by: ctx.controller,
+                        by,
                     })
                     .collect();
                 self.execute_actions(batch, &actx)?;
@@ -1242,15 +1242,16 @@ impl GameState {
             // "You get {E}{E}" — the same event with a player as its subject,
             // so Winding Constrictor's "if you would get one or more counters"
             // watches it through the one arm.
-            Primitive::GetCounters(counter_type, amount_expr) => {
-                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
+            Primitive::GetCounters { counter, amount, by } => {
+                let n = self.evaluate_amount(amount, ctx)? as u32;
                 let player = self.resolve_player_for_self(recipient, ctx);
+                let by = self.resolve_putter(by, ctx)?;
                 self.execute_action(
                     GameAction::AddCounters {
                         subject: CounterSubject::Player(player),
-                        counter: *counter_type,
+                        counter: *counter,
                         n,
-                        by: ctx.controller,
+                        by,
                     },
                     &actx,
                 )?;
@@ -1883,6 +1884,53 @@ impl GameState {
     /// For effects that target "you" (the controller) or use EffectRecipient::Implicit,
     /// returns the controller. For targeted player effects, returns the first
     /// player target.
+    /// Who puts the counters on, for `Primitive::AddCounters` and
+    /// `GetCounters` (CR 122.6a's shape on a proposal).
+    ///
+    /// `None` and `You` are the effect's controller — every printed one-shot.
+    /// `Opponent` is the resolution's player target when it has one, else the
+    /// only opponent still in the game; with several and no target it is an
+    /// authoring error and loud. Bold Plagiarist's "*they* put" is the
+    /// printed customer, a trigger whose effect names the player who
+    /// triggered it — `Player(id)` once CR 603 fills it.
+    fn resolve_putter(
+        &self,
+        by: &Option<PlayerRef>,
+        ctx: &ResolutionContext,
+    ) -> Result<PlayerId, String> {
+        Ok(match by {
+            None | Some(PlayerRef::You) => ctx.controller,
+            Some(PlayerRef::Player(pid)) => *pid,
+            Some(PlayerRef::Owner) => self.get_object(ctx.source)?.owner,
+            Some(PlayerRef::Opponent) => {
+                let targeted = ctx.targets.iter().find_map(|t| match t {
+                    ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
+                    _ => None,
+                });
+                match targeted {
+                    Some(pid) => pid,
+                    None => {
+                        let opponents: Vec<PlayerId> = (0..self.num_players())
+                            .filter(|&p| p != ctx.controller && !self.player_lost[p])
+                            .collect();
+                        match opponents.as_slice() {
+                            [only] => *only,
+                            others => {
+                                return Err(format!(
+                                    "an effect names \"an opponent\" as the player putting \
+                                     counters on, targets none, and player {} has {} \
+                                     opponents in the game",
+                                    ctx.controller,
+                                    others.len()
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
     fn resolve_player_for_self(
         &self,
         recipient: &EffectRecipient,

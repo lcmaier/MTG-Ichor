@@ -916,8 +916,8 @@ impl GameState {
         // counters are part of the entry event rather than a separate "counters
         // would be put on it" one, which is why CR 614.16's doublers replace the
         // `EnterMods` this performer is handed rather than an event of their own.
-        for &(counter, n) in &mods.counters {
-            self.add_counters(id, counter, n);
+        for row in &mods.counters {
+            self.add_counters(id, row.counter, row.n);
         }
 
         self.register_static_effects(id, controller);
@@ -1003,7 +1003,11 @@ impl GameState {
                     chars.types.contains(&crate::types::card_types::CardType::Planeswalker)
                 });
                 if is_planeswalker {
-                    mods.counters.push((CounterType::Loyalty, loyalty as u32));
+                    mods.counters.push(crate::types::replacement::EntryCounters {
+                        counter: CounterType::Loyalty,
+                        n: loyalty as u32,
+                        by: None,
+                    });
                 }
             }
         }

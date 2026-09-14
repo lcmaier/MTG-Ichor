@@ -3634,17 +3634,19 @@ pattern's kind, the creation template and two more cards (82).
 `CounterSubject` on `GameAction::AddCounters` and `RemoveCounters` and on
 `GameEvent::CountersChanged` — and the putter rides on the event as
 `AddCounters::by`. CR 122.6's entry counters are watched through a second
-door on `EventPattern::CounterChange`: an `EnterBattlefield` whose mods
-carry a matching kind with one or more, the putter being CR 122.6a's
-default, the entry's controller; `Rewrite::Amount` rewrites a proposal's
-count and each matched kind in an entry's mods. `PlayerState.counters` is
+door on `EventPattern::CountersPut`: an `EnterBattlefield` whose mods carry
+a matching kind with one or more, each row carrying its putter — the player
+the effect named, else CR 122.6a's default, the entry's controller;
+`Rewrite::Amount` rewrites a proposal's count and each matched kind in an
+entry's mods. `PlayerState.counters` is
 the kind → count map (`Poison`, `Energy`), CR 704.5c reads it, and
 `Primitive::GetCounters` is Oracle's "you get". Doubling Season whole,
 Hardened Scales (pooled), Vorinclex, Monstrous Raider, Winding Constrictor,
 Live Fast, Primal Vigor. Sized ~1,850, shipped **+1,911 / −101** before the
-docs. `PERFORMANCE_POOL` 83 → 84. Item 43 closed: the named putter has no
-printed customer, and the atom that motivated it names the wrong card (§11
-item 83). Item 47's condition (c) fired from the multiplier side and the
+docs. `PERFORMANCE_POOL` 83 → 84. Item 43 closed and built — at the review,
+after a first close on an empty Scryfall query that the owner's rule rejects
+(§11 item 83); the review also split `CounterChange { adding }` into
+`CountersPut` and `CountersRemoved`, one arm per variant. Item 47's condition (c) fired from the multiplier side and the
 predicate's entry clause is the re-derivation (item 84); the additive pairs
 RE-5 makes reachable are `backlog.md` §2.29's next rows, not a shape
 (item 85); a cost's counters are `codebase-state.md`'s "Found by RE-5" line.
@@ -6086,27 +6088,35 @@ found them.
 
 ### Found by building RE-5 (2026-09-13)
 
-83. **CR 122.6a's named half has no printed customer, and the atom that
-    motivated it names the wrong card.** Item 43 sized an `Option<PlayerId>`
-    per `EnterMods` counters entry on the reading that Doubling Season
-    "doubles counters *you* put on"; the Season's counter half reads "a
-    permanent you control" (Scryfall, 2026-09-13), and `ATOM-122.6a-001`'s
-    expected result — "Doubling Season only applies to counters placed by
-    you" — is the same error in the corpus. The rules pass (§8 of
-    `engineering-practices.md`) ran before the field was written: three
-    Scryfall queries for an effect that specifies who puts entry counters on
-    return nothing, and the seven printed "would put one or more counters"
-    watchers all read the default. So the door reads CR 122.6a's default off
-    the entry's `controller`, Vorinclex is the reader, the field is not built,
-    and `EnterMods::counters`' doc says where it goes. The atom is covered on
-    its default half with the correction in the test's own doc; the corpus
-    line itself is not edited, since the session files are authored and this
-    is an erratum against a card, not a rule.
+83. **CR 122.6a's named putter was closed on an empty Scryfall query, and
+    the review reopened and built it.** RE-5 sized item 43's field, ran the
+    rules pass, found no printed effect that specifies who puts entry
+    counters on, and closed the item on that — finding on the way that the
+    premise behind it (Doubling Season "doubles counters *you* put on") and
+    `ATOM-122.6a-001`'s expected result name the wrong card: the Season's
+    counter half reads "a permanent you control", and Vorinclex is the
+    reader. The owner's review rejected the close: a rule the CR states is
+    owed whether or not a card prints it, since a card can be printed next
+    set and custom card creation is a post-v1 goal — the CR is the customer,
+    a printed card is the test (`engineering-practices.md` §4). And Bold
+    Plagiarist shows the shape on a *proposal*, which RE-5 had not looked
+    for: "whenever an opponent puts one or more counters on a creature they
+    control, *they* put the same number and kind of counters on this
+    creature" — the opponent puts counters on a creature they do not
+    control, so `Primitive::AddCounters` writing its own controller as the
+    putter was the same shortcut. Built at the review (theme A):
+    `EntryCounters { counter, n, by: Option<PlayerId> }` and its template
+    with `Option<PlayerRef>`, `merge` keyed on `(kind, putter)`, the door and
+    the CR 101.2 check reading each row's putter ahead of the entry's
+    controller, and `by: Option<PlayerRef>` on the two primitives, resolved
+    by `resolve_putter`. The atom stays covered on its default half with the
+    card correction in the test's doc; the corpus line is not edited, since
+    the session files are authored and this is an erratum against a card.
 
 84. **Item 47's condition (c) fired, from the multiplier side, and the
     re-derivation is recorded.** The condition was written as "`EventPattern::
     EnterBattlefield` gains a field that reads `mods`"; what arrived is a
-    *different* arm reading `mods` — `CounterChange`'s entry door — which is
+    *different* arm reading `mods` — `CountersPut`'s entry door — which is
     the same hazard for the multiplier shape rather than the `EnterWith` one.
     Two reads: which kinds the mods carry, and whether each carries one or
     more. A multiplier of one or more changes neither, so a suppressed

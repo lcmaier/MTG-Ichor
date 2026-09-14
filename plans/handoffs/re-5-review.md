@@ -5,7 +5,14 @@ Triage: **fix** / **doc** / **defer** / **design**. Close one theme per
 session, cold from this file; delete the file in the PR that lands the last
 theme.
 
-## Theme A — the putter is an authored fact, and a rule is not closed by an empty Scryfall query (R2, R4, R5)
+## Theme A — the putter is an authored fact, and a rule is not closed by an empty Scryfall query (R2, R4, R5) — ✅ closed 2026-09-14
+
+*Built as triaged, one commit: `EntryCounters` / `EntryCountersTemplate` with
+`by`, the `(kind, putter)` merge, `putter_of` and `resolve_putter`, `by` on
+the two primitives; `CountersPut` / `CountersRemoved` in place of
+`CounterChange { adding }`; item 43 reopened and closed as built; §11 item 83
+rewritten; the §4 rule and the Deferred Migrations head sentence; four tests
+in, one out. Re-measured: see the archive's "Reviewed" paragraph.*
 
 **R2 — item 43 was closed on the wrong premise.** "No printed effect names
 the putter" was the finding, and the owner's rule is that it does not close

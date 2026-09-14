@@ -962,17 +962,37 @@ pub enum Primitive {
     ProduceMana(ManaOutput),
 
     // === Counters ===
-    /// Add N counters of a type to target
-    AddCounters(CounterType, AmountExpr),
+    /// Put `amount` `counter` counters on each recipient permanent
+    /// (CR 122.1).
+    ///
+    /// `by` is who puts them on — the fact Vorinclex, Monstrous Raider reads
+    /// off `GameAction::AddCounters::by`. `None` is the effect's controller,
+    /// which is every printed one-shot; a `Some` is an effect whose text
+    /// names another player, Bold Plagiarist's "*they* put the same number
+    /// and kind of counters on this creature" — the opponent puts counters on
+    /// a creature they do not control, and neither the effect's controller
+    /// nor the object's is the answer. Resolved at resolution
+    /// (`resolve_putter`): `You` and `None` the controller, `Player` itself,
+    /// `Owner` the source's owner, `Opponent` the resolution's player target
+    /// or the only opponent.
+    AddCounters {
+        counter: CounterType,
+        amount: AmountExpr,
+        by: Option<PlayerRef>,
+    },
     /// Remove N counters of a type from target
     RemoveCounters(CounterType, AmountExpr),
-    /// A player gets N counters of a type — Oracle's verb for a player ("you
-    /// get {E}{E}", "that player gets a poison counter"), and its own
+    /// A player gets `amount` `counter` counters — Oracle's verb for a player
+    /// ("you get {E}{E}", "that player gets a poison counter"), and its own
     /// primitive because [`Self::AddCounters`] resolves its recipient as
     /// permanents and one primitive answering for both would make
     /// `EffectRecipient::Controller` mean two things. The recipient is
-    /// resolved as `GainLife`'s is.
-    GetCounters(CounterType, AmountExpr),
+    /// resolved as `GainLife`'s is; `by` as [`Self::AddCounters`]'s.
+    GetCounters {
+        counter: CounterType,
+        amount: AmountExpr,
+        by: Option<PlayerRef>,
+    },
 
     // === Tokens ===
     /// Create N tokens (CR 701.7a) — resolved as one

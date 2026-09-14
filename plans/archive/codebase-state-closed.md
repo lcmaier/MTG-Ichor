@@ -897,6 +897,21 @@ It was a record for item 70's fix — the answer was right, re-derived
     merge key are recorded on `EnterMods::counters` for the card that prints
     one. `replacement-architecture.md` §11 item 83.
 
+    **Reopened and built (2026-09-14, RE-5's review, theme A).** The owner
+    rejected the close: a rule the CR states is owed whether or not a card
+    prints it, since a card can be printed next set and custom card creation
+    is a post-v1 goal — the CR is the customer, a printed card is the test
+    (`engineering-practices.md` §4). Bold Plagiarist shows the shape on a
+    proposal ("*they* put the same number and kind of counters on this
+    creature": the opponent puts counters on a creature they do not
+    control), which RE-5 had not looked for. Built as sized: `EntryCounters
+    { counter, n, by: Option<PlayerId> }` and `EntryCountersTemplate { ..,
+    by: Option<PlayerRef> }`, `merge` keyed on `(kind, putter)`, the door and
+    the CR 101.2 check reading each row's putter ahead of the entry's
+    controller, `pipeline::putter_of` resolving a template's `PlayerRef`, and
+    `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters`
+    through `resolve_putter`. Three fixture tests; no printed producer.
+
 ## Before Layers (CR 613) — now DURING Layers
 
 1. **Pre-layer P/T shim — ✅ done.** `PermanentState.power_modifier` / `toughness_modifier` no longer exist anywhere in `src/`. Layer 7c output replaced them.

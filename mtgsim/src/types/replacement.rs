@@ -40,7 +40,7 @@ use crate::types::effects::{
     AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
-use crate::types::ids::ObjectId;
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
 
 /// One replacement or prevention effect.
@@ -158,21 +158,24 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why sixteen arms and not seventeen
+/// # Why eighteen arms and not twenty
 ///
-/// `GameAction` ships seventeen variants and this enum sixteen. `CounterChange`
-/// covers `AddCounters` and `RemoveCounters` through its `adding` field — the
-/// one place the projection is not 1:1, and that arm's own doc says so.
+/// `GameAction` ships twenty variants and this enum eighteen, one arm per
+/// variant. The two with no arm at all are on purpose: `Attach`, since
+/// nothing replaces an attach, and `CreateTokenIn`, since nothing prints "if a
+/// token would be created in exile" (RE-4). The counter pair was the one place
+/// the projection was not 1:1 — one `CounterChange` arm with an `adding` flag
+/// — until RE-5's review split it into [`Self::CountersPut`] and
+/// [`Self::CountersRemoved`].
 ///
-/// The one with no arm at all is `Attach` — on purpose, since nothing
-/// replaces an attach. `DrawCard`, `GainLife` and `LoseLife` gained theirs in
-/// RE-2 and RE-3, and `PlayerLoses`/`PlayerWins` in RE-6, each with the card
-/// that watches it. Adding an arm is a normal diff — this enum is matched
-/// exhaustively and is not `#[non_exhaustive]`, so every reader fails to
-/// compile rather than defaulting. **`gather::pattern_watches` is the reader
-/// that does not**: it falls through to `false`, so a `GameAction` variant with
-/// no arm there is silently unwatchable, which is `Attach`'s intended state and
-/// the trap for everything else.
+/// `DrawCard`, `GainLife` and `LoseLife` gained theirs in RE-2 and RE-3, and
+/// `PlayerLoses`/`PlayerWins` in RE-6, each with the card that watches it.
+/// Adding an arm is a normal diff — this enum is matched exhaustively and is
+/// not `#[non_exhaustive]`, so every reader fails to compile rather than
+/// defaulting. **`gather::pattern_watches` is the reader that does not**: it
+/// falls through to `false`, so a `GameAction` variant with no arm there is
+/// silently unwatchable, which is `Attach`'s intended state and the trap for
+/// everything else.
 ///
 /// **Until RD-1 the reason given here was that no set could scope one to a
 /// player, and that reason is gone.** [`ReplacementDef::affected_players`]
@@ -374,16 +377,16 @@ pub enum EventPattern {
         cast: Option<bool>,
     },
 
-    /// CR 122.1's counter mutations, and — since RE-5 — an entry that gives
-    /// the permanent counters (CR 122.6).
+    /// CR 122.1's counters being put on a permanent or a player, and — since
+    /// RE-5 — an entry that gives the permanent counters (CR 122.6).
     ///
     /// **Two doors, one event.** CR 122.6: "putting counters on that object
     /// ... refers to putting counters on that object while it's on the
     /// battlefield and also to an object that's given counters as it enters
-    /// the battlefield". So with `adding: true` this watches an `AddCounters`
-    /// *and* an `EnterBattlefield` whose `mods.counters` carries a matching
-    /// kind with one or more counters, exactly as [`Self::ZoneChange`] watches
-    /// an entry as the move. Doubling Season's counter half, Hardened Scales,
+    /// the battlefield". So this watches an `AddCounters` *and* an
+    /// `EnterBattlefield` whose `mods.counters` carries a matching kind with
+    /// one or more counters, exactly as [`Self::ZoneChange`] watches an entry
+    /// as the move. Doubling Season's counter half, Hardened Scales,
     /// Vorinclex, Monstrous Raider, Winding Constrictor and Primal Vigor are
     /// the printed customers, and every one of them has a ruling that says
     /// "affects permanents that enter with counters".
@@ -394,23 +397,39 @@ pub enum EventPattern {
     /// multiplier of one or more, or a plus, keeps every kind on the side of
     /// that line it was on. `Halve` can carry a kind from one to zero and is
     /// admitted to no suppressed bucket.
-    CounterChange {
+    ///
+    /// **Its own arm, not a direction flag on a shared one.** RE-5 shipped
+    /// the pair as `CounterChange { adding: bool }`, the one place the growth
+    /// contract's one-arm-per-variant was broken, and the review split it: a
+    /// rewrite cannot say which direction a pattern watches (a `Prevent` or
+    /// a restriction carries no `Plus`), and a field asked of a putter had to
+    /// be documented as meaningless on a removal. Two arms need no such
+    /// caveat.
+    CountersPut {
         counter: Option<CounterType>,
-        /// `true` matches `AddCounters` and an entry's counters, `false`
-        /// matches `RemoveCounters`.
-        adding: bool,
         /// Who is putting the counters on — Vorinclex's "if *you* would put"
         /// and "if *an opponent* would put", asked of `AddCounters::by` and,
-        /// for an entry, of CR 122.6a's default, the entry's controller.
-        /// `None` asks nothing, which is every other printed watcher.
+        /// for an entry, of each row's putter (CR 122.6a: the effect's named
+        /// player, else the entry's controller). `None` asks nothing, which
+        /// is every other printed watcher.
         ///
         /// A [`PlayerSet`] and not a `PlayerRef`: "an opponent" is any of
         /// them, which is `PlayerSet::Opponents`, and `PlayerSet::contains`
-        /// resolves it against the effect's controller with no board. Asked
-        /// of a putter only — nothing prints a *remover* — so with `adding:
-        /// false` it must be `None`, and a removal pattern that names one
-        /// matches nothing.
+        /// resolves it against the effect's controller with no board.
         by: Option<PlayerSet>,
+    },
+
+    /// CR 122.1's counters being taken off a permanent or away from a player
+    /// — `GameAction::RemoveCounters`. No printed replacement watches one
+    /// (Scryfall, 2026-09-14: no "would remove ... counter"); the customer
+    /// in print is a restriction, Fear of Sleep Paralysis's "stun counters
+    /// can't be removed", which is RS's and reuses this arm through
+    /// `Restriction::Event`. No `by`: nothing prints a *remover*, and the
+    /// day a card does it is a field added here with that card — a compile
+    /// error at every reader until it is answered, not a pattern that
+    /// silently matches nothing.
+    CountersRemoved {
+        counter: Option<CounterType>,
     },
 
     /// CR 614.1b / 614.10 — "skip your next turn". The event's subject is the
@@ -658,13 +677,16 @@ impl EventPattern {
             EventPattern::EnterBattlefield { .. } => false,
             // CR 701.8b's two ways.
             EventPattern::Destroy { .. } => false,
-            // A counter kind, a direction and a putter, never a count:
-            // CR 614.16's doublers are written about "one or more", which the
-            // arm asks of the proposal's `n` and of each kind in an entry's
-            // mods — and a multiplier of one or more, or a plus, leaves every
-            // kind on the side of that line it was on. `Halve` can cross it
-            // (one to zero) and is admitted to no suppressed bucket.
-            EventPattern::CounterChange { .. } => false,
+            // A counter kind and a putter, never a count: CR 614.16's
+            // doublers are written about "one or more", which the arm asks
+            // of the proposal's `n` and of each kind in an entry's mods — and
+            // a multiplier of one or more, or a plus, leaves every kind on
+            // the side of that line it was on. `Halve` can cross it (one to
+            // zero) and is admitted to no suppressed bucket.
+            EventPattern::CountersPut { .. } => false,
+            // A counter kind. CR 701.2 makes a removal "as much as possible",
+            // and no field here reads how much.
+            EventPattern::CountersRemoved { .. } => false,
             // A turn, a phase, a step. CR 614.10's units are not amounts.
             EventPattern::Untap
             | EventPattern::Tap
@@ -1191,8 +1213,28 @@ pub struct EnterModsTemplate {
     /// CR 110.5b — the permanent enters tapped. A status, so no amount.
     pub tapped: bool,
 
-    /// CR 122.6a — the counters, and how many of each.
-    pub counters: Vec<(CounterType, AmountExpr)>,
+    /// CR 122.6a — the counters, how many of each, and who puts them on.
+    pub counters: Vec<EntryCountersTemplate>,
+}
+
+/// One kind of counter an entry replacement gives, before its amount is a
+/// number — the authored half of [`EntryCounters`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntryCountersTemplate {
+    pub counter: CounterType,
+    pub amount: AmountExpr,
+    /// CR 122.6a's first sentence — the effect "may specify which player puts
+    /// those counters on it". `None` is the rule's default, the object's
+    /// controller, and is what every printed "enters with" writes; a
+    /// `Some` is resolved against the effect when it is applied
+    /// (`pipeline::putter_of`): `You` is the effect's controller, `Owner`
+    /// the entering object's owner, `Player` itself, and `Opponent` the only
+    /// one there is. No printed card names one (Scryfall, 2026-09-14), and
+    /// that is why the field exists rather than why it does not: the rule
+    /// states it, a card can print it next set, and a custom card can write
+    /// it — the CR is the customer and a printed card is the test
+    /// (`engineering-practices.md` §4).
+    pub by: Option<PlayerRef>,
 }
 
 impl EnterModsTemplate {
@@ -1203,15 +1245,15 @@ impl EnterModsTemplate {
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
     pub fn with_counters(counter: CounterType, n: u32) -> Self {
-        EnterModsTemplate {
-            tapped: false,
-            counters: vec![(counter, AmountExpr::Fixed(n as u64))],
-        }
+        Self::with_counter_amount(counter, AmountExpr::Fixed(n as u64))
     }
 
     /// CR 122.6a with an amount the board decides — Master Biomancer.
     pub fn with_counter_amount(counter: CounterType, amount: AmountExpr) -> Self {
-        EnterModsTemplate { tapped: false, counters: vec![(counter, amount)] }
+        EnterModsTemplate {
+            tapped: false,
+            counters: vec![EntryCountersTemplate { counter, amount, by: None }],
+        }
     }
 
     /// Does every amount here read a constant?
@@ -1225,8 +1267,12 @@ impl EnterModsTemplate {
         // Destructured in full, so that a new field here is a compile error
         // at the one function whose premise assumes every field is a status
         // or a constant amount (`codebase-state.md` item 47's condition (a)).
+        // A putter is neither and reads nothing an application changes.
         let EnterModsTemplate { tapped: _, counters } = self;
-        counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
+        counters.iter().all(|c| {
+            let EntryCountersTemplate { counter: _, amount, by: _ } = c;
+            matches!(amount, AmountExpr::Fixed(_))
+        })
     }
 }
 
@@ -1284,22 +1330,40 @@ pub struct EnterMods {
     /// CR 110.5b — the permanent enters tapped.
     pub tapped: bool,
 
-    /// CR 122.6a — the counters the permanent is given as it enters.
+    /// CR 122.6a — the counters the permanent is given as it enters, and who
+    /// puts each kind on.
     ///
-    /// Coalesced by kind at [`Self::merge`], so the performer puts each kind on
-    /// once and CR 613.7c allocates one timestamp per kind. Insertion order,
-    /// which is a `Vec` rather than a `HashMap` for the reason every ordered
-    /// collection in this engine is one: a `HashMap` walk is not reproducible
-    /// across processes, and this list reaches `add_counters`.
-    ///
-    /// **Who puts them on is not a field, and the rules pass is why.** CR
-    /// 122.6a's default — the object's controller — is the entry's own
-    /// `controller`, which is what `EventPattern::CounterChange`'s entry door
-    /// reads for Vorinclex; its first sentence, an effect that "may specify
-    /// which player", has no printed customer (Scryfall, 2026-09-13,
-    /// `codebase-state.md` item 43). The card that prints one adds an
-    /// `Option<PlayerId>` here and keys [`Self::merge`] on `(kind, player)`.
-    pub counters: Vec<(CounterType, u32)>,
+    /// Coalesced by kind *and putter* at [`Self::merge`], so the performer
+    /// puts each row on once and CR 613.7c allocates one timestamp per row.
+    /// Two effects giving the same kind on behalf of different players are
+    /// two rows, because Vorinclex reads each row's putter and doubles one
+    /// while halving the other (`codebase-state.md` item 43). Insertion
+    /// order, which is a `Vec` rather than a `HashMap` for the reason every
+    /// ordered collection in this engine is one: a `HashMap` walk is not
+    /// reproducible across processes, and this list reaches `add_counters`.
+    pub counters: Vec<EntryCounters>,
+}
+
+/// One kind of counter a permanent is given as it enters, with its count and
+/// who puts it on (CR 122.6a).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryCounters {
+    pub counter: CounterType,
+    pub n: u32,
+    /// The player putting them on, when the effect specified one. `None` is
+    /// CR 122.6a's default — "the object's controller puts those counters on
+    /// it" — resolved against the entry's `controller` wherever it is read
+    /// (the pattern's door, the CR 101.2 check), which CR 616.1b settles
+    /// ahead of anything that asks. Never resolved *into* the row: an
+    /// `EnterUnderControlOf` applied later would leave a stale answer behind.
+    pub by: Option<PlayerId>,
+}
+
+impl EntryCounters {
+    /// Who puts this row on a permanent entering under `controller`.
+    pub fn putter(&self, controller: PlayerId) -> PlayerId {
+        self.by.unwrap_or(controller)
+    }
 }
 
 impl EnterMods {
@@ -1311,9 +1375,10 @@ impl EnterMods {
         EnterMods { tapped: true, counters: Vec::new() }
     }
 
-    /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
+    /// CR 122.6a — "this permanent enters with `n` `counter` counters on it",
+    /// put on by its controller.
     pub fn with_counters(counter: CounterType, n: u32) -> Self {
-        EnterMods { tapped: false, counters: vec![(counter, n)] }
+        EnterMods { tapped: false, counters: vec![EntryCounters { counter, n, by: None }] }
     }
 
     /// Is this the CR 110.5b default — nothing to apply?
@@ -1328,18 +1393,19 @@ impl EnterMods {
     /// two effects that both say "enters tapped" leave it tapped once; CR 122.6a
     /// is about counters being *put on* it, so two effects that each give it a
     /// counter give it two. `|=` and addition, and neither is a choice this
-    /// engine is making.
+    /// engine is making. The key is `(kind, putter)`: the same kind from two
+    /// players is two rows.
     pub fn merge(&mut self, other: &EnterMods) {
         self.tapped |= other.tapped;
-        for (counter, n) in &other.counters {
-            match self.counters.iter_mut().find(|(c, _)| c == counter) {
+        for row in &other.counters {
+            match self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
                 // Plain addition, matching `PermanentState::add_counters`,
                 // which is where this number ends up. A saturating add here
                 // would be the only place in the engine with a different
                 // overflow story, and clamping at `u32::MAX` is not a rules
                 // answer — it is a width this type has no business choosing.
-                Some((_, existing)) => *existing += *n,
-                None => self.counters.push((*counter, *n)),
+                Some(existing) => existing.n += row.n,
+                None => self.counters.push(*row),
             }
         }
     }

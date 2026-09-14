@@ -279,13 +279,15 @@
 //! | [`primal_vigor`] | every creature, +1/+1; every token | `Multiplier(2)`, `Everyone` |
 //!
 //! **Who puts the counters on rides on the event.** `AddCounters::by` is the
-//! resolving effect's controller, and at the entry door it is CR 122.6a's
-//! default — the controller the permanent enters under, settled at
-//! CR 616.1b before anything asks. Vorinclex is the only reader; Doubling
-//! Season's counter half reads the *permanent's* controller and nothing
-//! about the putter, which its text says and `ATOM-122.6a-001`'s example
-//! gets wrong. No printed effect specifies another putter (Scryfall,
-//! 2026-09-13), so `EnterMods` carries none.
+//! player the effect names, else the resolving effect's controller; at the
+//! entry door it is each row's named putter, else CR 122.6a's default — the
+//! controller the permanent enters under, settled at CR 616.1b before
+//! anything asks. Vorinclex is the only printed reader; Doubling Season's
+//! counter half reads the *permanent's* controller and nothing about the
+//! putter, which its text says and `ATOM-122.6a-001`'s example gets wrong.
+//! No printed effect names a putter at an entry (Scryfall, 2026-09-14) and
+//! the field is built anyway: the CR states it, and Bold Plagiarist names
+//! one on a proposal (`engineering-practices.md` §4).
 //!
 //! **A multiplier and a plus do not commute, and the prompt is real.**
 //! Doubling Season beside Hardened Scales is 1 → 2 → 3 or 1 → 2 → 4, and
@@ -1978,7 +1980,7 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
 /// with.
 fn doubles_counters_on_your_permanents() -> ReplacementDef {
     ReplacementDef::new(
-        EventPattern::CounterChange { counter: None, adding: true, by: None },
+        EventPattern::CountersPut { counter: None, by: None },
         AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
         Rewrite::Amount(AmountRewrite::Multiplier(2)),
     )
@@ -1994,7 +1996,7 @@ fn doubles_counters_on_your_permanents() -> ReplacementDef {
 ///
 /// **Both halves of CR 614.16, on one card.** The token half is Parallel
 /// Lives' def word for word (RE-4); the counter half is the first
-/// `CounterChange` watcher, and it reads *the permanent's controller* — "a
+/// `CountersPut` watcher, and it reads *the permanent's controller* — "a
 /// permanent you control" — and nothing about who puts the counters on, which
 /// is Vorinclex's question and not this card's. The two are two instances
 /// with two CR 614.5 identities: the token half is applied at a creation and
@@ -2095,11 +2097,7 @@ pub fn hardened_scales() -> Arc<CardData> {
              plus one +1/+1 counters are put on it instead.",
         )
         .ability(static_replacement(ReplacementDef::new(
-            EventPattern::CounterChange {
-                counter: Some(CounterType::PlusOnePlusOne),
-                adding: true,
-                by: None,
-            },
+            EventPattern::CountersPut { counter: Some(CounterType::PlusOnePlusOne), by: None },
             AffectedSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -2174,11 +2172,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         )
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::CounterChange {
-                    counter: None,
-                    adding: true,
-                    by: Some(PlayerSet::You),
-                },
+                EventPattern::CountersPut { counter: None, by: Some(PlayerSet::You) },
                 AffectedSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
@@ -2186,11 +2180,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
         ))
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::CounterChange {
-                    counter: None,
-                    adding: true,
-                    by: Some(PlayerSet::Opponents),
-                },
+                EventPattern::CountersPut { counter: None, by: Some(PlayerSet::Opponents) },
                 AffectedSet::Filter { filter: ObjectFilter::All },
                 Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
             )
@@ -2265,7 +2255,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
              each of those kinds of counters instead.",
         )
         .ability(static_replacement(ReplacementDef::new(
-            EventPattern::CounterChange { counter: None, adding: true, by: None },
+            EventPattern::CountersPut { counter: None, by: None },
             AffectedSet::Filter {
                 filter: ObjectFilter::And(
                     Box::new(ObjectFilter::Or(
@@ -2273,13 +2263,12 @@ pub fn winding_constrictor() -> Arc<CardData> {
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                     )),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                ) },
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))
         .ability(static_replacement(
             ReplacementDef::new(
-                EventPattern::CounterChange { counter: None, adding: true, by: None },
+                EventPattern::CountersPut { counter: None, by: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Plus(1)),
             )
@@ -2325,7 +2314,10 @@ pub fn live_fast() -> Arc<CardData> {
                 Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller),
                 Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
                 Effect::Atom(
-                    Primitive::GetCounters(CounterType::Energy, AmountExpr::Fixed(2)),
+                    Primitive::GetCounters {
+                        counter: CounterType::Energy,
+                        amount: AmountExpr::Fixed(2),
+                        by: None },
                     EffectRecipient::Controller,
                 ),
             ]),
@@ -2387,11 +2379,7 @@ pub fn primal_vigor() -> Arc<CardData> {
             .affecting_players(PlayerSet::Everyone),
         ))
         .ability(static_replacement(ReplacementDef::new(
-            EventPattern::CounterChange {
-                counter: Some(CounterType::PlusOnePlusOne),
-                adding: true,
-                by: None,
-            },
+            EventPattern::CountersPut { counter: Some(CounterType::PlusOnePlusOne), by: None },
             AffectedSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         )))

@@ -4,7 +4,7 @@
 //! printed cards in `cards::phase_re_cards` and the engine's own shape: a
 //! counter's subject is an object or a player, the putter rides on the event,
 //! and an entry that gives a permanent counters is watched through a second
-//! door on `EventPattern::CounterChange` rather than proposed as a second
+//! door on `EventPattern::CountersPut` rather than proposed as a second
 //! event.
 //!
 //! **Every board here is about which of two doors an effect meets** — an
@@ -37,7 +37,8 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::{
-    AmountRewrite, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, Rounding,
+    AmountRewrite, EnterModsTemplate, EntryCountersTemplate, EventPattern, ReplacementDef, Rewrite,
+    Rounding,
 };
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -88,7 +89,7 @@ fn put_counters_on(
     dp: &dyn DecisionProvider,
 ) {
     let effect = Effect::Atom(
-        Primitive::AddCounters(kind, AmountExpr::Fixed(n)),
+        Primitive::AddCounters { counter: kind, amount: AmountExpr::Fixed(n), by: None },
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
     resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
@@ -133,7 +134,7 @@ fn fixture_doubler() -> Arc<CardData> {
     fixture_static(
         "Fixture Counter Doubler",
         ReplacementDef::new(
-            EventPattern::CounterChange { counter: None, adding: true, by: None },
+            EventPattern::CountersPut { counter: None, by: None },
             AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -146,7 +147,7 @@ fn fixture_doubler_by(by: PlayerSet) -> Arc<CardData> {
     fixture_static(
         "Fixture Putter Doubler",
         ReplacementDef::new(
-            EventPattern::CounterChange { counter: None, adding: true, by: Some(by) },
+            EventPattern::CountersPut { counter: None, by: Some(by) },
             AffectedSet::Filter { filter: ObjectFilter::All },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -159,11 +160,7 @@ fn fixture_halver() -> Arc<CardData> {
     fixture_static(
         "Fixture Halver",
         ReplacementDef::new(
-            EventPattern::CounterChange {
-                counter: None,
-                adding: true,
-                by: Some(PlayerSet::Opponents),
-            },
+            EventPattern::CountersPut { counter: None, by: Some(PlayerSet::Opponents) },
             AffectedSet::Filter { filter: ObjectFilter::All },
             Rewrite::Amount(AmountRewrite::Halve(Rounding::Down)),
         ),
@@ -175,7 +172,7 @@ fn fixture_doubler_on_small_creatures() -> Arc<CardData> {
     fixture_static(
         "Fixture Small Doubler",
         ReplacementDef::new(
-            EventPattern::CounterChange { counter: None, adding: true, by: None },
+            EventPattern::CountersPut { counter: None, by: None },
             AffectedSet::Filter { filter: ObjectFilter::PowerLE(2) },
             Rewrite::Amount(AmountRewrite::Multiplier(2)),
         ),
@@ -467,35 +464,6 @@ fn an_entry_kind_halved_to_zero_leaves_the_mods() {
     assert_eq!(count(&game, chained, CounterType::MinusOneMinusOne), 1, "two, halved down");
 }
 
-/// Nothing prints a remover, so a removal pattern that asks `by` matches
-/// nothing and the removal goes through.
-#[test]
-fn a_removal_pattern_naming_a_putter_matches_nothing() {
-    let mut game = setup_two_player_game();
-    put_on_battlefield(
-        &mut game,
-        fixture_static(
-            "Fixture Misauthored",
-            ReplacementDef::new(
-                EventPattern::CounterChange { counter: None, adding: false, by: Some(PlayerSet::You) },
-                AffectedSet::Filter { filter: ObjectFilter::All },
-                Rewrite::Prevent,
-            ),
-        ),
-        0,
-    );
-    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    game.add_counters(bears, CounterType::PlusOnePlusOne, 2);
-
-    let effect = Effect::Atom(
-        Primitive::RemoveCounters(CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
-        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
-    );
-    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &effect, &test_dp());
-
-    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 1);
-}
-
 // ---------------------------------------------------------------------------
 // A player as the subject (CR 122.1)
 // ---------------------------------------------------------------------------
@@ -508,7 +476,7 @@ fn a_player_gets_counters_through_the_same_event() {
     let mut game = setup_two_player_game();
     let start = game.events.records().len();
     let effect = Effect::Atom(
-        Primitive::GetCounters(CounterType::Energy, AmountExpr::Fixed(2)),
+        Primitive::GetCounters { counter: CounterType::Energy, amount: AmountExpr::Fixed(2), by: None },
         EffectRecipient::Controller,
     );
 
@@ -524,7 +492,7 @@ fn a_player_gets_counters_through_the_same_event() {
         fixture_static(
             "Fixture Energy Doubler",
             ReplacementDef::new(
-                EventPattern::CounterChange { counter: Some(CounterType::Energy), adding: true, by: None },
+                EventPattern::CountersPut { counter: Some(CounterType::Energy), by: None },
                 AffectedSet::NO_OBJECTS,
                 Rewrite::Amount(AmountRewrite::Multiplier(2)),
             )
@@ -840,7 +808,7 @@ fn winding_constrictor_applies_to_each_instruction() {
     put_on_battlefield(&mut game, winding_constrictor(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let one = Effect::Atom(
-        Primitive::AddCounters(CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
+        Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: None },
         EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
     );
     let twice = Effect::Sequence(vec![one.clone(), one]);
@@ -886,8 +854,16 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                 Rewrite::EnterWith(EnterModsTemplate {
                     tapped: false,
                     counters: vec![
-                        (CounterType::PlusOnePlusOne, AmountExpr::Fixed(1)),
-                        (CounterType::Charge, AmountExpr::Fixed(1)),
+                        EntryCountersTemplate {
+                            counter: CounterType::PlusOnePlusOne,
+                            amount: AmountExpr::Fixed(1),
+                            by: None,
+                        },
+                        EntryCountersTemplate {
+                            counter: CounterType::Charge,
+                            amount: AmountExpr::Fixed(1),
+                            by: None,
+                        },
                     ],
                 }),
             ),
@@ -983,4 +959,131 @@ fn two_primal_vigors_quadruple() {
     assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 4);
     assert_eq!(tokens(&game).len(), 8);
     assert_eq!(dp.prompts(), 0);
+}
+
+// ---------------------------------------------------------------------------
+// The named putter (CR 122.6a's first sentence; item 43, built at the review)
+// ---------------------------------------------------------------------------
+
+/// "Creatures your opponents control enter with a `counter` counter on them"
+/// — with the effect naming who puts it on, or leaving CR 122.6a's default.
+fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -> Arc<CardData> {
+    fixture_static(
+        "Fixture Hostile Anthem",
+        ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            AffectedSet::Filter {
+                filter: ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+                ),
+            },
+            Rewrite::EnterWith(EnterModsTemplate {
+                tapped: false,
+                counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by }],
+            }),
+        ),
+    )
+}
+
+/// CR 122.6a's first sentence — "the effect causing the object to be given
+/// counters may specify which player puts those counters on it" — is read
+/// ahead of the default. My "creatures your opponents control enter with a
+/// -1/-1 counter, which I put on" under my Vorinclex gives their creature
+/// two, because I put them on; the same effect naming nobody leaves it to
+/// the default, the opponent, and Vorinclex halves the one to none. No
+/// printed card names a putter at an entry (Scryfall, 2026-09-14); the rule
+/// does, and a custom card can.
+#[test]
+fn a_named_putter_on_an_entry_is_read_ahead_of_the_controller() {
+    let entering_under = |by: Option<PlayerRef>| -> u32 {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+        put_on_battlefield(&mut game, opponents_creatures_enter_with(CounterType::MinusOneMinusOne, by), 0);
+        let theirs = reanimate(&mut game, vanilla_creature(2, 2, &[]), 1);
+        count(&game, theirs, CounterType::MinusOneMinusOne)
+    };
+    assert_eq!(entering_under(Some(PlayerRef::You)), 2, "I put them on: doubled");
+    assert_eq!(entering_under(None), 0, "the default: the opponent puts them on, halved to none");
+}
+
+/// One kind from two putters is two rows — the merge key item 43 sized. The
+/// opponent's own anthem gives their creature a +1/+1 counter (put on by
+/// them), mine gives it one more (put on by me), and under my Vorinclex the
+/// two rows go two ways: mine doubles, theirs halves to nothing. One row of
+/// two with either putter would read four or none.
+#[test]
+fn the_same_kind_from_two_putters_is_two_rows() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+    put_on_battlefield(&mut game, your_creatures_enter_with_a_counter(), 1);
+    put_on_battlefield(
+        &mut game,
+        opponents_creatures_enter_with(CounterType::PlusOnePlusOne, Some(PlayerRef::You)),
+        0,
+    );
+    let dp = RecordingDecisionProvider::picking(0);
+
+    let theirs = reanimate_with(&mut game, vanilla_creature(2, 2, &[]), 1, &dp);
+
+    assert_eq!(count(&game, theirs, CounterType::PlusOnePlusOne), 2);
+}
+
+/// Bold Plagiarist's shape on a proposal: an effect whose text names a
+/// player other than its controller as the one putting the counters on
+/// ("*they* put the same number and kind of counters on this creature").
+/// Resolved by me on my own creature naming an opponent, under my
+/// Vorinclex, the opponent puts them on and one is halved to none; naming
+/// nobody, I do, and it doubles.
+#[test]
+fn a_named_putter_on_a_proposal_is_that_player_not_the_effects_controller() {
+    let put_by = |by: Option<PlayerRef>| -> u32 {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+        let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let effect = Effect::Atom(
+            Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by },
+            EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+        );
+        resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(mine)], &effect, &test_dp());
+        count(&game, mine, CounterType::PlusOnePlusOne)
+    };
+    assert_eq!(put_by(Some(PlayerRef::Opponent)), 0, "the opponent put on half of one");
+    assert_eq!(put_by(None), 2, "I put on twice one");
+}
+
+/// `CountersRemoved` is the removal's own arm since the review split the
+/// pair. No printed replacement watches one and the printed customer is a
+/// restriction (Fear of Sleep Paralysis, RS's); the engine's own `Prevent`
+/// over it is what shows the arm is reached — and that it asks the kind.
+#[test]
+fn a_prevention_over_a_removal_watches_counters_removed() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(
+        &mut game,
+        fixture_static(
+            "Fixture Keeper",
+            ReplacementDef::new(
+                EventPattern::CountersRemoved { counter: Some(CounterType::PlusOnePlusOne) },
+                AffectedSet::Filter { filter: ObjectFilter::ByController(PlayerRef::You) },
+                Rewrite::Prevent,
+            ),
+        ),
+        0,
+    );
+    let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.add_counters(bears, CounterType::PlusOnePlusOne, 2);
+    game.add_counters(bears, CounterType::Charge, 1);
+    let remove = |kind: CounterType| {
+        Effect::Atom(
+            Primitive::RemoveCounters(kind, AmountExpr::Fixed(1)),
+            EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+        )
+    };
+
+    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &remove(CounterType::PlusOnePlusOne), &test_dp());
+    resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &remove(CounterType::Charge), &test_dp());
+
+    assert_eq!(count(&game, bears, CounterType::PlusOnePlusOne), 2, "the removal was prevented");
+    assert_eq!(count(&game, bears, CounterType::Charge), 0, "another kind's removal was not");
 }

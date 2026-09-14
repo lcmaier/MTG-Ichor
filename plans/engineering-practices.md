@@ -799,6 +799,17 @@ Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
   arm whose customer needs a facility the PR does not have (Xorn's template
   exists; its Treasure does not), which is a ledger line pointing at that
   facility.
+- **The CR is the customer; a printed card is the test** — adopted at RE-5's
+  review (2026-09-14, `plans/handoffs/re-5-review.md`, theme A). RE-5 sized
+  CR 122.6a's named putter, found no printed effect that specifies one, and
+  closed `codebase-state.md` item 43 on that. The owner's rule: a facility
+  the CR states is owed whether or not a card prints it — a card can be
+  printed next set, and custom card creation is a post-v1 goal, so any
+  author can write the rule's first sentence. A rule-stated facility with no
+  printed card gets a fixture test and a reachability line that says "no
+  printed producer", never "nothing owed"; the band above still decides
+  *when* it lands, not *whether*. Bold Plagiarist turned out to print the
+  shape anyway, on a proposal rather than an entry.
 
 ---
 

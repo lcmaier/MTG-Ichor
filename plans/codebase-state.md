@@ -244,6 +244,13 @@ no fuzz game can produce the wrong answer today, never that the answer is
 right — an item that wrote "unreachable rather than wrong" meant "wrong, and
 unreachable", and the phrase is retired.
 
+**And an item is not closed by an empty Scryfall query** (2026-09-14, RE-5's
+review). A facility the CR states is owed whether or not a card prints it —
+a card can be printed next set, and custom card creation is a post-v1 goal.
+The reachability line says "no printed producer", never "nothing owed", and
+a fixture test is the customer until a card is. `engineering-practices.md`
+§4; item 43 is the one that was closed that way and reopened.
+
 **Item ids are section-scoped, not unique (decided 2026-09-03).** Four runs
 share the numbers 1–65: the main run, which spans every dated "Found by …"
 subsection, and one run each inside "Before Layers", "Before card breadth",
@@ -2262,13 +2269,18 @@ section never asked.
     whichever first.
 
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
-    2026-09-13 (RE-5).** The default half is the entry's `controller`, read by
-    `EventPattern::CounterChange`'s entry door and by Vorinclex; the named half
-    has no printed customer (Scryfall, 2026-09-13; `replacement-architecture.md`
-    §11 item 83), so the field is not built and `EnterMods::counters`' doc says
-    where it goes. → `plans/archive/codebase-state-closed.md`.
+    2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
+    `EntryCountersTemplate.by`, the merge keyed on `(kind, putter)`, the entry
+    door reading each row's putter ahead of the entry's controller, and a
+    `by: Option<PlayerRef>` on `Primitive::AddCounters` and `GetCounters` for
+    Bold Plagiarist's shape on a proposal. RE-5 had closed it on 2026-09-13
+    on an empty Scryfall query, which the review's rule rejects — the CR is
+    the customer, a printed card is the test (`engineering-practices.md` §4;
+    `replacement-architecture.md` §11 item 83).
+    → `plans/archive/codebase-state-closed.md`.
 
-    **Reachability (2026-09-13):** closed — RE-5.
+    **Reachability (2026-09-14):** closed — built; no printed producer names
+    a putter at an entry, and the fixture tests do.
 
 44. **`is_prohibited`'s battlefield sweep has the gate defect `gather` just had,
     and it measures flat — which is the finding (recorded 2026-09-01, RC-2
@@ -5618,10 +5630,14 @@ Ojer Taq's back face is CV-5's; Chatterfang's variable sacrifice cost is
 **Shipped:** `CounterSubject { Object, Player }` on `GameAction::AddCounters`
 and `RemoveCounters` and on `GameEvent::CountersChanged`; `AddCounters::by`,
 the player putting them on — the resolving effect's controller, and at an
-entry CR 122.6a's default; `EventPattern::CounterChange { counter, adding,
-by: Option<PlayerSet> }`, watching an `AddCounters` and — CR 122.6's second
-door — an `EnterBattlefield` whose mods carry a matching kind with one or
-more, asking "one or more" as the rule does; `Rewrite::Amount`'s two counter
+entry CR 122.6a's default; `EventPattern::CountersPut { counter, by:
+Option<PlayerSet> }` and `CountersRemoved { counter }` — one arm per variant,
+split at the review from a shared `CounterChange { adding }` — the first
+watching an `AddCounters` and, CR 122.6's second door, an `EnterBattlefield`
+whose mods carry a matching kind with one or more, asking "one or more" as
+the rule does; `EntryCounters { counter, n, by }` rows on `EnterMods`, merged
+on `(kind, putter)`, and `by: Option<PlayerRef>` on the two counter
+primitives (the review's theme A); `Rewrite::Amount`'s two counter
 legs (a proposal's count; each matched kind in an entry's mods, a kind at
 zero leaving them); `PlayerState.counters: BTreeMap<CounterType, u32>` in
 place of `poison_counters`, `CounterType::{Poison, Energy}`, CR 704.5c
@@ -5650,8 +5666,8 @@ Primal Vigor. Item 43 closed and evicted; `backlog.md` §2.16 graduated.
      §2.11's first loyalty ability.
 
 What is *not* a ledger line, and where each waits: CR 122.6a's named putter
-has no printed customer (§11 item 83; `EnterMods::counters`' doc says where
-the field goes when a card prints one); Doubling Season's battles are
+was closed on an empty Scryfall query and built at the review (§11 item
+83); Doubling Season's battles are
 `backlog.md` §2.23's; paying {E} is a cost, `cost-architecture.md`'s CP-1
 slot with its first card; proliferate (CR 701.34a) is `backlog.md` §2.5's
 and reads the map this phase built; the additive commutation shapes are

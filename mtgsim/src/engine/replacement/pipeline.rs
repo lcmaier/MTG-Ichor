@@ -14,7 +14,8 @@ use crate::types::effects::{
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
+    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EntryCounters, EventPattern,
+    ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawCause, LifeLossCause, Zone};
@@ -866,7 +867,7 @@ fn ordering_cannot_change_outcome(
             // the count stays on "one or more"'s side and the kinds are the
             // kinds. Over an *entry* its `affected` filter reads the CR 614.12
             // frame, which +1/+1 counters feed — item 47's condition (c),
-            // fired by RE-5's door on `CounterChange` — so an entry's members
+            // fired by RE-5's door on `CountersPut` — so an entry's members
             // answer to the same leaf table the `EnterWith` shape does.
             Rewrite::Amount(AmountRewrite::Multiplier(_)) => {
                 !matches!(event, GameAction::EnterBattlefield { .. })
@@ -1199,7 +1200,11 @@ fn check_order_invariance(
         {
             let mut disturbed = mods.clone();
             disturbed.tapped = !disturbed.tapped;
-            disturbed.counters.push((CounterType::PlusOnePlusOne, 1));
+            disturbed.counters.push(EntryCounters {
+                counter: CounterType::PlusOnePlusOne,
+                n: 1,
+                by: None,
+            });
             let with_mods = GameAction::EnterBattlefield {
                 object: *object,
                 from: *from,
@@ -1499,7 +1504,7 @@ fn apply_rewrite(
         Rewrite::EnterWith(template) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
                 let extra = evaluate_enter_template(
-                    game, template, chosen.source, object, controller, &mods,
+                    game, template, chosen, object, controller, &mods,
                 )?;
                 let extra = strip_prohibited_counters(
                     game, object, controller, &mods, &extra, Some(chosen.controller),
@@ -1722,23 +1727,26 @@ fn apply_rewrite(
             // with counters" is not "enters with zero counters", and the
             // performer would otherwise spend a CR 613.7c timestamp on nothing.
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
-                let EventPattern::CounterChange { counter: kind, by, .. } = &chosen.def.pattern
+                let EventPattern::CountersPut { counter: kind, by } = &chosen.def.pattern
                 else {
                     return Err(format!(
                         "replacement {:?} changes an amount on an entry but its pattern is \
-                         {:?}; only a `CounterChange` watches an entry's counters (CR 122.6)",
+                         {:?}; only a `CountersPut` watches an entry's counters (CR 122.6)",
                         chosen.id, chosen.def.pattern
                     ));
                 };
                 let mut took_effect = false;
                 let mut kept = Vec::with_capacity(mods.counters.len());
-                for (k, n) in mods.counters.drain(..) {
-                    let matched = kind.is_none_or(|c| c == k)
-                        && by.as_ref().is_none_or(|set| set.contains(chosen.controller, controller));
-                    let after = if matched { counter_arithmetic(chosen, *amount_rewrite, n)? } else { n };
-                    took_effect |= after != n;
+                for row in mods.counters.drain(..) {
+                    let matched = kind.is_none_or(|c| c == row.counter)
+                        && by
+                            .as_ref()
+                            .is_none_or(|set| set.contains(chosen.controller, row.putter(controller)));
+                    let after =
+                        if matched { counter_arithmetic(chosen, *amount_rewrite, row.n)? } else { row.n };
+                    took_effect |= after != row.n;
                     if after > 0 {
-                        kept.push((k, after));
+                        kept.push(EntryCounters { n: after, ..row });
                     }
                 }
                 mods.counters = kept;
@@ -2261,9 +2269,7 @@ fn entering_controller(
             .map(|obj| obj.owner)
             .ok_or_else(|| format!("entering object {} is not in the object store", object))?,
         PlayerRef::Opponent => {
-            let opponents: Vec<PlayerId> = (0..game.num_players())
-                .filter(|&p| p != you && !game.player_lost[p])
-                .collect();
+            let opponents = opponents_of(game, you);
             match opponents.as_slice() {
                 [] => {
                     return Err(format!(
@@ -2313,19 +2319,19 @@ pub(crate) fn strip_prohibited_counters(
     }
     let frame = EntryFrame::for_entering(game, object, controller, so_far);
     let mut kept = EnterMods { tapped: extra.tapped, counters: Vec::with_capacity(extra.counters.len()) };
-    for &(counter, n) in &extra.counters {
+    for row in &extra.counters {
         let action = GameAction::AddCounters {
             subject: CounterSubject::Object(object),
-            counter,
-            n,
-            by: controller,
+            counter: row.counter,
+            n: row.n,
+            by: row.putter(controller),
         };
         let refused = is_prohibited(
             game,
             &Query::Event { action: &action, cause, lookahead: Some(&frame) },
         );
         if !refused {
-            kept.counters.push((counter, n));
+            kept.counters.push(*row);
         }
     }
     kept
@@ -2349,18 +2355,19 @@ pub(crate) fn strip_prohibited_counters(
 fn evaluate_enter_template(
     game: &GameState,
     template: &EnterModsTemplate,
-    source: ObjectId,
+    chosen: &ReplacementInstance,
     entering: ObjectId,
     controller: PlayerId,
     so_far: &EnterMods,
 ) -> Result<EnterMods, String> {
+    let source = chosen.source;
     let mut out = EnterMods { tapped: template.tapped, counters: Vec::new() };
     if template.counters.is_empty() {
         return Ok(out);
     }
     let frame = EntryFrame::for_entering(game, entering, controller, so_far);
-    for (counter, amount) in &template.counters {
-        let n = match amount {
+    for row in &template.counters {
+        let n = match &row.amount {
             AmountExpr::Fixed(n) => *n as i64,
             AmountExpr::SourcePower => match frame.frame_of(source) {
                 Some(chars) => chars.power.unwrap_or(0) as i64,
@@ -2376,11 +2383,61 @@ fn evaluate_enter_template(
                 ))
             }
         };
+        // CR 122.6a — the effect "may specify which player puts those
+        // counters on it"; `None` stays the rule's default and is resolved
+        // against the entry's controller where it is read, never here.
+        let by = match &row.by {
+            None => None,
+            Some(player_ref) => Some(putter_of(game, chosen, entering, player_ref)?),
+        };
         if n > 0 {
-            out.counters.push((*counter, n as u32));
+            out.counters.push(EntryCounters { counter: row.counter, n: n as u32, by });
         }
     }
     Ok(out)
+}
+
+/// CR 122.6a's named putter, resolved against the effect applying it.
+///
+/// `entering_controller`'s answers with one difference: an `Opponent` among
+/// several is not asked for. CR 616.1b's control choice is the entering
+/// permanent's controller's to make and the rule says so; "an opponent puts
+/// those counters on it" with three opponents is an authoring error on a
+/// static effect, and a resolution that means a particular one names it as
+/// `PlayerRef::Player`, the way `PatternFill` fills a chosen source.
+fn putter_of(
+    game: &GameState,
+    chosen: &ReplacementInstance,
+    entering: ObjectId,
+    player_ref: &PlayerRef,
+) -> Result<PlayerId, String> {
+    let you = chosen.controller;
+    Ok(match player_ref {
+        PlayerRef::You => you,
+        PlayerRef::Player(pid) => *pid,
+        PlayerRef::Owner => game
+            .objects
+            .get(&entering)
+            .map(|obj| obj.owner)
+            .ok_or_else(|| format!("entering object {} is not in the object store", entering))?,
+        PlayerRef::Opponent => match opponents_of(game, you).as_slice() {
+            [only] => *only,
+            others => {
+                return Err(format!(
+                    "replacement {:?} names \"an opponent\" as the player putting counters on \
+                     {}, and player {} has {} opponents in the game; name one as \
+                     `PlayerRef::Player`",
+                    chosen.id, entering, you, others.len()
+                ))
+            }
+        },
+    })
+}
+
+/// Every player still in the game who is not `you` — CR 102.1's "opponent",
+/// with CR 102.3's teams not modeled.
+fn opponents_of(game: &GameState, you: PlayerId) -> Vec<PlayerId> {
+    (0..game.num_players()).filter(|&p| p != you && !game.player_lost[p]).collect()
 }
 
 /// CR 614.13's application: choose a number of objects, move them, and report

@@ -1793,10 +1793,8 @@ mod tests {
             CardDataBuilder::new("Bears").card_type(CardType::Creature).power_toughness(2, 2).build(),
             0,
         );
-        let mods = EnterMods {
-            tapped: false,
-            counters: vec![(CounterType::PlusOnePlusOne, 2), (CounterType::Flying, 1)],
-        };
+        let mut mods = EnterMods::with_counters(CounterType::PlusOnePlusOne, 2);
+        mods.merge(&EnterMods::with_counters(CounterType::Flying, 1));
 
         let frame = compute_as_entering(&game, bears, 0, &mods).unwrap();
         assert_eq!(frame.power, Some(4), "CR 122.1a counters it would enter with, at 7c");
