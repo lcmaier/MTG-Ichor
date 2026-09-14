@@ -1291,7 +1291,7 @@ kind arrives. Deterministic, shipped, and the same move one level up.
   re-recorded.
 
 **Met** — LH-1 on 2026-09-04, LH-2 on 2026-09-05; the as-built notes above
-carry the numbers, `engineering-practices.md` §3 the re-recorded tables.
+carry the numbers, `fuzz-record.md` the re-recorded tables.
 
 ### Explicitly out
 

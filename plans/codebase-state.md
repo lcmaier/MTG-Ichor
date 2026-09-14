@@ -1182,10 +1182,11 @@ registered card returns an object.
 69. **Every performance number this project owns is two-player, and v1's
     profile is four (recorded 2026-09-07).** `fuzz_games` builds
     `Game::new(config, vec![deck1, deck2])` — a literal pair, no `--players`
-    flag — so §3's tables, `layers-architecture.md` §12's measurements and
-    §13b's scaling table all describe a board the target use case does not
-    build. `Game::new` already takes a `Vec` of decks and `GameState.players`
-    is a `Vec`, so the harness is the only thing that is two-player here.
+    flag — so `fuzz-record.md`'s tables, `layers-architecture.md` §12's
+    measurements and §13b's scaling table all describe a board the target use
+    case does not build. `Game::new` already takes a `Vec` of decks and
+    `GameState.players` is a `Vec`, so the harness is the only thing that is
+    two-player here.
 
     **Why it matters more than a percentage.** Since 7a the cost model is
     roughly *board walks × cost of one pass*, and a pass is linear in members
@@ -1244,7 +1245,7 @@ registered card returns an object.
     answer. Taps per cast read **3.18**, spells per game 25.0 / 24.8, and
     walks per game fall below `main` on `performance`, because every wasted
     tap was a window iteration that walked the whole board.
-    `engineering-practices.md` §3 has the three sittings.
+    `fuzz-record.md` has the three sittings.
 
     **What this entry first claimed, and why it was wrong.** The first draft
     read "`--require Cytoshape` resolves 212 times against 390 with seeding,
@@ -2333,7 +2334,7 @@ section never asked.
 45. **Engine cost is now a fixture, and it found two determinism violations the
     old rule could not see (added 2026-09-01).** `state/diagnostics.rs` counts
     layer walks, computed frames, replacement gathers and restriction queries per
-    game; `fuzz_games` prints them and `engineering-practices.md` §3 stores them
+    game; `fuzz_games` prints them and `fuzz-record.md` stores them
     beside turns-per-game. Overhead A/B'd below the noise floor.
 
     **Two sites had to be ordered before the numbers held still**, and both were
@@ -2689,7 +2690,7 @@ timing block, so every counter the pooled arm moves is Thalia's doing and not
 the engine's; CPU/game 15.67 → 15.70 ms (+0.2%), deterministic in all three
 arms. Thalia forced into every `performance` deck resolves in 66% of 200
 games; with Humility forced beside her, both are on the board in 52%.
-`engineering-practices.md` §3 has the re-recorded table.
+`fuzz-record.md` has the re-recorded table.
 
 70. **`run_mana_ability_window` closes the moment the pool covers the cost, and
     CR 605.3a has no such clause.** — ✅ closed, archived.
@@ -2764,8 +2765,7 @@ every counter the pooled arm moves is the pool's. CPU/game 16.63 → 16.50 ms
 for the middle arm (−0.8%, inside the sitting's spread); deterministic in all
 three arms, and three shell runs at one seed match on both pools. Myr Enforcer
 forced into every `performance` deck: cast 167, resolved 166, in 56% of 200
-games, 1.74 copies per deck. `engineering-practices.md` §3 has the re-recorded
-table.
+games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
 
 75. **A registry row cannot reach an object off the battlefield, so a granted
     or copied cost ability on a spell is unreachable.** `compute_non_member`
@@ -2874,9 +2874,9 @@ measure" was right about the engine and wrong about the pool: `Cost::Sacrifice`
 is a path the 72 could not reach, so `PERFORMANCE_POOL` grows to 73 — carrying
 **Bone Splinters**, +11.9% CPU/game, rather than Altar's Reap at +20.2% for the
 same paths. An inert 73rd card costs +14.0%, so the tax is the pool slot and
-not the mechanic (`engineering-practices.md` §3.1a).
+not the mechanic (`fuzz-record.md` §3.1a).
 Zero errors, zero panics, zero `Uncast resolved` in all three arms on both
-pools. `engineering-practices.md` §3 has the re-recorded table.
+pools. `fuzz-record.md` has the re-recorded table.
 
 **A fix that came with it:** a mana ability whose cost has a generic component
 now gets a real allocation prompt. `activate_mana_ability` passed an empty map,
@@ -4326,7 +4326,8 @@ until 2026-09-01, and since then growing one card per new engine path). The para
 registered into the stress pool only; 50 stress games at seed 12345 give P0 30 /
 P1 20, turns 26.8, spells 19.5, lands 17.2, combat 10.7, creatures died 5.2,
 damage events 25.0, total damage 54.2, life changes 17.7, zero panics and 202
-Zombie tokens. Rules and both baselines: `plans/engineering-practices.md` §3.
+Zombie tokens. Rules: `plans/engineering-practices.md` §3; both baselines:
+`plans/fuzz-record.md`.
 
 ### Fuzz-pool coverage — re-audited 2026-09-01
 
@@ -4406,8 +4407,8 @@ lives only on its counters, which is the sharpest board CR 704.5f has.
 **Gate, both pools, 2026-09-01:** 200 stress games at seed 12345 `--threads 1` —
 0 errors, 0 panics, 0 turn-limit hits. Determinism re-checked three runs at one
 seed on both pools, byte-identical outside `=== Timing ===`. Fixtures re-recorded
-in `plans/engineering-practices.md` §3; **both columns moved, because both pools
-gained Battlegrowth**, so nothing in that table is comparable across this commit.
+in `plans/fuzz-record.md`; **both columns moved, because both pools gained
+Battlegrowth**, so nothing in that table is comparable across this commit.
 
 **The Aura row closed 2026-09-04 (LH-1, `layers-architecture.md` §13a).** Same
 instrument, same 200 stress games at seed 12345: `[AuraSba]` **0 → 23**, and
@@ -5293,7 +5294,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    --players N` — one random deck per seat off the one stream, a
    two-player run byte identical to before, two rows only a wider table
    can move, and a "wins by effect" outcome key — and the four-player table
-   is recorded in `engineering-practices.md` §3 as RE-7's baseline. The mode
+   is recorded in `fuzz-record.md` as RE-7's baseline. The mode
    was ~90 harness lines rather than ~50, because "a flag" was the optimistic
    reading: the deck loop, the copies count and the outcome key all had two
    players in them.

@@ -3007,8 +3007,9 @@ the counters **will** move, and each PR predicts the direction before running:
 - **RD-3 and RD-4:** flat on the middle arm; a shipped-arm move is the card.
 
 A middle-arm delta beyond the ±4–6% spread that the prediction does not name
-wants a **fourth binary** with the suspect reverted, as CM-4 needed. §3's table
-is re-recorded once per PR that moves the pool, at 50 games, after the A/B.
+wants a **fourth binary** with the suspect reverted, as CM-4 needed. The fixture
+table is re-recorded in `fuzz-record.md` once per PR that moves the pool, at 50
+games, after the A/B.
 
 #### Trace page — decide at RD-2's close
 
@@ -4105,8 +4106,8 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   1.54 copies/deck; Raise the Alarm 201 / 201 in **140 (70%)**, 1.49; on
   `stress`, Divine Visitation 131 / 131 in 98 (49%) and Bard 135 / 135 in
   94 (47%). Three shell runs at one seed `IDENTICAL` outside `=== Timing ===`
-  at both seat counts on both pools. → `engineering-practices.md` §3's
-  tables, both re-recorded.
+  at both seat counts on both pools. → `fuzz-record.md`'s tables, both
+  re-recorded.
 - **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
   branch that no def reaches until Hardened Scales is registered, and the
   subject enum changes no proposal's count.
@@ -4122,9 +4123,9 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   0.440 → 0.440 and 0.490 → 0.480 — flat. The pooled arm is a re-record
   (Laboratory Maniac, −4.7% and −5.0%, walks 385 → 373), `--require` reaches
   117 of 200 games (58%), and games ended by a win are **zero** on every
-  table. The four-player table is `engineering-practices.md` §3's, first
-  recorded here as RE-7's baseline — after its first run turned out to be a
-  measurement of the harness (item 66).
+  table. The four-player table is `fuzz-record.md`'s, first recorded here as
+  RE-7's baseline — after its first run turned out to be a measurement of the
+  harness (item 66).
 - **RE-7 — measured 2026-09-13, and both halves held.** Both two-player pools
   are **`IDENTICAL` outside `=== Timing ===`** at 200 games / seed 12345, and
   the reason turned out to be a rule rather than the code: CR 800.1 scopes all
@@ -4141,8 +4142,8 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   and −17.7%. That is a board the engine
   stopped carrying rather than a walk that got faster, and it is the size of
   what item 108 was costing every four-player number taken before it. The
-  gameplay rows are a different board and not a delta. → `engineering-practices.md`
-  §3's table, re-recorded there.
+  gameplay rows are a different board and not a delta. → `fuzz-record.md`'s
+  table, re-recorded there.
 - **RE-8:** +1 gather per discard and per scry that resolves, on the shipped
   arm only (no pooled card discards or scries before it); middle arm flat.
 - **RE-9:** +1 gather per mana ability that resolves — every land tap, several
@@ -4163,8 +4164,8 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   order phases are proposed in — are exactly what the arm is checking.
   `PERFORMANCE_POOL` +0 predicted, with a `--require` row instead.
 
-§3's table is re-recorded once per PR that moves the pool, at 50 games, after
-the A/B; from RE-6 on, the four-player table beside it.
+The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
+pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
 
 #### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-6's and RE-7's
 
@@ -5954,7 +5955,7 @@ found them.
     assumes its own object outlives the effect it is performing.
 
 72. **The A/B could not see the row this PR exists to zero.**
-    `engineering-practices.md` §3 says of the four-player table that
+    `fuzz-record.md` says of the four-player table that
     `fuzz_ab.py --players 4` "prints all of it"; RE-6 added "Turns after a
     departure" and "Departed-owned permanents" to `fuzz_games` and not to the
     script that diffs two of its runs, so the two rows in the table's bold

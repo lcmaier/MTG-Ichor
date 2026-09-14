@@ -14,7 +14,7 @@ instead of most of an hour:
   function of the seed and the pool, and identical at every `--threads` value
   (`codebase-state.md`, "Determinism holds"). One threaded run per arm per
   pool, 200 games. Seconds.
-- **Fixture rows** for `engineering-practices.md` §3 are the same counters at
+- **Fixture rows** for `fuzz-record.md` are the same counters at
   50 games. One threaded run per arm per pool. Printed as the table.
 - **Time** is the only number that needs `--threads 1`, interleaving and
   medians, and only `performance` measures a delta - `stress` milliseconds
@@ -93,7 +93,7 @@ ZERO_ROWS = [
     "Errors", "Panics", "Uncast resolved", "Hit turn limit",
     "Departed-owned permanents",
 ]
-# What stays out of `engineering-practices.md` §3's fixture table: the four
+# What stays out of `fuzz-record.md`'s fixture table: the four
 # process rows, which are about the run rather than about the game.
 # **Not the same list as `ZERO_ROWS` any more**, and they were one list only
 # because they happened to coincide until RE-7: a row can be a threshold *and*
