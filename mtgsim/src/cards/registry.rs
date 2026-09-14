@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_re8_cards;
 use super::phase_re_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
@@ -48,7 +49,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 84] = [
+const PERFORMANCE_POOL: [&str; 86] = [
     "Plains",
     "Island",
     "Swamp",
@@ -356,6 +357,23 @@ const PERFORMANCE_POOL: [&str; 84] = [
     // reasons — the same path at more mana, or a subject nothing pooled
     // produces.
     "Hardened Scales",
+    // RE-8 — the pool's first discard outside the cleanup step, and its first
+    // scry. Two cards because they are two keyword actions with nothing in
+    // common but the phase: Mind Rot is `{2}{B}` for one batch of two
+    // `ZoneChange { cause: Discarded }` members from a resolution, which no
+    // measured game has ever produced, and Opt is `{U}` for a
+    // `GameAction::Scry` — a proposal, a prompt and a library rewrite that did
+    // not exist at all. Opt also draws, so it is the cheapest card in the pool
+    // that puts two instructions in one resolution (CR 608.2c) with a
+    // replacement watcher on the first of them.
+    //
+    // The other three stay out. Hymn to Tourach is a second two-card discard
+    // and would double Mind Rot's measurement rather than add to it; Nephalia
+    // Academy's row only ever fires against an *opponent's* discard spell, and
+    // the pool has exactly one; Eligeth is a six-drop whose ability needs a
+    // scry the pool can only get from Opt in the same deck.
+    "Mind Rot",
+    "Opt",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -754,6 +772,21 @@ impl CardRegistry {
         registry.register("Winding Constrictor", phase_re_cards::winding_constrictor);
         registry.register("Live Fast", phase_re_cards::live_fast);
         registry.register("Primal Vigor", phase_re_cards::primal_vigor);
+
+        // RE-8 — the producers. Five cards on three axes: who picks a
+        // discarded card (Mind Rot, Hymn to Tourach), what caused the discard
+        // (Nephalia Academy, the one `ReplacementDef::by` in the registry),
+        // and the scry both ways round (Opt makes one, Eligeth replaces one).
+        // Mind Rot and Opt are pooled; the module doc says why the other
+        // three stay out, and why the Dodecapod family is not here at all.
+        registry.register("Mind Rot", phase_re8_cards::mind_rot);
+        registry.register("Hymn to Tourach", phase_re8_cards::hymn_to_tourach);
+        registry.register("Nephalia Academy", phase_re8_cards::nephalia_academy);
+        registry.register("Opt", phase_re8_cards::opt);
+        registry.register(
+            "Eligeth, Crossroads Augur",
+            phase_re8_cards::eligeth_crossroads_augur,
+        );
 
         registry
     }

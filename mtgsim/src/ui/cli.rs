@@ -96,7 +96,14 @@ impl DecisionProvider for CliDecisionProvider {
             ChoiceKind::ChooseAlternativeCost => "Choose cost (0=normal, 1+=alternative):".to_string(),
             ChoiceKind::ChooseAdditionalCosts => "Choose additional costs (indices, or none):".to_string(),
             ChoiceKind::SelectRecipients { .. } => "Choose targets (indices):".to_string(),
-            ChoiceKind::DiscardToHandSize => "Choose card to discard:".to_string(),
+            ChoiceKind::Discard { .. } => "Choose card(s) to discard:".to_string(),
+            ChoiceKind::Scry { n, .. } => {
+                format!("Scry {}: choose which to put on the bottom:", n)
+            }
+            ChoiceKind::ScryOrder { bottom, .. } => {
+                let where_ = if *bottom { "bottom" } else { "top" };
+                format!("Scry: order the cards going on {} (top-most first):", where_)
+            }
             ChoiceKind::ManaAbilityWindow { remaining_cost, .. } => {
                 format!(
                     "Mana ability window: activate a mana ability to pay {} more, \

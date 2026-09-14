@@ -32,6 +32,7 @@
 //! reader instead.
 
 use crate::types::effects::{AffectedSet, PlayerRef, PlayerSet};
+use crate::types::ids::PlayerId;
 use crate::types::replacement::EventPattern;
 
 /// One CR 101.2 "can't" — a prohibition on an action or an event.
@@ -76,8 +77,10 @@ pub enum Restriction {
     /// `pattern` and `affected` are the replacement pipeline's, reused verbatim:
     /// "this permanent can't be destroyed" is the same predicate over the same
     /// proposal as "if this permanent would be destroyed, instead …", minus the
-    /// instead. [`Self::Event::by`] is the one addition — CR 101.2 scoped by
-    /// what *caused* the event, which is §2.6's Sigarda family.
+    /// instead. [`Self::Event::by`] is the one addition — which source
+    /// *caused* the event, §2.6's Sigarda family. That clause is printed on
+    /// cards rather than stated by CR 101.2, which says only that a "can't"
+    /// wins; see [`SourceFilter`].
     Event {
         pattern: EventPattern,
         /// The objects this forbids the event about. **Half a pair**, like
@@ -145,10 +148,16 @@ pub enum Restriction {
     },
 }
 
-/// CR 101.2 scoped by what caused the event — §2.6's Sigarda family.
+/// What *caused* an event, as a predicate — §2.6's Sigarda family.
 ///
 /// > Sigarda, Host of Herons — "Spells and abilities your opponents control
 /// > can't cause you to sacrifice permanents."
+///
+/// **Not a rule of CR 101.2's**, though [`Restriction::Event::by`] sits under
+/// one: 101.2 says only that a "can't" takes precedence, and the cause clause
+/// is a shape printed on cards. The fact it reads is fixed elsewhere — the
+/// resolving spell or ability (CR 608.2) and its controller, which CR 109.5
+/// makes the effect's "you".
 ///
 /// The provenance this reads is already threaded: `ActionContext::resolution`
 /// carries the resolving spell or ability, so this is a field rather than a
@@ -158,6 +167,15 @@ pub enum Restriction {
 /// `SourceFilter` matches one. That is the right answer rather than an
 /// omission — Sigarda does not stop CR 704.5's sacrifices, and there are none
 /// to stop.
+///
+/// **Read by a replacement effect too, from RE-8 on.** The "can't" side and
+/// the CR 614 side are one question asked at two sites: Tamiyo, Collector of
+/// Tales'
+/// "spells and abilities your opponents control can't cause you to discard
+/// cards" and Nephalia Academy's "if a spell or ability an opponent controls
+/// causes you to discard a card" name the same provenance, so
+/// [`crate::types::replacement::ReplacementDef::by`] is this type and not a
+/// second spelling of it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceFilter {
     /// The spell or ability that proposed the event is controlled by this
@@ -166,6 +184,39 @@ pub enum SourceFilter {
     /// is Tamiyo, Collector of Tales' mirror ("Spells and abilities your
     /// opponents control can't cause you to discard cards" reads the same way).
     ControlledBy(PlayerRef),
+}
+
+impl SourceFilter {
+    /// Was the event caused by a source this admits?
+    ///
+    /// `cause` is who controls the spell or ability that proposed the event,
+    /// off `ActionContext::resolution`; `controller` is CR 109.5's "you" for
+    /// the effect doing the asking — the restriction's controller, or the
+    /// replacement instance's.
+    ///
+    /// On the type rather than in either enforcement point, because both ask
+    /// it: `engine::restriction`'s `cause_matches` for a "can't" and
+    /// `replacement::gather`'s `applies_to` for a replacement effect. A copy
+    /// in each would be two answers to CR 101.2's one question.
+    pub fn matches(&self, cause: Option<PlayerId>, controller: PlayerId) -> bool {
+        // A turn-based or state-based action has no controller, so it
+        // satisfies no source filter. The right answer rather than an
+        // omission: Sigarda does not stop CR 704.5's sacrifices, and Nephalia
+        // Academy does not redirect a card discarded to hand size.
+        let Some(cause) = cause else {
+            return false;
+        };
+        match self {
+            // Relative to the *asking* effect's controller, which is CR 109.5's
+            // "you" for a static ability: Sigarda's "your opponents" is an
+            // opponent of whoever currently controls Sigarda.
+            SourceFilter::ControlledBy(player_ref) => match player_ref {
+                PlayerRef::You | PlayerRef::Owner => cause == controller,
+                PlayerRef::Opponent => cause != controller,
+                PlayerRef::Player(pid) => cause == *pid,
+            },
+        }
+    }
 }
 
 /// Which class of replacement effect a [`Restriction::ApplyReplacement`]

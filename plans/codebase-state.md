@@ -5674,6 +5674,110 @@ and reads the map this phase built; the additive commutation shapes were
 §2.29's and are built — the review's theme B made the predicate the
 commutation table that entry designed (§11 item 85).
 
+### Found by RE-8 — the producers: discard and scry (2026-09-14)
+
+**Shipped:** `Primitive::Discard(AmountExpr, DiscardChooser)` with CR 701.9b's
+default and "at random" choosers, moving N cards as **one batch of N members**
+(`Primitive::Mill`'s argument, and CR 603.2c's unit); `GameState::
+random_cards_from`, the first "at random" that is not a shuffle, drawn from the
+game's own `rng`; `GameAction::Scry { player, n }` with `EventPattern::Scry`,
+`GameEvent::Scried` and a performer that reorders the library in the arm and
+proposes nothing (CR 701.22 moves no card between zones); CR 701.22b as
+`never_happens`' fourth arm, where RE-2's `DrawCards { n: 0 }` still has none;
+`ChoiceKind::{Discard, Scry, ScryOrder}` — `Discard` widened from
+`DiscardToHandSize`, one kind for CR 514.1's turn-based action and a
+resolution's instruction alike, with `source` the only difference;
+`ReplacementDef::by: Option<SourceFilter>`, CR 101.2's "by" asked of a
+replacement effect, with `SourceFilter::matches` moved onto the type so a
+"can't" and a replacement ask one question with one evaluator, and
+`pipeline::cause_of` naming the expression that answers it from a proposal's
+context; `GameActionTemplate::DrawCards.n` as a `TemplateAmount`, and
+`substitute`'s third draw leg turning a scry into a draw. Mind Rot, Hymn to
+Tourach, Nephalia Academy (pooled: Mind Rot and Opt), Opt, Eligeth, Crossroads
+Augur. `backlog.md` §2.5's RE-8 line struck; `--require` made repeatable.
+
+**And CR 514.1's cleanup discard was reshaped rather than recorded**, on this
+section's own thirty-line rule: the rule is one turn-based action over "enough
+cards" and the engine asked one card at a time in a `while` loop, so a hand of
+ten made three batches where a CR 603.2c trigger should see one
+(`replacement-architecture.md` §11 item 88). **Left absent, with its customer
+named:**
+
+130. **A discard redirected into a hidden zone has undefined characteristics,
+     and nothing models it.** CR 701.9c: a card discarded but put "into a
+     hidden zone instead of into its owner's graveyard **without being
+     revealed**" has every characteristic undefined, and a cost that named one
+     of those characteristics becomes an illegal payment (CR 732). Nephalia
+     Academy produces the board — hand to library, both hidden — and its "you
+     may reveal that card" is the clause that avoids the rule, which the
+     engine does not model at all: `Zone::is_public` exists with **zero
+     callers** and no query takes a viewing player (`backlog.md` §2.9).
+
+     **Reachability (2026-09-14):** unreachable — the rule's consequence is
+     about a *cost*, and `Cost::Discard` returns `Err` at both its validation
+     and its payment arms (`engine/costs.rs`), so nothing reads a
+     characteristic of a card discarded this way. `ATOM-701.9c-001` is the
+     corpus's board and is uncovered, filed Phase 8.
+
+     **Sized:** a `revealed: bool` on the discard's zone change or, better,
+     §2.9's per-viewer query answering it; plus the validation half of
+     `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
+     a flag written by one card is the shape §2.9 exists to replace.
+
+131. **A substituted zone change overwrites the replaced event's `cause`, and
+     the cause is the only thing several facts are written on.** A discard is
+     the instance that found it; a resolution is the one that bit.
+     `GameActionTemplate::ZoneChangeTo` carries the substitute's
+     `ZoneChangeCause` and overwrites the replaced event's, so under Leyline of
+     the Void a discarded card's performed event is `ZoneChange { to: Exile,
+     cause: Exiled }` and the `Discarded` cause is gone. The card *was*
+     discarded: Dodecapod's and Wilt-Leaf Liege's rulings say "you've still
+     discarded it. Abilities that trigger whenever you discard a card will
+     trigger", and CR 701.9c calls a card put into a hidden zone this way
+     "discarded" while describing the move. Found by reading a `--dump-events`
+     log at RE-8's review (`replacement-architecture.md` §11 item 90).
+
+     **The same erasure, on `Resolved`, is what made RE-8's own Hymn to
+     Tourach row look wrong.** `events/event.rs` says a spell finishing
+     resolution *is* "a `ZoneChange` out of the stack with
+     `ZoneChangeCause::Resolved`" — the log's only signal for it — and under
+     Leyline of the Void a resolved sorcery leaves as `Exiled` instead.
+     `fuzz_games` read that cause and under-counted; it reads
+     `EventStamp::resolution` now, which no rewrite can touch, because a
+     substitution happens *inside* the resolution that proposed the event
+     (`replacement-architecture.md` §11 item 91).
+
+     **Reachability (2026-09-14):** reachable, and **not wrong today**, and the
+     bound is worth stating: every *engine* reader of a cause reads the
+     **proposal**, before any rewrite — `pattern_watches`' `ZoneChange
+     { cause }` and `EnterBattlefield { cast }`, and `is_prohibited` through
+     the same. The erasure is only on the **performed** event, whose one reader
+     today is the harness, which is why it surfaced there and not in a test. It
+     is wrong the day critical-path item 6 lands, and the board is unforced:
+     **13 times in 200 `stress` games**.
+
+     **Sized:** not thirty lines. The field is RB's with three deliberate
+     customers (CR 122.1h's finality counter, CR 903.9b's commander, Kalitas),
+     and the question is what a substitution *about the destination* should do
+     to the reason the object is moving — `cause: Option<ZoneChangeCause>`
+     meaning "keep the original", or that rule by default. ~80 lines plus a
+     re-reading of every RB def, and it belongs to whoever builds
+     critical-path item 6's zone-change matcher, who is the first reader that
+     can tell it is wrong. **Where a stamp fits, it is the pattern to copy** —
+     it answered the harness's question exactly and needs no field at all.
+
+What is *not* a ledger line, and where each waits: the to-battlefield entry
+substitution and the five cards that print it are CR 113.6's, critical-path
+item 6a (§11 item 87); `fuzz_games`' `resolved` counter read a cause where the
+log's own signal for "this spell resolved" had been erased, which RE-8's
+measurement caught and RE-8 fixed by reading `EventStamp::resolution` instead
+(§11 item 91) — a harness bug, so no line here; CR 701.9b's third chooser — "another player chooses",
+Coercion — is `backlog.md` §2.5's with its first card, and wants §2.9's reveal
+beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
+effect making more than one player scry, and the corpus already defers it;
+`Cost::Discard` itself is `backlog.md` §2.5's unimplemented half and was not
+made reachable by this phase.
+
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

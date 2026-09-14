@@ -197,7 +197,12 @@ across months buys the timing measurement nothing.
   target**; `--require` is the answer to "was the path walked", and the pool
   measures cost. `fuzz_games --require "Card A,Card B"` forces a copy of each
   into every deck, then prints casts, resolutions, the share of games each
-  reached, **copies per deck**, and **board diversity** — the share of games in
+  reached, **copies per deck**, and **board diversity**. **The flag repeats,
+  and that is how a card whose name contains a comma is named at all**
+  (RE-8, 2026-09-14): `-r "Opt" -r "Eligeth, Crossroads Augur"` is the union
+  of both, deduplicated, in the order given. Before it, Vorinclex, Monstrous
+  Raider (RE-5) and Eligeth were read through their tests instead — two
+  phases running, which is what made the ten-line fix worth taking — the share of games in
   which a permanent of a color no required card has entered the battlefield.
   **An empty `--require` changes nothing** — every RNG draw is guarded, so a
   reachability run and a timing run come from one binary without the first

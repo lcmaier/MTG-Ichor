@@ -655,24 +655,124 @@ pub fn ask_commander_to_command_zone(
     !picked.is_empty()
 }
 
-/// Choose a card to discard (cleanup step discard-to-hand-size).
-/// Returns the ObjectId of the chosen card, or None if hand is empty.
-pub fn ask_choose_discard(
+/// CR 701.9b — which cards the affected player discards.
+///
+/// > 701.9b By default, effects that cause a player to discard a card allow the
+/// > affected player to choose which card to discard.
+///
+/// **One helper for both producers**, CR 514.1's turn-based action and a
+/// resolving effect's "discards two cards": `source` is the whole difference
+/// and it is only on the prompt. The other two shapes 701.9b names do not come
+/// through here — "at random" reads `GameState::rng` at the performer, and
+/// "another player chooses" has no card yet.
+///
+/// Returns the chosen cards **in hand order**, whatever order the provider
+/// picked them in, so the graveyard they land in is ordered the way the hand
+/// was. Nothing in CR 701.9 gives the discarding player that order, and the two
+/// choosers agreeing is worth more than an order no rule names.
+///
+/// Two ways nothing is asked, both CR 102.2's "a choice that is forced is not
+/// made": an empty hand, and a count that takes the whole hand. The second is
+/// what a Mind Rot against a one-card hand is, and it is common.
+pub fn ask_discard(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     hand: &[ObjectId],
-) -> Option<ObjectId> {
-    if hand.is_empty() {
-        return None;
+    count: usize,
+    source: Option<ObjectId>,
+) -> Vec<ObjectId> {
+    // CR 101.3 — an effect does as much as it can, which for a hand shorter
+    // than the count is the whole hand.
+    let count = count.min(hand.len());
+    if count == 0 {
+        return Vec::new();
+    }
+    if count == hand.len() {
+        return hand.to_vec();
     }
     let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
-    let ctx = ChoiceContext {
-        kind: ChoiceKind::DiscardToHandSize,
-    };
-    let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_discard");
-    Some(hand[index[0]])
+    let ctx = ChoiceContext { kind: ChoiceKind::Discard { source } };
+    let mut picked = dp.pick_n(game, player, &ctx, &options, (count, count));
+    validate_pick_n(&picked, options.len(), (count, count), "discard");
+    picked.sort();
+    picked.into_iter().map(|i| hand[i]).collect()
+}
+
+/// CR 701.22a — where the cards a scry looked at go.
+///
+/// > 701.22a To "scry N" means to look at the top N cards of your library, then
+/// > put any number of them on the bottom of your library in any order and the
+/// > rest on top of your library in any order.
+///
+/// `looked_at` is the cards, **top-most first**, and there are `looked_at.len()`
+/// of them rather than N: a library shorter than the instruction has fewer, and
+/// CR 701.22d ("even if some or all of those actions were impossible") is what
+/// makes that a scry anyway rather than a failure.
+///
+/// Returns `(top, bottom)`, each ordered top-most first within its own group,
+/// which is what the caller writes back into the library.
+///
+/// **Up to three prompts, and CR 102.2 removes the ones with one answer.**
+/// "Any number of them" is the first, bounds `(0, k)`; "in any order" is the
+/// other two, asked only of a group holding two or more cards. So Opt — scry 1
+/// — asks exactly once and never orders, which is every scry a registered card
+/// makes today.
+pub fn ask_scry(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    looked_at: &[ObjectId],
+    n: u64,
+    source: Option<ObjectId>,
+) -> (Vec<ObjectId>, Vec<ObjectId>) {
+    // **Not a scry 0** — CR 701.22b makes that no event at all, and
+    // `replacement::never_happens` drops it before any performer runs. This is
+    // a scry of one or more against an **empty library**, which CR 701.22d
+    // says still happens ("even if some or all of those actions were
+    // impossible"): the event is announced, and there is simply nothing to
+    // ask about. Silent for CR 102.2's reason, the same one that skips the
+    // ordering prompts below.
+    if looked_at.is_empty() {
+        return (Vec::new(), Vec::new());
+    }
+    let options: Vec<ChoiceOption> =
+        looked_at.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let bounds = (0, looked_at.len());
+    let ctx = ChoiceContext { kind: ChoiceKind::Scry { source, n } };
+    let to_bottom = dp.pick_n(game, player, &ctx, &options, bounds);
+    validate_pick_n(&to_bottom, options.len(), bounds, "scry");
+
+    let mut bottom: Vec<ObjectId> = Vec::with_capacity(to_bottom.len());
+    let mut top: Vec<ObjectId> = Vec::with_capacity(looked_at.len() - to_bottom.len());
+    for (i, id) in looked_at.iter().enumerate() {
+        if to_bottom.contains(&i) {
+            bottom.push(*id);
+        } else {
+            top.push(*id);
+        }
+    }
+    (order_scry_group(dp, game, player, top, source, false),
+     order_scry_group(dp, game, player, bottom, source, true))
+}
+
+/// CR 701.22a's "in any order", for one of [`ask_scry`]'s two groups.
+fn order_scry_group(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    group: Vec<ObjectId>,
+    source: Option<ObjectId>,
+    bottom: bool,
+) -> Vec<ObjectId> {
+    if group.len() < 2 {
+        return group;
+    }
+    let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext { kind: ChoiceKind::ScryOrder { source, bottom } };
+    let order = dp.choose_ordering(game, player, &ctx, &options);
+    validate_ordering(&order, options.len(), "scry_order");
+    order.into_iter().map(|i| group[i]).collect()
 }
 
 // ===========================================================================

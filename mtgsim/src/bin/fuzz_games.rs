@@ -6,7 +6,12 @@
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
+//        cargo run --bin fuzz_games -- -r "Opt" -r "Eligeth, Crossroads Augur"
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
+//
+// `--require` takes a comma-separated list **and repeats**: the union of every
+// flag, deduplicated, in the order given. Repeating is how a card whose name
+// contains a comma is named at all.
 //
 // `--require` is the *coverage* instrument, as `--pool` is the *cost* one. It
 // forces one copy of each named card into every deck and reports casts,
@@ -18,9 +23,15 @@
 // `--require` run and a timing run come from the same binary without the
 // first perturbing the second.
 //
-// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast` events
-// and `resolved` counts departures from the stack, and a countered spell has
-// the first without the second. The other direction is impossible — a spell
+// **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast`
+// events; `resolved` counts stack departures a spell's *own resolution*
+// stamped, which is exact and excludes a counter, a fizzle and an exile off
+// the stack alike. It is deliberately not `cause == Resolved`: CR 608.2m's
+// move to the graveyard can itself be replaced, so under Leyline of the Void a
+// spell that resolved perfectly well leaves the stack as `Exiled` (RE-8,
+// 2026-09-14 — it was 13 of 142 casts in one 200-game `stress` run).
+//
+// The other direction is impossible — a spell
 // cannot resolve without having been cast — and the harness checks it in
 // every game, flag or no flag: see `uncast_resolutions`. `resolved > cast` in
 // this table was how `codebase-state.md` item 16c was found.
@@ -230,13 +241,20 @@ fn parse_args() -> Args {
                     // one. Names are matched exactly — `registry.create` is
                     // case-sensitive, and a near-miss is fatal below rather
                     // than silently required-nothing.
-                    let mut names: Vec<String> = Vec::new();
+                    //
+                    // **Repeatable, from RE-8 on**, and that is the whole fix
+                    // for a name with a comma in it: the comma stays a
+                    // separator, so every existing invocation means what it
+                    // meant, and `--require "Eligeth, Crossroads Augur"` — or
+                    // Vorinclex, Monstrous Raider, which RE-5 had to read
+                    // through its tests instead — is said on its own flag.
+                    // A second separator would have been a second spelling of
+                    // one thing.
                     for n in args[i].split(',').map(|n| n.trim()) {
-                        if !n.is_empty() && !names.iter().any(|s| s == n) {
-                            names.push(n.to_string());
+                        if !n.is_empty() && !result.require.iter().any(|s| s == n) {
+                            result.require.push(n.to_string());
                         }
                     }
-                    result.require = names;
                 }
             }
             "--pool" | "-p" => {
@@ -550,7 +568,7 @@ struct GameStats {
 /// doing it per event on every run would be a `HashMap` probe the default path
 /// does not owe.
 fn extract_stats<'a>(
-    events: impl Iterator<Item = &'a GameEvent>,
+    records: impl Iterator<Item = &'a mtgsim::events::event::EventRecord>,
     game: &mtgsim::state::game_state::GameState,
     watch: &[String],
     required_colors: &std::collections::HashSet<Color>,
@@ -575,7 +593,10 @@ fn extract_stats<'a>(
         }
     };
 
-    for event in events {
+    for record in records {
+        // The stamp is read by exactly one arm below; every other one wants the
+        // event alone, as this function always has.
+        let event = &record.event;
         match event {
             GameEvent::SpellCast { spell_id, .. } => {
                 stats.spells_cast += 1;
@@ -603,17 +624,43 @@ fn extract_stats<'a>(
                     }
                 }
             }
-            GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } => {
+            GameEvent::ZoneChange { object_id, from, to, lki, .. } => {
                 use mtgsim::types::zones::Zone;
                 // CR 608 — a spell finishes resolving by leaving the stack.
                 // An instant or sorcery goes to the graveyard; a permanent
                 // spell goes to the battlefield. Both are the path having run.
+                //
+                // **A spell resolved iff its stack departure was stamped by
+                // its own resolution**, which is what `EventStamp::resolution`
+                // says and is exact. `resolve_top_of_stack` performs that move
+                // under `ActionContext::resolving`, so the stamp names the
+                // spell itself; every other way off the stack is stamped by
+                // somebody else or by nobody, which is precisely the
+                // difference being asked about:
+                //
+                // - **countered** (CR 701.5) — the move is the *countering*
+                //   spell's, so the stamp names that one;
+                // - **fizzled** (CR 608.3b) — `ActionContext::new`, no stamp;
+                // - **exiled off the stack by another effect** — that effect's
+                //   stamp. Nothing registered does this yet, and the predicate
+                //   is already right for the day one does, which a cause-based
+                //   or a countered-minus-departures reading would not be.
+                //
+                // **This was `cause == Resolved` until RE-8's own measurement
+                // caught it**, and the cause cannot do the job: CR 608.2m's
+                // move to the graveyard is an event like any other, so a
+                // replacement rewrites it — under Leyline of the Void a
+                // resolved sorcery leaves the stack as `Stack -> Exile
+                // [Exiled]`. It was **13 of Hymn to Tourach's 142 casts** in
+                // 200 `stress` games. Leyline replaces a *countered* spell's
+                // graveyard move too, so no cause tells the two apart; the
+                // stamp is untouched by any of it, because a substitution
+                // happens inside the resolution that proposed the event.
+                // → `codebase-state.md` "Found by RE-8", item 131, which is
+                // the same erasure seen from the engine's side.
                 if !watch.is_empty()
                     && *from == Zone::Stack
-                    && matches!(
-                        cause,
-                        mtgsim::types::zones::ZoneChangeCause::Resolved
-                    )
+                    && record.resolution().is_some_and(|r| r.source == *object_id)
                 {
                     bump(&mut stats, named(*object_id), false);
                 }
@@ -964,7 +1011,7 @@ fn run_one_game(
             uncast_resolutions(game.state.events.events(), &game.state),
             {
                 let mut s = extract_stats(
-                    game.state.events.events(),
+                    game.state.events.records().iter(),
                     &game.state,
                     require_names,
                     &required_colors,

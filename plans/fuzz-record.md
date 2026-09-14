@@ -37,6 +37,120 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-14 for RE-8** (CR 701.9's discard and CR 701.22's scry;
+`replacement-architecture.md` §9). `PERFORMANCE_POOL` +2 — Mind Rot and Opt,
+84 → 86 — and the stress pool +5 (145 → 150: Hymn to Tourach, Nephalia
+Academy, Eligeth, Crossroads Augur, and the two pooled ones), so **both tables
+are a re-record and neither column is an engine reading**.
+
+**The engine's reading took a fifth arm, and it is the one worth keeping.**
+`main`; **engine**, this branch with the five cards unregistered (84 / 145);
+**registered**, the old pool (84 / 150); **pooled**, as shipped (86 / 150); and
+**engine-oldcleanup**, the engine arm with CR 514.1's one-card-at-a-time
+cleanup loop restored. **That fifth arm is `IDENTICAL` to `main` outside
+`=== Timing ===` on both pools at two seats and at four** — so two new
+producers, `ReplacementDef::by`'s third clause in `applies_to`, a `GameAction`
+variant with its three exhaustive arms and a `TemplateAmount` on a template
+cost a board with nothing watching them **nothing at all**, which is what §9
+predicted of the middle arm. Everything the engine arm *does* move is the
+cleanup reshape: the rule is one turn-based action over "enough cards" and the
+engine asked one card at a time, so the fix spends the random agent's RNG
+differently from that turn on. Counted game by game, **23 of 200 games on
+`performance` and 29 of 200 on `stress`** reach a cleanup discard of two or
+more; the aggregates move by tenths (avg turns 31.4 → 31.3, gathers
+1060 → 1052, walks 384 → 383, prompts 1.14 → 1.16).
+
+**The pooled column is a re-record and a *smaller* board, which is the
+direction to read it in.** Two nonland cards in a 36-slot deck dilute what was
+there: `Replacement prompts` 1.14 → **0.57** per game on `performance` at two
+seats is Hardened Scales meeting a second Scales less often, not a prompt that
+stopped being asked, and `Replacement gathers` 1060 → 1018 and avg turns
+31.4 → 30.4 say the same thing. At four seats, prompts 2.42 → 1.95 and gathers
+2150 → 2135. On `stress` all five cards are in every deck and the board moves
+much further: gathers 2345 → 2213 at four seats, prompts 5.64 → 6.79.
+
+**CPU flat or down on every arm, both seat counts.** Two seats, medians of
+three interleaved rounds: `main` 16.65 ms, engine 16.26 (−2.3%), registered
+16.40 (−1.5%), pooled 15.16 (−8.9%); `CPU/turn p50` 0.430 → 0.440 / 0.440 /
+0.430. Four seats, medians of two: 55.07 ms → +0.7% (engine-oldcleanup), +0.8%
+(engine), −2.0% (registered), −2.0% (pooled); `CPU/turn p50` 0.775 → 0.785 /
+0.770 / 0.770 / 0.805. The pooled −8.9% is the shorter game and not a faster
+walk — `ms / 1,000 queries` is −1.6%. **Reachability**, `--require`, 200 games
+— `performance`: Mind Rot cast 173, resolved 172, in **129 of 200 games
+(64%)**, copies/deck 1.43; Opt cast 210, resolved 209, in **139 of 200 (70%)**,
+1.52 — unchanged by the counter fix below, `performance` holding none of the
+three cards that replace a resolution's last move. `stress`: Hymn to Tourach cast 149, resolved
+**146** (re-read at the review: the first pass counted `cause == Resolved`,
+and seventeen Hymns had resolved under a Leyline of the Void, which replaces
+CR 608.2m's graveyard move — §11 item 91), in **102 of 200 (51%)**, 1.28;
+Nephalia Academy cast 221, resolved 221, in **149 of 200 (74%)**, 1.31;
+**Eligeth, Crossroads Augur** cast 121, resolved 121, in **99 of 200 (50%)**,
+1.23 — the first `--require` row this project has for a card whose name
+contains a comma, which the now-repeatable flag is what bought. Zero errors,
+zero panics and **zero turn limits** on every arm, both pools, both seat
+counts; the longest `stress` game at two seats is `main`'s own 155 turns, which
+the engine arm reproduces and the registered decks reshuffle away (78).
+`deterministic: yes` on every arm; three shell runs at one seed, `--threads 1`,
+both pools and both seat counts, `IDENTICAL` outside `=== Timing ===`.
+
+| | performance (86 cards) | stress (150 cards) |
+|---|---|---|
+| P0 / P1 | 24 (48.0%) / 26 (52.0%) | 20 (40.0%) / 30 (60.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.5 | 31.0 |
+| Spells cast | 23.1 | 22.9 |
+| Lands played | 18.0 | 18.3 |
+| Combat w/ atk | 10.6 | 10.3 |
+| Creatures died | 6.6 | 5.1 |
+| Damage events | 22.3 | 22.4 |
+| Total damage | 64.0 | 56.0 |
+| Life changes | 15.9 | 15.4 |
+| **Layer walks** | **369** | **447** |
+| **Board walks** | **240** | **281** |
+| **Memo hits** | **61,692** | **75,034** |
+| **Layer frames** | **4,622** | **5,331** |
+| **Frames/walk** | **12.53** | **11.94** |
+| **Dependency checks** | **19** | **20** |
+| **Replacement gathers** | **1003** | **1076** |
+| **Restriction queries** | **1005** | **1079** |
+| Prevention allocations | 0.00 | 0.02 |
+| Replacement prompts | 0.22 | 2.94 |
+| Max batch depth | 4 | 5 |
+
+**The four-player table, re-recorded** — the pool moved, so this one moves with
+it. `engine-oldcleanup` is `IDENTICAL` to `main` here too, on both pools, so
+the attribution holds at both seat counts; `engine` and `registered` produce
+identical counters on `performance`, as a registration that does not touch that
+pool should. `Replacement prompts` 3.08 → 2.02 on `performance` and 4.94 →
+9.60 on `stress` at 50 games — the same dilution one way and the five new
+cards the other. No turn limit and no draw on any arm.
+
+| 4 players, 50 games / seed 12345 | performance (86 cards) | stress (150 cards) |
+|---|---|---|
+| Wins by seat | 21 (42.0%) / 13 (26.0%) / 12 (24.0%) / 4 (8.0%) | 23 (46.0%) / 12 (24.0%) / 11 (22.0%) / 4 (8.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 57.5 | 66.9 |
+| Spells cast | 43.6 | 48.7 |
+| Lands played | 35.2 | 38.3 |
+| Combat w/ atk | 23.4 | 26.7 |
+| Creatures died | 14.7 | 13.7 |
+| Damage events | 49.6 | 59.4 |
+| Total damage | 155.7 | 153.0 |
+| Life changes | 33.8 | 40.5 |
+| Turns after a departure | 19.8 | 20.8 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **816** | **1,154** |
+| **Board walks** | **516** | **667** |
+| **Memo hits** | **170,069** | **266,040** |
+| **Layer frames** | **14,588** | **21,183** |
+| **Frames/walk** | **17.88** | **18.36** |
+| **Dependency checks** | **113** | **126** |
+| **Replacement gathers** | **1980** | **2437** |
+| **Restriction queries** | **1985** | **2444** |
+| Prevention allocations | 0.00 | 0.08 |
+| Replacement prompts | 2.02 | 9.60 |
+| Max batch depth | 4 | 5 |
+
 **Re-recorded 2026-09-13 for RE-5** (CR 614.16's counter half, 122.1, 122.6,
 122.6a; `replacement-architecture.md` §9). `PERFORMANCE_POOL` +1 — Hardened
 Scales, 83 → 84 — and the stress pool +6 (139 → 145: Doubling Season,

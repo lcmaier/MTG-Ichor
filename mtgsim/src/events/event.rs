@@ -176,6 +176,45 @@ pub enum GameEvent {
     /// on `GameState::result` when the batch that performed them settles.
     PlayerWon { player_id: PlayerId },
 
+    // --- Scry ---
+    /// A player scried (CR 701.22a). `n` is the instruction's number and
+    /// `looked_at` is how many cards were really there to look at.
+    ///
+    /// **Emitted after the process, not before it, and emitted even when the
+    /// library was short.** CR 701.22d: "an ability that triggers whenever a
+    /// player scries triggers after the process described in rule 701.22a is
+    /// complete, even if some or all of those actions were impossible." So a
+    /// scry 2 against a one-card library is still a scry and still announces
+    /// one.
+    ///
+    /// **Both numbers, because a printed card reads each and they differ.**
+    /// `n` is what the instruction said, which is CR 615.5's "that many" and
+    /// what Eligeth, Crossroads Augur draws. `looked_at` is Elrond, Master of
+    /// Healing's, whose ruling is explicit: its trigger "cares about the
+    /// number of cards you **actually** looked at. For example, if you were
+    /// supposed to scry 3 but only had two cards in your library, X would be
+    /// 2." Elrond's trigger itself is critical-path item 6's.
+    ///
+    /// **They agree on almost every board, and `min(n, library.len())` still
+    /// cannot be derived later — Opt is the counter-example, and it is in the
+    /// pool.** A scry moves no card between zones, so it is tempting to
+    /// recompute the count from the library's length whenever a reader wants
+    /// it. But "Scry 1. Draw a card." against a **one-card library** looks at
+    /// that card and then draws it: by the time a trigger is put on the stack
+    /// the library holds zero, and the derivation gives 0 where the answer is
+    /// 1. Anything that empties or refills a library between the scry and the
+    /// read does the same. The count is a fact about an instant that has
+    /// passed, which is what an event log is for — the same argument
+    /// [`Self::ZoneChange`]'s `lki` frame makes one field over.
+    ///
+    /// **Not a zone change, even when cards moved.** A card going to the
+    /// bottom of its own library does not change zones (CR 400.1's zones are
+    /// the seven, and "top" and "bottom" are positions inside one), so there
+    /// is nothing for `announce_zone_change` to say and this is the only line
+    /// a scry writes. A scry 0 writes none at all — CR 701.22b, enforced at
+    /// the proposal by `replacement::never_happens`.
+    Scried { player_id: PlayerId, n: u64, looked_at: u64 },
+
     // --- Counters ---
     /// Counters were put on or taken off a permanent or a player (CR 122.1).
     ///

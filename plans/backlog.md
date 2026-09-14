@@ -191,7 +191,19 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   captured their tickets; the remainder stay on their shipped phases —
   `orphaned --bucket unbuilt` lists them under CR 701 (11 at the 2026-08-31
   re-count). Nothing of this section remains in `owed`.
-- **`Discard` and `Scry` are RE-8's (2026-09-11)** — on RD-1's precedent
+- **~~`Discard` and `Scry` are RE-8's (2026-09-11)~~ — ✅ built 2026-09-14.**
+  `Primitive::Discard(n, DiscardChooser)` with CR 701.9b's default and random
+  choosers, `Primitive::Scry` with `GameAction::Scry`, `GameEvent::Scried` and
+  CR 701.22a's three choices; the cause predicate landed as
+  `ReplacementDef::by: Option<SourceFilter>` rather than a `caused_by` on the
+  zone-change pattern, with Nephalia Academy as its printed customer. Mind Rot,
+  Hymn to Tourach, Opt and Eligeth, Crossroads Augur beside it; Mind Rot and
+  Opt pooled. **Two halves stayed behind, each with its facility named**: the
+  to-battlefield leg and the five cards that print it (Dodecapod, Wilt-Leaf
+  Liege, Loxodon Smiter, Nullhide Ferox, Obstinate Baloth), whose clause is on
+  a card in *hand* and so wants CR 113.6 — critical-path item 6a,
+  `replacement-architecture.md` §11 item 87 — and 701.9b's third chooser,
+  below. *Original entry:* — on RD-1's precedent
   (`Primitive::Mill` landed inside a replacement PR because a rider needed it).
   The replacement arm for discards has existed since RB (`EventPattern::
   ZoneChange { cause: Some(Discarded) }`); RE-8 builds the producer with
@@ -602,6 +614,36 @@ critical path, which lists neither; that is the owner's line to add.
 - **Atoms** — 4 here, plus **CR 400.2, which slice 1 filed under §3.2 in
   error**: "public zones are zones in which all players can see the cards" is
   this entry, not a zone guard. Corrected in §3.2's table.
+- **Asked at RE-8's close (2026-09-14): should this move up beside CR 113.6?
+  No — but it becomes a named *seam* in critical-path item 6's doc, which is a different
+  thing.** CR 113.6 moved because it **gates** the next item on the spine and
+  because RE-8 had five printed cards physically unbuildable without it. This
+  entry gates no spine item before Phase 8, and everything RE-8 touched is a
+  no-op rather than a wrong answer: a "reveal" and a "look at" change nothing
+  observable in an engine whose every decision provider already sees the whole
+  board, so Nephalia Academy's clause and Opt's reminder text cost nothing
+  being absent. `CLAUDE.md`'s interleave already puts it before Phase 8's
+  reveal cards and before Phase 10, which is where the GUI and the parallel AI
+  harness — the two halves of v1 — actually need it.
+
+  **What RE-8 did change is that critical-path item 6 must not answer this question by
+  accident.** CR 603.10a is written about *visibility*, not zones —
+  "abilities that trigger when an object that **all players can see** is put
+  into a hand or library" — and
+  `atomic-tests/supplemental-docs/603-2f-complexity.md`'s board is the proof:
+  Future Sight and Telepathy flip the answer without moving a card. So the
+  trigger phase's doc names the seam and consumes `Zone::is_public()` — the
+  coarse, viewer-independent classifier that still has **zero callers**, the
+  fifth no-consumer find above — rather than folding "hidden zone" into
+  CR 113.6's zone predicate, where this entry would later arrive to find its
+  answer already written in the wrong place.
+
+  **RE-8's own customers, for whoever takes this:** Nephalia Academy's "you
+  may reveal that card" and Opt's "look at the top card", both no-ops today;
+  CR 701.9c's undefined characteristics for a discard put into a hidden zone
+  *without being revealed* (`codebase-state.md`, "Found by RE-8", item 130);
+  Kenessos, Priest of Thassa's second ability, which is why that card is a
+  fixture here and not a registration; and §2.24's "draw and reveal" four.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

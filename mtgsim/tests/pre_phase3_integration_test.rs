@@ -58,7 +58,7 @@ fn test_game_lifecycle_two_turns() {
 
     // Turn 2: player 1 draws (hand=8), cleanup discards 1
     decisions.queue_empty_turn_passes();
-    decisions.expect_pick_n(ChoiceKind::DiscardToHandSize, vec![0]);
+    decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0]);
     game.run_turn(&decisions).unwrap();
     assert_eq!(game.state.turn_number, 3);
     assert_eq!(game.state.active_player, 0);
@@ -200,11 +200,11 @@ fn test_discard_to_hand_size() {
     // No creatures → no DeclareAttackers TBA. Skip first draw would remove
     // the draw, but this test IS about discard so we keep the draw.
     // 10 cards in hand + 1 draw = 11 → discard 4 to reach max_hand_size 7.
-    // Discard happens one card at a time (pick_n with 1 pick per call).
+    // **One prompt for all four** (CR 514.1: "they discard enough cards"),
+    // and one batch — RE-8 replaced the one-card-at-a-time loop, which put
+    // each card in a batch of its own.
     decisions.queue_empty_turn_passes();
-    for _ in 0..4 {
-        decisions.expect_pick_n(ChoiceKind::DiscardToHandSize, vec![0]);
-    }
+    decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0, 1, 2, 3]);
     game.run_turn(&decisions).unwrap();
 
     // After turn completes, player 0 should have max_hand_size cards
