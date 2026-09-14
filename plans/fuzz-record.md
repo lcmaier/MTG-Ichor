@@ -1508,7 +1508,7 @@ replaced.
 
 **Re-recorded 2026-09-04 for LH-1** (the Aura host becomes addressable;
 `layers-architecture.md` §13a). One new card, Holy Strength, in both pools —
-the first `AffectedSet::Host` row, and the first spell whose target
+the first `ObjectSet::Host` row, and the first spell whose target
 is its enchant ability rather than a spell ability — which moves `performance`
 from 66 cards to 67 and `stress` from 75 to 76. **Every row here is the pool's
 and none is the engine's**, measured the way RC-5 measured it, below.

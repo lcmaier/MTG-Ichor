@@ -514,7 +514,7 @@ critical path, which lists neither; that is the owner's line to add.
   opponent defends" are different questions about the same permanent. Nothing
   registered reads the second — Torbran, Thane of Red Fell says "controls" and
   is therefore already right about a Siege you control — so this is a leaf this
-  entry owes, not one `SourcePattern` or `AffectedSet` is missing today.
+  entry owes, not one `SourcePattern` or `ObjectSet` is missing today.
 - **Size** — one PR in the band, after item 6 (the flip is a trigger) and
   the planeswalker attack path it shares (`replacement-architecture.md` §9,
   RD-1 leaves both out of combat on purpose).
@@ -1349,7 +1349,7 @@ design. The entry is kept as written for the record.*
   classes need the kind axis, not the rewrite alone; the sixth shape's
   session should build it that way. RE-5 also fired item 47's condition (c)
   from the multiplier side: a pattern arm that reads an entry's mods, so the
-  multiplier clause asks `affected_is_mods_invariant` of an entry's members
+  multiplier clause asks `object_set_is_mods_invariant` of an entry's members
   now, the clause the `EnterWith` shape always asked.
 
 ---
@@ -1388,7 +1388,7 @@ cluster before acting on its row.
 | 122 | 3 | SBA (704.5i/704.5c/704.5q) |
 | 110 | 3 | `is_permanent()` and characteristics; 110.4c is a layers invariant |
 | 611 | 2 | continuous-effect start; 611.2d's X lock is §2.1-adjacent |
-| 609 | 2 | `AffectedSet` defaults — audit §4 found no gap here |
+| 609 | 2 | `ObjectSet` defaults — audit §4 found no gap here |
 | 109 | 2 | `EffectiveCharacteristics` — characteristics |
 | 302 | 2 | P/T as a characteristic — layers |
 | 111 | 1 | token cease-to-exist SBA — `copy-effects-architecture.md` |

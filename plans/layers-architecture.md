@@ -187,12 +187,12 @@ pub struct ContinuousEffect {
     /// Evaluated against the frame state at the start of this effect's
     /// layer (§5). Not re-entered for `compute_characteristics` of any
     /// object during evaluation — predicates read the frame directly.
-    pub affected: AffectedSet,
+    pub affected: ObjectSet,
 
     /// What the effect does to each affected object.
     pub modification: EffectModification,
 
-    /// What characteristic categories the `affected` predicate reads.
+    /// What characteristic categories the `affected_objects` predicate reads.
     /// Pre-computed at effect creation for the dependency algorithm's
     /// cheap static-check step (§9). Distinct from the effect's own
     /// output category, which is derived from `layer` (see `Layer::category`
@@ -214,16 +214,16 @@ pub type Timestamp = u64;
 
 **Multi-layer card text** is split at registration time per **CR 613.6** ("If an effect should be applied in different layers or sublayers, the parts of the effect each apply in their appropriate ones."). So a spell whose resolving effect text is "target creature gets +1/+1 and becomes the color of your choice until end of turn" registers **two sibling registry entries** at resolution:
 
-- one Layer 5 `AddColor(chosen)` with `AffectedSet::Fixed(vec![target])`, `Duration::UntilEndOfTurn`;
-- one Layer 7c `ModifyPowerToughness { +1, +1 }` with the same `affected` and `duration`.
+- one Layer 5 `AddColor(chosen)` with `ObjectSet::Fixed(vec![target])`, `Duration::UntilEndOfTurn`;
+- one Layer 7c `ModifyPowerToughness { +1, +1 }` with the same `affected_objects` and `duration`.
 
 The two share `source` and `timestamp` (they are created simultaneously; the timestamp counter increments once per batch, not per registered entry) so their ordering within their respective layers is consistent. The resolution code (a helper like `register_multi_layer(...)`) does this splitting. Card authors never construct a single effect touching multiple layers.
 
-### 3.4 `AffectedSet`
+### 3.4 `ObjectSet`
 
 ```rust
 /// Selects objects for a continuous effect to apply to.
-pub enum AffectedSet {
+pub enum ObjectSet {
     /// "This permanent" (the source itself). Layer 6 static abilities
     /// like "this creature has flying" use this.
     SourceOnly,
@@ -359,7 +359,7 @@ impl Layer {
 }
 ```
 
-**Amendment (2026-08-23, Layer 2 phase) — `SetController` carries a `PlayerRef`, not a `PlayerId`.** Same correction §3.4 records for `AffectedSet::Filter`, and for the same rule. CR 109.5 makes a static ability's "you" the *current* controller of the object it is on, so a resolved id stored at registration is a snapshot — Mind Control's "You control enchanted creature" has to follow the Aura when the Aura itself changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so `EffectOrigin::StaticAbility` asks the source and `EffectOrigin::Resolution` reads `ContinuousEffect.controller`, which CR 611.2c locked when the spell resolved.
+**Amendment (2026-08-23, Layer 2 phase) — `SetController` carries a `PlayerRef`, not a `PlayerId`.** Same correction §3.4 records for `ObjectSet::Filter`, and for the same rule. CR 109.5 makes a static ability's "you" the *current* controller of the object it is on, so a resolved id stored at registration is a snapshot — Mind Control's "You control enchanted creature" has to follow the Aura when the Aura itself changes hands. `compute::resolve_set_controller` resolves it during the walk through the same `FilterPlayers` a filter's `ByController` uses, so `EffectOrigin::StaticAbility` asks the source and `EffectOrigin::Resolution` reads `ContinuousEffect.controller`, which CR 611.2c locked when the spell resolved.
 
 It also keeps `GameState::static_primitive_rows` a pure map from primitive to rows. That table has no game, no source and no controller, so a `PlayerId` here would have forced `Primitive::GainControl` to stay in the catch-all arm the loud-lowering work exists to empty.
 
@@ -514,7 +514,7 @@ mtgsim/src/
                                # compute_characteristics, helpers to
                                # register/remove effects from spell resolution.
       types.rs                 # Layer, Duration, ContinuousEffect, EffectModification,
-                               # CharacteristicCategory, AffectedSet, Timestamp,
+                               # CharacteristicCategory, ObjectSet, Timestamp,
                                # EffectiveCharacteristics, CopiableValues, AbilityOrigin.
       compute.rs               # compute_characteristics(game, id).
                                # Pure function of (registry, base characteristics).
@@ -591,7 +591,7 @@ What we *can* do is a **runtime fast path**: in the vast majority of games, no c
 
 ```rust
 pub struct RegistryScopeSummary {
-    /// True iff any active effect's `affected` could match objects in
+    /// True iff any active effect's `affected_objects` could match objects in
     /// hand / library / graveyard / exile. Set on register; cleared on
     /// the last applicable effect's removal.
     pub touches_hidden_zones: bool,
@@ -607,7 +607,7 @@ Then `compute_characteristics(game, id, zone)` dispatches:
 | Caller zone | Fast path when... | Slow path otherwise |
 |---|---|---|
 | Battlefield | never — always slow path | full pipeline |
-| Hand / Library / Graveyard / Exile | `!summary.touches_hidden_zones && !summary.has_active_cdas` (or CDA summary rules out relevance) → return printed characteristics | full pipeline, but with a filter that only considers effects whose `affected` can match this zone |
+| Hand / Library / Graveyard / Exile | `!summary.touches_hidden_zones && !summary.has_active_cdas` (or CDA summary rules out relevance) → return printed characteristics | full pipeline, but with a filter that only considers effects whose `affected_objects` can match this zone |
 | Stack | `!summary.touches_stack && !summary.has_active_cdas` → return printed characteristics | full pipeline |
 | Command | same summary check | full pipeline |
 
@@ -645,7 +645,7 @@ deleted, because the reason it changed is the useful part.
 CR 604.3a(3): a CDA "does not directly affect the characteristics of any other objects."
 That is one of the five criteria for *being* a CDA, not an observation about Tarmogoyf. So
 **every CDA applies to exactly the object that has it** — there is nothing for an
-`AffectedSet` to select, no filter to evaluate, and no reason for a registry row.
+`ObjectSet` to select, no filter to evaluate, and no reason for a registry row.
 
 `engine/layers/cda.rs` therefore applies CDAs straight off the object's own effective
 ability list (`chars.abilities`), at Layers 4, 5 and 7a, *before* that layer's registry
@@ -666,7 +666,7 @@ Four things the registry design would have had to build fall out of this instead
   will see is non-CDA↔non-CDA. Structural, not checked.
 - **CR 604.3's "function in all zones".** `compute_characteristics` reads `game.objects`,
   not `game.battlefield`, so a Tarmogoyf in a graveyard has a P/T without any of Deferred
-  Migrations item 9's zone-aware `AffectedSet` work. That item turned out to be about
+  Migrations item 9's zone-aware `ObjectSet` work. That item turned out to be about
   *filter-based* effects reaching other zones — a different shape — and is not a
   prerequisite for CDAs after all.
 
@@ -749,7 +749,7 @@ Adopted from `design_doc.md:636-664`, adjusted for `CharacteristicCategory`:
 > 1. **Collect** all active effects in this layer/sublayer.
 > 2. ~~**CDA guard** (CR 613.8a(c))~~ — **no longer a step.** CDAs are never registry effects (§6), so every pair reaching this algorithm is already non-CDA↔non-CDA and 613.8a(c) is satisfied before it starts. Nothing to check and nothing to prune.
 > 3. **Static check** — does `B.layer.category()` appear in `A.filter_reads`? If not → independent.
-> 4. **Hypothetical check** — temporarily apply B to a frame snapshot, recompute A's `affected`, compare. If different → A depends on B.
+> 4. **Hypothetical check** — temporarily apply B to a frame snapshot, recompute A's `affected_objects`, compare. If different → A depends on B.
 > 5. **Build DAG** — edges: B → A (apply B before A).
 > 6. **Topological sort** — ties broken by timestamp. Cycles (CR 613.8b) → fall back to timestamp order.
 
@@ -780,8 +780,8 @@ For each candidate pair (A, B) surviving steps 2+3:
 
 1. Snapshot the frame.
 2. Apply B to the snapshot.
-3. Evaluate A's `affected` against the snapshot.
-4. Compare to A's `affected` against the original frame.
+3. Evaluate A's `affected_objects` against the snapshot.
+4. Compare to A's `affected_objects` against the original frame.
 5. Different → edge B→A.
 6. Discard snapshot.
 
@@ -1139,7 +1139,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
 
 1. Replace the `power_modifier` / `toughness_modifier` shim with real Layer 7c `ContinuousEffect`s:
    - Pump spells (`ModifyPowerToughness` primitive) register effects with `Duration::UntilEndOfTurn`.
-   - Static anthems on the battlefield (e.g., Glorious Anthem) register `Duration::WhileSourceActive` effects with `AffectedSet::Filter(...)`.
+   - Static anthems on the battlefield (e.g., Glorious Anthem) register `Duration::WhileSourceActive` effects with `ObjectSet::Filter(...)`.
 2. Delete the shim fields from `PermanentState`.
 3. Implement Layers 7b (set P/T) and 7d (switch P/T). 7a (CDA P/T) scaffolded but no consumers yet.
 4. Cleanup-step effect deregistration wired.
@@ -1194,7 +1194,7 @@ criteria and its reasoning.
 
 **Why it extends this document rather than opening one.** `CLAUDE.md`'s
 architecture-doc row says a new subsystem extends a row and never adds one. Two
-of Phase LH's three pieces are CR 613 — a new `AffectedSet` and CR 613.7e's
+of Phase LH's three pieces are CR 613 — a new `ObjectSet` and CR 613.7e's
 re-timestamping — so Auras are a layers extension wearing a card's clothes. The
 third piece (CR 608.3b) rides along for a reason given under LH-1.
 
@@ -1269,7 +1269,7 @@ kind arrives. Deterministic, shipped, and the same move one level up.
 
 ### LH-1 — the host becomes addressable (~730 additions) — ✅ 2026-09-04
 
-**Shipped.** `AffectedSet::Host` resolved during the walk rather than snapshotted, `attached_to` as a layers input, the `EffectRecipient` lowering for Auras; Holy Strength opened the Aura path. ~730.
+**Shipped.** `ObjectSet::Host` resolved during the walk rather than snapshotted, `attached_to` as a layers input, the `EffectRecipient` lowering for Auras; Holy Strength opened the Aura path. ~730.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/layers-architecture-landed.md`, "LH-1" (evicted 2026-09-11).
 
@@ -1351,7 +1351,7 @@ one list per layer, one sort key:
 
 | Application | Where it comes from | Affected set | Existence (CR 604.2) |
 |---|---|---|---|
-| a registry row (and, under a look-ahead, one of the entering object's would-be rows) | `effects_in_layer` / `Lookahead::rows` | the row's `AffectedSet` | `StaticAbility` rows: does the source's *live* frame still carry the ability; `Resolution` rows: always |
+| a registry row (and, under a look-ahead, one of the entering object's would-be rows) | `effects_in_layer` / `Lookahead::rows` | the row's `ObjectSet` | `StaticAbility` rows: does the source's *live* frame still carry the ability; `Resolution` rows: always |
 | one object's intrinsic CDA at this layer | the member's live ability list at the start of the layer (`cda.rs`) | the object itself (CR 604.3a(3)) | does the object's live frame still carry it |
 | a keyword counter (CR 122.1b), layer 6 only | the entity's counters | the object itself | always |
 | a P/T counter kind (CR 122.1a), layer 7c only | the entity's counters | the object itself | always |
@@ -1388,7 +1388,7 @@ made, so it is a result of the pass, not an attribute of a row, and 7g's
 `update_rows` route is not needed.
 
 *The working set* W is **every object some row can reach**, and it is
-derived from the `AffectedSet` variants rather than listed: a `Filter` row
+derived from the `ObjectSet` variants rather than listed: a `Filter` row
 needs the battlefield zone (RC-3's gate — because `ObjectFilter` is a
 filter over *permanents*; a filter over cards in a graveyard, Deeproot
 Historian's "Merfolk and Druid cards in your graveyard have retrace", is
@@ -1401,7 +1401,7 @@ members beyond the battlefield (a pump spell's target that has since died).
 So W is every battlefield entity in `battlefield_ids_ordered` order, then the
 look-ahead's object when there is one, then whatever `Fixed` rows name (in
 row order). **It is not contained to the battlefield by design, only by
-today's variants**: layers item 9's zone-reaching `AffectedSet` — Wonder's
+today's variants**: layers item 9's zone-reaching `ObjectSet` — Wonder's
 "as long as this card is in your graveyard" — adds one clause to
 `Board::seed`, and nothing else in the pass changes. A token in the
 battlefield zone with no entity (its entry being decided) is a member of the
@@ -1431,7 +1431,7 @@ possible later (below). It fills no memo, as §12 "7a" says.
 **3. The hypothetical check's snapshot is a frame clone.** CR 613.8a(b) asks
 whether applying B would change what A reads. A's reads are few and named —
 its source's ability list (existence), its source's controller ("you"), the
-filter leaves of its `AffectedSet` and of any `CountOf` in a dynamic amount —
+filter leaves of its `ObjectSet` and of any `CountOf` in a dynamic amount —
 so the check clones the frame of each member B affects, applies B to the
 clone, re-evaluates A's read on it, and discards the clone. Not a `GameState`
 clone (`replacement-architecture.md` §11 item 5: it duplicates `rng` and

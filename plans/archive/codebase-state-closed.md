@@ -1309,3 +1309,57 @@ It was a record for item 70's fix — the answer was right, re-derived
 
    **Reachability (2026-09-03):** closed — 2026-04-18.
 
+
+## Cross-cutting — keep this section honest
+
+124. **Three types carry an object set called `affected`, and two of them now
+     have a player sibling — so the bare name is wrong in two places and will be
+     wrong in a third.** RD-4's review already made this call for
+     `Restriction::ApplyReplacement`, which is `to_objects` / `to_players`: *"a
+     bare `to` beside a `to_players` reads as the whole set with a modifier hung
+     off it, and it is not — the two are unioned and neither is primary."*
+     RE-3 renamed `Restriction::Event.affected` to `affected_objects` on that
+     argument (19 sites). Two are left:
+
+     - **`ReplacementDef.affected`** beside `affected_players`, which is the
+       original instance of the asymmetry and the largest: ~135 field uses
+       across the card files.
+     - **`ContinuousEffect.affected`**, which has no player sibling *yet*. It is
+       the one that will need it: CR 611.1's continuous effects are not all
+       about objects — "you have no maximum hand size", "players can't untap
+       more than one permanent" — and the day one of those is written as a
+       layer row rather than a restriction, this field grows the same pair.
+
+     **Reachability (2026-09-12):** reachable, **not wrong** — a name, not an
+     answer. Every reader of both fields already asks for the object half
+     explicitly.
+
+     **Sized:** a mechanical rename, ~135 + ~24 sites, and it is
+     `AbilityDef`'s named-constructors shape (item 120): **its own PR**, so a
+     sweep does not ride inside a rules change. `AffectedSet` → `ObjectSet`
+     (302 mentions) is the same PR's second half if it is taken — the type is
+     already object-only, and the name says "affected" where the field name
+     now says it twice.
+
+    **Reachability (2026-09-14):** closed — `refactor/object-set-rename`.
+
+    **What the sweep found that this entry had wrong: there are five fields
+    named `affected`, not three.** `board.rs` keeps two more — `TraceStep` and
+    `Observation`, both module-private, both a resolved `Vec<ObjectId>` rather
+    than a selector for one. For those the bare noun is already the right
+    name: they hold the objects one application *reached*, and there is no
+    player half to be half of. This entry counted the `AffectedSet` carriers
+    and generalized from them, which is why the rename went through the
+    compiler rather than a token sweep — `affected` would have taken
+    those two and nine locals with it.
+
+    Both halves landed in one PR. The field rename alone leaves
+    `affected_objects: AffectedSet`, which is the one spelling that reads
+    worse than either end, so the split this entry offered ("the same PR's
+    second half if it is taken") was taken. Sizes as built: 55 lines for the
+    fields, 372 for the type, 125 across the live plan docs.
+
+    `plans/archive/` keeps the old spelling, deliberately. It is a record of
+    what shipped, and CM-0 set the precedent seven days earlier —
+    `PermanentFilter` still stands in three archive files with the live docs
+    fully swept.

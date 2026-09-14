@@ -178,7 +178,7 @@ ability list — the third static shape to use the pattern `Effect::Replacement`
   Layer 6 grant of "spells cost {1} more" taxes. Reading the effective list
   *is* CR 604.2's existence check; nothing has to be reconciled.
 - **A registry row is a layer-walk input.** Every `ContinuousEffect` names a
-  `Layer` and an `AffectedSet` of *objects*, and `compute_characteristics`
+  `Layer` and an `ObjectSet` of *objects*, and `compute_characteristics`
   applies it to a frame. A cost effect has no layer — 613.11 puts it after
   all of them — and applies to no object; it applies to a *cost being
   determined*. A row nothing in the walk applies is a list wearing a
