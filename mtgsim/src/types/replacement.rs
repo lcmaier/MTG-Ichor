@@ -1157,7 +1157,11 @@ impl EnterModsTemplate {
     /// ordering prompt is real. `codebase-state.md` item 47 carries the
     /// expiry conditions this is one of.
     pub fn is_fixed(&self) -> bool {
-        self.counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
+        // Destructured in full, so that a new field here is a compile error
+        // at the one function whose premise assumes every field is a status
+        // or a constant amount (`codebase-state.md` item 47's condition (a)).
+        let EnterModsTemplate { tapped: _, counters } = self;
+        counters.iter().all(|(_, a)| matches!(a, AmountExpr::Fixed(_)))
     }
 }
 

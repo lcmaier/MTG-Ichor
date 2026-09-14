@@ -8,7 +8,9 @@ use crate::events::event::DamageTarget;
 use crate::types::card_types::CardType;
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
-use crate::types::effects::{AffectedSet, AmountExpr, Effect, ObjectFilter, PlayerRef, TokenDef};
+use crate::types::effects::{
+    AffectedSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
+};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EventPattern, ReplacementDef,
@@ -787,7 +789,17 @@ fn next_damage_shares(
 /// entry shape goes false the day `EnterMods` gains a field that feeds a
 /// characteristic — face-down, which is Layer 1 and changes everything — or
 /// `ObjectFilter` gains a leaf that reads P/T, keywords or counters, or
-/// `EventPattern::EnterBattlefield` reads `mods`. The multiplier shape goes
+/// `EventPattern::EnterBattlefield` reads `mods`. **Each of those is a
+/// compile error somewhere, and this is where**: a new `EnterModsTemplate`
+/// field breaks `EnterModsTemplate::is_fixed`, which destructures the struct;
+/// a new `ObjectFilter` leaf breaks [`filter_is_mods_invariant`], which
+/// matches every leaf; a new `EventPattern::EnterBattlefield` field breaks
+/// `gather::pattern_watches`' entry arm, which names every field; and a new
+/// pattern arm breaks [`EventPattern::reads_the_amount`]. Whoever fixes the
+/// error re-reads this premise (`plans/handoffs/re-4-review.md`, R10). The
+/// exit shape goes false the day [`substitute`]'s `ZoneChangeTo` leg reads
+/// the entry's `mods`, which [`check_order_invariance`] asks of every
+/// suppression in debug builds. The multiplier shape goes
 /// false the day a pattern arm answers [`EventPattern::reads_the_amount`]
 /// differently, which is a compile error at that function rather than silence
 /// here, or the day a `Multiplier(0)` is printed (refused here by `n ≥ 1`). The draw shape goes
@@ -816,20 +828,42 @@ fn ordering_cannot_change_outcome(
     let all_draw_doublers = matches!(event, GameAction::DrawCard { .. })
         && choosable.iter().all(|c| draw_doubler_commutes(&c.instance.def, event));
     let all_one_substitution = one_shared_instance_invariant_instead(choosable);
-    if !(all_entries || all_multipliers || all_draw_doublers || all_one_substitution) {
+    // The fifth shape — one exit beside `EnterWith`s on an entry. Whichever
+    // applies first, what performs is the exit's substitute: applied after an
+    // `EnterWith`, it discards the mods that application wrote (a move or an
+    // appearance carries none); applied first, nothing entry-shaped matches
+    // what is left. `substitute` builds it from the event's object and `from`
+    // alone, so it is the same event either way and the affected player's
+    // choice has one outcome. Master Biomancer beside Hallowed Moonlight on a
+    // token is the board that asked for it: the counters it would enter with
+    // are on a token that ceases to exist in exile whichever went first
+    // (`plans/handoffs/re-4-review.md`, R15). Not `EnterAfterMoving`: devour
+    // moves other objects while applying, and exiling the devourer after it
+    // devoured is a different board from exiling it first.
+    let one_exit = matches!(event, GameAction::EnterBattlefield { .. })
+        && choosable.iter().filter(|c| is_exit(&c.instance.def.rewrite)).count() == 1
+        && choosable.iter().all(|c| {
+            is_exit(&c.instance.def.rewrite)
+                || matches!(c.instance.def.rewrite, Rewrite::EnterWith(_))
+        });
+    if !(all_entries || all_multipliers || all_draw_doublers || all_one_substitution || one_exit)
+    {
         return false;
     }
     choosable.iter().all(|c| {
         let def = &c.instance.def;
         (match &def.rewrite {
             // Reads the frame only when the source is the object being
-            // computed, so anything else is a board read and commutes.
+            // computed, so anything else is a board read and commutes. Beside
+            // an exit none of that matters: what it wrote is discarded.
             Rewrite::EnterWith(t) => {
-                (t.is_fixed() || Some(c.instance.source) != entering)
-                    && affected_is_mods_invariant(&def.affected)
+                one_exit
+                    || ((t.is_fixed() || Some(c.instance.source) != entering)
+                        && affected_is_mods_invariant(&def.affected))
             }
             Rewrite::Amount(AmountRewrite::Multiplier(_)) => true,
             Rewrite::Instead(GameActionTemplate::DrawCards { .. }) => true,
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }) if one_exit => true,
             // The fourth shape's members, admitted by
             // `one_shared_instance_invariant_instead` having already checked
             // that they are all the *same* rewrite.
@@ -841,6 +875,12 @@ fn ordering_cannot_change_outcome(
             && !def.exempt_from_614_5
             && !matches!(c.instance.id, ReplacementInstanceId::Counter(..))
     })
+}
+
+/// The exit an entry can take instead of entering — [`ordering_cannot_change_outcome`]'s
+/// fifth shape is exactly one of these beside `EnterWith`s.
+fn is_exit(rewrite: &Rewrite) -> bool {
+    matches!(rewrite, Rewrite::Instead(GameActionTemplate::ZoneChangeTo { .. }))
 }
 
 /// One member of [`ordering_cannot_change_outcome`]'s draw shape: a doubler that
@@ -1108,6 +1148,43 @@ fn check_order_invariance(
             }
             return;
         }
+    }
+
+    // The fifth shape, chosen the way that stops the others applying: the
+    // exit was taken first, so the suppressed `EnterWith`s no longer match
+    // and continued applicability is not the claim. The claim is that the
+    // exit's substitute ignores whatever they would have written, checked by
+    // substituting against the same entry with its mods disturbed.
+    if is_exit(&chosen.def.rewrite)
+        && mine.iter().all(|(i, _)| matches!(i.def.rewrite, Rewrite::EnterWith(_)))
+    {
+        if let (
+            Rewrite::Instead(template),
+            GameAction::EnterBattlefield { object, from, controller, mods, cause },
+        ) = (&chosen.def.rewrite, before)
+        {
+            let mut disturbed = mods.clone();
+            disturbed.tapped = !disturbed.tapped;
+            disturbed.counters.push((CounterType::PlusOnePlusOne, 1));
+            let with_mods = GameAction::EnterBattlefield {
+                object: *object,
+                from: *from,
+                controller: *controller,
+                mods: disturbed,
+                cause: *cause,
+            };
+            let theirs = substitute(chosen, template, with_mods, subject);
+            debug_assert!(
+                theirs.as_ref().ok() == Some(next),
+                "CR 616.1 prompt suppressed as order-invariant was not: the exit {:?} \
+                 reads the entry's mods — {:?} against the disturbed entry, {:?} \
+                 against the proposed one.",
+                chosen.id,
+                theirs,
+                next
+            );
+        }
+        return;
     }
 
     let probe = match next {

@@ -6074,6 +6074,27 @@ found them.
     to cause. Cheap enough to be the rule: a phase that registers cards and
     wants the engine's `stress` cost builds it.
 
+81. **An exit beside `EnterWith`s is one outcome, and the predicate now
+    says so** — the owner's review (`plans/handoffs/re-4-review.md`, R15),
+    §4.1's standing question applied: *what does this check* — exactly one
+    `Instead(ZoneChangeTo)` beside `EnterWith`s on an entry, every member
+    static, rider-less and not optional; *what if it runs twice* — after the
+    exit applies nothing entry-shaped matches, and after an `EnterWith`
+    applies the exit still does and its substitute carries no mods, so the
+    event that performs is the same whichever went first. Master Biomancer
+    beside Hallowed Moonlight on a token was the board: counters on a token
+    that ceases to exist in exile either way. RC-4's Dryad Arbor pair under
+    Root Maze and Containment Priest — "the prompt that is real", item 19 —
+    was this shape too, and is not asked now; the Shimmerer board is the
+    real choice and carries `ATOM-616.1-001`'s partial. The debug check
+    substitutes against the entry with its mods disturbed and demands the
+    same event. **R10 from the same review, answered in the predicate's
+    doc**: three of the four expiry conditions were already compile errors
+    (an exhaustive `ObjectFilter` match, an exhaustive `EventPattern` match,
+    a pattern arm that names every field) and the fourth is now —
+    `EnterModsTemplate::is_fixed` destructures the struct — so whoever adds
+    the field is sent to the premise by the compiler and not by a sentence.
+
 ## 12. Explicitly out of scope
 
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.

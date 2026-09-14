@@ -16,7 +16,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use mtgsim::cards::phase_rb_cards::kalitas_traitor_of_ghet;
-use mtgsim::cards::phase_rc_cards::{master_biomancer, root_maze};
+use mtgsim::cards::phase_rc_cards::{master_biomancer, root_maze, thunder_thrash_elder};
 use mtgsim::cards::phase_re_cards::{
     alms_collector, goblin_token, hallowed_moonlight, hordeling_outburst, parallel_lives,
     raise_the_alarm, soldier_token, thought_reflection,
@@ -450,16 +450,14 @@ fn two_biomancer_tokens_entering_together_give_each_other_nothing() {
 
 /// Parallel Lives on the creation, then Master Biomancer and Hallowed
 /// Moonlight on each entry. The creation's loop has one candidate and asks
-/// nothing; each of the four entries then has two — counters or exile — whose
-/// order the engine cannot prove away, so the creating player is asked once
-/// per token, each time about a different token: the contained entries have
-/// fresh applied sets (§3.2d's contrast case), and the doubler chosen at the
-/// creation is not offered again at any of them.
-///
-/// Whichever is chosen first, the exile applies — the counters do not stop
-/// it — so all four are created in exile.
+/// nothing; each of the four entries then has two — counters or exile — and
+/// **nothing is asked there either**: the exile's substitute carries no mods,
+/// so it is the same event whichever applied first, and a token that ceases
+/// to exist in exile has no counters to have had. That is the fifth shape of
+/// `pipeline::ordering_cannot_change_outcome`, asked for at RE-4's review
+/// (`plans/handoffs/re-4-review.md`, R15). All four are created in exile.
 #[test]
-fn hallowed_moonlight_beside_master_biomancer_is_asked_once_per_token() {
+fn hallowed_moonlight_beside_master_biomancer_asks_nothing_because_the_exile_wins_either_way() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 3);
     put_on_battlefield(&mut game, parallel_lives(), 0);
@@ -470,18 +468,59 @@ fn hallowed_moonlight_beside_master_biomancer_is_asked_once_per_token() {
 
     resolve_card(&mut game, 0, raise_the_alarm(), &dp);
 
-    let asked = dp.kinds();
-    assert_eq!(asked.len(), 4, "four tokens, four questions — and none about the creation");
-    assert!(asked.iter().all(|k| k.starts_with("ChooseReplacementEffect")), "{asked:?}");
-    assert_eq!(
-        asked.iter().collect::<HashSet<_>>().len(),
-        4,
-        "each question names a different token: a fresh applied set per contained entry"
-    );
+    assert_eq!(dp.prompts(), 0, "one outcome per token, so no question — and none about the creation");
     let created = creations(&game, start);
-    assert_eq!(created.len(), 4);
+    assert_eq!(created.len(), 4, "Parallel Lives applied at the creation");
     assert!(created.iter().all(|(_, zone)| *zone == Zone::Exile));
     assert!(tokens(&game).is_empty());
+}
+
+/// The per-entry loop, on a board where it is observable: two tokens carrying
+/// Thunder-Thrash Elder's devour, created together, with two Bears on the
+/// board. Each token's entry is decided in its own CR 616.1 loop — so each
+/// is asked what it devours — and CR 614.13a's second clause, "nor any other
+/// object entering the battlefield at the same time", keeps each token off
+/// the other's list. A provider that takes everything offered is the one
+/// that would sacrifice the sibling if it were there (RC-5's lesson); both
+/// tokens survive, so it was not.
+///
+/// RC-5 proved this clause at the `execute_actions` boundary with a
+/// hand-built batch, and `codebase-state.md` item 46 said a producer would
+/// make it reachable. This is that producer.
+#[test]
+fn two_devour_tokens_created_together_are_each_asked_and_never_offered_each_other() {
+    let mut game = setup_two_player_game();
+    let bear_a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let bear_b = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let devourer = TokenDef {
+        name: Some("Devourer Token".to_string()),
+        colors: vec![Color::Red],
+        types: vec![CardType::Creature],
+        subtypes: vec![Subtype::Creature(CreatureType::Warrior)],
+        supertypes: Vec::new(),
+        power: Some(3),
+        toughness: Some(3),
+        keyword_flags: Vec::new(),
+        abilities: thunder_thrash_elder().abilities.clone(),
+        rules_text: String::new(),
+        enchant_filter: None,
+    };
+    let dp = RecordingDecisionProvider::picking_all();
+
+    create(&mut game, 0, devourer, 2, &dp);
+
+    let devourers = tokens(&game);
+    assert_eq!(devourers.len(), 2, "neither token was offered as the other's meal");
+    assert!(dp.kinds().iter().any(|k| k.starts_with("ChooseAuxiliaryZoneChange")), "{:?}", dp.kinds());
+    assert!(!game.battlefield.contains_key(&bear_a) && !game.battlefield.contains_key(&bear_b));
+    let counters_on: Vec<u32> =
+        devourers.iter().map(|id| counters(&game, *id, CounterType::PlusOnePlusOne)).collect();
+    assert_eq!(
+        counters_on,
+        vec![6, 0],
+        "the first token devoured both Bears (devour 3 each) and the second found none: \
+         two loops, in batch order, each against the board the last one left"
+    );
 }
 
 // ---------------------------------------------------------------------------
