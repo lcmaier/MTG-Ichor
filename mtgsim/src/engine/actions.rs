@@ -22,12 +22,17 @@ use crate::ui::decision::DecisionProvider;
 /// `src/types/` has no `crate::engine` edge to spend.
 pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeCause};
 
-/// How many batches may nest before the nesting is CR 104.4b's loop — see
-/// `GameState::batch_depth`. The deepest legitimate chain in the tree is a
-/// draw doubled along its lineage (two levels per applied instance) inside a
-/// rider inside a resolution — about a dozen; the loop this catches adds four
-/// per cycle without end.
-const MANDATORY_LOOP_DEPTH: usize = 48;
+/// How many batches may nest before the engine calls it a loop of its own
+/// making — see `GameState::batch_depth`.
+///
+/// **An engine invariant, not a rule.** With every nested batch carrying its
+/// lineage (a decomposition inherits, a rider inherits, a contained event
+/// starts fresh), CR 614.5 bounds every replacement chain — each instance
+/// applies once — so a chain deeper than any legitimate one means a lineage
+/// was lost or a rider re-proposes its own event. `fuzz_games` prints the
+/// deepest nesting a run reached (`Max batch depth`); the bound here is that
+/// number with headroom, and a run that moves it is the place to re-read it.
+const BATCH_NESTING_LIMIT: usize = 32;
 
 /// Who is asking for a mutation, and what resolution it belongs to.
 ///
@@ -578,15 +583,24 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        // A fresh applied set is a new lineage (§3.2d): a rider's draw inside
-        // a doubled draw starts counting decomposition from zero, or the
+        // A rider's proposals continue the replaced event's applied set
+        // (CR 614.5, `Rider::lineage`); every other batch starts fresh.
+        // Taken, not read: the batch this seeds is the rider's own event, and
+        // the batches nested inside it are contained events with sets of
+        // their own. Put back afterwards for the rider's next proposal.
+        let rider_lineage = self.rider_lineage.take();
+        let empty = HashSet::new();
+        let inherited = rider_lineage.as_ref().unwrap_or(&empty);
+        // A new lineage either way for the decomposition count: a rider's
+        // draw inside a doubled draw starts counting from zero, or the
         // invariant `execute_actions_decomposing` asserts — depth bounded by
         // the inherited set — would be asked across two lineages at once.
-        let outer_lineage = std::mem::replace(&mut self.decomposition_depth, 0);
+        let outer_depth = std::mem::replace(&mut self.decomposition_depth, 0);
         self.batch_depth += 1;
-        let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
+        let result = self.execute_batch_inner(batch, ctx, inherited);
         self.batch_depth -= 1;
-        self.decomposition_depth = outer_lineage;
+        self.decomposition_depth = outer_depth;
+        self.rider_lineage = rider_lineage;
         self.events.close_batch(previous);
         result
     }
@@ -722,20 +736,19 @@ impl GameState {
             return Ok(Vec::new());
         }
 
-        // CR 104.4b — "if a game … somehow enters a 'loop' of mandatory
-        // actions, repeating a sequence of events with no way to stop, the
-        // game is a draw." A batch nested this deep is that loop: every
-        // legitimate nesting is bounded by something finite — a resolution's
-        // instructions, CR 614.5's applied set along a decomposition, the
-        // members of one batch — and a chain that passes through a *rider*
-        // has none of them, because a rider's proposal is a new event. Two
-        // Thought Reflections and two Alms Collectors across two players are
-        // the printed board (`GameState::batch_depth`). The result is
-        // recorded here and read one line up by every enclosing batch, which
-        // is how the whole chain unwinds at CR 104.1's "immediately".
-        if self.batch_depth > MANDATORY_LOOP_DEPTH {
-            self.result = Some(GameResult::Draw);
-            return Ok(Vec::new());
+        // Loud rather than a draw: CR 614.5 leaves no replacement chain
+        // unbounded once each nested batch carries its lineage, so a nesting
+        // this deep is the engine's mistake — a lost lineage — and a rules
+        // answer here would hide it. The `Err` unwinds through every `?` to
+        // the harness, which counts it as an error (`BATCH_NESTING_LIMIT`).
+        self.counters.record_batch_depth(self.batch_depth as u64);
+        if self.batch_depth > BATCH_NESTING_LIMIT {
+            return Err(format!(
+                "batches nested {} deep, past the {} any legitimate chain reaches: a proposal \
+                 loop the applied set did not end (CR 614.5), so a nested batch lost its \
+                 lineage or a rider re-proposes its own event",
+                self.batch_depth, BATCH_NESTING_LIMIT
+            ));
         }
 
         // Entering is the zone change, and `EnterBattlefield` is its only
@@ -816,8 +829,16 @@ impl GameState {
                 .iter()
                 .flat_map(|(_, idxs)| idxs.iter().map(|&i| (i, &batch[i])))
                 .collect();
+            let riders_before = riders.len();
             match apply_replacements(self, members, &later, ctx, inherited, &mut riders) {
                 Ok((results, applied)) => {
+                    // CR 614.5 — the riders this group queued are the rest of
+                    // its replacements' effects, and carry everything that
+                    // applied to the event, including what applied after
+                    // they were queued.
+                    for rider in &mut riders[riders_before..] {
+                        rider.lineage = applied.clone();
+                    }
                     for (i, action) in results {
                         decided[i] = action;
                         applied_to[i] = applied.clone();
@@ -903,9 +924,11 @@ impl GameState {
     /// target, so a `then` written with `EffectRecipient::Target` acts on the
     /// object *or the player* the replacement was about and one written with
     /// `EffectRecipient::Controller` acts for the effect's own controller. The
-    /// actions it proposes re-enter the pipeline with a **fresh** applied set —
-    /// a rider's actions are new events the replacement caused, not modified
-    /// forms of the original (§3.2d containment).
+    /// actions it proposes **carry the replaced event's applied set**
+    /// (`Rider::lineage`, CR 614.5): they are the rest of the replacement's
+    /// effect, and an effect that already applied to the event does not get
+    /// a second opportunity on them. What they do *not* carry is the lineage
+    /// of events nested inside them, which are contained and start fresh.
     ///
     /// A player subject becomes a `ResolvedTarget::Player` rather than being
     /// flattened away: Angel of Suffering's "prevent that damage and mill twice
@@ -930,7 +953,10 @@ impl GameState {
             replaced_amount: rider.replaced_amount,
             damage_prevented: Some(rider.prevented),
         };
-        self.resolve_effect(&rider.effect, &rctx, ctx.dp)
+        let outer = self.rider_lineage.replace(rider.lineage);
+        let result = self.resolve_effect(&rider.effect, &rctx, ctx.dp);
+        self.rider_lineage = outer;
+        result
     }
 
     /// Convenience wrapper for the most common zone change: caller knows the
@@ -2201,5 +2227,21 @@ mod tests {
 
         assert_eq!(life_events.len(), 1);
         assert_eq!(life_events[0], None);
+    }
+
+    /// The nesting guard is loud and names the invariant it stands for. With
+    /// every nested batch carrying its lineage nothing legitimate reaches it,
+    /// so the test sets the depth by hand rather than building a chain.
+    #[test]
+    fn a_batch_nested_past_the_limit_is_an_error_not_a_draw() {
+        let (mut game, bears) = setup_game_with_creature();
+        game.batch_depth = BATCH_NESTING_LIMIT;
+
+        let err = game
+            .execute_action(GameAction::Tap { object: bears }, &test_ctx())
+            .unwrap_err();
+
+        assert!(err.contains("nested"), "{err}");
+        assert!(game.result.is_none(), "an engine loop is an error, never a rules answer");
     }
 }

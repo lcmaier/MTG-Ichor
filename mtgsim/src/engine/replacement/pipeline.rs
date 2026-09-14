@@ -52,6 +52,18 @@ pub(crate) struct Rider {
     /// The object whose effect this belongs to. Becomes the rider's
     /// `ResolutionContext::source`.
     pub source: ObjectId,
+    /// CR 614.5's applied set for the event this rider is the rest of — the
+    /// group's *final* set, filled in by `execute_batch_inner` once the loop
+    /// has returned, and handed to every proposal the rider makes.
+    ///
+    /// A rider's proposals are "modified events that may replace that
+    /// event", not new events: Alms Collector's *"you and that player each
+    /// draw a card"* is one replaced event with two draws, and its own ruling
+    /// is that an effect already applied "can't be applied again to the
+    /// resulting events". Given a fresh set instead, two Reflections and two
+    /// Collectors across two seats handed one draw back and forth until the
+    /// stack overflowed (`replacement-architecture.md` §11 item 77).
+    pub lineage: HashSet<ReplacementInstanceId>,
     pub controller: PlayerId,
     /// The event's subject. Becomes the rider's single resolved target, so
     /// `EffectRecipient::Target` in a `then` names the object or the player the
@@ -546,6 +558,8 @@ pub(crate) fn apply_replacements(
         if let Some(then) = chosen.def.then.clone() {
             riders.push(Rider {
                 source: chosen.source,
+                // The group's final applied set, once the loop has it.
+                lineage: HashSet::new(),
                 controller: chosen.controller,
                 // The subject of the first member this application touched,
                 // read *before* its own rewrite — CR 615.5's "that much" is

@@ -29,7 +29,7 @@ use mtgsim::oracle::characteristics::{
     get_effective_colors, get_effective_name, get_effective_power, get_effective_subtypes,
     get_effective_toughness, get_effective_types, has_supertype,
 };
-use mtgsim::state::game_state::{GameResult, GameState};
+use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     fill_library, place_bare, put_in_graveyard, put_in_hand, put_on_battlefield,
     setup_two_player_game, static_ability, test_ctx, test_dp, vanilla_creature,
@@ -847,23 +847,23 @@ fn the_registered_token_defs_say_what_the_cards_say() {
 }
 
 // ---------------------------------------------------------------------------
-// Found by this phase's A/B — CR 104.4b for a loop of riders
+// Found by this phase's A/B — a rider carries the replaced event's applied set
 // ---------------------------------------------------------------------------
 
-/// Two Thought Reflections and two Alms Collectors across two players hand one
-/// draw back and forth forever: P0's draw is doubled, P1's Collector makes it
-/// one and its **rider** has P1 draw — a new event with a fresh applied set —
-/// which P1's Reflection doubles, which P0's Collector halves with a rider
-/// that has P0 draw, and so on. No CR 614.5 set runs out, because every hop
-/// is a rider. CR 104.4b: "a loop of mandatory actions … with no way to stop"
-/// is a draw, and `GameState::batch_depth` is where the engine says so —
-/// the same answer `check_state_based_actions_loop` gives a looping check.
+/// Two Thought Reflections and two Alms Collectors across two players, and P0
+/// draws a card. P0's Reflection doubles it; P1's Collector makes it one and
+/// has P1 draw — a draw that is the *rest of the same replacement*, so it
+/// carries {Reflection P0, Collector P1}; P1's Reflection doubles that (its
+/// first opportunity); P0's Collector halves it and has P0 draw; and that draw
+/// meets four effects that have each had their one opportunity (CR 614.5, and
+/// Alms Collector's ruling: an applied effect "can't be applied again to the
+/// resulting events"). P0 draws two, P1 draws one, and nothing had to end it.
 ///
-/// Reached first in a four-player `stress` game (seed 12523) as a stack
-/// overflow, with a Notion Thief in the cycle; the two-player board here is
-/// the same loop with fewer cards. Before the cap the test binary aborted.
+/// With a fresh applied set per rider — RE-2's design — this board handed one
+/// draw back and forth until the stack overflowed, which is how RE-4's
+/// four-player A/B found it (seed 12523, a Notion Thief in P0's seat).
 #[test]
-fn a_loop_of_riders_is_a_draw_and_not_a_stack_overflow() {
+fn a_riders_draw_carries_the_replaced_events_applied_set() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 60);
     fill_library(&mut game, 1, 60);
@@ -878,7 +878,9 @@ fn a_loop_of_riders_is_a_draw_and_not_a_stack_overflow() {
 
     resolve_for(&mut game, 0, &effect, &test_dp());
 
-    assert_eq!(game.result, Some(GameResult::Draw), "CR 104.4b");
+    assert_eq!(game.result, None, "no loop, and no rule was needed to end one");
+    assert_eq!(game.players[0].hand.len(), 1 + 2, "the fixture spell and two drawn cards");
+    assert_eq!(game.players[1].hand.len(), 1, "the Collector's rider draw, doubled and halved");
 }
 
 /// The control: one Thought Reflection beside one Alms Collector is the

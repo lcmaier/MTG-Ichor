@@ -501,6 +501,8 @@ struct GameStats {
     replacement_gathers: u64,
     restriction_queries: u64,
     prevention_allocations: u64,
+    replacement_prompts: u64,
+    max_batch_depth: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -722,6 +724,9 @@ struct AggregateStats {
     total_replacement_gathers: u64,
     total_restriction_queries: u64,
     total_prevention_allocations: u64,
+    total_replacement_prompts: u64,
+    /// The deepest batch nesting any game reached — a maximum, not a total.
+    max_batch_depth: u64,
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
     reach: Vec<(String, u64, u64, u64)>,
@@ -753,6 +758,8 @@ impl AggregateStats {
         self.total_replacement_gathers += game.replacement_gathers;
         self.total_restriction_queries += game.restriction_queries;
         self.total_prevention_allocations += game.prevention_allocations;
+        self.total_replacement_prompts += game.replacement_prompts;
+        self.max_batch_depth = self.max_batch_depth.max(game.max_batch_depth);
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -975,6 +982,8 @@ fn run_one_game(
                 s.replacement_gathers = c.replacement_gathers();
                 s.restriction_queries = c.restriction_queries();
                 s.prevention_allocations = c.prevention_allocations();
+                s.replacement_prompts = c.replacement_prompts();
+                s.max_batch_depth = c.max_batch_depth();
                 s
             },
         ))
@@ -1439,6 +1448,13 @@ fn main() {
         println!("  Dependency checks: {:>7.0}", agg_stats.avg(agg_stats.total_dependency_checks));
         println!("  Replacement gathers: {:>5.0}", agg_stats.avg(agg_stats.total_replacement_gathers));
         println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
+        // CR 616.1 questions put to a player, per game — what the gathers
+        // above produced that `ordering_cannot_change_outcome` could not
+        // prove away. A phase that widens that predicate moves this row.
+        println!("  Replacement prompts: {:>5.2}", agg_stats.avg(agg_stats.total_replacement_prompts));
+        // The deepest batch nesting any game reached, a maximum: the number
+        // `engine::actions::BATCH_NESTING_LIMIT` is a bound on.
+        println!("  Max batch depth: {:>9}", agg_stats.max_batch_depth);
         // CR 615.7 allocation prompts: a "prevent the next N damage" effect
         // meeting two or more simultaneous sources (RD-2). A reachability
         // count rather than a cost — zero until such an effect is in the pool,

@@ -701,6 +701,7 @@ pub fn ask_choose_replacement(
     affected_object: Option<ObjectId>,
     sources: &[ObjectId],
 ) -> usize {
+    game.counters.record_replacement_prompt();
     assert!(
         sources.len() >= 2,
         "ask_choose_replacement: CR 616.1 makes a choice only among two or more \
@@ -764,6 +765,7 @@ pub fn ask_apply_optional_replacement(
     affected_object: Option<ObjectId>,
     candidate: &crate::engine::replacement::ReplacementInstance,
 ) -> bool {
+    game.counters.record_replacement_prompt();
     let options = vec![ChoiceOption::Object(candidate.source)];
     let ctx = ChoiceContext {
         kind: ChoiceKind::ApplyOptionalReplacement {

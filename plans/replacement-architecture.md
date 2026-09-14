@@ -710,7 +710,11 @@ words are the test — an effect gets one opportunity to affect "an event **or a
 modified events that may replace that event**" — and only the rewrite's output
 is such a modified event. As riders the board is not a wrong number but an
 infinite loop: the rider's one draw is doubled back to two, Alms applies again,
-and the two effects trade cards until CR 104.4b calls the game a draw. Measured
+and the two effects trade cards until CR 104.4b calls the game a draw. *(Corrected
+at RE-4's review, 2026-09-13: that loop was the engine's, not the rules' —
+a rider's proposals carry the replaced event's applied set now, §11 item 77,
+so both encodings terminate; `Instead` stays because the drawing player's one
+draw is the same event as the instruction it replaced.)* Measured
 as a stack overflow the first time the test ran.
 
 **The rule, and it is the one both "and" cards needed.** Split a printed
@@ -980,17 +984,22 @@ afterward*. Three consequences, each load-bearing:
   not to the survival of the event — a later replacement in the same loop
   further modifying or even dropping the event does not un-queue an earlier
   rider.
-- **Fresh lineage — and that is a constraint on what may be a rider, not just a
-  fact about one.** A rider's actions are new events the replacement caused, not
-  modified forms of the original, so they re-enter the pipeline with a fresh
-  applied-set (§3.2d containment). Not theoretical in either direction: Kalitas
-  plus Doubling Season makes two Zombies, because the rider's `CreateTokens` is
-  itself replaceable; and Alms Collector's draws had to *stop* being riders,
-  because CR 614.5 covers "any modified events that may replace that event" and
-  its own ruling says it does not apply to the draw it produced. Reading this
-  bullet as permission to put an effect's whole output in `then` is what
-  produced that loop, so §3.2d states the converse as a card-authoring rule:
-  whatever must carry the lineage goes in the rewrite.
+- **A rider carries the replaced event's applied set** — corrected at RE-4's
+  review (2026-09-13, §11 item 77); until then this bullet said the opposite.
+  A rider's actions are the *rest of the replacement's effect*, which CR 614.5
+  names in as many words — "any modified events that may replace that event"
+  — and Alms Collector's ruling applies to its "you draw a card" half exactly
+  as to the halved draw: an effect already applied "can't be applied again to
+  the resulting events". So `Rider::lineage` is the group's final applied set,
+  and the rider's proposals start from it. Both directions still hold: Kalitas
+  plus Doubling Season makes two Zombies, because the Season never applied to
+  the death; and a second Reflection on the far side of a Collector doubles
+  the rider's draw once, because it had not applied yet. What a rider does
+  *not* hand down is its lineage to events nested *inside* its proposals — an
+  entry inside a creation it makes — which are contained and start fresh.
+  The fresh-set reading was RE-2's, and it was not theoretical: two
+  Reflections and two Collectors across two seats handed one draw back and
+  forth until the stack overflowed (RE-4's A/B, seed 12523).
 
 **Two: "A, then B" in card text** — Goggles of Night: "Whenever equipped
 creature deals combat damage to a player, scry 1, then draw a card." This
@@ -3609,8 +3618,8 @@ is CR 111.4's default when the effect gives none, and its power and toughness
 are `Option`s. Parallel Lives and Raise the Alarm pooled; Hordeling Outburst
 and Hallowed Moonlight registered. Sized 1,650–1,850, shipped **+1,867 /
 −171** before the docs, two of them older defects the four-player A/B reached
-(§11 items 77–78: a loop of riders is now CR 104.4b's draw, and the lineage
-assertion is per lineage). `PERFORMANCE_POOL` 81 → 83. **Trace page: no**,
+(§11 items 77–78: a rider carries the replaced event's applied set, and the
+lineage assertion is per lineage). `PERFORMANCE_POOL` 81 → 83. **Trace page: no**,
 decided at the close. The design record, the shape as built, the measurement
 and the findings are in `plans/archive/replacement-architecture-landed.md`,
 "RE-4"; `codebase-state.md`'s RE-4 lines (items 126–130) are what was left
@@ -4089,8 +4098,8 @@ number before running:
   (58%)**, copies/deck 1.54; Raise the Alarm 201 / 201 in **140 (70%)**,
   1.49. **What the four-seat `stress` run found is §11 items 77–78**: seed
   12523 overflowed the stack on both new arms and on neither `main` nor the
-  fourth arm, and is a CR 104.4b draw now — the first game a measured run has
-  ended by that rule. Three shell runs at one seed `IDENTICAL` outside
+  fourth arm, and ends normally now that a rider carries its lineage. Three
+  shell runs at one seed `IDENTICAL` outside
   `=== Timing ===` at both seat counts on both pools. → `engineering-practices.md`
   §3's tables, both re-recorded.
 - **RE-5:** flat on the middle arm; the entry door is a `pattern_watches`
@@ -6010,20 +6019,27 @@ found them.
     `DrawCards { n }` against an empty library, one level up. Nothing reads a
     token count off the outer; a rider reads the count *proposed*.
 
-77. **A loop of riders is CR 104.4b's, and the engine had no detector for
-    it.** A rider's proposal is a new event with a fresh applied set (§3.2d,
-    CR 615.5), so a cycle every hop of which is a rider — two Thought
-    Reflections and two Alms Collectors across two players, or a Notion Thief
-    in the Collector's seat — has no CR 614.5 set to run out, and ran until
-    the stack overflowed. Reached by RE-4's four-player `stress` A/B (seed
-    12523, registered arm) and by nothing at two seats in 200 games, though
-    two seats suffice. `check_state_based_actions_loop` already answered the
-    rule for a looping check; `GameState::batch_depth` answers it for a
-    looping batch, at 48 nested batches, and the whole chain unwinds through
-    CR 104.1's "immediately". The fixture aborts the test binary with the cap
-    raised. RE-2's page walked this loop in the *rider* encoding of Alms
-    Collector and moved the card to `Instead` to avoid it; the `Instead` half
-    still carries a rider, and two boards' worth of them is the loop again.
+77. **A rider's proposals carry the replaced event's applied set, and the
+    loop RE-4's A/B found was the engine's, not the rules'.** First recorded
+    here as a CR 104.4b mandatory loop with a cap that ended the game in a
+    draw; the owner's review read CR 614.5 the other way, and the CR agrees
+    with the review. Alms Collector's "you and that player each draw a card"
+    is one replaced event with two draws, and its own ruling — an applied
+    effect "can't be applied again to the resulting events" — covers both.
+    So two Reflections and two Collectors across two seats terminate: P0
+    draws two and P1 one, every effect having had its one opportunity. The
+    engine looped because §4.1a's "fresh lineage" bullet gave a rider's
+    proposals a new applied set, which is exactly the re-application the rule
+    forbids. `Rider::lineage` now carries the group's final set and
+    `resolve_rider` hands it to the rider's proposals through
+    `GameState::rider_lineage`; the fixture asserts the CR's numbers. The
+    nesting cap stays as an **engine guard** — with every nested batch
+    carrying its lineage, CR 614.5 bounds every chain, so a nesting past
+    `BATCH_NESTING_LIMIT` is a lost lineage and returns an error rather than
+    a rules answer — and `Max batch depth` is a fuzz row so the bound is a
+    measured number rather than a magic one. Reached by the four-player
+    `stress` A/B (seed 12523, registered arm) and by nothing at two seats in
+    200 games; two seats suffice.
 
 78. **`decomposition_depth`'s assertion counted across a rider, and fired on
     a legal board.** Its invariant — depth bounded by the inherited set — is

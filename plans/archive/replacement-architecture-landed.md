@@ -3150,11 +3150,14 @@ restructured — `entry_proposal` builds, the two callers execute — which is w
 let the plural batch share one seed with the single entry. `PERFORMANCE_POOL`
 is a sized array, which the pool commit learned the loud way.
 
-**Sized 1,650–1,850 and shipped +1,867 / −171** before the docs: engine 594
-against ~600, cards 322 against ~350, tests 951 against ~700 — the test column
-over again, for RE-3's, RE-6's and RE-7's reason, and this time a third of the
-overage is the two loop findings (§11 items 77–78, ~90 lines with their
-fixtures). Zero warnings; 1,375 tests.
+**Sized 1,650–1,850 and shipped +1,867 / −171** before the docs and the
+review: engine 594 against ~600, cards 322 against ~350, tests 951 against
+~700 — the test column over again, for RE-3's, RE-6's and RE-7's reason, and
+this time a third of the overage is the two lineage findings (§11 items
+77–78, ~90 lines with their fixtures). Zero warnings; 1,375 tests. The review
+(`plans/handoffs/re-4-review.md`) then added what the owner asked in: a
+rider carrying its lineage, the one-exit suppression shape, the token
+pattern's kind, the creation template, and three more cards.
 
 **Glossary triage** (`check_glossary.py --suggest`): nine candidates, no
 coinage. *Ruling* and *rulings* are Scryfall's word and §3.4's; *pooled*,
@@ -3221,9 +3224,9 @@ plural entry batch item 46 wanted measured is built in seven games of ten.
 
 **What the four-seat `stress` run found** is §11 items 77–78: seed 12523
 overflowed the stack on both new arms and on neither `main` nor the fourth
-arm — the new decks reached a loop of riders older than this phase — and it
-is a CR 104.4b draw now, the first game a measured run has ended by that
-rule (`Draw 1` in the arm's outcomes). The one other outlier is seed 12538,
+arm — the new decks reached a rider loop older than this phase, a rider's
+proposals starting a fresh applied set where CR 614.5 says they continue the
+event's — and it ends normally now that a rider carries its lineage. The one other outlier is seed 12538,
 which runs to the 200-turn limit: a two-seat endgame in which Words of
 Worship and Circle of Protection: Red let the random agent gain five life
 per draw and prevent every point of red damage for a hundred and fifty turns

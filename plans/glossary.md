@@ -178,8 +178,10 @@ once" is about. Not the object that generated it and not the card. →
 **applied set** — the `ReplacementInstanceId`s already applied to this group,
 CR 614.5's memory for one event. Declining an optional effect is tracked
 **separately**: CR 903.9b is exempt *and* optional, so a decline recorded in the
-applied set is a hang. A rider re-enters with a fresh applied set; a
-**decomposition** inherits this one — see **lineage**.
+applied set is a hang. A **decomposition** inherits this set and so does a
+**rider** — the rest of a replacement's effect is "a modified event that may
+replace that event" — while a *contained* event starts a fresh one. See
+**lineage**; a rider given a fresh set was RE-4's loop.
 
 **ladder** — CR 616.1a–e's ordered classes, walked top-down: the first non-empty
 step decides the whole question and everything below it is not a choice the
@@ -198,10 +200,13 @@ and `Primitive::Mill` deliberately has none. → `engine::actions::GameAction`.
 
 **lineage** — which CR 614.5 applied set a proposed event starts from. An event
 derived from another either **continues** its parent's set or starts a fresh
-one, and §3.2d's discriminator is whether the derived event is *the same kind of
-thing as its parent*. Answered at the call — `perform_action`'s `lineage`
-argument, threaded by `execute_actions_decomposing` — never inferred from the
-event. → `replacement-architecture.md` §3.2d.
+one, and §3.2d's discriminator is whether the derived event is *the original
+in modified form* — a decomposition is, a rider's proposals are, an event the
+replacement merely *causes* to be nested (an entry inside a creation) is not.
+Answered at the call — `perform_action`'s `lineage` argument, threaded by
+`execute_actions_decomposing`; `Rider::lineage`, handed to a rider's proposals
+by `resolve_rider` — never inferred from the event. → `replacement-architecture.md`
+§3.2d, §4.1a.
 
 **decomposition** — one event expressed at finer grain, which **continues** the
 lineage: CR 121.2's "draw N" carried out as N individual draws. The engine's

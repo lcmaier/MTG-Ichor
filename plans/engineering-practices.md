@@ -1243,12 +1243,12 @@ with it, as RE-7 said it would. The middle arm is `IDENTICAL` to `main` here
 too, and the pooled column is the same bigger board: gathers 2102 → 2145 at
 200 games, avg turns 61.0 → 61.4, CPU/game −3.6% and −2.0% (a different
 board; `Dependency checks` 171 → 111). **Two `stress` games of 200 are worth a
-sentence each.** Seed 12523 is the first game a measured run has ended as a
-**CR 104.4b draw**: a loop of riders — two Thought Reflections and a Notion
-Thief and an Alms Collector across two seats handing one draw back and forth,
-each hop a rider with a fresh applied set — which overflowed the stack on the
-first run and is capped at the chokepoint now (`replacement-architecture.md`
-§11 item 77; the engine-only arm, with `main`'s decks, never drew the board).
+sentence each.** Seed 12523 overflowed the stack on the first run: two Thought
+Reflections, a Notion Thief and an Alms Collector across two seats handed one
+draw back and forth because a rider's proposals started a fresh applied set,
+which CR 614.5 forbids — the fix is that a rider carries the replaced event's
+set, and the game now ends normally (`replacement-architecture.md` §11 item 77;
+the engine-only arm, with `main`'s decks, never drew the board).
 Seed 12538 runs to the 200-turn limit: a two-seat endgame where Words of
 Worship and Circle of Protection: Red let the random agent gain five life per
 draw and prevent every point of red damage for a hundred and fifty turns —

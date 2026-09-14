@@ -77,6 +77,8 @@ ROWS = [
     ("Replacement gathers", r"^\s+Replacement gathers:\s+(\d+)"),
     ("Restriction queries", r"^\s+Restriction queries:\s+(\d+)"),
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
+    ("Replacement prompts", r"^\s+Replacement prompts:\s+([\d.]+)"),
+    ("Max batch depth", r"^\s+Max batch depth:\s+(\d+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can

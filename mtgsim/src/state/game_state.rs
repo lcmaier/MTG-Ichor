@@ -429,19 +429,31 @@ pub struct GameState {
     /// How many batches are nested inside one another right now — one per
     /// `execute_batch_inner` on the call stack, kept by its three wrappers.
     ///
-    /// **This one is a cap, and CR 104.4b is why** — the same rule
-    /// `check_state_based_actions_loop` applies to a state-based check that
-    /// keeps performing. A rider's proposal is a *new* event with a fresh
-    /// applied set (CR 615.5, §3.2d), so a cycle that passes through a rider
-    /// has no CR 614.5 set to run out: two Thought Reflections and two Alms
-    /// Collectors across two players hand one draw back and forth forever,
-    /// each hop a rider, and the rules' own answer for "a loop of mandatory
-    /// actions … with no way to stop" is that the game is a draw. Found in a
-    /// four-player `stress` game (seed 12523, RE-4's A/B) as a stack overflow.
-    /// `decomposition_depth` is the *derived* invariant for the lineage case
-    /// and deliberately not a cap; this is the rule for the case that has no
-    /// invariant.
+    /// **A guard against the engine, not a rule.** CR 614.5 gives every
+    /// replacement effect one opportunity per event *and its modified forms*,
+    /// so once a decomposition inherits its parent's applied set and a rider
+    /// inherits the set of the event it is the rest of, no replacement chain
+    /// can nest without bound: each level spends an instance. A chain that
+    /// does nest without bound has lost a lineage — the shape RE-4's A/B found
+    /// when riders still started fresh (seed 12523, four seats, `stress`: two
+    /// Reflections and two Collectors handing one draw back and forth) — and
+    /// `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather than
+    /// answering with a rule. `decomposition_depth` is the per-lineage
+    /// invariant asserted in debug builds; this is the whole-stack bound
+    /// asserted in every build, and `fuzz_games` reports the deepest nesting a
+    /// run reached so the bound stays a measured number.
     pub(crate) batch_depth: usize,
+
+    /// The applied set a rider's proposals start from, for the extent of
+    /// `resolve_rider` — CR 614.5's "any modified events that may replace that
+    /// event", read by `execute_actions` and cleared for the extent of the
+    /// batch it seeds, so the rider's *own* nested batches (an entry inside a
+    /// creation it makes) start fresh as every contained event does.
+    ///
+    /// On `GameState` rather than on `ResolutionContext` because it is scoped
+    /// to a call, like `entry_selection`, and a rider is resolved through the
+    /// same `resolve_effect` every spell is (`codebase-state.md` item 40).
+    pub(crate) rider_lineage: Option<HashSet<crate::engine::replacement::ReplacementInstanceId>>,
 
     /// The next tick to stamp onto a moving object's
     /// [`zone_change_epoch`](crate::objects::object::GameObject::zone_change_epoch).
@@ -631,6 +643,7 @@ impl GameState {
             entry_selection: EntrySelectionScope::default(),
             decomposition_depth: 0,
             batch_depth: 0,
+            rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
