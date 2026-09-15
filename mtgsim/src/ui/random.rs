@@ -2,34 +2,28 @@
 //
 // Implements the 4-primitive `DecisionProvider` trait by picking uniformly at
 // random among the options the engine presents. Holds one piece of interior-
-// mutable state: a per-mana-ability-window activation counter used to cap
-// pathological filter-ability chains during fuzz (see `pick_n` below). This
-// is NOT the plan/queue-based replay state of the old stateful RandomDP — it
-// is a bounded, single-window, policy-local counter.
+// mutable state: a per-mana-ability-window activation counter that caps
+// pathological filter-ability chains during fuzz (see `pick_n` below).
 //
 // Tap-before-cast sequencing is *not* RandomDP's concern — the engine runs
 // the 601.2g / 602.1b mana-ability-window loop inside `cast_spell` and
 // `activate_ability`, prompting this DP once per mana-ability activation.
-// During that loop RandomDP always picks an activation (never randomly
-// declines) up to `WINDOW_ACTIVATION_CAP`, after which it declines so the
-// engine bails out cleanly.
 //
-// **It is random among the choices that can pay, not among all of them
-// (2026-09-03).** Two of its answers are not uniform: in the mana window it
-// taps a source that makes a pip the cost still needs before it taps
-// anything else, least flexible source first, and declines when no source
-// can make a pip that is still owed; and it splits the generic part of a cost
-// only across mana the same payment does not need for a pip. Both are
-// policy, not payment law — the prompt still offers every legal option and
-// the engine still validates what comes back — and both exist because an
-// any-color mana base (`cards/dual_lands.rs::everywhere`) turned a uniform
-// tap into a five-sided die: land taps per spell cast doubled, 3.86 → 7.66,
-// and spells per game fell with them (`codebase-state.md` 16d). A failed
-// payment rewinds with the lands still tapped, so a wrong tap is a turn's
-// mana gone. With this policy taps per cast read 3.18.
+// **It is random among the choices that can pay, not among all of them.**
+// Two of its answers are not uniform: in the mana window it taps a source
+// that makes a pip the cost still needs before it taps anything else, least
+// flexible source first, and declines when no source can make a pip that is
+// still owed; and it splits the generic part of a cost only across mana the
+// same payment does not need for a pip. Both are policy, not payment law —
+// the prompt still offers every legal option and the engine still validates
+// what comes back — and both exist because an any-color mana base
+// (`cards/dual_lands.rs::everywhere`) turns a uniform tap into a five-sided
+// die: land taps per spell cast read 7.66 uniform against 3.18 with the
+// policy (2026-09-03), and a failed payment rewinds with the lands still
+// tapped.
 //
 // Auto-tap as a *strategic* concern (which dual to tap, whether to save a
-// Cavern of Souls for an uncounterable creature later) is still a future
+// Cavern of Souls for an uncounterable creature later) is a future
 // middleware DP concern, not this type's job — see
 // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md` §4.
 
@@ -208,17 +202,13 @@ impl DecisionProvider for RandomDecisionProvider {
         }
         let mut rng = self.rng.borrow_mut();
 
-        // During a `ManaAbilityWindow`, RandomDP picks an activation that
-        // can still pay something (see `mana_window_preference`) and never
-        // declines while one exists, so fuzz exercises full cost-payment
-        // paths. Termination is controlled by the engine via
-        // `can_pay_costs` success / enumeration-empty / failure blacklist,
-        // plus the per-window activation cap here as a safety net against
-        // pathological filter-ability chains (e.g., `{1}: Add one mana of
-        // any color` cycled forever). Once the cap is hit — or once a pip is
-        // owed that nothing offered can make — we return empty (decline),
-        // letting the engine exit the window; any unpayable cost then
-        // triggers clean rollback via the caller.
+        // During a `ManaAbilityWindow`, RandomDP picks an activation that can
+        // still pay something (see `mana_window_preference`) and never declines
+        // while one exists, so fuzz exercises full cost-payment paths. The
+        // per-window activation cap is a safety net against pathological
+        // filter-ability chains (`{1}: Add one mana of any color` cycled forever);
+        // once it is hit, or once a pip is owed that nothing offered can make, it
+        // declines and any unpayable cost rolls back at the caller.
         if let ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } =
             &context.kind
         {

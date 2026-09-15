@@ -9,7 +9,7 @@
 //! rewritten `EnterMods` and controller.
 //!
 //! One event has a frame: `EnterBattlefield`, which is also the zone change
-//! onto the battlefield (RC-4b), so a CR 614.17d "can't enter" — Worms of the
+//! onto the battlefield, so a CR 614.17d "can't enter" — Worms of the
 //! Earth — is decided against the same frame, before anything has moved.
 //!
 //! **Only `affected` and source 1a read it.** An `EventPattern`'s object

@@ -18,16 +18,15 @@ use crate::types::zones::Zone;
 impl GameState {
     /// Move a game object from one zone to another.
     ///
-    /// This is the fundamental zone transition operation. All higher-level operations
-    /// (draw, play land, cast spell, destroy, etc.) ultimately call this.
+    /// The fundamental zone transition; every higher-level operation (draw, play
+    /// land, cast spell, destroy) ultimately calls this.
     ///
     /// **Do not call this directly from engine modules** — use
-    /// [`GameState::change_zone`] or
-    /// [`GameState::execute_action`] with [`GameAction::ZoneChange`]. Both
-    /// route through the replacement-effects chokepoint (CR 614). This function
-    /// is `pub(crate)` so internal helpers (`draw_card`, `play_land`, the
-    /// `GameAction::ZoneChange` arm itself, and existing unit tests) can still
-    /// call it.
+    /// [`GameState::change_zone`] or [`GameState::execute_action`] with
+    /// [`GameAction::ZoneChange`], which route through the replacement-effects
+    /// chokepoint (CR 614). `pub(crate)` so internal helpers (`draw_card`,
+    /// `play_land`, the `GameAction::ZoneChange` arm itself, and unit tests)
+    /// can still call it.
     ///
     /// **One documented class of exception, and it is permanent:**
     /// `// CAST-ROLLBACK:` — `cast_spell`'s CR 601.2a move onto the stack and
@@ -38,21 +37,12 @@ impl GameState {
     /// announces the forward move at 601.2i, once it is an event. Neither may
     /// be routed through the chokepoint.
     ///
-    /// The `// REPLACEMENT-BYPASS:` class is gone. Its three sites in
-    /// `engine/stack.rs` *were* real zone changes the pipeline had to see; they
-    /// bypassed only because `resolve_top_of_stack` used to pop the object off
-    /// the stack `Vec` before resolution began, so this function would have
-    /// removed it twice. RA-3 closed them by naming the in-between state instead
-    /// of routing around it; RC-1 then deleted the pop, so the stack removal
-    /// here is now the only one and finds the object where CR 608.2 says it is.
-    ///
     /// **This function performs the move and announces nothing.** The
     /// `GameEvent::ZoneChange` is emitted by `GameState::announce_zone_change`,
     /// whose callers know the [`ZoneChangeCause`] and, for the two performer
     /// arms, capture the CR 603.10a LKI frame before the object stops being a
-    /// permanent. Splitting it that way is also what makes the
-    /// `// CAST-ROLLBACK:` tag true: a rewind really is unobservable, and so is
-    /// the 601.2a move it undoes.
+    /// permanent. That split is also what makes the `// CAST-ROLLBACK:` tag
+    /// true: a rewind really is unobservable, and so is the 601.2a move it undoes.
     pub(crate) fn move_object(&mut self, id: ObjectId, to: Zone) -> Result<(), String> {
         let from = {
             let obj = self.get_object(id)?;
@@ -71,17 +61,13 @@ impl GameState {
 
         self.add_to_zone_collection(id, to)?;
 
-        // No `init_zone_state` counterpart to `cleanup_zone_state` any more.
-        // The one thing it did was create the `PermanentState`, and RC-2
-        // made *entering the battlefield* a proposed event of its own
-        // (CR 614.1c) — so the entity is created by
-        // `GameAction::EnterBattlefield`'s performer, after the replacement
-        // pipeline has decided what the permanent enters as.
-        //
-        // A permanent is therefore in the battlefield *zone* for the width of
-        // this function's tail before it is on the battlefield. Only the
-        // `EnterBattlefield` performer moves anything here, and it builds the
-        // entity on the statement after the announcement.
+        // There is no `init_zone_state` counterpart to `cleanup_zone_state`:
+        // entering the battlefield is a proposed event of its own (CR 614.1c), so
+        // the entity is created by `GameAction::EnterBattlefield`'s performer,
+        // after the replacement pipeline has decided what the permanent enters as.
+        // A permanent is therefore in the battlefield *zone* for the width of this
+        // function's tail before it is on the battlefield; only that performer
+        // moves anything here, and it builds the entity on the next statement.
 
         // Update the object's zone field, and stamp *when* it moved.
         //
@@ -182,12 +168,10 @@ impl GameState {
         self.set_object_timestamp(id, timestamp);
 
         // CR 113.6 — a static ability that *functions* in the zone this object
-        // just entered registers its rows now (LK, `layers-architecture.md`
-        // §13d decision 3). Wonder arriving in a graveyard is the card.
-        //
-        // The battlefield is skipped for the reason above; CR 108.4 answers
-        // for every other zone, where a card has no controller and its owner
-        // is who "you" means.
+        // just entered registers its rows now (`layers-architecture.md` §13d
+        // decision 3). Wonder arriving in a graveyard is the card. The battlefield
+        // is skipped for the reason above; CR 108.4 answers for every other zone,
+        // where a card has no controller and its owner is who "you" means.
         if zone != Zone::Battlefield {
             self.register_static_effects(id, owner, zone);
         }
@@ -207,7 +191,7 @@ impl GameState {
     /// continues — SBAs will handle the actual loss when checked).
     /// **This is the performer, not the entry point.** Callers propose a draw
     /// with `execute_action(GameAction::DrawCard { .. })` so CR 614.11 draw
-    /// replacements (Phase RE) see it; this runs after the pipeline has decided
+    /// replacements see it; this runs after the pipeline has decided
     /// the draw happens.
     ///
     /// The empty-library case is deliberately handled *here* rather than at the
@@ -291,11 +275,9 @@ impl GameState {
             return Err("Already played maximum lands this turn".to_string());
         }
 
-        // Move to battlefield, through the chokepoint. This was a direct
-        // `move_object` until RA-3 — a fourth, undocumented bypass, and the
-        // most frequent zone change in the game. CR 305.1 makes playing a land
-        // a special action that still puts a permanent onto the battlefield, so
-        // every ETB replacement in Phase RC has to see it.
+        // Through the chokepoint: CR 305.1 makes playing a land a special action
+        // that still puts a permanent onto the battlefield, so every ETB
+        // replacement has to see it.
         self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
 
         let player = self.get_player_mut(player_id)?;
@@ -422,8 +404,7 @@ impl GameState {
     /// the departing entity's state. The PermanentState itself is
     /// removed afterwards by remove_from_zone_collection.
     ///
-    /// Two branches since LK, and they retire different things — see the
-    /// `else`, which is where the reason is.
+    /// Two branches, and they retire different things — see the `else`.
     fn cleanup_zone_state(&mut self, id: ObjectId, zone: Zone) {
         if zone == Zone::Battlefield {
             // Remove any continuous effects generated by this source — CR 611.3b,
@@ -466,29 +447,20 @@ impl GameState {
                 self.detach(attachment_id);
             }
         } else {
-            // LK — the counterpart of `move_object`'s registration leg, and
-            // **narrower than the battlefield branch above on purpose**: it
-            // retires only the rows a *static ability* of this object
-            // generated, never a resolution's.
+            // The counterpart of `move_object`'s registration leg, and **narrower than
+            // the battlefield branch above on purpose**: it retires only the rows a
+            // *static ability* of this object generated, never a resolution's.
+            // `remove_by_source` would delete Giant Growth's pump as the spell hit the
+            // graveyard, since a resolving instant registers its row with `source` =
+            // the spell and then moves stack → graveyard.
             //
-            // `remove_by_source` would be wrong here, and the failure would be
-            // loud and everywhere. A resolving instant registers its row with
-            // `source` = the spell and then moves stack → graveyard, so a
-            // broad sweep on this branch would delete Giant Growth's pump as
-            // the spell hit the graveyard. The battlefield branch gets away
-            // with the broad call only because it has never run anywhere else.
-            //
-            // **Nothing is being traded away here.** Correctness is already
-            // guaranteed one layer down and this call cannot add to it:
-            // CR 604.2's existence check re-asks at every layer whether the
-            // ability is still there and still functions in the source's
-            // current zone (`Condition::SourceInZone`, since LK), so a row
-            // left behind by this branch would apply to nothing. Removing it
-            // is *hygiene* in the exact sense that the answer is the same
-            // either way — what it buys is that a card bouncing between two
-            // zones does not accumulate dead rows, and that
-            // `RegistryScopeSummary` does not keep reporting a reach the
-            // board no longer has.
+            // Hygiene, not correctness: CR 604.2's existence check re-asks at every
+            // layer whether the ability is still there and still functions in the
+            // source's current zone (`Condition::SourceInZone`), so a row left behind
+            // would apply to nothing. What removing it buys is that a card bouncing
+            // between two zones does not accumulate dead rows, and that
+            // `RegistryScopeSummary` does not keep reporting a reach the board no
+            // longer has.
             self.continuous_effects.remove_static_by_source(id);
         }
     }

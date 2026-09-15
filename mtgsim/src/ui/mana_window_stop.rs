@@ -2,20 +2,16 @@
 //
 // CR 605.3a lets a player activate mana abilities "whenever they are casting a
 // spell or activating an ability that requires a mana payment", with no "until
-// it is paid". Until CM-4 the engine ended the 601.2g window the moment
-// `can_pay_costs` succeeded — a *payer's* policy sitting in the engine's loop,
-// and the reason the Ironworks loop's step 3 was impossible
-// (`cost-architecture.md` §3.11, `codebase-state.md` item 70). The engine now
-// offers the window until the player declines; declining once the cost is
-// covered is this decorator's job.
+// it is paid", so the engine offers the window until the player declines
+// (`cost-architecture.md` §3.11); declining once the cost is covered is a
+// *payer's* policy, and this decorator's job.
 //
 // **Why it is its own decorator and not part of `AutoPayer`.** The two toggle
 // independently, for clients that want different things. A human turning off
 // auto-pay wants the window to keep offering — floating mana mid-cast is the
-// feature CR 605.3a describes and the thing the engine could not do before.
-// An agent with no stop needs one: `RandomDecisionProvider`'s `AnyWillDo` arm
-// never declines while a source is offered, so without this its only
-// terminator is `WINDOW_ACTIVATION_CAP`.
+// feature CR 605.3a describes. An agent with no stop needs one:
+// `RandomDecisionProvider`'s `AnyWillDo` arm never declines while a source is
+// offered, so without this its only terminator is `WINDOW_ACTIVATION_CAP`.
 //
 // **Stack invariant: at most one decorator answers any one prompt.** Not one
 // per `ChoiceKind`: §2.18's tap solver will answer `ManaAbilityWindow` too, and
@@ -63,16 +59,12 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         bounds: (usize, usize),
     ) -> Vec<usize> {
         // `remaining_cost` is the locked mana component minus what the pool
-        // already covers (`remaining_cost_after_pool`), so "no symbols left"
-        // is exactly "this payment needs no more mana". An empty pick is the
-        // window's decline (bounds are (0, 1); see `ask_activate_mana_ability`).
-        //
-        // This is deliberately *not* the engine's old stop, which was
-        // `can_pay_costs` over the whole cost list. The two differ on one
-        // board — mana covered, some non-mana cost unpayable — and there no
-        // number of further mana abilities could have helped, so the old loop
-        // was asking a question with no answer. A mana ability pays CR 601.2h's
-        // mana; the rest of the total is not its business.
+        // already covers (`remaining_cost_after_pool`), so "no symbols left" is
+        // exactly "this payment needs no more mana". An empty pick is the window's
+        // decline (bounds are (0, 1); see `ask_activate_mana_ability`). Not
+        // `can_pay_costs` over the whole cost list: with mana covered and some
+        // non-mana cost unpayable, no further mana ability could help. A mana
+        // ability pays CR 601.2h's mana; the rest of the total is not its business.
         if let ChoiceKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind
             && remaining_cost.symbols.is_empty() {
             return Vec::new();

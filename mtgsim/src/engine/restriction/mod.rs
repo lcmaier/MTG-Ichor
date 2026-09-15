@@ -18,11 +18,11 @@
 //!   a creature … each player who **can't** discards a card") is one card that
 //!   asks both.
 //!
-//! # What ships here, and what does not
+//! # What is here, and what is not
 //!
-//! RS-1 is Tier 2 (the event chokepoint) plus Tier 3 (withholding a replacement
+//! Tier 2 (the event chokepoint) plus Tier 3 (withholding a replacement
 //! effect). The axis-2 arms — casting, activating, targeting, attacking,
-//! blocking, paying costs — belong to RS-2/RS-3/RS-4 and are not in
+//! blocking, paying costs — are RS-2/RS-3/RS-4's and are not in
 //! [`Restriction`](crate::types::restriction::Restriction) yet, on
 //! `types::replacement`'s rule: an arm no enforcement point consults is a card
 //! that silently does nothing.

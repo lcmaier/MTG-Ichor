@@ -47,7 +47,8 @@
 //! - **Counters** (CR 122.1c/d/h) come from the *counter*, not from any
 //!   ability; nothing on the card says so. They are synthesized during the same
 //!   sweep.
-//! - **Static abilities functioning in other zones** are deferred past Phase RE.
+//! - **Static abilities functioning in other zones** are deferred
+//!   (`replacement-architecture.md` §3.3 source 2; CR 113.6 first).
 
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::resolve::ResolvedTarget;
@@ -93,7 +94,7 @@ pub struct RegisteredReplacementEffect {
     /// No reader yet: the `EffectRecipient` leaf that would say "the thing this
     /// effect targeted at resolution" arrives with the first rider that needs
     /// it, and threads this onto `ReplacementInstance` and `Rider` then
-    /// (`codebase-state.md`, RD-2's Deferred Migrations line).
+    /// (`codebase-state.md`, Deferred Migrations).
     pub targets: Vec<ResolvedTarget>,
     /// What it watches for and what it does.
     pub def: ReplacementDef,

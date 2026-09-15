@@ -13,11 +13,9 @@ use crate::types::ids::{ObjectId, PlayerId};
 /// since `StackEntry::recipient` records this answer for the resolution.
 ///
 /// **An Aura spell's target is defined by its enchant ability (CR 303.4a),
-/// not by a spell ability, and an Aura has none.** Three copies of the
-/// effect-based derivation below used to sit in the castability pre-check,
-/// the target selection and the fizzle, so none could see `enchant_filter`:
-/// an Aura chose no target at 601.2c and never fizzled at 608.3b
-/// (`codebase-state.md` Deferred Migrations item 8). One function, one rule.
+/// not by a spell ability, and an Aura has none.** One function, one rule:
+/// the castability pre-check, the target selection and the fizzle all read
+/// this, so all three see `enchant_filter`.
 ///
 /// PRE-LAYER ZONE: printed abilities, on a card in hand. The resolution does
 /// not call this — it reads the entry.
@@ -303,7 +301,7 @@ impl GameState {
     /// control" has to mean the same thing to SBA 704.5n that it would mean to
     /// a static ability.
     ///
-    /// Third caller as of Phase RB: `ObjectSet::Filter` on a `ReplacementDef`
+    /// A third caller: `ObjectSet::Filter` on a `ReplacementDef`
     /// asks it too, which is what makes Kalitas's "a nontoken creature an
     /// opponent controls" the same predicate a targeting restriction would
     /// use.
@@ -321,7 +319,6 @@ impl GameState {
         // One layer walk for the whole filter, and only if a leaf reads a
         // characteristic: `All`, `Token` and `ByOwner` never do, so Rest in
         // Peace's "cards" stays free on every graveyard-bound zone change.
-        // Before RC-4 each leaf took its own full walk.
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
         self.object_matches_filter_with(id, filter, you, None, &|| {
@@ -432,16 +429,12 @@ impl GameState {
                 Ok(match player_ref {
                     PlayerRef::You => obj.owner == you,
                     PlayerRef::Opponent => obj.owner != you,
-                    // Tautological here, and forced by the signature: this
-                    // function takes `you` and no source id, so `Owner` can only
-                    // mean the tested object's own owner — which is what the
-                    // `ByController` arm above already reads it as. `compute.rs`
-                    // resolves the same `PlayerRef::Owner` against the *source's*
-                    // owner, because a `FilterPlayers` has the source. The two
-                    // sites therefore disagree about one variant; recorded in
-                    // `codebase-state.md` rather than fixed here, because
-                    // changing it would move `ByController` too and no card
-                    // reads either spelling yet.
+                    // Tautological here, and forced by the signature: this function takes
+                    // `you` and no source id, so `Owner` can only mean the tested object's own
+                    // owner, which the `ByController` arm above already reads it as.
+                    // `compute.rs` resolves the same `PlayerRef::Owner` against the *source's*
+                    // owner, because a `FilterPlayers` has the source; the disagreement is
+                    // recorded in `codebase-state.md`, since no card reads either spelling yet.
                     PlayerRef::Owner => true,
                     PlayerRef::Player(pid) => obj.owner == *pid,
                 })
@@ -523,15 +516,13 @@ impl GameState {
     /// shroud are `backlog.md` §2.15's).
     ///
     /// **The battlefield scans are ordered, and the reason is cost rather than
-    /// answer.** `any` over a set is order-independent, so this was correct
-    /// while "observable" meant an event or a decision — but every candidate it
-    /// tests is a `validate_selection`, which is a layer walk, and a short
-    /// circuit over a `HashMap` stops after a different number of them in every
-    /// process. `state/diagnostics.rs` records layer walks as a fixture, so the
-    /// count is observable now and the order has to be too. The sort is paid on
-    /// a hot path — `mana_helpers` asks this per castable spell per priority
-    /// check — and measured (2026-09-01) below the noise floor against the walks
-    /// it bounds.
+    /// answer.** Every candidate it tests is a `validate_selection`, which is a
+    /// layer walk, and a short circuit over a `HashMap` stops after a different
+    /// number of them in every process; `state/diagnostics.rs` records layer
+    /// walks as a fixture, so the count is observable and the order has to be
+    /// too. The sort is on a hot path — `mana_helpers` asks this per castable
+    /// spell per priority check — and measured (2026-09-01) below the noise
+    /// floor against the walks it bounds.
     pub(crate) fn has_any_legal_choice(
         &self,
         filter: &SelectionFilter,

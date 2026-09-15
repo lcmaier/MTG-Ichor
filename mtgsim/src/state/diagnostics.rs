@@ -6,15 +6,8 @@
 //! a stored timing number is machine drift, so the only honest timing
 //! measurement is an **interleaved A/B in one sitting**. That leaves a gap the
 //! fixtures table cannot fill — an A/B has to be *run*, by someone who already
-//! suspects something, against two builds they had a reason to compare.
-//!
-//! **Both of RC-2's performance findings were found by accident**, and one of
-//! them had been live since the phase before. `gather` swept every permanent
-//! with a full layer walk per proposed action the moment any replacement source
-//! was on the board, which RC-2 made the common case; it cost 10.3% of total
-//! game time and nothing reported it. What *would* have reported it is a count
-//! of layer walks per game, because that number roughly tripled while every
-//! seed-deterministic row in the fixtures table stayed exactly the same.
+//! suspects something. A sweep that tripled the layer walks per game while
+//! every seed-deterministic row stayed the same is the shape these catch.
 //!
 //! So these are the same kind of measurement as "creatures died: 8.6" — a pure
 //! function of the seed and the card pool, comparable across machines and across
@@ -27,7 +20,7 @@
 //! No timers, no allocation counts, no per-call-site breakdown. Each of those is
 //! either machine-dependent (the first two) or a profiler's job (the third), and
 //! a diagnostic that cannot go in the fixtures table is a diagnostic nobody will
-//! look at twice. Six counters, each naming a decision the engine makes a lot.
+//! look at twice. Each counter names a decision the engine makes a lot.
 
 use std::cell::Cell;
 
@@ -80,10 +73,9 @@ impl EngineCounters {
     ///
     /// Read beside [`Self::layer_walks`]: a layer walk is either a board walk
     /// or the walk of an object no row can reach, and `Layer frames` is the
-    /// board walks times the working set plus those single walks. Since LI-1
-    /// a board walk fills the memo for every member, so this is the number of
-    /// *boards* the engine computed, where walks were once the number of
-    /// objects.
+    /// board walks times the working set plus those single walks. A board walk
+    /// fills the memo for every member, so this is the number of *boards* the
+    /// engine computed.
     pub fn record_board_walk(&self) {
         self.board_walks.set(self.board_walks.get() + 1);
     }
@@ -106,7 +98,7 @@ impl EngineCounters {
     /// existence re-check costs. A walk that needs no sub-frame is 1:1; one that
     /// asks whether five other objects still have their static abilities is not.
     /// That ratio is the thing `layers-architecture.md` §5.2's descending ceiling
-    /// exists to bound, and nothing measured it before this row (2026-09-01).
+    /// exists to bound.
     pub fn record_layer_frame(&self) {
         self.layer_frames.set(self.layer_frames.get() + 1);
     }
@@ -165,8 +157,8 @@ impl EngineCounters {
     ///
     /// **A reachability count, not a cost.** The other counters here measure
     /// work; this one measures whether the pool can build 615.7's board at
-    /// all, which `replacement-architecture.md` §9 names as RD-2's
-    /// reachability row. Zero on any board with no such effect, and it can
+    /// all (`replacement-architecture.md` §9). Zero on any board with no such
+    /// effect, and it can
     /// only move when one is registered.
     pub fn record_prevention_allocation(&self) {
         self.prevention_allocations.set(self.prevention_allocations.get() + 1);
@@ -175,7 +167,7 @@ impl EngineCounters {
     /// One `GameAction::ProduceMana` performed — a mana ability or a spell
     /// added mana to a pool (CR 106.6a's event).
     ///
-    /// **The denominator for every mana number after RE-9.** A production is
+    /// **The denominator for every mana number.** A production is
     /// a gather, so this row beside [`Self::replacement_gathers`] is what
     /// says how much of the sweep the hottest path in the engine is paying
     /// for. Counted at the performer, so a production a replacement dropped

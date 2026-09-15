@@ -15,8 +15,7 @@
 // `--no-auto-pay` drops both, which is what CR 605.3a actually offers: the
 // window keeps asking after the cost is covered, so you can float mana
 // mid-cast — tap a fourth land while paying for a three-drop, or sacrifice to
-// Krark-Clan Ironworks after its mana is already spoken for. That was
-// unreachable before CM-4.
+// Krark-Clan Ironworks after its mana is already spoken for.
 
 use std::sync::Arc;
 

@@ -101,10 +101,8 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?
 ///
-/// **A one-line wrapper with one caller, and the justification is not that it
-/// reads better** — an earlier draft of this comment claimed "every caller but
-/// registration asks this shape" and there is only the one caller
-/// (`register_static_effects`). It is here because the obvious hand-written
+/// **A one-line wrapper with one caller (`register_static_effects`), and the
+/// justification is not that it reads better**: the obvious hand-written
 /// form is wrong in a way that compiles:
 ///
 /// ```ignore

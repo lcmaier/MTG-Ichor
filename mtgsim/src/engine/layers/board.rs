@@ -1,21 +1,19 @@
 //! The board-wide sequential pass — CR 613.3, 613.6, 613.7 and 604.2 applied
-//! the way the CR states them (`layers-architecture.md` §13b, LI-1).
+//! the way the CR states them (`layers-architecture.md` §13b).
 //!
 //! CR 613 applies a layer to the whole board at once: each application's
 //! reads — whether the ability generating it still exists, who "you" is, what
 //! it applies to, what a count comes to — see everything applied *earlier in
-//! the same layer*. The per-object walk this replaced answered every read of
-//! another object at the end of the previous layer, which is exact exactly
-//! while no application in a layer changes what a later one reads. Humility
-//! beside Citanul Hierophants is the board in the pool that breaks it: the
-//! grant's CR 604.2 existence check could not see Humility's strip, applied
-//! earlier in layer 6, and a creature under Humility tapped for {G}.
+//! the same layer*. Humility beside Citanul Hierophants is the board in the
+//! pool that needs it: the grant's CR 604.2 existence check has to see
+//! Humility's strip, applied earlier in layer 6, or a creature under Humility
+//! taps for {G}.
 //!
 //! One [`Board`] is one pass: the working set, one live frame per member,
 //! advanced layer by layer. The unit of ordering inside a layer is an
 //! [`Application`] — one effect's rows in the layer, one member's own CDA,
 //! or one of its counters — sorted once on a key that is CR 613.3 and
-//! CR 613.7c read together, and then applied in CR 613.8's order (LI-2): the
+//! CR 613.7c read together, and then applied in CR 613.8's order: the
 //! key's, except that an application waits for anything it depends on, the
 //! dependencies being decided against the live board and re-decided after
 //! every application (`resolve_order_within_layer`). "Depends on" is
@@ -166,19 +164,14 @@ impl<'l> Board<'l> {
                 }
             }
         }
-        // LJ — the objects a zone-reaching row can name. Appended **last**, so
-        // `battlefield_entities` keeps naming the prefix every count slices,
-        // and in each zone's own order (CR 404.3 for a graveyard), which is
-        // what a member outside the battlefield has instead of a timestamp.
-        //
-        // `beyond_battlefield` is empty on every board that plays no
-        // zone-reaching card, which is what makes this loop free rather than
-        // cheap — the alternative is every library in the game, ~400 members a
-        // pass at four seats instead of ~40.
-        //
-        // The look-ahead's own rows are deliberately not consulted: a
-        // `would_be` row's candidates are `[source]` alone (§5b's asymmetry),
-        // so it never reads a member it did not already have.
+        // The objects a zone-reaching row can name. Appended **last**, so
+        // `battlefield_entities` keeps naming the prefix every count slices, and
+        // in each zone's own order (CR 404.3 for a graveyard), which is what a
+        // member outside the battlefield has instead of a timestamp.
+        // `beyond_battlefield` is empty on every board that plays no zone-reaching
+        // card, which is what makes this loop free rather than cheap — the
+        // alternative is every library in the game. The look-ahead's own rows are
+        // not consulted: a `would_be` row's candidates are `[source]` alone (§5b).
         for zone in game.continuous_effects.summary().reachable_zones.beyond_battlefield().iter() {
             for id in game.zone_ids_ordered(zone) {
                 if game.objects.contains_key(&id) && seen.insert(id) {
@@ -256,19 +249,17 @@ impl<'l> Board<'l> {
 
     /// Is `id` in one of `zones` — the gate a filter row asks before matching?
     ///
-    /// The *zone* rather than entity membership (RC-3), which admits a token
-    /// created in the zone with no entity yet.
+    /// The *zone* rather than entity membership, which admits a token created
+    /// in the zone with no entity yet.
     ///
     /// **The entering object is asked about as though it were already on the
     /// battlefield, and that is CR 614.12 rather than a convenience.** The
     /// look-ahead exists to ask what the object *would be* once it has
     /// entered, so a row reaches it iff the row reaches the battlefield; its
-    /// source zone is not the question. That single line is the whole of
-    /// ATOM-614.12-001: Yixlid Jailer's "cards in graveyards lose all
-    /// abilities" is graveyard-scoped, so it does **not** reach a Scarwood
-    /// Treefolk entering *from* a graveyard, the Treefolk's "enters tapped"
-    /// survives the look-ahead, and it enters tapped — which is the printed
-    /// answer, and the CR's own worked example.
+    /// source zone is not the question. That is the whole of ATOM-614.12-001:
+    /// Yixlid Jailer's graveyard-scoped "lose all abilities" does **not** reach
+    /// a Scarwood Treefolk entering *from* a graveyard, so it enters tapped —
+    /// the CR's own worked example.
     ///
     /// A `Fixed`-named member is admitted to the working set wherever it is
     /// (`Board::seed`), and still fails this gate unless a row names its zone.
@@ -302,11 +293,10 @@ impl<'l> Board<'l> {
             return Some(FrameRef::Live(frame));
         }
         // A member's frame comes from the pass (memoized), never from a lone
-        // walk. Read through `membership` rather than off `game.battlefield`
-        // so it stays the same answer the top-level entry gives: since LJ a
-        // member need not be a battlefield entity, and answering one here with
-        // `compute_non_member` would drop exactly the zone-reaching row that
-        // made it a member.
+        // walk. Read through `membership` rather than off `game.battlefield` so
+        // it stays the same answer the top-level entry gives: a member need not be
+        // a battlefield entity, and answering one here with `compute_non_member`
+        // would drop exactly the zone-reaching row that made it a member.
         if !self.live && matches!(membership(game, id), Membership::Member) {
             return crate::engine::layers::compute::compute_characteristics(game, id).map(FrameRef::Shared);
         }
@@ -566,9 +556,9 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
     }
 }
 
-/// The channels a condition reads (LI-3). CR 604.2 makes "as long as [X]"
-/// part of the same existence question as the ability list, so this is read
-/// at the same moment and gated the same way by CR 613.6's lock.
+/// The channels a condition reads. CR 604.2 makes "as long as [X]" part of
+/// the same existence question as the ability list, so this is read at the
+/// same moment and gated the same way by CR 613.6's lock.
 ///
 /// `you_channel` is `filter_reads`' — the cost of resolving "you" on the
 /// source, `CONTROLLER` for a static and nothing for a resolution.
@@ -577,14 +567,12 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
 /// `Condition` variant fails to compile here until it is given an arm, which
 /// is the only mechanical guard there is: a leaf that reads a frame and says
 /// nothing here produces a wrong *order*, not a wrong value, so a test of the
-/// leaf's own answer would pass.
-///
-/// **Without it a conditional effect is settled "independent" by mistake.**
-/// The existence read is `Reads::source |= ABILITIES`, and a source read is a
-/// dependency only when the other application reaches the source — so a
-/// condition that another effect in the layer flips on some *other* object
-/// would never reach the hypothetical. "Lands you control are basic" beside a
-/// layer-4 static conditioned on controlling a Forest is that board.
+/// leaf's own answer would pass. The existence read is
+/// `Reads::source |= ABILITIES`, and a source read is a dependency only when
+/// the other application reaches the source — so a condition that another
+/// effect in the layer flips on some *other* object would otherwise never
+/// reach the hypothetical ("lands you control are basic" beside a layer-4
+/// static conditioned on controlling a Forest).
 fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels) {
     match condition {
         // The controller test is the *variant's*, not the filter's, so it
@@ -613,20 +601,16 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // A library's card count is off `GameState`, like a life total, and
         // the leaf's threshold is a constant — nothing on any frame.
         Condition::LibraryEmpty => {}
-        // A conjunction reads whatever its clauses read. No wildcard inside,
-        // for this function's own stated reason: a clause that reads a frame
-        // and declares nothing produces a wrong *order*, not a wrong value.
+        // A conjunction reads whatever its clauses read. No wildcard inside, for
+        // this function's own stated reason.
         //
-        // **`All` alone is not a restriction on what cards can say**, which is
-        // the question this arm invites. Most printed "or" sits *inside* a
-        // clause rather than between two: Abzan Kin-Guard is "has lifelink as
-        // long as you control a white **or** black permanent" (Scryfall,
-        // verified 2026-09-14), which is one `ControlPermanent` over an
-        // `ObjectFilter::Or` — that type has had `And`, `Or` and `Not` since
-        // before the layer system. `Condition::Or` is for a disjunction of two
-        // whole *conditions*, and §15.1's rule stands: it lands with the first
-        // registered card that needs one, together with its arm here and in
-        // `zone_function::stated_zones`.
+        // **`All` alone is not a restriction on what cards can say.** Most printed
+        // "or" sits *inside* a clause: Abzan Kin-Guard's "as long as you control a
+        // white **or** black permanent" (Scryfall, 2026-09-14) is one
+        // `ControlPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
+        // disjunction of two whole *conditions* and lands with the first registered
+        // card that needs one, together with its arm here and in
+        // `zone_function::stated_zones` (`layers-architecture.md` §15.1).
         Condition::All(clauses) => {
             for clause in clauses {
                 condition_reads(clause, out, you_channel);
@@ -866,26 +850,24 @@ fn applications_in_layer<'a, 'l: 'a>(
 ///
 /// Registry membership does not answer this: the row was registered when the
 /// permanent entered, and CR 305.7 or Layer 6 can take the ability away later
-/// without touching the registry — including earlier in this very layer,
-/// which is the read the per-object walk could not make.
+/// without touching the registry — including earlier in this very layer.
 ///
 /// `EffectOrigin::Resolution` effects (CR 613.7b) always exist: a resolution
 /// already happened and cannot be taken back.
 ///
-/// **And, since LI-3, "as long as [X]" is the same question.** A conditional
-/// static's rows are the inner atom's, registered unconditionally; the
-/// condition stays on the ability, which this function already fetches from
-/// the live frame, and the effect exists iff the condition holds there and
-/// then. That is §13b decision 5 — no field on `ContinuousEffect`, no second
-/// registry, and CR 613.6 covers the later layers of a multi-layer effect
-/// (once it has started applying, a condition going false does not retract
-/// it) because the locked set is consulted before this function is called.
+/// **"As long as [X]" is the same question.** A conditional static's rows are
+/// the inner atom's, registered unconditionally; the condition stays on the
+/// ability, which this function already fetches from the live frame, and the
+/// effect exists iff the condition holds there and then (§13b decision 5).
+/// CR 613.6 covers the later layers of a multi-layer effect — once it has
+/// started applying, a condition going false does not retract it — because
+/// the locked set is consulted before this function is called.
 ///
 /// Existence is not the same as surviving, and only existence is decided
-/// here. An instant that grants first strike until end of turn creates an
-/// effect that exists for the turn no matter what — but Humility, applying
-/// later in layer 6, still clears the keyword it granted. That is ordering
-/// inside a layer, which CR 613.8 and the sort key decide.
+/// here: an instant's first-strike grant exists for the turn no matter what,
+/// but Humility, applying later in layer 6, still clears the keyword it
+/// granted. That is ordering inside a layer, which CR 613.8 and the sort key
+/// decide.
 fn static_ability_still_exists(
     game: &GameState,
     board: &Board<'_>,
@@ -1398,7 +1380,7 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     if fixed_named {
         return Membership::Member;
     }
-    // LJ — in a zone some row reaches. Summarized rather than scanned, unlike
+    // In a zone some row reaches. Summarized rather than scanned, unlike
     // `Fixed` above: this is asked for every card in every hidden zone the
     // oracle ever queries, and the summary answers `EMPTY` in one compare on
     // any board with no zone-reaching row. It must agree with `Board::seed`,
@@ -1487,7 +1469,7 @@ mod tests {
         assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
 
-    /// LI-3 — a conditional static waits for what can falsify its condition,
+    /// A conditional static waits for what can falsify its condition,
     /// and the trace is where the *order* is visible rather than only its
     /// result. The Clause enters first and applies last; when its turn comes
     /// the Taiga is a Mountain and it reaches nothing.

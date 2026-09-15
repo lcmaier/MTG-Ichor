@@ -226,12 +226,10 @@ impl CardDataBuilder {
     /// **Affinity for [text]** — CR 702.41a: "This spell costs {1} less to
     /// cast for each [text] you control."
     ///
-    /// The first keyword a builder writes that is not a [`KeywordFlag`], and
-    /// the reason [`Self::keyword_flag`] is no longer called `keyword`. The
-    /// rule *defines* affinity as that sentence, so the card carries the
-    /// sentence and nothing in the engine knows the word: a static ability
-    /// whose subject is the spell itself (CR 113.6d) and whose change is a
-    /// generic reduction of a count.
+    /// A keyword that is not a [`KeywordFlag`]: the rule *defines* affinity as
+    /// that sentence, so the card carries the sentence and nothing in the
+    /// engine knows the word — a static ability whose subject is the spell
+    /// itself (CR 113.6d) and whose change is a generic reduction of a count.
     ///
     /// `filter` is the "[text]" — `ObjectFilter::ByType(CardType::Artifact)`
     /// for affinity for artifacts. "You control" is added here, so a card

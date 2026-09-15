@@ -17,7 +17,7 @@ use crate::types::mana::ManaCost;
 
 /// Re-exported for the layer system's own readers.
 ///
-/// The definition moved to `types::effects` when Phase RB gave it a second
+/// The definition lives in `types::effects` because it has a second
 /// consumer: CR 614.1's replacement effects "act like shields around whatever
 /// they're affecting", and `ReplacementDef.affected_objects` is the same question the
 /// layer system asks — `SourceOnly` vs. `Filter` is precisely CR 614.12's
@@ -41,10 +41,9 @@ pub enum Layer {
     /// Layer 1 — copiable effects (CR 613.2a) and face-down (CR 613.2b).
     ///
     /// One slot for both sublayers. CR 613.2a is **1a, copy**; CR 613.2b is
-    /// **1b, face-down** — in that order, which three docs and this file used
-    /// to state backwards (`copy-effects-architecture.md` §5.4). Only 1a has a
-    /// producer: `EffectModification::CopyFrom`, from `Primitive::Copy`. CV-6
-    /// splits the slot when face-down arrives, and
+    /// **1b, face-down** — in that order (`copy-effects-architecture.md` §5.4).
+    /// Only 1a has a producer: `EffectModification::CopyFrom`, from
+    /// `Primitive::Copy`. CV-6 splits the slot when face-down arrives, and
     /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).

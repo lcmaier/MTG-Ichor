@@ -77,17 +77,14 @@ pub enum GameEvent {
 
     // --- Mana ---
     /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as
-    /// `GameAction::ProduceMana`. In the enum since the log was written and
-    /// emitted at no site until RE-9, which is how RA's emissions census
-    /// missed both pool writers (`replacement-architecture.md` §11 item 43).
+    /// `GameAction::ProduceMana`.
     ///
     /// `mana` is by type in proposal order, restricted units folded into
     /// their type's count — CR 106.6 says a restriction "doesn't affect the
-    /// mana's type" — and a `Vec` rather than the `HashMap` it carried
-    /// unemitted for a year, because `--dump-events` renders this line and a
-    /// map's order is the process's (item 96). `tapped_for_mana` is CR
-    /// 106.12's fact, the one CR 106.12a's "whenever a permanent is tapped
-    /// for mana" triggers read off the performed event.
+    /// mana's type" — and a `Vec` rather than a `HashMap`, because
+    /// `--dump-events` renders this line and a map's order is the process's.
+    /// `tapped_for_mana` is CR 106.12's fact, the one CR 106.12a's "whenever a
+    /// permanent is tapped for mana" triggers read off the performed event.
     ManaAdded {
         player_id: PlayerId,
         source_id: ObjectId,
@@ -123,14 +120,12 @@ pub enum GameEvent {
     // --- Spells ---
     SpellCast { spell_id: ObjectId, caster: PlayerId },
 
-    // There is no `SpellResolved`/`StackObjectResolved` either, and it went for
-    // the same reason plus one of its own: `resolve_top_of_stack` emitted it
-    // unconditionally, so it fired for activated abilities as well as spells and
-    // a matcher keying "whenever a spell resolves" on it would have been wrong
-    // about every ability in the game. A spell finishing resolution is a
-    // `ZoneChange` out of the stack with `ZoneChangeCause::Resolved`, which also
-    // says *where* it went; an ability finishing is `AbilityResolved`, which
-    // carries the durable identity CR 603.7h counting needs.
+    // There is no `SpellResolved`/`StackObjectResolved`: a spell finishing
+    // resolution is a `ZoneChange` out of the stack with
+    // `ZoneChangeCause::Resolved`, which also says *where* it went, and an
+    // ability finishing is `AbilityResolved`, which carries the durable identity
+    // CR 603.7h counting needs. One event for both would fire for abilities
+    // too, and "whenever a spell resolves" keyed on it would be wrong.
     /// An activated ability finished resolving (CR 608.2n), identified by what
     /// it *is* rather than by the stack object that represented it.
     ///
@@ -153,25 +148,15 @@ pub enum GameEvent {
     // --- Deaths are not events of their own ---
     //
     // There is no `CreatureDied`, `PlaneswalkerDied`, `LegendRuleSacrificed` or
-    // `AuraDied`. Each was a `ZoneChange { from: Battlefield, to: Graveyard }`
-    // with a `cause` and an `lki` frame, said less precisely, and each was
-    // deleted rather than documented as display-only, for two structural
-    // reasons and one measured one:
+    // `AuraDied`. Each is a `ZoneChange { from: Battlefield, to: Graveyard }`
+    // with a `cause` and an `lki` frame, said less precisely:
     //
-    // - **They partition one event by type, and permanent types are not a
-    //   partition.** A Gideon is a creature *and* a planeswalker; Circuit Mender
-    //   is an artifact creature. Whichever event the engine emitted, a reader
-    //   would miss every trigger keyed on the other type. The `lki` frame
-    //   carries the whole type set, so one event answers for all of them.
-    // - **They named a subset without naming its boundary.** "Dies" is
+    // - **They would partition one event by type, and permanent types are not
+    //   a partition.** A Gideon is a creature *and* a planeswalker; the `lki`
+    //   frame carries the whole type set, so one event answers for all of them.
+    // - **They would name a subset without naming its boundary.** "Dies" is
     //   battlefield → graveyard; "leaves the battlefield" is battlefield →
     //   anywhere; and ATOM-603.6c-001 turns on *which* zone the card went to.
-    //   An event carrying one id cannot answer that. (`PermanentLeftBattlefield`
-    //   was deleted for the same reason, having never had an emitter at all.)
-    // - **The redundancy was hiding a bug.** `CreatureDied` was emitted only
-    //   from the state-based-action sites, so a creature killed by a spell
-    //   produced none, and `fuzz_games` undercounted deaths at 5.3 per game
-    //   where the zone changes say 6.2 (2026-08-26).
     //
     // A reader that wants deaths matches `ZoneChange { from: Battlefield, to:
     // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and
@@ -303,9 +288,9 @@ pub enum GameEvent {
     /// CR 704.5d reads the second kind from there.
     ///
     /// **Not a zone change.** The token came from nowhere, so there is no
-    /// `from` to name; the log used to say `ZoneChange { from: Battlefield }`
-    /// for the exiled kind, which is the line a leaves-the-battlefield
-    /// trigger would have read (`codebase-state.md` item 52).
+    /// `from` to name, and a `ZoneChange { from: Battlefield }` for the exiled
+    /// kind would be the line a leaves-the-battlefield trigger reads
+    /// (`codebase-state.md` item 52).
     ///
     /// One emitter, `GameState::announce_token_created`, with two callers,
     /// each of which performed the placement it announces: the
@@ -353,7 +338,7 @@ pub enum LossReason {
 
 /// What damage is being dealt to.
 ///
-/// `Copy` from RD-4 on: CR 614.9's redirection moves one of these into a
+/// `Copy` because CR 614.9's redirection moves one of these into a
 /// rewritten proposal while the original is still being read for the rule's
 /// "or from" leg, and both halves are ids.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -389,8 +374,7 @@ pub enum CounterSubject {
 /// batch as its trigger event and fires once; "whenever a creature dies" fires
 /// once per death inside it.
 ///
-/// **Nothing reads this in RA.** Phase 6's trigger matcher is the customer;
-/// RA's job is that the grouping exists and is recorded.
+/// The trigger matcher (critical path item 6) is the customer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BatchId(pub u64);
 
@@ -499,7 +483,7 @@ impl EventLog {
     /// then lets the one damage event occur. Lifelink proposes from inside
     /// `perform_action(DealDamage)`, so a second batch id would split one event
     /// into two. The same shape generalizes to CR 120.3's results-of-damage
-    /// decomposition in Phase RD.
+    /// decomposition.
     ///
     /// `resolution` is not inherited the same way — it comes from the proposing
     /// `ActionContext` every time, because the honest answer to "which
@@ -537,12 +521,8 @@ impl EventLog {
     /// The log. `records()` is the whole of it; [`Self::events`] is a
     /// convenience over the same data for readers that do not want the stamp.
     ///
-    /// **Nothing in the engine reads either yet.** Every caller today is a test,
-    /// `ui/display.rs`, or `fuzz_games`, and that is expected rather than a
-    /// smell: RA built the record, and Phase 6's trigger matcher is its first
-    /// production consumer. Keep the surface small until then — an earlier draft
-    /// of this API also had an `events_from`, which was two call sites of sugar
-    /// over `records_from` and is gone.
+    /// The trigger matcher (critical path item 6) is the production consumer;
+    /// keep the surface small until it lands.
     pub fn records(&self) -> &[EventRecord] {
         &self.records
     }

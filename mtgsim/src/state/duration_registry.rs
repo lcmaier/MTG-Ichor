@@ -1,9 +1,9 @@
 //! The storage and expiry half every effect registry shares (CR 514.2).
 //!
-//! `ReplacementEffectRegistry` *is* one of these — a type alias, because it
-//! needs nothing else. `ContinuousEffectRegistry` owns one and delegates,
-//! because it does. A third customer arrives with delayed triggers (CR 603.7)
-//! and a fourth with RS-1's restrictions.
+//! `ReplacementEffectRegistry` and the restrictions registry *are* ones of
+//! these — type aliases, because they need nothing else.
+//! `ContinuousEffectRegistry` owns one and delegates, because it does. A
+//! further customer arrives with delayed triggers (CR 603.7).
 //!
 //! Composition rather than free functions over `&mut Vec<Row>`: this type
 //! answers "how do rows live and die", and a wrapper — where there is one —
@@ -11,19 +11,17 @@
 //!
 //! # Why this is abstracted at all, given "don't refactor speculatively"
 //!
-//! Not the line count, and **not CR 613.7** — an earlier draft of this comment
-//! cited it and was wrong. CR 613.7 is timestamp ordering, which is the one
-//! thing the two registries do *not* share; `SortKey` exists to let them differ
-//! on it. What is genuinely shared is **CR 514.2**, reaching both registries
+//! Not the line count, and **not CR 613.7**, which is timestamp ordering — the
+//! one thing the registries do *not* share; `SortKey` exists to let them differ
+//! on it. What is genuinely shared is **CR 514.2**, reaching every registry
 //! through CR 611.2a's "lasts as long as stated by the spell or ability".
 //!
-//! The load-bearing half is forward-looking and greppable: the engine now
-//! decides what a `Duration` *means* in exactly two places, both below
-//! (`grep -rn 'matches!(.*Duration::' src/`). `Duration` is a closed enum
-//! scheduled to grow — `codebase-state.md` item 14 needs a resolution-scoped
-//! variant before "can't be regenerated" is right, and both expiry methods
-//! already carry a note about `UntilEndOfYourNextTurn`. A registry that missed
-//! a new arm would be wrong in a way its own passing tests could not show.
+//! The load-bearing half is forward-looking and greppable: the engine decides
+//! what a `Duration` *means* in exactly two places, both below
+//! (`grep -rn 'matches!(.*Duration::' src/`). `Duration` is a closed enum that
+//! grows with cards (both expiry methods already carry a note about
+//! `UntilEndOfYourNextTurn`), and a registry that missed a new arm would be
+//! wrong in a way its own passing tests could not show.
 //!
 //! The cost is real: a delegating method says less at the call site than the
 //! loop it replaced. It is paid only where the wrapper has its own surface to
@@ -499,9 +497,7 @@ mod tests {
         assert!(reg.is_empty());
     }
 
-    // Its extra-turn twin is gone, for the reason
-    // `state::continuous_effects`'s is: RE-1 built the CR 500.7 queue, so
-    // `tests/phase_re1_integration_test.rs`'s
-    // `until_your_next_turn_expires_on_a_real_extra_turn` makes the claim
-    // against a turn the engine actually took.
+    // The extra-turn case is `tests/phase_re1_integration_test.rs`'s
+    // `until_your_next_turn_expires_on_a_real_extra_turn`, which makes the
+    // claim against a turn the engine actually took.
 }

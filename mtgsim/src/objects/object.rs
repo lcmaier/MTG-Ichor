@@ -63,12 +63,11 @@ pub struct GameObject {
     /// > 613.7d. An object receives a timestamp at the time it enters a zone.
     ///
     /// **On the object rather than on `PermanentState`, because 613.7d says
-    /// "a zone" and the battlefield is one of seven** (LK,
-    /// `layers-architecture.md` §13d decision 2). It lived on the battlefield
-    /// entry until Wonder — a static ability functioning *from a graveyard*,
-    /// whose effect CR 613.7a gives "the same timestamp as the object the
-    /// static ability is on" — asked for one there was nowhere to read. Two
-    /// fields both meaning this would be two places to drift, so there is one.
+    /// "a zone" and the battlefield is one of seven** (`layers-architecture.md`
+    /// §13d decision 2): Wonder's static ability functions *from a graveyard*,
+    /// and CR 613.7a gives its effect "the same timestamp as the object the
+    /// static ability is on". Two fields both meaning this would be two places
+    /// to drift, so there is one.
     ///
     /// Allocated from `GameState::next_timestamp` by `add_object` (the object
     /// enters the zone it was created in) and by `move_object` (every later
@@ -83,9 +82,7 @@ pub struct GameObject {
     /// CLAUDE.md, "Determinism at the decision boundary". A reassignment moves
     /// the permanent to the end of those lists, and that is fine: the value
     /// comes from the one monotonic counter every run advances the same way,
-    /// so it is exactly as process-independent as the entry value was. LH-2
-    /// briefly split off an `entry_timestamp` for the sweeps and removed it in
-    /// review: no rule reads a sweep as *entry* order, only as *an* order.
+    /// and no rule reads a sweep as *entry* order, only as *an* order.
     ///
     /// `0` until `add_object` stamps it, which is the only door into the
     /// store — so an object the game can see always carries a real one.

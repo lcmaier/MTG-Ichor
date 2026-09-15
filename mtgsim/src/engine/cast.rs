@@ -218,19 +218,11 @@ impl GameState {
         );
 
         // --- 601.2g: Mana ability window ---
-        // Rule 601.2g / 605.1a: the player activates mana abilities to pay
-        // the cost. Each activation is a player decision — the engine does
-        // not auto-tap. This is the rules-correct implementation point for
-        // "tap lands before casting": instead of priority-level mana
-        // abilities (which the candidate list does not include), the engine
-        // prompts the casting player here, one ability at a time, until the
-        // pool covers the cost or the player declines.
-        //
-        // Loop termination: (a) pool covers cost — break, proceed to 601.2h;
-        // (b) DP declines (empty pick) — break, 601.2h will fail, rollback;
-        // (c) no abilities remain — break, 601.2h will fail, rollback;
-        // (d) loop guard trips — defensive bound to prevent infinite loops
-        //     from buggy DPs or stale enumeration.
+        // CR 601.2g / 605.1a: the player activates mana abilities to pay the cost,
+        // one activation per decision — the engine does not auto-tap. The window
+        // runs until the player declines or no activatable ability remains
+        // (`run_mana_ability_window`); 601.2h then checks the pool and rolls the
+        // cast back if it does not cover the cost.
         self.run_mana_ability_window(player_id, card_id, &total_costs, decisions);
 
         // --- 601.2h: Pay total cost ---
@@ -406,11 +398,8 @@ impl GameState {
         // triggers rollback.
         self.run_mana_ability_window(player_id, source_id, &ability_costs, decisions);
 
-        // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's:
-        // check, ask how the generic part is split, then pay. Until LH-2 this
-        // passed an empty allocation, so every ability with a generic pip
-        // failed at payment and was silently blacklisted — Chainbreaker's
-        // `{3}, {T}` had never been activated in a fuzz game.
+        // Pay ability costs (CR 602.2b) the way CR 601.2h pays a spell's: check,
+        // ask how the generic part is split, then pay.
         if let Err(e) = self.can_pay_costs(&ability_costs, player_id, source_id) {
             self.rollback_ability_activation(ability_obj_id);
             return Err(e);
@@ -454,35 +443,26 @@ impl GameState {
     /// (`cost-architecture.md` §3.11).
     ///
     /// # Mana-cost extraction
-    /// Only `Cost::Mana` is relevant to this window: rule 601.2g explicitly
-    /// restricts the activation-during-cost-payment window to *mana abilities*.
-    /// Non-mana costs (Cost::Tap, Cost::SacrificeSelf, Cost::PayLife, …) are
-    /// paid in 601.2h, which has no activation window. We extract the mana
-    /// component to build the `remaining_cost` context the DP sees.
+    /// Only `Cost::Mana` is relevant to this window: rule 601.2g restricts the
+    /// activation-during-cost-payment window to *mana abilities*. Non-mana costs
+    /// are paid in 601.2h, which has no activation window. The mana component is
+    /// extracted to build the `remaining_cost` context the DP sees.
     ///
     /// # Termination
-    /// Termination is a DP-correctness property, not an engine invariant, and
-    /// CM-4 made that literally true rather than nearly so: the CR places no
-    /// cap on how many mana abilities a player may activate during 601.2g, and
-    /// the engine no longer imposes one. The loop terminates when either holds:
-    ///
-    /// 1. `ask_activate_mana_ability` returns `None` (DP declines) → return.
-    /// 2. `enumerate_activatable_mana_abilities` returns empty after filtering
-    ///    the failure blacklist → return.
-    ///
-    /// The **failure blacklist** guards against enumeration over-approximation
-    /// or TOCTOU bugs: if `activate_mana_ability` fails after enumeration said
-    /// the ability was legal, we blacklist `(perm_id, ability_id)` for the
-    /// remainder of this window so the DP can't pick it again. The blacklist
-    /// is bounded by `|initial_legal|`, so it cannot loop forever on failure.
-    ///
-    /// The remaining infinite-loop risk is a DP that keeps successfully
-    /// activating abilities forever (e.g., cycling mana-filter abilities). That
-    /// is a DP-correctness concern, and every shipped client answers it:
+    /// A DP-correctness property, not an engine invariant: the CR places no cap
+    /// on how many mana abilities a player may activate during 601.2g, and the
+    /// engine imposes none. The loop returns when `ask_activate_mana_ability`
+    /// returns `None` or when `enumerate_activatable_mana_abilities` is empty
+    /// after the failure blacklist. That **blacklist** guards against enumeration
+    /// over-approximation or TOCTOU bugs: an ability that fails to activate after
+    /// enumeration said it was legal is blacklisted for the rest of the window,
+    /// so the DP can't pick it again; it is bounded by `|initial_legal|`. A DP
+    /// that keeps successfully activating forever (cycling mana-filter abilities)
+    /// is the DP's problem, and every shipped client answers it:
     /// `ui::ManaWindowStop` declines once the locked component is covered,
-    /// `RandomDecisionProvider` additionally caps itself with an internal
-    /// per-window counter — which is the only terminator left when a client
-    /// drops the stop (`--no-auto-pay`) — and a human CLI user self-polices.
+    /// `RandomDecisionProvider` caps itself per window — the only terminator left
+    /// when a client drops the stop (`--no-auto-pay`) — and a human CLI user
+    /// self-polices.
     fn run_mana_ability_window(
         &mut self,
         player_id: PlayerId,
@@ -496,21 +476,15 @@ impl GameState {
             .unwrap_or_else(ManaCost::zero);
 
         // CR 601.2g opens the window only "if the total cost includes a mana
-        // payment". Casting Mox Opal offers none, and the judge's warning on
-        // the Ironworks board is that exact card: you cannot sacrifice
-        // artifacts for mana while casting something that asks for none.
-        //
-        // A component **reduced** to nothing reads the same way. CR 601.2f's
-        // "considered to be {0}" makes the reduced case a {0} component rather
-        // than a special one, and by the time this runs the total is locked —
-        // a `Vec<Cost>`, with no record of how it got there. Distinguishing
-        // "printed {0}" from "reduced to {0}" would need the pipeline to carry
-        // a history 601.2f exists to discard. So a free Myr Enforcer behind
-        // seven artifacts and a Mox Opal are one board here.
-        //
-        // The test is on the component's symbols, not on whether a `Cost::Mana`
-        // entry exists: `determine_total_cost` always emits one, empty when the
-        // cost is {0} (`total.rs::rebuild`).
+        // payment". Casting Mox Opal offers none, and the judge's warning on the
+        // Ironworks board is that exact card: you cannot sacrifice artifacts for
+        // mana while casting something that asks for none. A component **reduced**
+        // to nothing reads the same way — CR 601.2f's "considered to be {0}" — and
+        // by the time this runs the total is locked, a `Vec<Cost>` with no record
+        // of how it got there, so a free Myr Enforcer behind seven artifacts and a
+        // Mox Opal are one board here. The test is on the component's symbols, not
+        // on whether a `Cost::Mana` entry exists: `determine_total_cost` always
+        // emits one, empty when the cost is {0} (`total.rs::rebuild`).
         if mana_cost_for_window.symbols.is_empty() {
             return;
         }
@@ -648,13 +622,12 @@ impl GameState {
             PhaseType::Precombat | PhaseType::Postcombat => {}
             _ => return Err("Sorcery speed is only available during a main phase".to_string()),
         }
-        // Since RC-1 the resolving object is still on the stack (CR 608.2),
-        // so this reads "not empty" throughout a resolution. Unreachable
-        // today — CR 608.2g forbids casting during one at all — but the
-        // "unless an effect instructs" half of 608.2g is what an RC-era card
-        // brings, and then this site has to say which it means: the
-        // instruction overriding timing outright, or the resolving object not
-        // counting against its own instruction. Not decided here.
+        // The resolving object is still on the stack (CR 608.2), so this reads
+        // "not empty" throughout a resolution. Unreachable today — CR 608.2g
+        // forbids casting during one at all — but the "unless an effect instructs"
+        // half of 608.2g will make this site say which it means: the instruction
+        // overriding timing outright, or the resolving object not counting against
+        // its own instruction. Not decided here.
         if !self.stack.is_empty() {
             return Err("Sorcery speed requires an empty stack".to_string());
         }

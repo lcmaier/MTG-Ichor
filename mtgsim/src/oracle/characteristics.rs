@@ -226,8 +226,7 @@ pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Vec<AbilityDef
 /// characteristic-defining ability "functions everywhere, even outside the
 /// game", and CR 208.3 gives a card off the battlefield the power and toughness
 /// printed on it. A Tarmogoyf in a graveyard has a power, and it is the one its
-/// CDA computes. This gate used to return `None` for anything not on the
-/// battlefield, which cost nothing while no CDA existed and is wrong now.
+/// CDA computes.
 ///
 /// `None` still means "no power at all" — an enchantment, a land, an artifact
 /// with no printed P/T box.

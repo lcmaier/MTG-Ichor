@@ -27,13 +27,9 @@ use crate::types::ids::{ObjectId, PlayerId};
 /// layer `n - 1`.
 ///
 /// This mirrors the `Layer` enum exactly, and the enum is **not** the CR's full
-/// list. One sublayer split is still missing:
-///
-/// - **1a / 1b.** CR 613.2a is copy effects (1a); CR 613.2b is face-down (1b),
-///   applied after copy. `Layer1Copy` collapses the two. CV-1 gives 1a a
-///   producer (`EffectModification::CopyFrom`); 1b arrives with CV-6.
-///
-/// Splitting the slot later just lengthens this array — the ceiling is an
+/// list: CR 613.2a is copy effects (1a) and CR 613.2b is face-down (1b),
+/// applied after copy, and `Layer1Copy` collapses the two until CV-6 builds
+/// 1b. Splitting the slot later just lengthens this array — the ceiling is an
 /// index into it, computed at runtime, so nothing else moves except
 /// `layers::copy::END_OF_LAYER_1`, which a `debug_assert` there pins.
 /// → `layers-architecture.md` §7.
@@ -224,10 +220,11 @@ pub(super) fn compute_non_member(
 /// The controller an object has before Layer 2 touches it — CR 110.2's default,
 /// or the one CR 614.12's entering object would enter under.
 ///
-/// Past the look-ahead arm, the arms are CR 108.4's sentence in order: a permanent reads
-/// `PermanentState`, a spell reads its `StackEntry`, and a card in a hand or
-/// graveyard has no controller at all — owner is what this reports for it,
-/// because `EffectiveCharacteristics.controller` is not an `Option`.
+/// Past the look-ahead arm, the arms are CR 108.4's sentence in order: a
+/// permanent reads `PermanentState`, a spell reads its `StackEntry`, and a
+/// card in a hand or graveyard has no controller at all — owner is what this
+/// reports for it, because `EffectiveCharacteristics.controller` is not an
+/// `Option`.
 ///
 /// **The single definition of the pre-Layer-2 seed.** The oracle's
 /// `any_control_changing` gate returns this instead of walking, and it is
@@ -235,20 +232,11 @@ pub(super) fn compute_non_member(
 /// calling this.
 ///
 /// **The third arm is a resolving object, and it is not the owner fallback.**
-/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything
-/// (CR 608.2's object stays on the stack, but its *entry* is owned by the
-/// resolution), so between there and the end of the resolution the first two
-/// probes both miss and the owner fallback answers. That is right for a land
-/// drop, where owner and controller coincide, and wrong for a spell cast by a
-/// player who does not own it — which CR 110.2b calls out by name. `resolving`
-/// carries that default across exactly this window, so it belongs above the
-/// fallback rather than inside it.
-///
-/// RC-3 is where this is fixed because RC-3 is where it became askable of an
-/// *entering* permanent: the layer gate no longer stops a filter at the
-/// battlefield boundary, so `ObjectFilter::ByController` now reads this
-/// value for every entry. It was already wrong on the replacement path, where
-/// `set_affects` has never had a gate.
+/// `resolve_top_of_stack` takes the `StackEntry` before it resolves anything,
+/// so between there and the end of the resolution the first two probes both
+/// miss; the owner fallback is right for a land drop and wrong for a spell
+/// cast by a player who does not own it, which CR 110.2b calls out by name.
+/// `resolving` carries that default across exactly this window.
 pub(crate) fn base_controller(
     game: &GameState,
     id: ObjectId,
@@ -278,33 +266,29 @@ pub(crate) fn base_controller(
 /// The players a continuous effect's `ObjectFilter` can name — resolved
 /// lazily, at most once per filter tree.
 ///
-/// Laziness is load-bearing, not tidiness. A filter with no `ByController` node
-/// (Cloudspire Mesa's bare "creatures have flying") must cost what it cost
-/// before this refactor, and `And(ByType(Creature), ByController(You))` must
-/// cost nothing extra for a land, because `&&` never reaches the second arm.
+/// Laziness is load-bearing: a filter with no `ByController` node
+/// (Cloudspire Mesa's bare "creatures have flying") must cost nothing extra,
+/// and `And(ByType(Creature), ByController(You))` must cost nothing extra for
+/// a land, because `&&` never reaches the second arm.
 ///
-/// The two origins get their "you" from different rules, and the difference is
-/// not a shortcut:
+/// The two origins get their "you" from different rules:
 ///
 /// - **`StaticAbility` (CR 613.7a).** CR 109.5: "For a static ability, this is
 ///   the *current* controller of the object it's on." So ask the source for its
 ///   controller as the pass has it *now* — the same live frame the existence
 ///   check reads. At layer 2 that is the partially-applied layer: two Layer 2
 ///   effects where applying one changes what the other applies to are
-///   dependent under CR 613.8a, and LI-2 orders them; a mutual pair is a
-///   loop, applied in timestamp order, which is the order this pass already
-///   uses.
+///   dependent under CR 613.8a and `board.rs` orders them; a mutual pair is a
+///   loop, applied in timestamp order.
 ///
 /// - **`Resolution` (CR 613.7b).** "You" was fixed when the spell or ability
 ///   resolved — CR 611.2c, "the set of objects it affects is determined when
-///   that continuous effect begins" — and `effect.controller` is that player.
-///   The source permanent may since have changed hands, or left the
-///   battlefield entirely, without moving the effect's allegiance.
+///   that continuous effect begins" — and `effect.controller` is that player,
+///   whatever has since happened to the source permanent.
 ///
 /// `effect.controller` is also the fallback when the source object is gone from
-/// the store. A `StaticAbility` effect in that state is about to be retired by
-/// `static_ability_still_exists` anyway, so the value only has to be defined,
-/// not meaningful.
+/// the store; such a `StaticAbility` effect is about to be retired by
+/// `static_ability_still_exists` anyway, so the value only has to be defined.
 ///
 /// # Two ways to build one
 ///
@@ -498,10 +482,8 @@ fn resolve_set_controller(
 /// Check if a permanent's current characteristics match a filter.
 ///
 /// `players` resolves the `PlayerRef` in a `ByController` node. Controller is
-/// matched here rather than beside the filter, which is how the snapshot bug
-/// hid: `ByController` used to return `true` unconditionally and defer to a
-/// field on `ObjectSet::Filter`, so the two halves of one question lived in
-/// two places and only one of them was re-asked during the walk.
+/// matched here rather than beside the filter, so the two halves of one
+/// question live in one place and both are re-asked during the walk.
 ///
 /// `id` is the object `chars` describes. Almost every leaf answers from the
 /// frame alone — that is what "post-layers" means — but CR 707.2 excludes
@@ -641,23 +623,17 @@ pub(super) fn evaluate_amount(
         // "the number of non-Wall creatures you control".
         //
         // **Enumerates the real battlefield**, which a permanent that is only
-        // *entering* is not on. That is §5a's boundary
-        // (`replacement-architecture.md`) falling out of the structure rather
-        // than being special-cased: the entering object is visible to filters
-        // — the frame this count runs inside is its own — and invisible to
-        // counts. Thassa's ruling says exactly that: "the mana symbols in its
-        // mana cost won't be counted", because replacement effects are
-        // considered before the God is on the battlefield.
+        // *entering* is not on: the entering object is visible to filters and
+        // invisible to counts (`replacement-architecture.md` §5a; Thassa's ruling
+        // that "the mana symbols in its mana cost won't be counted"). Each member's
+        // frame is the live one, including the object doing the counting, which is
+        // why a modification is resolved before its frame is written. One filter
+        // evaluation per permanent per query is `layers-architecture.md` §12's
+        // quadratic by design.
         //
-        // Each member's frame is the live one — including the object doing
-        // the counting, which is why a modification is resolved before its
-        // frame is written. One filter evaluation per permanent per query is
-        // `layers-architecture.md` §12's quadratic by design, and Keldon
-        // Warlord is the card that measures it.
-        //
-        // "You" is the affected object's own controller for a CDA (CR 109.5,
-        // read off `chars` as of this layer) and the row's controller for a
-        // registry row, exactly as a filter leaf resolves it.
+        // "You" is the affected object's own controller for a CDA (CR 109.5, read
+        // off `chars` as of this layer) and the row's controller for a registry
+        // row, exactly as a filter leaf resolves it.
         AmountExpr::CountOf(selector) => {
             let filter: Cow<'_, ObjectFilter> = match selector {
                 Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),
@@ -944,17 +920,13 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         // more than one.
         EffectModification::RemoveKeywordFlag(kw) => { chars.keyword_flags.remove(kw); }
         EffectModification::GrantAbility(def) => {
-            // CR 604.3a(2) — an ability that reached an object by being granted
-            // is never a characteristic-defining ability, however its text
-            // reads. The flag on `AbilityDef` asserts only the four criteria
-            // that are properties of the text; provenance is maintained by
-            // whoever writes the ability onto an object, and this is that
-            // place. Copy (Layer 1) and text-changing (Layer 3) effects hand
-            // the def over whole and keep the flag, which is the *other* half
-            // of 604.3a(2) and equally deliberate.
-            //
-            // Not clearing it would let a granted Tarmogoyf ability define P/T
-            // at Layer 7a, which is exactly what 604.3a(2) forbids.
+            // CR 604.3a(2) — an ability that reached an object by being granted is
+            // never a characteristic-defining ability, however its text reads. The
+            // flag on `AbilityDef` asserts only the criteria that are properties of
+            // the text; provenance is maintained by whoever writes the ability onto an
+            // object, and this is that place (`CLAUDE.md`). Copy (Layer 1) and
+            // text-changing (Layer 3) effects hand the def over whole and keep the
+            // flag, the *other* half of 604.3a(2).
             let mut granted = (**def).clone();
             granted.is_characteristic_defining = false;
             chars.abilities.push(granted);
@@ -1718,7 +1690,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // CR 614.12 — the look-ahead overlay (Phase RC-4)
+    // CR 614.12 — the look-ahead overlay
     //
     // What the accessor pair perturbs, and — the one that matters — what it
     // does not: §5b's "one object is hypothetical; nothing else is".

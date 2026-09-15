@@ -7,7 +7,7 @@
 //! soon as the player leaves the game."
 //!
 //! What is **not** here: CR 800.4j and 800.4k, which are rules at the priority
-//! loop and the turn rotation and landed with RE-6; CR 800.4b and 800.4d,
+//! loop and the turn rotation; CR 800.4b and 800.4d,
 //! which are refusals at the site that would have created or moved the object;
 //! and CR 800.4f–i and CR 802, which are `codebase-state.md`'s "Before
 //! Commander" item 4.

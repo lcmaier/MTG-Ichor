@@ -23,8 +23,8 @@
 //!
 //! Axis 1 never grows *here*: a new replaceable event arrives as a `GameAction`
 //! variant and reaches [`Restriction::Event`] through `EventPattern` for free.
-//! An event-shaped arm added to this enum is the smell. Axis 2 ships empty in
-//! RS-1 and is RS-2/RS-3's; every arm it gains must name one `ChoiceKind`.
+//! An event-shaped arm added to this enum is the smell. Axis 2 is empty
+//! until RS-2/RS-3; every arm it gains must name one `ChoiceKind`.
 //!
 //! Matched exhaustively and deliberately not `#[non_exhaustive]`, for
 //! `types::replacement`'s reason: an arm no enforcement point consults is a card
@@ -66,8 +66,8 @@ impl RestrictionDef {
 
 /// What a "can't" forbids.
 ///
-/// See the module docs for the growth contract. Two arms in RS-1: one per axis
-/// that has a consumer.
+/// See the module docs for the growth contract: one arm per axis that has
+/// a consumer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Restriction {
     // ---- Axis 1: an event the engine proposes (CR 614.17) ----------------
@@ -97,9 +97,8 @@ pub enum Restriction {
         /// Unioned with `affected` by the same `set_affects` that unions a
         /// `ReplacementDef`'s two sets — so an event about an object asks
         /// `affected` and one about a player asks this, and neither set has any
-        /// say about the other's kind of subject. [`PlayerSet::Nobody`] is
-        /// therefore what every object-scoped restriction written before RE-3
-        /// means and what it keeps meaning: "this is not about players".
+        /// say about the other's kind of subject. [`PlayerSet::Nobody`] is what an
+        /// object-scoped restriction means: "this is not about players".
         affected_players: PlayerSet,
         by: Option<SourceFilter>,
     },
@@ -126,7 +125,7 @@ pub enum Restriction {
         /// which `ReplacementDef`'s `affected`/`affected_players` is not: a
         /// bare `to` beside a `to_players` reads as the whole set with a
         /// modifier hung off it, and it is not — the two are unioned and
-        /// neither is primary (RD-4 review, 2026-09-09).
+        /// neither is primary.
         to_objects: ObjectSet,
         /// The other half of "whatever they're affecting" — CR 615.12's
         /// "damage can't be prevented" is about damage dealt to *players* as
@@ -139,11 +138,6 @@ pub enum Restriction {
         /// (`cant-effects-architecture.md` §3.1). Skullcrack's is `Everyone`
         /// plus `Filter { All }`; a hypothetical "damage to you can't be
         /// prevented" would be `You` plus `NO_OBJECTS`.
-        ///
-        /// [`Self::Event`] gained the same field in RE-3, with Skullcrack —
-        /// which is how RD-4 said it would arrive (`replacement-architecture.md`
-        /// §9, RD decision 0: "the day one is, it adds the field with its
-        /// card").
         to_players: PlayerSet,
     },
 }
@@ -168,7 +162,7 @@ pub enum Restriction {
 /// omission — Sigarda does not stop CR 704.5's sacrifices, and there are none
 /// to stop.
 ///
-/// **Read by a replacement effect too, from RE-8 on.** The "can't" side and
+/// **Read by a replacement effect too.** The "can't" side and
 /// the CR 614 side are one question asked at two sites: Tamiyo, Collector of
 /// Tales'
 /// "spells and abilities your opponents control can't cause you to discard
@@ -226,13 +220,11 @@ impl SourceFilter {
 /// things the rules permit withholding, and nothing else in the CR withholds an
 /// effect at its application site.
 ///
-/// [`Self::Prevention`] got its producer in RD-4, and **not** by widening
-/// `ReplacementDef::is_regeneration` into a `ReplacementKind` the way
-/// `cant-effects-architecture.md` §4.7 predicted: CR 615.1a defines a
+/// [`Self::Prevention`] is derived, not authored: CR 615.1a defines a
 /// prevention effect by the word "prevent", which the def already carries in
-/// its pattern and rewrite, so `ReplacementDef::is_prevention()` is derived and
-/// no card can forget to set it (`replacement-architecture.md` §11 item 25).
-/// `is_regeneration` keeps its authored bit, because nothing about a
+/// its pattern and rewrite, so `ReplacementDef::is_prevention()` reads it off
+/// and no card can forget to set it (`replacement-architecture.md` §11 item
+/// 25). `is_regeneration` keeps its authored bit, because nothing about a
 /// regeneration def distinguishes it from any other `Prevent`-with-a-rider.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReplacementKindFilter {

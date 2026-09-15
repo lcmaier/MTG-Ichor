@@ -65,25 +65,17 @@ pub struct RegistryScopeSummary {
     /// static ability's "you" against the source's *effective* controller, and
     /// asking for that means a `compute_to_ceiling` walk of the source. When
     /// this is false, `chars.controller` provably cannot differ from the value
-    /// the walk seeds it with — `PermanentState.controller`, or the owner
-    /// off the battlefield — because Layer 2 is the only channel that writes
-    /// it: no CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter
-    /// touches controller. So the field read is the walk's answer, not an
-    /// approximation of it.
+    /// the walk seeds it with — `PermanentState.controller`, or the owner off
+    /// the battlefield — because Layer 2 is the only channel that writes it: no
+    /// CDA lives in Layer 2 (CR 613.4a lists only 7a), and no counter touches
+    /// controller. So the field read is the walk's answer, not an approximation.
     ///
-    /// This matters because the filter match runs *before* the CR 604.2
-    /// existence check and therefore for objects the filter rejects, unlike the
-    /// existence check, which only runs for effects that already matched.
-    ///
-    /// **Load-bearing, not a trim.** Forcing it off cost 83.7 → 107.2 ms/game
-    /// on `fuzz_games --games 200 --seed 12345` with a control-changing card in
-    /// the pool (the Layer 2 phase, 2026-08-23). It was worth ~4% when
-    /// `FilterPlayers::you()` was its only caller; that phase put 20 more behind
-    /// it, several inside per-permanent sweeps.
-    ///
-    /// A sharper per-object version was built and measured and is not faster.
-    /// `codebase-state.md`'s "Before Layers" item 13 has the numbers and the
-    /// reason, so it does not get rebuilt on the same reasoning.
+    /// **Load-bearing, not a trim.** Forcing it off cost 83.7 → 107.2 ms/game on
+    /// `fuzz_games --games 200 --seed 12345` with a control-changing card in the
+    /// pool (2026-08-23); some twenty callers sit behind it, several inside
+    /// per-permanent sweeps. A sharper per-object version was built and measured
+    /// and is not faster — `codebase-state.md`'s "Before Layers" item 13 has the
+    /// numbers, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
 
     /// True iff some row grants an ability whose body is an
@@ -118,29 +110,25 @@ pub struct RegistryScopeSummary {
     /// a static replacement ability — i.e. some object on the battlefield may
     /// have a replacement ability it neither printed nor was granted.
     ///
-    /// The **third** leg of `engine::replacement::gather`'s gate, and the one
-    /// `copy-effects-architecture.md` §4.7 was written to predict: `gather`
-    /// reads the *effective* ability list, and CR 707.2a puts a copied ability
-    /// on that list through neither of the other two legs. Without it a copied
-    /// replacement effect is silently dead on every board the gate skips.
+    /// The **third** leg of `engine::replacement::gather`'s gate
+    /// (`copy-effects-architecture.md` §4.7): `gather` reads the *effective*
+    /// ability list, and CR 707.2a puts a copied ability on that list through
+    /// neither of the other two legs. Without it a copied replacement effect is
+    /// silently dead on every board the gate skips.
     ///
     /// A summary flag rather than an insert into
-    /// `GameState::replacement_ability_sources`, and the reason is that set's
-    /// own doc comment: it is "a set rather than a count, so it cannot drift",
-    /// and it is cleared only at `cleanup_zone_state`. A copy row can **expire**
-    /// with no zone change, so the set would drift high. Drifting high costs a
-    /// wasted walk and never an answer — but quietly falsifying that sentence
-    /// is worse than one more field, and the summary is recomputed from the rows
-    /// on every mutation, so it cannot drift at all.
+    /// `GameState::replacement_ability_sources`, for that set's own reason: it
+    /// is "a set rather than a count, so it cannot drift", cleared only at
+    /// `cleanup_zone_state`, and a copy row can **expire** with no zone change.
+    /// The summary is recomputed from the rows on every mutation, so it cannot
+    /// drift at all.
     pub any_copied_replacement: bool,
 
     /// True iff some `EffectModification::CopyFrom` row's captured values carry
     /// a static restriction ability.
     ///
-    /// The same leg on the *other* gate. `copy-effects-architecture.md` §4.7
-    /// counted one; RS-1 had already built a second to the same recipe
-    /// (`engine::restriction::predicate`), whose own comment names this phase as
-    /// the owner. Split from `any_copied_replacement` for the reason
+    /// The same leg on the *other* gate (`engine::restriction::predicate`).
+    /// Split from `any_copied_replacement` for the reason
     /// `any_granted_restriction` is split from `any_granted_replacement`: the two
     /// sweeps read different ability bodies, so a shared flag would turn each
     /// one's fast path on for the other's cards.
@@ -160,35 +148,29 @@ pub struct RegistryScopeSummary {
     /// The union of every row's [`ObjectSet::reachable_zones`] — which zones
     /// the registry can name an object in at all.
     ///
-    /// **The guard that keeps a zone-reaching filter free** (LJ,
-    /// `layers-architecture.md` §13c decision 2). `Board::seed`'s working set
+    /// **The guard that keeps a zone-reaching filter free**
+    /// (`layers-architecture.md` §13c decision 2). `Board::seed`'s working set
     /// is the battlefield plus whatever `beyond_battlefield()` names, so on
     /// every board that plays no zone-reaching card this is
     /// `ZoneSet::BATTLEFIELD` and the seed, `membership` and
-    /// `compute_non_member` all behave exactly as they did before the field
-    /// existed. That is a structural zero rather than a measured one, which
-    /// matters because the alternative is walking every card in every library:
-    /// four seats is ~400 members a pass instead of ~40.
+    /// `compute_non_member` cost what they would without the field. That is a
+    /// structural zero rather than a measured one, which matters because the
+    /// alternative is walking every card in every library: four seats is ~400
+    /// members a pass instead of ~40.
     ///
-    /// **Not `touches_hidden_zones: bool`**, which is what
-    /// `layers-architecture.md` §5.1 specified before there was a consumer. A
-    /// set confines the sweep to the zone a card actually reaches instead of
-    /// to "hidden or not", which is the narrowing item 9 asks for in its own
-    /// last paragraph — Yixlid Jailer costs graveyards, not libraries.
+    /// A set rather than a `touches_hidden_zones: bool` confines the sweep to the
+    /// zone a card actually reaches — Yixlid Jailer costs graveyards, not
+    /// libraries (`codebase-state.md` layers item 9).
     ///
     /// **It is also the blast radius a finer memo invalidation would need**
-    /// (owner review, 2026-09-14). The memo is keyed on `layer_epoch`, which
-    /// is global: any registry mutation invalidates every stored frame. The
-    /// standing idea is to invalidate only the entries a change can reach, and
-    /// the hard part of that is naming them — which for a row arriving or
-    /// leaving is exactly this field, the zones whose objects can have moved,
-    /// plus the battlefield. So this narrows rather than complicates that
-    /// work: without it a zone-reaching row's radius is "every object in the
-    /// game", and with it the radius is one zone. The interaction to get right
-    /// when it is built is that the radius must be the **union** of the masks
-    /// before and after the mutation — a row being *removed* stops reaching
-    /// the zone it reached, and the objects it was reaching are the ones whose
-    /// frames are now stale.
+    /// (owner review, 2026-09-14). The memo is keyed on the global `layer_epoch`,
+    /// so any registry mutation invalidates every stored frame; invalidating only
+    /// what a change can reach means naming the zones whose objects can have
+    /// moved, which for a row arriving or leaving is exactly this field plus the
+    /// battlefield. The radius must be the **union** of the masks before and
+    /// after the mutation — a row being *removed* stops reaching the zone it
+    /// reached, and the objects it was reaching are the ones whose frames are
+    /// now stale.
     pub reachable_zones: ZoneSet,
 }
 
@@ -357,12 +339,10 @@ impl ContinuousEffectRegistry {
     /// doing real work rather than breaking an accidental tie — see
     /// `effects_in_layer`.
     pub fn add(&mut self, effect: ContinuousEffect) -> EffectId {
-        // CR 604.3a(3) — a CDA affects only the object that has it, so it needs
-        // no `ObjectSet` and never becomes a registry row. `layers::cda`
-        // applies them off the object's own ability list instead. Layer 7a is
-        // the CDA-only sublayer, so a row landing here means someone routed a
-        // CDA through registration; catch it at the door rather than letting it
-        // apply twice.
+        // CR 604.3a(3) — a CDA affects only the object that has it, so it needs no
+        // `ObjectSet` and never becomes a registry row; `layers::cda` applies them
+        // off the object's own ability list. Layer 7a is the CDA-only sublayer, so
+        // a row landing here was routed through registration and would apply twice.
         debug_assert!(
             effect.layer != Layer::Layer7aCdaPT,
             "Layer 7a is applied intrinsically, never from the registry              (CR 604.3a(3)); effect from source {:?} tried to register there",
@@ -624,11 +604,8 @@ mod tests {
         assert_eq!(reg.len(), 0);
     }
 
-    // The extra-turn case used to live here as a second copy of the test above
-    // with a hand-written turn number and a comment asserting what the engine
-    // would do with it. RE-1 gave the engine a CR 500.7 turn queue, so the
-    // claim is now made against one: `tests/phase_re1_integration_test.rs`,
-    // `until_your_next_turn_expires_on_a_real_extra_turn` resolves Time Walk
-    // and watches the row go. A fixture that reproduces the predicate proves
-    // the predicate twice and the engine never.
+    // The extra-turn case is `tests/phase_re1_integration_test.rs`,
+    // `until_your_next_turn_expires_on_a_real_extra_turn`: it resolves Time
+    // Walk and watches the row go, so the claim is made against the engine's
+    // CR 500.7 turn queue rather than a hand-written turn number.
 }

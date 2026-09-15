@@ -116,11 +116,8 @@ impl Game {
         // hand, whatever `GameConfig::mulligan_rule` says. `backlog.md` §2.32.
 
         // CR 103.7 — the first turn begins, and it begins the way every later
-        // one does: a `BeginTurn` proposal, its beginning phase, its untap
-        // step. Before RE-1 the first turn was a state `GameState::new` had
-        // already written and its untap step ran no turn-based action at all,
-        // because nothing called `on_step_begin` for the step the constructor
-        // had parked on.
+        // one does: a `BeginTurn` proposal, its beginning phase, its untap step,
+        // so the first untap step runs its turn-based action like any other.
         self.state.start_first_turn(&actx)?;
 
         Ok(())
@@ -240,7 +237,7 @@ impl Game {
         // *that player* performs — declaring attackers (508.1) and the
         // cleanup discard (514.1) — have nobody to perform them; the untap
         // step's and the draw step's are `engine::turns`'s and gate the same
-        // way there. Their permanents staying to be untapped is RE-7's.
+        // way there. Their permanents have left with them (CR 800.4a).
         let no_active_player = !self.state.in_game(self.state.active_player);
         match (phase_type, step) {
             // --- Combat phase ---
@@ -291,9 +288,8 @@ impl Game {
         self.state.result.is_some()
     }
 
-    /// The outcome, once there is one. A read of [`GameState::result`]: the
-    /// engine records it at the batch that ended the game, and this wrapper
-    /// derives nothing from the loss flags any more.
+    /// The outcome, once there is one. A read of [`GameState::result`], which
+    /// the engine records at the batch that ended the game.
     pub fn result(&self) -> Option<GameResult> {
         self.state.result.clone()
     }
@@ -325,9 +321,7 @@ impl Game {
     /// turn-based action over "enough cards", so the choice is made once and
     /// the cards move as one batch — which is what CR 603.2c's "whenever one
     /// or more cards are discarded" will read, and the same shape
-    /// `Primitive::Discard` builds for Mind Rot. Until RE-8 this was a
-    /// `while` loop asking one card at a time, which put each card in a batch
-    /// of its own and would have fired such a trigger once per card.
+    /// `Primitive::Discard` builds for Mind Rot.
     fn handle_cleanup_discard(
         &mut self,
         decisions: &dyn DecisionProvider,
