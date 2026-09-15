@@ -9,6 +9,7 @@ use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_scry;
@@ -501,6 +502,39 @@ pub enum GameAction {
     /// nothing for a replacement or a "can't" to see.
     PlayerWins {
         player: PlayerId,
+    },
+
+    /// CR 106.6a / 106.12b — **the mana production event**: a spell or
+    /// ability adds mana to a player's pool. The event's subject is `player`.
+    ///
+    /// Proposed by the two places that wrote the pool directly until RE-9 —
+    /// `resolve_mana_effect` for a mana ability, `Primitive::ProduceMana` for
+    /// a spell — and performed by the one arm that writes it and announces
+    /// [`GameEvent::ManaAdded`]. The subject is the player and not the
+    /// permanent because CR 616.1's chooser is "the affected player" and a
+    /// spell's production (Dark Ritual) has no permanent to be about; which
+    /// permanent was tapped is `EventPattern::ProduceMana`'s `source` question.
+    ///
+    /// `mana` is the plain units by type and `special` the restricted ones,
+    /// **one [`ManaAtom`] per unit**, because CR 106.6a's "any restrictions …
+    /// will apply to all mana produced" is a fact about each unit: a
+    /// multiplier repeats the atoms. A `Vec` and not a map, since the event
+    /// reaches the log and a map's iteration order is the process's.
+    ///
+    /// `tapped_for_mana` is CR 106.12's definition — *"to activate a mana
+    /// ability of that permanent that includes the {T} symbol in its
+    /// activation cost"* — read off the ability's costs at activation, never
+    /// off the payment plan. A spell (CR 605.5b) and a triggered mana ability
+    /// (CR 605.1b) both propose `false`, which is why Mana Reflection doubles
+    /// neither: its rulings say so, and the definition says it first. Read by
+    /// a replacement off this proposal (CR 106.12b) and by a trigger off the
+    /// performed event (CR 106.12a); no rewrite touches it.
+    ProduceMana {
+        player: PlayerId,
+        source: ObjectId,
+        mana: Vec<(ManaType, u64)>,
+        special: Vec<ManaAtom>,
+        tapped_for_mana: bool,
     },
 
     // === Phase 3+ actions — add variants here as primitives are implemented ===
@@ -1638,6 +1672,54 @@ impl GameState {
                     self.result = Some(GameResult::Winner(player));
                 }
                 self.events.emit(GameEvent::PlayerWon { player_id: player });
+                Ok(())
+            }
+
+            // CR 106.6a / 106.12b — the one writer of the pool.
+            //
+            // A production of nothing performs and announces nothing, and
+            // that is this arm's guard rather than `never_happens`': no rule
+            // makes a zero production no event — CR 106.5 is about an
+            // *undefined type*, and CR 107.1b's Viridian Joiner example says
+            // "adds no mana", a statement about the pool — so it reaches the
+            // pipeline as `LoseLife`'s zero does and is a no-op here.
+            //
+            // The announced `mana` folds the restricted atoms into the plain
+            // counts by type, in proposal order: CR 106.6's first sentence
+            // says a restriction "doesn't affect the mana's type", so the log
+            // reports {G}{G} for a doubled restricted Forest and the pool
+            // keeps the restriction where it lives.
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
+                if mana.iter().all(|(_, n)| *n == 0) && special.is_empty() {
+                    return Ok(());
+                }
+                self.counters.record_mana_production();
+                let pool = &mut self.get_player_mut(player)?.mana_pool;
+                for (mana_type, n) in &mana {
+                    if *n > 0 {
+                        pool.add(*mana_type, *n);
+                    }
+                }
+                for atom in &special {
+                    pool.add_special(atom.clone());
+                }
+                let mut announced: Vec<(ManaType, u64)> = Vec::with_capacity(mana.len());
+                let units = mana.iter().copied().chain(special.iter().map(|a| (a.mana_type, 1)));
+                for (mana_type, n) in units {
+                    if n == 0 {
+                        continue;
+                    }
+                    match announced.iter_mut().find(|(t, _)| *t == mana_type) {
+                        Some((_, total)) => *total += n,
+                        None => announced.push((mana_type, n)),
+                    }
+                }
+                self.events.emit(GameEvent::ManaAdded {
+                    player_id: player,
+                    source_id: source,
+                    mana: announced,
+                    tapped_for_mana,
+                });
                 Ok(())
             }
         }

@@ -431,12 +431,17 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         CardDrawn { player_id, card_id } => {
             format!("CardDrawn: P{} drew {}", player_id, obj_name(game, *card_id))
         }
-        ManaAdded { player_id, source_id, mana } => {
+        ManaAdded { player_id, source_id, mana, tapped_for_mana } => {
             let mana_str: Vec<String> = mana.iter()
-                .filter(|(_, v)| **v > 0)
                 .map(|(t, v)| format!("{:?}:{}", t, v))
                 .collect();
-            format!("ManaAdded: P{} from {} [{}]", player_id, obj_name(game, *source_id), mana_str.join(", "))
+            format!(
+                "ManaAdded: P{} from {} [{}]{}",
+                player_id,
+                obj_name(game, *source_id),
+                mana_str.join(", "),
+                if *tapped_for_mana { " tapped for mana" } else { "" },
+            )
         }
         DamageDealt { source_id, target, amount } => {
             let target_str = match target {

@@ -520,19 +520,24 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 106.6a's event from a spell — Dark Ritual. `tapped_for_mana`
+            // is `false` by CR 106.12's definition and CR 605.5b ("a spell can
+            // never be a mana ability"), which is why Mana Reflection leaves
+            // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                // Evaluate dynamic amounts before taking &mut player
-                let resolved: Vec<_> = output.mana.iter()
+                let mana: Vec<_> = output.mana.iter()
                     .map(|(mt, expr)| Ok((*mt, self.evaluate_amount(expr, ctx)?)))
                     .collect::<Result<_, String>>()?;
-                let player = self.get_player_mut(ctx.controller)?;
-                for (mana_type, amount) in resolved {
-                    player.mana_pool.add(mana_type, amount);
-                }
-                for atom in &output.special {
-                    player.mana_pool.add_special(atom.clone());
-                }
-                Ok(())
+                self.execute_action(
+                    GameAction::ProduceMana {
+                        player: ctx.controller,
+                        source: ctx.source,
+                        mana,
+                        special: output.special.clone(),
+                        tapped_for_mana: false,
+                    },
+                    &actx,
+                )
             }
 
             Primitive::CounterSpell => {

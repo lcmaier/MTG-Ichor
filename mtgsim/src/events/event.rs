@@ -6,7 +6,6 @@ use crate::engine::actions::ZoneChangeCause;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 
-use std::collections::HashMap;
 
 /// Game events that can be observed by triggered abilities and logging systems.
 ///
@@ -77,10 +76,23 @@ pub enum GameEvent {
     CardDrawn { player_id: PlayerId, card_id: ObjectId },
 
     // --- Mana ---
+    /// CR 106.6a / 106.12 — a spell or ability produced mana, performed as
+    /// `GameAction::ProduceMana`. In the enum since the log was written and
+    /// emitted at no site until RE-9, which is how RA's emissions census
+    /// missed both pool writers (`replacement-architecture.md` §11 item 43).
+    ///
+    /// `mana` is by type in proposal order, restricted units folded into
+    /// their type's count — CR 106.6 says a restriction "doesn't affect the
+    /// mana's type" — and a `Vec` rather than the `HashMap` it carried
+    /// unemitted for a year, because `--dump-events` renders this line and a
+    /// map's order is the process's (item 96). `tapped_for_mana` is CR
+    /// 106.12's fact, the one CR 106.12a's "whenever a permanent is tapped
+    /// for mana" triggers read off the performed event.
     ManaAdded {
         player_id: PlayerId,
         source_id: ObjectId,
-        mana: HashMap<ManaType, u64>,
+        mana: Vec<(ManaType, u64)>,
+        tapped_for_mana: bool,
     },
 
     // --- Damage ---

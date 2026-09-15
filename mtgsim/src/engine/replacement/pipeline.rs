@@ -13,6 +13,7 @@ use crate::types::effects::{
 };
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EntryCounters, EventPattern,
     ReplacementDef,
@@ -168,6 +169,13 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         // number, so a short library does not shrink it, which is CR 701.22d's
         // "even if some or all of those actions were impossible".
         GameAction::Scry { n, .. } => Some(*n),
+        // CR 106.6a's "the amount of mana produced": every unit, plain and
+        // restricted alike — what Deep Water's "instead of any other type"
+        // keeps through `TemplateAmount::ReplacedAmount`, and what a rider's
+        // "that much" would mean about a production.
+        GameAction::ProduceMana { mana, special, .. } => {
+            Some(mana.iter().map(|(_, n)| n).sum::<u64>() + special.len() as u64)
+        }
         GameAction::AddCounters { .. }
         | GameAction::RemoveCounters { .. }
         | GameAction::DrawCard { .. }
@@ -996,17 +1004,24 @@ fn commutes(a: &Commuting, b: &Commuting, present: &[CounterType]) -> bool {
     }
 }
 
-/// The one substitute a multiplier commutes with: a creation replaced
+/// The substitutes a multiplier commutes with: a creation replaced
 /// kind-for-kind by "that many" — repeating each def and replacing each
-/// matched def reach the same count either way. An `Append` does not
-/// (the appended count is read once), and every other template is about a
-/// different event.
+/// matched def reach the same count either way — and a mana production
+/// retyped at its own amount, Deep Water beside Mana Reflection, where
+/// retype-then-double and double-then-retype are one event. An `Append` does
+/// not (the appended count is read once), a `Fixed` retype does not
+/// (`Fixed(1)` then ×2 is 2, ×2 then `Fixed(1)` is 1 — Contamination beside
+/// Mana Reflection is CR 616.1's real question), and every other template is
+/// about a different event.
 fn replaces_that_many(rewrite: &Rewrite) -> bool {
     matches!(
         rewrite,
         Rewrite::Instead(GameActionTemplate::CreateTokens {
             count: TemplateAmount::ReplacedAmount,
             mode: TokenSubstitution::Replace,
+            ..
+        }) | Rewrite::Instead(GameActionTemplate::ProduceMana {
+            amount: TemplateAmount::ReplacedAmount,
             ..
         })
     )
@@ -1083,6 +1098,9 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
         // Built from the template's def and the event's defs; the applying
         // instance contributes its pattern's kind, which is def data.
         GameActionTemplate::CreateTokens { .. } => true,
+        // The type and the amount are def data, identical across two Deep
+        // Waters; the units come from the event.
+        GameActionTemplate::ProduceMana { .. } => true,
     }
 }
 
@@ -1136,6 +1154,8 @@ fn template_is_idempotent(template: &GameActionTemplate) -> bool {
         // whatever the loop computes. Two Laboratory Maniacs on one draw are
         // therefore one outcome with no prompt, which is this table's job.
         GameActionTemplate::PlayerWins => true,
+        // Retyping twice is retyping once, and `Fixed(n)` twice is `Fixed(n)`.
+        GameActionTemplate::ProduceMana { .. } => true,
         // Replacing is idempotent — the Angels a second Visitation would
         // replace are Angels already. Appending is not: a second Chatterfang
         // joins Squirrels to the Squirrels, and how many is the order's, so
@@ -1856,6 +1876,59 @@ fn apply_rewrite(
                 ))
             }
 
+            // CR 106.6a — "replacement effects [that] increase the amount of
+            // mana produced": Mana Reflection's doubler, Nyxbloom Ancient's
+            // tripler. A multiplier scales every plain entry and **repeats
+            // every restricted atom** `n` times in place, because the rule's
+            // next sentence is about each unit — "any restrictions … will
+            // apply to all mana produced" — and an atom is one unit carrying
+            // its restrictions, which is `ATOM-106.6a-001`'s board. The atom's
+            // `grants` and `persistence` ride on each copy, and that is the
+            // rule's last two sentences ("a separate effect is created once
+            // for each mana produced") for free.
+            //
+            // Every other arm is refused as the pairing error it is: nothing
+            // prints "produces one more mana" as a replacement — every "add
+            // an additional" is CR 605.1b's trigger — and nothing halves mana.
+            // `took_effect` is any unit changing, so `Multiplier(1)` reports
+            // untouched.
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
+                match amount_rewrite {
+                    AmountRewrite::Multiplier(n) => {
+                        let times = usize::try_from(*n).map_err(|_| {
+                            format!(
+                                "replacement {:?} multiplies a mana production by {}, which no \
+                                 pool can hold",
+                                chosen.id, n
+                            )
+                        })?;
+                        let scaled: Vec<(ManaType, u64)> =
+                            mana.iter().map(|(t, a)| (*t, a.saturating_mul(*n))).collect();
+                        let repeated: Vec<ManaAtom> = special
+                            .iter()
+                            .flat_map(|atom| std::iter::repeat_n(atom.clone(), times))
+                            .collect();
+                        let took_effect = scaled != mana || repeated.len() != special.len();
+                        Ok((
+                            Some(GameAction::ProduceMana {
+                                player,
+                                source,
+                                mana: scaled,
+                                special: repeated,
+                                tapped_for_mana,
+                            }),
+                            Applied { took_effect, prevented: 0 },
+                        ))
+                    }
+                    other => Err(format!(
+                        "replacement {:?} applies {:?} to a mana production; CR 106.6a's \
+                         increase is a multiplier, and the printed \"add an additional\" is \
+                         CR 605.1b's triggered mana ability rather than a replacement",
+                        chosen.id, other
+                    )),
+                }
+            }
+
             // CR 701.22's count, and the arm Kenessos, Priest of Thassa is:
             // "if you would scry a number of cards, scry that many cards plus
             // one instead" — the second of the two printed "would scry" clauses
@@ -2312,6 +2385,69 @@ fn substitute(
             )),
         },
 
+        // CR 106.12b's "of a specific type": Deep Water's and Infernal
+        // Darkness's "produces {U} / {B} instead of any other type", and
+        // Contamination's "instead of any other type and amount".
+        //
+        // `ReplacedAmount` **retypes every unit in place** — the plain entries
+        // merged into one of the type, each restricted atom keeping its
+        // restrictions with only its type changed (CR 106.6: a restriction
+        // "doesn't affect the mana's type", and the converse holds — a type
+        // change does not drop the restriction, which is the ability's). Deep
+        // Water's ruling: "the amount of mana produced is unchanged, but it
+        // will all be {U}".
+        //
+        // `Fixed(n)` makes `n` units of the type, and the one question with no
+        // rule behind it is which restriction they carry, since the old units
+        // are gone. Every printed mana ability produces uniformly restricted
+        // or uniformly free mana, and for those the answer is plain: what the
+        // old units all carried. A production mixing the two has no printed
+        // instance and no CR sentence deciding it, so it is refused rather
+        // than guessed — loud, over a silently dropped restriction.
+        (
+            GameActionTemplate::ProduceMana { mana_type, amount },
+            GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },
+        ) => {
+            let plain: u64 = mana.iter().map(|(_, n)| n).sum();
+            let (mana, special) = match amount {
+                TemplateAmount::ReplacedAmount => (
+                    if plain > 0 { vec![(*mana_type, plain)] } else { Vec::new() },
+                    special
+                        .into_iter()
+                        .map(|atom| ManaAtom { mana_type: *mana_type, ..atom })
+                        .collect(),
+                ),
+                TemplateAmount::Fixed(n) => {
+                    let count = usize::try_from(*n).map_err(|_| {
+                        format!(
+                            "replacement {:?} sets a mana production to {} units, which no \
+                             pool can hold",
+                            chosen.id, n
+                        )
+                    })?;
+                    match special.first() {
+                        None => (vec![(*mana_type, *n)], Vec::new()),
+                        Some(first) if plain == 0 && special.iter().all(|a| a == first) => {
+                            let unit = ManaAtom { mana_type: *mana_type, ..first.clone() };
+                            (Vec::new(), std::iter::repeat_n(unit, count).collect())
+                        }
+                        Some(_) => {
+                            return Err(format!(
+                                "replacement {:?} sets a mana production to {} {:?}, but the \
+                                 production mixes restricted and unrestricted units and no \
+                                 rule says which restriction the new mana carries (CR 106.6a \
+                                 is about an ability's restrictions applying to all of its \
+                                 mana). No printed mana ability produces such a mix; the \
+                                 first that does brings the ruling that decides this.",
+                                chosen.id, n, mana_type
+                            ))
+                        }
+                    }
+                }
+            };
+            Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana })
+        }
+
         // CR 614.1a from a draw to the game's end — Laboratory Maniac's "you
         // win the game instead". The affected player wins, for the two life
         // templates' reason: nothing printed hands a substituted win to
@@ -2337,6 +2473,11 @@ fn substitute(
             "replacement {:?} rewrites to a zone change but matched {:?}, which is \
              neither one nor an entry. Its `EventPattern` and its `Rewrite` describe \
              different events.",
+            chosen.id, other
+        )),
+        (GameActionTemplate::ProduceMana { .. }, other) => Err(format!(
+            "replacement {:?} retypes a mana production but matched {:?}, which is not \
+             one. Its `EventPattern` and its `Rewrite` describe different events.",
             chosen.id, other
         )),
     }
