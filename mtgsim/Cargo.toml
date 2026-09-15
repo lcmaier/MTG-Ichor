@@ -2,6 +2,14 @@
 name = "mtgsim"
 version = "0.1.0"
 edition = "2024"
+# The measured floor, not the edition's: 1.88.0 built every target and passed
+# the whole suite on 2026-09-15, and the tree cannot go lower because its
+# let-chains are stable only from 1.88 on. CI builds on the pinned toolchain in
+# `.github/workflows/ci.yml`, not on this one; what this field gates is a
+# build on an older toolchain (cargo refuses) and clippy's `incompatible_msrv`
+# lint on a std API newer than 1.88. A later syntax floor is not caught by
+# either — re-measure it when the pin moves.
+rust-version = "1.88"
 
 [dependencies]
 uuid = { version = "1.16", features = ["v4", "v5"] }

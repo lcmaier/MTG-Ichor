@@ -31,11 +31,18 @@ jobs:
       # Pinned rather than `stable`, because an unpinned toolchain turns a
       # GitHub image bump into a build break with no commit to blame.
       #
-      # 1.98 is the version this repo is developed and verified on, **not a
-      # measured MSRV**. Edition 2024 puts the floor at 1.85, but nothing has
-      # checked whether the code builds there. Lowering this pin needs an actual
-      # build on the lower toolchain, not a guess from the edition.
+      # 1.98 is the version this repo is developed and verified on, and it is
+      # not the floor. **The floor was measured 2026-09-15: 1.88.0** builds
+      # every target with zero warnings and passes the whole suite, and the
+      # tree cannot go lower — its let-chains are stable only from 1.88 on
+      # edition 2024, so the edition's own 1.85 does not build it. That number
+      # is `rust-version` in Cargo.toml. The pin stays at 1.98 on purpose: the
+      # clippy step below was counted on 1.98's lint set, and a lint gate is
+      # only meaningful on the toolchain it was sized against. Re-measure the
+      # floor when this pin moves.
       - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -46,6 +53,26 @@ jobs:
 
       - name: Test
         run: cargo test
+
+      # Adopted 2026-09-15 (the post-RE audit, pass 2) the way handoff §6
+      # decision 2 asked: run once and counted first — 114 sites, 26 lints, 48
+      # files on 1.98.0 — and only then decided. Everything was fixed except
+      # four design lints, allowed in Cargo.toml's `[lints.clippy]` table with
+      # one reason each; a new allow goes there, with its reason, never at the
+      # site. `-D warnings` here is what `RUSTFLAGS` above already does, spelled
+      # out so a local `cargo clippy --all-targets -- -D warnings` is the same
+      # gate. Clippy lints are advisory by design — this step is what makes the
+      # default set a bar instead of a suggestion.
+      #
+      # `cargo fmt --check` is NOT here, and the cost is why: measured the same
+      # day, it would change 148 of 165 Rust files in 2,441 hunks, with no
+      # `rustfmt.toml` in the tree. Adopting it means one whole-tree reformat
+      # commit first, which rewrites every file's blame — the project leans on
+      # its per-commit record. That is the owner's switch to throw; if it is,
+      # the reformat is its own PR and this step is
+      # `run: cargo fmt --check` beside the clippy one.
+      - name: Clippy (the default lint set is a bar)
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: Build the fuzz harness
         run: cargo build --release --bin fuzz_games
@@ -93,6 +120,19 @@ jobs:
       - name: Module layout
         working-directory: .
         run: python3 plans/check_module_layout.py
+
+      # `plans/glossary.md` states facts about the tree — that a term exists,
+      # that a code anchor still resolves — and a doc that states facts with
+      # nothing re-reading it goes stale in the commit that renames something.
+      # This is the re-reader, and it is also the American-spelling gate on the
+      # crate (`CLAUDE.md`, Conventions). One of the four checks CLAUDE.md says
+      # must pass, and the one that was missing here until 2026-09-15.
+      # Stdlib-only, like the others; `plans/` spellings are reported, not
+      # failed — that doc tree carries pre-existing forms whose sweep is its own
+      # diff.
+      - name: Glossary and spelling
+        working-directory: .
+        run: python3 plans/check_glossary.py
 
       # `plans/state-of-play.md` is generated from the tree, so a stale board is
       # a diff. It also fails when CLAUDE.md's critical path calls a phase
