@@ -566,7 +566,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let display = format_permanent(&game, id);
         assert!(display.contains("Grizzly Bears"));
@@ -584,7 +584,7 @@ mod tests {
         game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let display = format_permanent(&game, id);
         assert!(display.contains("tapped"));
@@ -630,7 +630,7 @@ mod tests {
         let bears_id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(bears_id, 0, 0);
-        game.battlefield.insert(bears_id, entry);
+        game.insert_battlefield_entry(bears_id, entry);
 
         // Add a land
         let forest = CardDataBuilder::new("Forest")
@@ -642,7 +642,7 @@ mod tests {
         let forest_id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(forest_id, 0, 0);
-        game.battlefield.insert(forest_id, entry);
+        game.insert_battlefield_entry(forest_id, entry);
 
         let output = format_battlefield(&game, 0);
         assert!(output.contains("Creatures:"), "Should have Creatures header");
@@ -754,7 +754,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let display = format_permanent(&game, id);
         assert!(display.contains("mana: Add"), "Should show mana ability");

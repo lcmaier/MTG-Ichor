@@ -819,8 +819,9 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `GameObject::timestamp` — CR 613.7's — is the deterministic
-    /// key. Every value of it comes from `next_timestamp`, one monotonic
+    /// The CR 613.7 timestamp is the deterministic key — read off the entry,
+    /// which carries a copy of the object's for exactly this sweep's sake
+    /// (`PermanentState::timestamp`). Every value of it comes from `next_timestamp`, one monotonic
     /// counter, so it is unique across the battlefield and totally orders it,
     /// and CR 613.7e's reassignment on attach keeps both properties: a
     /// reattached permanent moves to the end of the order, in every run
@@ -831,18 +832,10 @@ impl GameState {
     /// may still iterate the map directly; they touch disjoint entries and emit
     /// nothing.
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
-        // Keyed on a collected timestamp rather than on a closure that looks
-        // one up: `sort_by_key` calls its closure O(n log n) times, and since
-        // A5 the timestamp is one `HashMap` hop away on the object rather than
-        // a field of the entry being iterated. `battlefield_ids_ordered` has
-        // the measurement that made this rule.
-        let mut entries: Vec<(u64, ObjectId, &PermanentState)> = self
-            .battlefield
-            .iter()
-            .map(|(&id, e)| (self.object_timestamp(id), id, e))
-            .collect();
-        entries.sort_by_key(|&(ts, _, _)| ts);
-        entries.into_iter().map(|(_, id, e)| (id, e)).collect()
+        let mut entries: Vec<(ObjectId, &PermanentState)> =
+            self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
+        entries.sort_by_key(|(_, e)| e.timestamp);
+        entries
     }
 
     /// The battlefield's object ids, oldest permanent first.
@@ -860,8 +853,8 @@ impl GameState {
         // (CLAUDE.md, determinism), but tiebreaking on a v4 `ObjectId` would be
         // the exact non-determinism the ordered sweeps exist to avoid.
         let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
-            .keys()
-            .map(|&id| (self.object_timestamp(id), id))
+            .iter()
+            .map(|(&id, e)| (e.timestamp, id))
             .collect();
         pairs.sort_by_key(|&(ts, _)| ts);
         pairs.into_iter().map(|(_, id)| id).collect()
@@ -908,6 +901,43 @@ impl GameState {
         let ts = self.next_timestamp;
         self.next_timestamp += 1;
         ts
+    }
+
+    /// Put `entry` on the battlefield for `id`, stamping it from the object.
+    ///
+    /// **The one door, and that is what keeps the order key honest.**
+    /// `PermanentState::timestamp` is a copy of `GameObject::timestamp` kept
+    /// for the ordered sweeps (see that field), and an entry inserted without
+    /// it would carry `0` — which is not merely wrong but *tied*, and a tie in
+    /// `battlefield_ids_ordered` is resolved by `HashMap` order. That is the
+    /// exact non-determinism the ordered sweeps exist to prevent
+    /// (`CLAUDE.md`), so it is prevented here rather than asserted about.
+    ///
+    /// Callers are `place_on_battlefield` and the test helpers that build a
+    /// board without ETB hooks.
+    pub(crate) fn insert_battlefield_entry(&mut self, id: ObjectId, mut entry: PermanentState) {
+        entry.timestamp = self.object_timestamp(id);
+        // Spelled through a local so the sweep that routed every other
+        // `battlefield.insert` here did not route this one into itself.
+        let battlefield = &mut self.battlefield;
+        battlefield.insert(id, entry);
+    }
+
+    /// Write a CR 613.7 timestamp to `id`: on the object, and on its
+    /// battlefield entry if it has one.
+    ///
+    /// **The one writer of the pair**, which is what makes
+    /// `PermanentState::timestamp` a copy that cannot drift rather than a
+    /// second source of truth — see that field for why the copy exists at
+    /// all. Its callers are CR 613.7d (`arrive_in_zone`, where there is no
+    /// entry yet) and CR 613.7e (`attach`, where there is).
+    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: u64) {
+        if let Some(obj) = self.objects.get_mut(&id) {
+            obj.timestamp = timestamp;
+        }
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.timestamp = timestamp;
+        }
     }
 
     /// `id`'s CR 613.7d timestamp, or `u64::MAX` for an object the store has
@@ -996,7 +1026,7 @@ impl GameState {
         let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
-        self.battlefield.insert(id, entry);
+        self.insert_battlefield_entry(id, entry);
         self.bump_layer_epoch();
 
         // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these
@@ -1171,7 +1201,7 @@ impl GameState {
         // funnel, which is their epoch bump; the bump below is `attached_to`'s.
         let timestamp = self.allocate_timestamp();
         self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
-        self.objects.get_mut(&attachment).unwrap().timestamp = timestamp;
+        self.set_object_timestamp(attachment, timestamp);
         self.continuous_effects.retime_static_rows(attachment, timestamp);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();

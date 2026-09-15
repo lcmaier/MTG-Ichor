@@ -499,7 +499,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
         (game, id)
     }
 
@@ -602,7 +602,7 @@ mod tests {
         let mut entry = PermanentState::new(id, 0, turn);
         // Start tapped so {Q} (untap) is payable resource-wise
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
         (game, id)
     }
 
@@ -636,7 +636,7 @@ mod tests {
         game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 1);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         plan_and_pay(&mut game, &[Cost::Untap], 0, id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&id).unwrap().tapped);
@@ -682,7 +682,7 @@ mod tests {
         let obj = GameObject::new(data, player, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        game.battlefield.insert(id, PermanentState::new(id, player, 0));
+        game.insert_battlefield_entry(id, PermanentState::new(id, player, 0));
         id
     }
 

@@ -104,7 +104,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 1);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
         id
     }
 

@@ -481,7 +481,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, player_id, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
         (id, ability_id)
     }
 
@@ -654,7 +654,7 @@ mod tests {
         game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true; // tapped — but ability doesn't require tap
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let sources = available_mana_sources(&game, 0);
         // Should find 2 sources (one for U, one for R) despite being tapped

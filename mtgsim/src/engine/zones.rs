@@ -180,8 +180,8 @@ impl GameState {
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
         obj.zone_change_epoch = epoch;
-        obj.timestamp = timestamp;
         let owner = obj.owner;
+        self.set_object_timestamp(id, timestamp);
 
         // CR 113.6 — a static ability that *functions* in the zone this object
         // just entered registers its rows now (A5, `layers-architecture.md`

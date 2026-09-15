@@ -473,7 +473,7 @@ pub fn place_bare(game: &mut GameState, card_data: Arc<CardData>, owner: PlayerI
     let id = obj.id;
     game.add_object(obj);
     let entry = PermanentState::new(id, owner, 0);
-    game.battlefield.insert(id, entry);
+    game.insert_battlefield_entry(id, entry);
     id
 }
 

@@ -286,7 +286,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         assert!(can_attack(&game, id));
     }
@@ -398,7 +398,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let attackers = legal_attackers(&game, 0);
         assert_eq!(attackers.len(), 1);
@@ -417,7 +417,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
     }
@@ -434,7 +434,7 @@ mod tests {
         game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
     }
@@ -452,7 +452,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         let blockers = legal_blockers(&game, 0);
         assert_eq!(blockers.len(), 1);
@@ -470,7 +470,7 @@ mod tests {
         game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entry(id, entry);
 
         assert!(legal_blockers(&game, 0).is_empty());
     }

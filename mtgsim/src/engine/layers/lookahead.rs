@@ -64,6 +64,7 @@ impl Lookahead {
         // own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
         let mut entity = PermanentState::new(object, controller, game.turn_number);
+        entity.timestamp = entity_timestamp;
         entity.tapped = mods.tapped;
         let mut next = entity_timestamp + 1;
         for row in &mods.counters {
