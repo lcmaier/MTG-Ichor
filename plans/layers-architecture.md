@@ -2200,7 +2200,7 @@ re-allocated by CR 613.7e's attach re-stamp.
 **The copy cannot drift, and not because anything checks.** Two doors, each
 the only one of its kind: `GameState::set_object_timestamp` is the only writer
 of a timestamp on an object that has an entry and it writes both, and
-`insert_battlefield_entry` is the only way an entry is created and it stamps
+`insert_battlefield_entity` is the only way an entry is created and it stamps
 from the object. The second is not tidiness — an entry inserted without the
 copy carries `0`, which is not merely wrong but **tied**, and a tie in
 `battlefield_ids_ordered` is broken by `HashMap` order, which is the exact
@@ -2316,7 +2316,7 @@ deferrals are §2.3's, not this row's**.
 |---|---|---|
 | **113.6** (default) | **ships** — the base arm | Abilities of an instant or sorcery on the stack, everything else on the battlefield. Every registered card is its consumer; ATOM-113.6-001 is its atom, and it is Wonder's negative half |
 | **113.6a** CDAs everywhere | **ships as an assertion** | Already true, and not through this predicate: `engine/layers/cda.rs` applies CDAs off the object's own effective list and `compute_non_member` walks them in any zone (CR 604.3a(3) — "CDAs are never registry effects"). The predicate returns `ZoneSet::ALL` for `is_characteristic_defining`, which is a *statement of agreement* with a path that does not consult it. ATOM-113.6a-001, Tarmogoyf in a graveyard |
-| **113.6 for a `KeywordFlag`** | **not reached, and the gap is new** | Quadrant ① keywords are frame *characteristics*, not `AbilityDef`s (`CLAUDE.md`'s keyword map), and `seed_frame` seeds them from the card in every zone — so this predicate never sees one. A Wonder in a graveyard still reports flying, which CR 113.6 says it should not. Found by writing Wonder and **recorded rather than fixed**: nothing reads a non-battlefield object's keyword flags for a rules decision, so there is no arm to apply. `codebase-state.md`'s A5 finding owns it |
+| **113.6 for a `KeywordFlag`** | **not reached, and the gap is new** | Quadrant ① keywords are frame *characteristics*, not `AbilityDef`s (`plans/glossary.md`, “quadrant”), and `seed_frame` seeds them from the card in every zone — so this predicate never sees one. A Wonder in a graveyard still reports flying, which CR 113.6 says it should not. Found by writing Wonder and **recorded rather than fixed**: nothing reads a non-battlefield object's keyword flags for a rules decision, so there is no arm to apply. `codebase-state.md`'s A5 finding owns it |
 | **113.6b** states its zones | **ships — the new facility** | **Wonder**. Decision 5's field, the registration leg, the existence leg |
 | **113.6c** states where it doesn't | **ships, as a spelling of 113.6b** | `ZoneSet::ALL.without(z)`, and `EVERYWHERE_BUT_BATTLEFIELD` is already a constant LJ wrote for Grist and Mycosynth Lattice. **No second arm and no card claimed** — a fixture asserts the complement round-trips through the same field |
 | **113.6d** cost abilities on the stack | **ships as a move** | Already answered by `CostSubject::applies_from_battlefield`; it becomes this predicate's arm and the method delegates. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
@@ -2370,7 +2370,7 @@ keeping.** It said Wonder "has two abilities and they function in different
 zones" — Flying on the battlefield through CR 113.6's default arm, the grant in
 the graveyard through 113.6b — so one card would exercise both arms. Half of
 that is wrong: **Wonder's flying is a `KeywordFlag`, not an `AbilityDef`**
-(`CLAUDE.md`'s quadrant ①), so the predicate never sees it and `seed_frame`
+(`plans/glossary.md`'s quadrant ①), so the predicate never sees it and `seed_frame`
 gives it to the card in every zone. Decision 4's last row is the gap that
 falls out.
 

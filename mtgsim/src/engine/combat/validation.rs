@@ -432,7 +432,7 @@ mod tests {
         obj.id = id;
         game.add_object(obj);
         let entry = PermanentState::new(id, owner, 0);
-        game.insert_battlefield_entry(id, entry);
+        game.insert_battlefield_entity(id, entry);
         id
     }
 
@@ -479,7 +479,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
-        game.insert_battlefield_entry(id, entry);
+        game.insert_battlefield_entity(id, entry);
 
         let result = validate_attackers(
             &game, 0,
@@ -696,7 +696,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, owner, 0);
-        game.insert_battlefield_entry(id, entry);
+        game.insert_battlefield_entity(id, entry);
         id
     }
 

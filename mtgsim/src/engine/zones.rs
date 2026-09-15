@@ -482,11 +482,17 @@ impl GameState {
             // the spell hit the graveyard. The battlefield branch gets away
             // with the broad call only because it has never run anywhere else.
             //
-            // Hygiene rather than correctness: CR 604.2's existence check
-            // re-asks every layer, and since LK the zone clause is part of
-            // what it asks (`Condition::SourceInZone`), so a row left behind
-            // would be inert anyway. What this buys is that a card bouncing
-            // between two zones does not accumulate rows.
+            // **Nothing is being traded away here.** Correctness is already
+            // guaranteed one layer down and this call cannot add to it:
+            // CR 604.2's existence check re-asks at every layer whether the
+            // ability is still there and still functions in the source's
+            // current zone (`Condition::SourceInZone`, since LK), so a row
+            // left behind by this branch would apply to nothing. Removing it
+            // is *hygiene* in the exact sense that the answer is the same
+            // either way — what it buys is that a card bouncing between two
+            // zones does not accumulate dead rows, and that
+            // `RegistryScopeSummary` does not keep reporting a reach the
+            // board no longer has.
             self.continuous_effects.remove_static_by_source(id);
         }
     }

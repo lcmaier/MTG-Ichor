@@ -2070,7 +2070,7 @@ mod tests {
         let id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(id, 0, 1);
-        game.insert_battlefield_entry(id, entry);
+        game.insert_battlefield_entity(id, entry);
 
         (game, id)
     }
@@ -2206,7 +2206,7 @@ mod tests {
         let target_id = obj.id;
         game.add_object(obj);
         let entry = PermanentState::new(target_id, 0, 1);
-        game.insert_battlefield_entry(target_id, entry);
+        game.insert_battlefield_entity(target_id, entry);
 
         // Create a source for the destroy effect
         let bolt_data = CardDataBuilder::new("Doom Blade")

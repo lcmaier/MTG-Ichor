@@ -2875,29 +2875,61 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     it gets decided wrong once. Maintaining the order makes the blunt rule
     free instead of making it negotiable.
 
+    **"So determinism is what costs 5% — is it worth keeping?"** Asked at the
+    LK review, and the answer is that determinism is not what costs anything.
+    **The requirement is that an order exists and is the same in every run;
+    what this entry measures is the cost of *deriving* it fresh 5,700 times a
+    game.** Those are separable, and separating them is the whole of this item:
+    a kept vector is exactly as deterministic as a sort and costs a slice.
+    Compare the alternatives, which is where the requirement earns its place —
+    dropping it means a `HashMap` iteration order that reseeds per **process**,
+    so `fuzz_games --seed N` stops reproducing, a fork-and-search harness
+    cannot compare two lines of play, and a bug found in one run cannot be
+    replayed. That is not a performance trade; it is the difference between an
+    engine you can debug and one you cannot. The 5% buys all of it, and this
+    item is how to stop paying even that.
+
+    **The "sort before accessing" paradigm is also not the only shape
+    available**, and is the one this item replaces. Three were considered and
+    the notes are here so they are not re-considered from scratch: *sort less*
+    (audit which sites observe order — refused above); *sort cheaper* (the sort
+    is not the cost, two heap allocations are, measured); *do not sort* (keep
+    the order, which is this item). A fourth — a deterministic hasher, so the
+    `HashMap` iterates reproducibly — is the one that sounds cheapest and is
+    the worst: it makes the *order* an artifact of hashing, so inserting an
+    unrelated permanent silently re-orders every decision list, and nothing
+    about it corresponds to CR 613.7. Reproducible is not the same as correct.
+
     **Reachability (2026-09-07):** reachable — not wrong; a measured
     performance cost, and the numbers above are the measurement rather than an
     estimate.
 
-    **LK raised the stake, and declined the fold (2026-09-14).** This item
-    ends "fold it into whatever next touches `place_on_battlefield`", and LK
-    is that phase. It did not, and the measurement is why it is worth
-    recording either way: LK moved CR 613.7's timestamp onto `GameObject`
-    (613.7d, so a card in a graveyard has one) and that put it one `HashMap`
-    hop from these two sweeps — **+16.5% of total game time on an arm whose
-    counters are byte-identical**, which is this item's ~5% re-measured from
-    the other side and is the sharpest number it has. LK paid it back with a
-    **copy** on `PermanentState`, written by two doors that cannot disagree
-    (`set_object_timestamp`, `insert_battlefield_entry`); post-fix the arm
-    reads −2.5%.
+    **LK raised the stake, and declined the fold (2026-09-14). Nothing is
+    owed — read this as a bigger *prize*, not a deferred bill.** Asked at the
+    LK review and worth stating plainly, because the entry can be read the
+    other way: LK did **not** defer a cost. It hit one, paid it back inside the
+    same PR, and ended level with `main`.
 
-    **So this item now deletes a field as well as an allocation.** A maintained
-    order vector needs no timestamp on the entry at all, which is the tidier
-    end state and the reason the copy is documented as temporary rather than
-    as a design. LK declined the fold because this item sizes itself as
-    medium-risk, a missed maintenance point silently corrupts every ordered
-    sweep in the game, and LK is a rules change — not because the fold is
-    wrong.
+    What happened: LK moved CR 613.7's timestamp onto `GameObject` (613.7d, so
+    a card in a graveyard has one) and that put it one `HashMap` hop from these
+    two sweeps — **+16.5% of total game time on an arm whose counters are
+    byte-identical**, which is this item's ~5% re-measured from the other side
+    and is the sharpest number it has. LK then kept a **copy** on
+    `PermanentState`, written by two doors that cannot disagree
+    (`set_object_timestamp`, `insert_battlefield_entity`), and the same arm
+    reads **−2.5%**. The +16.5% is gone; it never reached `main`.
+
+    **What is still on the table is this item's original ~5%, unchanged** — a
+    *win* nobody is obliged to collect. What LK added is a second reason to
+    collect it: a maintained order vector needs no timestamp on the entry at
+    all, so taking this item deletes the copy as well as the two allocations.
+    That is why the copy is documented as temporary rather than as a design.
+
+    **Why LK declined the fold**, given that the fold was in reach: this item
+    sizes itself as medium-risk, a missed maintenance point silently corrupts
+    every ordered sweep in the game — which is every decision list, log and
+    count — and LK was a rules change whose reviewer would have had to check
+    two unrelated arguments at once. Not because the fold is wrong.
 
     **Sized:** one field, three maintenance points, one debug audit, and a
     mechanical return-type change across 52 call sites (most become a borrow,
@@ -5537,7 +5569,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
     never sees them — a card in a graveyard still reports its printed
     flying.** `seed_frame` seeds `keyword_flags` off the card in every zone,
     and `engine::zone_function` takes an `AbilityDef`; a `KeywordFlag` is not
-    one (`CLAUDE.md`'s keyword quadrant map, and the type's own doc). So the
+    one (`plans/glossary.md`, “quadrant”, and `types::keywords`' own doc). So the
     default arm of CR 113.6 — "abilities of all other objects usually function
     only while that object is on the battlefield" — applies to every static
     ability on a card and to none of its keywords.
@@ -5593,12 +5625,21 @@ What the *shape* says, as opposed to what one endpoint suggested:
     (`register_copied_static_effects`) — and those are exactly the rows
     CR 611.3b wants removed.
 
+    **Does this reorder the route? No** — asked at the LK review, and the
+    answer is that RE-9 and RE-10 cannot produce the shape. RE-9 is mana and
+    RE-10 the turn cursor; neither registers a continuous effect at all, let
+    alone one sourced at a permanent. The first phase that can is critical-path
+    **item 6**, because a triggered ability's source *is* the permanent rather
+    than the ephemeral stack object an activated ability resolves through — so
+    "whenever this creature deals damage, target creature gets +2/+2 until end
+    of turn" is a row this branch would delete if the creature died first, and
+    CR 611.2a says it should not. Item 6 is several phases out and this is ~10
+    lines, so it can also just be taken between phases; what it must not do is
+    land *after* item 6 builds tests against the wrong answer.
+
     **Sized:** swap the call for `remove_static_by_source`, which already
     exists, and decide what CR 611.3b means for a *granted* static ability
-    whose grantee leaves — ~10 lines and one question. It lands with the first
-    resolution-origin row sourced at a permanent, which is a shape critical-path
-    item 6 can produce (a triggered ability's source is the permanent, not an
-    ephemeral object).
+    whose grantee leaves — ~10 lines and one question.
 
 ### Found by the LJ review (2026-09-14)
 

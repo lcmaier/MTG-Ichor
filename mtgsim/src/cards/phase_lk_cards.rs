@@ -76,8 +76,9 @@ fn creatures_you_control() -> ObjectFilter {
 /// # Its printed flying is a `KeywordFlag`, not an ability
 ///
 /// So CR 113.6's default arm never sees it: quadrant ① keywords are
-/// characteristics on the frame (`CLAUDE.md`'s keyword map), seeded from the
-/// card in every zone. A Wonder in a graveyard therefore still *reports*
+/// characteristics on the frame, seeded from the card in every zone. The
+/// four-quadrant map is `plans/glossary.md`, "quadrant", with the per-keyword
+/// detail in `types::keywords`. A Wonder in a graveyard therefore still *reports*
 /// flying if something asks, which CR 113.6 says it should not — recorded as
 /// `codebase-state.md`'s LK finding rather than fixed here, because nothing
 /// reads a non-battlefield object's keyword flags for a rules decision and the
@@ -122,12 +123,32 @@ pub fn wonder() -> Arc<CardData> {
 /// `ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`, the complement LJ already spelled as
 /// a constant for Grist and Mycosynth Lattice.
 ///
-/// Not a printed card, and the honest reason is that the printed 113.6c
-/// population is thin and every member of it wants something else as well —
-/// Grist, the Hunger Tide's clause is a CDA over card *types*, which is
-/// `layers::cda`'s path and not the registry's. A fixture is what
-/// `registry.rs`'s convention asks for when the rule is real and the card is
-/// not reachable yet.
+/// # This text is a shape no real card has, and the reason is information
+///
+/// Raised at the LK review, and it is a sharper observation than "the printed
+/// population is thin". Every printed card in this family affects **only
+/// itself** — Grist, the Hunger Tide is "as long as Grist isn't on the
+/// battlefield, **it's** a 1/1 Insect creature" (Scryfall, verified
+/// 2026-09-14) — and that is not a coincidence about design taste. A card in
+/// a **hidden** zone is `ZoneSet::EVERYWHERE_BUT_BATTLEFIELD`'s problem: an
+/// anthem functioning from a library or a hand would change the board while
+/// nobody at the table could see why, and there is no good way to tell them.
+/// Self-affecting clauses have no such problem, because the object whose
+/// characteristics changed is the object nobody can see either.
+///
+/// **So the fixture deliberately overstates what a card may say**, and keeps
+/// doing it: what it is testing is that the *predicate* reads a complement off
+/// the same field as a plain zone, and an anthem is what makes that observable
+/// from outside the card (`get_effective_power` on another permanent) rather
+/// than by querying the fixture's own frame. A self-scoped version would test
+/// the CDA path instead, which is `layers::cda`'s and not this predicate's.
+///
+/// The constraint the card list implies is real and already has an owner:
+/// §13c decision 4 filed "a zone-reaching row over a hidden zone must not make
+/// that zone's order or contents observable" against `backlog.md` §2.9, the
+/// information model. This fixture is a source in a *graveyard*, which CR 400.2
+/// makes public, so it does not reach that constraint — but a card genuinely
+/// printing this text would, and §2.9 is where it gets answered.
 pub fn exiled_ancestor() -> Arc<CardData> {
     CardDataBuilder::new("Exiled Ancestor")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))

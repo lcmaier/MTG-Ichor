@@ -915,7 +915,7 @@ impl GameState {
     ///
     /// Callers are `place_on_battlefield` and the test helpers that build a
     /// board without ETB hooks.
-    pub(crate) fn insert_battlefield_entry(&mut self, id: ObjectId, mut entry: PermanentState) {
+    pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, mut entry: PermanentState) {
         entry.timestamp = self.object_timestamp(id);
         // Spelled through a local so the sweep that routed every other
         // `battlefield.insert` here did not route this one into itself.
@@ -1026,7 +1026,7 @@ impl GameState {
         let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
-        self.insert_battlefield_entry(id, entry);
+        self.insert_battlefield_entity(id, entry);
         self.bump_layer_epoch();
 
         // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these

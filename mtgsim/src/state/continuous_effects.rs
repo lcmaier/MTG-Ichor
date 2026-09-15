@@ -302,10 +302,12 @@ impl ContinuousEffectRegistry {
     /// change would delete every pump spell's effect as the spell hit the
     /// graveyard.
     ///
-    /// Hygiene rather than correctness. CR 604.2's existence check re-asks at
+    /// **Hygiene, in the sense that the answer is the same either way** — not
+    /// a trade against correctness. CR 604.2's existence check re-asks at
     /// every layer whether the ability is still there and still functions
-    /// here, so a row left behind is inert; what this buys is that a card
-    /// bouncing between two zones does not accumulate rows.
+    /// where its source now is, so a row this failed to remove would apply to
+    /// nothing. What the call buys is that a card bouncing between two zones
+    /// does not accumulate dead rows.
     pub fn remove_static_by_source(&mut self, source: ObjectId) -> Vec<ContinuousEffect> {
         self.mutating(|rows| {
             rows.retain(|row| {

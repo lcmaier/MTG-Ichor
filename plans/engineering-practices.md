@@ -130,6 +130,47 @@ lines and every section costs another; the rule it already has is the right
 one, and a second rule that duplicates it in the negative would buy nothing
 that this sweep does not.
 
+## 2a. When a one-line wrapper earns its place
+
+Added 2026-09-14, at the LK review, because the question recurs: *is this
+one-line wrapper justified?* It kept being answered per-site, and the answer
+kept being "it reads better", which is not an answer — a name that only
+re-spells an expression is a second name for one thing, and the reader now has
+to learn both.
+
+**"It reads better at N call sites" is not a reason when N is small, and stops
+being a reason at all when N is 1.** Three things are:
+
+1. **It names a question the expression only answers implicitly**, *and* that
+   name is already used in prose elsewhere. The test is whether the docs
+   already say "does X function in zone Z" — if the phrase is in the
+   architecture doc, the function should have it too. A name nobody writes in
+   prose fails this.
+2. **It pins a comparison or a borrow the callers would otherwise get wrong.**
+   The strongest form: the hand-written version compiles and is subtly wrong.
+   `zone_function::functions_in` is the worked example — it wraps
+   `functioning_zones(a, t).contains(z)`, and the shape a caller reaches for
+   instead is `functioning_zones(a, t) == ZoneSet::of(z)`, which is right for
+   every one-zone statement and silently false for Squee, the Immortal's "from
+   your graveyard **or** from exile". One caller, and the wrapper is still
+   worth it.
+3. **It is the narrow half of a pair whose wide half must stay reachable.**
+   The wide one is what tests assert against and what a future caller needs;
+   the narrow one is what callers should reach for. Both public, and the
+   narrow one's doc says which is which.
+
+**What to do when none of the three applies:** inline it. And when one does,
+**write the reason in the doc comment** — the reason is the whole justification,
+so a wrapper whose doc says only what the body says has not been justified. The
+review finding this section came from was a doc comment claiming "every caller
+but registration asks this shape" about a function with exactly one caller; the
+claim was checkable and wrong, and the real reason (2, above) was better.
+
+Related and different: a wrapper that exists to be *the one door* through which
+a mutation happens is not this section's subject. `GameState::
+insert_battlefield_entity` and `set_object_timestamp` are chokepoints, and a
+chokepoint is justified by what it makes impossible, not by what it reads like.
+
 ## 3. Two card pools
 
 `cards/registry.rs` builds two:

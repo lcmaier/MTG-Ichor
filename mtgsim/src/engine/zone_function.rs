@@ -100,7 +100,26 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
     default_zones(types)
 }
 
-/// CR 113.6 as every caller but registration asks it.
+/// CR 113.6 as a caller asks it: does `ability` function *here*?
+///
+/// **A one-line wrapper with one caller, and the justification is not that it
+/// reads better** — an earlier draft of this comment claimed "every caller but
+/// registration asks this shape" and there is only the one caller
+/// (`register_static_effects`). It is here because the obvious hand-written
+/// form is wrong in a way that compiles:
+///
+/// ```ignore
+/// functioning_zones(a, t) == ZoneSet::of(Zone::Graveyard)   // WRONG
+/// functioning_zones(a, t).contains(Zone::Graveyard)         // right
+/// ```
+///
+/// **A statement names a `ZoneSet`, not a zone**, and Squee, the Immortal is
+/// the printed card that makes the difference bite: "You may cast this card
+/// from your graveyard or from exile" (Scryfall, verified 2026-09-14) is one
+/// statement over two zones, so `==` answers `false` for both of them. Wonder
+/// names one zone today, which is exactly when the bug would be introduced and
+/// not noticed. `engineering-practices.md` §2a is the general rule this is an
+/// instance of.
 pub fn functions_in(ability: &AbilityDef, types: &HashSet<CardType>, zone: Zone) -> bool {
     functioning_zones(ability, types).contains(zone)
 }
@@ -136,13 +155,41 @@ fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
 /// conclusion *beside* the clause that states it and the two could disagree
 /// (§13d decision 1b, which is where the field was rejected).
 ///
+/// # What this does *not* see: a zone the CR states and the card does not
+///
+/// CR 113.6b is about the **card's** text, and two other things place an
+/// ability without the card saying so:
+///
+/// - **A keyword's own rule.** Flashback functions in a graveyard because
+///   CR 702.34a says so, not because the card prints "from your graveyard".
+///   Madness is the same in hand. When those land, the statement is a property
+///   of the *keyword* and belongs in an arm above this one, keyed on the
+///   keyword rather than on the condition — not in `stated_zones`, which
+///   would have nothing to read. (Both are §13d decision 4's deferrals for a
+///   different reason: `backlog.md` §2.3 blocks casting from a non-hand zone
+///   at all.)
+/// - **CR 113.6m's inference**, which reads an ability's *cost or effect* —
+///   "exile this card from your graveyard" functions only in a graveyard — and
+///   is a fourth thing again. Also deferred, with Reassembling Skeleton.
+///
+/// So this function answers 113.6b and 113.6c and nothing else, and the arms
+/// above it answer the subrules that key on something other than text.
+///
 /// # The invariant that keeps this bounded
 ///
 /// **A `SourceInZone` leaf is a zone statement only at the top of the
 /// condition, or as a direct member of a top-level `All`. Anywhere else it is
-/// an ordinary predicate.** That is what makes the read syntactic — §13c
-/// decision 3's requirement for any reach — and it is sound today because
-/// `Condition` has no `Not`: there is no complement to recover by abstract
+/// an ordinary predicate.** Concretely: `Conditional(SourceInZone(GY), body)`
+/// and `Conditional(All([SourceInZone(GY), ControlPermanent(Island)]), body)`
+/// both state the graveyard; `Conditional(All([All([SourceInZone(GY)])]), body)`
+/// states nothing, and neither would a clause under a future `Or` or `Not`.
+/// **A card cannot reach the nested form by accident** — there is no card text
+/// that wraps a conjunction in a conjunction — so the rule costs nothing to
+/// honour and buys the bound.
+///
+/// That bound is what makes the read syntactic, which is §13c decision 3's
+/// requirement for any reach: one level, no search. It is sound today because
+/// `Condition` has no `Not` — there is no complement to recover by abstract
 /// interpretation, so nothing has to widen to "all zones" to stay sound.
 ///
 /// The match below is exhaustive with no wildcard, so the day `Not` or `Or`
@@ -152,10 +199,17 @@ fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
 fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
     match condition {
         Condition::SourceInZone(zones) => Some(*zones),
-        // One clause of a conjunction, and at most one: two zone statements on
-        // one ability is a card nobody has printed and a rule the CR does not
-        // give, so it is caught here rather than silently resolved by taking
-        // the first.
+        // One clause of a conjunction, and at most one.
+        //
+        // **This is not a limit of one zone — it is a limit of one
+        // *statement*.** Squee, the Immortal ("You may cast this card from
+        // your graveyard or from exile", Scryfall 2026-09-14) names two zones
+        // and is written `SourceInZone(GRAVEYARD | EXILE)`, one clause, which
+        // this returns whole. What the assert catches is two *separate*
+        // clauses in a conjunction, which reads "in the graveyard **and** in
+        // exile" and is unsatisfiable — an authoring slip where the card
+        // wanted the union. Caught rather than silently resolved by taking the
+        // first, because taking the first would make Squee half-work.
         Condition::All(clauses) => {
             let mut found: Option<ZoneSet> = None;
             for clause in clauses {
@@ -299,6 +353,25 @@ mod tests {
         );
     }
 
+    /// **One statement, two zones** — the case that makes [`functions_in`] a
+    /// wrapper rather than a re-spelling. Squee, the Immortal's shape.
+    #[test]
+    fn a_statement_may_name_more_than_one_zone() {
+        let squee_shaped = ability(Effect::Conditional(
+            Condition::SourceInZone(ZoneSet::GRAVEYARD | ZoneSet::EXILE),
+            Box::new(anthem()),
+        ));
+        let creature = types_of(&[CardType::Creature]);
+        assert!(functions_in(&squee_shaped, &creature, Zone::Graveyard));
+        assert!(functions_in(&squee_shaped, &creature, Zone::Exile));
+        assert!(!functions_in(&squee_shaped, &creature, Zone::Battlefield));
+        // And the shape a caller reaches for instead, which is why the
+        // wrapper exists: `==` is right for a one-zone statement and wrong
+        // for this one, in both directions.
+        assert_ne!(functioning_zones(&squee_shaped, &creature), ZoneSet::GRAVEYARD);
+        assert_ne!(functioning_zones(&squee_shaped, &creature), ZoneSet::EXILE);
+    }
+
     /// CR 113.6c — "an ability that states which zones it doesn't function in
     /// functions everywhere except for the specified zones". The same field,
     /// holding the complement `ZoneSet` already spells.
@@ -354,9 +427,17 @@ mod tests {
         );
     }
 
-    /// A card whose text puts the zone clause anywhere but the top of the
-    /// condition has stated nothing — the invariant `stated_zones` documents,
-    /// asserted rather than left to the comment.
+    /// The read is **one level deep**, and a clause nested below that states
+    /// nothing — the invariant `stated_zones` documents, asserted rather than
+    /// left to the comment.
+    ///
+    /// The board here is `All([All([SourceInZone(GRAVEYARD)])])`, which no
+    /// card text produces: a conjunction inside a conjunction is a thing an
+    /// author writes by accident or a future transformation produces, never a
+    /// thing a card says. The point of pinning it is the *other* direction —
+    /// the day `Condition` grows `Not` or `Or`, the rule for where a zone
+    /// clause counts is already written down and tested, rather than being
+    /// re-derived by whoever adds the combinator.
     #[test]
     fn a_zone_clause_below_the_top_level_states_nothing() {
         let nested = ability(Effect::Conditional(

@@ -617,6 +617,17 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // A conjunction reads whatever its clauses read. No wildcard inside,
         // for this function's own stated reason: a clause that reads a frame
         // and declares nothing produces a wrong *order*, not a wrong value.
+        //
+        // **`All` alone is not a restriction on what cards can say**, which is
+        // the question this arm invites. Most printed "or" sits *inside* a
+        // clause rather than between two: Abzan Kin-Guard is "has lifelink as
+        // long as you control a white **or** black permanent" (Scryfall,
+        // verified 2026-09-14), which is one `ControlPermanent` over an
+        // `ObjectFilter::Or` — that type has had `And`, `Or` and `Not` since
+        // before the layer system. `Condition::Or` is for a disjunction of two
+        // whole *conditions*, and §15.1's rule stands: it lands with the first
+        // registered card that needs one, together with its arm here and in
+        // `zone_function::stated_zones`.
         Condition::All(clauses) => {
             for clause in clauses {
                 condition_reads(clause, out, you_channel);

@@ -666,7 +666,7 @@ mod tests {
         );
         let gone_id = gone.id;
         game.add_object(gone);
-        game.insert_battlefield_entry(
+        game.insert_battlefield_entity(
             gone_id,
             crate::state::battlefield::PermanentState::new(gone_id, 1, 1),
         );
@@ -712,7 +712,7 @@ mod tests {
         let creature = GameObject::new(creature_data, 1, Zone::Battlefield);
         let creature_id = creature.id;
         game.add_object(creature);
-        game.insert_battlefield_entry(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, 1));
+        game.insert_battlefield_entity(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, 1));
 
         // Put Bolt on stack targeting the creature
         let bolt_id = put_spell_on_stack(
