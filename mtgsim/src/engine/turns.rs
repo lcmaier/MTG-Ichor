@@ -1,6 +1,6 @@
 use crate::engine::actions::{ActionContext, DrawCause, GameAction};
 use crate::state::game_state::{
-    initial_step, next_phase, next_step, GameState, PhaseType, StepType,
+    initial_step, next_step, GameState, PhaseType, StepType, TurnPlan,
 };
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaEmptyReason, BlanketPersistenceSet};
@@ -36,7 +36,13 @@ impl GameState {
         if let Some(step) = self.phase.step {
             self.on_step_end(step)?;
         }
-        self.drain(Some(self.phase.phase_type), self.phase.step, true, true, ctx)
+        debug_assert_eq!(
+            self.turn_plan.cursor.and_then(|i| self.turn_plan.phase_at(i)),
+            Some(self.phase.phase_type),
+            "the plan's cursor and the position disagree: a fixture wrote \
+             `phase` without `GameState::set_position`"
+        );
+        self.drain(self.phase.step, true, true, ctx)
     }
 
     /// Begin the game's first turn, its beginning phase and its untap step —
@@ -72,33 +78,42 @@ impl GameState {
             );
         }
         self.on_turn_begin(ctx)?;
-        self.drain(None, None, false, true, ctx)?;
+        self.drain(None, false, true, ctx)?;
         Ok(())
     }
 
     /// The drainer's loop: propose units in CR 500.1's order until one begins.
     ///
     /// The cursor is *the last unit considered*, which is not the same as the
-    /// last unit that happened — that is the whole of CR 500.11. `phase` is
-    /// `None` only for the moment after a turn begins and before its beginning
-    /// phase is proposed; `phase_began` is false for a phase that was skipped,
-    /// and it is what stops the drainer from ending a phase that never started
-    /// or from proposing a skipped phase's steps.
+    /// last unit that happened — that is the whole of CR 500.11. It lives on
+    /// `turn_plan` rather than in this signature because `advance_turn` returns
+    /// between every two units and an index has to survive that return;
+    /// `None` is the moment after a turn begins and before its beginning phase
+    /// is proposed. `phase_began` is false for a phase that was skipped, and it
+    /// is what stops the drainer from ending a phase that never started or from
+    /// proposing a skipped phase's steps.
     ///
     /// Unbounded, as the rules are: CR 614.10 puts no cap on how many
     /// consecutive turns may be skipped, and the one board that cannot make
     /// progress — every player having left the game — is the one
     /// [`Self::next_turn_taker`] reports as `None`.
+    ///
+    /// **The plan does not grow under this loop.** CR 500.8's splice happens in
+    /// a resolution and nothing resolves here, so `turn_plan.phases` is fixed
+    /// for the length of a drain — which is what keeps the termination argument
+    /// the same one RE-1 made, now over a finite `Vec` rather than a finite
+    /// chain.
     fn drain(
         &mut self,
-        mut phase: Option<PhaseType>,
         mut step: Option<StepType>,
         mut phase_began: bool,
         mut turn_began: bool,
         ctx: &ActionContext,
     ) -> Result<(PhaseType, Option<StepType>), String> {
         loop {
-            let turn_unit = next_turn_unit(phase, step, phase_began);
+            let cursor = self.turn_plan.cursor;
+            let phase = cursor.and_then(|i| self.turn_plan.phase_at(i));
+            let turn_unit = next_turn_unit(&self.turn_plan, cursor, step, phase_began);
 
             // CR 500.5 — a phase ends when nothing is left in it, and only a
             // phase that began ends. This is where the mana pools empty and
@@ -123,8 +138,16 @@ impl GameState {
                     step = Some(next);
                 }
 
-                TurnUnit::Phase(next) => {
-                    phase = Some(next);
+                TurnUnit::Phase(index) => {
+                    let next = self
+                        .turn_plan
+                        .phase_at(index)
+                        .expect("next_turn_unit only names an index in the plan");
+                    // The cursor moves whether or not the phase begins: a
+                    // skipped one is proceeded past "as though it didn't exist"
+                    // (CR 500.11) and the next iteration must read the entry
+                    // after it, not the entry again.
+                    self.turn_plan.cursor = Some(index);
                     step = None;
                     phase_began = self.begin_phase(next, ctx)?;
                     // A main phase *is* the position; a phase with steps is
@@ -156,9 +179,11 @@ impl GameState {
                         // next iteration proposes the turn after it.
                         continue;
                     }
+                    // Rebuilds the plan and clears its cursor — so a turn that
+                    // was skipped above built none, which is CR 614.10a's
+                    // "anything scheduled for a skipped turn won't happen".
                     self.on_turn_begin(ctx)?;
                     turn_began = true;
-                    phase = None;
                 }
             }
         }
@@ -256,6 +281,11 @@ impl GameState {
     fn on_turn_begin(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let player = self.active_player;
         let turn = self.turn_number;
+        // CR 500.1's five phases again, and CR 500.8's splices gone with the
+        // turn that made them: "after this main phase" names a phase of *this*
+        // turn. Only a turn that began reaches here, so a skipped turn keeps
+        // the plan it never got — which no cursor of it ever reads.
+        self.turn_plan = crate::state::game_state::TurnPlan::natural();
         self.expire_until_your_next_turn(player, turn);
         // CR 800.4c again, beside the other expiry — see the cleanup step.
         self.exile_objects_no_player_in_game_controls(ctx)
@@ -489,34 +519,42 @@ impl GameState {
 enum TurnUnit {
     /// Another step inside the phase that is happening.
     Step(StepType),
-    /// The phase after the cursor's — CR 500.1's order, wrapping to the next
-    /// turn's beginning phase.
-    Phase(PhaseType),
-    /// The turn boundary: the ending phase is behind the cursor.
+    /// The **index into this turn's plan** of the phase after the cursor's.
+    ///
+    /// An index and not a `PhaseType` since RE-10: CR 500.8 lets one turn hold
+    /// two combat phases, and a turn unit naming a type cannot say which of
+    /// them it means.
+    Phase(usize),
+    /// The turn boundary: the plan's last phase is behind the cursor.
     Turn,
 }
 
-/// CR 500.1's sequence, read off the drainer's cursor.
+/// CR 500.1's sequence, read off the turn's plan and the drainer's cursor.
 ///
-/// `phase` is `None` for the instant after a turn begins, when no phase of it
+/// `cursor` is `None` for the instant after a turn begins, when no phase of it
 /// has been proposed yet. `phase_began` false is CR 500.11's "as though it
 /// didn't exist": a skipped phase offers no steps, so the sequence goes
 /// straight to the phase after it.
 ///
-/// A free function rather than a method because it reads nothing but the
-/// cursor — which is what makes the drainer's termination argument checkable:
-/// the cursor advances through a fixed, finite sequence on every iteration
-/// except the one where a turn is skipped, and that one consumes a schedule
-/// entry or the rotation.
+/// A free function rather than a method because it reads nothing but the plan
+/// and the cursor — which is what makes the drainer's termination argument
+/// checkable, and RE-10 strengthened it rather than spending it: the cursor
+/// advances through a `Vec` that is finite and, for the length of a drain,
+/// fixed. The one iteration that does not advance it is the one where a turn is
+/// skipped, and that one consumes a schedule entry or the rotation.
 fn next_turn_unit(
-    phase: Option<PhaseType>,
+    plan: &TurnPlan,
+    cursor: Option<usize>,
     step: Option<StepType>,
     phase_began: bool,
 ) -> TurnUnit {
-    let Some(current) = phase else {
-        return TurnUnit::Phase(PhaseType::Beginning);
+    let Some(index) = cursor else {
+        return TurnUnit::Phase(0);
     };
     if phase_began {
+        let current = plan
+            .phase_at(index)
+            .expect("phase_began implies the cursor is in the plan");
         let next = match step {
             Some(last) => next_step(current, last),
             None => initial_step(current),
@@ -525,10 +563,13 @@ fn next_turn_unit(
             return TurnUnit::Step(next);
         }
     }
-    if current == PhaseType::Ending {
+    // Past the last entry is the turn boundary. This is one rule in one place:
+    // before RE-10 the ending phase was named here *and* wrapped to the
+    // beginning phase in `next_phase`, whose wrap arm this check made dead.
+    if index + 1 >= plan.phases.len() {
         return TurnUnit::Turn;
     }
-    TurnUnit::Phase(next_phase(current))
+    TurnUnit::Phase(index + 1)
 }
 
 #[cfg(test)]

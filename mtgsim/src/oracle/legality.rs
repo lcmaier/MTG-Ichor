@@ -334,7 +334,7 @@ mod tests {
     #[test]
     fn test_playable_lands_main_phase() {
         let mut game = GameState::new(2, 20);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let forest = CardDataBuilder::new("Forest")
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn test_playable_lands_wrong_phase() {
         let mut game = GameState::new(2, 20);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Combat);
+        game.set_position(crate::state::game_state::Phase::new(PhaseType::Combat));
         game.active_player = 0;
 
         let forest = CardDataBuilder::new("Forest")
@@ -370,7 +370,7 @@ mod tests {
     #[test]
     fn test_playable_lands_already_played() {
         let mut game = GameState::new(2, 20);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
         game.players[0].lands_played_this_turn = 1;
 

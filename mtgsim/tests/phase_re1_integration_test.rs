@@ -147,7 +147,7 @@ fn at_the_turn_boundary(num_players: usize) -> GameState {
     for pid in 0..num_players {
         fill_library(&mut game, pid, 60);
     }
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     game
 }
 
@@ -331,7 +331,7 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) };
+    game.set_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
     let before = game.events.len();
     let hand_before = game.players[0].hand.len();
@@ -364,7 +364,7 @@ fn eon_hub_takes_the_turn_from_the_untap_step_to_the_draw_step() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, eon_hub(), 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) };
+    game.set_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) });
 
     let before = game.events.len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
@@ -483,7 +483,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
 fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) };
+    game.set_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
 
     // Moment of Silence's second ruling: "It must be used before the combat
     // phase starts or it has no effect."
@@ -519,7 +519,7 @@ fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
 fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    game.set_position(Phase { phase_type: PhaseType::Precombat, step: None });
 
     // Player 0 is the active player; the row is around player 1.
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(1)]);
@@ -557,7 +557,7 @@ fn a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase() {
     fill_library(&mut game, 0, 20);
 
     // The first combat phase, already under way.
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) };
+    game.set_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
 
     // It finishes: CR 614.10's last sentence, and the row is unspent.
@@ -572,7 +572,7 @@ fn a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase() {
     assert_eq!(game.replacement_effects.len(), 1, "and the row is unspent");
 
     // A second combat phase, as CR 500.8 would insert one.
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    game.set_position(Phase { phase_type: PhaseType::Precombat, step: None });
     let before = game.events.len();
     let (phase, step) = game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
 
@@ -598,7 +598,7 @@ fn a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase() {
 fn a_skipped_phase_proposes_none_of_its_steps() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    game.set_position(Phase { phase_type: PhaseType::Precombat, step: None });
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
 
     let before = game.events.len();
@@ -664,7 +664,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, trigger, 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) };
+    game.set_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
     let before = game.events.len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
@@ -832,7 +832,7 @@ fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
 fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) };
+    game.set_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     assert!(!game.attacks_declared);
 
     let before = game.events.len();
