@@ -18,8 +18,9 @@ residual always needs a human read -- that is the point of printing it.
 
 A `sizing` subcommand lived here until 2026-08-24 and was **deleted rather than
 fixed**: it answered a one-time bird's-eye question (how large does `GameAction`
-get), its numbers are now recorded in §8b, and two of its readings were known to
-be wrong (Regenerate=0 because it replaces *destruction*; EnterBattlefield=7211
+get), its numbers are now recorded in §8b -- whose body moved to
+`plans/archive/replacement-architecture-landed.md` on 2026-09-15 -- and two of
+its readings were known to be wrong (Regenerate=0 because it replaces *destruction*; EnterBattlefield=7211
 because that is every ETB creature ever printed). A tool that prints answers
 known to be wrong is worse than no tool -- if that question needs re-asking,
 write a better instrument for it.
