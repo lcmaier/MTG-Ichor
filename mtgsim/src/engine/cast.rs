@@ -94,7 +94,6 @@ impl GameState {
             None
         };
 
-        // Validate alt cost index is in range
         if let Some(idx) = chosen_alt_cost_idx
             && idx >= card_data.alternative_costs.len() {
             self.rollback_cast_to_hand(card_id)?;
@@ -126,7 +125,6 @@ impl GameState {
             Vec::new()
         };
 
-        // Validate additional cost indices are in range
         for &idx in &chosen_offered_indices {
             if idx >= offered_positions.len() {
                 self.rollback_cast_to_hand(card_id)?;
@@ -167,9 +165,8 @@ impl GameState {
             Vec::new()
         };
 
-        // --- 601.2d: Distribution placeholder (T18c) ---
+        // --- 601.2d: division among targets is not asked — `backlog.md` §2.20 ---
 
-        // --- Create StackEntry with all proposal data ---
         let chosen_alt = chosen_alt_cost_idx.map(|idx| card_data.alternative_costs[idx].clone());
         // Printed order, mandatory costs included whether or not anything was
         // offered — `additional_costs_paid` is what was paid, not what was
@@ -200,14 +197,12 @@ impl GameState {
         };
         self.set_stack_entry(entry);
 
-        // --- 601.2e: Post-proposal legality check ---
-        // At this point the only mutations are: card moved to stack + StackEntry created.
-        // No costs paid yet. If the proposal is illegal, rollback via move_object(Hand)
-        // which also cleans up the StackEntry.
-        //
-        // Currently a no-op (the pre-proposal check is sufficient for the cards we
-        // support). Future: validate that chosen targets are still legal after all
-        // proposal choices are made, and that the assembled cost is payable.
+        // --- 601.2e: post-proposal legality ---
+        // Vacuous today: every choice above is drawn from an enumerated legal list,
+        // so nothing chosen can make the proposal illegal. It stops being vacuous
+        // when a later choice can invalidate an earlier one — modes (`backlog.md`
+        // §2.7), several target clauses (§2.20) — and the rewind it needs is the
+        // one 601.2h already uses.
 
         // --- 601.2f: Assemble total cost ---
         let additional_refs: Vec<_> = chosen_additional.iter().collect();
@@ -239,7 +234,6 @@ impl GameState {
         self.run_mana_ability_window(player_id, card_id, &total_costs, decisions);
 
         // --- 601.2h: Pay total cost ---
-        // Pre-check: can we pay? If not, roll back.
         if let Err(e) = self.can_pay_costs(&total_costs, player_id, card_id) {
             // CR 601.2 rewind, not a zone change — see rollback_cast_to_hand.
             self.rollback_cast_to_hand(card_id)?;
@@ -304,8 +298,8 @@ impl GameState {
         ability_index: usize,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // Verify the source is on the battlefield and controlled by this player
-        // (see doc comment for future zone-aware activation plan)
+        // On the battlefield, and this player's: activating from another zone is
+        // `backlog.md` §2.8's.
         if !self.battlefield.contains_key(&source_id) {
             return Err(format!("Permanent {} not on battlefield", source_id));
         }
@@ -362,10 +356,8 @@ impl GameState {
         self.stack.push(ability_obj_id);
 
         // From here on, any Err path must call `rollback_ability_activation`
-        // to keep game state clean (required by the priority-retry loop in
-        // `run_priority_round` — see D26 / SPECIAL-2).
+        // to keep game state clean: `run_priority_round`'s retry loop relies on it.
 
-        // Choose targets
         let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
             let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id), player_id);
             let (min_sel, max_sel) = match count {
@@ -385,7 +377,6 @@ impl GameState {
             Vec::new()
         };
 
-        // Create StackEntry
         let stack_entry = StackEntry {
             object_id: ability_obj_id,
             controller: player_id,
@@ -621,12 +612,11 @@ impl GameState {
     ) -> Result<(), String> {
         let obj = self.get_object(card_id)?;
 
-        // Card must be in hand (see doc comment for future zone-casting plan)
+        // In hand: casting from another zone is `backlog.md` §2.3's.
         if obj.zone != Zone::Hand {
             return Err(format!("Card is in {:?}, not in hand", obj.zone));
         }
 
-        // Card must belong to (or be controlled by) this player
         if obj.owner != player_id {
             return Err("Cannot cast another player's spell".to_string());
         }

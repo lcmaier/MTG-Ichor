@@ -117,8 +117,8 @@ impl CostSubject {
     /// on the stack, and by the gather's second gate, because "prints a cost
     /// ability" is the wrong question there — Thalia prints one, and a Thalia
     /// *in hand* is not modifying her own cost. Asking the body alone cost
-    /// five non-member layer walks per 200 measured games, which is how it was
-    /// found.
+    /// five non-member layer walks per 200 measured games (CM-1, 2026-09-07),
+    /// which is how it was found.
     ///
     /// # Why this is a method and not `matches!` at the call site
     ///

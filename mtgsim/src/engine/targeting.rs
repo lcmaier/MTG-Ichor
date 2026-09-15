@@ -87,8 +87,9 @@ impl GameState {
                 Ok(())
             }
 
-            // Target and Choose validate identically for now.
-            // T22 will add hexproof/shroud/protection checks for Target only.
+            // Target and Choose validate identically: hexproof, shroud and
+            // protection are not checked for `Target` — `codebase-state.md`,
+            // "Before card breadth" item 7, which is RS-2's.
             EffectRecipient::Target(filter, count)
             | EffectRecipient::Choose(filter, count) => {
                 self.validate_target_count(count, targets.len())?;
@@ -518,8 +519,8 @@ impl GameState {
     /// (or among players) for the given `SelectionFilter`.
     ///
     /// `exclude_id` is typically the Aura itself — it can't enchant itself.
-    /// For player filters, all players are considered (hexproof/shroud will
-    /// be added here when T22 lands).
+    /// For player filters, all players are considered (player hexproof and
+    /// shroud are `backlog.md` §2.15's).
     ///
     /// **The battlefield scans are ordered, and the reason is cost rather than
     /// answer.** `any` over a set is order-independent, so this was correct
@@ -529,7 +530,8 @@ impl GameState {
     /// process. `state/diagnostics.rs` records layer walks as a fixture, so the
     /// count is observable now and the order has to be too. The sort is paid on
     /// a hot path — `mana_helpers` asks this per castable spell per priority
-    /// check — and measured below the noise floor against the walks it bounds.
+    /// check — and measured (2026-09-01) below the noise floor against the walks
+    /// it bounds.
     pub(crate) fn has_any_legal_choice(
         &self,
         filter: &SelectionFilter,
@@ -538,7 +540,8 @@ impl GameState {
     ) -> bool {
         match filter {
             SelectionFilter::Player => {
-                // TODO: filter by hexproof/shroud once T22 lands
+                // Player hexproof and shroud (Leyline of Sanctity's class) are
+                // `backlog.md` §2.15's; until then every player is a legal choice.
                 !self.players.is_empty()
             }
             SelectionFilter::Any => {

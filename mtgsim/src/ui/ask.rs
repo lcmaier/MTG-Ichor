@@ -68,9 +68,9 @@ fn validate_pick_n(
 
 /// Validate pick_number response: value in range.
 ///
-/// TODO(Phase 9): When `GameNumber` replaces `u64` for symbolic/comparative
-/// values, this will need to use `GameNumber::gte`/`GameNumber::lte` instead
-/// of direct integer comparison.
+/// When `GameNumber` replaces `u64` for symbolic values (`backlog.md` §2.28,
+/// the loop-shortcut capture), this becomes `GameNumber::gte`/`lte` rather
+/// than an integer comparison.
 fn validate_pick_number(value: u64, min: u64, max: u64, context_desc: &str) {
     assert!(
         value >= min && value <= max,
@@ -1273,9 +1273,6 @@ mod tests {
             assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]), "seed {seed}");
         }
     }
-
-    // TODO: Add choose_ordering test when the first effect that needs it
-    // (scry, stack ordering, etc.) is implemented.
 
     // --- ask_choose_attackers roundtrip ---
 

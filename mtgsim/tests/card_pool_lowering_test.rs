@@ -63,9 +63,10 @@ fn test_every_registered_card_lowers_for_either_controller() {
 ///
 /// # Why a test rather than a derivation
 ///
-/// `CardDataBuilder::color()` is hand-written on all 52 call sites and is
-/// **redundant with the mana cost on every card in the registry today** — this
-/// test measured zero disagreements the day it was written. The right end state
+/// `CardDataBuilder::color()` is hand-written on every call site (52 when this
+/// was written on 2026-08-31, ~150 by 2026-09-15) and is **redundant with the
+/// mana cost on every card in the registry** — this test measured zero
+/// disagreements the day it was written and on every run since. The right end state
 /// is deriving it in the builder, which is one small PR and is not this one:
 /// CR 202.2e's color indicator is printed data that no mana cost implies
 /// (Dryad Arbor is a green land with no mana cost; Ancestral Vision is blue with

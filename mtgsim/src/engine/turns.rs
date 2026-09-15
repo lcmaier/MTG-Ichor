@@ -311,16 +311,16 @@ impl GameState {
     // --- Phase lifecycle callbacks ---
 
     fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
-        // Mana pools empty at end of each phase (rule 106.4)
-        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        // Mana pools empty at end of each phase (rule 106.4). A pool that does
+        // not empty (Upwelling's class) is a `BlanketPersistenceSet` read off the
+        // registry, and nothing builds one yet — `codebase-state.md`, "Before
+        // Layers" item 4.
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
         }
 
-        // Phase-specific cleanup
         if phase_type == PhaseType::Combat {
-            // Clear combat state from all permanents
             for entry in self.battlefield.values_mut() {
                 entry.clear_combat_state();
             }
@@ -353,7 +353,6 @@ impl GameState {
             | StepType::CombatDamage
             | StepType::EndCombat
             | StepType::End => {
-                // Active player gets priority
                 self.priority_player = self.active_player;
             }
             StepType::Cleanup => {
@@ -397,17 +396,16 @@ impl GameState {
                 // somebody has left.
                 self.exile_objects_no_player_in_game_controls(ctx)?;
 
-                // Normally no priority during cleanup (rule 514.3)
-                // Rule 514.3a: If SBAs would be performed or triggered abilities
-                // are waiting, another cleanup step begins — handled in future phases
+                // No priority during cleanup (CR 514.3). CR 514.3a's repeated step is
+                // `Game::run_turn`'s loop, one level up with 514.1's discard.
             }
         }
         Ok(())
     }
 
     fn on_step_end(&mut self, _step_type: StepType) -> Result<(), String> {
-        // Mana pools empty at end of each step (rule 106.4)
-        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        // Mana pools empty at end of each step (rule 106.4); the persistence
+        // set is the same stub as `on_phase_end`'s ("Before Layers" item 4).
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
@@ -431,7 +429,6 @@ impl GameState {
     fn process_untap_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
-        // Reset land drops for the new turn
         let player = self.get_player_mut(active)?;
         player.reset_lands_played();
 
@@ -466,10 +463,9 @@ impl GameState {
     fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
-        // Rule 103.8a: first player skips the draw step of their first turn.
-        // The skip_first_draw flag is set during Game::new() based on GameConfig.
-        // This is a one-time flag — in-game "skip draw" effects use replacement
-        // effects (Phase 6), not boolean flags.
+        // CR 103.8a — the first player skips their first draw step. A one-time
+        // flag `Game::new` sets from `GameConfig`; every other skip is a CR 614.10
+        // replacement on the proposal below.
         if self.skip_first_draw {
             self.skip_first_draw = false;
         } else {

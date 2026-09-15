@@ -91,7 +91,8 @@ pub(super) struct Board<'l> {
     started: HashMap<EffectGroup, Vec<ObjectId>>,
     /// ...but only when some group has more than one row. For a single-row
     /// group the set is written after its only row and never read, and
-    /// maintaining it was 70% of a static-heavy walk before this gate.
+    /// maintaining it was 70% of a static-heavy walk before this gate (measured
+    /// 2026-09-06).
     track_started: bool,
     pub(super) lookahead: Option<&'l Lookahead>,
     /// Non-member frames at a layer ceiling, for reads that leave the
@@ -1374,7 +1375,7 @@ pub(super) fn compute_board_traced<'l>(
 pub(super) enum Membership {
     /// A battlefield entity, an object a `Fixed` row names, or an object in a
     /// zone some row reaches: a member of every pass. Rows are scanned rather
-    /// than summarised — `Fixed` rows are few, and a miss is already a walk.
+    /// than summarized — `Fixed` rows are few, and a miss is already a walk.
     Member,
     /// In the battlefield zone with no entity: a member of the pass that
     /// asks about it (see [`Board::seed`]).
@@ -1397,7 +1398,7 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     if fixed_named {
         return Membership::Member;
     }
-    // LJ — in a zone some row reaches. Summarised rather than scanned, unlike
+    // LJ — in a zone some row reaches. Summarized rather than scanned, unlike
     // `Fixed` above: this is asked for every card in every hidden zone the
     // oracle ever queries, and the summary answers `EMPTY` in one compare on
     // any board with no zone-reaching row. It must agree with `Board::seed`,

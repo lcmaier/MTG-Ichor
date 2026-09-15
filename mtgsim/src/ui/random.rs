@@ -250,7 +250,7 @@ impl DecisionProvider for RandomDecisionProvider {
             rng.random_range(bounds.0..=bounds.1)
         };
 
-        // SPECIAL-8 stretch: for `DeclareBlockers`, dedup on blocker-id so
+        // For `DeclareBlockers`, dedup on blocker-id so
         // RandomDP converges to a legal set in one shot instead of thrashing
         // the engine's CR 509.1c retry loop. Each blocker can block at most
         // one attacker by default (no Menace-opposite / multi-block keywords
@@ -351,7 +351,6 @@ impl DecisionProvider for RandomDecisionProvider {
         // payment law here — taking them at face value is what a DP is owed.
         let caps: Vec<u64> = per_bucket_maxs.map_or(vec![u64::MAX; n], |m| m.to_vec());
 
-        // Start with minimums
         let mut alloc: Vec<u64> = per_bucket_mins.to_vec();
         let min_sum: u64 = alloc.iter().sum();
         let mut remaining = total.saturating_sub(min_sum);
@@ -359,7 +358,6 @@ impl DecisionProvider for RandomDecisionProvider {
         // Distribute remaining randomly across buckets, respecting caps
         let mut rng = self.rng.borrow_mut();
         while remaining > 0 {
-            // Collect buckets that can still accept more
             let eligible: Vec<usize> = (0..n).filter(|&i| alloc[i] < caps[i]).collect();
             if eligible.is_empty() {
                 break;

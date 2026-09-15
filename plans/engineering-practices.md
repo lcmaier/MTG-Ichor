@@ -125,6 +125,46 @@ changed a measurable:
    the cheaper of the two, because a redundant comment is noise while a stale
    one is a wrong answer a reader will act on.
 
+**First recorded application — 2026-09-15, the post-RE audit's pass 2 (PR
+#143 for CI, PR #144 for the sweep), 80 PRs after the last sweep at #62.**
+The grep as written found **456 hits in `mtgsim/src`** (133 in `cards/`),
+**140 in `tests/`** and **1,049 in live `plans/`** (archive and the corpus
+excluded). Most of the `src/` count is the instrument's noise: 265 of the 323
+non-card hits were "about" as a preposition or "one in" inside "zone in" and
+"one instead". Read with a second, tighter tier — `about`, `roughly` and `one
+in` only before a quantity; `counted` and `measured` as verbs; any `N%` or
+`N of M` — the non-card `src/` list is **58**, of which 39 sat in a paragraph
+carrying no date, phase code or PR number, and **13 were measurements or
+censuses with no date**. Each was dated from `git blame`, or re-derived where
+the claim was about the tree (`pipeline.rs::substitute`'s counted block, 7 → 8
+templates and 235 → 310 lines; `card_pool_lowering_test`'s 52 → ~150 call
+sites); one estimate nobody had derived (`ManaPool`'s "99% case") became "the
+common case", and one future-tense doc (`GameAction`'s "in Phase 6 a pipeline
+will…") became history. Every `cards/` hit was a Scryfall census carrying its
+date already. The twelve `TODO`s citing the archived plan's vocabulary got a
+live owner in place of the label or were deleted where the code had moved on
+(one new owner had to be filed: `backlog.md` §2.32). `plans/` is dated by
+convention almost everywhere — the `Found by …` headings, `fuzz-record.md`'s
+`**Re-recorded YYYY-MM-DD**` blocks, the census line under each "Scope,
+measured" — and the six undated measurements left were dated in place. The
+sweep also caught what the instrument does not look for: one American-spelling
+gap at twelve sites (the forms are on `check_glossary.py`'s list now) and
+three stale line-number pointers in `codebase-state.md`. **After the sweep the
+tighter tier reads 19 in non-card `src/`, 6 in `cards/`, 12 in `tests/`, all of
+them `counted` or `measured` describing what the code does rather than a
+number** — that residue is the instrument's floor, not work. **Step 3 is a
+separate read, and the first cut skipped it**: dating and re-deriving replaced
+comment lines one for one (97 out, 96 in), and the owner read the net-positive
+PR as a sweep that cut nothing. Applied in full afterwards — every inline
+comment block in the 55 files the two PRs touch, read against the line beneath
+it — 144 lines came out of 20 files, nearly all from the pre-RB files
+(`mana_helpers`, `turns`, `game`, `zones`, `cast`, `types/mana`, `steps`) and
+almost none from the RB-era ones; 50 went in where an archived label needed a
+live owner. Read the whole file's comments, not the grep's hits. **Next time,
+run both tiers**: the tighter one is the list to read, the wider one is the count
+to record here, and a hit under the tighter tier with no date in its paragraph
+is the work.
+
 **What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
 lines and every section costs another; the rule it already has is the right
 one, and a second rule that duplicates it in the negative would buy nothing
@@ -405,7 +445,8 @@ while making the instrument dishonest — and a control that does *nothing* when
 activated is activated just as freely, so this is general agent behaviour and
 not a fact about one card.
 
-`codebase-state.md` item 104 carries the isolating control table. The headline
+`codebase-state.md` item 104 carries the isolating control table (LK,
+2026-09-13). The headline
 matters for how this section reads a future phase: **the cost is the repeatable
 activation, not the registry rows it happens to make** — ~+29% CPU for the
 activation traffic and ~+6% for the rows on top — because an activation is a

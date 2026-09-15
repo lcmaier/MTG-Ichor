@@ -94,7 +94,7 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 /// Magic, and nearly every card carrying it carries something else too: an ETB
 /// trigger, a sacrifice ability, cycling, a storage counter. This cycle is the
 /// clause and nothing else, and its mana is `dual_lands.rs`'s shape exactly —
-/// two basic land types, two intrinsic abilities, and the same modelling
+/// two basic land types, two intrinsic abilities, and the same modeling
 /// shortcut documented there. So the card adds one rules line and no machinery.
 ///
 /// **It is also a land, and that is the point of picking a land.** A land drop

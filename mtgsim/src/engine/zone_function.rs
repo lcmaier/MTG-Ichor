@@ -184,7 +184,7 @@ fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
 /// states nothing, and neither would a clause under a future `Or` or `Not`.
 /// **A card cannot reach the nested form by accident** — there is no card text
 /// that wraps a conjunction in a conjunction — so the rule costs nothing to
-/// honour and buys the bound.
+/// honor and buys the bound.
 ///
 /// That bound is what makes the read syntactic, which is §13c decision 3's
 /// requirement for any reach: one level, no search. It is sound today because

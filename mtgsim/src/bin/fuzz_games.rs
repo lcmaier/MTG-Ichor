@@ -67,7 +67,7 @@
 // Timing is reported as a mean and a tail. `Time/game` is wall-clock divided by
 // games, so it falls as workers are added; `CPU/game` is the mean of each game's
 // own measured duration, so it *rises* — 89.8ms alone against 191.5ms with 16
-// games in flight, because the layer walk is allocation-heavy and the workers
+// games in flight (2026-08-24), because the layer walk is allocation-heavy and the workers
 // contend for memory bandwidth rather than for cores.
 //
 // The tail is there because **the mean is the one statistic guaranteed to hide a
@@ -77,7 +77,7 @@
 // usually just the longest game, whereas a slow *turn* is an anomaly whatever
 // the game's length.
 //
-// **Which mode to use, measured (200 games / seed 12345, 10 runs each):**
+// **Which mode to use, measured 2026-08-24 (200 games / seed 12345, 10 runs each):**
 //
 // - **Coverage — hunting panics and errors — wants threads.** 17.8s -> 2.66s
 //   at 16 workers, a 6.7x speedup, and precision does not matter for a
@@ -374,7 +374,6 @@ fn random_deck(
 
     let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(60);
 
-    // 36 nonlands
     for _ in 0..36 {
         if nonland_names.is_empty() {
             break;
@@ -679,7 +678,7 @@ fn extract_stats<'a>(
                 }
                 // Deaths, read off the zone change rather than a type-specific
                 // event. **This is why the number moved** (5.3 → 6.2 at
-                // --games 50 --seed 12345): `CreatureDied` was emitted only by
+                // --games 50 --seed 12345, 2026-08-26): `CreatureDied` was emitted only by
                 // the state-based-action sweep, so a creature killed by a spell
                 // never counted. The CR 603.10a frame says what it was.
                 if *from == Zone::Battlefield && *to == Zone::Graveyard {
@@ -713,9 +712,10 @@ fn extract_stats<'a>(
 /// object leaving the stack with `ZoneChangeCause::Resolved` has a `SpellCast`
 /// behind it; an ability ceases to exist instead and emits no zone change. An
 /// object with none was stranded on the stack by a cast that failed after
-/// 601.2a and did not rewind — item 16c, which resolved about five spells per
-/// game unpaid, in every fuzz run, because nothing asserted this. Reported the
-/// way a panic is, since it is a wrong answer rather than a slow one.
+/// 601.2a and did not rewind — main item 16c (closed 2026-09-03), which resolved
+/// about five spells per game unpaid in every fuzz run, because nothing asserted
+/// this. Reported the way a panic is, since it is a wrong answer rather than a
+/// slow one.
 ///
 /// Counted per object, not remembered per object: a card cast twice (bounced
 /// and recast) owes two announcements, and `ObjectId` survives the round trip.
@@ -960,7 +960,6 @@ fn run_one_game(
     middleware: MiddlewareConfig,
     players: usize,
 ) -> (GameOutcome, std::time::Duration) {
-    // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
@@ -1140,7 +1139,6 @@ fn run_games(
 fn main() {
     let mut args = parse_args();
 
-    // Determine master seed: explicit or random
     let master_seed = args.seed.unwrap_or_else(|| {
         rand::rng().random::<u64>()
     });

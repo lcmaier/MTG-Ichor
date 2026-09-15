@@ -97,9 +97,10 @@ impl<'a> ActionContext<'a> {
 /// `execute_action`, which performs the mutation and emits the corresponding
 /// `GameEvent`.
 ///
-/// In Phase 6, a replacement-effect pipeline will sit between "build action"
-/// and "execute action", potentially modifying or replacing the action before
-/// it is carried out. For now, `execute_action` is a direct passthrough.
+/// Since RB (2026-08-26) the CR 614 pipeline sits between the proposal and the
+/// mutation — `apply_replacements` inside `execute_actions` — so a proposal can
+/// be modified, replaced or dropped before it is carried out. Before RB,
+/// `execute_action` was a direct passthrough.
 /// `PartialEq` because `ordering_cannot_change_outcome`'s fourth shape claims
 /// two members would substitute the *same* event, and its debug check has to be
 /// able to say so. Structural equality is the right meaning here: two proposals
@@ -537,11 +538,6 @@ pub enum GameAction {
         tapped_for_mana: bool,
     },
 
-    // === Phase 3+ actions — add variants here as primitives are implemented ===
-    // Sacrifice { object: ObjectId },
-    // Exile { object: ObjectId },
-    // CreateTokens { defs: Vec<TokenDef>, controller: PlayerId },
-    // etc.
 }
 
 /// Which of CR 120.3's results a damage event has, read off the target.
@@ -1149,7 +1145,6 @@ impl GameState {
                         .damage_marked += amount as u32;
                 }
 
-                // Keyword hooks (delegated to engine/keywords.rs)
                 apply_deathtouch_flag(self, source, &target);
                 apply_lifelink(self, source, amount, _ctx)?;
 

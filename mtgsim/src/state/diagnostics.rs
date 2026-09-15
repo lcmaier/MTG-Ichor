@@ -106,7 +106,7 @@ impl EngineCounters {
     /// existence re-check costs. A walk that needs no sub-frame is 1:1; one that
     /// asks whether five other objects still have their static abilities is not.
     /// That ratio is the thing `layers-architecture.md` §5.2's descending ceiling
-    /// exists to bound, and until now nothing measured it.
+    /// exists to bound, and nothing measured it before this row (2026-09-01).
     pub fn record_layer_frame(&self) {
         self.layer_frames.set(self.layer_frames.get() + 1);
     }

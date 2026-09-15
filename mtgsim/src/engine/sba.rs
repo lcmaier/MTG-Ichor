@@ -281,7 +281,7 @@ impl GameState {
             // either of CR 701.8b's routes — so `Primitive::Destroy` and this
             // sweep can no longer disagree about it.
             //
-            // Regeneration is likewise no longer a TODO here: a shield is a
+            // Regeneration is not checked here either: a shield is a
             // registered replacement effect watching `GameAction::Destroy`, and
             // this proposal is that event.
             let entry = self.battlefield.get(&id).unwrap();
@@ -358,9 +358,6 @@ impl GameState {
                 batch.push(sba_zone_change(id, ZoneChangeCause::LegendRule));
             }
         }
-
-        // 704.5k — World rule
-        // (future SBAs added here as needed)
 
         // 704.5m — an Aura attached to an illegal object or player, **or**
         // not attached to one at all, is put into its owner's graveyard. Both
@@ -506,8 +503,7 @@ impl GameState {
         // creature is unattached here, and 704.5m puts it into its owner's
         // graveyard on the loop's next pass, since by then it is an Aura
         // attached to nothing. That composition is the CR's own, which is why
-        // this does not special-case Auras — and it is what closed the
-        // standing TODO for them.
+        // this does not special-case Auras.
         //
         // **One pass, and one characteristics read per attachment.** Asking
         // `is_creature` in one loop and the three `has_subtype`s in another
@@ -584,10 +580,7 @@ impl GameState {
         tokens_to_remove.sort_by_key(|&(_, _, epoch)| epoch);
 
         for (id, zone, _) in tokens_to_remove {
-            // Remove from zone collection (reuse the centralized helper;
-            // stack_entries cleanup is handled internally)
             self.remove_from_zone_collection(id, zone)?;
-            // Remove from central object store
             self.remove_object(id);
             self.events.emit(GameEvent::TokenCeasedToExist { object_id: id });
             any_performed = true;

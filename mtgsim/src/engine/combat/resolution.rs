@@ -78,7 +78,6 @@ pub fn assign_combat_damage(
                 // Blocked but all blockers removed (rule 510.1c): no damage
                 // (creature was blocked, blockers left combat, no trample)
             } else if has_trample {
-                // Trample: delegate to keyword helper
                 let mut trample = assign_trample_damage(
                     game, decisions, active_player, id,
                     &attacking_info.blocked_by, &attacking_info.target, damage,
@@ -142,13 +141,12 @@ pub fn assign_combat_damage(
                     });
                 }
             } else {
-                // Blocking multiple creatures: divide damage (rule 510.1d).
-                // Phase 3 stub: all damage to the first living attacker.
-                // Multi-block requires Banding or "block additional creature"
-                // effects (Phase 4/5).
-                //
-                // TODO (Phase 4/5): Delegate to
-                // DecisionProvider::choose_blocker_damage_division.
+                // CR 510.1d — a creature blocking several attackers divides its
+                // damage among them. Not asked: all of it goes to the first
+                // living attacker. `codebase-state.md`, "Before card breadth"
+                // item 6 owns the fix and `blocker_damage_divisions` is the
+                // plumbing; unreachable until a card lets a creature block more
+                // than one.
                 let alive: Vec<ObjectId> = blocking_info.blocking.iter()
                     .copied()
                     .filter(|aid| game.battlefield.contains_key(aid))

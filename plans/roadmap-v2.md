@@ -138,7 +138,8 @@ the second card face (CR 712) and `CardData.color_indicator` live.
 
 **Item 6 — triggered abilities, with LKI formalization and conditional
 statics — after 5, 6b, 7 and CR 113.6 (§3a).** The largest unlock in the game, and it is not close: **14,603 of
-32,115 black-border cards — 45% — carry a triggered ability.** Phase 7 holds
+32,115 black-border cards — 45% — carry a triggered ability** (Scryfall,
+2026-08-31). Phase 7 holds
 133 atoms. LKI rides along (the CR 603.10a frame has been captured at the
 chokepoint since RA; item 6 formalizes its consumers), as do conditional
 static abilities. **It is also the least-sized item on the path — size it in

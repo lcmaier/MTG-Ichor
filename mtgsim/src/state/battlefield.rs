@@ -46,9 +46,9 @@ pub struct PermanentState {
     /// `battlefield_ids_ordered`, which run ~5,700 times a game over ~16
     /// permanents each (`codebase-state.md` item 77). Reading the object
     /// instead costs a `HashMap` hop per permanent per call, and that is
-    /// **+16.5% of total game time, measured against an arm whose counters are
-    /// identical** — not an estimate and not within the sitting's spread. With
-    /// the copy the same tree measures +1.2%.
+    /// **+16.5% of total game time, measured 2026-09-14 against an arm whose
+    /// counters are identical** — not an estimate and not within the sitting's
+    /// spread. With the copy the same tree measures +1.2%.
     ///
     /// **It cannot drift, and not because anything checks.**
     /// `GameState::set_object_timestamp` is the only writer of a timestamp on

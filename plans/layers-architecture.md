@@ -247,7 +247,7 @@ pub enum ObjectSet {
 - `EffectOrigin::Resolution` → `ContinuousEffect.controller`, fixed when the effect began (CR 611.2c).
 - `PlayerRef::Opponent` is matched as a predicate, `controller != you`, not resolved to an id: CR 102.2 gives one opponent in a two-player game but CR 102.3 gives a set in multiplayer, and the predicate is correct for both.
 
-Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 604.2 existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games`. **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
+Resolution is **lazy**, and `RegistryScopeSummary::any_control_changing` short-circuits it to a field read while no `SetController` row exists. Both are exact rather than approximations, and they are not equally important: `effect_applies_to` runs ahead of the CR 604.2 existence check and therefore for objects the filter rejects, so eager-and-ungated resolution cost 749 ms/game against a 73.0 baseline on `fuzz_games` (measured 2026-08-23). **Laziness is what removes almost all of that** (78.1 ungated); at the time the gate was a further ~4%.
 
 **Updated by the Layer 2 phase (2026-08-23).** That phase put 20 more call sites behind the same gate, so it is no longer a trim: forcing it off now costs 83.7 → 107.2 ms/game, **+28%**. The phase itself cost +4%, under the +7% this section predicted. The per-object "sharper gate" the prediction offered as a fallback was built, measured and discarded — it is not faster, because `ObjectId` is a UUID and the set probe costs a SipHash on every board to save on the rare one. Numbers and the discard argument are on `RegistryScopeSummary::any_control_changing`; the remaining lever is §12's cross-call memoization.
 
@@ -889,7 +889,7 @@ When this needs to get faster, in order of value per unit of correctness risk:
 
 ### Where the remaining cost is
 
-Measured on the same synthetic board, gate-free, µs/query:
+Measured 2026-08-21 on the same synthetic board, gate-free, µs/query:
 
 | | N=10 | N=80 |
 |---|---|---|
@@ -1482,8 +1482,8 @@ a set, a later layer does not re-ask.
 
 ### The split, sized against the tree
 
-Measured the way §4 asks: the functions the pass replaces, counted, and the
-new pieces beside them. `compute.rs` is 2,183 lines, of which 1,110 are tests;
+Measured 2026-09-06 the way §4 asks: the functions the pass replaces, counted,
+and the new pieces beside them. `compute.rs` is 2,183 lines, of which 1,110 are tests;
 the non-test functions the pass rewrites are `FrameCache` (70), `rows_in_layer`
 (17), `compute_to_ceiling` (76), `static_ability_still_exists` (22),
 `apply_effects` (160), the two keyword-counter helpers (65),

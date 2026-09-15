@@ -624,8 +624,8 @@ mod tests {
     /// a Thalia in hand modifies nothing of her own, so the leg asks
     /// `CostSubject::applies_to_its_own_object` rather than "prints one at
     /// all". Asking the body alone cost five non-member walks per 200
-    /// measured games — small, and exactly what the `fuzz_ab` arm that must
-    /// reproduce `main` is for.
+    /// measured games (2026-09-07) — small, and exactly what the `fuzz_ab` arm
+    /// that must reproduce `main` is for.
     #[test]
     fn the_preview_asks_the_layer_system_nothing_for_a_card_that_cannot_reduce_itself() {
         let mut game = setup_two_player_game();

@@ -123,7 +123,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// Registered, not pooled: it opens no engine path Urborg does not (its
 /// order against Humility is the timestamp's, which LI-1 already gave), and
 /// animating every enchantment in a random game would move every
-/// behavioural row of §3's table for a reason that is not the engine's.
+/// behavioral row of §3's table for a reason that is not the engine's.
 pub fn opalescence() -> Arc<CardData> {
     let other_non_aura_enchantments = EffectRecipient::FilteredPermanents(ObjectFilter::And(
         Box::new(ObjectFilter::And(

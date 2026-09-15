@@ -31,11 +31,10 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<bool, String> {
         let active = self.active_player;
-        // Build legal attacker-target pairs (each legal attacker × each opponent)
-        // TODO: Cartesian product scales as O(creatures × targets). With planeswalkers
-        // and battles as attack targets, even 2-player games can grow large. Consider a
-        // two-step approach: (1) pick which creatures attack, (2) assign each a target.
-        // This keeps options O(creatures + creatures) instead of O(creatures × targets).
+        // The option list is every legal attacker × every legal target, and it
+        // grows with planeswalkers and battles as targets. Whether the ask
+        // becomes two-step — which creatures attack, then each one's target —
+        // is a `DecisionProvider` choice-shape question, `backlog.md` §2.4's.
         let attacker_ids = legal_attackers(self, active);
         // CR 506.2 — the defending players are the active player's
         // *opponents*, and a player who has left the game (CR 104.5, 800.4a)
@@ -53,8 +52,8 @@ impl GameState {
             return Ok(false);
         }
 
-        // Validate the proposed attackers
-        // Phase 3: no constraints
+        // `AttackConstraints::none()`: attack requirements and restrictions are
+        // `cant-effects-architecture.md`'s (RS-3).
         validate_attackers(self, active, &proposed, &AttackConstraints::none())
             .map_err(|e| format!("Invalid attackers: {}", e))?;
 
@@ -101,12 +100,11 @@ impl GameState {
         &mut self,
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // Find defending players — each player being attacked
         let defending_players: Vec<PlayerId> = self.get_defending_players();
 
         for defender in defending_players {
-            // Build legal blocker-attacker pairs, pre-filtered via `can_block`
-            // (SPECIAL-8 / §15c). The pre-filter strips *hard-illegal* pairs
+            // Build legal blocker-attacker pairs, pre-filtered via `can_block`.
+            // The pre-filter strips *hard-illegal* pairs
             // (flying/reach mismatch, attacker not attacking this defender,
             // tapped/wrong-controller blocker, etc.) so the DP never sees a
             // pair it can't legally pick regardless of strategy. Per-blocker
@@ -129,8 +127,8 @@ impl GameState {
             // Bounded retry loop (budget = 10). On validation failure we
             // re-prompt the DP with the same pre-filtered pair list; on
             // budget exhaustion we surface the final error (rare — indicates
-            // a DP that can't converge). Same pattern as SPECIAL-2's
-            // run_priority_round retry; candidate for SPECIAL-9 consolidation.
+            // a DP that can't converge). Same pattern as `run_priority_round`'s
+            // retry.
             const BLOCKER_RETRY_BUDGET: u32 = 10;
             let mut retries: u32 = 0;
             let proposed = loop {
@@ -159,9 +157,7 @@ impl GameState {
                 continue;
             }
 
-            // Apply: set blocking info and update attacker's blocked_by
             for (blocker_id, attacker_id) in &proposed {
-                // Mark blocker
                 if let Some(entry) = self.battlefield.get_mut(blocker_id) {
                     if let Some(ref mut info) = entry.blocking {
                         info.blocking.push(*attacker_id);
@@ -172,7 +168,6 @@ impl GameState {
                     }
                 }
 
-                // Mark attacker as blocked
                 if let Some(entry) = self.battlefield.get_mut(attacker_id)
                     && let Some(ref mut info) = entry.attacking {
                     info.is_blocked = true;
@@ -230,8 +225,6 @@ impl GameState {
 
         let active = self.active_player;
 
-        // Compute damage assignments (read-only, delegates to DecisionProvider
-        // for multi-blocker damage division)
         let assignments = assign_combat_damage(
             self,
             decisions,
@@ -244,7 +237,6 @@ impl GameState {
         let actx = ActionContext::new(decisions);
         self.apply_combat_damage(assignments, &actx)?;
 
-        // Track who dealt damage in the first-strike step
         if first_strike_only {
             // Collect IDs first to avoid borrow conflict
             let fs_ids: Vec<ObjectId> = self.battlefield.values()

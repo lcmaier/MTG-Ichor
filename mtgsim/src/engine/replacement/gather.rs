@@ -194,8 +194,8 @@ pub(crate) fn gather(
     // difference between the pipeline being free and the pipeline tripling the
     // engine's cost. `get_effective_abilities` is a full
     // `compute_characteristics` walk, and an ungated sweep would run one per
-    // permanent per proposed action: measured against the untap step alone that
-    // is ~6,000 extra layer walks per `fuzz_games` game.
+    // permanent per proposed action: measured against the untap step alone
+    // (2026-09-01) that is ~6,000 extra layer walks per `fuzz_games` game.
     //
     // **This one only answers "does the sweep run at all", which stopped being
     // enough when RC-2 put replacement sources in the default card pool.** From

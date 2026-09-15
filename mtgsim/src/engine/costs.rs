@@ -133,7 +133,6 @@ impl GameState {
     ) -> Result<(), String> {
         for cost in ordered_for_payment(costs) {
             self.check_cost_resource(cost, player_id, source_id)?;
-            // Phase 5: self.check_cost_restrictions(cost, player_id, source_id)?;
         }
         Ok(())
     }

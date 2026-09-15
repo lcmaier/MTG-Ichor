@@ -53,7 +53,6 @@ impl Game {
 
         let mut state = GameState::new(num_players, config.starting_life);
 
-        // Populate libraries from decklists
         for (player_id, decklist) in decklists.into_iter().enumerate() {
             for card_data in decklist {
                 let obj = GameObject::in_library(card_data, player_id);
@@ -63,12 +62,10 @@ impl Game {
             }
         }
 
-        // Set max hand size from config
         for player in &mut state.players {
             player.max_hand_size = config.max_hand_size;
         }
 
-        // Set first-player draw skip flag
         if !config.first_player_draws {
             state.skip_first_draw = true;
         }
@@ -93,19 +90,16 @@ impl Game {
 
     /// Perform game setup: shuffle libraries and draw opening hands.
     ///
-    /// Mulligan handling is stubbed — players always keep their first hand.
-    /// Full London mulligan support requires multiple `DecisionProvider`
-    /// calls per player and will be implemented when needed.
+    /// Mulligan handling is stubbed — players always keep their first hand
+    /// (CR 103.5; `backlog.md` §2.32).
     pub fn setup(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
-        // Shuffle each player's library
         for player_id in 0..self.state.num_players() {
             self.state.shuffle_library(player_id);
         }
 
-        // Draw opening hands
         let hand_size = self.config.starting_hand_size;
         let num_players = self.state.num_players();
-        // CR 103.4 calls this drawing, and it is the one draw in the engine
+        // CR 103.5 calls this drawing, and it is the one draw in the engine
         // that calls the *performer* instead of proposing a `DrawCards`
         // instruction. Safe by construction rather than by exemption: the
         // battlefield is empty and the registry has no rows, so no replacement
@@ -118,10 +112,8 @@ impl Game {
             }
         }
 
-        // TODO: mulligan decisions (London mulligan)
-        // For each player in turn order:
-        //   ask decisions.choose_mulligan(&self.state, player_id)
-        //   if mulligan: shuffle hand into library, draw 7, bottom N
+        // CR 103.5's mulligans are not asked: every player keeps their first
+        // hand, whatever `GameConfig::mulligan_rule` says. `backlog.md` §2.32.
 
         // CR 103.7 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap

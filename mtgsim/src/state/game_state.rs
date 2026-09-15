@@ -255,9 +255,8 @@ pub struct GameState {
     pub blockers_declared: bool,
     /// Damage division for blockers blocking 2+ attackers (rule 510.1d).
     /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
-    /// Populated during declare blockers step, consumed during combat damage.
-    /// Phase 3: unused (multi-block requires Banding or "block additional" effects).
-    /// Phase 4/5: populated via DecisionProvider::choose_blocker_damage_division.
+    /// Populated by `choose_blocker_damage_division` at declare blockers and
+    /// read by nothing yet — `codebase-state.md`, "Before card breadth" item 6.
     pub blocker_damage_divisions: HashMap<ObjectId, Vec<(ObjectId, u64)>>,
     /// Tracks creatures that dealt damage during the first-strike combat damage step.
     /// Used to determine which creatures deal damage in the normal combat damage step:
@@ -290,7 +289,7 @@ pub struct GameState {
 
     // --- First-turn draw skip (rule 103.8a) ---
     /// If true, the first draw step is skipped (one-time flag for game setup).
-    /// In-game "skip draw" effects use the replacement effect system (Phase 6).
+    /// Every in-game "skip draw" is a CR 614.10 replacement instead.
     pub skip_first_draw: bool,
 
     // --- Continuous effects registry (CR 613) ---
@@ -317,8 +316,8 @@ pub struct GameState {
     /// optimization: reading effective abilities is a full
     /// `compute_characteristics` walk, so an ungated sweep would run one per
     /// permanent per proposed action — measured against the untap step alone
-    /// that is thousands of extra layer walks per `fuzz_games` game, on a board
-    /// where nothing has a replacement ability at all.
+    /// (2026-09-01) that is ~6,000 extra layer walks per `fuzz_games` game, on a
+    /// board where nothing has a replacement ability at all.
     ///
     /// **A set rather than a count, so it cannot drift.** Insert at ETB, remove
     /// at `cleanup_zone_state`; both are idempotent, and a counter that drifted
@@ -952,8 +951,8 @@ impl GameState {
         // Collect (timestamp, id) and sort *that*, rather than sorting ids with
         // a key closure that looks the timestamp back up. `sort_by_key` calls
         // its closure O(n log n) times, not n, so the naive form paid a HashMap
-        // lookup per comparison: measured 11.0 µs vs 0.57 µs at n=80 and
-        // 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
+        // lookup per comparison: measured 2026-08-25, 11.0 µs vs 0.57 µs at n=80
+        // and 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
         // sweep runs after every resolution and priority check.
         //
         // Stable, keyed on timestamp alone — identical ordering to the previous

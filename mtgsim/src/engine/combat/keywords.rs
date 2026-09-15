@@ -110,7 +110,6 @@ pub fn assign_trample_damage(
         .filter(|bid| game.battlefield.contains_key(bid))
         .collect();
 
-    // Compute per-blocker minimums: 1 if deathtouch, else toughness − damage_marked
     let per_blocker_mins: Vec<u64> = alive_blockers
         .iter()
         .map(|&bid| {

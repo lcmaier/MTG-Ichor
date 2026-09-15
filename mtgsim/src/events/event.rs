@@ -171,7 +171,7 @@ pub enum GameEvent {
     // - **The redundancy was hiding a bug.** `CreatureDied` was emitted only
     //   from the state-based-action sites, so a creature killed by a spell
     //   produced none, and `fuzz_games` undercounted deaths at 5.3 per game
-    //   where the zone changes say 6.2.
+    //   where the zone changes say 6.2 (2026-08-26).
     //
     // A reader that wants deaths matches `ZoneChange { from: Battlefield, to:
     // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and
@@ -259,8 +259,8 @@ pub enum GameEvent {
     Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
 
     // --- Attachment SBAs ---
-    /// An Equipment or Fortification was detached by SBA 704.5p
-    /// (attached to a non-creature). Equipment stays on battlefield.
+    /// An Equipment or Fortification was detached by SBA 704.5n
+    /// (attached to an illegal permanent). It stays on the battlefield.
     EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
 
     // --- Multiplayer (CR 800.4a) ---

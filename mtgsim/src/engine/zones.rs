@@ -67,10 +67,8 @@ impl GameState {
         // so we can still read the departing entity's state)
         self.cleanup_zone_state(id, from);
 
-        // Remove from old zone's collection
         self.remove_from_zone_collection(id, from)?;
 
-        // Add to new zone's collection
         self.add_to_zone_collection(id, to)?;
 
         // No `init_zone_state` counterpart to `cleanup_zone_state` any more.
@@ -288,7 +286,6 @@ impl GameState {
             return Err("This card is not a land".to_string());
         }
 
-        // Check land drop limit
         let player = self.get_player(player_id)?;
         if !player.can_play_land() {
             return Err("Already played maximum lands this turn".to_string());
@@ -301,7 +298,6 @@ impl GameState {
         // every ETB replacement in Phase RC has to see it.
         self.change_zone(card_id, Zone::Battlefield, ZoneChangeCause::PlayedAsLand, ctx)?;
 
-        // Increment land drop counter
         let player = self.get_player_mut(player_id)?;
         player.lands_played_this_turn += 1;
 

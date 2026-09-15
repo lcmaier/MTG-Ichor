@@ -177,17 +177,17 @@ impl GameState {
             ),
 
             Effect::Conditional(_condition, _inner) => {
-                // Phase 6: evaluate condition, then resolve inner if true
+                // The intervening-if shape (CR 603.4) resolves with triggers — critical-path item 6.
                 Err("Conditional effects not yet implemented".to_string())
             }
 
             Effect::Optional(_inner) => {
-                // Phase 6: ask controller via DecisionProvider, then resolve
+                // A yes/no ask — `codebase-state.md` main item 24.
                 Err("Optional effects not yet implemented".to_string())
             }
 
             Effect::Modal { .. } => {
-                // Phase 6: mode selection via DecisionProvider
+                // Mode choice — `backlog.md` §2.7.
                 Err("Modal effects not yet implemented".to_string())
             }
 
@@ -213,7 +213,7 @@ impl GameState {
         // (CR 614.15 / the resolution stamp on each emitted event).
         let actx = ActionContext::resolving(dp, ctx);
         match primitive {
-            // === Phase 2 primitives ===
+            // === One-shot primitives ===
 
             // **One batch, however many things it hits.** "Pyroclasm deals 2
             // damage to each creature" is one event, and three rules read the
@@ -595,7 +595,6 @@ impl GameState {
                     if let ResolvedTarget::Object(id) = target
                         && let Some(pos) = self.stack.iter().position(|s| s == id) {
                         let removed_id = self.stack.remove(pos);
-                        // Clean up the StackEntry for the countered ability
                         self.take_stack_entry(removed_id);
                         // Remove the object entirely — abilities on the
                         // stack are not cards and have no destination zone.
@@ -609,7 +608,7 @@ impl GameState {
                 Ok(())
             }
 
-            // === Phase 2 primitives: Destroy & Untap ===
+            // === Destroy and untap ===
 
             Primitive::Destroy => {
                 // Destroy target permanent (rule 701.7a).
@@ -1438,7 +1437,7 @@ impl GameState {
                 Ok(())
             }
 
-            // === Phase 3+ primitives — stubs ===
+            // === Unimplemented primitives — `backlog.md` §2.5 ===
 
             Primitive::ReturnToHand
             | Primitive::ReturnToBattlefield
@@ -1966,7 +1965,8 @@ impl GameState {
         match expr {
             AmountExpr::Fixed(n) => Ok(*n),
             AmountExpr::Variable => {
-                // X is stored on the stack object when cast; for now stub
+                // `StackEntry::x_value` has held it since the cast; reading it here is main
+                // item 90's PR (`codebase-state.md`), with the card that needs it.
                 Err("Variable (X) amount resolution not yet implemented".to_string())
             }
             AmountExpr::CountOf(_selector) => {
@@ -2091,7 +2091,6 @@ impl GameState {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
             EffectRecipient::Target(SelectionFilter::Player, _) => {
-                // Use the first resolved player target
                 for t in &ctx.targets {
                     if let ResolvedTarget::Player(pid) = t {
                         return *pid;

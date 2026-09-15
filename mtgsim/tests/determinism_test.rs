@@ -1,7 +1,8 @@
 //! `--seed N` means the same run, in any process.
 //!
 //! The fuzz harness advertises reproducibility, and the project's perf protocol
-//! ("200 games / seed 12345, back to back, ±3% band") assumes it: without it the
+//! assumes it (on 2026-08-23, "200 games / seed 12345, back to back, ±3% band";
+//! today `engineering-practices.md` §3's interleaved A/B): without it the
 //! two runs being compared are not doing the same amount of work, so a real
 //! regression hides inside the spread and a phantom one appears.
 //!

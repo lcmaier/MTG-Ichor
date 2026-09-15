@@ -413,7 +413,7 @@ pub(crate) fn apply_replacements(
                 continue;
             };
             // CR 614.17: a "can't" is checked ahead of the pipeline and wins
-            // (CR 101.2). Not a `ReplacementDef` and never one — modelling it
+            // (CR 101.2). Not a `ReplacementDef` and never one — modeling it
             // as one would have put it in the CR 616.1 choice list, where a
             // player could decline it.
             //
@@ -2152,19 +2152,18 @@ fn template_amount(
 /// # How big this gets, counted rather than guessed
 ///
 /// **One arm per [`GameActionTemplate`] variant, and a nested match only
-/// where a template reads the replaced event's *fields*.** Seven templates
-/// today and 235 lines, 86 of them comment — about 21 lines of code each, and
-/// two of the seven carry a nested match: `ZoneChangeTo`, which reads `object`
-/// and `from`, and `DrawCards`, which reads the subject and the cause off three
-/// event kinds. The other five take any event through [`subject_of`] and
-/// [`template_amount`] and are four lines apiece, which is why `GainLife`,
-/// `LoseLife` and `PlayerWins` cost nothing as the `GameAction` vocabulary
+/// where a template reads the replaced event's *fields* or its subject.**
+/// Counted 2026-09-15: eight templates and 310 lines, 110 of them comment —
+/// about 25 lines of code each. `ZoneChangeTo`, `DrawCards`, `CreateTokens`
+/// and `ProduceMana` read fields off the event; `RemoveCountersFromAffected`,
+/// `GainLife`, `LoseLife` and `PlayerWins` read only [`subject_of`], which is
+/// why the last three cost a dozen lines each as the `GameAction` vocabulary
 /// grows.
 ///
 /// So this does **not** grow as templates × actions. It grows with templates,
-/// which grew 3 → 7 across RB, RC, RD and RE — roughly one a phase — against a
+/// which grew 3 → 8 across RB, RC, RD and RE — roughly one a phase — against a
 /// census of 574 printed "would … instead" clauses (§3.2c) that needed zero new
-/// `Rewrite` arms. A thousand lines would take about fifty templates.
+/// `Rewrite` arms. A thousand lines would take about forty templates.
 ///
 /// **The split, when it is wanted, is mechanical**: one `fn substitute_<name>`
 /// per template, or a method on the template itself. Nothing here reads

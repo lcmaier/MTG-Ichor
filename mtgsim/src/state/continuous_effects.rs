@@ -75,14 +75,14 @@ pub struct RegistryScopeSummary {
     /// existence check and therefore for objects the filter rejects, unlike the
     /// existence check, which only runs for effects that already matched.
     ///
-    /// **Load-bearing, not a trim.** Forcing it off costs 83.7 → 107.2 ms/game
+    /// **Load-bearing, not a trim.** Forcing it off cost 83.7 → 107.2 ms/game
     /// on `fuzz_games --games 200 --seed 12345` with a control-changing card in
-    /// the pool. It was worth ~4% when `FilterPlayers::you()` was its only
-    /// caller; the Layer 2 phase put 20 more behind it, several inside
-    /// per-permanent sweeps.
+    /// the pool (the Layer 2 phase, 2026-08-23). It was worth ~4% when
+    /// `FilterPlayers::you()` was its only caller; that phase put 20 more behind
+    /// it, several inside per-permanent sweeps.
     ///
     /// A sharper per-object version was built and measured and is not faster.
-    /// `codebase-state.md` Deferred Migrations item 13 has the numbers and the
+    /// `codebase-state.md`'s "Before Layers" item 13 has the numbers and the
     /// reason, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
 

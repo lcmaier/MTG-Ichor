@@ -36,7 +36,7 @@
 //!
 //! # What a random deck can draw
 //!
-//! Eon Hub is the pooled card: `{5}` colourless, so every deck can cast it, and
+//! Eon Hub is the pooled card: `{5}` colorless, so every deck can cast it, and
 //! its effect is a *dropped* turn-structure proposal on every player's upkeep
 //! for as long as it is on the battlefield — the first card in
 //! `PERFORMANCE_POOL` whose cost is measured in proposals that go nowhere.
@@ -447,7 +447,7 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
 /// with it. CR 616.1's chooser is the affected player — the one whose upkeep it
 /// is — so on a four-player table this asks nobody, four times a round.
 ///
-/// **The pooled card of the PR.** Colourless at five, so every deck can cast
+/// **The pooled card of the PR.** Colorless at five, so every deck can cast
 /// it, and every player's upkeep for the rest of the game is then a proposal
 /// that goes nowhere — the first measured card whose cost is a *dropped*
 /// turn-structure event.
