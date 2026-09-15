@@ -1175,7 +1175,7 @@ fn main() {
     // one, comma and space, for as long as that keeps naming none; the first
     // join that is a card wins. Resolved against the full registry, so an
     // unpooled card still reaches its own message below rather than being
-    // glued to its neighbour. Order and deduplication are the parser's.
+    // glued to its neighbor. Order and deduplication are the parser's.
     let full = CardRegistry::default_registry();
     let mut names: Vec<String> = Vec::new();
     let mut at = 0;

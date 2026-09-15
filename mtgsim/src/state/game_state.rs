@@ -153,25 +153,12 @@ pub struct GameState {
     pub stack_entries: HashMap<ObjectId, StackEntry>,
     /// The stack object currently resolving, if any.
     ///
-    /// **One reader, and it is a rules question, not an engine artifact.**
-    /// `init_zone_state(Battlefield)` needs CR 110.2b's *default* controller —
-    /// "the player who put that spell onto the stack" — and the `StackEntry`
-    /// that recorded it has been taken by the time a permanent spell enters. The
-    /// field is how that answer crosses the resolution.
-    ///
-    /// It used to have a second reader, and RC-1 deleted it along with the thing
-    /// that created it. `resolve_top_of_stack` popped the object off `stack`
-    /// before resolving, which the CR does not do — CR 608.2 keeps a resolving
-    /// spell *on* the stack until 608.2n/608.3a move it at the end — so
-    /// `remove_from_zone_collection(Stack)` needed a branch licensing an object
-    /// that was already gone. The pop's stated reason had not survived
-    /// inspection (audited 2026-08-26): it was documented as keeping in-flight
-    /// effects — a Counterspell — from seeing the resolving object, and nothing
-    /// can, because CR 608.2g says no spell may normally be cast and no ability
-    /// activated during a resolution, so no effect can *acquire* the resolving
-    /// object as a target mid-resolution, and a spell cannot pick itself at
-    /// CR 601.2c because `enumerate_legal_selections` and `has_any_legal_choice`
-    /// already exclude it by `exclude_id`.
+    /// A rules question, not an engine artifact: `default_enter_controller`
+    /// needs CR 110.2b's *default* controller — "the player who put that spell
+    /// onto the stack" — and the `StackEntry` that recorded it has been taken by
+    /// the time a permanent spell enters. The other two readers are the layer
+    /// walk's controller lookup and `Primitive::Exile`'s "is the source still
+    /// here" (CR 608.2m).
     ///
     /// Always `None` outside a resolution. `resolve_top_of_stack` clears it on
     /// every exit path, including the error ones.
@@ -276,7 +263,8 @@ pub struct GameState {
     /// Per-player loss flags, written by the `GameAction::PlayerLoses`
     /// performer and by nothing else. CR 104.5 makes a player who has lost a
     /// player who has *left*, so this is also what the turn and priority
-    /// rotations pass over (CR 800.4j/k); their objects leaving is RE-7's.
+    /// rotations pass over (CR 800.4j/k); `player_left_the_game` takes their
+    /// objects (CR 800.4a).
     pub player_lost: Vec<bool>,
     /// The outcome, once the game has one — see [`GameResult`]. Written by
     /// the `PlayerWins` performer and by [`Self::settle_game_result`], read by
@@ -312,34 +300,21 @@ pub struct GameState {
     /// Battlefield objects that **printed** a static ability whose body is an
     /// `Effect::Replacement`.
     ///
-    /// `engine::replacement::gather`'s fast path, and it is not an
-    /// optimization: reading effective abilities is a full
-    /// `compute_characteristics` walk, so an ungated sweep would run one per
-    /// permanent per proposed action — measured against the untap step alone
-    /// (2026-09-01) that is ~6,000 extra layer walks per `fuzz_games` game, on a
-    /// board where nothing has a replacement ability at all.
+    /// `engine::replacement::gather`'s fast path, and not an optimization:
+    /// reading effective abilities is a full `compute_characteristics` walk, so
+    /// an ungated sweep would run one per permanent per proposed action.
     ///
-    /// **A set rather than a count, so it cannot drift.** Insert at ETB, remove
-    /// at `cleanup_zone_state`; both are idempotent, and a counter that drifted
-    /// low would read as a card that silently does nothing — the exact failure
-    /// this phase exists to remove.
+    /// **A set rather than a count, so it cannot drift**: insert at ETB, remove
+    /// at `cleanup_zone_state`, both idempotent. It over-approximates in one
+    /// direction only — CR 305.7 or Humility can take the printed ability away
+    /// without touching the set, which costs a walk and never an answer. The
+    /// gate's other legs are `RegistryScopeSummary::any_granted_replacement`
+    /// (Layer 6) and the copy leg (`copy-effects-architecture.md` §4.7); Layer 3
+    /// is the route still without one.
     ///
-    /// It over-approximates in one direction only. CR 305.7 and Humility can
-    /// take a printed replacement ability away without touching the set, which
-    /// costs a wasted walk and never a wrong answer; the opposite direction —
-    /// an ability *granted* by a Layer 6 row — is covered by
-    /// `RegistryScopeSummary::any_granted_replacement`.
-    ///
-    /// **Between them the gate is sound only until Layer 1 or Layer 3 exists.**
-    /// A copy or a text-change puts a replacement ability on the *effective*
-    /// list through neither half, and `gather` would skip the board entirely —
-    /// a card that silently does nothing. `copy-effects-architecture.md` §4.7
-    /// owns the third leg, and CV-1 must land it with the first copy effect.
-    ///
-    /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
-    /// inserts and `cleanup_zone_state` removes; a hand-written entry is a
-    /// wasted layer walk and a hand-written removal is a card that silently
-    /// stops working.
+    /// **Engine-maintained.** `place_on_battlefield` inserts and
+    /// `cleanup_zone_state` removes; a hand-written removal is a card that
+    /// silently stops working.
     pub replacement_ability_sources: HashSet<ObjectId>,
 
     /// Every CR 101.2 "can't" a resolution has created.
@@ -410,42 +385,30 @@ pub struct GameState {
     /// How many decomposing calls (§3.2d) are on the stack — CR 121.2's draws
     /// inside draws, and nothing else today.
     ///
-    /// **Not a cap, and deliberately not one.** CR 614.5's applied set is the
-    /// loop's termination argument and a ceiling beside it would answer a
-    /// question the rules do not ask. What this counts is the *derived*
-    /// invariant that the applied set implies: a decomposing call at depth `d`
-    /// exists because `d - 1` substitutions happened above it, each of which
-    /// inserted an instance, so `d <= inherited.len() + 1`. Break the lineage
-    /// and depth climbs while the set stays put, which
-    /// `execute_actions_decomposing` asserts in debug builds — turning a stack
-    /// overflow that aborts the test binary into a red test that names the
-    /// rule. The release binary carries the counter and not the assertion.
+    /// **Not a cap.** CR 614.5's applied set is the loop's termination argument;
+    /// this counts the invariant that set implies — a decomposing call at depth
+    /// `d` exists because `d - 1` substitutions above it each inserted an
+    /// instance, so `d <= inherited.len() + 1` — and
+    /// `execute_actions_decomposing` asserts it in debug builds, turning a stack
+    /// overflow into a red test that names the rule.
     ///
-    /// **Per lineage, not per call stack.** A fresh-set batch —
-    /// `execute_actions`, which a rider's proposal and every contained event
-    /// go through — is a new lineage, and zeroes this for its extent: a
-    /// rider's draw inside a doubled draw inherits nothing and decomposes from
-    /// depth one. Counted across the rider instead, the assertion fired on a
-    /// legal board (one Thought Reflection beside one Alms Collector, RE-4's
-    /// A/B) while the loop it exists for is the one `batch_depth` catches.
+    /// **Per lineage, not per call stack.** A fresh-set batch (`execute_actions`,
+    /// which a rider's proposal and every contained event go through) is a new
+    /// lineage and zeroes this for its extent; counted across a rider the
+    /// assertion fires on a legal board, while the loop it exists for is
+    /// `batch_depth`'s.
     pub(crate) decomposition_depth: usize,
 
     /// How many batches are nested inside one another right now — one per
     /// `execute_batch_inner` on the call stack, kept by its three wrappers.
     ///
-    /// **A guard against the engine, not a rule.** CR 614.5 gives every
-    /// replacement effect one opportunity per event *and its modified forms*,
-    /// so once a decomposition inherits its parent's applied set and a rider
-    /// inherits the set of the event it is the rest of, no replacement chain
-    /// can nest without bound: each level spends an instance. A chain that
-    /// does nest without bound has lost a lineage — the shape RE-4's A/B found
-    /// when riders still started fresh (seed 12523, four seats, `stress`: two
-    /// Reflections and two Collectors handing one draw back and forth) — and
-    /// `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather than
-    /// answering with a rule. `decomposition_depth` is the per-lineage
-    /// invariant asserted in debug builds; this is the whole-stack bound
-    /// asserted in every build, and `fuzz_games` reports the deepest nesting a
-    /// run reached so the bound stays a measured number.
+    /// **A guard against the engine, not a rule.** Once every nested batch
+    /// carries its lineage, CR 614.5 bounds every replacement chain (each level
+    /// spends an instance), so a chain that nests without bound has lost a
+    /// lineage and `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather
+    /// than answering with a rule. `decomposition_depth` is the per-lineage
+    /// invariant asserted in debug builds; this is the whole-stack bound in
+    /// every build, and `fuzz_games` reports the deepest nesting a run reached.
     pub(crate) batch_depth: usize,
 
     /// The applied set a rider's proposals start from, for the extent of
@@ -593,25 +556,20 @@ pub struct PlannedPhase {
 
 /// The phases this turn will have, in order, and how far the drainer has read.
 ///
-/// **CR 500.1's sequence as data rather than as a `match`**, which is what
-/// CR 500.8 requires: a turn can hold two combat phases, and "what follows"
-/// is then unanswerable from a phase *type* — the question
-/// `state::game_state::next_phase` used to answer and the reason it is gone.
-/// The cursor is an index, so two entries of the same type are two positions.
+/// **CR 500.1's sequence as data rather than as a `match`**, which CR 500.8
+/// requires: a turn can hold two combat phases, so "what follows" is
+/// unanswerable from a phase *type*. The cursor is an index, so two entries
+/// of the same type are two positions.
 ///
-/// **Rebuilt per turn, by `on_turn_begin`** — so a turn that is skipped builds
-/// no plan and splices nothing, which is CR 614.10a's *"anything scheduled for
-/// a skipped turn won't happen"* for free. Seeded by [`GameState::new`] for the
-/// same reason that constructor already describes turn 1: a bare `GameState` in
-/// a unit test has to read the way it always has.
+/// **Rebuilt per turn, by `on_turn_begin`**, so a skipped turn builds no plan
+/// and splices nothing — CR 614.10a's "anything scheduled for a skipped turn
+/// won't happen". Seeded by [`GameState::new`] because that constructor
+/// already describes turn 1.
 ///
-/// **The cursor is schedule, not board, and the drainer owns it** — the
-/// sentence RE-1 wrote about `turn_queue` and `turn_rotation`, one level down.
-/// No CR 614 replacement effect and no CR 603 trigger can see it, and it has to
-/// be spent whether or not the phase begins, so it is maintained where the
-/// proposal is built rather than in `GameAction::BeginPhase`'s performer —
-/// which is also what leaves that action, its pattern arm and its event
-/// untouched by this PR.
+/// **The cursor is schedule, not board, and the drainer owns it.** No CR 614
+/// replacement effect and no CR 603 trigger can see it, and it is spent
+/// whether or not the phase begins, so it is maintained where the proposal
+/// is built rather than in `GameAction::BeginPhase`'s performer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TurnPlan {
     /// CR 500.1's five phases, plus whatever CR 500.8 spliced in.
@@ -745,18 +703,14 @@ impl GameState {
     /// Put the game at `phase_type`/`step` by hand — **the one seam a fixture
     /// may move the position through.**
     ///
-    /// The position is two facts since RE-10: `phase`, which everything reads,
-    /// and `turn_plan.cursor`, which the drainer reads. Writing `phase` alone
-    /// leaves the drainer to advance from wherever the cursor was, and 19 of
-    /// the tree's 46 hand-written positions then drain — so this exists to make
-    /// the pair unwriteable apart rather than to save a line. `advance_turn`
-    /// debug-asserts that the two still agree, which is what catches a fixture
-    /// that goes around it.
+    /// The position is two facts, `phase` and `turn_plan.cursor`, and writing
+    /// `phase` alone leaves the drainer to advance from wherever the cursor was;
+    /// this makes the pair unwriteable apart. `advance_turn` debug-asserts that
+    /// the two agree, which catches a fixture that goes around it.
     ///
-    /// **The first entry of that type**, which is the only reasonable reading:
-    /// a plan with two combat phases is one CR 500.8 built, and a board that
-    /// wants the second one gets it by resolving the card that made it rather
-    /// than by being placed there.
+    /// **The first entry of that type**: a plan with two combat phases is one
+    /// CR 500.8 built, and a board that wants the second gets it by resolving
+    /// the card that made it.
     pub fn set_turn_position(&mut self, phase: Phase) {
         self.turn_plan.cursor = self.turn_plan.first_index_of(phase.phase_type);
         debug_assert!(
@@ -948,17 +902,11 @@ impl GameState {
     /// The battlefield's object ids, oldest permanent first.
     /// See [`GameState::battlefield_ordered`] for why this exists.
     pub fn battlefield_ids_ordered(&self) -> Vec<ObjectId> {
-        // Collect (timestamp, id) and sort *that*, rather than sorting ids with
-        // a key closure that looks the timestamp back up. `sort_by_key` calls
-        // its closure O(n log n) times, not n, so the naive form paid a HashMap
-        // lookup per comparison: measured 2026-08-25, 11.0 µs vs 0.57 µs at n=80
-        // and 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
-        // sweep runs after every resolution and priority check.
-        //
-        // Stable, keyed on timestamp alone — identical ordering to the previous
-        // form. Do not "simplify" to sorting the pair: timestamps are unique
-        // (CLAUDE.md, determinism), but tiebreaking on a v4 `ObjectId` would be
-        // the exact non-determinism the ordered sweeps exist to avoid.
+        // Collect (timestamp, id) and sort *that*: `sort_by_key` calls its closure
+        // O(n log n) times, so keying on a HashMap lookup paid ~20× (measured
+        // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
+        // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
+        // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
         let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
             .iter()
             .map(|(&id, e)| (e.timestamp, id))
@@ -1172,12 +1120,9 @@ impl GameState {
     /// gives. A stolen permanent spell enters under its caster's control here
     /// and is moved to the thief by the Layer 2 row CR 400.7a keeps alive.
     ///
-    /// **The one reader of [`GameState::resolving`].** The `StackEntry` that
-    /// recorded CR 110.2b's answer has been taken by the time a permanent spell
-    /// reaches the battlefield, so that field is how the answer survives the
-    /// resolution. This used to live in `init_zone_state`, which is where the
-    /// battlefield entity used to be created; RC-2 moved the creation to the
-    /// performer and the question moved with it.
+    /// **Reads [`GameState::resolving`].** The `StackEntry` that recorded
+    /// CR 110.2b's answer has been taken by the time a permanent spell reaches
+    /// the battlefield, so that field is how the answer survives the resolution.
     pub(crate) fn default_enter_controller(&self, id: ObjectId) -> Result<PlayerId, String> {
         Ok(match self.resolving {
             Some(r) if r.id == id => r.default_controller,
@@ -1299,12 +1244,10 @@ impl GameState {
         }
         // A reattachment leaves the old host's back-pointer behind otherwise.
         self.detach(attachment);
-        // CR 613.7e — "receives a new timestamp each time it becomes attached".
-        // The ordered sweeps key on this too, so the attachment moves to the
-        // end of them — deterministically, from the one counter (see
-        // `battlefield_ordered`). CR 613.7a's third sentence then re-stamps the rows the
-        // attachment's static abilities registered, through the registry's own
-        // funnel, which is their epoch bump; the bump below is `attached_to`'s.
+        // CR 613.7e — a new timestamp each time it becomes attached, from the one
+        // counter (`battlefield_ordered`). CR 613.7a's third sentence then
+        // re-stamps the rows the attachment's static abilities registered, through
+        // the registry's own funnel; the bump below is `attached_to`'s.
         let timestamp = self.allocate_timestamp();
         self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
         self.set_object_timestamp(attachment, timestamp);
@@ -1404,10 +1347,9 @@ impl GameState {
     /// because it is later than the Equipment's, which is how it beats Colossus
     /// Hammer's "loses flying" instead of losing to it.
     ///
-    /// `register_granted_static_effects` is the caller that passes `Some`. See
-    /// `layers-architecture.md` §15.2 item 4, which concluded the metadata this
-    /// clause wants is a timestamp rather than the `AbilityOrigin` enum Phase LD
-    /// declined to build — and it was right.
+    /// `register_granted_static_effects` is the caller that passes `Some`. The
+    /// metadata this clause wants is a timestamp, not an `AbilityOrigin` enum
+    /// (`layers-architecture.md` §15.2 item 4).
     ///
     /// Clause 3 — "if the object the ability is on receives a new timestamp,
     /// each continuous effect generated by static abilities of that object
@@ -1422,19 +1364,10 @@ impl GameState {
         granted_at: Option<crate::engine::layers::types::Timestamp>,
     ) -> crate::engine::layers::types::Timestamp {
         match self.objects.get(&id) {
-            // CR 613.7a: "...the same timestamp as the object the static
-            // ability is on, or the timestamp of the effect that created the
-            // ability, whichever is later."
-            //
-            // Two candidates, later wins. A printed ability has only the first,
-            // so it is returned unchanged.
-            //
-            // **The object, not the battlefield entry, since LK.** CR 613.7d
-            // gives an object a timestamp in every zone, which is what lets a
-            // Wonder in a graveyard generate an effect the layer walk can order
-            // — and the graveyard's own timestamp is the right one, because
-            // 613.7a says "the object the static ability is on" without asking
-            // where it is.
+            // CR 613.7a — the object's timestamp or the granting effect's, whichever
+            // is later; a printed ability has only the first. The *object*, not the
+            // battlefield entry: CR 613.7d gives an object a timestamp in every zone,
+            // which is what lets a Wonder in a graveyard generate an ordered effect.
             Some(obj) => match granted_at {
                 Some(created) => std::cmp::max(obj.timestamp, created),
                 None => obj.timestamp,
@@ -1453,40 +1386,29 @@ impl GameState {
     ///
     /// Scans the card's abilities for `AbilityType::Static`, asks
     /// `engine::zone_function` whether each functions where the object now is,
-    /// extracts the primitive and recipient, and registers a
-    /// `ContinuousEffect` in the registry.
+    /// and registers a `ContinuousEffect` per lowered atom.
     ///
-    /// **Two callers, and the zone is why there are two** (LK,
-    /// `layers-architecture.md` §13d decision 3):
+    /// **Two callers, and the zone is why** (`layers-architecture.md` §13d):
     ///
-    /// - `place_on_battlefield`, for `Zone::Battlefield`. It has to be there
-    ///   rather than in `move_object`: the entity does not exist until the
-    ///   CR 614.1c pipeline has decided what the permanent enters *as*, and
-    ///   `controller` is read off that decision.
-    /// - `move_object`, for every other zone — Wonder arriving in a
-    ///   graveyard. There is no entity, and CR 108.4 makes the controller the
-    ///   owner.
+    /// - `place_on_battlefield`, for `Zone::Battlefield` — there rather than in
+    ///   `move_object` because the entity does not exist until the CR 614.1c
+    ///   pipeline has decided what the permanent enters *as*.
+    /// - `move_object`, for every other zone — Wonder arriving in a graveyard.
+    ///   There is no entity, and CR 108.4 makes the controller the owner.
     ///
-    /// Duration comes from the primitive (typically `WhileSourceOnBattlefield`).
-    /// Effects are removed when the source leaves: `cleanup_zone_state` →
+    /// Rows are removed when the source leaves: `cleanup_zone_state` →
     /// `remove_by_source` off the battlefield, `remove_static_by_source`
-    /// elsewhere (see there for why the two differ).
-    ///
-    /// Registration is *not* what decides whether an effect applies. CR 305.7
-    /// and Layer 6 can take the generating ability away without touching the
-    /// registry, so `compute.rs` re-checks existence at every layer — and
-    /// since LK that check covers the zone too, because a card's zone clause
-    /// is a `Condition::SourceInZone` the existence check already evaluates.
-    /// This function's job is only to put the row there with the right
-    /// timestamp.
+    /// elsewhere. Registration is *not* what decides whether an effect applies —
+    /// CR 305.7 and Layer 6 can take the ability away without touching the
+    /// registry, so `compute.rs` re-checks existence, zone included, at every
+    /// layer (`CLAUDE.md`).
     ///
     /// Reads printed abilities on purpose: it runs inside
     /// `place_on_battlefield`, before this object's own effect is registered,
-    /// so computing effective characteristics here would be circular.
-    ///
-    /// That read is why a *copied* static ability registers nothing here, and
-    /// why it is not fixed by changing the read: `register_copied_static_effects`
-    /// is the path beside it (`copy-effects-architecture.md` §4.7 leg 2).
+    /// so computing effective characteristics here would be circular. A
+    /// *copied* static ability therefore registers nothing here;
+    /// `register_copied_static_effects` is the path beside it
+    /// (`copy-effects-architecture.md` §4.7 leg 2).
     pub(crate) fn register_static_effects(
         &mut self,
         id: ObjectId,
@@ -1497,11 +1419,9 @@ impl GameState {
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
-        // An `Arc` bump rather than three deep clones, and since LK that is
-        // load-bearing rather than tidy: `move_object` calls this on **every**
-        // zone change, so a `Vec<AbilityDef>` clone here would land on every
-        // draw, mill and discard in the game. The clone exists only because
-        // the loop mutates `self` while reading the card.
+        // An `Arc` bump rather than a `Vec<AbilityDef>` clone: `move_object` calls
+        // this on every zone change, so a deep clone would land on every draw, mill
+        // and discard. The clone exists only because the loop mutates `self`.
         let Some(card) = self.objects.get(&id).map(|obj| Arc::clone(&obj.card_data)) else {
             return;
         };
@@ -1514,42 +1434,28 @@ impl GameState {
 
             // CR 113.6 — does this ability function where the object is?
             //
-            // PRE-LAYER ZONE: printed types, for the reason the whole function
-            // reads printed abilities. The read is *exact* here rather than an
-            // over-approximation, which is worth saying because the layer
-            // invariant normally forbids it: the only thing
-            // `functioning_zones` asks the types is CR 113.6's
-            // instant-or-sorcery split, and no continuous effect can make a
-            // permanent an instant (CR 205.1b) — so printed and effective give
-            // the same answer at every call site this function has.
+            // PRE-LAYER ZONE: printed types, for the reason the whole function reads
+            // printed abilities. Exact rather than an over-approximation: the only
+            // thing `functioning_zones` asks the types is CR 113.6's instant-or-sorcery
+            // split, and no continuous effect can make a permanent an instant (CR 205.1b).
             if !crate::engine::zone_function::functions_in(ability, &card.types, zone) {
                 continue;
             }
 
-            // CR 614.1a — a replacement effect generates no continuous effect
-            // and so has no row to register. What it needs instead is for
-            // `engine::replacement::gather` to know this permanent is worth
-            // asking about; recording it here rather than in a separate ETB
-            // pass is deliberate, since this is already the one function that
-            // reads printed abilities at the moment a permanent enters.
-            //
-            // Through the "as long as" wrapper as well: the gather evaluates
-            // the condition at each proposal, and a conditional source this
-            // never recorded would be a card that silently does nothing.
+            // CR 614.1a — a replacement effect generates no continuous effect and so
+            // has no row; what `engine::replacement::gather` needs is to know this
+            // permanent is worth asking about. Through the "as long as" wrapper too:
+            // the gather evaluates the condition at each proposal, and a conditional
+            // source never recorded would be a card that silently does nothing.
             let is_replacement = match &ability.effect {
                 Effect::Replacement(_) => true,
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
                 _ => false,
             };
-            // **Battlefield only, and that is the gate leg A5 does not
-            // build.** These three sets index a sweep over
-            // `battlefield_ids_ordered`, so an entry for a source in a
-            // graveyard would name a permanent the sweep never visits --
-            // inert, and a claim the set does not keep. Reaching a
-            // non-battlefield source is `replacement-architecture.md` 11
-            // item 9's (c), a gate leg per zone, and it arrives with a card:
-            // Abrupt Decay for the restriction sweep, a "would be put into a
-            // graveyard from anywhere" source for the replacement one.
+            // Battlefield only: these sets index a sweep over `battlefield_ids_ordered`,
+            // so an entry for a source in a graveyard would be inert. A gate leg per
+            // zone is `replacement-architecture.md` §11 item 9 (c), and it arrives
+            // with a card.
             if is_replacement && zone == Zone::Battlefield {
                 self.replacement_ability_sources.insert(id);
             }
@@ -1567,30 +1473,21 @@ impl GameState {
                 self.restriction_ability_sources.insert(id);
             }
 
-            // CR 601.2f / 613.11 — the third shape with no rows: a cost
-            // effect applies to a cost being determined, at no layer, and
-            // `engine::cost_determination::cost_modifications_for` reads it off the effective
-            // list at 601.2f. Through the "as long as" wrapper, which the two
-            // tests above do not see (`cost-architecture.md` §8 item 1).
-            //
-            // **Only a subject that can apply from here**, and since LK that
-            // is the CR 113.6 gate above rather than a second predicate: a
-            // spell's own cost ability functions on the stack (CR 113.6d), so
-            // an affinity permanent never reaches this line. Recording one
-            // would widen the sweep on every cast for a match that cannot
-            // succeed. `CostSubject::applies_from_battlefield` used to say so
-            // here and was deleted with this edit — one answer, in
-            // `zone_function`.
+            // CR 601.2f / 613.11 — the third shape with no rows: a cost effect applies
+            // to a cost being determined, at no layer, and
+            // `engine::cost_determination::cost_modifications_for` reads it off the
+            // effective list. Through the "as long as" wrapper (`cost-architecture.md`
+            // §8 item 1). Only from the battlefield, and the CR 113.6 gate above is why:
+            // a spell's own cost ability functions on the stack (CR 113.6d), so an
+            // affinity permanent never reaches this line.
             if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
 
-            // CR 604.3a(3) — a characteristic-defining ability affects only the
-            // object that has it, so it needs no `ObjectSet` and no row here.
-            // `engine::layers::cda` applies it off the object's own effective
-            // ability list instead, which is also what makes it work in every
-            // zone (CR 604.3) and what lets Layer 6 remove it before Layer 7a
-            // reads it. Registering it as well would apply it twice.
+            // CR 604.3a(3) — a CDA affects only the object that has it, so it needs no
+            // `ObjectSet` and no row; `engine::layers::cda` applies it off the object's
+            // own effective ability list, in every zone (CR 604.3) and after Layer 6 has
+            // had its say. Registering it as well would apply it twice (`CLAUDE.md`).
             if ability.is_characteristic_defining {
                 continue;
             }
@@ -1619,15 +1516,10 @@ impl GameState {
                     continue;
                 }
 
-                // One timestamp for every row this atom generates. CR 613.6
-                // makes them parts of one effect; CR 613.7a fixes the value —
-                // "a continuous effect generated by a static ability has the
-                // same timestamp as the object the static ability is on".
-                //
-                // `None`: `register_static_effects` runs at ETB off printed
-                // abilities, so there is no "effect that created the ability"
-                // and CR 613.7a's second clause has nothing to contribute. The
-                // clause-2 caller is `register_granted_static_effects`.
+                // One timestamp for every row this atom generates: CR 613.6 makes them
+                // parts of one effect, and CR 613.7a fixes the value. `None` because a
+                // printed ability has no "effect that created" it; the clause-2 caller is
+                // `register_granted_static_effects`.
                 let timestamp = self.static_effect_timestamp(id, ability, None);
 
                 for (layer, modification) in rows {
@@ -1652,44 +1544,27 @@ impl GameState {
     /// CR 707.2a + 613.7a — register the continuous effects a *copied* static
     /// ability generates, for each permanent the copy row affects.
     ///
-    /// **The second leg of `copy-effects-architecture.md` §4.7, and the half
-    /// that is a missing row rather than a wrong gate.**
-    /// `register_static_effects` reads printed abilities on purpose — it runs
-    /// inside `place_on_battlefield`, before this object's own effect is
-    /// registered, so computing effective characteristics there would be
-    /// circular. That reasoning is sound and untouched. Its consequence is not:
-    /// a permanent that *becomes* a copy of Glorious Anthem has the ability and
-    /// pumps nothing, because no row was ever registered for it. This is that
-    /// row, added beside the printed path rather than by changing its read.
+    /// The second leg of `copy-effects-architecture.md` §4.7:
+    /// `register_static_effects` reads printed abilities (it runs before this
+    /// object's own effect is registered, so an effective read would be
+    /// circular), so a permanent that *becomes* a copy of Glorious Anthem would
+    /// otherwise have the ability and pump nothing. This is that row, added
+    /// beside the printed path rather than by changing its read.
     ///
-    /// # Why a stale row is inert rather than wrong
+    /// **A stale row is inert rather than wrong.** These rows are
+    /// `EffectOrigin::StaticAbility`, so CR 604.2 re-checks at every layer
+    /// whether the source still *has* the ability, against a frame that
+    /// includes layer 1; a copy row that expired or that a CR 707.4 re-copy
+    /// superseded stops applying on the next walk whatever the registry holds.
+    /// Each derived row gets the copy row's own `Duration` so both expire in the
+    /// same CR 514.2 sweep; a re-copy within a turn leaves superseded rows inert
+    /// until cleanup (Deferred Migrations).
     ///
-    /// These rows are `EffectOrigin::StaticAbility`, so CR 604.2 re-checks at
-    /// every layer whether the source still *has* the ability — against the
-    /// source's frame, which includes layer 1. A copy row that expired, or that
-    /// a later CR 707.4 re-copy superseded, takes the ability off that frame and
-    /// the derived row stops applying on the very next walk, whatever the
-    /// registry still holds. "Registry membership is not effect existence"
-    /// pays for the teardown here.
-    ///
-    /// What remains is hygiene, and it is bought by giving each derived row the
-    /// copy row's own `Duration`: both expire in the same CR 514.2 sweep, and
-    /// `remove_by_source` takes both when the permanent leaves. The one case
-    /// that leaves litter is a re-copy within a turn, whose superseded rows sit
-    /// inert until cleanup — recorded in Deferred Migrations, because with
-    /// `Duration::Indefinite` (CV-1b) they would accumulate without bound.
-    ///
-    /// # Two differences from `register_granted_static_effects`
-    ///
-    /// - **CDAs are skipped**, as in the printed path. CR 604.3a(2)'s third
-    ///   clause makes a copied CDA still a CDA — unlike a Layer 6 grant, which
-    ///   must clear the flag — so `layers::cda` applies it off the effective
-    ///   ability list and a row here would apply it twice.
-    /// - **The row's controller is the copy's controller, not the spell's.** CR
-    ///   613.7a's effect is generated by a static ability of the *permanent*, and
-    ///   CR 109.5 makes its "you" that permanent's controller. Mirrorweave is
-    ///   what makes the difference observable: it copies onto creatures both
-    ///   players control.
+    /// **Two differences from `register_granted_static_effects`**: CDAs are
+    /// skipped, since CR 604.3a(2)'s third clause makes a copied CDA still a
+    /// CDA and `layers::cda` applies it; and the row's controller is the copy's
+    /// controller (CR 613.7a, CR 109.5), which Mirrorweave makes observable by
+    /// copying onto both players' creatures.
     pub(crate) fn register_copied_static_effects(
         &mut self,
         values: &crate::engine::layers::copy::CopiableValues,
@@ -1706,15 +1581,11 @@ impl GameState {
             if !self.battlefield.contains_key(&id) {
                 continue;
             }
-            // **Never `unwrap_or(0)` here.** The two static sweeps take that
-            // default and document why it is unreachable, but they spend the
-            // value on one predicate evaluation; this one *writes* it into a
-            // registry row that outlives the call and resolves `PlayerRef::You`
-            // for as long as the row lives. Guessing P0 would be a silently
-            // wrong board rather than a wasted walk. `controller_or_owner`
-            // already falls back to CR 108.3's owner, so `None` means the object
-            // is not in `game.objects` at all — unreachable after the
-            // battlefield check above, and a skip if it ever is.
+            // Never `unwrap_or(0)` here: this *writes* the controller into a registry
+            // row that resolves `PlayerRef::You` for as long as the row lives, so a
+            // guessed P0 would be a silently wrong board. `controller_or_owner` already
+            // falls back to CR 108.3's owner, so `None` means the object is not in
+            // `game.objects` at all — unreachable after the battlefield check above.
             let Some(controller) = crate::oracle::characteristics::controller_or_owner(self, id)
             else {
                 debug_assert!(
@@ -1744,11 +1615,9 @@ impl GameState {
                         continue;
                     }
 
-                    // CR 613.7a clause 2 — "the timestamp of the effect that
-                    // created the ability, whichever is later". The copy effect
-                    // is what created it, so this is the clause-2 caller the
-                    // `static_effect_timestamp` docs describe, alongside
-                    // `register_granted_static_effects`.
+                    // CR 613.7a clause 2 — the copy effect is "the effect that created the
+                    // ability", so its timestamp is the second candidate
+                    // (`static_effect_timestamp`).
                     let timestamp =
                         self.static_effect_timestamp(id, ability, Some(copy_timestamp));
 
@@ -1774,38 +1643,24 @@ impl GameState {
     /// Lower a static ability's body into the `(primitive, recipient)` atoms
     /// that become registry rows.
     ///
-    /// **"Lowering" is this project's word for the one-way translation from
-    /// *card text* to *engine rows*** — from the authored `Effect` tree a
-    /// card file writes down to the `ContinuousEffect`s the layer walk
-    /// applies, in the compiler's sense of lowering a source language to an
-    /// IR. It happens once, when the ability is registered; it is not
-    /// re-derived per query, and the rows it produces carry no back-pointer
-    /// to the text. That is why an arm that declines has to be loud: nothing
-    /// downstream can tell a card that lowered to nothing from a card that
-    /// had nothing to say.
+    /// "Lowering" is the one-way translation from the authored `Effect` tree
+    /// to the `ContinuousEffect`s the layer walk applies, in the compiler's
+    /// sense. It happens once, at registration, and the rows carry no
+    /// back-pointer to the text — so nothing downstream can tell a card that
+    /// lowered to nothing from a card that had nothing to say.
     ///
-    /// Shared with `resolve::register_granted_static_effects` for the same
-    /// reason `static_primitive_rows` is: the same card text has to behave the
-    /// same whether it was printed or granted, and two copies of this match
-    /// drift.
+    /// Shared with `resolve::register_granted_static_effects`: the same card
+    /// text has to behave the same whether printed or granted, and two copies
+    /// of this match drift.
     ///
     /// # Every declining arm is loud
     ///
-    /// This function used to `continue` on anything it could not lower, and so
-    /// did its recipient twin below. That is the failure mode this codebase has
-    /// already paid for twice — Deferred Migrations item 7e was a `continue` on
-    /// a non-`Fixed` amount that "silently dropped the whole atom ... and failed
-    /// no test", and item 7f is the same shape still open. A dropped atom
-    /// produces a card that is *inert*: no panic, no wrong answer, no
-    /// divergence. `fuzz_games` cannot see it, because a card that does nothing
-    /// crashes nothing and stays perfectly deterministic. The only thing that
-    /// catches it is refusing to be quiet at the door.
-    ///
-    /// `debug_assert!` rather than a hard error, matching
-    /// `register_granted_static_effects`'s layer assert and
-    /// `compute::evaluate_pt_value`: a card author running the test suite is
-    /// stopped, and release builds keep the old skip-and-carry-on behavior
-    /// rather than panicking mid-game.
+    /// A dropped atom produces a card that is *inert* — no panic, no wrong
+    /// answer, no divergence, nothing `fuzz_games` can see (Deferred Migrations
+    /// items 7e and 7f are that shape). `debug_assert!` rather than a hard
+    /// error, matching `register_granted_static_effects`'s layer assert: a card
+    /// author running the test suite is stopped, and release builds skip and
+    /// carry on rather than panicking mid-game.
     pub(crate) fn static_ability_atoms<'a>(
         ability: &'a crate::objects::card_data::AbilityDef,
         card_name: &str,
@@ -1830,22 +1685,15 @@ impl GameState {
         match body {
             Effect::Atom(p, r) => vec![(p, r)],
 
-            // CR 614.1a — a static ability that generates a replacement effect
-            // produces no continuous effect and therefore no layer rows. It is
-            // not an authoring error and it is not silently dropped: the effect
-            // is discovered by `engine::replacement::gather`, which reads this
-            // object's *effective* ability list at the instant an event is
-            // proposed. Registering it here as well would be the CDA mistake in
-            // a second costume — one ability applying through two channels.
+            // CR 614.1a — a replacement effect generates no continuous effect and no
+            // layer rows; `engine::replacement::gather` reads it off the *effective*
+            // ability list at each proposal. A row here would be one ability applying
+            // through two channels, the CDA mistake in a second costume.
             Effect::Replacement(_) => Vec::new(),
 
-            // CR 101.2 — the same, for the same reason. A static ability that
-            // states something can't happen generates no continuous effect and
-            // so no layer rows: `engine::restriction::is_prohibited` reads it
-            // off this object's *effective* ability list at the instant the
-            // question is asked, which is what lets Humility strip a "can't".
-            // Registering it here as well would be one ability applying through
-            // two channels.
+            // CR 101.2 — the same, for the same reason. `engine::restriction::is_prohibited`
+            // reads a "can't" off the effective list when the question is asked, which
+            // is what lets Humility strip it.
             Effect::Restriction(_) => Vec::new(),
 
             // CR 601.2f / 613.11 — the third of the same shape. A cost effect
@@ -1874,18 +1722,12 @@ impl GameState {
                 atoms
             }
 
-            // "As long as [X], [Y]" — LI-3. The rows are [Y]'s, registered
-            // unconditionally; [X] stays on the ability, where CR 604.2's
-            // existence check already looks, and
-            // `board::static_ability_still_exists` evaluates it against the
-            // live board at the row's layer (`layers-architecture.md` §13b
-            // decision 5). So nothing about a row is conditional and nothing
-            // has to be carried on `ContinuousEffect`.
-            //
-            // The condition is *not* consulted here. A card whose condition
-            // is false as it enters still registers its rows; they apply to
-            // nothing until it becomes true, which is the only reading that
-            // survives a condition changing with no zone change to notice.
+            // "As long as [X], [Y]": the rows are [Y]'s, registered unconditionally;
+            // [X] stays on the ability, where CR 604.2's existence check evaluates it
+            // against the live board at the row's layer (`layers-architecture.md` §13b
+            // decision 5). A card whose condition is false as it enters still registers
+            // its rows, the only reading that survives a condition changing with no zone
+            // change to notice.
             Effect::Conditional(_, inner) => Self::atoms_of_static_body(inner, card_name),
 
             _ => {
@@ -1917,12 +1759,11 @@ impl GameState {
         use crate::types::effects::EffectRecipient;
 
         match recipient {
-            // The filter is stored verbatim, `PlayerRef` and all. Resolving
-            // "you" here would snapshot the source's controller at ETB; CR
-            // 109.5 wants its *current* one, so `compute::object_matches_filter`
-            // does it per layer.
-            // LJ — the zone-reaching form, lowered through the same
-            // constructor so the two recipients cannot mean different things.
+            // Stored verbatim, `PlayerRef` and all: resolving "you" here would snapshot
+            // the source's controller at ETB, and CR 109.5 wants its *current* one, so
+            // `compute::object_matches_filter` does it per layer. The zone-reaching form
+            // is lowered through the same constructor so the two recipients cannot mean
+            // different things.
             EffectRecipient::FilteredObjectsIn(filter, zones) => {
                 Some(ObjectSet::filter_in(filter.clone(), *zones))
             }
@@ -2019,12 +1860,9 @@ impl GameState {
                     ColorChange::RemoveAll => EffectModification::RemoveAllColors,
                 },
             ),
-            // CR 613.1b. `PlayerRef::You` rather than a resolved id, and that is
-            // what keeps this function a pure map from primitive to rows: it has
-            // no game, no source and no controller to resolve one with.
-            // `compute::resolve_set_controller` does it during the walk, which
-            // is also the only place CR 109.5's "current controller of the
-            // object it's on" can be asked.
+            // CR 613.1b. `PlayerRef::You` rather than a resolved id keeps this a pure
+            // map from primitive to rows; `compute::resolve_set_controller` resolves it
+            // during the walk, the only place CR 109.5's *current* controller can be asked.
             Primitive::GainControl(_dur) => single(
                 Layer::Layer2Control,
                 EffectModification::SetController(PlayerRef::You),
@@ -2072,11 +1910,10 @@ impl GameState {
     /// Register a game object in the central store
     pub fn add_object(&mut self, mut obj: GameObject) -> ObjectId {
         let id = obj.id;
-        // CR 613.7d — "an object receives a timestamp at the time it enters a
-        // zone", and an object created in one has entered it. The other
-        // stamping site is `move_object`, for every later zone change; between
-        // them every object in the store carries a real timestamp, which is
-        // what `battlefield_ordered` and `static_effect_timestamp` rely on.
+        // CR 613.7d — an object created in a zone has entered it. The other
+        // stamping site is `move_object`; between them every object carries a
+        // real timestamp, which `battlefield_ordered` and `static_effect_timestamp`
+        // rely on.
         obj.timestamp = self.allocate_timestamp();
         self.objects.insert(id, obj);
         self.bump_layer_epoch();
@@ -2221,7 +2058,7 @@ mod tests {
 
         // --- the arms that decline, each proven loud ----------------------
 
-        /// The big one, and no longer a declining arm (LI-3): "as long as
+        /// Not a declining arm: "as long as
         /// [X], [Y]" lowers to [Y]'s atoms, and [X] stays on the ability for
         /// CR 604.2's existence check to read every layer. The rows carry
         /// nothing about the condition, which is what decision 5 buys.
@@ -2267,7 +2104,7 @@ mod tests {
 
         /// The nastiest of the set, because it is *partial*: the atomic
         /// siblings register normally and only this entry vanishes, so the card
-        /// half-works. `filter_map` used to swallow it.
+        /// half-works.
         #[test]
         #[should_panic(expected = "non-atomic entry")]
         fn test_non_atom_inside_a_sequence_is_loud() {

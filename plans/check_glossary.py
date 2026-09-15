@@ -110,6 +110,8 @@ BRITISH = {
     "organise": "organize", "organised": "organized", "summarise": "summarize",
     "normalise": "normalize", "prioritise": "prioritize", "analyse": "analyze",
     "defence": "defense", "licence": "license", "whilst": "while",
+    "neighbour": "neighbor", "neighbours": "neighbors",
+    "neighbouring": "neighboring",
     "centre": "center", "modelled": "modeled", "labelled": "labeled",
     "travelled": "traveled", "fulfil": "fulfill",
     # Added 2026-09-15: the forms the post-RE audit's comment sweep found at
