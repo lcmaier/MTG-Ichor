@@ -63,7 +63,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 |---|---|---|---|
 | 100 | Formats / deck legality (size, copy limits) | 🟡 config present, enforcement not wired | `state/game_config.rs` |
 | 103.2 | Starting life | ✅ | `state/game_config.rs` |
-| 103.4 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand" | `state/game.rs:88-90` |
+| 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
 | 103.6 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
 | 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
@@ -194,7 +194,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 |---|---|---|---|
 | 400.7 / 406 | **Command zone as a Zone variant** | ✅ `Zone::Command`, `GameState.command: Vec<ObjectId>`, wired into `move_object` / `remove_from_zone_collection` | `types/zones.rs:10`, `state/game_state.rs:70`, `engine/zones.rs:208–216,255–259` |
 | 903.3 | **Starting life = 40** | ❌ no `GameConfig::commander()` constructor; `game_config.rs` header comment promises one via a future `Format` trait |
-| 903.5a | **Mulligan (London, same as standard)** | ⚠️ mulligan itself is stubbed (`state/game.rs:88-90`) regardless of format |
+| 903.5a | **Mulligan (London, same as standard)** | ⚠️ mulligan itself is stubbed (`Game::setup`; `backlog.md` §2.32) regardless of format |
 | 903.5b | Deck construction (100 cards singleton + color identity) | 🟡 `DeckLimits { min_deck_size: 99, max_copies: 1 }` fields exist but no commander-config factory wires them; **color identity enforcement not implemented** |
 | 903.7 | **Commander designation + command zone start** | 🟡 `GameObject.is_commander: bool` flag exists (2026-04-18); no deck-construction / setup hook yet flips it, and no "commander starts in command zone" routing. **This is now the gate on 903.9** — both halves of the zone redirection work and neither is reachable in a real game, because nothing outside tests sets the flag |
 | 903.8 | **Commander tax (+{2} per prior cast from command zone)** | ❌ no cast counter, no cost modification |
@@ -4609,10 +4609,10 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 3.
 
-4. **Mana-pool persistence stub — ❌ still stubbed.** `engine/turns.rs:65,142` still pass `BlanketPersistenceSet::none()` with `TODO(T12c)`. The registry it needs now exists.
+4. **Mana-pool persistence stub — ❌ still stubbed.** `engine/turns.rs`'s `on_phase_end` and `on_step_end` still pass `BlanketPersistenceSet::none()`; since 2026-09-15 the comment there points here rather than at the archived `T12c`. The registry it needs now exists.
 
    **Reachability (2026-09-03):** unreachable — `BlanketPersistenceSet::none()`
-   at `turns.rs:70` and `:175`; no registered card grants mana persistence.
+   in `on_phase_end` and `on_step_end`; no registered card grants mana persistence.
 
    **Sized:** read the persistence set off the continuous-effects
    registry (a `ManaPersistence` row kind) at the two sites, ~40–60 lines, with
@@ -5005,21 +5005,21 @@ first.
    **Sized:** the leaf plus a 7c timestamp merge in the shape Layer
    6's keyword counters use, ~100–150 lines, with the first doubling card.
 
-6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs:146`: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1c ignored. Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
+6. **Multi-attacker block damage is a silent stub.** `engine/combat/resolution.rs`'s multi-block arm: a blocker blocking 2+ attackers assigns *all* its damage to the first living attacker — no `DecisionProvider` choice, no error, CR 510.1d ignored (the comment there has pointed here since 2026-09-15). Unreachable (nothing in the pool grants "can block an additional creature"), and the plumbing to fix it already exists: `GameState.blocker_damage_divisions` is populated from `choose_blocker_damage_division`. Reachable with the first "blocks an additional creature" card. This is the silent-wrong-*choice* cousin of the silent-inertness class the loud-lowering work covered.
 
    **Reachability (2026-09-03):** unreachable — nothing populates
    `blocking_limits` (`validation.rs:135`; `max_blocks_for` always answers 1).
 
-   **Sized:** read `blocker_damage_divisions` at
-   `resolution.rs:146` instead of the first living attacker, ~40–60 lines, with
+   **Sized:** read `blocker_damage_divisions` in
+   that arm instead of the first living attacker, ~40–60 lines, with
    the first "can block an additional creature" card.
 
-7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs:302`, `TODO` tagged T22 (with matching notes at :39 and :293). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
+7. **Hexproof and shroud are unenforced in spell targeting.** `engine/targeting.rs`'s `Target` validation (its comments have pointed here rather than at the archived `T22` since 2026-09-15). `KeywordFlag::Hexproof` exists and combat honors it; spell targeting does not check either keyword. No registered card carries hexproof or shroud, so no game can reach it — reachable with the first such card, which is a Phase 8 event.
 
    **Reachability (2026-09-03):** unreachable — no registered card has hexproof
    or shroud.
 
-   **Sized:** RS-2's Tier 1a/1d, ~40 lines at `targeting.rs:302`
+   **Sized:** RS-2's Tier 1a/1d, ~40 lines in that validation
    plus `enumerate_legal_selections` — the same change as main item 15's first
    half.
 

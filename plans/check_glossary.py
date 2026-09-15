@@ -112,6 +112,11 @@ BRITISH = {
     "defence": "defense", "licence": "license", "whilst": "while",
     "centre": "center", "modelled": "modeled", "labelled": "labeled",
     "travelled": "traveled", "fulfil": "fulfill",
+    # Added 2026-09-15: the forms the post-RE audit's comment sweep found at
+    # twelve sites already in the crate, none of them on this list.
+    "colourless": "colorless", "modelling": "modeling",
+    "summarised": "summarized", "summarises": "summarizes",
+    "behavioural": "behavioral", "honour": "honor", "honoured": "honored",
 }
 
 POLYSEMOUS = {

@@ -1442,6 +1442,25 @@ shape with two outcomes.
 | **Atoms** | the CR 705/706 atoms are Phase 8's and Phase 9's in the corpus |
 | **Owner** | — |
 
+### 2.32 Mulligans (CR 103.5)
+
+**The surface that cannot express it.** `Game::setup` deals every opening
+hand and asks nobody. `GameConfig::mulligan_rule` exists — `London`, `Paris`,
+`None` — and nothing reads it, so every player keeps their first seven in
+every game, the four-seat Commander games v1 is for included. Nothing else
+is missing: the ask is two `pick_n`s per player, keep-or-mulligan and then
+which N cards go to the bottom. Filed 2026-09-15, when the post-RE audit's
+comment sweep found the `TODO` in `Game::setup` with no owner.
+
+| Field | |
+|---|---|
+| **Rules** | CR 103.5 (declarations in turn order from the starting player, then each mulligan taken, then N cards to the bottom); 103.5c (in a multiplayer game the first mulligan is free); 103.5b ("any time [that player] could mulligan"); 903.5a — Commander is the same rule |
+| **Verdict** | a stub whose configuration is already in place; the engine answers the game's first decision for the player |
+| **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
+| **Blocks** | every game's opening: the RL harness's first decision (`handoffs/post-re-audit.md` §4) and `cli_play`'s human seat |
+| **Atoms** | `ATOM-103.5-001` |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

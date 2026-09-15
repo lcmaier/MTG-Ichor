@@ -3,7 +3,8 @@
 //!
 //! A priority sweep asks `compute_characteristics` the same question about
 //! the same unchanged board once per permanent: 96% of walks recomputed an
-//! object nothing had touched. This is the store that answers the repeats.
+//! object nothing had touched (measured 2026-09-03). This is the store that
+//! answers the repeats.
 //!
 //! The key is coarse on purpose — one epoch for the whole game, bumped at
 //! every write to any walk input (`GameState::layer_epoch`). A coarse key has

@@ -31,11 +31,10 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<bool, String> {
         let active = self.active_player;
-        // Build legal attacker-target pairs (each legal attacker × each opponent)
-        // TODO: Cartesian product scales as O(creatures × targets). With planeswalkers
-        // and battles as attack targets, even 2-player games can grow large. Consider a
-        // two-step approach: (1) pick which creatures attack, (2) assign each a target.
-        // This keeps options O(creatures + creatures) instead of O(creatures × targets).
+        // The option list is every legal attacker × every legal target, and it
+        // grows with planeswalkers and battles as targets. Whether the ask
+        // becomes two-step — which creatures attack, then each one's target —
+        // is a `DecisionProvider` choice-shape question, `backlog.md` §2.4's.
         let attacker_ids = legal_attackers(self, active);
         // CR 506.2 — the defending players are the active player's
         // *opponents*, and a player who has left the game (CR 104.5, 800.4a)

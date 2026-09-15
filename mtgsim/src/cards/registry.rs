@@ -288,7 +288,7 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // the per-permanent gather sweep on every player's upkeep, every turn,
     // for the rest of the game.
     //
-    // Colourless at five, so every deck can cast it, and its scope is
+    // Colorless at five, so every deck can cast it, and its scope is
     // `PlayerSet::Everyone` — the only pooled effect that applies to a player
     // who is not its controller and is not about damage.
     //

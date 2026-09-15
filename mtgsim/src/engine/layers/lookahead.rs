@@ -48,7 +48,7 @@ pub struct Lookahead {
     /// CR 614.12 clause (2): the registry rows its own static abilities would
     /// generate, exactly as `register_static_effects` would write them.
     pub(super) rows: Vec<ContinuousEffect>,
-    /// `rows` summarised as the registry summarises its own, so the walk's
+    /// `rows` summarized as the registry summarizes its own, so the walk's
     /// fast-path gates stay exact for rows the registry does not hold.
     pub(super) summary: RegistryScopeSummary,
 }

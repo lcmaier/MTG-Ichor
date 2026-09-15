@@ -475,7 +475,7 @@ impl ManaAtom {
 ///
 /// Dual-track structure:
 /// - `pool` (simple): `HashMap<ManaType, u64>` for O(1) lookups. Handles the
-///   99% case of unrestricted mana with no per-unit metadata.
+///   common case, unrestricted mana with no per-unit metadata.
 /// - `special`: `Vec<(ManaAtom, u64)>` counted groups for mana with restrictions,
 ///   grants, or time-gated persistence. Only populated when special lands/abilities
 ///   produce restricted mana.

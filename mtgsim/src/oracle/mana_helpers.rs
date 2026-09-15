@@ -44,10 +44,8 @@ pub fn find_mana_sources(
         return Some(Vec::new());
     }
 
-    // Collect all available mana sources (untapped permanents with mana abilities)
     let mut available = available_mana_sources(game, player_id);
 
-    // Tally specific color requirements
     let mut color_needs: Vec<ManaType> = Vec::new();
     let mut generic_need: u64 = 0;
 
@@ -63,9 +61,10 @@ pub fn find_mana_sources(
 
     let mut tapped: Vec<ManaSource> = Vec::new();
 
-    // Phase 1: Reserve sources for colored requirements.
-    // For each colored need, find a source that produces exactly that color.
-    // TODO: Prefer single-color producers to avoid wasting dual-producers (not yet implemented).
+    // Phase 1: reserve a source for each colored requirement. Greedy, with no
+    // preference among producers: a dual taken for a pip a basic could have
+    // paid can make a payable cost read as unpayable. The solver half of the
+    // payment oracle is `backlog.md` §2.18's.
     for needed_color in &color_needs {
         let idx = available.iter().position(|s| s.produces == *needed_color)?;
         tapped.push(available.remove(idx));

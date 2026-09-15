@@ -171,7 +171,7 @@ pub enum GameEvent {
     // - **The redundancy was hiding a bug.** `CreatureDied` was emitted only
     //   from the state-based-action sites, so a creature killed by a spell
     //   produced none, and `fuzz_games` undercounted deaths at 5.3 per game
-    //   where the zone changes say 6.2.
+    //   where the zone changes say 6.2 (2026-08-26).
     //
     // A reader that wants deaths matches `ZoneChange { from: Battlefield, to:
     // Graveyard, lki, .. }` and asks the frame what died. `ui/display.rs` and

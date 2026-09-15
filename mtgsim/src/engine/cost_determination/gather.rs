@@ -187,8 +187,8 @@ fn applies_to(
 /// a cost ability and a Thalia in hand modifies nothing of her own, so a gate
 /// that asked "prints a cost ability" opened for her at every castability
 /// preview and computed a frame source 2 then refused. That was five
-/// non-member layer walks per 200 measured games, and the A/B is what found
-/// it.
+/// non-member layer walks per 200 measured games, and CM-1's A/B (2026-09-07)
+/// is what found it.
 ///
 /// **This reads `card_data` for an object on the stack**, which the
 /// layer-system invariant otherwise forbids — and it is a gate, not an

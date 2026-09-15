@@ -14,7 +14,7 @@
 //! They need no machinery that does not already exist — two mana abilities and two
 //! subtypes each.
 //!
-//! **One modelling shortcut, recorded rather than hidden.** CR 305.6 makes a
+//! **One modeling shortcut, recorded rather than hidden.** CR 305.6 makes a
 //! land's mana abilities *intrinsic to its basic land types* — the reminder text
 //! in parentheses on the printed card is not rules text. We give each dual two
 //! explicit `AbilityType::Mana` abilities instead, because base characteristics

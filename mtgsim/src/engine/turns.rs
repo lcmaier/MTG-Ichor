@@ -311,8 +311,10 @@ impl GameState {
     // --- Phase lifecycle callbacks ---
 
     fn on_phase_end(&mut self, phase_type: PhaseType) -> Result<(), String> {
-        // Mana pools empty at end of each phase (rule 106.4)
-        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        // Mana pools empty at end of each phase (rule 106.4). A pool that does
+        // not empty (Upwelling's class) is a `BlanketPersistenceSet` read off the
+        // registry, and nothing builds one yet — `codebase-state.md`, "Before
+        // Layers" item 4.
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
@@ -406,8 +408,8 @@ impl GameState {
     }
 
     fn on_step_end(&mut self, _step_type: StepType) -> Result<(), String> {
-        // Mana pools empty at end of each step (rule 106.4)
-        // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
+        // Mana pools empty at end of each step (rule 106.4); the persistence
+        // set is the same stub as `on_phase_end`'s ("Before Layers" item 4).
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);

@@ -281,7 +281,7 @@ impl GameState {
             // either of CR 701.8b's routes — so `Primitive::Destroy` and this
             // sweep can no longer disagree about it.
             //
-            // Regeneration is likewise no longer a TODO here: a shield is a
+            // Regeneration is not checked here either: a shield is a
             // registered replacement effect watching `GameAction::Destroy`, and
             // this proposal is that event.
             let entry = self.battlefield.get(&id).unwrap();
@@ -506,8 +506,7 @@ impl GameState {
         // creature is unattached here, and 704.5m puts it into its owner's
         // graveyard on the loop's next pass, since by then it is an Aura
         // attached to nothing. That composition is the CR's own, which is why
-        // this does not special-case Auras — and it is what closed the
-        // standing TODO for them.
+        // this does not special-case Auras.
         //
         // **One pass, and one characteristics read per attachment.** Asking
         // `is_creature` in one loop and the three `has_subtype`s in another

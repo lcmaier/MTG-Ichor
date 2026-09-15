@@ -243,7 +243,7 @@ printed list, so neither a Layer 6 grant nor a Layer 1 copy can reach a spell on
 the stack or a card in hand (§8 item 7). **The leg asks the subject, not the
 body**: Thalia prints a cost ability and a Thalia in hand modifies nothing of
 her own, and asking the body alone cost five non-member walks per 200 measured
-games — found by the A/B arm, not by argument (§8 item 8).
+games (CM-1, 2026-09-07) — found by the A/B arm, not by argument (§8 item 8).
 
 **Other zones** — an emblem's "spells you cast cost {1} less", Convergence of
 Dominion's graveyard abilities — are `roadmap-v2.md` A5's zone-function

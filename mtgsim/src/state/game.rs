@@ -93,9 +93,8 @@ impl Game {
 
     /// Perform game setup: shuffle libraries and draw opening hands.
     ///
-    /// Mulligan handling is stubbed — players always keep their first hand.
-    /// Full London mulligan support requires multiple `DecisionProvider`
-    /// calls per player and will be implemented when needed.
+    /// Mulligan handling is stubbed — players always keep their first hand
+    /// (CR 103.5; `backlog.md` §2.32).
     pub fn setup(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         // Shuffle each player's library
         for player_id in 0..self.state.num_players() {
@@ -118,10 +117,8 @@ impl Game {
             }
         }
 
-        // TODO: mulligan decisions (London mulligan)
-        // For each player in turn order:
-        //   ask decisions.choose_mulligan(&self.state, player_id)
-        //   if mulligan: shuffle hand into library, draw 7, bottom N
+        // CR 103.5's mulligans are not asked: every player keeps their first
+        // hand, whatever `GameConfig::mulligan_rule` says. `backlog.md` §2.32.
 
         // CR 103.7 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap

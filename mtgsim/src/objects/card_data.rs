@@ -69,7 +69,7 @@ pub enum AbilityType {
 /// turn", "only during combat", the functioning zone — and grows this enum
 /// when a card needs it, rather than this enum guessing at their shape.
 ///
-/// Honoured at all three ability-index sites CLAUDE.md names:
+/// Honored at all three ability-index sites CLAUDE.md names:
 /// `activatable_abilities` does not offer a restricted ability out of its
 /// window, `activate_ability` refuses it (the enforcement), and
 /// `priority.rs` reaches the second through the first.

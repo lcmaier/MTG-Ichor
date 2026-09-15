@@ -317,8 +317,8 @@ pub struct GameState {
     /// optimization: reading effective abilities is a full
     /// `compute_characteristics` walk, so an ungated sweep would run one per
     /// permanent per proposed action — measured against the untap step alone
-    /// that is thousands of extra layer walks per `fuzz_games` game, on a board
-    /// where nothing has a replacement ability at all.
+    /// (2026-09-01) that is ~6,000 extra layer walks per `fuzz_games` game, on a
+    /// board where nothing has a replacement ability at all.
     ///
     /// **A set rather than a count, so it cannot drift.** Insert at ETB, remove
     /// at `cleanup_zone_state`; both are idempotent, and a counter that drifted
@@ -952,8 +952,8 @@ impl GameState {
         // Collect (timestamp, id) and sort *that*, rather than sorting ids with
         // a key closure that looks the timestamp back up. `sort_by_key` calls
         // its closure O(n log n) times, not n, so the naive form paid a HashMap
-        // lookup per comparison: measured 11.0 µs vs 0.57 µs at n=80 and
-        // 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
+        // lookup per comparison: measured 2026-08-25, 11.0 µs vs 0.57 µs at n=80
+        // and 36.0 µs vs 1.7 µs at n=200. This runs 8 times per SBA sweep, and the
         // sweep runs after every resolution and priority check.
         //
         // Stable, keyed on timestamp alone — identical ordering to the previous
