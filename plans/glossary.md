@@ -140,6 +140,30 @@ and the thing a skip replaces with nothing. **(2)** a unit of *work* — one
 branch, one PR (`CLAUDE.md`'s Git workflow). Sense 2 predates sense 1 and is
 prose only; nothing in the crate is named for it.
 
+**plan** — two, and the older one is not a type at all.
+**(1)** a *payment* plan — `plan_payment`, `pay_with_plan`, `plan_and_pay` and
+`planned_sacrifices`: the cost system working out what to tap and sacrifice
+before it does either (CR 601.2f–h). A local idiom, and a verb. **(2)** a
+**turn** plan — `GameState.turn_plan`, `TurnPlan`, `PlannedPhase`: CR 500.1's
+phase sequence as data the drainer indexes, so CR 500.8 can splice into it. A
+noun, and a stored fact. The collision was caught by RE-1's glossary pass
+*before* sense 2 was written rather than mid-PR, which is what this gate is
+for — `planned_sacrifices` sits one letter from `PlannedPhase`. Sense 2 keeps
+the name because it is the one `state::game_state::next_phase`'s own pre-RE-1
+TODO used. → `replacement-architecture.md` §9's RE-10; `cost-architecture.md`.
+
+**splice** — **(1)** CR 702.47's keyword ability: adding a card's rules text to
+an Arcane spell as it is cast (CR 612.10). **Unimplemented, and the name is
+taken by sense 2 before the mechanic arrives**, which is the collision this
+entry exists to record. **(2)** inserting phases into `GameState.turn_plan` at
+the cursor — CR 500.8, `Primitive::ExtraPhases`, literally `Vec::splice`. Sense
+2 keeps the word because it is the standard-library method's, and the CR's own
+sense is a keyword ability that will be spelled `KeywordFlag` when it lands and
+so cannot be confused with a call. **Found by `--suggest` only because the
+prose says "splices"**: the filter drops words the CR uses and the CR uses the
+singular, which is one thing that report cannot see. →
+`replacement-architecture.md` §9's RE-10.
+
 **schedule** — **(1)** what the turn machinery will propose next: `turn_queue`
 and `turn_rotation` together, read and **consumed** by `advance_turn` as it
 builds a proposal. Naming it is load-bearing — the schedule is an *input* to

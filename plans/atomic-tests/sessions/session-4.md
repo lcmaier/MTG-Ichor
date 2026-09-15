@@ -973,7 +973,38 @@ This is a restatement of 400.8. Test already generated as ATOM-400.8-001.
 
 **500.7** — DEFERRED. Extra turns — Phase 9 (mutable TurnPlan, D6 in roadmap).
 
-**500.8** — DEFERRED. Extra phases — Phase 9.
+**500.8** — TESTABLE. Extra phases are created after a specified phase, and
+two created after the same one happen most-recently-created first.
+
+**ATOM-500.8-001**
+- **Rule:** 500.8 — Some effects can create additional phases. If a phase is
+  created after the current one, it occurs directly after the specified
+  phase; if multiple extra phases are created after the same phase, the most
+  recently created phase will occur first.
+- **Mechanism:** the turn's phase sequence must be data the engine can insert
+  into at a position, rather than a fixed chain from phase type to phase
+  type — a turn holding two combat phases makes "what follows" unanswerable
+  from a type. Insertion at the cursor gives the ordering sentence for free:
+  a later insertion at the same index displaces the earlier one.
+- **Minimal Board:** Aggravated Assault on the battlefield under the active
+  player, in their precombat main phase, with mana to activate it.
+- **Action:** Activate "{3}{R}{R}: Untap all creatures you control. After
+  this main phase, there is an additional combat phase followed by an
+  additional main phase."
+- **Expected Result:** the turn's remaining phases are combat, main, combat,
+  main, ending — the created pair directly after the main phase the ability
+  resolved in, in printed order, and ahead of the natural combat phase. A
+  second activation in the same main phase puts *its* pair ahead of the
+  first's.
+- **Phase:** Phase 6 (Replacement effects)
+- **Ticket:** RE-10 — `replacement-architecture.md` §9. Covered.
+
+**Corpus note, 2026-09-14:** **500.7 and 500.11 below are stale.** Both are
+filed DEFERRED to Phase 9 and both shipped with RE-1 on 2026-09-11 — extra
+turns as `GameState::turn_queue`, skips as the replacement pipeline's. They
+are flagged rather than re-filed because a correction to the corpus is the
+corpus's own work; neither can move `specdb owed`, which gates on shipped
+phases only.
 
 **500.9** — DEFERRED. Extra steps — Phase 9.
 

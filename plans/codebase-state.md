@@ -4008,6 +4008,18 @@ named RE PR.
      `replacement-architecture.md` §11 item 49 is the finding that turned a
      deferral into a decision.
 
+     **✅ The phase half landed 2026-09-14 (RE-10), at +1,066 / −171.**
+     `GameState.turn_plan` is CR 500.1's sequence as data; `next_phase`'s chain
+     is deleted. **The position is now two facts** — `phase`, which everything
+     reads, and `turn_plan.cursor`, which the drainer reads — and
+     `GameState::set_position` is the only seam that writes both. That is the
+     hazard item 115 above describes, one level down and *with* the enforcement
+     item 115 argues against for its own pair: a `debug_assert` in
+     `advance_turn` is right here precisely because, unlike `active_player` and
+     `turn_rotation`, these two never legitimately disagree at a drain
+     boundary. It found all 40 affected fixtures in one run. **The step half
+     stays in §2.17**, and `PlannedPhase` is the struct its one field goes on.
+
 117. **An untap-step skip would not reset land drops.** `process_untap_step`
      calls `reset_lands_played` where CR 502 puts the untap step's turn-based
      actions, and RE-1 made the untap step skippable: eight printed cards say

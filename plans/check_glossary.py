@@ -82,7 +82,7 @@ WATCHLIST = [
     "cursor", "customer", "def",
     "decomposition", "departed", "departing", "donor", "drainer", "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
-    "lineage", "member", "outer event",
+    "lineage", "member", "outer event", "splice",
     "memo", "performer", "pool", "position", "proposal", "putter", "quadrant",
     "queue", "reach", "registry", "rider", "schedule", "seed", "shield",
     "source", "spelled", "step",
@@ -116,6 +116,7 @@ BRITISH = {
 POLYSEMOUS = {
     "source": 3, "shield": 3, "registry": 3, "queue": 3, "census": 2,
     "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
+    "plan": 2, "splice": 2,
     "member": 2,
 }
 
