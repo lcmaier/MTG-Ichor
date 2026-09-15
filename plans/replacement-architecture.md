@@ -4512,6 +4512,42 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
    paragraph for an unsized phase goes stale in the merge that builds part of
    it.
 
+   **✅ Closed 2026-09-14 by LK** (`layers-architecture.md` §13d). (a), (b) and
+   (c) all landed, and the shapes are not quite the ones above:
+
+   - **(a) the predicate** is `engine/zone_function.rs`, beside
+     `engine::restriction` for that module's reason. It returns a `ZoneSet`
+     rather than a bool, and it takes the object's card types as an *input*
+     rather than reading them, so the layer invariant holds at the module
+     boundary. Six of CR 113.6's fourteen subrules ship; §13d decision 4 is the
+     triage table, and **113.6e, f, j and m are all `backlog.md` §2.3's**
+     rather than this facility's, which is the split `roadmap-v2.md` A5 has
+     been making since it was written.
+   - **(b) the object timestamp** is `GameObject::timestamp`, CR 613.7d's, and
+     `static_effect_timestamp` reads it there — which is what lets a Wonder in
+     a graveyard generate an effect the layer walk can order. It cost +16.5%
+     to take it off `PermanentState`, so the battlefield entry keeps a copy for
+     the ordered sweeps; §13d decision 2 and `codebase-state.md` item 77 have
+     the measurement and the eventual deletion.
+   - **(c) the gate leg per zone** landed **narrower than this sizing
+     assumed**, and deliberately. `replacement_ability_sources`,
+     `restriction_ability_sources` and `cost_modification_ability_sources` all
+     index a sweep over `battlefield_ids_ordered`, so LK keeps them
+     battlefield-only: an entry naming a graveyard card would be a claim the
+     set cannot keep. What LK built is the *registration* leg —
+     `GameState::register_static_effects` takes a zone and `move_object` is its
+     second caller — which is what a **continuous effect** from a
+     non-battlefield source needs. A **replacement** effect from one needs the
+     sweep to visit it as well, and that is still owed, now with a card against
+     it: Abrupt Decay for the restriction sweep (CR 113.6g, whose *zone* answer
+     is already free from the default arm), and one of the five "would be put
+     into a graveyard from anywhere" cards for this one.
+
+   **So source 2 is half-open rather than open**, and that is the honest
+   summary: a static ability functioning off the battlefield now registers,
+   applies and retires correctly, and the replacement pipeline still only
+   gathers from the battlefield.
+
 10. **Skullbriar is the wrong reason to change the counter model, and there is
     a right one** (F1). Two cards want CR 122.2's exception — Skullbriar, the
     Walking Grave and Me, the Immortal (`o:/counters remain on/ -is:funny`,

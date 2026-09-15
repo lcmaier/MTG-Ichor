@@ -411,7 +411,35 @@ pub enum Condition {
     CardInGraveyard(ObjectFilter),
     SpellWasKicked,
     ModeChosen(usize),
-    SourceOnBattlefield,
+    /// CR 113.6b's clause — "as long as this card is in your graveyard"
+    /// (Wonder), "if this card is in your graveyard" (Bridge from Below).
+    ///
+    /// **Two jobs, and the CR is what makes them one.** Evaluated at every
+    /// layer like any other leaf, so the effect stops existing the moment the
+    /// source leaves; and read *syntactically* by
+    /// `engine::zone_function::functioning_zones`, because CR 113.6b says an
+    /// ability that states which zones it functions in functions only from
+    /// those zones — so the clause that gates the effect is the same sentence
+    /// that places the ability. A condition about some *other* object's zone
+    /// is [`Self::CardInGraveyard`], which is why this one says `Source`.
+    ///
+    /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
+    /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
+    /// the same gate it always did.
+    SourceInZone(ZoneSet),
+    /// Every clause holds — Wonder's "in your graveyard **and** you control an
+    /// Island".
+    ///
+    /// `layers-architecture.md` §15.1 planned `And`/`Or`/`Not` and Wonder is
+    /// the first registered card to need any of them, which is §13b decision
+    /// 5's rule for when the enum grows. The other two are not written ahead
+    /// of a card, and `Not` in particular is the one
+    /// `zone_function::stated_zones` will have to refuse rather than guess at
+    /// (§13d decision 1b).
+    ///
+    /// An empty vector is vacuously true, which is what `all()` means and what
+    /// no card writes.
+    All(Vec<Condition>),
     /// "as long as enchanted/equipped [permanent] is [X]" — a predicate on
     /// whatever the source is attached to (CR 303.4m reads it fresh, as
     /// `ObjectSet::Host` does). Rune of Flight's two clauses are both this

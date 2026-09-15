@@ -617,9 +617,8 @@ mod tests {
             .build();
         let obj = GameObject::new(land_data, 0, Zone::Battlefield);
         let id = obj.id;
-        let ts = game.allocate_timestamp();
         game.add_object(obj);
-        game.battlefield.insert(id, PermanentState::new(id, 0, ts, 1));
+        game.insert_battlefield_entity(id, PermanentState::new(id, 0, 1));
         (game, id)
     }
 

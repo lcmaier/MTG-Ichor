@@ -238,22 +238,27 @@ impl<'l> Board<'l> {
         game.battlefield.get(&id)
     }
 
-    /// Is `id` in the battlefield zone, or is it the object entering it?
+    /// **Accessor 1b**: a member's CR 613.7 timestamp — the object's own
+    /// (CR 613.7d), or for the entering object the one it *would* receive.
     ///
-    /// The *zone* rather than entity membership (RC-3), which admits a token
-    /// created in the zone with no entity yet; the look-ahead admits the
-    /// entering object, still in its source zone while its entry is decided
-    /// (RC-4b) — and nothing else.
-    ///
-    /// [`Self::in_zones_or_entering`] generalized this for LJ and this is now
-    /// that call with [`ZoneSet::BATTLEFIELD`]. Kept as its own name because
-    /// `Condition::SourceOnBattlefield` asks exactly this question and asking
-    /// it through a zone set would read as though the answer could vary.
-    pub(super) fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
-        self.in_zones_or_entering(game, id, ZoneSet::BATTLEFIELD)
+    /// The second arm is why this is a function rather than a field read: an
+    /// object whose entry is being decided is still in its source zone and
+    /// carries that zone's timestamp, which is older than every permanent on
+    /// the board, where CR 614.12 asks what it would be once it has entered.
+    /// Before LK the same distinction was spelled as "has an entity or does
+    /// not", and that stopped working the day an object off the battlefield
+    /// had a timestamp at all.
+    pub(super) fn timestamp_of(&self, game: &GameState, id: ObjectId) -> Timestamp {
+        match self.entering(id) {
+            Some(l) => l.entity_timestamp,
+            None => game.object_timestamp(id),
+        }
     }
 
     /// Is `id` in one of `zones` — the gate a filter row asks before matching?
+    ///
+    /// The *zone* rather than entity membership (RC-3), which admits a token
+    /// created in the zone with no entity yet.
     ///
     /// **The entering object is asked about as though it were already on the
     /// battlefield, and that is CR 614.12 rather than a convenience.** The
@@ -602,13 +607,32 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // `GameState`, and the two resolution-only leaves never evaluate at
         // all.
         Condition::CardInGraveyard(_)
-        | Condition::SourceOnBattlefield
+        | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_) => {}
         // A library's card count is off `GameState`, like a life total, and
         // the leaf's threshold is a constant — nothing on any frame.
         Condition::LibraryEmpty => {}
+        // A conjunction reads whatever its clauses read. No wildcard inside,
+        // for this function's own stated reason: a clause that reads a frame
+        // and declares nothing produces a wrong *order*, not a wrong value.
+        //
+        // **`All` alone is not a restriction on what cards can say**, which is
+        // the question this arm invites. Most printed "or" sits *inside* a
+        // clause rather than between two: Abzan Kin-Guard is "has lifelink as
+        // long as you control a white **or** black permanent" (Scryfall,
+        // verified 2026-09-14), which is one `ControlPermanent` over an
+        // `ObjectFilter::Or` — that type has had `And`, `Or` and `Not` since
+        // before the layer system. `Condition::Or` is for a disjunction of two
+        // whole *conditions*, and §15.1's rule stands: it lands with the first
+        // registered card that needs one, together with its arm here and in
+        // `zone_function::stated_zones`.
+        Condition::All(clauses) => {
+            for clause in clauses {
+                condition_reads(clause, out, you_channel);
+            }
+        }
     }
 }
 
@@ -728,7 +752,7 @@ fn applications_in_layer<'a, 'l: 'a>(
     if cda::CDA_LAYERS.contains(&layer) {
         for (index, &object) in board.members.iter().enumerate() {
             let frame = &board.frames[&object];
-            let timestamp = board.entity(game, object).map(|e| e.timestamp).unwrap_or(Timestamp::MAX);
+            let timestamp = board.timestamp_of(game, object);
             for (i, (ability, modification)) in cda::cda_modifications(frame, layer).into_iter().enumerate() {
                 // A CDA's "you" is the object's own controller (CR 109.5),
                 // which is its own frame's — the source, here.

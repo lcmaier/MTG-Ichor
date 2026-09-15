@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::creatures;
-use mtgsim::test_support::test_ctx;
+use mtgsim::test_support::{place_bare, test_ctx};
 use mtgsim::cards::keyword_creatures;
 use mtgsim::engine::combat::resolution::assign_combat_damage;
 use mtgsim::engine::combat::validation::{
@@ -17,7 +17,7 @@ use mtgsim::engine::combat::validation::{
 use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, PermanentState, BlockingInfo};
+use mtgsim::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -369,12 +369,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
         .keyword_flag(KeywordFlag::Trample)
         .keyword_flag(KeywordFlag::Deathtouch)
         .build();
-    let obj = GameObject::new(data, 0, Zone::Battlefield);
-    let trampler = obj.id;
-    game.add_object(obj);
-    let ts = game.allocate_timestamp();
-    let entry = PermanentState::new(trampler, 0, ts, 0);
-    game.battlefield.insert(trampler, entry);
+    let trampler = place_bare(&mut game, data, 0);
 
     let blocker = place_creature(&mut game, 1, creatures::grizzly_bears); // 2/2
     set_attacking(&mut game, trampler, 1);

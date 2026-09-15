@@ -76,7 +76,7 @@ BASELINE_VERSION = "tmnt"
 # phase labels, and follows it rather than deciding anything.
 CRITICAL_PATH = ["Phase 5-Layers", "Phase 6", "Phase 7"]
 
-ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*$")
+ENTRY_RE = re.compile(r"^\*\*((?:ATOM|BOUNDARY|COMP)-[^*]+)\*\*\s*(?:\([^)]*\))?\s*$")
 # A CR rule line: "613.4c Layer 7c: Effects and counters that modify ..."
 CR_RULE_RE = re.compile(r"^(\d{3}\.\d+[a-z]?)\.?\s+(.*)$")
 RULE_TOKEN_RE = re.compile(r"\d{3}\.\d+[a-z]?")

@@ -84,7 +84,8 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
             let mut pairs: Vec<(u64, ObjectId)> = game
                 .cost_modification_ability_sources
                 .iter()
-                .filter_map(|id| game.battlefield.get(id).map(|entry| (entry.timestamp, *id)))
+                .filter(|id| game.battlefield.contains_key(id))
+                .map(|id| (game.object_timestamp(*id), *id))
                 .collect();
             // Timestamps are unique (CR 613.7; `CLAUDE.md`), so the key alone
             // is a total order and no `ObjectId` tiebreak is ever consulted.

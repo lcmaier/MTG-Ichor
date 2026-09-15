@@ -150,12 +150,12 @@ fn test_a_reattachment_moves_only_the_attachment_to_the_end() {
         .map(|_| put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0))
         .collect();
     assert_eq!(game.battlefield_ids_ordered()[0], equipment, "the Equipment entered first");
-    let stamped = game.battlefield[&equipment].timestamp;
+    let stamped = game.object_timestamp(equipment);
 
     assert!(game.attach(equipment, placed[3]));
     let mut expected = placed.clone();
     expected.push(equipment);
-    assert!(game.battlefield[&equipment].timestamp > stamped, "CR 613.7e moved its timestamp");
+    assert!(game.object_timestamp(equipment) > stamped, "CR 613.7e moved its timestamp");
     assert_eq!(game.battlefield_ids_ordered(), expected, "and only it moved, to the end");
     assert_eq!(
         game.battlefield_ordered().iter().map(|(id, _)| *id).collect::<Vec<_>>(),

@@ -317,6 +317,15 @@ its own CDAs, which is exact precisely because no row can reach it.
 → `engine/layers/board.rs::Board::seed`, `layers-architecture.md` §13b
 decision 2 and §13c.
 
+**seed** — two related things, and the walk does both at layer 0. To *seed the
+working set* is `Board::seed`: decide which objects the pass computes frames
+for at all, before any layer runs (see **working set**). To *seed a frame* is
+`seed_frame`: fill one object's frame with its **printed** characteristics —
+the card's own types, colors, P/T, abilities and keyword flags — which is what
+every layer then modifies. The noun is the value before any effect has touched
+it, which is why "the seed" and "layer 0" name the same moment.
+→ `engine/layers/board.rs`, `layers-architecture.md` §13b decision 2.
+
 **ceiling** — the layer a frame was computed *up to*, and the termination
 argument for `compute_characteristics` re-checking ability existence at every
 layer: each re-check reads a strictly lower ceiling, so the recursion descends
@@ -359,6 +368,43 @@ a turn is **ten** of them, because CR 508.8 refuses three combat steps. →
 `engine::turns`.
 
 ## Words that are not about one subsystem
+
+**spelled** — how a fact is *written* in the tree, as opposed to what it means.
+"CR 113.6 was spelled as which function calls it" says the rule was real and
+enforced and had no name: `register_static_effects` ran only from
+`place_on_battlefield`, so "a static ability functions on the battlefield" was
+true by construction and appeared nowhere as a statement. The word is doing
+work a reviewer needs, because the two are not the same defect — a rule spelled
+somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
+of this project's refactors are re-spellings: the behaviour is already right
+and the change is where a reader would look for it.
+
+**quadrant** — one of the four buckets CR 702's 189 keyword abilities fall
+into, on two axes: does the engine **branch** on the keyword or **execute** it,
+and does it take a **parameter**? The map decides what a keyword *is* in this
+codebase, and the four answers are four different types:
+
+| | no parameter | parameter |
+|---|---|---|
+| **branch** | ① a `KeywordFlag` — flying, trample, vigilance | ② a set of *values* on the frame — protection from [quality], [type]walk |
+| **execute** | ③ a plain `AbilityDef` — storm, prowess, devoid | ④ an `AbilityDef` with arguments — equip [cost], ward [cost], cycling [cost] |
+
+Quadrant ① is `types::keywords::KeywordFlag`, 16 variants, every one consumed
+by combat, SBA, casting or damage; it is a **characteristic**, so `seed_frame`
+seeds it from the card and Layer 6 writes it through
+`EffectModification::GrantKeywordFlag`. Quadrants ③ and ④ are ordinary
+abilities on `CardData::abilities`, granted through
+`EffectModification::GrantAbility`. **Quadrant ② has no representation yet** —
+it lands with the first card that needs one.
+
+Why the split is load-bearing rather than taxonomy: a fieldless variant cannot
+hold what a ②/④ keyword is *made of* (CR 702.6d lets one permanent have
+several equip abilities at different costs), and a quadrant-① keyword is not
+an `AbilityDef`, so **anything that reasons over abilities does not see it** —
+which is `codebase-state.md` item 133, CR 113.6 not reaching a graveyard card's
+printed flying. → `types/keywords.rs`, whose doc comment has the per-keyword
+detail and the five variants that were removed; `codebase-state.md` "Before
+Layers" item 10.
 
 **arm** — a variant of a closed enum, and by extension the `match` arm that
 handles it. `Rewrite` and `EventPattern` grow by arms, each needing the CR rule

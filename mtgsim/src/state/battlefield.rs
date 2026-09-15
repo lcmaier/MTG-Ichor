@@ -33,21 +33,32 @@ pub struct PermanentState {
     pub object_id: ObjectId,
     pub controller: PlayerId,
 
-    /// The CR 613.7 timestamp. Allocated from `GameState::next_timestamp` on
-    /// entry (613.7d) and **reassigned** by CR 613.7e — `GameState::attach`
-    /// gives an Aura or Equipment a new one each time it becomes attached, and
-    /// re-stamps the rows this object's static abilities registered (613.7a's
-    /// third sentence). Read at registration, never by the walk: the rows
-    /// carry the value.
+    /// **The battlefield order key — a copy of `GameObject::timestamp`, kept
+    /// here because the ordered sweeps cannot afford to look it up.**
     ///
-    /// Also the key of every ordered sweep (`battlefield_ordered`), and so of
-    /// every decision list, log and count — CLAUDE.md, "Determinism at the
-    /// decision boundary". A reassignment moves the permanent to the end of
-    /// those lists, and that is fine: the value comes from the one monotonic
-    /// counter every run advances the same way, so it is exactly as
-    /// process-independent as the entry value was. LH-2 briefly split off an
-    /// `entry_timestamp` for the sweeps and removed it in review: no rule
-    /// reads a sweep as *entry* order, only as *an* order.
+    /// CR 613.7's timestamp lives on the object since LK, because CR 613.7d
+    /// gives an object one for every zone it enters and a card in a graveyard
+    /// needed one (`layers-architecture.md` §13d decision 2). That is the
+    /// value the *rules* read — `GameState::static_effect_timestamp` reads the
+    /// object, never this.
+    ///
+    /// This copy exists for one reader: `battlefield_ordered` and
+    /// `battlefield_ids_ordered`, which run ~5,700 times a game over ~16
+    /// permanents each (`codebase-state.md` item 77). Reading the object
+    /// instead costs a `HashMap` hop per permanent per call, and that is
+    /// **+16.5% of total game time, measured against an arm whose counters are
+    /// identical** — not an estimate and not within the sitting's spread. With
+    /// the copy the same tree measures +1.2%.
+    ///
+    /// **It cannot drift, and not because anything checks.**
+    /// `GameState::set_object_timestamp` is the only writer of a timestamp on
+    /// an object that has an entry, and it writes both; the only other write
+    /// is `place_on_battlefield` filling this field in as it builds the entry,
+    /// where there is nothing yet to disagree with.
+    ///
+    /// `codebase-state.md` item 77 is what deletes it: a *maintained* order
+    /// vector needs no timestamp here at all, and that item already says to
+    /// fold itself into whatever next touches `place_on_battlefield`.
     pub timestamp: u64,
 
     // Permanent state
@@ -110,11 +121,14 @@ pub enum AttackTarget {
 }
 
 impl PermanentState {
-    pub fn new(object_id: ObjectId, controller: PlayerId, timestamp: u64, current_turn: u32) -> Self {
+    pub fn new(object_id: ObjectId, controller: PlayerId, current_turn: u32) -> Self {
         PermanentState {
             object_id,
             controller,
-            timestamp,
+            // Filled in by `place_on_battlefield` from the object, which is
+            // where CR 613.7d put it; `Lookahead` overwrites it with the
+            // would-be value. A bare `PermanentState` is neither.
+            timestamp: 0,
             tapped: false,
             flipped: false,
             face_down: false,
@@ -188,7 +202,7 @@ mod tests {
     use uuid::Uuid;
 
     fn make_permanent_state() -> PermanentState {
-        PermanentState::new(Uuid::new_v4(), 0, 1, 1)
+        PermanentState::new(Uuid::new_v4(), 0, 1)
     }
 
     #[test]

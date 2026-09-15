@@ -290,6 +290,33 @@ impl ContinuousEffectRegistry {
         out
     }
 
+    /// Remove the rows a static ability of `source` generated, leaving every
+    /// row a *resolution* created (CR 613.7b) in place.
+    ///
+    /// **The zone-general counterpart of `remove_by_source`, and narrower than
+    /// it on purpose** (LK, `layers-architecture.md` §13d decision 3).
+    /// `cleanup_zone_state` calls the broad one when a permanent leaves the
+    /// battlefield and gets away with it only because it never runs anywhere
+    /// else: a resolving instant registers its row with `source` = the spell
+    /// and then moves stack → graveyard, so a broad sweep on *that* zone
+    /// change would delete every pump spell's effect as the spell hit the
+    /// graveyard.
+    ///
+    /// **Hygiene, in the sense that the answer is the same either way** — not
+    /// a trade against correctness. CR 604.2's existence check re-asks at
+    /// every layer whether the ability is still there and still functions
+    /// where its source now is, so a row this failed to remove would apply to
+    /// nothing. What the call buys is that a card bouncing between two zones
+    /// does not accumulate dead rows.
+    pub fn remove_static_by_source(&mut self, source: ObjectId) -> Vec<ContinuousEffect> {
+        self.mutating(|rows| {
+            rows.retain(|row| {
+                !(row.source == source
+                    && matches!(row.origin, EffectOrigin::StaticAbility { .. }))
+            })
+        })
+    }
+
     /// CR 613.7a, third sentence: `source` received a new timestamp, so every
     /// effect its static abilities generate receives it too, keeping their
     /// relative order. Rows from resolutions (CR 613.7b) keep the timestamp of

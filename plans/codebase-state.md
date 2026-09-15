@@ -2811,11 +2811,31 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
       know before writing the first stack-reaching cost ability.
     - **The gap half narrowed.** CR 113.6e's second sentence still has nothing
       to grant *with*, but no longer nothing to grant *to*: the zone half is
-      built and it is CR 113.6 itself that is missing, which is A5.
+      built and it is CR 113.6 itself that is missing, which is roadmap row A5 (its third PR, LK).
 
     **Reachability (2026-09-14):** unreachable — still no registered card puts
     a cost ability on an object off the battlefield, and the two summary flags
     catch it when one does.
+
+    **Re-derived (2026-09-14, LK) — the gap half now has an owner and a
+    name.** CR 113.6e's second sentence still has nothing to grant *with*, and
+    LK is the row that was going to change that and did not: §13d decision 4
+    defers 113.6e, because its first sentence needs "any zone from which it
+    could be played" and `check_cast_legality` still hard-codes `Zone::Hand`
+    (`backlog.md` §2.3). So this item's second consequence is no longer waiting
+    on an unbuilt facility — it is waiting on §2.3, which is a different
+    queue. The load-bearing first consequence is untouched: source 2's printed
+    gate leg still rests on a flag rather than on an impossibility, which is
+    what LJ's re-derivation established and LK did nothing to move.
+
+    **And the deleted method is worth naming here**, because this item cites
+    it: `CostSubject::applies_from_battlefield` was CR 113.6d in a method and
+    LK removed it. The zone answer is `engine::zone_function`'s now, derived
+    from `applies_to_its_own_object`, which survives because it is the
+    *identity* question rather than the zone one.
+
+    **Reachability (2026-09-14, re-derived):** unreachable — unchanged, and now
+    blocked on a named row rather than on a missing facility.
 
     **Sized:** none here; when a route exists, the gather's two summary flags
     (`any_granted_cost_modification`, `any_copied_cost_modification`) are
@@ -2855,17 +2875,68 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     it gets decided wrong once. Maintaining the order makes the blunt rule
     free instead of making it negotiable.
 
+    **"So determinism is what costs 5% — is it worth keeping?"** Asked at the
+    LK review, and the answer is that determinism is not what costs anything.
+    **The requirement is that an order exists and is the same in every run;
+    what this entry measures is the cost of *deriving* it fresh 5,700 times a
+    game.** Those are separable, and separating them is the whole of this item:
+    a kept vector is exactly as deterministic as a sort and costs a slice.
+    Compare the alternatives, which is where the requirement earns its place —
+    dropping it means a `HashMap` iteration order that reseeds per **process**,
+    so `fuzz_games --seed N` stops reproducing, a fork-and-search harness
+    cannot compare two lines of play, and a bug found in one run cannot be
+    replayed. That is not a performance trade; it is the difference between an
+    engine you can debug and one you cannot. The 5% buys all of it, and this
+    item is how to stop paying even that.
+
+    **The "sort before accessing" paradigm is also not the only shape
+    available**, and is the one this item replaces. Three were considered and
+    the notes are here so they are not re-considered from scratch: *sort less*
+    (audit which sites observe order — refused above); *sort cheaper* (the sort
+    is not the cost, two heap allocations are, measured); *do not sort* (keep
+    the order, which is this item). A fourth — a deterministic hasher, so the
+    `HashMap` iterates reproducibly — is the one that sounds cheapest and is
+    the worst: it makes the *order* an artifact of hashing, so inserting an
+    unrelated permanent silently re-orders every decision list, and nothing
+    about it corresponds to CR 613.7. Reproducible is not the same as correct.
+
     **Reachability (2026-09-07):** reachable — not wrong; a measured
     performance cost, and the numbers above are the measurement rather than an
     estimate.
+
+    **LK raised the stake, and declined the fold (2026-09-14). Nothing is
+    owed — read this as a bigger *prize*, not a deferred bill.** Asked at the
+    LK review and worth stating plainly, because the entry can be read the
+    other way: LK did **not** defer a cost. It hit one, paid it back inside the
+    same PR, and ended level with `main`.
+
+    What happened: LK moved CR 613.7's timestamp onto `GameObject` (613.7d, so
+    a card in a graveyard has one) and that put it one `HashMap` hop from these
+    two sweeps — **+16.5% of total game time on an arm whose counters are
+    byte-identical**, which is this item's ~5% re-measured from the other side
+    and is the sharpest number it has. LK then kept a **copy** on
+    `PermanentState`, written by two doors that cannot disagree
+    (`set_object_timestamp`, `insert_battlefield_entity`), and the same arm
+    reads **−2.5%**. The +16.5% is gone; it never reached `main`.
+
+    **What is still on the table is this item's original ~5%, unchanged** — a
+    *win* nobody is obliged to collect. What LK added is a second reason to
+    collect it: a maintained order vector needs no timestamp on the entry at
+    all, so taking this item deletes the copy as well as the two allocations.
+    That is why the copy is documented as temporary rather than as a design.
+
+    **Why LK declined the fold**, given that the fold was in reach: this item
+    sizes itself as medium-risk, a missed maintenance point silently corrupts
+    every ordered sweep in the game — which is every decision list, log and
+    count — and LK was a rules change whose reviewer would have had to check
+    two unrelated arguments at once. Not because the fold is wrong.
 
     **Sized:** one field, three maintenance points, one debug audit, and a
     mechanical return-type change across 52 call sites (most become a borrow,
     the ones that mutate while iterating become the 27 ns clone). ~1 PR,
     medium risk — the risk is drift between the kept order and the truth,
     which is what the debug audit is for. Nothing depends on it; take it when
-    ~5% is worth a PR, or fold it into whatever next touches
-    `place_on_battlefield`.
+    ~5% is worth a PR.
 
 ### Found by CM-3 — lock-in's payment side (2026-09-07)
 
@@ -3996,10 +4067,25 @@ named RE PR.
      path item 6a). Leyline of the Void is castable for `{2}{B}{B}` and does
      nothing before it resolves, which is the whole of today's behaviour.
 
+     **Re-derived (2026-09-14, LK) — the prerequisite is in and this is now
+     ordinary unbuilt work.** LK landed CR 113.6, and the hand-zone lookup this
+     item was waiting for exists: an ability may state
+     `Condition::SourceInZone(ZoneSet::HAND)` and `zone_function::functions_in`
+     answers for it. **The clause deliberately did not ride** (§13d decision
+     5): what is missing is not a zone question but CR 103.6's *moment* — a
+     step between `Game::setup`'s opening hands and `start_first_turn`, a
+     `DecisionProvider` question, and Gemstone Caverns' ordering ruling. An
+     ability that functions and then has nothing to happen is the unapplyable
+     arm `CLAUDE.md` bans, so the registered Leyline keeps its second clause
+     only and that is a correct card rather than a stub.
+
+     **Reachability (2026-09-14):** unreachable — still no pre-game step, and
+     no longer blocked on 6a.
+
      **Sized:** ~60 lines in `Game::setup` plus a `DecisionProvider` question
-     per eligible card per player, **after** 6a gives the hand-zone ability
-     lookup. The care is the ordering ruling above and CR 103.6's interaction
-     with mulligans, which are themselves stubbed.
+     per eligible card per player. **Unblocked as of LK.** The care is the
+     ordering ruling above and CR 103.6's interaction with mulligans, which are
+     themselves stubbed.
 
 120. **`AbilityDef` has no named constructors, and five copies of two of them
      live in three card files.** `static_replacement` and `one_shot` are each
@@ -4629,14 +4715,16 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 12.
 
-9. **Abilities granted to cards outside the battlefield — ✅ the
-    zone-reaching half done (2026-09-14, LJ; `layers-architecture.md` §13c).**
-    — archived.
-    **Reachability (2026-09-14):** closed for the filter half — LJ, PR pending.
-    **Two pieces stay owed and neither is this item's any more:** CR 613.7d's
-    object timestamps went to `roadmap-v2.md` A5 with Wonder, which needs both
-    and which LJ deliberately does not reach (§13c decision 1); the
-    `CardFilter` fold landed here rather than waiting (§13c decision 5).
+9. **Abilities granted to cards outside the battlefield — ✅ done (the
+    zone-reaching half 2026-09-14, LJ, `layers-architecture.md` §13c; the
+    CR 613.7d half 2026-09-14, LK, §13d).** — archived.
+    **Reachability (2026-09-14):** closed — both halves. LK put CR 613.7's
+    timestamp on `GameObject`, so an object has one in every zone it enters
+    (613.7d) and `static_effect_timestamp` reads it there; Wonder is the card
+    that needed it and is registered and pooled. **Nothing of this item stays
+    owed.** What LK *added* rather than closed is `PermanentState::timestamp`
+    as a measured copy for the ordered sweeps — item 77 below owns deleting
+    it, and §13d decision 2 has the +16.5% that put it back.
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 9.
 
@@ -5474,6 +5562,84 @@ What the *shape* says, as opposed to what one endpoint suggested:
     PR #136; both fields are `affected_objects` and the type is `ObjectSet`.
     Full entry: `plans/archive/codebase-state-closed.md`, "Cross-cutting —
     keep this section honest" item 124.
+
+### Found by LK — CR 113.6 (2026-09-14)
+
+133. **Quadrant ① keyword abilities are frame characteristics, so CR 113.6
+    never sees them — a card in a graveyard still reports its printed
+    flying.** `seed_frame` seeds `keyword_flags` off the card in every zone,
+    and `engine::zone_function` takes an `AbilityDef`; a `KeywordFlag` is not
+    one (`plans/glossary.md`, “quadrant”, and `types::keywords`' own doc). So the
+    default arm of CR 113.6 — "abilities of all other objects usually function
+    only while that object is on the battlefield" — applies to every static
+    ability on a card and to none of its keywords.
+
+    **Found by writing Wonder**, whose plan claimed the card would exercise
+    both arms of the predicate at once: flying on the battlefield, the grant
+    from the graveyard. Half of that was wrong, and the card's doc comment and
+    `layers-architecture.md` §13d record the correction.
+
+    **Reachability (2026-09-14):** unreachable — nothing reads a
+    non-battlefield object's keyword flags for a rules decision. Combat,
+    SBA and the damage path all read the battlefield; `has_keyword` is public
+    and will answer for a graveyard card, but no engine caller asks it about
+    one. It becomes wrong with the first rule that does, and the two named
+    candidates both arrive later: CR 702.35's madness (functions in hand,
+    `backlog.md` §2.3) and critical-path item 6's trigger conditions
+    (CR 113.6k).
+
+    **Sized:** the honest fix is not a zone gate on `seed_frame` — that would
+    strip a CDA-granted keyword too. It is to give the frame's keyword set the
+    same treatment the ability list has: seeded from the card, then filtered by
+    CR 113.6 at the one place a *rules* reader asks. ~60–80 lines and a decision
+    about where that place is, which is why it waits for a reader rather than
+    being guessed at now.
+
+134. **`cleanup_zone_state`'s battlefield branch removes a source's rows
+    whatever their origin, and CR 611.2a says a resolution's effect does not
+    care where its source went.** `remove_by_source` is origin-blind. CR 611.3b
+    is what the call is for — a static ability applies only while its source is
+    on the battlefield — and CR 611.2a gives a resolution's effect "the duration
+    stated by the spell or ability", which is not the source's lifetime.
+
+    **Found by LK nearly writing the same call on the other branch.** The
+    obvious way to generalize that function for "a static ability functioning
+    in a graveyard leaves the graveyard" is `remove_by_source` again, and that
+    would have deleted every pump spell's effect as the spell hit the
+    graveyard — silently, and in every game. LK wrote the narrow
+    `remove_static_by_source` instead, with
+    `test_a_resolutions_effect_survives_its_spell_reaching_the_graveyard` as
+    the regression. **The battlefield branch is untouched and is not LK's to
+    fix**; this is the record that it is safe by accident.
+
+    **Reachability (2026-09-14):** unreachable, and the bound is exact rather
+    than a survey. A row is only at risk if its origin is `Resolution` *and*
+    its source is a battlefield permanent. A resolution's `source` is
+    `ResolutionContext::source`, the resolving **stack object** — ephemeral for
+    an activated ability (CR 608.2n deletes it) and graveyard-bound for an
+    instant or sorcery, so neither is ever on the battlefield. A permanent
+    spell keeps its `ObjectId`, but CR 608.3 gives it no spell ability to
+    resolve, so it registers nothing. Every other row on a permanent is
+    `EffectOrigin::StaticAbility` — printed, granted
+    (`register_granted_static_effects`) or copied
+    (`register_copied_static_effects`) — and those are exactly the rows
+    CR 611.3b wants removed.
+
+    **Does this reorder the route? No** — asked at the LK review, and the
+    answer is that RE-9 and RE-10 cannot produce the shape. RE-9 is mana and
+    RE-10 the turn cursor; neither registers a continuous effect at all, let
+    alone one sourced at a permanent. The first phase that can is critical-path
+    **item 6**, because a triggered ability's source *is* the permanent rather
+    than the ephemeral stack object an activated ability resolves through — so
+    "whenever this creature deals damage, target creature gets +2/+2 until end
+    of turn" is a row this branch would delete if the creature died first, and
+    CR 611.2a says it should not. Item 6 is several phases out and this is ~10
+    lines, so it can also just be taken between phases; what it must not do is
+    land *after* item 6 builds tests against the wrong answer.
+
+    **Sized:** swap the call for `remove_static_by_source`, which already
+    exists, and decide what CR 611.3b means for a *granted* static ability
+    whose grantee leaves — ~10 lines and one question.
 
 ### Found by the LJ review (2026-09-14)
 

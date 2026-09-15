@@ -665,11 +665,10 @@ mod tests {
             Zone::Battlefield,
         );
         let gone_id = gone.id;
-        let ts = game.allocate_timestamp();
         game.add_object(gone);
-        game.battlefield.insert(
+        game.insert_battlefield_entity(
             gone_id,
-            crate::state::battlefield::PermanentState::new(gone_id, 1, ts, 1),
+            crate::state::battlefield::PermanentState::new(gone_id, 1, 1),
         );
         put_spell_on_stack(&mut game, make_bolt(), 0, vec![ResolvedTarget::Object(gone_id)]);
         game.move_object(gone_id, Zone::Graveyard).unwrap();
@@ -712,9 +711,8 @@ mod tests {
             .build();
         let creature = GameObject::new(creature_data, 1, Zone::Battlefield);
         let creature_id = creature.id;
-        let ts = game.allocate_timestamp();
         game.add_object(creature);
-        game.battlefield.insert(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, ts, 1));
+        game.insert_battlefield_entity(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, 1));
 
         // Put Bolt on stack targeting the creature
         let bolt_id = put_spell_on_stack(

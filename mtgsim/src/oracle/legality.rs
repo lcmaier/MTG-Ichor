@@ -285,9 +285,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
-        game.battlefield.insert(id, entry);
+        let entry = PermanentState::new(id, 0, 0);
+        game.insert_battlefield_entity(id, entry);
 
         assert!(can_attack(&game, id));
     }
@@ -398,9 +397,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
-        game.battlefield.insert(id, entry);
+        let entry = PermanentState::new(id, 0, 0);
+        game.insert_battlefield_entity(id, entry);
 
         let attackers = legal_attackers(&game, 0);
         assert_eq!(attackers.len(), 1);
@@ -418,9 +416,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
-        game.battlefield.insert(id, entry);
+        let entry = PermanentState::new(id, 0, 0);
+        game.insert_battlefield_entity(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
     }
@@ -435,10 +432,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let mut entry = PermanentState::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entity(id, entry);
 
         assert!(legal_attackers(&game, 0).is_empty());
     }
@@ -455,9 +451,8 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
-        game.battlefield.insert(id, entry);
+        let entry = PermanentState::new(id, 0, 0);
+        game.insert_battlefield_entity(id, entry);
 
         let blockers = legal_blockers(&game, 0);
         assert_eq!(blockers.len(), 1);
@@ -473,10 +468,9 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let mut entry = PermanentState::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
-        game.battlefield.insert(id, entry);
+        game.insert_battlefield_entity(id, entry);
 
         assert!(legal_blockers(&game, 0).is_empty());
     }

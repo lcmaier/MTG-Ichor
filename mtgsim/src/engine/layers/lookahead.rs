@@ -16,7 +16,7 @@
 //! to a count over the battlefield, and why the frame may live on the stack.
 
 use crate::engine::layers::board::compute_board;
-use crate::engine::layers::types::{ContinuousEffect, EffectOrigin, EffectiveCharacteristics};
+use crate::engine::layers::types::{ContinuousEffect, EffectOrigin, EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::AbilityType;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::RegistryScopeSummary;
@@ -35,6 +35,16 @@ pub struct Lookahead {
     /// CR 302.6's clock started this turn, and CR 122.6a's counters from the
     /// pending `EnterMods` — CR 614.12 clause (1).
     pub(super) entity: PermanentState,
+    /// The CR 613.7d timestamp the object *would* receive on entering the
+    /// battlefield — `next_timestamp` read without advancing it.
+    ///
+    /// Carried here rather than read off the object, and that is the whole of
+    /// why LK's field move did not disturb the look-ahead: the object still
+    /// sits in its source zone while its entry is decided (RC-4b), so its real
+    /// timestamp is that zone's and is *older* than every permanent on the
+    /// board. What CR 614.12 asks is what it would be once it has entered,
+    /// and that is newer than all of them.
+    pub(super) entity_timestamp: Timestamp,
     /// CR 614.12 clause (2): the registry rows its own static abilities would
     /// generate, exactly as `register_static_effects` would write them.
     pub(super) rows: Vec<ContinuousEffect>,
@@ -53,8 +63,8 @@ impl Lookahead {
         // than every registered row, which is where CR 613.7a puts an object's
         // own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
-        let mut entity =
-            PermanentState::new(object, controller, entity_timestamp, game.turn_number);
+        let mut entity = PermanentState::new(object, controller, game.turn_number);
+        entity.timestamp = entity_timestamp;
         entity.tapped = mods.tapped;
         let mut next = entity_timestamp + 1;
         for row in &mods.counters {
@@ -65,7 +75,7 @@ impl Lookahead {
         let rows = would_be_rows(game, object, controller, entity_timestamp);
         let summary = RegistryScopeSummary::of(&rows);
 
-        Lookahead { object, entity, rows, summary }
+        Lookahead { object, entity, entity_timestamp, rows, summary }
     }
 }
 

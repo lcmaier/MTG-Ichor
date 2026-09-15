@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -818,8 +819,9 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `PermanentState::timestamp` — CR 613.7's — is the deterministic
-    /// key. Every value of it comes from `next_timestamp`, one monotonic
+    /// The CR 613.7 timestamp is the deterministic key — read off the entry,
+    /// which carries a copy of the object's for exactly this sweep's sake
+    /// (`PermanentState::timestamp`). Every value of it comes from `next_timestamp`, one monotonic
     /// counter, so it is unique across the battlefield and totally orders it,
     /// and CR 613.7e's reassignment on attach keeps both properties: a
     /// reattached permanent moves to the end of the order, in every run
@@ -901,6 +903,54 @@ impl GameState {
         ts
     }
 
+    /// Put `entry` on the battlefield for `id`, stamping it from the object.
+    ///
+    /// **The one door, and that is what keeps the order key honest.**
+    /// `PermanentState::timestamp` is a copy of `GameObject::timestamp` kept
+    /// for the ordered sweeps (see that field), and an entry inserted without
+    /// it would carry `0` — which is not merely wrong but *tied*, and a tie in
+    /// `battlefield_ids_ordered` is resolved by `HashMap` order. That is the
+    /// exact non-determinism the ordered sweeps exist to prevent
+    /// (`CLAUDE.md`), so it is prevented here rather than asserted about.
+    ///
+    /// Callers are `place_on_battlefield` and the test helpers that build a
+    /// board without ETB hooks.
+    pub(crate) fn insert_battlefield_entity(&mut self, id: ObjectId, mut entry: PermanentState) {
+        entry.timestamp = self.object_timestamp(id);
+        // Spelled through a local so the sweep that routed every other
+        // `battlefield.insert` here did not route this one into itself.
+        let battlefield = &mut self.battlefield;
+        battlefield.insert(id, entry);
+    }
+
+    /// Write a CR 613.7 timestamp to `id`: on the object, and on its
+    /// battlefield entry if it has one.
+    ///
+    /// **The one writer of the pair**, which is what makes
+    /// `PermanentState::timestamp` a copy that cannot drift rather than a
+    /// second source of truth — see that field for why the copy exists at
+    /// all. Its callers are CR 613.7d (`arrive_in_zone`, where there is no
+    /// entry yet) and CR 613.7e (`attach`, where there is).
+    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: u64) {
+        if let Some(obj) = self.objects.get_mut(&id) {
+            obj.timestamp = timestamp;
+        }
+        if let Some(entry) = self.battlefield.get_mut(&id) {
+            entry.timestamp = timestamp;
+        }
+    }
+
+    /// `id`'s CR 613.7d timestamp, or `u64::MAX` for an object the store has
+    /// never heard of.
+    ///
+    /// The fallback is unreachable for every caller — an ordered sweep reads
+    /// ids off a collection the store also holds — and is `MAX` rather than 0
+    /// so that a hypothetical unknown sorts last instead of silently claiming
+    /// to be the oldest permanent on the battlefield.
+    pub fn object_timestamp(&self, id: ObjectId) -> u64 {
+        self.objects.get(&id).map(|obj| obj.timestamp).unwrap_or(u64::MAX)
+    }
+
     // --- Layer memo epoch (layers-architecture.md §12 "7a") ---
 
     /// The epoch the layer memo keys on: a number that changes at every write
@@ -969,12 +1019,14 @@ impl GameState {
         controller: PlayerId,
         mods: &EnterMods,
     ) -> &mut PermanentState {
-        let ts = self.allocate_timestamp();
+        // No timestamp allocated here: CR 613.7d stamped it as the object
+        // entered the battlefield *zone* (`move_object`), or as it was created
+        // there (`add_object`, a token). This performer runs after both.
         let current_turn = self.turn_number;
-        let mut entry = PermanentState::new(id, controller, ts, current_turn);
+        let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
-        self.battlefield.insert(id, entry);
+        self.insert_battlefield_entity(id, entry);
         self.bump_layer_epoch();
 
         // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these
@@ -985,7 +1037,7 @@ impl GameState {
             self.add_counters(id, row.counter, row.n);
         }
 
-        self.register_static_effects(id, controller);
+        self.register_static_effects(id, controller, Zone::Battlefield);
 
         // The controller the *game* sees, not the CR 110.2b default it entered
         // under: a stolen permanent spell enters under its caster's control and
@@ -1148,9 +1200,8 @@ impl GameState {
         // attachment's static abilities registered, through the registry's own
         // funnel, which is their epoch bump; the bump below is `attached_to`'s.
         let timestamp = self.allocate_timestamp();
-        let entry = self.battlefield.get_mut(&attachment).unwrap();
-        entry.attached_to = Some(host);
-        entry.timestamp = timestamp;
+        self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
+        self.set_object_timestamp(attachment, timestamp);
         self.continuous_effects.retime_static_rows(attachment, timestamp);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();
@@ -1266,50 +1317,64 @@ impl GameState {
         _ability: &crate::objects::card_data::AbilityDef,
         granted_at: Option<crate::engine::layers::types::Timestamp>,
     ) -> crate::engine::layers::types::Timestamp {
-        match self.battlefield.get(&id) {
+        match self.objects.get(&id) {
             // CR 613.7a: "...the same timestamp as the object the static
             // ability is on, or the timestamp of the effect that created the
             // ability, whichever is later."
             //
             // Two candidates, later wins. A printed ability has only the first,
             // so it is returned unchanged.
-            Some(entry) => match granted_at {
-                Some(created) => std::cmp::max(entry.timestamp, created),
-                None => entry.timestamp,
-            },
-            // Unreachable because the only caller is `register_static_effects`,
-            // which runs from `place_on_battlefield` after the entity is
-            // inserted — *not* because a non-battlefield object cannot have a
-            // functioning static ability. It can: CR 113.6b, and Wonder ("as
-            // long as this card is in your graveyard and you control an Island,
-            // creatures you control have flying") is the stock example.
             //
-            // When those are modeled, this fallback is not the fix. CR 613.7d
-            // gives an object a timestamp when it enters *any* zone, but we
-            // only store one on `PermanentState`, so a graveyard Wonder has
-            // nowhere to read one from. The timestamp has to move onto the
-            // object. See Deferred Migrations item 9.
+            // **The object, not the battlefield entry, since LK.** CR 613.7d
+            // gives an object a timestamp in every zone, which is what lets a
+            // Wonder in a graveyard generate an effect the layer walk can order
+            // — and the graveyard's own timestamp is the right one, because
+            // 613.7a says "the object the static ability is on" without asking
+            // where it is.
+            Some(obj) => match granted_at {
+                Some(created) => std::cmp::max(obj.timestamp, created),
+                None => obj.timestamp,
+            },
+            // An object that is not in the store has no static abilities to
+            // generate effects from, so this is a guard rather than a case.
             None => {
-                debug_assert!(false, "static_effect_timestamp for non-battlefield object {id}");
+                debug_assert!(false, "static_effect_timestamp for unknown object {id}");
                 self.next_timestamp
             }
         }
     }
 
-    /// Register continuous effects from static abilities on a permanent.
+    /// Register the continuous effects the static abilities of `id` generate
+    /// **in `zone`** (CR 113.6).
     ///
-    /// Called when a permanent enters the battlefield. Scans the card's
-    /// abilities for `AbilityType::Static`, extracts the primitive and
-    /// recipient, and registers a `ContinuousEffect` in the registry.
+    /// Scans the card's abilities for `AbilityType::Static`, asks
+    /// `engine::zone_function` whether each functions where the object now is,
+    /// extracts the primitive and recipient, and registers a
+    /// `ContinuousEffect` in the registry.
+    ///
+    /// **Two callers, and the zone is why there are two** (LK,
+    /// `layers-architecture.md` §13d decision 3):
+    ///
+    /// - `place_on_battlefield`, for `Zone::Battlefield`. It has to be there
+    ///   rather than in `move_object`: the entity does not exist until the
+    ///   CR 614.1c pipeline has decided what the permanent enters *as*, and
+    ///   `controller` is read off that decision.
+    /// - `move_object`, for every other zone — Wonder arriving in a
+    ///   graveyard. There is no entity, and CR 108.4 makes the controller the
+    ///   owner.
     ///
     /// Duration comes from the primitive (typically `WhileSourceOnBattlefield`).
-    /// Effects are removed when the source leaves the battlefield via
-    /// `cleanup_zone_state` → `remove_by_source`.
+    /// Effects are removed when the source leaves: `cleanup_zone_state` →
+    /// `remove_by_source` off the battlefield, `remove_static_by_source`
+    /// elsewhere (see there for why the two differ).
     ///
     /// Registration is *not* what decides whether an effect applies. CR 305.7
     /// and Layer 6 can take the generating ability away without touching the
-    /// registry, so `compute.rs` re-checks existence at every layer. This
-    /// function's job is only to put the row there with the right timestamp.
+    /// registry, so `compute.rs` re-checks existence at every layer — and
+    /// since LK that check covers the zone too, because a card's zone clause
+    /// is a `Condition::SourceInZone` the existence check already evaluates.
+    /// This function's job is only to put the row there with the right
+    /// timestamp.
     ///
     /// Reads printed abilities on purpose: it runs inside
     /// `place_on_battlefield`, before this object's own effect is registered,
@@ -1318,19 +1383,42 @@ impl GameState {
     /// That read is why a *copied* static ability registers nothing here, and
     /// why it is not fixed by changing the read: `register_copied_static_effects`
     /// is the path beside it (`copy-effects-architecture.md` §4.7 leg 2).
-    fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
+    pub(crate) fn register_static_effects(
+        &mut self,
+        id: ObjectId,
+        controller: PlayerId,
+        zone: Zone,
+    ) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
-        let (abilities, card_name) = if let Some(obj) = self.objects.get(&id) {
-            (obj.card_data.abilities.clone(), obj.card_data.name.clone())
-        } else {
+        // An `Arc` bump rather than three deep clones, and since LK that is
+        // load-bearing rather than tidy: `move_object` calls this on **every**
+        // zone change, so a `Vec<AbilityDef>` clone here would land on every
+        // draw, mill and discard in the game. The clone exists only because
+        // the loop mutates `self` while reading the card.
+        let Some(card) = self.objects.get(&id).map(|obj| Arc::clone(&obj.card_data)) else {
             return;
         };
+        let card_name = card.name.as_str();
 
-        for ability in &abilities {
+        for ability in card.abilities.iter() {
             if ability.ability_type != AbilityType::Static {
+                continue;
+            }
+
+            // CR 113.6 — does this ability function where the object is?
+            //
+            // PRE-LAYER ZONE: printed types, for the reason the whole function
+            // reads printed abilities. The read is *exact* here rather than an
+            // over-approximation, which is worth saying because the layer
+            // invariant normally forbids it: the only thing
+            // `functioning_zones` asks the types is CR 113.6's
+            // instant-or-sorcery split, and no continuous effect can make a
+            // permanent an instant (CR 205.1b) — so printed and effective give
+            // the same answer at every call site this function has.
+            if !crate::engine::zone_function::functions_in(ability, &card.types, zone) {
                 continue;
             }
 
@@ -1349,7 +1437,16 @@ impl GameState {
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
                 _ => false,
             };
-            if is_replacement {
+            // **Battlefield only, and that is the gate leg A5 does not
+            // build.** These three sets index a sweep over
+            // `battlefield_ids_ordered`, so an entry for a source in a
+            // graveyard would name a permanent the sweep never visits --
+            // inert, and a claim the set does not keep. Reaching a
+            // non-battlefield source is `replacement-architecture.md` 11
+            // item 9's (c), a gate leg per zone, and it arrives with a card:
+            // Abrupt Decay for the restriction sweep, a "would be put into a
+            // graveyard from anywhere" source for the replacement one.
+            if is_replacement && zone == Zone::Battlefield {
                 self.replacement_ability_sources.insert(id);
             }
 
@@ -1362,7 +1459,7 @@ impl GameState {
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Restriction(_)),
                 _ => false,
             };
-            if is_restriction {
+            if is_restriction && zone == Zone::Battlefield {
                 self.restriction_ability_sources.insert(id);
             }
 
@@ -1372,15 +1469,15 @@ impl GameState {
             // list at 601.2f. Through the "as long as" wrapper, which the two
             // tests above do not see (`cost-architecture.md` §8 item 1).
             //
-            // **Only a subject that can apply from here.** A spell's own cost
-            // ability functions on the stack (CR 113.6d), so an affinity
-            // permanent is a source of nothing and recording it would widen
-            // the sweep on every cast for a match that can never succeed.
-            if ability
-                .effect
-                .as_cost_modification()
-                .is_some_and(|(_, def)| def.applies_to.applies_from_battlefield())
-            {
+            // **Only a subject that can apply from here**, and since LK that
+            // is the CR 113.6 gate above rather than a second predicate: a
+            // spell's own cost ability functions on the stack (CR 113.6d), so
+            // an affinity permanent never reaches this line. Recording one
+            // would widen the sweep on every cast for a match that cannot
+            // succeed. `CostSubject::applies_from_battlefield` used to say so
+            // here and was deleted with this edit — one answer, in
+            // `zone_function`.
+            if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
 
@@ -1869,8 +1966,14 @@ impl GameState {
     // --- Object management ---
 
     /// Register a game object in the central store
-    pub fn add_object(&mut self, obj: GameObject) -> ObjectId {
+    pub fn add_object(&mut self, mut obj: GameObject) -> ObjectId {
         let id = obj.id;
+        // CR 613.7d — "an object receives a timestamp at the time it enters a
+        // zone", and an object created in one has entered it. The other
+        // stamping site is `move_object`, for every later zone change; between
+        // them every object in the store carries a real timestamp, which is
+        // what `battlefield_ordered` and `static_effect_timestamp` rely on.
+        obj.timestamp = self.allocate_timestamp();
         self.objects.insert(id, obj);
         self.bump_layer_epoch();
         id
@@ -2021,7 +2124,7 @@ mod tests {
         #[test]
         fn test_conditional_static_body_lowers_to_the_inner_atoms() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceOnBattlefield,
+                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
                 Box::new(anthem_atom()),
             ));
             let atoms = GameState::static_ability_atoms(&ability, "Test Card");
@@ -2040,7 +2143,7 @@ mod tests {
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceOnBattlefield,
+                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
                 Box::new(Effect::Optional(Box::new(anthem_atom()))),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");

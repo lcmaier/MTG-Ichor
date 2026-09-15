@@ -27,6 +27,7 @@ use super::phase_rs_cards;
 use super::phase_sba_cards;
 use super::phase_lh_cards;
 use super::phase_li_cards;
+use super::phase_lk_cards;
 use super::phase_cm_cards;
 
 /// The board an engine change is measured against — **representative, not
@@ -50,7 +51,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 87] = [
+const PERFORMANCE_POOL: [&str; 88] = [
     "Plains",
     "Island",
     "Swamp",
@@ -393,6 +394,19 @@ const PERFORMANCE_POOL: [&str; 87] = [
     // job is to be the Jailer's partner in the atom, where a graveyard is
     // arranged rather than arrived at.
     "Yixlid Jailer",
+    // LK — CR 113.6, and the pool's first static ability that functions
+    // **from** a zone other than the battlefield. It opens the path in
+    // `move_object`: every zone change now asks `zone_function` whether the
+    // arriving object has an ability that works there, and every registry row
+    // whose source is in a graveyard sends the existence check down
+    // `compute_non_member` instead of reading a live frame.
+    //
+    // Wonder is the card that puts both in front of a random game rather than
+    // a fixture. `{3}{U}` for a 2/2 flier is castable, it dies like any other
+    // creature, and from the moment it does the board carries a row whose
+    // source is not on the battlefield — which is a cost shape neither LJ's
+    // block nor any earlier one measured.
+    "Wonder",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -815,6 +829,17 @@ impl CardRegistry {
         // fixtures registered nowhere.
         registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
         registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
+
+        // LK — CR 113.6. Wonder is the first registered card whose static
+        // ability functions off the battlefield, and it is pooled: it opens
+        // `move_object`'s registration path and puts a graveyard source in
+        // front of the existence check.
+        //
+        // `phase_lk_cards::exiled_ancestor` — CR 113.6c's complement, which
+        // needs no second mechanism — is a fixture registered nowhere, for the
+        // reason `registry.rs` gives elsewhere: the printed 113.6c population
+        // is thin and every member of it wants something else as well.
+        registry.register("Wonder", phase_lk_cards::wonder);
 
         registry
     }
