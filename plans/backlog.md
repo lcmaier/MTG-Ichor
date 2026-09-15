@@ -1366,6 +1366,48 @@ design. The entry is kept as written for the record.*
 
 ---
 
+### 2.30 Enters as an additional type (CR 614.1c, and a Layer 4 effect with no row)
+
+**The surface that cannot express it.** Master Biomancer: "Each other
+creature you control enters with a number of additional +1/+1 counters on it
+equal to Master Biomancer's power **and as a Mutant in addition to its other
+types**." `EnterMods` carries `tapped` and `counters` and nothing a type could
+go in; and once the permanent is on the battlefield the type has to live
+somewhere — a Layer 4 effect that has no registry row, no source that could
+lose the ability, and no duration, which is a shape the layer system does not
+have (`codebase-state.md` main item 60, where the two consequences are
+argued: a type on `EnterMods` breaks the mods-invariance that lets
+`ObjectFilter::ByType` be a frame-free check, so every CR 616.1 entry bucket
+would start prompting).
+
+| Field | |
+|---|---|
+| **Rules** | CR 614.1c ("enters the battlefield as"), CR 613.1d's layer 4 for where the type lives afterwards |
+| **Verdict** | `EnterModsTemplate` / `EnterMods` have no type field; `ContinuousEffect` has no rowless, sourceless, durationless shape |
+| **Size** | a phase of its own — the field is small, the frame-cache consequence and the rowless layer-4 effect are not (item 60's sizing) |
+| **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably |
+| **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half |
+| **Owner** | — |
+
+### 2.31 Dice and coins (CR 705, 706)
+
+**The surface that cannot express it.** Nothing rolls: there is no
+`Primitive` for a die or a coin, no `GameAction` for the roll (so nothing a
+"would roll … instead" replacement could watch — `replacement-architecture.md`
+§8a's fourth missing kind), and no reader of `GameState.rng` outside
+shuffling and the random provider. CR 706.2's re-roll replacements and
+CR 706.3's "roll again" are the replacement side; CR 705's coins are the same
+shape with two outcomes.
+
+| Field | |
+|---|---|
+| **Rules** | CR 705.1–705.5 (coins), CR 706.1–706.6 (dice), CR 706.2's replacement ("would roll … instead") |
+| **Verdict** | no primitive, no event, no result carried to the effect that rolled; `AmountExpr` has no "the result" reading |
+| **Size** | one RE-shaped kind — a `GameAction::RollDice { player, sides, count }` family, its `EventPattern` arm, a performer drawing from `GameState.rng` (never ambient, `CLAUDE.md`), an `AmountExpr` for the result — ~300–400 lines with two cards, on RE's per-kind measure; coins fold in as `sides: 2` |
+| **Blocks** | ~84 printed cards roll a die outside Un-sets (Scryfall, 2026-09-15: the AFR and CLB Dragons, Barbarian Class, Pixie Guide, Wyll, Blade of Frontiers, …); seven of them replace the roll |
+| **Atoms** | the CR 705/706 atoms are Phase 8's and Phase 9's in the corpus |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

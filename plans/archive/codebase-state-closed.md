@@ -879,6 +879,36 @@ counted it as an unchecked claim for a week.*
      (`engineering-practices.md` §3). The closer is the one the entry named.
 
 
+## Found by RE's sizing (2026-09-11)
+
+*Item 118 evicted 2026-09-15 by the post-RE audit's close-out, which fixed
+it: one proposal inside the 514.3a loop, shown to fail first.*
+
+118. **CR 514.3a's repeated cleanup step announces nothing.** RE-1 made a
+     step's beginning an event, and `Game::run_turn`'s 514.3a loop — "if
+     state-based actions are performed during the cleanup step, ... another
+     cleanup step begins" — re-runs `perform_cleanup_actions` and a priority
+     round without proposing a second `GameAction::BeginStep { Cleanup }`. So
+     the log shows one cleanup step where the rules had two, and a skip that
+     should meet the second occurrence meets nothing. Pre-existing in shape —
+     the loop has always re-run without a transition — and newly *visible*,
+     which is why it is recorded now rather than earlier.
+
+     **Reachability (2026-09-11):** reachable but not wrong today — nothing
+     triggers at cleanup (item 6's), and no printed card skips a cleanup step,
+     so the only reader of the missing event is the event log itself. It
+     becomes wrong the day either lands.
+
+     **Sized:** one `begin_step` call inside the 514.3a loop, ~10 lines, plus
+     the test that the log holds two `StepBegin { Cleanup }` when SBAs fire
+     during the first. The care is that CR 614.10's skips are per *occurrence*,
+     so the second cleanup step is genuinely skippable and must be proposed
+     rather than assumed.
+
+     **Reachability (2026-09-15):** closed — the fix above, in the close-out
+     PR of `plans/handoffs/post-re-audit.md`; no pooled game reaches a
+     repeated cleanup step, so no table moved.
+
 ## Found by the fork-and-search question (2026-09-01)
 
 43. **CR 122.6a names a player and `EnterMods` does not carry one (recorded

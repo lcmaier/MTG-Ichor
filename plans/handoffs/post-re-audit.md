@@ -107,6 +107,66 @@ of its own, open it second.
 **Size:** one sitting of reading, one docs PR, up to three small fix commits,
 and possibly a second docs PR for the eviction. The brief is §8.
 
+**Done 2026-09-15**, branch `audit/close-out`, four commits (the PR number is
+in §7). (1) The board's instrument: "reachable but not wrong today" had been
+read as a wrong answer (items 118, 131), RD-1's prose list at column 0 had
+been counted as three items, and 88, 116 and 121 had verdicts whose first
+word the board does not read — 186 items, 3 wrong today, 0 unstated; and
+`SHIPPED_PHASES` gained Phase 6. (2) The Phase 6 `owed` triage, `backlog.md`
+§3.3's second block: 50 uncovered, 21 `NEW` → 0; four atoms annotated (two
+with one assertion added), two tests written (CR 400.7c whole, CR 611.2c
+partial), twenty-two tickets re-filed with their owner and the old words kept.
+(3) Item 118 fixed — one proposal inside the 514.3a loop, shown to fail
+first, A/B IDENTICAL at two and four seats on both pools, so no
+`fuzz-record.md` block. (4) The docs: `replacement-architecture.md` §8a's
+four kinds dispositioned (turned face up → CV-6; dice → `backlog.md` §2.31;
+search → §2.5's producer; countering → closed, a zone change with a cause),
+§11 items 3 (deferred, sized, fixture-first), 4 (scheduled, A5's third PR)
+and 14 (deferred, with the reading), §12 re-read and amended in place, §13
+current, RE-1's and RE-10's trace decisions on the heading, §14 written
+(~110 lines); `codebase-state.md`'s TL;DR rewritten and the CR 614–616 row
+✅ with its "not yet" list, items 59/60/122/131 scheduled with owners, item
+134 (CR 614.12b) opened; `roadmap-v2.md` §E's two-player sentence and A6's
+CR 121.2c seam; `copy-effects-architecture.md` §4.6's CR 614.1e line. Two
+numbers the brief had wrong, for the record: §11 holds **99** numbered
+findings, not 108, and the missing kinds' counts are **3** turned-face-up
+cards (not 2) and **7** legal dice replacements (of 9).
+
+### Pass 1b — the eviction of `replacement-architecture.md` (planned 2026-09-15)
+
+Sized against the tree at the close-out, section by section, before anything
+moves — the live doc is ~6,700 lines with §14 and the audit's amendments,
+the archive 4,933. The rule for what stays is §3's: what a reader changing
+the pipeline needs.
+
+| Section | Lines | Moves? | The stub keeps |
+|---|---:|---|---|
+| §0 The budget | 70 | stays — the doc's own rule | — |
+| §1 Verdict | 76 | **moves** | the heading, the one-sentence verdict and its date, → archive |
+| §2, §2a | 136 | stay — the spine, the types as built | — |
+| §3.1–§3.4 | 543 | stay — the type surface; §3.2c's evidence table is the closed-algebra proof and stays with §3.2b | — |
+| §4.1–§4.4 | 353 | stay — the loop | — |
+| §5, §5a, §5c, §5d | 350 | stay — the frame as built | — |
+| §5b | 54 | **moves** | the Thassa-boundary sentence `layers-architecture.md` §13b and §13c cite |
+| §6, §7, §8 | 110 | stay | — |
+| §8a | ~250 | stays, as amended | — |
+| §8b, §8c | 132, 184 | **move** — sizing method, breadth axes | §8c's stub keeps its two rules cited from outside — "two customers before a leaf" (nine citations: `backlog.md`, `codebase-state.md`, `engineering-practices.md` §5, three source files) and "an arm the pipeline cannot apply is worse than a missing one" |
+| §9 phase stubs, RC's "Why four", RD's and RE's "Why", "Out of", "Cut", "Trace page", "Exit criteria" | ~650 | stay — the decisions a reader of the stubs needs | — |
+| §9 RD design check | 362 | **moves** | the heading and the seven decisions' one-line titles |
+| §9 RD-5, RD "Measured" | 78, 25 | **move** — a closed gate and a table `fuzz-record.md` holds | the heading and the gate's verdict line |
+| §9 RE design check | 337 | **moves** | the heading and the nine decisions' one-line titles |
+| §9 RE "Measured" | 212 | **moves** — `fuzz-record.md` holds the tables | the heading and the two-line summary |
+| §10 Testing | 43 | stays | — |
+| §11 head | ~180 | the table stays; the `ZoneChangeCause` derivation (~165) **moves** | the catchall ban's one sentence |
+| §11 items 1–99 | ~2,100 | the three open (3, 4, 14) stay; the 96 closed **move**, under the same twenty `### Found by …` headings in the archive | every heading, and under each one line per item — number, bold title, → archive — so `grep '^90\. \*\*'` still lands in the live doc (65 citations of "§11 item N" outside it) |
+| §12, §13, §14 | ~200 | stay | — |
+
+**Size: ~3,500 lines out, ~250 back in stubs; live ~3,400, archive ~8,400.**
+One docs PR, mechanical but not blind: every heading byte-identical so
+`grep` finds it, `check_glossary.py` on the result, and the eleven outside
+citations of §5b and §8c read against their stubs. **Opens second, after
+pass 1 merges, so the stubs point at a §14 that exists on `main`.**
+
 ### Pass 2 — hygiene and CI
 
 **Goal:** the §2.1 comment sweep by its own instrument, the twelve `TODO`s,
@@ -346,7 +406,8 @@ half-decided. The passes above carry each answer.
 | Pass | State | PR |
 |---|---|---|
 | Plan | this file, decisions answered | #141 |
-| 1 — close-out | not started | |
+| 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | (opened, number below once assigned) |
+| 1b — the eviction | planned 2026-09-15 (§3's table); opens after pass 1 merges | |
 | 2 — hygiene and CI | not started | |
 | 3 — parallel-play readiness | not started | |
 | 4 — scheduling | not started | |
