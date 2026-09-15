@@ -166,7 +166,7 @@ to record here, and a hit under the tighter tier with no date in its paragraph
 is the work.
 
 **Second application — 2026-09-15, the same day, after the owner read the
-first as still too small (PRs #146, #147, #148 and the registry PR).** "Restates
+first as still too small (PRs #146, #147, #148, #149).** "Restates
 directly below it" catches a comment that repeats the code and misses a war
 story or an over-explanation, which is where the length was. Sized against the
 tree before starting: non-card, non-test `src/` carried **15,619 comment

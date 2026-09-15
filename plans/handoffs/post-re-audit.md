@@ -219,7 +219,7 @@ the split threshold.
 too small: history narration out of every comment kind and §2's four-line
 signal enforced on inline blocks, over every non-card source file, sized
 against the tree first and split at §4's band — four stacked PRs (#146, #147,
-#148, the registry PR), 17,278 → 15,806 comment lines, twelve outgrown
+#148, #149), 17,278 → 15,806 comment lines, twelve outgrown
 comments corrected on the way, and one gate interaction (the glossary anchored
 on a name the sweep deleted). `engineering-practices.md` §2.1's second record
 has the numbers and the instrument that actually worked.
@@ -446,7 +446,7 @@ half-decided. The passes above carry each answer.
 | Plan | this file, decisions answered | #141 |
 | 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | #142 |
 | 1b — the eviction | planned 2026-09-15 (§3's table); opens after pass 1 merges | |
-| 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record; then the option-2 sweep (history out, four-line signal on inline blocks) over every non-card source file, §2.1's second record | #143 (CI), #144 (comments; merged into `audit/ci`, re-landed on main by #145), option 2: #146, #147, #148, and the registry PR, stacked in that order |
+| 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record; then the option-2 sweep (history out, four-line signal on inline blocks) over every non-card source file, §2.1's second record | #143 (CI), #144 (comments; merged into `audit/ci`, re-landed on main by #145), option 2: #146, #147, #148, #149, stacked in that order |
 | 3 — parallel-play readiness | not started | |
 | 4 — scheduling | not started | |
 | Codebase map | not started | |
