@@ -104,12 +104,6 @@ pub struct DurationRegistry<T: DurationRow> {
     generation: u64,
 }
 
-impl<T: DurationRow> Default for DurationRegistry<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T: DurationRow> DurationRegistry<T> {
     pub fn new() -> Self {
         DurationRegistry { rows: Vec::new(), next_id: 1, generation: 0 }

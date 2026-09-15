@@ -255,12 +255,6 @@ pub struct ContinuousEffectRegistry {
     summary: RegistryScopeSummary,
 }
 
-impl Default for ContinuousEffectRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ContinuousEffectRegistry {
     pub fn new() -> Self {
         ContinuousEffectRegistry {

@@ -57,7 +57,7 @@ jobs:
       # Adopted 2026-09-15 (the post-RE audit, pass 2) the way handoff §6
       # decision 2 asked: run once and counted first — 114 sites, 26 lints, 48
       # files on 1.98.0 — and only then decided. Everything was fixed except
-      # four design lints, allowed in Cargo.toml's `[lints.clippy]` table with
+      # five design lints, allowed in Cargo.toml's `[lints.clippy]` table with
       # one reason each; a new allow goes there, with its reason, never at the
       # site. `-D warnings` here is what `RUSTFLAGS` above already does, spelled
       # out so a local `cargo clippy --all-targets -- -D warnings` is the same
