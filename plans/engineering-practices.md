@@ -165,6 +165,45 @@ run both tiers**: the tighter one is the list to read, the wider one is the coun
 to record here, and a hit under the tighter tier with no date in its paragraph
 is the work.
 
+**Second application — 2026-09-15, the same day, after the owner read the
+first as still too small (PRs #146, #147, #148, #149).** "Restates
+directly below it" catches a comment that repeats the code and misses a war
+story or an over-explanation, which is where the length was. Sized against the
+tree before starting: non-card, non-test `src/` carried **15,619 comment
+lines**, 12,675 of them in blocks over four lines (9,066 doc, 2,882 inline, 727
+module) and **4,358 in 249 blocks that narrate history** — phase codes, "used
+to", "until YYYY-MM-DD", "this PR", "the old …". Two rules, applied whole file
+by whole file from the largest candidate down and split at §4's diff band:
+history narration comes out of every comment kind, a doc comment keeping its
+summary and contract; and an inline `//` block over four lines is compressed
+to the decision, the rule cite and a pointer to the architecture doc that
+carries the reasoning. Card files were left alone — their comments are Scryfall
+censuses, dated already. Across the four PRs (3, 4, 49 and 1 files) the
+whole-file comment counts went **3,235 → 2,798, 3,358 → 2,794, 10,164 → 9,722
+and 521 → 492: 17,278 → 15,806, 1,472 lines out** and the source diffs 1,191,
+2,006, 1,932 and 463 lines. **The instrument for this pass is not the grep above.**
+It is a block list — every comment block over four lines, per file, with the
+history words flagged — read in full, then a second grep over the *whole* file
+for phase codes and the history words, because the block list misses a
+one-line "since RC-1" and a "Phase RB" in a section header; the second grep
+found about forty more sites the first pass had walked past. What it turned up
+that neither instrument looks for: **twelve comments the code had outgrown**,
+each corrected rather than shortened — `execute_action`'s doc still describing
+a "direct passthrough" with the pipeline as a future step, `ActionContext`'s
+"nothing reads either field yet" on fields with nine readers, `resolve_effect`'s
+"Phase 2 scope", a `replacement_ability_sources` doc waiting on a copy leg
+that existed, two "one reader" claims where there were three, a `CR 701.?`
+placeholder, a Destroy citing Create's rule number, a `first_strike_only` that
+"always false", a CR 704.7 test premise the losses batch had falsified, a
+"nothing reads `ctx.dp`", and an `ObjectFilter`-is-the-wrong-name paragraph
+that outlived the rename it asked for. And one gate interaction: deleting the
+only "this used to be `forced_bucket`" note in the crate turned
+`check_glossary.py` red, because the glossary's **step** entry anchored on the
+old name; the entry now says the rename without it. **Next time, run the
+history grep over every touched file before opening the PR**, and read the
+doc comments for stale claims as a step of its own — a shorter comment that is
+wrong is not an improvement.
+
 **What stays out of `CLAUDE.md`:** a comment-length rule. That file is 200
 lines and every section costs another; the rule it already has is the right
 one, and a second rule that duplicates it in the negative would buy nothing
