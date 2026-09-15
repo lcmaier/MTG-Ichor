@@ -418,10 +418,15 @@ def oversized_landed():
 
 
 def flight():
+    # Each label is flushed before its child runs: `gh` and `git` inherit this
+    # process's stdout and write to the fd directly, so an unflushed label sits
+    # in Python's buffer while the child's output goes out ahead of it. Piped --
+    # into `head`, a log, a terminal pane -- that printed the branch list under
+    # "Open PRs:" and left "Branches not in origin/main:" empty at the end.
     import subprocess
-    print("Open PRs:")
+    print("Open PRs:", flush=True)
     subprocess.run(["gh", "pr", "list", "--state", "open"], cwd=ROOT)
-    print("\nBranches not in origin/main:")
+    print("\nBranches not in origin/main:", flush=True)
     subprocess.run(["git", "branch", "-a", "--no-merged", "origin/main"], cwd=ROOT)
 
 
