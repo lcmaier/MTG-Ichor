@@ -105,31 +105,35 @@ pub(super) fn holds(
             })
         }
 
-        // **Always true when a static ability asks it, and the reason is
-        // `cleanup_zone_state`, not this arm.** Leaving the battlefield calls
-        // `remove_by_source`, which drops *every* row of that source
-        // whatever its duration — so by the time the existence check could
-        // want a `false` here, there is no row left to check. This is not a
-        // second spelling of `Duration::WhileSourceOnBattlefield`: the
-        // duration decides whether the row is in the registry, and this leaf
-        // would decide whether the effect exists given that it is. They
-        // agree today because the first question is answered destructively.
+        // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
+        // grant exists while the card is in the graveyard, and this is asked
+        // at every layer, so a Wonder that is exiled stops granting on the
+        // very next walk without anything reconciling the registry (§13d
+        // decision 3).
         //
-        // The arm is written for the caller that does not exist yet.
-        // `Condition` is CR 603.4's enum, shared rather than duplicated
-        // (§13b decision 5), and an intervening "if" is checked twice — on
-        // trigger and again on resolution (CR 603.4) — against a source that
-        // may well be in a graveyard by the second check. Item 6 points that
-        // caller at this function; nothing else needs to change here.
+        // The gate is `in_zones_or_entering` rather than zone equality, and
+        // the two differ in exactly one place: under a CR 614.12 look-ahead
+        // the entering object is still in its source zone, and 614.12 asks
+        // what it *would* be on the battlefield — so equality would answer
+        // `false` for the one question that is being asked counterfactually.
+        // The same gate a filter row asks, chosen for the same reason.
         //
-        // The gate is `in_battlefield_zone_or_entering` rather than zone
-        // equality, and the two differ in exactly one place: under a CR
-        // 614.12 look-ahead the entering object is still in its source zone,
-        // and 614.12 asks what it *would* be on the battlefield — so equality
-        // would answer `false` for the one question that is being asked
-        // counterfactually. No registered card reaches it; it is the same
-        // gate a filter row asks, chosen for the same reason.
-        Condition::SourceOnBattlefield => board.in_battlefield_zone_or_entering(game, source),
+        // **Battlefield sources never see a `false` here**, and the reason is
+        // `cleanup_zone_state` rather than this arm: leaving the battlefield
+        // calls `remove_by_source`, which drops every row of that source
+        // whatever its duration, so there is no row left to check. That is
+        // still not a second spelling of the duration — the duration decides
+        // whether the row is in the registry, and this decides whether the
+        // effect exists given that it is. Off the battlefield the two come
+        // apart, which is what this phase is.
+        Condition::SourceInZone(zones) => board.in_zones_or_entering(game, source, *zones),
+
+        // Every clause. Short-circuits, so a `SourceInZone` written first —
+        // which is how a card's text reads — costs nothing on the boards
+        // where it is false.
+        Condition::All(clauses) => clauses
+            .iter()
+            .all(|c| holds(c, game, board, source, layer_index)),
 
         // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
         // Static Orb. A status (CR 110.5), read off the entity — under a
@@ -278,6 +282,7 @@ mod tests {
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
     use crate::types::effects::AmountExpr;
+    use crate::types::zones::ZoneSet;
 
     /// A status leaf reads the entity, not a frame: tapping the source flips
     /// it with no zone change and no registry write.
@@ -356,13 +361,46 @@ mod tests {
         assert!(settled_holds(&Condition::OpponentControlsPermanent(forest), &game, bears));
     }
 
+    /// CR 113.6b's leaf, both directions: the battlefield spelling answers
+    /// what `SourceOnBattlefield` answered, and the graveyard spelling is the
+    /// one Wonder needs.
     #[test]
-    fn source_on_battlefield_is_the_zone_gate() {
+    fn source_in_zone_is_the_zone_gate_in_both_directions() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
         let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
-        assert!(settled_holds(&Condition::SourceOnBattlefield, &game, bears));
-        assert!(!settled_holds(&Condition::SourceOnBattlefield, &game, dead));
+        let on_bf = Condition::SourceInZone(ZoneSet::BATTLEFIELD);
+        let in_gy = Condition::SourceInZone(ZoneSet::GRAVEYARD);
+        assert!(settled_holds(&on_bf, &game, bears));
+        assert!(!settled_holds(&on_bf, &game, dead));
+        assert!(settled_holds(&in_gy, &game, dead));
+        assert!(!settled_holds(&in_gy, &game, bears));
+
+        // A set, so one clause can name several zones — Mycosynth Lattice's
+        // shape on the source side.
+        let anywhere_else = Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD);
+        assert!(settled_holds(&anywhere_else, &game, dead));
+        assert!(!settled_holds(&anywhere_else, &game, bears));
+    }
+
+    /// Every clause, and an empty conjunction is vacuously true.
+    #[test]
+    fn all_holds_only_when_every_clause_does() {
+        let mut game = setup_two_player_game();
+        let dead = put_in_graveyard(&mut game, creatures::grizzly_bears(), 0);
+        let island = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
+            crate::types::card_types::LandType::Island,
+        ));
+        // Wonder's own condition, clause for clause.
+        let wonder = Condition::All(vec![
+            Condition::SourceInZone(ZoneSet::GRAVEYARD),
+            Condition::ControlPermanent(island),
+        ]);
+        assert!(!settled_holds(&wonder, &game, dead), "in the graveyard, no Island");
+        put_on_battlefield(&mut game, basic_lands::island(), 0);
+        assert!(settled_holds(&wonder, &game, dead), "in the graveyard, an Island");
+
+        assert!(settled_holds(&Condition::All(Vec::new()), &game, dead));
     }
 
     /// An unattached source is attached to nothing, so nothing matches — the
@@ -394,7 +432,8 @@ mod tests {
     #[test]
     fn a_condition_on_a_missing_source_is_false() {
         let game = setup_two_player_game();
-        assert!(!settled_holds(&Condition::SourceOnBattlefield, &game, ObjectId::from_u128(0)));
+        let anywhere = Condition::SourceInZone(ZoneSet::ALL);
+        assert!(!settled_holds(&anywhere, &game, ObjectId::from_u128(0)));
     }
 
     #[test]

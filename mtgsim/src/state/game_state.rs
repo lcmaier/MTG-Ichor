@@ -2021,7 +2021,7 @@ mod tests {
         #[test]
         fn test_conditional_static_body_lowers_to_the_inner_atoms() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceOnBattlefield,
+                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
                 Box::new(anthem_atom()),
             ));
             let atoms = GameState::static_ability_atoms(&ability, "Test Card");
@@ -2040,7 +2040,7 @@ mod tests {
         #[should_panic(expected = "cannot express")]
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
             let ability = static_ability(Effect::Conditional(
-                Condition::SourceOnBattlefield,
+                Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
                 Box::new(Effect::Optional(Box::new(anthem_atom()))),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
