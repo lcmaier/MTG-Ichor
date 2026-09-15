@@ -88,8 +88,8 @@ adds one card to it); `--pool stress` is every registered card. →
 **step** — **(1)** CR 500's turn step: `StepType`, an untap step, a combat
 damage step. **(2)** a rung of CR 616.1a–e's choice ladder — `ReplacementClass`,
 returned by `must_choose_among`. Sense 2 is the newest collision in this file:
-it arrived when `codebase-state.md` item 65 renamed `forced_bucket` to the
-rule's own word, which was right for that name and made this pair.
+`codebase-state.md` item 65 renamed the class to the rule's own word, which was
+right for that name and made this pair.
 
 **blocked** — **(1)** combat: a creature a blocker blocked, CR 509.
 `AttackingInfo`'s `is_blocked`. **(2)** prose only: an event a CR 614.17 "can't"

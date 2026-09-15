@@ -173,14 +173,10 @@ pub(crate) fn gather(
 ) -> Vec<ReplacementInstance> {
     game.counters.record_replacement_gather();
 
-    // What *caused* this event, for [`ReplacementDef::by`]: the controller of
-    // the resolving spell or ability that proposed it (CR 608.2's resolution,
-    // whose controller is CR 109.5's "you"), or `None` for a turn-based or
-    // state-based action, which has none. The same expression the pipeline
-    // hands `Query::Event::cause` one line above its call to this function,
-    // because "a spell or ability an opponent controls causes you to …" is one
-    // predicate whether a card prints it on a replacement effect or on a
-    // "can't".
+    // What *caused* this event, for [`ReplacementDef::by`]: the controller of the
+    // resolving spell or ability (CR 608.2; CR 109.5's "you"), or `None` for a
+    // turn-based or state-based action — the same expression the pipeline hands
+    // `Query::Event::cause`, since a "can't" and a replacement print one predicate.
     let cause = ctx.resolution.map(|r| r.controller);
 
     // CR 614.17c's filter is applied at the door rather than at the end: with
@@ -190,81 +186,43 @@ pub(crate) fn gather(
         return Vec::new();
     }
 
-    // The board-level fast path, and it is not an optimization — it is the
-    // difference between the pipeline being free and the pipeline tripling the
-    // engine's cost. `get_effective_abilities` is a full
-    // `compute_characteristics` walk, and an ungated sweep would run one per
-    // permanent per proposed action: measured against the untap step alone
-    // (2026-09-01) that is ~6,000 extra layer walks per `fuzz_games` game.
-    //
-    // **This one only answers "does the sweep run at all", which stopped being
-    // enough when RC-2 put replacement sources in the default card pool.** From
-    // the first tapland onward it is true for the rest of the game, and the
-    // sweep then walked every permanent to find the one or two that could
-    // matter. The per-permanent gate below is the other half; skipping it cost
-    // **10.3% of total game time on `performance` and 9.2% on `stress`**,
-    // interleaved A/B at 200 games (`replacement-architecture.md` §9, RC-2).
-    //
-    // The gate is *exact*, not a heuristic. An object on the battlefield can
-    // only have a static replacement ability if it printed one — recorded in
-    // `replacement_ability_sources` at ETB — or if a Layer 6 row granted it
-    // one, which the registry summary reports. Both over-approximate (CR 305.7
-    // and Humility can strip a printed ability without touching the set), and
-    // over-approximating costs a walk, never an answer.
+    // The board-level fast path, and not an optimization: `get_effective_abilities`
+    // is a full layer walk, and an ungated sweep runs one per permanent per
+    // proposed action — ~6,000 extra walks a game against the untap step alone
+    // (2026-09-01) — while skipping the per-permanent gate below cost 10.3% of
+    // game time (RC-2's A/B, `replacement-architecture.md` §9). Exact, not a
+    // heuristic: a battlefield object has a static replacement ability only if it
+    // printed one (`replacement_ability_sources`, at ETB) or a Layer 6 row granted
+    // one (the registry summary); both over-approximate, which costs a walk and
+    // never an answer.
     let subject = subject_of(action);
     let mut candidates = Vec::new();
 
     // --- Game rules that behave as replacement effects (CR 903.9b) ---------
-    //
-    // Ahead of the fast-path gate, because this source is neither a battlefield
-    // sweep nor a registry row and the gate would skip it. It costs one
-    // `HashMap` lookup and is exact: 903.9b only ever applies to the object the
+    // Ahead of the gate, which would skip it: neither a sweep nor a registry row,
+    // one `HashMap` lookup, and exact — 903.9b applies only to the object the
     // event is already about.
     if let Some(instance) = commander_zone_replacement(game, action) {
         push_if_applicable(game, &mut candidates, instance, action, subject, cause, frame);
     }
 
     // --- Source 1a: the permanent that is entering (CR 614.12) -------------
-    //
-    // > 614.12. Some replacement effects modify how a permanent enters the
-    // > battlefield. ... Such effects may come from the permanent itself if they
-    // > affect only that permanent.
-    //
-    // The sweep below walks `battlefield_ids_ordered`, and the entering
-    // permanent is not on it — creating its entry is the mutation this pipeline
-    // is deciding about. So this is the **gate leg** `CLAUDE.md` demands of any
-    // new gather source: `replacement_ability_sources` is populated by
-    // `register_static_effects`, which runs *inside* the performer, so without
-    // this block every "this permanent enters tapped" is dead text.
-    //
-    // Ahead of the fast-path gate rather than inside it, for
-    // `commander_zone_replacement`'s reason: it is exact and costs one
-    // `compute_characteristics` walk on an entry, where opening the gate would
-    // cost one per permanent on the board.
-    //
-    // Gathered here for cost and spliced in after the sweep for order: the
-    // entering permanent is about to be the newest object on the battlefield,
-    // so CR 613.7's oldest-first puts it last among the sweep's candidates. It
-    // has no timestamp at all yet — `place_on_battlefield` takes one from the
-    // monotonic `next_timestamp` once the pipeline has decided — and nothing
-    // between here and there re-timestamps anything already on the board.
-    //
-    // **Attachment is the case that looks like a counter-example and is not.**
-    // CR 613.7e re-timestamps *the Aura or Equipment*, never its host, so an
-    // Aura entering and attaching (CR 303.4f) only ends up newer still. The one
-    // real limit is CR 613.7m — objects entering *simultaneously* are ordered by
-    // APNAP rather than by allocation — and every entry today is its own
-    // singleton batch. Both are `codebase-state.md`'s item 4.
+    // The sweep walks `battlefield_ids_ordered`, and the entering permanent is
+    // not on it — its entry is what this pipeline is deciding — so this is the
+    // gate leg `CLAUDE.md` demands; without it every "enters tapped" is dead
+    // text. Ahead of the fast-path gate for `commander_zone_replacement`'s
+    // reason (exact, one walk). Gathered here and spliced in after the sweep:
+    // CR 613.7's oldest-first puts the entering permanent last, it has no
+    // timestamp until `place_on_battlefield`, and CR 613.7e re-timestamps an
+    // attaching Aura, never its host; simultaneous entries (CR 613.7m) are
+    // `codebase-state.md` item 4.
     let mut entering: Vec<ReplacementInstance> = Vec::new();
     if let GameAction::EnterBattlefield { object, controller, .. } = action {
-        // Its abilities as it would exist on the battlefield — the frame, not
-        // a plain walk. The card is still in its source zone while the entry
-        // is decided (RC-4b), where the walk's membership gate lets no
-        // filter-scoped effect reach it, and CR 614.12 clause (3) is what
-        // lets Humility strip an entering permanent's "enters with" before it
-        // can apply to itself. Computed once per iteration and shared with
-        // `set_affects`. (Until RC-4b a plain walk answered the same, only
-        // because the card had already been moved into the zone.)
+        // Its abilities as it would exist on the battlefield — the frame, not a
+        // plain walk: the card is still in its source zone while the entry is
+        // decided, and CR 614.12 clause (3) is what lets Humility strip an entering
+        // "enters with" before it applies. Computed once per iteration, shared with
+        // `set_affects`.
         if let Some(chars) = frame.frame_of(*object) {
             push_static_ability_replacements(
                 game, &mut entering, *object, *controller, &chars.abilities, action, subject,
@@ -285,24 +243,13 @@ pub(crate) fn gather(
     }
 
     // --- Sources 1 and 5: the battlefield sweep ----------------------------
-    //
-    // The fast path is per *permanent*, not just per board. `has_static_source`
-    // above answers "is anything on this board a static replacement source",
-    // which is what decides whether the sweep runs at all; this decides which
-    // permanents inside it are worth a `compute_characteristics` walk, and it is
-    // the same predicate one object at a time. Exact by the same argument, with
-    // the same over-approximations: a printed ability is recorded at ETB, a
-    // Layer 6 grant is reported by the registry summary but not attributed to an
-    // object, and CR 305.7 or Humility can strip a printed one without touching
-    // the set. Over-approximating costs a walk, never an answer.
-    //
-    // It has no *under*-approximation left. CV-1 closed the one it had: a
-    // copied replacement ability is on the effective ability list and in neither
-    // ETB-recorded set, so `any_copied_replacement` is its leg here as well as
-    // on the global gate. It is not attributed to an object, exactly as
-    // `any_granted_replacement` is not — a copy row's `ObjectSet` names the
-    // copies, but the summary is registry-wide, and narrowing it to an object
-    // would mean resolving a filter per permanent per gate check.
+    // The fast path per *permanent*: `has_static_source` decides whether the
+    // sweep runs, this decides which permanents are worth a walk — the same
+    // predicate one object at a time, exact with the same over-approximations.
+    // No under-approximation: a copied replacement ability is on the effective
+    // list and in neither ETB set, so `any_copied_replacement` is its leg here
+    // too — registry-wide, not per object, since narrowing it would resolve a
+    // filter per permanent per check.
     let summary = game.continuous_effects.summary();
     let any_unattributed = summary.any_granted_replacement || summary.any_copied_replacement;
     for id in game.battlefield_ids_ordered() {
@@ -361,7 +308,7 @@ pub(crate) fn gather(
 /// battlefield, or is the one entering.
 ///
 /// **CR 614.12's parenthesis, and it is a membership rule rather than a frame
-/// question** — which is why it is here in RC-3 and not in RC-4's overlay:
+/// question**:
 ///
 /// > 614.12. … Such effects may come from the permanent itself if they affect
 /// > only that permanent (as opposed to a general subset of permanents that
@@ -421,16 +368,11 @@ fn push_static_ability_replacements(
         if ability.ability_type != AbilityType::Static {
             continue;
         }
-        // CR 604.2 through the "as long as" wrapper: a conditional static's
-        // effect exists while its condition holds, and CR 614.4 asks whether
-        // the effect exists *before the event* — so the condition is asked
-        // here, at the proposal, against the settled board, and a source whose
-        // condition is false contributes nothing to CR 616.1's choice at all.
-        // That is what makes Laboratory Maniac ("while your library has no
-        // cards in it") a candidate exactly when the draw would fail, and
-        // never a prompt beside Thought Reflection while cards remain. The
-        // same evaluator the layer pass and CR 613.11's cost effects use, so
-        // the leaf is one question wherever it is asked.
+        // CR 604.2 through the "as long as" wrapper: the effect exists while its
+        // condition holds, and CR 614.4 asks that *before the event* — so the
+        // condition is asked here against the settled board, with the evaluator
+        // the layer pass and CR 613.11 use. Laboratory Maniac is a candidate exactly
+        // when the draw would fail, never a prompt beside Thought Reflection.
         let def = match &ability.effect {
             Effect::Replacement(def) => def,
             Effect::Conditional(condition, inner) => {
@@ -471,18 +413,12 @@ fn push_if_applicable(
     cause: Option<PlayerId>,
     frame: &EntryFrame<'_>,
 ) {
-    // CR 701.19c — "can't be regenerated" causes shields "to not be applied",
-    // so this withholds one at the door rather than spending it. The shield
-    // stays in the registry and is there for a later destruction.
-    //
-    // The one place in the engine where an effect is *applied* to an event,
-    // which is why `Restriction::ApplyReplacement` is closed at one arm
-    // (`cant-effects-architecture.md` §3.3). `is_regeneration` gains the second
-    // reader its own doc calls "the smell", and that is correct rather than a
-    // violation: CR 701.19c needs to *recognize* a shield in order to withhold
-    // one, and nothing about a shield's pattern, rewrite or rider distinguishes
-    // it from any other `Prevent`-with-a-rider. Phase RD widens the `bool` to a
-    // `ReplacementKind` when CR 615.12's prevention half arrives (§9 finding 3).
+    // CR 701.19c — "can't be regenerated" causes shields "to not be applied":
+    // withheld at the door, not spent, so the shield stays for a later
+    // destruction. The one place an effect is applied to an event, which is why
+    // `Restriction::ApplyReplacement` is closed at one arm
+    // (`cant-effects-architecture.md` §3.3); recognizing a shield is what
+    // `is_regeneration`'s authored bit is for.
     if instance.def.is_regeneration
         && is_prohibited(
             game,
@@ -503,8 +439,8 @@ fn push_if_applicable(
 ///
 /// Three halves of one CR 614.1 question, not three unrelated checks: an
 /// effect applies when it *watches* this kind of event, **and** *affects* the
-/// object the event is about, **and** — from RE-8 — admits what *caused* the
-/// event ([`ReplacementDef::by`]).
+/// object the event is about, **and** admits what *caused* the event
+/// ([`ReplacementDef::by`]).
 ///
 /// `pub(super)` for one caller beyond the sweep: the CR 616.1f loop re-asks it
 /// of an effect it has just applied, which is how an exempt effect's
@@ -517,11 +453,9 @@ pub(super) fn applies_to(
     cause: Option<PlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    // What caused the event, as a third clause, asked of the *effect* rather
-    // than of the event — which is why it reads `def.by` and not the pattern.
-    // `None` is "however caused" and every def written before RE-8; a `Some`
-    // against a turn-based or state-based action's `None` cause is `false`, so
-    // Nephalia Academy leaves CR 514.1's cleanup discard alone.
+    // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
+    // "however caused"; a `Some` against a turn-based or state-based action's
+    // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
     instance
         .def
         .by
@@ -554,9 +488,6 @@ pub(super) fn applies_to(
 /// identical sets and has no instance to offer
 /// (`cant-effects-architecture.md` §3.1: a restriction is discovered exactly
 /// the way a replacement effect is, and differs only in what it is asked at).
-/// `Restriction::ApplyReplacement` has no player set of its own yet — RD-4 adds
-/// one with "damage can't be prevented" over damage to a player — so it passes
-/// `PlayerSet::Nobody` and keeps today's answer.
 ///
 /// `frame` is where CR 614.12 and 614.17d land on the object side: a `Filter`
 /// about an entering permanent is matched against the permanent *as it would
@@ -587,36 +518,17 @@ pub(crate) fn set_affects(
         ObjectSet::Host => {
             game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
         }
-        // **Asked on behalf of the effect, not of a selection**, and the
-        // difference is one leaf: `ObjectFilter::EachOther` is other than the
-        // effect's `source`, which this function has and a selection does not.
-        // Palisade Giant's "other permanents you control" is the printed card
-        // that needs it (`codebase-state.md` item 103).
+        // On behalf of the effect, not a selection: `ObjectFilter::EachOther` is
+        // "other than the effect's `source`", which a selection has no source for —
+        // Palisade Giant's "other permanents you control" (`codebase-state.md` item 103).
         ObjectSet::Filter { filter, zones } => {
-            // **The zone half is not implemented on this side, and asserting
-            // that is the honest move** (LJ, `layers-architecture.md` §13c).
-            // A replacement row reaching a graveyard or a hand is
-            // §3.3 source 2 — madness in hand, flashback on the stack — and
-            // what it needs is CR 113.6, not a zone test here: this function is
-            // asked about an object that is on the battlefield *or entering
-            // it*, and an entering object is still in its source zone, so a
-            // naive `zones.contains(obj.zone)` would reject exactly the entry
-            // CR 614.12 exists for. `CLAUDE.md`: an arm the pipeline cannot
-            // apply is worse than a missing one.
-            //
-            // **This assert is scaffolding, and A5 did not delete it after
-            // all.** It was written expecting CR 113.6 to close the window
-            // (owner review, 2026-09-14); LK landed CR 113.6 the same day and
-            // the window is still open, because the two halves are not one
-            // piece. LK gave a static ability functioning off the battlefield a
-            // way to *register* — `register_static_effects` takes a zone — and
-            // left `replacement::gather`'s sweep over `battlefield_ids_ordered`
-            // alone, which is `replacement-architecture.md` §11 item 9's (c)
-            // and now carries its own card (one of the five "would be put into
-            // a graveyard from anywhere" replacements).
-            //
-            // So it stays a window rather than an invariant, and the failing
-            // assert is still how whoever builds that leg finds this site.
+            // The zone half is not implemented on this side: this is asked about an
+            // object on the battlefield *or entering it*, and an entering object is
+            // still in its source zone, so a naive `zones.contains(obj.zone)` would
+            // reject exactly the entry CR 614.12 exists for. LK gave a static ability a
+            // way to *register* off the battlefield and left this sweep alone
+            // (`replacement-architecture.md` §11 item 9's (c), which has a card); the
+            // failing assert is how whoever builds that leg finds this site.
             debug_assert_eq!(
                 *zones,
                 ZoneSet::BATTLEFIELD,
@@ -646,36 +558,15 @@ pub(crate) fn pattern_watches(
     you: PlayerId,
 ) -> bool {
     match (pattern, action) {
-        // CR 609.7's source predicate and CR 510.2's combat flag, both asked
-        // **now** rather than captured. 609.7b: "when the source would deal
-        // damage, the shield rechecks the source's properties" — this is that
-        // recheck, and it costs nothing extra because the whole gather already
-        // happens at the moment of the proposal. A source that has stopped
-        // matching produces no candidate at all, so nothing is applied and
-        // `consume_use` never runs, which is 609.7b's "the shield isn't used
-        // up" without a line of code that says so.
-        //
-        // 609.7c is the same expression read from the static side: "the
-        // prevention or replacement applies to sources that are permanents
-        // with that property **and to any sources that aren't on the
-        // battlefield** that have that property" — so the filter is asked of
-        // the source wherever it is, and `object_matches_filter` walks the
-        // layers for a spell on the stack exactly as it does for a permanent.
-        //
-        // **The three `unwrap_or`s are not the same kind of thing.** The two
-        // on the `Option`s are the fields' meaning — `None` is "this effect
-        // does not ask", which is what every def written before RD-3 carries —
-        // and there is nothing there to fail. The one on `object_matches_filter`
-        // swallows an `Err`, and it has exactly three causes: an id with no
-        // object behind it, `ObjectFilter::EachOther` (which a source pattern
-        // has no source to be other than), and `PowerLE` against a source with
-        // no power. All three are card-authoring errors rather than board
-        // states, all three would show as a card silently doing nothing, and
-        // all three are unreached: instrumented at this site and at both of
-        // `set_affects`'s, **zero across 600 fuzz games** on both pools with
-        // the RD-3 cards forced (2026-09-09). `set_affects` makes the identical
-        // swallow one function below, so making either loud is one change at
-        // both sites and not this one — `codebase-state.md` item 103.
+        // CR 609.7's source predicate and CR 510.2's combat flag, asked **now**
+        // rather than captured: 609.7b's recheck is free because the gather already
+        // happens at the proposal, and a source that stopped matching yields no
+        // candidate, so `consume_use` never runs — 609.7b's "the shield isn't used
+        // up" for free. 609.7c is the same read for a source off the battlefield.
+        // The `unwrap_or(true)`s are the fields' meaning ("this effect does not
+        // ask"); the `unwrap_or(false)` swallows `object_matches_filter`'s three
+        // authoring-error `Err`s, unreached in 600 fuzz games (2026-09-09) and
+        // shared with `set_affects` — `codebase-state.md` item 103.
         (
             EventPattern::DealDamage { source, combat },
             GameAction::DealDamage { source: dealt_by, is_combat, .. },
@@ -715,12 +606,10 @@ pub(crate) fn pattern_watches(
         }
 
         // Entering is the zone change onto the battlefield (CR 614.1c), so a
-        // zone-change-shaped pattern that admits that destination watches an
-        // entry too — Worms of the Earth's "can't enter", Grafdigger's Cage's
-        // "from graveyards" — with `from` and `cause` compared exactly as
-        // above. `object` reads the card in its source zone, as the Cage's
-        // ruling says; the frame is `affected`'s. A token's entry has neither
-        // `from` nor `cause`, so a pattern that names either does not match.
+        // zone-change pattern admitting that destination watches an entry too
+        // (Worms of the Earth, Grafdigger's Cage), `from` and `cause` compared as
+        // above and `object` read in its source zone (the Cage's ruling). A token's
+        // entry has neither `from` nor `cause`.
         (
             EventPattern::ZoneChange { from, to, cause, object },
             GameAction::EnterBattlefield {
@@ -742,16 +631,10 @@ pub(crate) fn pattern_watches(
         (EventPattern::Untap, GameAction::Untap { .. }) => true,
         (EventPattern::Tap, GameAction::Tap { .. }) => true,
 
-        // CR 121.2a's instruction. Alms Collector's "if an opponent would draw
-        // two or more cards" is `at_least: Some(2)`; `None` asks nothing about
-        // the count.
-        //
-        // **The two draw arms do not cross-match, and that is the printed
-        // ruling** — "count how many times the word 'draw' is used". One
-        // instruction to draw two is this event; two instructions to draw one
-        // are two `DrawCard`s with no instruction between them that Alms
-        // Collector could see. A pattern that watched both would make Divination
-        // and a pair of cantrips look alike.
+        // CR 121.2a's instruction: Alms Collector's "two or more" is `at_least:
+        // Some(2)`, `None` asks nothing. The two draw arms do not cross-match — the
+        // printed ruling counts "how many times the word 'draw' is used" — so
+        // Divination and a pair of cantrips stay distinct.
         (EventPattern::DrawCards { at_least }, GameAction::DrawCards { n, .. }) => {
             at_least.map(|k| *n >= k).unwrap_or(true)
         }
@@ -784,11 +667,9 @@ pub(crate) fn pattern_watches(
             source.map(|p| p.matches(*actual)).unwrap_or(true)
         }
 
-        // CR 614.16's "one or more counters" is the one count this arm reads
-        // (the rule's own phrase, as `CreateTokens` reads "one or more
-        // tokens"); `by` is Vorinclex's "if *you* would put", asked of the
-        // proposal's putter. Which *permanent or player* the effect is around
-        // is `set_affects`'s question.
+        // CR 614.16's "one or more" is the one count read (as `CreateTokens` reads
+        // "one or more tokens"); `by` is Vorinclex's "if *you* would put". Which
+        // permanent or player the effect is around is `set_affects`'s question.
         (
             EventPattern::AddCounters { counter, by },
             GameAction::AddCounters { counter: actual, n, by: putter, .. },
@@ -802,15 +683,10 @@ pub(crate) fn pattern_watches(
             GameAction::RemoveCounters { counter: actual, .. },
         ) => counter.map(|c| c == *actual).unwrap_or(true),
 
-        // CR 122.6's second door: "putting counters on that object ... refers
-        // ... also to an object that's given counters as it enters the
-        // battlefield". The counters are the entry's mods, so a pattern
-        // watching counters being put on watches the entry — asking "one or
-        // more" of each row, and the row's putter: the player the effect
-        // named (CR 122.6a's first sentence), else the controller the
-        // permanent enters under, which CR 616.1b settles ahead of anything
-        // that asks here. Nothing is *removed* as a permanent enters, so
-        // `RemoveCounters` has no entry door.
+        // CR 122.6's second door: counters a permanent enters with are "put on" it,
+        // so a counter pattern watches the entry — "one or more" of each row, and
+        // the row's putter (CR 122.6a's named player, else the controller CR 616.1b
+        // settled). Nothing is removed as a permanent enters.
         (
             EventPattern::AddCounters { counter, by },
             GameAction::EnterBattlefield { mods, controller, .. },
@@ -831,12 +707,9 @@ pub(crate) fn pattern_watches(
             step.map(|s| s == *actual).unwrap_or(true)
         }
 
-        // CR 701.22's scry. No field: both printed "would scry" clauses say
-        // "a number of cards" with no constraint on the number, and which
-        // *player* the effect is around is `set_affects`'s question. The field
-        // a later card could want is a count, and CR 701.22b already answers
-        // the only count the rules single out by making a scry 0 no event at
-        // all (`replacement::never_happens`).
+        // CR 701.22's scry, no field: both printed "would scry" clauses say "a
+        // number of cards", and the one count the rules single out — 0 — is
+        // `never_happens`'s. Which player is `set_affects`'s question.
         (EventPattern::Scry, GameAction::Scry { .. }) => true,
 
         // CR 104's two ends. Which *player* is `set_affects`'s question; the
@@ -852,23 +725,12 @@ pub(crate) fn pattern_watches(
             defs.iter().any(|d| kind.as_ref().is_none_or(|k| k.matches(d)))
         }
 
-        // CR 106.12b's two constraints on a mana production. The *event*
-        // knows both facts outright — `actual` is a `bool`, `producer` an
-        // id — and the *pattern* states each as an `Option` because an effect
-        // may decline to ask: `None` on a pattern field is "this effect does
-        // not care", which is satisfied by every production, and that is the
-        // first `unwrap_or(true)` on each side. Mana Reflection's "if you tap
-        // a permanent for mana" asks `Some(true)` and nothing of the
-        // permanent; Deep Water's "a land you control" asks both.
-        //
-        // The inner `unwrap_or(false)` is a different thing: it swallows the
-        // `Err` `object_matches_filter` returns for an id with no object,
-        // `ObjectFilter::EachOther` with nothing to be other than, or
-        // `PowerLE` on a source with no power — the three card-authoring
-        // errors `DealDamage`'s arm swallows the same way, recorded as
-        // `codebase-state.md` item 103. A spell's production has a spell for a
-        // source, which no land filter matches. Which *player* the effect is
-        // around is `set_affects`'s question.
+        // CR 106.12b's two constraints. The event knows both facts; the pattern's
+        // `Option`s let an effect decline to ask, and `None` is satisfied by every
+        // production (Mana Reflection asks `Some(true)` of tapping and nothing of the
+        // permanent; Deep Water asks both). The inner `unwrap_or(false)` swallows
+        // `object_matches_filter`'s three authoring-error `Err`s, as `DealDamage`'s
+        // arm does (`codebase-state.md` item 103).
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
             GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
@@ -890,8 +752,8 @@ pub(crate) fn pattern_watches(
 
 /// The three counter kinds that generate a replacement effect.
 ///
-/// **Three is the whole of CR 122.1, audited rather than assumed** (`rb-review.md`
-/// D3). Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
+/// **Three is the whole of CR 122.1, audited rather than assumed** (RB's
+/// review). Of that rule's nine kinds only 122.1c (shield), 122.1d (stun) and
 /// 122.1h (finality) create a replacement effect: 122.1a is Layer 7c, 122.1e/f/g
 /// are SBA inputs, 122.1i is a trigger, and 122.1b's fifteen keyword counters
 /// grant a keyword. **None of those fifteen is CR 614-shaped**, and the two that
@@ -907,17 +769,13 @@ const REPLACEMENT_COUNTERS: [CounterType; 3] =
 
 /// Is any permanent carrying a counter that generates a replacement effect?
 ///
-/// Part of `gather`'s fast path, and *computed* rather than cached — but not for
-/// the reason the first draft of this comment gave. A cached **set**, maintained
-/// the way `replacement_ability_sources` is, would not drift; a cached *count*
-/// would. What makes the set unsound today is that counters have more than two
-/// chokepoints: `GameState::add_counters` and `perform_action`'s `RemoveCounters`
-/// arm are two, and CR 704.5q's +1/+1 / -1/-1 annihilation is a third that writes
-/// `PermanentState` directly (`sba.rs`, `codebase-state.md` Deferred Migrations
-/// item 6). A set maintained at a chokepoint that does not exist is exactly the
-/// drift, and it reads as a card that silently does nothing. The scan is a
-/// `HashMap` walk over the battlefield that skips immediately on the
-/// empty-counters case, which is almost every permanent.
+/// Part of `gather`'s fast path, and *computed* rather than cached: counters
+/// have three chokepoints — `GameState::add_counters`, `perform_action`'s
+/// `RemoveCounters` arm, and CR 704.5q's annihilation, which writes
+/// `PermanentState` directly (`sba.rs`, `codebase-state.md` Deferred
+/// Migrations item 6) — so a set maintained at two of them drifts, and drift
+/// reads as a card that silently does nothing. The scan skips immediately on
+/// the empty-counters case, which is almost every permanent.
 fn any_replacement_counter(game: &GameState) -> bool {
     game.battlefield.values().any(|entry| {
         !entry.counters.is_empty()
@@ -943,13 +801,10 @@ fn counter_replacements(
     let mut out = Vec::new();
 
     if entry.counter_count(CounterType::Shield) > 0 {
-        // > 122.1c ... "If this permanent would be destroyed as the result of
-        // > an effect, instead remove a shield counter from it"
-        //
-        // "As the result of an effect" is CR 701.8b way 1 only. A shield
-        // counter does not answer CR 704.5g's lethal-damage destruction through
-        // this half at all — the prevention half below stops the damage before
-        // 704.5g ever asks.
+        // > 122.1c … "If this permanent would be destroyed as the result of an
+        // > effect, instead remove a shield counter from it"
+        // "As the result of an effect" is CR 701.8b way 1 only: lethal damage is
+        // stopped by the prevention half below, before 704.5g asks.
         out.push((
             CounterType::Shield,
             CounterEffectKind::Replacement,
@@ -965,12 +820,10 @@ fn counter_replacements(
             ),
         ));
 
-        // > 122.1c ... "If damage would be dealt to this permanent, prevent
-        // > that damage and remove a shield counter from it"
-        //
-        // `Prevent` plus a rider rather than an `Instead`: CR 615.13 lets
-        // triggers fire on damage *being prevented*, so the engine has to know
-        // a prevention happened rather than seeing a substituted event.
+        // > 122.1c … "If damage would be dealt to this permanent, prevent that
+        // > damage and remove a shield counter from it"
+        // `Prevent` plus a rider, not an `Instead`: CR 615.13 lets triggers fire on
+        // damage *being prevented*.
         out.push((
             CounterType::Shield,
             CounterEffectKind::Prevention,
@@ -1001,12 +854,10 @@ fn counter_replacements(
     }
 
     if entry.counter_count(CounterType::Finality) > 0 {
-        // > 122.1h ... "If this permanent would be put into a graveyard from
-        // > the battlefield, exile it instead."
-        //
-        // Any cause — this is not restricted to destruction — and the counter
-        // is *not* removed: 122.1h does not say to, and the permanent is
-        // leaving anyway, which CR 122.2 makes the end of its counters.
+        // > 122.1h … "If this permanent would be put into a graveyard from the
+        // > battlefield, exile it instead."
+        // Any cause, and the counter is not removed: 122.1h does not say to, and
+        // CR 122.2 ends its counters as it leaves anyway.
         out.push((
             CounterType::Finality,
             CounterEffectKind::Replacement,
@@ -1052,10 +903,8 @@ fn remove_one_counter(counter: CounterType) -> Effect {
 /// step is not a choice the player has right now — it will be offered again on
 /// 616.1f's next pass, once the chosen one has applied.
 ///
-/// Named for the rule's own sentence rather than for the shape of the
-/// implementation: this used to be `forced_bucket`, and "bucket" is a word the
-/// CR never uses and a reader has to already know (`codebase-state.md`
-/// item 65's complaint, from the other side).
+/// Named for the rule's own sentence (`codebase-state.md` item 65: the CR
+/// never says "bucket").
 ///
 /// Generic over what carries the instance, because the pipeline's candidates
 /// carry the members each applies to beside it.
@@ -1063,11 +912,9 @@ pub(crate) fn must_choose_among<T>(
     candidates: Vec<T>,
     class: impl Fn(&T) -> crate::types::replacement::ReplacementClass,
 ) -> Vec<T> {
-    // `ReplacementClass` derives `Ord` in CR order, so the minimum present
-    // class is the ladder's first non-empty step and 616.1e's `Other` is the
-    // fallthrough by construction. `top` came out of the candidates, so the
-    // filter below always keeps at least the one that produced it — there is
-    // no empty-result check to make.
+    // `ReplacementClass` derives `Ord` in CR order, so the minimum class present
+    // is the ladder's first non-empty step and 616.1e's `Other` the fallthrough;
+    // `top` came out of the candidates, so the filter keeps at least one.
     let Some(top) = candidates.iter().map(&class).min() else {
         return candidates;
     };
@@ -1110,13 +957,10 @@ fn commander_zone_replacement(
     if !obj.is_commander {
         return None;
     }
-    // **"Its owner's hand or library" is CR 400.3, so there is no check to
-    // make here and never will be.** "If an object would go to any library,
-    // graveyard, or hand other than its owner's, it goes to its owner's
-    // corresponding zone" — a hand or library destination *is* the owner's, by
-    // rule, which is also why `add_to_zone_collection` files by `obj.owner`.
-    // `GameAction::ZoneChange` carries no destination player accordingly, so a
-    // guard written here could only compare `obj.owner` with itself.
+    // "Its owner's hand or library" is CR 400.3's own guarantee — any hand or
+    // library destination *is* the owner's (`add_to_zone_collection` files by
+    // `obj.owner`), and `ZoneChange` carries no destination player — so there is
+    // no check to make here.
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange {
             from: None,
