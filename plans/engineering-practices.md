@@ -1003,7 +1003,13 @@ coverage to account was the `// COVERS:` discipline above, plus `orphans` and
 what turns the habit into a gate for the whole replacement track — and until
 then, a replacement phase that wants the real number runs
 `specdb owed --phase "Phase 6"` and reads it as a to-do list for RD and RE (54
-atoms as of 2026-09-03, nearly all damage and prevention).
+atoms as of 2026-09-03, nearly all damage and prevention). **Done 2026-09-15,
+at the post-RE audit's close-out**: the query was run once by hand against
+the finished track (127 atoms, 50 uncovered, 21 of them ticketed `NEW`), every
+uncovered atom was given a line — annotated, tested, or re-filed with its
+owner — and Phase 6 joined the constant. The triage is `backlog.md` §3.3's
+second application block; from here the gate is armed for the track, and a
+phase that adds Phase 6 atoms closes against it like any other.
 
 **And the seam neither instrument covers:** a defect in shipped behaviour that
 has no atom is invisible to both `owed` and Deferred Migrations. RC-5's item 61

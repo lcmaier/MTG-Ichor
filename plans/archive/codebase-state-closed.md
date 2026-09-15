@@ -713,6 +713,32 @@ It was a record for item 70's fix — the answer was right, re-derived
     harness had said so.
 
 
+## Found by the RD-1 review (2026-09-08)
+
+*Item 88 evicted 2026-09-15 by the post-RE audit's close-out. It had been
+fixed the day it was found; its verdict never said "closed", so the board
+counted it as an unchecked claim for a week.*
+
+88. **A mill of N was N batches, and it should have been one (fixed in the
+    same review).** `Primitive::Mill` looped `change_zone`, so each card's move
+    opened its own batch. CR 701.17a says "that player puts **that many cards**
+    from the top of their library into their graveyard" — one simultaneous
+    move — and the CR has no analogue here to CR 121.2's "cards may only be
+    drawn one at a time", which is the rule that makes *drawing* the exception.
+    The consequence is CR 603.2c's: "whenever one or more cards are put into
+    your graveyard" would have fired once per card. Now one `execute_actions`
+    batch of N `ZoneChange` members, which keeps each card its own event for
+    CR 614.5 (Leyline of the Void applies to every card, not the first) while
+    giving the whole mill one `BatchId`.
+
+    **Reachability (2026-09-08):** it was unreachable as a *wrong answer* —
+    no trigger exists — and reachable as a wrong *shape*, which is why it was
+    fixed rather than deferred: item 6 would have inherited it silently.
+    Pinned by `a_mill_is_one_batch_of_many_moves`.
+
+    **Reachability (2026-09-15):** closed — the verdict above, re-worded so
+    the board reads it.
+
 ## Found by RD-2 — CR 615.7 prevention shields, and the loop's unit (2026-09-09)
 
 91. ~~**`AmountRewrite::PreventUpTo` has a performer and no printed

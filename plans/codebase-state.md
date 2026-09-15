@@ -3254,18 +3254,18 @@ object branch asked nothing about what kind of object it was.
 *After*, it asks the target which of CR 120.3's results it has. Three
 consequences, and only the first was designed:
 
-1. **A creature planeswalker gets two results.** CR 120.3 says damage "has
+1) **A creature planeswalker gets two results.** CR 120.3 says damage "has
    **one or more** of the following results". Damage to a permanent that is
    both marks damage (120.3e) *and* removes loyalty (120.3c). Under a two-way
    `match` that needs a special case, because the arms are alternatives; under
    a struct of independent flags it is what the code already does.
-2. **A non-creature, non-planeswalker permanent takes no result at all.** This
+2) **A non-creature, non-planeswalker permanent takes no result at all.** This
    is the part nobody asked for. Once each result names the type it belongs to,
    the old unconditional `damage_marked` on *any* battlefield object has no
    rule behind it — CR 120.3e is written about a creature — so it was
    bookkeeping the CR does not have, invisible while the arm was shaped as
    "object or player".
-3. It is unreachable from the registered pool, because
+3) It is unreachable from the registered pool, because
    `SelectionFilter::Any` offers only creatures, planeswalkers and players, and
    combat cannot attack anything else. It is pinned by a test anyway
    (`damage_to_a_noncreature_nonplaneswalker_marks_nothing`), because the
@@ -3311,21 +3311,11 @@ changed behavior or left a standing record, and one is a doc-hygiene finding
 worth more than the comments it corrects.
 
 88. **A mill of N was N batches, and it should have been one (fixed in the
-    same review).** `Primitive::Mill` looped `change_zone`, so each card's move
-    opened its own batch. CR 701.17a says "that player puts **that many cards**
-    from the top of their library into their graveyard" — one simultaneous
-    move — and the CR has no analogue here to CR 121.2's "cards may only be
-    drawn one at a time", which is the rule that makes *drawing* the exception.
-    The consequence is CR 603.2c's: "whenever one or more cards are put into
-    your graveyard" would have fired once per card. Now one `execute_actions`
-    batch of N `ZoneChange` members, which keeps each card its own event for
-    CR 614.5 (Leyline of the Void applies to every card, not the first) while
-    giving the whole mill one `BatchId`.
-
-    **Reachability (2026-09-08):** it was unreachable as a *wrong answer* —
-    no trigger exists — and reachable as a wrong *shape*, which is why it was
-    fixed rather than deferred: item 6 would have inherited it silently.
-    Pinned by `a_mill_is_one_batch_of_many_moves`.
+    same review).** — ✅ closed, archived.
+    **Reachability (2026-09-15):** closed — fixed in the RD-1 review that
+    found it (2026-09-08), pinned by `a_mill_is_one_batch_of_many_moves`; the
+    verdict had said "it was unreachable …", which the board read as unstated
+    until the post-RE audit. → `plans/archive/codebase-state-closed.md`.
 
 89. **A comment can state a measured fact and go stale without any code
     changing, and nothing in the process re-reads it.** The RD-1 review found
@@ -3991,8 +3981,11 @@ named RE PR.
      sizing and card now live. CR 500.9/500.10's half stays in §2.17 and is
      item 6's, because Obeka is a triggered ability.
 
-     **Reachability (2026-09-11):** nothing to build here — a record pointing
-     at the two docs that own the halves.
+     **Reachability (2026-09-15):** nothing owed — a record pointing at the
+     two docs that own the halves: the phase half landed with RE-10 (below),
+     and the step half is `backlog.md` §2.17's, waiting on item 6. (The
+     2026-09-11 verdict said "nothing to build", which the board does not
+     read as a class; re-worded at the post-RE audit.)
 
      **Sized:** RE-10 is ~1,100–1,300; the step half is one
      `Option<Vec<StepType>>` field and waits on item 6.
@@ -4135,9 +4128,11 @@ named RE PR.
      it says the *next* step that begins is where the waiting triggers go, and
      nothing in RE-1 could assert that.
 
-     **Reachability (2026-09-11):** nothing to build — a record for item 6.
+     **Reachability (2026-09-15):** nothing owed — a record for item 6.
      Eon Hub is in `PERFORMANCE_POOL`, so the board is in front of every
-     measured game already; what is missing is a trigger to watch.
+     measured game already; what is missing is a trigger to watch. (The
+     2026-09-11 verdict said "nothing to build"; re-worded at the post-RE
+     audit so the board reads it.)
 
      **Sized:** two integration tests in item 6's file, ~60 lines, on a board
      `phase_re_cards::eon_hub` plus one upkeep trigger and one untap-step

@@ -96,15 +96,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 5961 of 6176 lines (96%) |
-| Numbered items | 189 |
-| …closed, still recorded | 50 |
-| …open — unreachable, and says why | 84 |
-| **…open — reachable, wrong today** | **5** |
-| …open — reachable, not wrong (perf, a name, a harness) | 22 |
-| …open — nothing to build, a record for a later phase | 23 |
-| **…open — reachability *not* stated** | **5** |
-| …open, carrying an explicit `**Sized:**` | 133 of 139 |
+| Section size | 5956 of 6171 lines (96%) |
+| Numbered items | 186 |
+| …closed, still recorded | 51 |
+| …open — unreachable, and says why | 83 |
+| **…open — reachable, wrong today** | **3** |
+| …open — reachable, not wrong (perf, a name, a harness) | 24 |
+| …open — nothing to build, a record for a later phase | 25 |
+| **…open — reachability *not* stated** | **0** |
+| …open, carrying an explicit `**Sized:**` | 133 of 135 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -127,9 +127,10 @@ only ever grows.
 **The seam between them is real.** A defect in shipped behaviour that has no
 atom is in neither list — RC-5's item 61 is one, because the ruling it violates
 was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,
-which lists three phases and not Phase 6, so a replacement phase closing against
-"owed is clean" is making a claim about *other* phases; what actually gated it
-was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.
+which gained Phase 6 only at the post-RE audit (2026-09-15): until then a
+replacement phase closing against "owed is clean" was making a claim about three
+*other* phases, and what actually gated it was the `// COVERS:` annotation
+discipline. → `engineering-practices.md` §5.
 
 ## Half-finished work
 
