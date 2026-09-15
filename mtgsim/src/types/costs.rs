@@ -98,6 +98,7 @@ impl AdditionalCost {
     /// primitives once `ObjectFilter` supports the required predicates:
     /// - `Casualty(n)` → `Sacrifice(power_n_or_greater, 1)`
     /// - `Bargain` → `Sacrifice(artifact_or_enchantment_or_token, 1)`
+    ///
     /// After cost primitive consolidation, every variant will return a
     /// non-empty slice and the empty-slice fallback can be removed.
     pub fn costs(&self) -> &[Cost] {

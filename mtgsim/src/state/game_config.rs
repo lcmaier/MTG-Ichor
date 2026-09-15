@@ -1,10 +1,10 @@
-/// Configuration that varies by format. Pure data, no behavior.
-///
-/// Covers Standard, Modern, Pioneer, Limited, and most two-player formats
-/// out of the box. When Commander/Brawl are needed, a `Format` trait will
-/// provide `config()` and override behavioral hooks; `GameConfig` becomes
-/// a field of the `Format` implementor. The struct fields and their types
-/// don't change — only where the behavior lives.
+//! Configuration that varies by format. Pure data, no behavior.
+//!
+//! Covers Standard, Modern, Pioneer, Limited, and most two-player formats
+//! out of the box. When Commander/Brawl are needed, a `Format` trait will
+//! provide `config()` and override behavioral hooks; `GameConfig` becomes
+//! a field of the `Format` implementor. The struct fields and their types
+//! don't change — only where the behavior lives.
 
 /// Mulligan rule in use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

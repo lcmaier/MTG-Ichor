@@ -506,7 +506,7 @@ mod tests {
         let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
         let options = vec![ChoiceOption::Action(PriorityAction::Pass); 3];
         let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
-        assert!(result.len() >= 1 && result.len() <= 2);
+        assert!(!result.is_empty() && result.len() <= 2);
         for &idx in &result {
             assert!(idx < 3);
         }

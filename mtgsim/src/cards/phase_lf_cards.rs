@@ -74,26 +74,6 @@ pub fn humility() -> Arc<CardData> {
         .build()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn humility_is_one_ability_with_two_atoms() {
-        let card = humility();
-        assert_eq!(
-            card.abilities.len(),
-            1,
-            "one AbilityDef, so both halves share an EffectGroup (CR 613.6)"
-        );
-        match &card.abilities[0].effect {
-            Effect::Sequence(atoms) => assert_eq!(atoms.len(), 2),
-            other => panic!("expected a Sequence, got {other:?}"),
-        }
-        assert!(!card.abilities[0].is_characteristic_defining);
-    }
-}
-
 /// Citanul Hierophants — {3}{G}
 /// Creature — Human Druid, 3/2
 /// Creatures you control have "{T}: Add {G}."
@@ -160,4 +140,24 @@ pub fn citanul_hierophants() -> Arc<CardData> {
             ),
         })
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn humility_is_one_ability_with_two_atoms() {
+        let card = humility();
+        assert_eq!(
+            card.abilities.len(),
+            1,
+            "one AbilityDef, so both halves share an EffectGroup (CR 613.6)"
+        );
+        match &card.abilities[0].effect {
+            Effect::Sequence(atoms) => assert_eq!(atoms.len(), 2),
+            other => panic!("expected a Sequence, got {other:?}"),
+        }
+        assert!(!card.abilities[0].is_characteristic_defining);
+    }
 }

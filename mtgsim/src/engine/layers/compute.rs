@@ -268,10 +268,9 @@ pub(crate) fn base_controller(
     if let Some(entry) = game.stack_entries.get(&id) {
         return Some(entry.controller);
     }
-    if let Some(resolving) = game.resolving {
-        if resolving.id == id {
-            return Some(resolving.default_controller);
-        }
+    if let Some(resolving) = game.resolving
+        && resolving.id == id {
+        return Some(resolving.default_controller);
     }
     game.objects.get(&id).map(|obj| obj.owner)
 }
@@ -974,9 +973,7 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
 
         // Layer 7d
         EffectModification::SwitchPowerToughness => {
-            let old_power = chars.power;
-            chars.power = chars.toughness;
-            chars.toughness = old_power;
+            std::mem::swap(&mut chars.power, &mut chars.toughness);
         }
     }
 }

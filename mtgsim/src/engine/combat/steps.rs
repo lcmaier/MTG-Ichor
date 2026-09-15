@@ -173,11 +173,10 @@ impl GameState {
                 }
 
                 // Mark attacker as blocked
-                if let Some(entry) = self.battlefield.get_mut(attacker_id) {
-                    if let Some(ref mut info) = entry.attacking {
-                        info.is_blocked = true;
-                        info.blocked_by.push(*blocker_id);
-                    }
+                if let Some(entry) = self.battlefield.get_mut(attacker_id)
+                    && let Some(ref mut info) = entry.attacking {
+                    info.is_blocked = true;
+                    info.blocked_by.push(*blocker_id);
                 }
             }
 
@@ -268,12 +267,10 @@ impl GameState {
     fn get_defending_players(&self) -> Vec<PlayerId> {
         let mut defenders = Vec::new();
         for (_id, entry) in self.battlefield_ordered() {
-            if let Some(ref info) = entry.attacking {
-                if let AttackTarget::Player(pid) = info.target {
-                    if !defenders.contains(&pid) {
-                        defenders.push(pid);
-                    }
-                }
+            if let Some(ref info) = entry.attacking
+                && let AttackTarget::Player(pid) = info.target
+                && !defenders.contains(&pid) {
+                defenders.push(pid);
             }
         }
         defenders

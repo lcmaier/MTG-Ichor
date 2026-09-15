@@ -206,10 +206,9 @@ pub(crate) fn apply_add_subtype(
         return;
     }
 
-    if let Subtype::Land(land_type) = subtype {
-        if let Some(ability) = intrinsic_mana_ability(object_id, *land_type) {
-            chars.abilities.push(ability);
-        }
+    if let Subtype::Land(land_type) = subtype
+        && let Some(ability) = intrinsic_mana_ability(object_id, *land_type) {
+        chars.abilities.push(ability);
     }
 }
 

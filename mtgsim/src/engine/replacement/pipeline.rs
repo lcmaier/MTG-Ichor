@@ -708,10 +708,9 @@ fn next_damage_shares(
         })
         .collect();
     for (index, action) in later {
-        if let GameAction::DealDamage { source, amount, .. } = action {
-            if applies_to(game, chosen, action, subject_of(action), cause_of(ctx), None) {
-                buckets.push((*index, *source, *amount, chooser_for(game, action)));
-            }
+        if let GameAction::DealDamage { source, amount, .. } = action
+            && applies_to(game, chosen, action, subject_of(action), cause_of(ctx), None) {
+            buckets.push((*index, *source, *amount, chooser_for(game, action)));
         }
     }
 
@@ -975,7 +974,7 @@ fn classify<'a>(
                 return Some(Commuting::DrawDoubler);
             }
             (template_is_instance_invariant(template) && template_is_idempotent(template))
-                .then(|| Commuting::Substitute(&def.rewrite))
+                .then_some(Commuting::Substitute(&def.rewrite))
         }
     }
 }
@@ -1266,43 +1265,42 @@ fn check_order_invariance(
 
     // The substitute cell: one shared `Instead`, so the claim is sameness of
     // output rather than continued applicability.
-    if let Rewrite::Instead(_) = &chosen.def.rewrite {
-        if mine.iter().all(|(i, _)| i.def.rewrite == chosen.def.rewrite) {
-            for (instance, _) in &mine {
-                let Rewrite::Instead(template) = &instance.def.rewrite else {
-                    unreachable!("equal to the chosen rewrite, which is an `Instead`");
-                };
-                let theirs = substitute(instance, template, before.clone(), subject);
-                debug_assert!(
-                    theirs.as_ref().ok() == Some(next),
-                    "CR 616.1 prompt suppressed as order-invariant was not: {:?} would \
-                     have produced {:?} where {:?} produced {:?}. \
-                     `template_is_instance_invariant` admitted a substitute that reads \
-                     the applying effect.",
-                    instance.id,
-                    theirs,
-                    chosen.id,
-                    next
-                );
-            }
-            // The second clause, checked where it is cheap: applying the same
-            // substitute to its own output must not move it, or `k` — how many
-            // of the shared members ended up applying, which order *can* change
-            // — becomes observable.
-            let Rewrite::Instead(template) = &chosen.def.rewrite else {
-                unreachable!("matched one line above");
+    if let Rewrite::Instead(_) = &chosen.def.rewrite
+        && mine.iter().all(|(i, _)| i.def.rewrite == chosen.def.rewrite) {
+        for (instance, _) in &mine {
+            let Rewrite::Instead(template) = &instance.def.rewrite else {
+                unreachable!("equal to the chosen rewrite, which is an `Instead`");
             };
-            if let Ok(again) = substitute(chosen, template, next.clone(), subject) {
-                debug_assert!(
-                    &again == next,
-                    "CR 616.1 prompt suppressed as order-invariant was not: {:?} is not                      idempotent — it took {:?} to {:?}. Order decides how many of the                      shared members apply, so a substitute that compounds makes that                      observable.",
-                    chosen.id,
-                    next,
-                    again
-                );
-            }
-            return;
+            let theirs = substitute(instance, template, before.clone(), subject);
+            debug_assert!(
+                theirs.as_ref().ok() == Some(next),
+                "CR 616.1 prompt suppressed as order-invariant was not: {:?} would \
+                 have produced {:?} where {:?} produced {:?}. \
+                 `template_is_instance_invariant` admitted a substitute that reads \
+                 the applying effect.",
+                instance.id,
+                theirs,
+                chosen.id,
+                next
+            );
         }
+        // The second clause, checked where it is cheap: applying the same
+        // substitute to its own output must not move it, or `k` — how many
+        // of the shared members ended up applying, which order *can* change
+        // — becomes observable.
+        let Rewrite::Instead(template) = &chosen.def.rewrite else {
+            unreachable!("matched one line above");
+        };
+        if let Ok(again) = substitute(chosen, template, next.clone(), subject) {
+            debug_assert!(
+                &again == next,
+                "CR 616.1 prompt suppressed as order-invariant was not: {:?} is not                      idempotent — it took {:?} to {:?}. Order decides how many of the                      shared members apply, so a substitute that compounds makes that                      observable.",
+                chosen.id,
+                next,
+                again
+            );
+        }
+        return;
     }
 
     // The exit cell, chosen the way that stops the others applying: the exit
@@ -2572,7 +2570,7 @@ fn retarget_destination(
 /// good destination.
 fn redirection_is_legal(game: &GameState, to: DamageTarget, from: DamageTarget) -> bool {
     let player_in_game = |pid: PlayerId| {
-        game.player_lost.get(pid as usize).map(|lost| !lost).unwrap_or(false)
+        game.player_lost.get(pid).map(|lost| !lost).unwrap_or(false)
     };
     let destination_ok = match to {
         DamageTarget::Player(pid) => player_in_game(pid),

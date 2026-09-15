@@ -257,7 +257,7 @@ fn every_object_a_departing_player_owns_leaves_the_game_from_every_zone() {
     departs(&mut game, 1, &test_dp());
 
     for id in [permanent, spell, exiled, commanded, dead, held].into_iter().chain(library) {
-        assert!(game.objects.get(&id).is_none(), "object {id} is still in the game");
+        assert!(!game.objects.contains_key(&id), "object {id} is still in the game");
     }
     assert!(game.players[1].hand.is_empty());
     assert!(game.players[1].library.is_empty());
@@ -351,7 +351,7 @@ fn a_creature_leaves_the_game_with_its_owner_even_while_someone_else_controls_it
 
     departs(&mut game, 1, &test_dp());
 
-    assert!(game.objects.get(&griffin).is_none(), "CR 800.4a: its owner left");
+    assert!(!game.objects.contains_key(&griffin), "CR 800.4a: its owner left");
     assert_eq!(game.get_object(aura).unwrap().zone, Zone::Battlefield, "P0 still owns the Aura");
     assert_eq!(game.battlefield[&aura].attached_to, None, "its host is gone");
 
@@ -378,7 +378,7 @@ fn an_aura_leaving_with_its_owner_hands_the_enchanted_creature_back() {
 
     departs(&mut game, 0, &test_dp());
 
-    assert!(game.objects.get(&aura).is_none());
+    assert!(!game.objects.contains_key(&aura));
     assert_eq!(game.get_object(griffin).unwrap().zone, Zone::Battlefield);
     assert_eq!(
         get_effective_controller(&game, griffin),
@@ -465,7 +465,7 @@ fn the_owner_leaving_takes_the_stolen_creature_with_them() {
 
     departs(&mut game, 1, &test_dp());
 
-    assert!(game.objects.get(&bears).is_none());
+    assert!(!game.objects.contains_key(&bears));
     assert!(game.battlefield.is_empty());
 }
 
@@ -490,7 +490,7 @@ fn a_stack_object_that_is_not_a_card_ceases_to_exist_for_its_controller() {
 
     departs(&mut game, 1, &test_dp());
 
-    assert!(game.objects.get(&ability).is_none(), "CR 800.4a: it ceased to exist");
+    assert!(!game.objects.contains_key(&ability), "CR 800.4a: it ceased to exist");
     assert!(
         !departures(&game).iter().any(|&(id, _, _)| id == ability),
         "ceasing to exist is not leaving the game, and P2 still owns it"
@@ -511,7 +511,7 @@ fn an_ability_the_departing_player_activated_leaves_the_game_by_the_first_clause
 
     departs(&mut game, 1, &test_dp());
 
-    assert!(game.objects.get(&ability).is_none());
+    assert!(!game.objects.contains_key(&ability));
     assert_eq!(
         departures(&game).iter().filter(|&&(id, _, _)| id == ability).count(),
         1,
@@ -738,7 +738,7 @@ fn a_blocked_attacker_whose_blockers_left_the_game_assigns_nothing() {
 
     departs(&mut game, 2, &test_dp());
 
-    assert!(game.objects.get(&blocker).is_none(), "the blocker left with its owner");
+    assert!(!game.objects.contains_key(&blocker), "the blocker left with its owner");
     let assignments =
         mtgsim::engine::combat::resolution::assign_combat_damage(&game, &test_dp(), 0, false);
     assert!(
@@ -863,7 +863,7 @@ fn a_creature_dying_in_the_same_check_is_destroyed_and_then_leaves_the_game() {
         })
         .collect();
     assert_eq!(order, vec!["died", "left"]);
-    assert!(game.objects.get(&doomed).is_none());
+    assert!(!game.objects.contains_key(&doomed));
 }
 
 /// Two players losing in one check: each takes their own objects, and the
@@ -879,8 +879,8 @@ fn two_players_leaving_in_one_check_each_take_their_own_objects() {
 
     assert!(sba(&mut game, &test_dp()));
 
-    assert!(game.objects.get(&ones).is_none());
-    assert!(game.objects.get(&twos).is_none());
+    assert!(!game.objects.contains_key(&ones));
+    assert!(!game.objects.contains_key(&twos));
     assert_eq!(game.get_object(threes).unwrap().zone, Zone::Battlefield);
     assert_eq!(game.result, None, "two players remain");
     assert_eq!(departures(&game).len(), 2);
@@ -908,7 +908,7 @@ fn a_spell_whose_owner_leaves_during_its_own_resolution_makes_no_graveyard_trip(
     game.resolve_top_of_stack(&test_dp()).expect("the resolution completes");
 
     assert!(game.player_lost[1]);
-    assert!(game.objects.get(&spell).is_none(), "it left the game with its owner");
+    assert!(!game.objects.contains_key(&spell), "it left the game with its owner");
     assert!(game.players[1].graveyard.is_empty());
     assert_eq!(game.get_object(victim).unwrap().zone, Zone::Battlefield);
 }
@@ -946,7 +946,7 @@ fn commander_damage_already_dealt_survives_its_dealer_leaving_the_game() {
 
     departs(&mut game, 0, &test_dp());
 
-    assert!(game.objects.get(&commander).is_none(), "CR 800.4a: the commander left too");
+    assert!(!game.objects.contains_key(&commander), "CR 800.4a: the commander left too");
     assert_eq!(game.players[1].commander_damage_taken.get(&commander), Some(&15));
     assert_eq!(game.players[2].commander_damage_taken.get(&commander), Some(&10));
     assert!(!sba(&mut game, &test_dp()), "and neither player is at CR 704.6c's 21");

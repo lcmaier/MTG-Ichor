@@ -148,15 +148,13 @@ impl<'l> Board<'l> {
         let mut members = game.battlefield_ids_ordered();
         let battlefield_entities = members.len();
         let mut seen: HashSet<ObjectId> = members.iter().copied().collect();
-        if let Some(l) = lookahead {
-            if seen.insert(l.object) {
-                members.push(l.object);
-            }
+        if let Some(l) = lookahead
+            && seen.insert(l.object) {
+            members.push(l.object);
         }
-        if let Some(id) = asked {
-            if game.objects.contains_key(&id) && seen.insert(id) {
-                members.push(id);
-            }
+        if let Some(id) = asked
+            && game.objects.contains_key(&id) && seen.insert(id) {
+            members.push(id);
         }
         for effect in game.continuous_effects.iter() {
             if let ObjectSet::Fixed(ids) = &effect.affected_objects {
@@ -988,10 +986,9 @@ fn row_affected(
     would_be: bool,
     layer_index: usize,
 ) -> Affected {
-    if board.track_started {
-        if let Some(locked) = board.started.get(&effect.group()) {
-            return Affected::Locked(locked.clone());
-        }
+    if board.track_started
+        && let Some(locked) = board.started.get(&effect.group()) {
+        return Affected::Locked(locked.clone());
     }
     if !static_ability_still_exists(game, board, effect, layer_index) {
         return Affected::Gone;

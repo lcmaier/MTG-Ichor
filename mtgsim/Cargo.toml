@@ -2,6 +2,14 @@
 name = "mtgsim"
 version = "0.1.0"
 edition = "2024"
+# The measured floor, not the edition's: 1.88.0 built every target and passed
+# the whole suite on 2026-09-15, and the tree cannot go lower because its
+# let-chains are stable only from 1.88 on. CI builds on the pinned toolchain in
+# `.github/workflows/ci.yml`, not on this one; what this field gates is a
+# build on an older toolchain (cargo refuses) and clippy's `incompatible_msrv`
+# lint on a std API newer than 1.88. A later syntax floor is not caught by
+# either — re-measure it when the pin moves.
+rust-version = "1.88"
 
 [dependencies]
 uuid = { version = "1.16", features = ["v4", "v5"] }
@@ -12,6 +20,39 @@ rand = "0.9"
 # and the `tests/` integration tests. Off by default, so it does not ship in a
 # release build.
 test-support = []
+
+# `cargo clippy --all-targets -- -D warnings` is a CI step. Adopted 2026-09-15
+# (the post-RE audit, pass 2) the way handoff §6 decision 2 asked: run once and
+# counted first — 114 sites, 26 lints, 48 files on 1.98.0 — and only then
+# decided. Every lint but the five below was fixed in that PR. None of the five
+# names a refactor the code owes; each is the lint disagreeing with a choice
+# the code made on purpose, and the reason is beside it. Allow a sixth here,
+# with its reason, rather than at the site.
+[lints.clippy]
+# 8 sites. A performer or an `ask_*` takes the board, the actor, the event and
+# each bound as its own parameter on purpose; a parameter struct is a signature
+# change at every caller and hides which bound a site forgot. The one to
+# revisit is `DecisionProvider::allocate`, and Phase 10 does, when it
+# serializes the choice surface.
+too_many_arguments = "allow"
+# 4 sites. `Effect` is the one whose size costs anything — every ability atom
+# is one, and the frame clone copies them — and boxing its big variant would
+# make that clone allocate per atom until `codebase-state.md` item 67 puts the
+# list behind an `Arc`. `Rewrite`, `GameActionTemplate` and the harness's
+# `GameOutcome` have dozens of live values per game, so their size is nothing.
+large_enum_variant = "allow"
+# 3 sites. `ContinuousEffectRegistry`, `DurationRegistry` and
+# `ScriptedDecisionProvider` are built by `new()` and nothing calls `default()`;
+# `cargo clippy --fix` writes the impl, and an impl with no caller is dead code.
+new_without_default = "allow"
+# 3 sites. A `type` alias used once is a second name for one thing
+# (`engineering-practices.md` §2a); the tuple is read where it is written.
+type_complexity = "allow"
+# 3 sites. An index into `players` is a `PlayerId` and a row of the dependency
+# matrix is a component number — the index is the identity — and the
+# `enumerate()` rewrite does not borrow-check where `board.rs` reads row k
+# while writing row i.
+needless_range_loop = "allow"
 
 [dev-dependencies]
 # A dependency on ourselves, purely to turn `test-support` on for test builds.

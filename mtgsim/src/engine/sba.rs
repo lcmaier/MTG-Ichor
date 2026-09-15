@@ -1,3 +1,9 @@
+//! State-Based Actions (rule 704)
+//!
+//! SBAs are checked whenever a player would receive priority. They don't use
+//! the stack — they just happen. If any SBA is performed, they're all checked
+//! again before a player actually gets priority.
+
 use std::collections::{BTreeMap, HashSet};
 
 use crate::events::event::{GameEvent, LossReason};
@@ -15,12 +21,6 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
 use crate::ui::decision::DecisionProvider;
-
-/// State-Based Actions (rule 704)
-///
-/// SBAs are checked whenever a player would receive priority. They don't use
-/// the stack — they just happen. If any SBA is performed, they're all checked
-/// again before a player actually gets priority.
 
 /// The zone change `cause` calls for on `id`.
 ///
@@ -313,17 +313,16 @@ impl GameState {
             // `ids` is the option list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
             for (id, _entry) in self.battlefield_ordered() {
-                if self.objects.contains_key(&id) {
-                    if has_supertype(self, id, Supertype::Legendary) {
-                        let name = get_effective_name(self, id);
-                        // CR 704.5j groups by controller, so it has to be the
-                        // effective one: taking an opponent's copy of a legend
-                        // you already control is what creates the conflict.
-                        let Some(controller) = get_effective_controller(self, id) else {
-                            continue;
-                        };
-                        legend_groups.entry((controller, name)).or_default().push(id);
-                    }
+                if self.objects.contains_key(&id)
+                    && has_supertype(self, id, Supertype::Legendary) {
+                    let name = get_effective_name(self, id);
+                    // CR 704.5j groups by controller, so it has to be the
+                    // effective one: taking an opponent's copy of a legend
+                    // you already control is what creates the conflict.
+                    let Some(controller) = get_effective_controller(self, id) else {
+                        continue;
+                    };
+                    legend_groups.entry((controller, name)).or_default().push(id);
                 }
             }
 
@@ -794,7 +793,7 @@ mod tests {
         assert!(performed);
 
         // Token should be completely removed from the game
-        assert!(game.objects.get(&id).is_none());
+        assert!(!game.objects.contains_key(&id));
         assert!(!game.players[0].graveyard.contains(&id));
 
         // Should have emitted TokenCeasedToExist event
@@ -876,7 +875,7 @@ mod tests {
         assert!(!performed);
 
         // Token should still exist
-        assert!(game.objects.get(&id).is_some());
+        assert!(game.objects.contains_key(&id));
         assert!(game.battlefield.contains_key(&id));
     }
 

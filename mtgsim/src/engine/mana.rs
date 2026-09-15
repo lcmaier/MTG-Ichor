@@ -1,3 +1,13 @@
+//! Mana ability engine (rule 605).
+//!
+//! Mana abilities are special: they don't use the stack and resolve immediately.
+//! This module handles activating mana abilities on permanents. Cost payment
+//! is delegated to the shared `engine::costs::pay_costs` system.
+//!
+//! Note: Complex mana abilities (e.g. Metalworker) that involve choices or
+//! non-mana effects will eventually go through the general effect resolution
+//! pipeline, just without using the stack.
+
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::resolve::ResolutionContext;
 use crate::objects::card_data::AbilityType;
@@ -5,16 +15,6 @@ use crate::types::costs::Cost;
 use crate::types::effects::{Effect, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-
-/// Mana ability engine (rule 605).
-///
-/// Mana abilities are special: they don't use the stack and resolve immediately.
-/// This module handles activating mana abilities on permanents. Cost payment
-/// is delegated to the shared `engine::costs::pay_costs` system.
-///
-/// Note: Complex mana abilities (e.g. Metalworker) that involve choices or
-/// non-mana effects will eventually go through the general effect resolution
-/// pipeline, just without using the stack.
 
 impl GameState {
     /// Activate a mana ability on a permanent.

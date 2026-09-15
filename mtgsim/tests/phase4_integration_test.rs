@@ -65,11 +65,10 @@ fn set_attacking(game: &mut GameState, id: ObjectId, target_player: PlayerId) {
 }
 
 fn set_blocked_by(game: &mut GameState, attacker: ObjectId, blockers: Vec<ObjectId>) {
-    if let Some(entry) = game.battlefield.get_mut(&attacker) {
-        if let Some(ref mut info) = entry.attacking {
-            info.is_blocked = true;
-            info.blocked_by = blockers;
-        }
+    if let Some(entry) = game.battlefield.get_mut(&attacker)
+        && let Some(ref mut info) = entry.attacking {
+        info.is_blocked = true;
+        info.blocked_by = blockers;
     }
 }
 

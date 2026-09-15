@@ -314,7 +314,7 @@ impl Game {
         decisions: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // Rule 514.2: Remove all damage and end "until end of turn" effects
-        for (_id, entry) in &mut self.state.battlefield {
+        for entry in self.state.battlefield.values_mut() {
             entry.damage_marked = 0;
             entry.damaged_by_deathtouch = false;
         }

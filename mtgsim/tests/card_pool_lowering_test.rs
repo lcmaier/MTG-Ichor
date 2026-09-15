@@ -107,10 +107,9 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
     fn derived(symbols: &[ManaSymbol]) -> Vec<Color> {
         let mut out: Vec<Color> = Vec::new();
         let push = |out: &mut Vec<Color>, c: Option<Color>| {
-            if let Some(c) = c {
-                if !out.contains(&c) {
-                    out.push(c);
-                }
+            if let Some(c) = c
+                && !out.contains(&c) {
+                out.push(c);
             }
         };
         for s in symbols {
@@ -136,7 +135,7 @@ fn test_every_registered_cards_color_matches_its_mana_cost() {
     let mut mismatches = Vec::new();
 
     for name in registry.card_names() {
-        let Ok(card) = registry.create(&name) else { continue };
+        let Ok(card) = registry.create(name) else { continue };
         let mut declared: Vec<Color> = card.colors.iter().copied().collect();
         // CR 202.2b — no mana cost at all means no colored symbols, so
         // colorless. CR 204.1 is the exception: a color indicator defines

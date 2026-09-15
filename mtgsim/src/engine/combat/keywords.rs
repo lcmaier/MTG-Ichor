@@ -155,7 +155,7 @@ pub fn assign_trample_damage(
         active_player,
         attacker_id,
         &alive_blockers,
-        defending_target.clone(),
+        defending_target,
         damage,
         &effective_blocker_mins,
         Some(&maxs),

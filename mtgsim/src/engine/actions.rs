@@ -1143,11 +1143,10 @@ impl GameState {
                 // Gated on the type from RD-1 on: an object that is neither a
                 // creature nor a planeswalker takes no result at all, and
                 // marking damage on it was bookkeeping the CR does not have.
-                if results.mark_damage {
-                    if let DamageTarget::Object(id) = &target {
-                        self.battlefield.get_mut(id).expect("membership checked")
-                            .damage_marked += amount as u32;
-                    }
+                if results.mark_damage
+                    && let DamageTarget::Object(id) = &target {
+                    self.battlefield.get_mut(id).expect("membership checked")
+                        .damage_marked += amount as u32;
                 }
 
                 // Keyword hooks (delegated to engine/keywords.rs)
@@ -1157,24 +1156,23 @@ impl GameState {
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
                 // The 21-damage loss check is the SBA at CR 704.6c.
-                if is_combat {
-                    if let DamageTarget::Player(pid) = &target {
-                        let is_cmdr = self.objects.get(&source)
-                            .map(|o| o.is_commander)
-                            .unwrap_or(false);
-                        if is_cmdr {
-                            let entry = self.get_player_mut(*pid)?
-                                .commander_damage_taken
-                                .entry(source)
-                                .or_insert(0);
-                            *entry = entry.saturating_add(amount as u32);
-                        }
+                if is_combat
+                    && let DamageTarget::Player(pid) = &target {
+                    let is_cmdr = self.objects.get(&source)
+                        .map(|o| o.is_commander)
+                        .unwrap_or(false);
+                    if is_cmdr {
+                        let entry = self.get_player_mut(*pid)?
+                            .commander_damage_taken
+                            .entry(source)
+                            .or_insert(0);
+                        *entry = entry.saturating_add(amount as u32);
                     }
                 }
 
                 self.events.emit(GameEvent::DamageDealt {
                     source_id: source,
-                    target: target.clone(),
+                    target,
                     amount,
                 });
 
@@ -1196,17 +1194,16 @@ impl GameState {
                 // After the `DamageDealt` emit, which is where the life change
                 // already sat: the loss's own performer emits `LifeChanged`,
                 // and `LifeLossCause::Damage` is what keeps `source` on it.
-                if results.lose_life {
-                    if let DamageTarget::Player(pid) = &target {
-                        self.execute_action(
-                            GameAction::LoseLife {
-                                player: *pid,
-                                amount,
-                                cause: LifeLossCause::Damage { source },
-                            },
-                            _ctx,
-                        )?;
-                    }
+                if results.lose_life
+                    && let DamageTarget::Player(pid) = &target {
+                    self.execute_action(
+                        GameAction::LoseLife {
+                            player: *pid,
+                            amount,
+                            cause: LifeLossCause::Damage { source },
+                        },
+                        _ctx,
+                    )?;
                 }
 
                 // > 120.3c Damage dealt to a planeswalker causes that many
@@ -1217,17 +1214,16 @@ impl GameState {
                 // watches is the mirror of one. `n` is a ceiling —
                 // `PermanentState::remove_counters` reports what it took — and
                 // CR 704.5i does the killing.
-                if results.remove_loyalty {
-                    if let DamageTarget::Object(id) = &target {
-                        self.execute_action(
-                            GameAction::RemoveCounters {
-                                subject: CounterSubject::Object(*id),
-                                counter: CounterType::Loyalty,
-                                n: amount as u32,
-                            },
-                            _ctx,
-                        )?;
-                    }
+                if results.remove_loyalty
+                    && let DamageTarget::Object(id) = &target {
+                    self.execute_action(
+                        GameAction::RemoveCounters {
+                            subject: CounterSubject::Object(*id),
+                            counter: CounterType::Loyalty,
+                            n: amount as u32,
+                        },
+                        _ctx,
+                    )?;
                 }
 
                 Ok(())
@@ -1927,10 +1923,9 @@ impl GameState {
                 // "Create a tapped …" is the creating effect's own word on
                 // how the token enters, so it joins the seed the rules give
                 // the entry, ahead of any replacement (CR 614.1c).
-                if def.enters_tapped {
-                    if let GameAction::EnterBattlefield { mods, .. } = &mut entry {
-                        mods.merge(&EnterMods::tapped());
-                    }
+                if def.enters_tapped
+                    && let GameAction::EnterBattlefield { mods, .. } = &mut entry {
+                    mods.merge(&EnterMods::tapped());
                 }
                 entries.push(entry);
             }
@@ -2366,7 +2361,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 36);
-        assert!(game.players[1].commander_damage_taken.get(&cmdr).is_none());
+        assert!(!game.players[1].commander_damage_taken.contains_key(&cmdr));
     }
 
     #[test]
@@ -2382,7 +2377,7 @@ mod tests {
             unpreventable: false
         }, &test_ctx()).unwrap();
 
-        assert!(game.players[1].commander_damage_taken.get(&bears_id).is_none());
+        assert!(!game.players[1].commander_damage_taken.contains_key(&bears_id));
     }
 
     #[test]

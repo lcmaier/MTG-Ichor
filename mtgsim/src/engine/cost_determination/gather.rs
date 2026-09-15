@@ -131,10 +131,9 @@ fn push_if_applies(
     // for a status leaf such as `SourceUntapped` is the entity and for a
     // characteristic leaf is the finished frame. A spell on the stack has no
     // entity, so a status clause on one is simply false.
-    if let Some(condition) = condition {
-        if !settled_holds(condition, game, source) {
-            return;
-        }
+    if let Some(condition) = condition
+        && !settled_holds(condition, game, source) {
+        return;
     }
     if applies_to(game, def, source, controller, spell, frame) {
         out.push(CostModificationInstance { source, controller, def: def.clone() });

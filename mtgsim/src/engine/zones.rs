@@ -1,19 +1,19 @@
+//! Centralized zone transition logic.
+//!
+//! ALL object movement between zones goes through this module.
+//! This is the single place where:
+//! - Objects are removed from their old zone's collection
+//! - Objects are added to their new zone's collection
+//! - Zone-specific state is initialized or cleaned up
+//!
+//! This replaces v1's scattered `to_battlefield()`, `to_graveyard()`, etc. methods.
+
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
-
-/// Centralized zone transition logic.
-///
-/// ALL object movement between zones goes through this module.
-/// This is the single place where:
-/// - Objects are removed from their old zone's collection
-/// - Objects are added to their new zone's collection
-/// - Zone-specific state is initialized or cleaned up
-///
-/// This replaces v1's scattered `to_battlefield()`, `to_graveyard()`, etc. methods.
 
 impl GameState {
     /// Move a game object from one zone to another.

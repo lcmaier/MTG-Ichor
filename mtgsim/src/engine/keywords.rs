@@ -29,10 +29,9 @@ pub fn apply_deathtouch_flag(
     if !has_keyword(game, source, KeywordFlag::Deathtouch) {
         return;
     }
-    if let DamageTarget::Object(id) = target {
-        if let Some(entry) = game.battlefield.get_mut(id) {
-            entry.damaged_by_deathtouch = true;
-        }
+    if let DamageTarget::Object(id) = target
+        && let Some(entry) = game.battlefield.get_mut(id) {
+        entry.damaged_by_deathtouch = true;
     }
 }
 

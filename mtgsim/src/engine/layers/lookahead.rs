@@ -66,10 +66,8 @@ impl Lookahead {
         let mut entity = PermanentState::new(object, controller, game.turn_number);
         entity.timestamp = entity_timestamp;
         entity.tapped = mods.tapped;
-        let mut next = entity_timestamp + 1;
-        for row in &mods.counters {
+        for (next, row) in (entity_timestamp + 1..).zip(&mods.counters) {
             entity.add_counters(row.counter, row.n, next);
-            next += 1;
         }
 
         let rows = would_be_rows(game, object, controller, entity_timestamp);

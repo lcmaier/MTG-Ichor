@@ -592,19 +592,18 @@ impl GameState {
                 // (rule 701.6b). The ability ceases to exist — it is simply
                 // removed from the stack. It does NOT go to any zone.
                 for target in &ctx.targets {
-                    if let ResolvedTarget::Object(id) = target {
-                        if let Some(pos) = self.stack.iter().position(|s| s == id) {
-                            let removed_id = self.stack.remove(pos);
-                            // Clean up the StackEntry for the countered ability
-                            self.take_stack_entry(removed_id);
-                            // Remove the object entirely — abilities on the
-                            // stack are not cards and have no destination zone.
-                            self.remove_object(removed_id);
-                            self.events.emit(crate::events::event::GameEvent::AbilityCountered {
-                                ability_id: removed_id,
-                                countered_by: ctx.source,
-                            });
-                        }
+                    if let ResolvedTarget::Object(id) = target
+                        && let Some(pos) = self.stack.iter().position(|s| s == id) {
+                        let removed_id = self.stack.remove(pos);
+                        // Clean up the StackEntry for the countered ability
+                        self.take_stack_entry(removed_id);
+                        // Remove the object entirely — abilities on the
+                        // stack are not cards and have no destination zone.
+                        self.remove_object(removed_id);
+                        self.events.emit(crate::events::event::GameEvent::AbilityCountered {
+                            ability_id: removed_id,
+                            countered_by: ctx.source,
+                        });
                     }
                 }
                 Ok(())
@@ -638,15 +637,14 @@ impl GameState {
                 // could tell "no such permanent" from "it can't be destroyed".
                 let mut batch = Vec::new();
                 for target in &ctx.targets {
-                    if let ResolvedTarget::Object(id) = target {
-                        if self.battlefield.contains_key(id) {
-                            batch.push(GameAction::Destroy {
-                                object: *id,
-                                source: DestructionSource::Effect(ctx.source),
-                            });
-                        }
-                        // If not on battlefield, destroy does nothing (rule 701.8b)
+                    if let ResolvedTarget::Object(id) = target
+                        && self.battlefield.contains_key(id) {
+                        batch.push(GameAction::Destroy {
+                            object: *id,
+                            source: DestructionSource::Effect(ctx.source),
+                        });
                     }
+                        // If not on battlefield, destroy does nothing (rule 701.8b)
                 }
                 self.execute_actions(batch, &actx)?;
                 Ok(())
@@ -1927,10 +1925,9 @@ impl GameState {
     fn collect_battlefield_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
         ctx.targets.iter()
             .filter_map(|t| {
-                if let ResolvedTarget::Object(id) = t {
-                    if self.battlefield.contains_key(id) {
-                        return Some(*id);
-                    }
+                if let ResolvedTarget::Object(id) = t
+                    && self.battlefield.contains_key(id) {
+                    return Some(*id);
                 }
                 None
             })

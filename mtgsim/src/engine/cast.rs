@@ -95,14 +95,13 @@ impl GameState {
         };
 
         // Validate alt cost index is in range
-        if let Some(idx) = chosen_alt_cost_idx {
-            if idx >= card_data.alternative_costs.len() {
-                self.rollback_cast_to_hand(card_id)?;
-                return Err(format!(
-                    "Alternative cost index {} out of range (card has {})",
-                    idx, card_data.alternative_costs.len()
-                ));
-            }
+        if let Some(idx) = chosen_alt_cost_idx
+            && idx >= card_data.alternative_costs.len() {
+            self.rollback_cast_to_hand(card_id)?;
+            return Err(format!(
+                "Alternative cost index {} out of range (card has {})",
+                idx, card_data.alternative_costs.len()
+            ));
         }
 
         // CR 601.2b announces "their intentions to pay any or all of those
