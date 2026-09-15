@@ -255,9 +255,8 @@ pub struct GameState {
     pub blockers_declared: bool,
     /// Damage division for blockers blocking 2+ attackers (rule 510.1d).
     /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
-    /// Populated during declare blockers step, consumed during combat damage.
-    /// Phase 3: unused (multi-block requires Banding or "block additional" effects).
-    /// Phase 4/5: populated via DecisionProvider::choose_blocker_damage_division.
+    /// Populated by `choose_blocker_damage_division` at declare blockers and
+    /// read by nothing yet — `codebase-state.md`, "Before card breadth" item 6.
     pub blocker_damage_divisions: HashMap<ObjectId, Vec<(ObjectId, u64)>>,
     /// Tracks creatures that dealt damage during the first-strike combat damage step.
     /// Used to determine which creatures deal damage in the normal combat damage step:
@@ -290,7 +289,7 @@ pub struct GameState {
 
     // --- First-turn draw skip (rule 103.8a) ---
     /// If true, the first draw step is skipped (one-time flag for game setup).
-    /// In-game "skip draw" effects use the replacement effect system (Phase 6).
+    /// Every in-game "skip draw" is a CR 614.10 replacement instead.
     pub skip_first_draw: bool,
 
     // --- Continuous effects registry (CR 613) ---

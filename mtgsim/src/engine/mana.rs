@@ -42,7 +42,6 @@ impl GameState {
             return Err("This is not a mana ability".to_string());
         }
 
-        // Verify controller
         if !self.battlefield.contains_key(&permanent_id) {
             return Err(format!("Permanent {} not on battlefield", permanent_id));
         }

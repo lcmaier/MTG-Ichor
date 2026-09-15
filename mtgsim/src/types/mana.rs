@@ -209,11 +209,10 @@ impl fmt::Display for ManaCost {
 // =============================================================================
 // Mana restriction, grant, and persistence types (rule 106.6).
 //
-// These types model per-unit mana metadata and are wired into ManaPool via
-// the dual-track sidecar (T12b). See ManaPool doc comment for architecture.
-//
-// Engine integration (T12c) will update cast.rs, costs.rs, and mana.rs to
-// route through can_pay_with_context / pay_with_plan with a SpendContext.
+// Per-unit mana metadata, carried by `ManaPool`'s `special` sidecar (see its
+// doc comment). Nothing on the payment side reads it yet — `SpendContext`,
+// `can_pay_with_context` and `pay_with_plan` have no production caller —
+// which is `codebase-state.md` main item 33.
 // =============================================================================
 
 /// Spending restrictions on a single unit of mana (rule 106.6).
@@ -290,7 +289,7 @@ pub enum ManaGrant {
     /// The spell cast using this mana gains a keyword
     /// (e.g. haste from Arena of Glory, uncounterable from Cavern of Souls)
     GrantKeywordFlag(crate::types::keywords::KeywordFlag),
-    // Future: TriggerOnSpend { ... }
+    // A grant that triggers when the mana is spent is critical-path item 6's (CR 603).
 }
 
 /// How long mana persists in the pool before being emptied.
@@ -336,13 +335,10 @@ impl PersistenceExpiry {
     /// should be removed).
     pub fn matches(&self, reason: &ManaEmptyReason) -> bool {
         match (self, reason) {
-            // EndOfCombat expires at StepOrPhase (end-of-combat step is a step)
             (PersistenceExpiry::EndOfCombat, ManaEmptyReason::StepOrPhase) => true,
             (PersistenceExpiry::EndOfCombat, ManaEmptyReason::TurnEnd) => true,
-            // EndOfPhase expires at StepOrPhase
             (PersistenceExpiry::EndOfPhase, ManaEmptyReason::StepOrPhase) => true,
             (PersistenceExpiry::EndOfPhase, ManaEmptyReason::TurnEnd) => true,
-            // EndOfTurn expires only at TurnEnd
             (PersistenceExpiry::EndOfTurn, ManaEmptyReason::StepOrPhase) => false,
             (PersistenceExpiry::EndOfTurn, ManaEmptyReason::TurnEnd) => true,
         }
@@ -581,7 +577,6 @@ impl ManaPool {
             }
         }
 
-        // Special pool: check per-atom persistence + blanket
         self.special.retain(|(atom, _count)| {
             match &atom.persistence {
                 ManaPersistence::Normal => {
@@ -613,14 +608,12 @@ impl ManaPool {
     /// same type, restrictions, grants, and persistence already exists,
     /// its count is incremented instead of creating a new group.
     pub fn add_special(&mut self, atom: ManaAtom) {
-        // Linear scan for an identical group to coalesce into
         for (existing, count) in self.special.iter_mut() {
             if *existing == atom {
                 *count += 1;
                 return;
             }
         }
-        // No matching group — create a new one
         self.special.push((atom, 1));
     }
 
@@ -670,7 +663,6 @@ impl ManaPool {
     /// Counts eligible special atoms alongside simple pool mana. An atom
     /// is eligible if `atom.allows_spend(ctx)` passes.
     pub fn can_pay_with_context(&self, cost: &ManaCost, ctx: &SpendContext) -> bool {
-        // Tally up specific color requirements
         let mut need: HashMap<ManaType, u64> = HashMap::new();
         let mut generic_count: u64 = 0;
 
@@ -683,14 +675,12 @@ impl ManaPool {
             }
         }
 
-        // Check each specific color requirement using context-aware amounts
         for (&mana_type, &required) in &need {
             if self.amount_for(mana_type, ctx) < required {
                 return false;
             }
         }
 
-        // Check that remaining mana covers generic
         let specific_total: u64 = need.values().sum();
         let total_available = self.total_for(ctx);
         let remaining = total_available.saturating_sub(specific_total);
@@ -707,7 +697,6 @@ impl ManaPool {
     /// After successful payment, spent special atoms' grants are collected
     /// into `last_spent_grants`. Call `drain_spent_grants()` to retrieve them.
     pub fn pay_with_plan(&mut self, plan: &ManaPaymentPlan) -> Result<(), String> {
-        // Validate simple pool amounts
         for (&mana_type, &amount) in &plan.from_simple {
             if amount == 0 { continue; }
             let available = self.amount(mana_type);
@@ -719,7 +708,6 @@ impl ManaPool {
             }
         }
 
-        // Validate special group indices and amounts
         for &(group_idx, spend_count) in &plan.from_special {
             if group_idx >= self.special.len() {
                 return Err(format!(
@@ -736,18 +724,15 @@ impl ManaPool {
             }
         }
 
-        // Clear last spent grants
         self.last_spent_grants.clear();
 
-        // Execute: deduct from simple
         for (&mana_type, &amount) in &plan.from_simple {
             if amount > 0 {
                 self.remove(mana_type, amount)?;
             }
         }
 
-        // Execute: deduct from special groups and collect grants
-        // Collect grants into a local vec to avoid double-mutable-borrow of self
+        // Grants are collected into a local vec to avoid a double mutable borrow.
         let mut collected_grants = Vec::new();
         for &(group_idx, spend_count) in &plan.from_special {
             if spend_count == 0 { continue; }
@@ -760,7 +745,6 @@ impl ManaPool {
         }
         self.last_spent_grants.extend(collected_grants);
 
-        // Remove zero-count groups
         self.special.retain(|(_, count)| *count > 0);
 
         Ok(())
@@ -773,7 +757,6 @@ impl ManaPool {
     /// Hybrid/Phyrexian/X/Snow payment requires `DecisionProvider` choices
     /// and will be handled via the full `pay()` path in a future phase.
     pub fn can_pay(&self, cost: &ManaCost) -> bool {
-        // Tally up specific color requirements
         let mut need: HashMap<ManaType, u64> = HashMap::new();
         let mut generic_count: u64 = 0;
 
@@ -782,19 +765,17 @@ impl ManaPool {
                 ManaSymbol::Colored(t) => *need.entry(*t).or_insert(0) += 1,
                 ManaSymbol::Colorless => *need.entry(ManaType::Colorless).or_insert(0) += 1,
                 ManaSymbol::Generic => generic_count += 1,
-                // Future: hybrid/phyrexian would need choice-aware checking
-                _ => return false, // can't auto-check these yet
+                // Hybrid and Phyrexian symbols need a choice — `codebase-state.md`'s CR 107 row.
+                _ => return false,
             }
         }
 
-        // Check each specific color requirement
         for (&mana_type, &required) in &need {
             if !self.has(mana_type, required) {
                 return false;
             }
         }
 
-        // Check that remaining mana covers generic
         let specific_total: u64 = need.values().sum();
         let remaining = self.total().saturating_sub(specific_total);
         remaining >= generic_count
@@ -819,7 +800,6 @@ impl ManaPool {
             return Err("Insufficient mana to pay cost".to_string());
         }
 
-        // Tally specific requirements
         let mut need: HashMap<ManaType, u64> = HashMap::new();
         let mut generic_need: u64 = 0;
 
@@ -832,7 +812,6 @@ impl ManaPool {
             }
         }
 
-        // Validate generic allocation sums to generic cost
         let alloc_total: u64 = generic_allocation.values().sum();
         if alloc_total != generic_need {
             return Err(format!(
@@ -841,7 +820,6 @@ impl ManaPool {
             ));
         }
 
-        // Validate the allocation doesn't exceed what remains after specific costs
         for (&mana_type, &alloc_amount) in generic_allocation {
             let specific_need = need.get(&mana_type).copied().unwrap_or(0);
             let available = self.amount(mana_type);
@@ -853,12 +831,10 @@ impl ManaPool {
             }
         }
 
-        // Pay specific colors
         for (&mana_type, &required) in &need {
             self.remove(mana_type, required)?;
         }
 
-        // Pay generic using the player's chosen allocation
         for (&mana_type, &alloc_amount) in generic_allocation {
             if alloc_amount > 0 {
                 self.remove(mana_type, alloc_amount)?;

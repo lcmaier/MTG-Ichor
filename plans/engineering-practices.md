@@ -152,8 +152,16 @@ gap at twelve sites (the forms are on `check_glossary.py`'s list now) and
 three stale line-number pointers in `codebase-state.md`. **After the sweep the
 tighter tier reads 19 in non-card `src/`, 6 in `cards/`, 12 in `tests/`, all of
 them `counted` or `measured` describing what the code does rather than a
-number** — that residue is the instrument's floor, not work. **Next time, run
-both tiers**: the tighter one is the list to read, the wider one is the count
+number** — that residue is the instrument's floor, not work. **Step 3 is a
+separate read, and the first cut skipped it**: dating and re-deriving replaced
+comment lines one for one (97 out, 96 in), and the owner read the net-positive
+PR as a sweep that cut nothing. Applied in full afterwards — every inline
+comment block in the 55 files the two PRs touch, read against the line beneath
+it — 144 lines came out of 20 files, nearly all from the pre-RB files
+(`mana_helpers`, `turns`, `game`, `zones`, `cast`, `types/mana`, `steps`) and
+almost none from the RB-era ones; 50 went in where an archived label needed a
+live owner. Read the whole file's comments, not the grep's hits. **Next time,
+run both tiers**: the tighter one is the list to read, the wider one is the count
 to record here, and a hit under the tighter tier with no date in its paragraph
 is the work.
 

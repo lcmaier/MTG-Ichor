@@ -1,6 +1,6 @@
 // CLI DecisionProvider — interactive terminal play via stdin/stdout.
 //
-// Implements all 8 DecisionProvider methods. Uses oracle/mana_helpers to
+// Implements the four `DecisionProvider` methods. Uses oracle/mana_helpers to
 // show affordable spells and suggest land taps. Retries on bad input.
 
 use std::io::{self, BufRead, Write};
@@ -298,7 +298,6 @@ impl DecisionProvider for CliDecisionProvider {
                 continue;
             }
 
-            // Validate permutation
             let mut seen = vec![false; items.len()];
             let mut valid = true;
             for &idx in &order {

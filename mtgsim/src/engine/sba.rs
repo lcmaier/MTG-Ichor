@@ -359,9 +359,6 @@ impl GameState {
             }
         }
 
-        // 704.5k — World rule
-        // (future SBAs added here as needed)
-
         // 704.5m — an Aura attached to an illegal object or player, **or**
         // not attached to one at all, is put into its owner's graveyard. Both
         // halves are 704.5m; the inner comments said 704.5n until 2026-09-08,
@@ -583,10 +580,7 @@ impl GameState {
         tokens_to_remove.sort_by_key(|&(_, _, epoch)| epoch);
 
         for (id, zone, _) in tokens_to_remove {
-            // Remove from zone collection (reuse the centralized helper;
-            // stack_entries cleanup is handled internally)
             self.remove_from_zone_collection(id, zone)?;
-            // Remove from central object store
             self.remove_object(id);
             self.events.emit(GameEvent::TokenCeasedToExist { object_id: id });
             any_performed = true;

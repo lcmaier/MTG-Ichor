@@ -189,8 +189,8 @@ down or left with its comment. The CI half is its own small PR.
 **Done 2026-09-15**, two PRs off `main` after #142. **CI (`audit/ci`, PR
 #143):** clippy run once and counted — 114 sites, 26 lints, 48 files on
 1.98.0, not "hundreds" — then adopted at `-D warnings` with a `[lints.clippy]`
-table allowing four design lints with a reason each and the other 93 sites
-fixed (54 by `--fix`, 17 of them let-chains); `check_glossary.py` beside the
+table allowing five lints with a reason each — none a refactor the code
+owes — and the other 90 sites fixed (54 by `--fix`, 17 of them let-chains); `check_glossary.py` beside the
 other three checks; `cargo fmt --check` not adopted, its cost (148 of 165
 files, 2,441 hunks, no `rustfmt.toml`) written into the workflow for the
 owner's switch; the 1.98 pin measured down to a floor of **1.88** (every
@@ -207,8 +207,13 @@ given a live owner in place of the archived label or deleted, which filed one
 new owner (`backlog.md` §2.32, mulligans — the CR map had the mulligan under
 103.4 and it is 103.5 in the frozen CR); twelve British spellings fixed and
 their forms added to the glossary gate; three stale line-number pointers in
-`codebase-state.md` replaced with function names. One PR, not two: the whole
-diff is comment lines, well under the split threshold.
+`codebase-state.md` replaced with function names. The first cut was read as
+a rewrite rather than a cut (97 comment lines out, 96 in), so §2.1's step 3
+was then applied in full: every inline comment block in the files the two PRs
+touch, read against the line beneath it — 144 lines out of 20 source files,
+50 in where an archived label (`T12b`, `SPECIAL-8`, "Phase 6") needed a live
+owner instead. One PR, not two: the whole diff is comment lines, well under
+the split threshold.
 
 ### Pass 3 — parallel-play readiness
 

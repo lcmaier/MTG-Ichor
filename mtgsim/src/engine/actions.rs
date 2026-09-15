@@ -538,11 +538,6 @@ pub enum GameAction {
         tapped_for_mana: bool,
     },
 
-    // === Phase 3+ actions — add variants here as primitives are implemented ===
-    // Sacrifice { object: ObjectId },
-    // Exile { object: ObjectId },
-    // CreateTokens { defs: Vec<TokenDef>, controller: PlayerId },
-    // etc.
 }
 
 /// Which of CR 120.3's results a damage event has, read off the target.
@@ -1150,7 +1145,6 @@ impl GameState {
                         .damage_marked += amount as u32;
                 }
 
-                // Keyword hooks (delegated to engine/keywords.rs)
                 apply_deathtouch_flag(self, source, &target);
                 apply_lifelink(self, source, amount, _ctx)?;
 

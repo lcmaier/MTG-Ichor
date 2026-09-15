@@ -105,15 +105,10 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
                 continue;
             }
 
-            // Delegate to the engine's authoritative cost checker.
-            // This handles all Cost variants (Tap, Untap, Mana, PayLife,
-            // SacrificeSelf, Sacrifice, Discard, etc.) and will correctly
-            // reject costs it cannot validate rather than silently passing.
             if game.can_pay_costs(&ability.costs, player_id, id).is_err() {
                 continue;
             }
 
-            // Extract what this mana ability produces
             if let crate::types::effects::Effect::Atom(
                 crate::types::effects::Primitive::ProduceMana(output),
                 _,
@@ -164,14 +159,12 @@ pub fn castable_spells(
             continue;
         }
 
-        // Must have a spell ability
         let spell_ability = obj.card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell);
         if spell_ability.is_none() && !obj.card_data.types.iter().any(|t| t.is_permanent()) {
             continue;
         }
 
-        // Timing check (sorcery-speed vs instant)
         if !passes_timing_check(game, player_id, card_id) {
             continue;
         }
@@ -219,20 +212,16 @@ pub fn castable_spells(
         if let Some(ref printed) = obj.card_data.mana_cost {
             let previewed = crate::engine::cost_determination::preview_mana_cost(game, card_id, printed);
             let mana_cost = &previewed;
-            // Account for mana already floating in the pool
             let pool = &game.players[player_id].mana_pool;
             if pool.can_pay(mana_cost) {
-                // Already have enough floating mana, no tapping needed
                 result.push((card_id, Vec::new()));
             } else {
-                // Color-sensitive subtract pool mana from cost, then check taps
                 let remaining = remaining_cost_after_pool(mana_cost, pool);
                 if let Some(sources) = find_mana_sources(game, player_id, &remaining) {
                     result.push((card_id, sources));
                 }
             }
         } else {
-            // No mana cost (e.g., lands shouldn't have spell abilities, but handle gracefully)
             result.push((card_id, Vec::new()));
         }
     }
@@ -338,7 +327,6 @@ fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId)
         return false;
     }
 
-    // Must be in hand
     if obj.zone != crate::types::zones::Zone::Hand {
         return false;
     }

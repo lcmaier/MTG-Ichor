@@ -259,8 +259,8 @@ pub enum GameEvent {
     Attached { attachment: ObjectId, host: ObjectId, former_host: Option<ObjectId> },
 
     // --- Attachment SBAs ---
-    /// An Equipment or Fortification was detached by SBA 704.5p
-    /// (attached to a non-creature). Equipment stays on battlefield.
+    /// An Equipment or Fortification was detached by SBA 704.5n
+    /// (attached to an illegal permanent). It stays on the battlefield.
     EquipmentDetached { equipment_id: ObjectId, former_host: ObjectId },
 
     // --- Multiplayer (CR 800.4a) ---

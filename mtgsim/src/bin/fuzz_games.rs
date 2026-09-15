@@ -374,7 +374,6 @@ fn random_deck(
 
     let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(60);
 
-    // 36 nonlands
     for _ in 0..36 {
         if nonland_names.is_empty() {
             break;
@@ -961,7 +960,6 @@ fn run_one_game(
     middleware: MiddlewareConfig,
     players: usize,
 ) -> (GameOutcome, std::time::Duration) {
-    // Derive per-game seed from master seed for reproducibility
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
@@ -1141,7 +1139,6 @@ fn run_games(
 fn main() {
     let mut args = parse_args();
 
-    // Determine master seed: explicit or random
     let master_seed = args.seed.unwrap_or_else(|| {
         rand::rng().random::<u64>()
     });

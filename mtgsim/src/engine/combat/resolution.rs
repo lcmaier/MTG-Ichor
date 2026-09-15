@@ -78,7 +78,6 @@ pub fn assign_combat_damage(
                 // Blocked but all blockers removed (rule 510.1c): no damage
                 // (creature was blocked, blockers left combat, no trample)
             } else if has_trample {
-                // Trample: delegate to keyword helper
                 let mut trample = assign_trample_damage(
                     game, decisions, active_player, id,
                     &attacking_info.blocked_by, &attacking_info.target, damage,

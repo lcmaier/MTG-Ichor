@@ -126,9 +126,6 @@ pub struct AbilityDef {
     pub is_characteristic_defining: bool,
 }
 
-// Effect and Primitive types are defined in types::effects and re-exported here
-// for convenience. See effect_system_plan.md for the full design.
-
 // --- Builder Pattern ---
 
 /// Builder for constructing CardData with a fluent API.
@@ -281,7 +278,6 @@ impl CardDataBuilder {
             ),
         });
 
-        // Set rules text if empty
         if self.data.rules_text.is_empty() {
             let mana_symbol = match mana_type {
                 ManaType::White => "{W}",
