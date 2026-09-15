@@ -375,14 +375,30 @@ and not as an `ObjectFilter` leaf. → `types/zones.rs`, `layers-architecture.md
 
 ## The turn structure (CR 500, 614.10)
 
-**drainer** / **cursor** — `advance_turn` is a *drainer*: it walks CR 500.1's
-sequence proposing each unit and stops when one begins, because CR 614.1b makes
-"skip" a replacement effect and the next unit in the sequence is not necessarily
-the one that happens. Its *cursor* is the last unit **considered**, which is not
-the last that happened — CR 500.11's "proceed past it as though it didn't
-exist" is the whole difference, and a skipped phase advances the cursor while
-beginning nothing. → `engine::turns::drain`; `replacement-architecture.md` §9's
-RE-1.
+**drain** — the **verb**, and `engine::turns::drain` is the loop that does it:
+propose the next unit of turn structure, and if it does not begin, propose the
+one after it, until one does. Named for what it consumes rather than for what
+it produces — each pass spends something that cannot be spent twice (a queued
+extra turn, a place in the rotation, a plan entry), which is also the
+termination argument. One call to `advance_turn` is one drain and ends at one
+**position**. → `engine::turns::drain`.
+
+**drainer** — the **thing** that drains: `advance_turn`, as opposed to a step
+function. The distinction is CR 614.1b's — "skip" is a replacement effect, so
+the next unit in CR 500.1's sequence is not necessarily the one that happens,
+and a function that returned "the next step" would be answering a question the
+rules do not have. → `replacement-architecture.md` §9's RE-1.
+
+**cursor** — the drainer's place in the sequence: the last unit **considered**,
+which is not the last that happened. CR 500.11's "proceed past it as though it
+didn't exist" is the whole difference — a skipped phase advances the cursor and
+begins nothing. Since RE-10 it is an **index** into `GameState.turn_plan` and
+not a phase *type*, because CR 500.8 lets one turn hold two combat phases and a
+type cannot say which of them is meant. Distinct from the **position**
+(`GameState.phase`), which is where the drainer *stopped*: the two agree at a
+drain boundary and diverge inside one, which is why
+`GameState::set_turn_position` writes both and `advance_turn` asserts they
+still match. → `replacement-architecture.md` §9's RE-1 and RE-10.
 
 **position** — where the drainer *stops*: a step, or a main phase, which has
 none. Not a synonym for unit — a phase with steps is a unit and never a

@@ -67,7 +67,7 @@ pub fn setup_two_player_game() -> GameState {
 /// every opponent's turn, and three of them is a different answer from one.
 pub fn setup_game(num_players: usize) -> GameState {
     let mut game = GameState::new(num_players, 20);
-    game.set_position(Phase::new(PhaseType::Precombat));
+    game.set_turn_position(Phase::new(PhaseType::Precombat));
     game.active_player = 0;
     game
 }

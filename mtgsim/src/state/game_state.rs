@@ -633,22 +633,28 @@ impl TurnPlan {
     ];
 
     /// CR 500.1's five phases, in order, with nothing spliced and nothing read.
+    ///
+    /// **`NATURAL` above is the static; this is not and cannot be.** A plan is
+    /// per-game mutable state — CR 500.8 splices into it, so each game owns a
+    /// `Vec` of its own — and the constant is the seed every one of them starts
+    /// from.
     pub fn natural() -> Self {
-        let mut plan = TurnPlan { phases: Vec::with_capacity(Self::NATURAL.len()), cursor: None };
-        plan.reset();
-        plan
+        TurnPlan {
+            phases: Self::NATURAL.map(|phase_type| PlannedPhase { phase_type }).to_vec(),
+            cursor: None,
+        }
     }
 
     /// Make this CR 500.1's five phases again, **keeping the allocation**.
     ///
-    /// Called once per turn that begins, which is the only reason the capacity
-    /// is worth keeping: rebuilding by assignment would allocate a five-element
-    /// `Vec` every turn of every game where the chain this replaced allocated
-    /// nothing, and this PR's whole claim is that it costs nothing.
+    /// [`Self::natural`] with the `Vec` reused, and the reuse is the whole
+    /// reason it is a separate method: this runs once per turn that begins, and
+    /// assigning a fresh plan there would allocate on every turn of every game
+    /// where the chain it replaced allocated nothing.
     pub fn reset(&mut self) {
         self.phases.clear();
         self.phases
-            .extend(Self::NATURAL.into_iter().map(|phase_type| PlannedPhase { phase_type }));
+            .extend(Self::NATURAL.map(|phase_type| PlannedPhase { phase_type }));
         self.cursor = None;
     }
 
@@ -657,7 +663,7 @@ impl TurnPlan {
         self.phases.get(index).map(|planned| planned.phase_type)
     }
 
-    /// The first entry of `phase_type`, for [`GameState::set_position`].
+    /// The first entry of `phase_type`, for [`GameState::set_turn_position`].
     fn first_index_of(&self, phase_type: PhaseType) -> Option<usize> {
         self.phases.iter().position(|p| p.phase_type == phase_type)
     }
@@ -751,7 +757,7 @@ impl GameState {
     /// a plan with two combat phases is one CR 500.8 built, and a board that
     /// wants the second one gets it by resolving the card that made it rather
     /// than by being placed there.
-    pub fn set_position(&mut self, phase: Phase) {
+    pub fn set_turn_position(&mut self, phase: Phase) {
         self.turn_plan.cursor = self.turn_plan.first_index_of(phase.phase_type);
         debug_assert!(
             self.turn_plan.cursor.is_some(),

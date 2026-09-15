@@ -82,7 +82,7 @@ fn test_nights_whisper_sorcery_speed_wrong_phase() {
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
 
     // Set to combat phase — sorcery can't be cast here
-    game.set_position(mtgsim::state::game_state::Phase::new(PhaseType::Combat));
+    game.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Combat));
 
     // Sorcery can't be cast in combat — not in candidates, both pass
     let decisions = ScriptedDecisionProvider::new();

@@ -131,7 +131,7 @@ fn in_precombat_main(num_players: usize) -> GameState {
     for pid in 0..num_players {
         fill_library(&mut game, pid, 60);
     }
-    game.set_position(Phase { phase_type: PhaseType::Precombat, step: None });
+    game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
     game
 }
 
@@ -537,7 +537,7 @@ fn an_extra_phase_belongs_to_the_turn_that_made_it_on_a_four_player_table() {
 }
 
 /// The plan's cursor and the position are two facts, and
-/// `GameState::set_position` is the only seam that writes both by hand. A
+/// `GameState::set_turn_position` is the only seam that writes both by hand. A
 /// fixture that writes `phase` alone drains from wherever the cursor was —
 /// which is the bug this seam exists to make unwriteable, and the
 /// `debug_assert` in `advance_turn` is what catches it.
@@ -545,7 +545,7 @@ fn an_extra_phase_belongs_to_the_turn_that_made_it_on_a_four_player_table() {
 fn the_seam_moves_the_cursor_with_the_position() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.set_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
 
     assert_eq!(game.turn_plan.cursor, Some(2), "combat is the third of the five");
     assert_eq!(game.phase.phase_type, PhaseType::Combat);

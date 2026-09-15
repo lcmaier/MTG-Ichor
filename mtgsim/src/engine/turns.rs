@@ -40,7 +40,7 @@ impl GameState {
             self.turn_plan.cursor.and_then(|i| self.turn_plan.phase_at(i)),
             Some(self.phase.phase_type),
             "the plan's cursor and the position disagree: a fixture wrote \
-             `phase` without `GameState::set_position`"
+             `phase` without `GameState::set_turn_position`"
         );
         self.drain(self.phase.step, true, true, ctx)
     }

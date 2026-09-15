@@ -656,6 +656,11 @@ impl GameState {
             Primitive::Untap => {
                 // Untap permanents (rule 701.26b).
                 //
+                // The `FilteredPermanents` arm arrived with RE-10, whose card
+                // opens "Untap all creatures you control" before it creates the
+                // extra phases — so the producer would have shipped with no
+                // consumer without it (§9's RE-10 decision 4).
+                //
                 // `FilteredPermanents` is resolved here rather than filled into
                 // `ctx.targets`, for the reason `DealDamage` above gives: the
                 // recipient means "every permanent matching this **now**".

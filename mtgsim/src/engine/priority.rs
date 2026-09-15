@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn test_all_pass_empty_stack_ends_phase() {
         let mut game = GameState::new(2, 20);
-        game.set_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
         // Both players pass (index 0 = Pass)
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn test_cast_and_resolve_via_priority() {
         let mut game = GameState::new(2, 20);
-        game.set_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         // Give player 0 a bolt in hand and red mana
@@ -367,7 +367,7 @@ mod tests {
     #[test]
     fn test_run_priority_loop_no_actions() {
         let mut game = GameState::new(2, 20);
-        game.set_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
         // Both players pass — phase ends
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);

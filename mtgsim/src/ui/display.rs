@@ -593,10 +593,10 @@ mod tests {
     #[test]
     fn test_format_phase() {
         let mut game = GameState::new(2, 20);
-        game.set_position(Phase::new(PhaseType::Precombat));
+        game.set_turn_position(Phase::new(PhaseType::Precombat));
         assert_eq!(format_phase(&game), "Precombat Main");
 
-        game.set_position(Phase::new(PhaseType::Beginning));
+        game.set_turn_position(Phase::new(PhaseType::Beginning));
         assert!(format_phase(&game).contains("Untap"));
     }
 
