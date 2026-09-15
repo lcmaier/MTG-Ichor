@@ -103,7 +103,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = PermanentState::new(id, 0, 0, 1);
+        let entry = PermanentState::new(id, 0, 1);
         game.battlefield.insert(id, entry);
         id
     }

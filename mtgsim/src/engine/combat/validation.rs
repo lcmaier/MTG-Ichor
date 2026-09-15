@@ -431,8 +431,7 @@ mod tests {
         let mut obj = GameObject::new(data, owner, Zone::Battlefield);
         obj.id = id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, owner, ts, 0);
+        let entry = PermanentState::new(id, owner, 0);
         game.battlefield.insert(id, entry);
         id
     }
@@ -479,8 +478,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, 0);
         game.battlefield.insert(id, entry);
 
         let result = validate_attackers(
@@ -697,8 +695,7 @@ mod tests {
         let obj = GameObject::new(data, owner, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, owner, ts, 0);
+        let entry = PermanentState::new(id, owner, 0);
         game.battlefield.insert(id, entry);
         id
     }

@@ -2069,7 +2069,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let entry = PermanentState::new(id, 0, 0, 1);
+        let entry = PermanentState::new(id, 0, 1);
         game.battlefield.insert(id, entry);
 
         (game, id)
@@ -2205,7 +2205,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let target_id = obj.id;
         game.add_object(obj);
-        let entry = PermanentState::new(target_id, 0, 0, 1);
+        let entry = PermanentState::new(target_id, 0, 1);
         game.battlefield.insert(target_id, entry);
 
         // Create a source for the destroy effect

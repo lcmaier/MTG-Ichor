@@ -57,6 +57,39 @@ pub struct GameObject {
     /// last check". It does **not** implement 400.7, which also needs the
     /// 400.7a–c exception list.
     pub zone_change_epoch: u64,
+
+    /// The CR 613.7 timestamp.
+    ///
+    /// > 613.7d. An object receives a timestamp at the time it enters a zone.
+    ///
+    /// **On the object rather than on `PermanentState`, because 613.7d says
+    /// "a zone" and the battlefield is one of seven** (A5,
+    /// `layers-architecture.md` §13d decision 2). It lived on the battlefield
+    /// entry until Wonder — a static ability functioning *from a graveyard*,
+    /// whose effect CR 613.7a gives "the same timestamp as the object the
+    /// static ability is on" — asked for one there was nowhere to read. Two
+    /// fields both meaning this would be two places to drift, so there is one.
+    ///
+    /// Allocated from `GameState::next_timestamp` by `add_object` (the object
+    /// enters the zone it was created in) and by `move_object` (every later
+    /// zone change), and **reassigned** by CR 613.7e — `GameState::attach`
+    /// gives an Aura or Equipment a new one each time it becomes attached, and
+    /// re-stamps the rows that object's static abilities registered (613.7a's
+    /// third sentence). Read at registration, never by the walk: the rows
+    /// carry the value.
+    ///
+    /// Also the key of every ordered battlefield sweep
+    /// (`battlefield_ordered`), and so of every decision list, log and count —
+    /// CLAUDE.md, "Determinism at the decision boundary". A reassignment moves
+    /// the permanent to the end of those lists, and that is fine: the value
+    /// comes from the one monotonic counter every run advances the same way,
+    /// so it is exactly as process-independent as the entry value was. LH-2
+    /// briefly split off an `entry_timestamp` for the sweeps and removed it in
+    /// review: no rule reads a sweep as *entry* order, only as *an* order.
+    ///
+    /// `0` until `add_object` stamps it, which is the only door into the
+    /// store — so an object the game can see always carries a real one.
+    pub timestamp: u64,
 }
 
 impl GameObject {
@@ -71,6 +104,7 @@ impl GameObject {
             is_copy: false,
             is_commander: false,
             zone_change_epoch: 0,
+            timestamp: 0,
         }
     }
 

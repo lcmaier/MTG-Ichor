@@ -786,7 +786,7 @@ fn test_static_effect_shares_its_objects_timestamp() {
     put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
 
     let land_id = put_on_battlefield(&mut game, phase_ld_cards::land_creatures_have_flying(), 0);
-    let object_timestamp = game.battlefield.get(&land_id).unwrap().timestamp;
+    let object_timestamp = game.object_timestamp(land_id);
 
     let effect_timestamps: Vec<u64> = game
         .continuous_effects

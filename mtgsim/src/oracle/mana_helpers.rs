@@ -480,8 +480,7 @@ mod tests {
         let obj = GameObject::new(mountain, player_id, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, player_id, ts, 0);
+        let entry = PermanentState::new(id, player_id, 0);
         game.battlefield.insert(id, entry);
         (id, ability_id)
     }
@@ -653,8 +652,7 @@ mod tests {
         let obj = GameObject::new(card, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let mut entry = PermanentState::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true; // tapped — but ability doesn't require tap
         game.battlefield.insert(id, entry);
 

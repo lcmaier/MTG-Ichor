@@ -565,8 +565,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);
@@ -583,8 +582,7 @@ mod tests {
         let obj = GameObject::new(data, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let mut entry = PermanentState::new(id, 0, ts, 0);
+        let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
         game.battlefield.insert(id, entry);
 
@@ -631,8 +629,7 @@ mod tests {
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
         let bears_id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(bears_id, 0, ts, 0);
+        let entry = PermanentState::new(bears_id, 0, 0);
         game.battlefield.insert(bears_id, entry);
 
         // Add a land
@@ -644,8 +641,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let forest_id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(forest_id, 0, ts, 0);
+        let entry = PermanentState::new(forest_id, 0, 0);
         game.battlefield.insert(forest_id, entry);
 
         let output = format_battlefield(&game, 0);
@@ -757,8 +753,7 @@ mod tests {
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
         let id = obj.id;
         game.add_object(obj);
-        let ts = game.allocate_timestamp();
-        let entry = PermanentState::new(id, 0, ts, 0);
+        let entry = PermanentState::new(id, 0, 0);
         game.battlefield.insert(id, entry);
 
         let display = format_permanent(&game, id);

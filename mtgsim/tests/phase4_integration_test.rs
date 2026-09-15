@@ -372,8 +372,7 @@ fn test_trample_with_deathtouch_maximum_overflow() {
     let obj = GameObject::new(data, 0, Zone::Battlefield);
     let trampler = obj.id;
     game.add_object(obj);
-    let ts = game.allocate_timestamp();
-    let entry = PermanentState::new(trampler, 0, ts, 0);
+    let entry = PermanentState::new(trampler, 0, 0);
     game.battlefield.insert(trampler, entry);
 
     let blocker = place_creature(&mut game, 1, creatures::grizzly_bears); // 2/2

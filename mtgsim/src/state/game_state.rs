@@ -818,7 +818,7 @@ impl GameState {
     /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
     /// UUIDs, so the key is itself random.
     ///
-    /// `PermanentState::timestamp` — CR 613.7's — is the deterministic
+    /// `GameObject::timestamp` — CR 613.7's — is the deterministic
     /// key. Every value of it comes from `next_timestamp`, one monotonic
     /// counter, so it is unique across the battlefield and totally orders it,
     /// and CR 613.7e's reassignment on attach keeps both properties: a
@@ -830,10 +830,18 @@ impl GameState {
     /// may still iterate the map directly; they touch disjoint entries and emit
     /// nothing.
     pub fn battlefield_ordered(&self) -> Vec<(ObjectId, &PermanentState)> {
-        let mut entries: Vec<(ObjectId, &PermanentState)> =
-            self.battlefield.iter().map(|(&id, e)| (id, e)).collect();
-        entries.sort_by_key(|(_, e)| e.timestamp);
-        entries
+        // Keyed on a collected timestamp rather than on a closure that looks
+        // one up: `sort_by_key` calls its closure O(n log n) times, and since
+        // A5 the timestamp is one `HashMap` hop away on the object rather than
+        // a field of the entry being iterated. `battlefield_ids_ordered` has
+        // the measurement that made this rule.
+        let mut entries: Vec<(u64, ObjectId, &PermanentState)> = self
+            .battlefield
+            .iter()
+            .map(|(&id, e)| (self.object_timestamp(id), id, e))
+            .collect();
+        entries.sort_by_key(|&(ts, _, _)| ts);
+        entries.into_iter().map(|(_, id, e)| (id, e)).collect()
     }
 
     /// The battlefield's object ids, oldest permanent first.
@@ -851,8 +859,8 @@ impl GameState {
         // (CLAUDE.md, determinism), but tiebreaking on a v4 `ObjectId` would be
         // the exact non-determinism the ordered sweeps exist to avoid.
         let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
-            .iter()
-            .map(|(&id, e)| (e.timestamp, id))
+            .keys()
+            .map(|&id| (self.object_timestamp(id), id))
             .collect();
         pairs.sort_by_key(|&(ts, _)| ts);
         pairs.into_iter().map(|(_, id)| id).collect()
@@ -899,6 +907,17 @@ impl GameState {
         let ts = self.next_timestamp;
         self.next_timestamp += 1;
         ts
+    }
+
+    /// `id`'s CR 613.7d timestamp, or `u64::MAX` for an object the store has
+    /// never heard of.
+    ///
+    /// The fallback is unreachable for every caller — an ordered sweep reads
+    /// ids off a collection the store also holds — and is `MAX` rather than 0
+    /// so that a hypothetical unknown sorts last instead of silently claiming
+    /// to be the oldest permanent on the battlefield.
+    pub fn object_timestamp(&self, id: ObjectId) -> u64 {
+        self.objects.get(&id).map(|obj| obj.timestamp).unwrap_or(u64::MAX)
     }
 
     // --- Layer memo epoch (layers-architecture.md §12 "7a") ---
@@ -969,9 +988,11 @@ impl GameState {
         controller: PlayerId,
         mods: &EnterMods,
     ) -> &mut PermanentState {
-        let ts = self.allocate_timestamp();
+        // No timestamp allocated here: CR 613.7d stamped it as the object
+        // entered the battlefield *zone* (`move_object`), or as it was created
+        // there (`add_object`, a token). This performer runs after both.
         let current_turn = self.turn_number;
-        let mut entry = PermanentState::new(id, controller, ts, current_turn);
+        let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
         self.battlefield.insert(id, entry);
@@ -1148,9 +1169,8 @@ impl GameState {
         // attachment's static abilities registered, through the registry's own
         // funnel, which is their epoch bump; the bump below is `attached_to`'s.
         let timestamp = self.allocate_timestamp();
-        let entry = self.battlefield.get_mut(&attachment).unwrap();
-        entry.attached_to = Some(host);
-        entry.timestamp = timestamp;
+        self.battlefield.get_mut(&attachment).unwrap().attached_to = Some(host);
+        self.objects.get_mut(&attachment).unwrap().timestamp = timestamp;
         self.continuous_effects.retime_static_rows(attachment, timestamp);
         self.battlefield.get_mut(&host).unwrap().attached_by.push(attachment);
         self.bump_layer_epoch();
@@ -1266,31 +1286,28 @@ impl GameState {
         _ability: &crate::objects::card_data::AbilityDef,
         granted_at: Option<crate::engine::layers::types::Timestamp>,
     ) -> crate::engine::layers::types::Timestamp {
-        match self.battlefield.get(&id) {
+        match self.objects.get(&id) {
             // CR 613.7a: "...the same timestamp as the object the static
             // ability is on, or the timestamp of the effect that created the
             // ability, whichever is later."
             //
             // Two candidates, later wins. A printed ability has only the first,
             // so it is returned unchanged.
-            Some(entry) => match granted_at {
-                Some(created) => std::cmp::max(entry.timestamp, created),
-                None => entry.timestamp,
-            },
-            // Unreachable because the only caller is `register_static_effects`,
-            // which runs from `place_on_battlefield` after the entity is
-            // inserted — *not* because a non-battlefield object cannot have a
-            // functioning static ability. It can: CR 113.6b, and Wonder ("as
-            // long as this card is in your graveyard and you control an Island,
-            // creatures you control have flying") is the stock example.
             //
-            // When those are modeled, this fallback is not the fix. CR 613.7d
-            // gives an object a timestamp when it enters *any* zone, but we
-            // only store one on `PermanentState`, so a graveyard Wonder has
-            // nowhere to read one from. The timestamp has to move onto the
-            // object. See Deferred Migrations item 9.
+            // **The object, not the battlefield entry, since A5.** CR 613.7d
+            // gives an object a timestamp in every zone, which is what lets a
+            // Wonder in a graveyard generate an effect the layer walk can order
+            // — and the graveyard's own timestamp is the right one, because
+            // 613.7a says "the object the static ability is on" without asking
+            // where it is.
+            Some(obj) => match granted_at {
+                Some(created) => std::cmp::max(obj.timestamp, created),
+                None => obj.timestamp,
+            },
+            // An object that is not in the store has no static abilities to
+            // generate effects from, so this is a guard rather than a case.
             None => {
-                debug_assert!(false, "static_effect_timestamp for non-battlefield object {id}");
+                debug_assert!(false, "static_effect_timestamp for unknown object {id}");
                 self.next_timestamp
             }
         }
@@ -1869,8 +1886,14 @@ impl GameState {
     // --- Object management ---
 
     /// Register a game object in the central store
-    pub fn add_object(&mut self, obj: GameObject) -> ObjectId {
+    pub fn add_object(&mut self, mut obj: GameObject) -> ObjectId {
         let id = obj.id;
+        // CR 613.7d — "an object receives a timestamp at the time it enters a
+        // zone", and an object created in one has entered it. The other
+        // stamping site is `move_object`, for every later zone change; between
+        // them every object in the store carries a real timestamp, which is
+        // what `battlefield_ordered` and `static_effect_timestamp` rely on.
+        obj.timestamp = self.allocate_timestamp();
         self.objects.insert(id, obj);
         self.bump_layer_epoch();
         id

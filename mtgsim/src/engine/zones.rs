@@ -93,9 +93,18 @@ impl GameState {
         // CR 400.7 will read the same one.
         let epoch = self.next_zone_change_epoch;
         self.next_zone_change_epoch += 1;
+        // CR 613.7d — "an object receives a timestamp at the time it enters a
+        // zone". Here rather than in `place_on_battlefield` because 613.7d
+        // names the zone change and not the battlefield: a card entering a
+        // graveyard is stamped for the same rule as one entering play, which
+        // is what CR 613.7a reads off Wonder's source (A5). The `//
+        // CAST-ROLLBACK:` moves come through here too and are stamped like any
+        // other, which is right — the card really is back in its owner's hand.
+        let timestamp = self.allocate_timestamp();
         let obj = self.get_object_mut(id)?;
         obj.zone = to;
         obj.zone_change_epoch = epoch;
+        obj.timestamp = timestamp;
 
         // Every collection touched above and the zone written here are
         // layer-walk inputs; one bump after the last of them. The

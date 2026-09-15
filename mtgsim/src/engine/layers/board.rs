@@ -238,6 +238,23 @@ impl<'l> Board<'l> {
         game.battlefield.get(&id)
     }
 
+    /// **Accessor 1b**: a member's CR 613.7 timestamp — the object's own
+    /// (CR 613.7d), or for the entering object the one it *would* receive.
+    ///
+    /// The second arm is why this is a function rather than a field read: an
+    /// object whose entry is being decided is still in its source zone and
+    /// carries that zone's timestamp, which is older than every permanent on
+    /// the board, where CR 614.12 asks what it would be once it has entered.
+    /// Before A5 the same distinction was spelled as "has an entity or does
+    /// not", and that stopped working the day an object off the battlefield
+    /// had a timestamp at all.
+    pub(super) fn timestamp_of(&self, game: &GameState, id: ObjectId) -> Timestamp {
+        match self.entering(id) {
+            Some(l) => l.entity_timestamp,
+            None => game.object_timestamp(id),
+        }
+    }
+
     /// Is `id` in one of `zones` — the gate a filter row asks before matching?
     ///
     /// The *zone* rather than entity membership (RC-3), which admits a token
@@ -724,7 +741,7 @@ fn applications_in_layer<'a, 'l: 'a>(
     if cda::CDA_LAYERS.contains(&layer) {
         for (index, &object) in board.members.iter().enumerate() {
             let frame = &board.frames[&object];
-            let timestamp = board.entity(game, object).map(|e| e.timestamp).unwrap_or(Timestamp::MAX);
+            let timestamp = board.timestamp_of(game, object);
             for (i, (ability, modification)) in cda::cda_modifications(frame, layer).into_iter().enumerate() {
                 // A CDA's "you" is the object's own controller (CR 109.5),
                 // which is its own frame's — the source, here.

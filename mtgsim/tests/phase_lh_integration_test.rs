@@ -481,13 +481,13 @@ fn test_equipping_the_host_it_is_already_on_does_nothing() {
     let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
 
     equip(&mut game, 0, splitter, 0).unwrap();
-    let stamped = game.battlefield[&splitter].timestamp;
+    let stamped = game.object_timestamp(splitter);
     equip(&mut game, 0, splitter, 0).unwrap();
 
     assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
     assert_eq!(game.battlefield[&bears].attached_by, vec![splitter]);
     assert_eq!(attaches_of(&game, splitter).len(), 1, "the second activation announced nothing");
-    assert_eq!(game.battlefield[&splitter].timestamp, stamped);
+    assert_eq!(game.object_timestamp(splitter), stamped);
 }
 
 /// CR 613.7e, pinned where Layer 7c cannot see it. The Equipment enters
@@ -513,7 +513,7 @@ fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
     equip(&mut game, 0, wings, 0).unwrap();
 
     assert!(
-        game.battlefield[&wings].timestamp > game.battlefield[&humility_id].timestamp,
+        game.object_timestamp(wings) > game.object_timestamp(humility_id),
         "CR 613.7e: the attach gave the Equipment a new timestamp"
     );
     assert!(
@@ -588,7 +588,7 @@ fn test_a_re_stamp_keeps_the_relative_order_of_one_objects_effects() {
     assert_eq!(after_first.iter().map(|r| r.0).collect::<Vec<_>>(), registered.iter().map(|r| r.0).collect::<Vec<_>>(), "same rows, same order");
     assert!(after_first[0].1 > registered[0].1, "and a new timestamp");
     assert_eq!(after_first[0].1, after_first[1].1);
-    assert_eq!(after_first[0].1, game.battlefield[&harness].timestamp);
+    assert_eq!(after_first[0].1, game.object_timestamp(harness));
 
     attach(&mut game, walker);
     assert!(has_keyword(&game, walker, KeywordFlag::Flying), "the same order on the second host");
