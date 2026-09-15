@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -1006,7 +1007,7 @@ impl GameState {
             self.add_counters(id, row.counter, row.n);
         }
 
-        self.register_static_effects(id, controller);
+        self.register_static_effects(id, controller, Zone::Battlefield);
 
         // The controller the *game* sees, not the CR 110.2b default it entered
         // under: a stolen permanent spell enters under its caster's control and
@@ -1313,20 +1314,37 @@ impl GameState {
         }
     }
 
-    /// Register continuous effects from static abilities on a permanent.
+    /// Register the continuous effects the static abilities of `id` generate
+    /// **in `zone`** (CR 113.6).
     ///
-    /// Called when a permanent enters the battlefield. Scans the card's
-    /// abilities for `AbilityType::Static`, extracts the primitive and
-    /// recipient, and registers a `ContinuousEffect` in the registry.
+    /// Scans the card's abilities for `AbilityType::Static`, asks
+    /// `engine::zone_function` whether each functions where the object now is,
+    /// extracts the primitive and recipient, and registers a
+    /// `ContinuousEffect` in the registry.
+    ///
+    /// **Two callers, and the zone is why there are two** (A5,
+    /// `layers-architecture.md` §13d decision 3):
+    ///
+    /// - `place_on_battlefield`, for `Zone::Battlefield`. It has to be there
+    ///   rather than in `move_object`: the entity does not exist until the
+    ///   CR 614.1c pipeline has decided what the permanent enters *as*, and
+    ///   `controller` is read off that decision.
+    /// - `move_object`, for every other zone — Wonder arriving in a
+    ///   graveyard. There is no entity, and CR 108.4 makes the controller the
+    ///   owner.
     ///
     /// Duration comes from the primitive (typically `WhileSourceOnBattlefield`).
-    /// Effects are removed when the source leaves the battlefield via
-    /// `cleanup_zone_state` → `remove_by_source`.
+    /// Effects are removed when the source leaves: `cleanup_zone_state` →
+    /// `remove_by_source` off the battlefield, `remove_static_by_source`
+    /// elsewhere (see there for why the two differ).
     ///
     /// Registration is *not* what decides whether an effect applies. CR 305.7
     /// and Layer 6 can take the generating ability away without touching the
-    /// registry, so `compute.rs` re-checks existence at every layer. This
-    /// function's job is only to put the row there with the right timestamp.
+    /// registry, so `compute.rs` re-checks existence at every layer — and
+    /// since A5 that check covers the zone too, because a card's zone clause
+    /// is a `Condition::SourceInZone` the existence check already evaluates.
+    /// This function's job is only to put the row there with the right
+    /// timestamp.
     ///
     /// Reads printed abilities on purpose: it runs inside
     /// `place_on_battlefield`, before this object's own effect is registered,
@@ -1335,19 +1353,42 @@ impl GameState {
     /// That read is why a *copied* static ability registers nothing here, and
     /// why it is not fixed by changing the read: `register_copied_static_effects`
     /// is the path beside it (`copy-effects-architecture.md` §4.7 leg 2).
-    fn register_static_effects(&mut self, id: ObjectId, controller: PlayerId) {
+    pub(crate) fn register_static_effects(
+        &mut self,
+        id: ObjectId,
+        controller: PlayerId,
+        zone: Zone,
+    ) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
-        let (abilities, card_name) = if let Some(obj) = self.objects.get(&id) {
-            (obj.card_data.abilities.clone(), obj.card_data.name.clone())
-        } else {
+        // An `Arc` bump rather than three deep clones, and since A5 that is
+        // load-bearing rather than tidy: `move_object` calls this on **every**
+        // zone change, so a `Vec<AbilityDef>` clone here would land on every
+        // draw, mill and discard in the game. The clone exists only because
+        // the loop mutates `self` while reading the card.
+        let Some(card) = self.objects.get(&id).map(|obj| Arc::clone(&obj.card_data)) else {
             return;
         };
+        let card_name = card.name.as_str();
 
-        for ability in &abilities {
+        for ability in card.abilities.iter() {
             if ability.ability_type != AbilityType::Static {
+                continue;
+            }
+
+            // CR 113.6 — does this ability function where the object is?
+            //
+            // PRE-LAYER ZONE: printed types, for the reason the whole function
+            // reads printed abilities. The read is *exact* here rather than an
+            // over-approximation, which is worth saying because the layer
+            // invariant normally forbids it: the only thing
+            // `functioning_zones` asks the types is CR 113.6's
+            // instant-or-sorcery split, and no continuous effect can make a
+            // permanent an instant (CR 205.1b) — so printed and effective give
+            // the same answer at every call site this function has.
+            if !crate::engine::zone_function::functions_in(ability, &card.types, zone) {
                 continue;
             }
 
@@ -1366,7 +1407,16 @@ impl GameState {
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
                 _ => false,
             };
-            if is_replacement {
+            // **Battlefield only, and that is the gate leg A5 does not
+            // build.** These three sets index a sweep over
+            // `battlefield_ids_ordered`, so an entry for a source in a
+            // graveyard would name a permanent the sweep never visits --
+            // inert, and a claim the set does not keep. Reaching a
+            // non-battlefield source is `replacement-architecture.md` 11
+            // item 9's (c), a gate leg per zone, and it arrives with a card:
+            // Abrupt Decay for the restriction sweep, a "would be put into a
+            // graveyard from anywhere" source for the replacement one.
+            if is_replacement && zone == Zone::Battlefield {
                 self.replacement_ability_sources.insert(id);
             }
 
@@ -1379,7 +1429,7 @@ impl GameState {
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Restriction(_)),
                 _ => false,
             };
-            if is_restriction {
+            if is_restriction && zone == Zone::Battlefield {
                 self.restriction_ability_sources.insert(id);
             }
 
@@ -1393,10 +1443,11 @@ impl GameState {
             // ability functions on the stack (CR 113.6d), so an affinity
             // permanent is a source of nothing and recording it would widen
             // the sweep on every cast for a match that can never succeed.
-            if ability
-                .effect
-                .as_cost_modification()
-                .is_some_and(|(_, def)| def.applies_to.applies_from_battlefield())
+            if zone == Zone::Battlefield
+                && ability
+                    .effect
+                    .as_cost_modification()
+                    .is_some_and(|(_, def)| def.applies_to.applies_from_battlefield())
             {
                 self.cost_modification_ability_sources.insert(id);
             }
