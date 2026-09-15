@@ -107,7 +107,7 @@ of its own, open it second.
 **Size:** one sitting of reading, one docs PR, up to three small fix commits,
 and possibly a second docs PR for the eviction. The brief is §8.
 
-**Done 2026-09-15**, branch `audit/close-out`, four commits (the PR number is
+**Done 2026-09-15**, branch `audit/close-out`, four commits (PR #142; the number is
 in §7). (1) The board's instrument: "reachable but not wrong today" had been
 read as a wrong answer (items 118, 131), RD-1's prose list at column 0 had
 been counted as three items, and 88, 116 and 121 had verdicts whose first
@@ -406,7 +406,7 @@ half-decided. The passes above carry each answer.
 | Pass | State | PR |
 |---|---|---|
 | Plan | this file, decisions answered | #141 |
-| 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | (opened, number below once assigned) |
+| 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | #142 |
 | 1b — the eviction | planned 2026-09-15 (§3's table); opens after pass 1 merges | |
 | 2 — hygiene and CI | not started | |
 | 3 — parallel-play readiness | not started | |
