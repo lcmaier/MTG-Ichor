@@ -632,3 +632,93 @@ than the paste.
 > checks each pass on their own exit code; the instrument re-run and its
 > count recorded in §2.1; handoff §7's pass 2 row updated with the PR
 > numbers; PRs opened, merge left to the owner.
+
+## 10. Pass 1b brief
+
+Written 2026-09-15 at pass 2's close, with every number read from the tree
+that day, after #149 merged. Paste this to start pass 1b. Read this file
+first; it may be newer than the paste.
+
+> **Pass 1b of the post-RE audit — the eviction of
+> `replacement-architecture.md`.** One docs PR, `audit/evict-replacement`,
+> off `main` after #149. `plans/handoffs/post-re-audit.md` is the contract;
+> §3's pass 1b table says section by section what moves, what stays, and what
+> each stub keeps.
+>
+> **Read first, in this order:** `replacement-architecture.md` §0 (the
+> budget — the doc's own rule for what stays: what a reader changing the
+> pipeline needs) and §14 (the hindsight section pass 1 wrote, which the
+> stubs point at); `engineering-practices.md` §1 (the eviction rule) and
+> `CLAUDE.md`'s "Where authority lives" row for `archive/*` — "accurate
+> records, still not plans"; the head of
+> `plans/archive/replacement-architecture-landed.md`, whose layout the new
+> material follows; handoff §3's pass 1b table, which is the checklist.
+>
+> **Verified against the tree, 2026-09-15:**
+> - The live doc is **6,725 lines**; the archive **4,933**. The sections the
+>   table moves, with their spans today: §1 Verdict 89–164 (76 lines; "Scope,
+>   measured" is inside it); §5b 1414–1467 (54); §8b 1950–2081 (132); §8c
+>   2082–2265 (184); §9 RD design check 2499–2860 (362); RD-5 2942–3019 (78);
+>   RD "Measured" 3020–3044 (25); RE design check 3175–3511 (337); RE
+>   "Measured" 3931–4142 (212); the `ZoneChangeCause` derivation inside §11's
+>   head (the head is 4270–4482, 213 lines; the table sizes the derivation
+>   at ~165); §11's closed items under the twenty `### Answered …` /
+>   `### Found by …` headings, 4483–6557 (2,075 lines). §12–§14 are 168
+>   lines and stay. Every span matches the table's count.
+> - **§11's three live items are no longer all "Open."** Item 3 now reads
+>   "Deferred — …", item 4 "Scheduled — …", and only item 14 "Open — …";
+>   pass 1 gave the first two a disposition. All three stay live under their
+>   own headings; every other numbered item moves.
+> - **What the stubs must keep resolving, counted.** `§11 item N` is cited
+>   **137 times in live files outside the doc** (archive excluded), naming
+>   **71 distinct items** — `codebase-state.md` 41, `layers-architecture.md`
+>   11, `pipeline.rs` 10, `fuzz-record.md` 7, `types/replacement.rs` 7, and
+>   25 more files with one to five each — so every item keeps its
+>   `N. **title**` line in the live doc and `grep '^90\. \*\*'` still lands.
+>   **§9's RD and RE design-check decisions are cited 53 times from 23 files
+>   outside the doc** (`§9 RD decision 4`, `§9's RD decision 3`, `§9, RD's
+>   decision 0`, `§9 RE-10 decisions 2 and 4`, `RD-4's "As landed", decision
+>   3`), 26 of them in `src/` and written by this week's option-2 sweep — so
+>   the stubs keep the numbered one-line decision titles under both
+>   design-check headings and the "As landed" sub-headings. `§5b` is cited 30
+>   times outside the doc (7 naming this doc, 23 bare — read each; some are
+>   another doc's §5b) and `§8c` 17 (4 naming it, 13 bare); `§8b` 3 times;
+>   `§3.2c` once.
+> - **Headings are the contract.** Pointers resolve by heading text, and the
+>   table's rule is "every heading byte-identical so `grep` finds it".
+>
+> **The checklist — every row of §3's table gets a disposition:**
+> 1. Move each "moves" row into `plans/archive/replacement-architecture-landed.md`
+>    under a heading that names its origin and the date, in the archive's
+>    existing layout, **verbatim** — an archive edit is a copy, not a rewrite.
+> 2. Leave the stub the table names: the heading plus exactly what "The stub
+>    keeps" says — the verdict's one sentence and date; the Thassa-boundary
+>    sentence; §8c's two rules; the decision titles; the gate verdict lines;
+>    RE "Measured"'s two-line summary; the catchall ban's sentence; and one
+>    `N. **title** → archive` line per closed §11 item under its original
+>    `### Found by …` heading.
+> 3. Read the outside citations against their stubs — the 53 decision
+>    citations, the 30 `§5b` and 17 `§8c` lines (saying which are another
+>    doc's), the `§8b` and `§3.2c` ones. A citation whose target sentence
+>    moved gets the stub's sentence or a pointer into the archive, in the
+>    citing file, in the same PR.
+> 4. Re-count at the end and write it under §3's pass 1b table: live and
+>    archive line counts against the table's "~3,400 / ~8,400".
+> 5. Update handoff §7's pass 1b row with the PR number.
+>
+> **Binding rules:** this pass moves text and does not improve it — no prose
+> edits to what moves or what stays, and no comment sweep of `plans/` started
+> on the side (option 2 left `plans/` alone on purpose); every heading
+> byte-identical; nothing in `src/` changes except a citation whose target
+> moved; `codebase-state.md` and `state-of-play.md` untouched unless a
+> citation forces it (`check_state_of_play.py --write` if the board goes
+> stale, `--check` otherwise); one PR, since the whole diff is a move.
+>
+> **Exit:** `check_glossary.py`, `check_claude_md.py`,
+> `check_module_layout.py` and `check_state_of_play.py --check` each pass on
+> their own exit code; `cargo build --all-targets` still zero warnings and
+> `cargo test` green with the whole log captured and grepped (a `src/`
+> citation edit is a comment edit, but build anyway); every moved heading
+> found exactly once in the live doc and once in the archive by `grep -c`;
+> the counts recorded under §3's table; handoff §7 updated; PR opened, merge
+> left to the owner.
