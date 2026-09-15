@@ -614,6 +614,7 @@ fn test_a_finality_counter_catches_a_destruction_through_the_inner_zone_change()
 }
 
 // COVERS-PARTIAL: ATOM-616.1-001
+// COVERS-PARTIAL: ATOM-400.6-002
 #[test]
 fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
     // CR 616.1 — "the affected object's controller ... chooses one to apply".
@@ -640,6 +641,7 @@ fn test_two_replacements_on_one_event_prompt_the_affected_controller() {
 }
 
 // COVERS-PARTIAL: ATOM-616.1-001
+// COVERS-PARTIAL: ATOM-400.6-002
 #[test]
 fn test_choosing_the_other_replacement_takes_the_other_branch() {
     // The same board, the other index. Two tests rather than one because a
@@ -1265,6 +1267,7 @@ fn cant_be_regenerated() -> Primitive {
 }
 
 // COVERS: ATOM-701.19c-001
+// COVERS: COMP-7A-004
 #[test]
 fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
     // CR 701.19c — "effects that say that a permanent can't be regenerated

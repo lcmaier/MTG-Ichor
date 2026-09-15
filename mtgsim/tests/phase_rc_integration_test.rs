@@ -117,6 +117,8 @@ fn test_permanent_enters_untapped_by_default() {
 }
 
 // COVERS: ATOM-110.5b-002
+// COVERS: ATOM-400.6-001
+// COVERS: ATOM-603.6d-001
 #[test]
 fn test_tapland_enters_tapped() {
     let mut game = setup_two_player_game();
@@ -128,6 +130,10 @@ fn test_tapland_enters_tapped() {
         game.battlefield.get(&land).unwrap().tapped,
         "Idyllic Beachfront says it enters tapped, so it does"
     );
+    // CR 603.6d — "enters tapped" is a static ability whose effect is part of
+    // the entry, not a triggered ability: the land is tapped the moment it is
+    // on the battlefield and nothing was put on the stack to do it.
+    assert!(game.stack.is_empty(), "CR 603.6d: no ability went on the stack");
 }
 
 /// The land is the CR 110.5b case that a game actually plays, so this is the
@@ -701,6 +707,7 @@ fn test_rc2_cards_read_as_printed() {
 /// `GameState::object_matches_filter`, which has no battlefield gate — the
 /// path RC-2's "no `Filter` effect reaches an entry" claim missed, and the
 /// reason this test passes against the pre-RC-3 tree too.
+// COVERS: BOUNDARY-DEF-614.1d-001
 #[test]
 fn test_root_maze_taps_an_entering_land() {
     let mut game = setup_two_player_game();
@@ -713,6 +720,10 @@ fn test_root_maze_taps_an_entering_land() {
         game.battlefield.get(&forest).unwrap().tapped,
         "an opponent's Root Maze taps a land entering under it"
     );
+    // CR 614.1d — a static ability's "enter tapped" is a replacement effect
+    // and not a triggered one: it modified the entry, and put nothing on the
+    // stack to do it.
+    assert!(game.stack.is_empty(), "CR 614.1d: a replacement, not a trigger");
 }
 
 /// **Two registered cards, one entry, and no prompt — §11 item 19 landed.**

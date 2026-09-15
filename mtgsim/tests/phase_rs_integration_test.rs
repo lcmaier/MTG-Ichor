@@ -339,6 +339,7 @@ fn test_you_cannot_be_made_to_sacrifice_a_permanent_you_do_not_control() {
 }
 
 // COVERS-PARTIAL: ATOM-701.21a-001
+// COVERS-PARTIAL: COMP-7A-001
 #[test]
 fn test_sacrifice_is_not_destruction_so_indestructible_does_not_save_it() {
     // CR 701.21b — a sacrificed permanent is not destroyed, so CR 702.12b never

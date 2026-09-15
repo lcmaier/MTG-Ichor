@@ -339,6 +339,11 @@ fn test_the_capture_excludes_control() {
 ///
 /// The other direction of the test above: the copy is not frozen, only its
 /// layer-1 values are.
+///
+/// Partial for `ATOM-613.1a-001`: it proves the layer-1 base is what the
+/// layer-7c modification is added to, with a "becomes a copy" row; the atom's
+/// board is a Clone *entering* as a copy, which is CV-2's.
+// COVERS-PARTIAL: ATOM-613.1a-001
 #[test]
 fn test_later_layers_still_apply_to_the_copy() {
     let mut game = setup_two_player_game();

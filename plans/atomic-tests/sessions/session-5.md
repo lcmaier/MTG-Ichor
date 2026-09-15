@@ -2301,7 +2301,7 @@
 - **Action:** A creature dies → exiled by replacement. Player casts the exiled card.
 - **Expected Result:** The second ability sees only cards exiled by the replacement effect, not cards exiled by other means.
 - **Phase:** Phase 6 (replacement effects) + T20 (linked abilities)
-- **Ticket:** T20, Phase 6
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.2 (linked abilities); was: T20, Phase 6
 
 ### 607.2c — ETB + "put onto the battlefield with" link
 
@@ -2381,7 +2381,7 @@
 - **Action:** Player pays {2} as the permanent enters.
 - **Expected Result:** Permanent enters with two +1/+1 counters.
 - **Phase:** Phase 6 (replacement effects — ETB cost/counter interaction)
-- **Ticket:** Phase 6
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.2 (linked abilities); was: Phase 6
 
 ### 607.2h — Static + triggered in same paragraph
 

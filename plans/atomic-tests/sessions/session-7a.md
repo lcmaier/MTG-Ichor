@@ -1178,7 +1178,7 @@ The `reveal()` primitive handles case 1. Case 2 is a continuous effect, but it d
 - **Action:** Manifest attempts zone change.
 - **Expected Result:** Card stays in previous zone, face-up, characteristics unmodified.
 - **Phase:** Phase 6 (requires replacement effect infrastructure)
-- **Ticket:** NEW — manifest ETB prohibition
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-6 — manifest needs face-down (`backlog.md` §2.5); was: NEW — manifest ETB prohibition
 
 **ATOM-701.40g-001**
 - **Rule:** 701.40g — Instant/sorcery manifested permanent can't turn face up.

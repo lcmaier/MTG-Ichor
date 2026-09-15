@@ -1477,6 +1477,58 @@ Two of the nine were worth acting on rather than filing: the **605.1a pair**
 disagrees with a disposition in this file (still open — confirm before
 annotating), and the **502.3/703.4c pair** got its entry, §2.14 (2026-08-31).
 
+**Applied 2026-09-15 to Phase 6, at the post-RE audit's close-out** (pass 1 of
+`plans/handoffs/post-re-audit.md`). The replacement track had closed against a
+`SHIPPED_PHASES` that did not contain it, so this was the query's first run
+over the phase: **127 atoms, 50 uncovered, 21 of them ticketed `NEW`; `owed`
+21 → 0**, and Phase 6 joined the constant the same day. Four atoms were proven
+by tests that lacked their line (two with one assertion added so the claim is
+asserted and not implied), one got a test written the same day, four are
+partial, and twenty-two were re-filed with the owner written into the ticket
+— every re-filed ticket keeps its original words after `was:`, so nothing the
+corpus author wrote is lost. The nineteen CR 707 atoms carry `D5` and stay as
+they are: `copy-effects-architecture.md` §8 owns them by name and argues
+against re-tagging them.
+
+| Atom | Disposition (2026-09-15) |
+|---|---|
+| `ATOM-400.6-001` | **covered** — `test_tapland_enters_tapped` (RC-2) |
+| `ATOM-603.6d-001` | **covered** — the same test, with the stack asserted empty |
+| `BOUNDARY-DEF-614.1d-001` | **covered** — `test_root_maze_taps_an_entering_land` (RC-3), stack asserted empty |
+| `COMP-7A-004` | **covered** — `test_cant_be_regenerated_withholds_the_shield_without_destroying_it` (RB) |
+| `ATOM-400.7c-001` | **tested** — `a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield` (RD-3, new); the engine gets CR 400.7c from object identity, `move_object` keeping the id across the stack→battlefield move |
+| `ATOM-400.6-002` | **partial** — RB's two `ChooseReplacementEffect` tests: a sacrifice with exile against stay, not the atom's destruction with exile against hand |
+| `COMP-7A-001` | **partial** — `test_sacrifice_is_not_destruction_so_indestructible_does_not_save_it` (RS-1); the regeneration-shield half is not on the board |
+| `ATOM-613.1a-001` | **partial** — CV-1's `test_later_layers_still_apply_to_the_copy` proves the layer-1 base under a layer-7c add with a "becomes a copy" row; the entering Clone is CV-2's |
+| `ATOM-611.2c-002` | **partial** — `fog_prevents_damage_from_a_creature_that_entered_after_it_resolved` (RD-3, new); Fog is combat damage where the atom's effect is all damage |
+| `ATOM-400.7c-002` | **re-filed** — Phase 8's first token-making planeswalker; the identity half is `ATOM-615.9-001`'s, covered |
+| `ATOM-611.2c-003` | **re-filed** — RS-3 for "can't be blocked"; the lock-in half is Phase 5-Layers' |
+| `ATOM-614.10b-001` | **re-filed** — critical-path item 6; no printed card says "skip … then" (RE-1's census) and the follow-up is a trigger |
+| `ATOM-614.11b-001` | **re-filed** — §2.26 |
+| `ATOM-614.15-001`, `ATOM-614.15-002`, `ATOM-616.1a-001`, `ATOM-614.17c-001` | **re-filed** — `replacement-architecture.md` §11 item 3, the self-replacement producer, fixture-first |
+| `ATOM-614.17a-001` | **re-filed** — RS-3 (combat) |
+| `ATOM-614.17b-001` | **re-filed** — RS-4 (costs) |
+| `ATOM-616.1c-001` | **re-filed** — CV-2; the CR 616.1c bucket has existed since RC-4 |
+| `ATOM-701.40f-001` | **re-filed** — CV-6; manifest needs face-down |
+| `ATOM-702.176a-001` | **re-filed** — §2.6, after item 6 for the end-step trigger |
+| `ATOM-704.5e-001`, `ATOM-704.5e-002` | **re-filed** — CV-4, CR 707.10a's SBA |
+| `ATOM-107.3m-001` | **re-filed** — Phase 8's first "enters with X counters" card; X is unreadable at resolution at all today (`codebase-state.md`, the CR 601.2b row), which comes first |
+| `ATOM-607.2b-001`, `ATOM-607.2g-001` | **re-filed** — §2.2 |
+| `COMP-613-LAYERS-FULL-STACK-001` | **re-filed** — Layer 3 is unbuilt and the Clone half is CV-2's; the per-layer atoms it composes are covered one by one |
+| `ATOM-702.15d-001`, `ATOM-702.2d-001` | **kept deferred**, the owner added — §2.8, on CR 113.6 (LK) |
+| `ATOM-702.180a-002` | **re-filed** — §2.6 (harmonize); its exile-instead half is a stack-exit rewrite the pipeline expresses today |
+| nineteen `ATOM-707.*` and `BOUNDARY-707.2c-001` | **owned as they stand** — `copy-effects-architecture.md` §8: CV-2, CV-3, CV-4 |
+
+Three things the run learned, for the next close: **a `COVERS-PARTIAL` is enough
+to silence `owed`** — the gate reads the coverage table, which holds partials —
+so the partial column of `specdb stats` is where a phase's remainder lives once
+the gate is green, and a close should read both; **a ticket that is not `NEW`
+is invisible to the gate whatever it says** (`D5`, `T20`, `Phase 6`, "(same as
+above)"), which is the CR 707 pattern §8 already names, and the reason this
+pass read `--all` rather than the default; and **the two atoms that arrived
+already `DEFERRED`** (702.15d, 702.2d) were the only recorded deferrals in a
+127-atom phase, which is what the `SHIPPED_PHASES` omission cost.
+
 ### 3.4 Pass 2's remainder (17 sections, 49 atoms)
 
 Unmentioned by any plan doc, and still no entry — the same two shapes as §3.1
