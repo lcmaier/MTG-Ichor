@@ -1,4 +1,5 @@
 use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::resolve::ResolutionContext;
 use crate::objects::card_data::AbilityType;
 use crate::types::costs::Cost;
 use crate::types::effects::{Effect, Primitive};
@@ -72,14 +73,14 @@ impl GameState {
     /// Resolve the effect of a mana ability.
     ///
     /// Mana abilities resolve immediately without the stack (rule 605.3b),
-    /// so game state cannot change between activation and resolution.
-    /// Dynamic `AmountExpr` variants (e.g. Selvala's "X = greatest power
-    /// among creatures you control") are safe to evaluate here — no
-    /// targeting context is needed, only board-state queries. Currently
-    /// only `Fixed` is wired up; when Selvala-style abilities arrive,
-    /// add a local evaluate path for non-targeting `AmountExpr` variants
-    /// (CountOf, etc.) and error only on target-dependent ones
-    /// (TargetPower, TargetToughness).
+    /// so game state cannot change between activation and resolution, and a
+    /// dynamic amount is safe to read off the board here. The amounts go
+    /// through the same `evaluate_amount` a resolving spell's do, against a
+    /// resolution context with no targets — a mana ability has none (CR
+    /// 605.1a) — so a target-dependent expression is refused by that
+    /// function rather than here. Doubling Cube's `UnspentMana` is the first
+    /// dynamic amount a mana ability carries; Selvala's "greatest power" is
+    /// `CountOf`'s shape when it arrives.
     ///
     /// The production is a proposal (CR 106.6a's replaceable event) and its
     /// batch is its own, separate from the cost's: CR 605.3b makes the
@@ -96,15 +97,17 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
+                let resolution = ResolutionContext {
+                    source,
+                    ability_source: None,
+                    controller: player_id,
+                    targets: Vec::new(),
+                    replaced_amount: None,
+                    damage_prevented: None,
+                };
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount_expr) in &output.mana {
-                    let amount = match amount_expr {
-                        crate::types::effects::AmountExpr::Fixed(n) => *n,
-                        other => return Err(format!(
-                            "Mana abilities only support Fixed amounts, got {:?}", other
-                        )),
-                    };
-                    mana.push((*mana_type, amount));
+                    mana.push((*mana_type, self.evaluate_amount(amount_expr, &resolution)?));
                 }
                 self.execute_action(
                     GameAction::ProduceMana {

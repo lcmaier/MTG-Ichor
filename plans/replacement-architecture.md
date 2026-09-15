@@ -3796,7 +3796,10 @@ rather than guessed; and the `EngineCounters` rename (§11 item 97), its own PR.
 layer row at two seats and four; gathers +80 / +151 a game against 81 / 151
 productions; **CPU/game +1.2% and +0.7%**, rounds straddling — under §11 item
 54's 2.5-point gate, so **lever 2 stays unbuilt**, as decision 11 predicted.
-Pooled is a re-record and a bigger board. → the archive, and `fuzz-record.md`.
+Pooled is a re-record and a bigger board. At review, two more arms: a mana
+replacement *applying* on every tap, game held fixed, is **+2.7% / +2.2%**,
+and the gate returns **nothing** for this kind — the bare +1.2% is the
+chokepoint's fixed work (§11 item 99, item 136). → the archive, `fuzz-record.md`.
 
 Shipped **+1,423 / −29** before the docs — engine 334, cards 285, tests 734,
 harness 14 — against 1,300–1,450. **RE closes with it: ten PRs, no handoff
@@ -4068,7 +4071,14 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   Reflection cast 119 / resolved 118 in **82 of 200 games (41%)**, 1.46
   copies/deck. One four-player `stress` game ran to a 200-turn cap `main`'s
   longest game was already within 3% of; at `--max-turns 600` it ends at 208
-  and nothing else moves. → the archive, "RE-9"; `fuzz-record.md`.
+  and nothing else moves. **Measured again at review with two more arms**,
+  because neither arm above isolates what a mana replacement costs per tap
+  with the game held fixed: a no-op row applying on every production reads
+  **+2.7%** at two seats and +2.2% at four, rounds clear of the engine arm's,
+  and `gather` gated for `ProduceMana` reads +0.1% and −0.6%, straddling —
+  the gate returns nothing here, and the bare proposal's +1.2% is the
+  chokepoint's fixed per-event work (§11 item 99; `codebase-state.md` item
+  136). → the archive, "RE-9"; `fuzz-record.md`.
 
 - **RE-10:** the one arm in RE predicted **flat in every row**, and that is the
   whole reading. The plan replaces `next_phase`'s chain on every turn of every
@@ -6429,6 +6439,27 @@ found them.
     lesson is item 94's one step further: a census that searches the card's
     words finds the cards that share them, and CR 106.12b's own sentence
     names three axes in a row — search each.
+
+99. **The event-kind gate returns nothing for mana, so §8's one pre-approved
+    lever does not touch the cost the phase was worried about.** The review
+    asked how the sitting knew the hottest path was safe when its engine arm
+    had nothing to find and its pooled arm was a bigger board, and the
+    answer was two more arms. A no-op `Multiplier(1)` row per player,
+    applied on every tap with the game held fixed, costs **+2.7%** at two
+    seats and +2.2% at four — the CR 616.1 loop's work with a candidate,
+    about 4.6 µs an application, paid only where a mana replacement is on
+    the board. And `gather` returning early for `ProduceMana`, RE-1's probe
+    exactly, reads +0.1% and −0.6% with rounds straddling: the sweep is
+    three memo reads, and the +1.2% a bare proposal costs is the batch,
+    the prohibition check, the grouping allocations, the performer and the
+    emit. RE-1 found the gate worth half its cost; here it is worth none,
+    and the difference is what a production's sweep finds — nothing, fast.
+    **§8's lever list is one short**: the fixed per-batch work of a
+    single-member batch with no candidate is the cost every cheap event
+    kind pays, and an allocation-free path through it is answer-preserving
+    in §8's own sense. `codebase-state.md` item 136 sizes it and names the
+    budget question it is waiting on. → RE-9's archive, "Measured again at
+    review".
 
 ## 12. Explicitly out of scope
 

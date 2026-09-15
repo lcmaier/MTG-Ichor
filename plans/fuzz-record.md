@@ -40,11 +40,32 @@ worth it.
 **Re-recorded 2026-09-15 for RE-9** (CR 106.6a's mana production event and
 CR 106.12's "tapped for mana"; `replacement-architecture.md` §9, the last of
 RE's ten PRs). `PERFORMANCE_POOL` +1 — Mana Reflection, 88 → 89 — and the
-stress pool +4 (154 → 158: Nyxbloom Ancient, Deep Water, Pale Moon and the
-pooled one), so **both tables are a re-record and neither column is an engine
-reading.** The A/B sitting ran at 157; Pale Moon was registered at the PR's
-review, unpooled, so the `performance` columns below are the sitting's to the
-byte and the `stress` columns were re-recorded at 158 afterwards. The
+stress pool +5 (154 → 159: Nyxbloom Ancient, Deep Water, Pale Moon, Doubling
+Cube and the pooled one), so **both tables are a re-record and neither column
+is an engine reading.** The A/B sitting ran at 157; Pale Moon and Doubling
+Cube were registered at the PR's review, unpooled, so the `performance`
+columns below are the sitting's to the byte and the `stress` columns were
+re-recorded at 159 afterwards.
+
+**The review's two probe arms, and the number the phase was actually
+worried about.** The sitting's engine arm measures a proposal with nothing
+watching it; a third arm held the game fixed and made a mana replacement
+*apply* on every tap — one `Indefinite` no-op `Multiplier(1)` row per player
+from a source in exile — and a fourth gated `gather` for `ProduceMana` the
+way §8's event-kind bitmask would. Against the engine arm at `--rounds 7`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| a mana replacement applying on every tap, CPU/game | 13.95 → 14.32 ms (**+2.7%**) | 47.57 → 48.61 ms (**+2.2%**) |
+| the event-kind gate for `ProduceMana`, CPU/game | 13.95 → 13.97 (+0.1%) | 47.57 → 47.29 (−0.6%) |
+| Replacement gathers, applying arm | 1063 → 1144 | 2,163 → 2,312 |
+| every gameplay and layer row | identical | identical |
+
+The applying arm's rounds sit clear of the engine arm's; the gated arm's
+straddle them. So a board with a mana doubler pays about 2.5 points for the
+pipeline's work per tap, and the gate returns nothing for this event kind —
+the +1.2% a proposal costs is the chokepoint's fixed per-event work, not the
+sweep (`codebase-state.md` item 136 names the lever that would touch it). The
 engine reading is the third arm, this branch with the three cards
 unregistered, whose counters are `main`'s on every gameplay and layer row at
 both seat counts by construction; what it adds is one row and one movement:
@@ -85,27 +106,27 @@ board diversity. One four-player `stress` game on the pooled arm ran to the
 
 | | performance | stress |
 |---|---|---|
-| Wins by seat | 25 (50.0%) / 25 (50.0%) | 28 (56.0%) / 21 (42.0%) |
-| Wins by effect | 0 | 1 |
-| Avg turns | 33.0 | 30.3 |
-| Spells cast | 25.6 | 21.8 |
-| Lands played | 19.3 | 18.2 |
-| Combat w/ atk | 11.5 | 9.8 |
-| Creatures died | 8.2 | 4.8 |
-| Damage events | 24.2 | 20.2 |
-| Total damage | 67.3 | 50.6 |
-| Life changes | 15.4 | 15.6 |
-| **Layer walks** | **401** | **454** |
-| **Board walks** | **279** | **287** |
-| **Memo hits** | **73,622** | **83,409** |
-| **Layer frames** | **5,856** | **5,934** |
-| **Frames/walk** | **14.61** | **13.06** |
-| **Dependency checks** | **46** | **14** |
-| **Replacement gathers** | **1221** | **1206** |
-| **Restriction queries** | **1223** | **1209** |
-| Mana productions | 90 | 117 |
-| Prevention allocations | 0.00 | 0.04 |
-| Replacement prompts | 0.38 | 4.54 |
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 23 (46.0%) / 27 (54.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 33.0 | 31.8 |
+| Spells cast | 25.6 | 23.9 |
+| Lands played | 19.3 | 18.4 |
+| Combat w/ atk | 11.5 | 10.6 |
+| Creatures died | 8.2 | 6.2 |
+| Damage events | 24.2 | 24.1 |
+| Total damage | 67.3 | 57.7 |
+| Life changes | 15.4 | 16.9 |
+| **Layer walks** | **401** | **491** |
+| **Board walks** | **279** | **303** |
+| **Memo hits** | **73,622** | **82,252** |
+| **Layer frames** | **5,856** | **6,009** |
+| **Frames/walk** | **14.61** | **12.25** |
+| **Dependency checks** | **46** | **9** |
+| **Replacement gathers** | **1221** | **1243** |
+| **Restriction queries** | **1223** | **1245** |
+| Mana productions | 90 | 123 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 0.38 | 2.74 |
 | Max batch depth | 5 | 5 |
 
 The `main` arm's same rows, for the pool these replace: performance
@@ -118,30 +139,30 @@ the `pooled` arm):
 
 | | performance | stress |
 |---|---|---|
-| Wins by seat | 23 (46.0%) / 19 (38.0%) / 7 (14.0%) / 1 (2.0%) | 16 (32.0%) / 25 (50.0%) / 6 (12.0%) / 3 (6.0%) |
+| Wins by seat | 23 (46.0%) / 19 (38.0%) / 7 (14.0%) / 1 (2.0%) | 11 (22.0%) / 19 (38.0%) / 14 (28.0%) / 6 (12.0%) |
 | Wins by effect | 0 | 0 |
-| Avg turns | 60.9 | 65.8 |
-| Spells cast | 44.4 | 45.9 |
-| Lands played | 36.1 | 38.5 |
-| Combat w/ atk | 25.2 | 25.9 |
-| Creatures died | 14.9 | 13.0 |
-| Damage events | 53.7 | 56.2 |
-| Total damage | 153.9 | 161.2 |
-| Life changes | 39.2 | 38.6 |
-| Turns after a departure | 21.6 | 20.0 |
+| Avg turns | 60.9 | 64.5 |
+| Spells cast | 44.4 | 47.4 |
+| Lands played | 36.1 | 37.9 |
+| Combat w/ atk | 25.2 | 25.3 |
+| Creatures died | 14.9 | 11.4 |
+| Damage events | 53.7 | 61.0 |
+| Total damage | 153.9 | 149.9 |
+| Life changes | 39.2 | 43.6 |
+| Turns after a departure | 21.6 | 21.8 |
 | Departed-owned permanents | 0.0 | 0.0 |
-| **Layer walks** | **801** | **1,168** |
-| **Board walks** | **531** | **661** |
-| **Memo hits** | **186,728** | **262,148** |
-| **Layer frames** | **15,778** | **21,496** |
-| **Frames/walk** | **19.71** | **18.40** |
-| **Dependency checks** | **156** | **113** |
-| **Replacement gathers** | **2270** | **2661** |
-| **Restriction queries** | **2274** | **2667** |
-| Mana productions | 155 | 244 |
-| Prevention allocations | 0.00 | 0.04 |
-| Replacement prompts | 2.54 | 3.36 |
-| Max batch depth | 4 | 7 |
+| **Layer walks** | **801** | **1,156** |
+| **Board walks** | **531** | **677** |
+| **Memo hits** | **186,728** | **269,381** |
+| **Layer frames** | **15,778** | **22,920** |
+| **Frames/walk** | **19.71** | **19.84** |
+| **Dependency checks** | **156** | **143** |
+| **Replacement gathers** | **2270** | **2677** |
+| **Restriction queries** | **2274** | **2682** |
+| Mana productions | 155 | 260 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 2.54 | 2.98 |
+| Max batch depth | 4 | 6 |
 
 The `main` arm's same rows at four seats: performance
 788 / 515 / 178,289 / 15,083 / 19.15 / 147 / 2059 / 2064; stress

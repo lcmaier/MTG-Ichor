@@ -78,6 +78,16 @@ pub enum AmountExpr {
     /// general `Times(Box, Box)`, because nothing printed multiplies one
     /// computed amount by another.
     Multiply(Box<AmountExpr>, u64),
+    /// "The amount of … unspent mana you have" of one type — Doubling Cube's
+    /// "double the amount of each type of unspent mana you have", read off
+    /// the activating player's pool when the ability resolves, restricted
+    /// units included: CR 106.6 says a restriction "doesn't affect the mana's
+    /// type", and the Cube's ruling counts {U}{U}{U} spendable only on
+    /// artifact spells as three blue.
+    ///
+    /// The first dynamic amount a mana ability carries, and the reason
+    /// `resolve_mana_effect` evaluates rather than reading `Fixed` alone.
+    UnspentMana(crate::types::mana::ManaType),
     /// CR 615.5's "the amount of damage that was prevented" — how much the
     /// prevention effect that queued a CR 615.5 rider actually prevented.
     ///

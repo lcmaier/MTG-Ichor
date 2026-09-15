@@ -5982,7 +5982,12 @@ CR 106.6a's "all mana produced" (item 95); `GameActionTemplate::ProduceMana
 `ReplacedAmount` and refusing a mixed production under `Fixed`; the
 `Mana productions` diagnostic row, and `fuzz_ab.py`'s compare taught to drop
 a row the baseline never prints. Mana Reflection (pooled), Nyxbloom Ancient,
-Deep Water; item 111 closed. **The last of RE's ten PRs.**
+Deep Water; at review, Pale Moon (§11 item 98's census re-run) and Doubling
+Cube — the corpus's own integration test for CR 106.6, whose dynamic amount
+is `AmountExpr::UnspentMana` and the first a mana ability has carried, so
+`resolve_mana_effect` evaluates through `evaluate_amount` against a
+targetless resolution context rather than reading `Fixed` alone; item 111
+closed. **The last of RE's ten PRs.**
 
 **Left absent, with its customer named:**
 
@@ -6091,6 +6096,39 @@ Deep Water; item 111 closed. **The last of RE's ten PRs.**
      the ruling that decides it. Recorded rather than guessed because a wrong
      answer here is a restriction that vanishes from a pool with nothing
      pointing at it.
+
+136. **The chokepoint's fixed cost per event is the whole of what a proposal
+     with nothing watching it costs, and the one lever §8 pre-approved cannot
+     touch it.** RE-9's review probe: the engine arm with `gather` returning
+     early for `ProduceMana` — what the event-kind bitmask would compute on a
+     board with no mana watcher — reads +0.1% at two seats and −0.6% at four
+     against the engine arm, rounds overlapping both times, where RE-1's
+     same probe returned half of its cost. A production's sweep is three
+     memo reads; what the +1.2% buys is `execute_batch_inner`'s per-batch
+     work for a single member with no candidate: the `groups`, `decided`,
+     `applied_to` and `riders` `Vec`s, the cloned `HashSet` per member,
+     `apnap_batch_order`, the entry-selection and allocation saves,
+     `is_prohibited`, the frame, and the emit — about 2 µs a proposal, 81
+     proposals a game, on the commonest proposal after phases and steps. The
+     same probe put a mana replacement *applying* on every tap, board held
+     fixed, at **+2.7%** and **+2.2%** (`replacement-architecture.md`, the
+     RE-9 archive's "Measured again at review").
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a cost. Every
+     answer is right; the price is paid on every land tap of every game.
+
+     **Sized:** an answer-preserving fast path, §8's own criterion: a batch
+     of one member whose `gather` returns nothing, whose `is_prohibited` says
+     no and whose action is not an entry performs directly, allocating none
+     of the above, with the emit and the batch id unchanged so CR 603.2c
+     sees the same event. ~40 lines in `execute_batch_inner`, a debug
+     assertion that the fast path and the loop agree, and the A/B that says
+     what it returns — measured before it is kept, like RE-1's gate. Not
+     this PR's: RE's exit criteria name lever 2 as the pre-approved
+     optimization, this is a different lever, and §8's ordering is measure
+     first. The number to beat is +1.2% at two seats and +0.7% at four; the
+     number that says whether it matters is a v1 CPU budget the plan has
+     never set, and this item is where to write it when it is.
 
 What is *not* a ledger line, and where each waits: CR 605.1b's triggered mana
 abilities — Wild Growth's "whenever enchanted land is tapped for mana, its

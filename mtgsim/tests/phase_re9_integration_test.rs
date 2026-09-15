@@ -28,7 +28,9 @@ use std::sync::Arc;
 
 use mtgsim::cards::phase5_pre_cards::dark_ritual;
 use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
-use mtgsim::cards::phase_re9_cards::{deep_water, mana_reflection, nyxbloom_ancient, pale_moon};
+use mtgsim::cards::phase_re9_cards::{
+    deep_water, doubling_cube, mana_reflection, nyxbloom_ancient, pale_moon,
+};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
@@ -758,4 +760,84 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
 
     tap_for_mana(&mut game, forest(), 0, &test_dp()).unwrap();
     assert_eq!(pool(&game, 0, ManaType::Green), 1, "a basic land is not nonbasic");
+}
+
+// ---------------------------------------------------------------------------
+// Doubling Cube — CR 106.6's integration test, and {T} on a non-land
+// ---------------------------------------------------------------------------
+
+/// Doubling Cube's third ruling, on its own board: "{C}{W}{W}{B} with no
+/// restrictions and {U}{U}{U} that can be used only to cast artifact spells"
+/// becomes "{C}{C}{W}{W}{W}{W}{B}{B}, {U}{U}{U} … only to cast artifact
+/// spells, and {U}{U}{U} that can be used for anything". The restricted
+/// units are counted by their type (CR 106.6) and the copies carry no
+/// restriction.
+///
+/// The {3} is paid from the free mana first, and which three the planner
+/// takes is its choice, so the free types are asserted against what the
+/// event says was added — each type doubled from what remained — and the
+/// blue against the ruling's numbers, since restricted blue cannot pay an
+/// ability's cost and so is never spent.
+#[test]
+fn doubling_cube_counts_restricted_mana_and_copies_it_unrestricted() {
+    let mut game = setup_two_player_game();
+    let artifact_only_blue = ManaAtom {
+        mana_type: ManaType::Blue,
+        source_id: None,
+        restrictions: vec![ManaRestriction::OnlyForSpellTypes(vec![CardType::Artifact])],
+        grants: Vec::new(),
+        persistence: ManaPersistence::Normal,
+    };
+    {
+        let p = &mut game.players[0].mana_pool;
+        p.add(ManaType::Colorless, 1 + 3);
+        p.add(ManaType::White, 2);
+        p.add(ManaType::Black, 1);
+        for _ in 0..3 {
+            p.add_special(artifact_only_blue.clone());
+        }
+    }
+    let dp = RecordingDecisionProvider::picking(0);
+    let cube = tap_for_mana(&mut game, doubling_cube(), 0, &dp).unwrap();
+
+    let (source, added, tapped) = mana_added(&game).pop().expect("the Cube produced");
+    assert_eq!(source, cube);
+    assert!(tapped, "a mana ability with {{T}} in its cost");
+    let added_of = |t: ManaType| added.iter().find(|(x, _)| *x == t).map(|(_, n)| *n).unwrap_or(0);
+    for t in [ManaType::Colorless, ManaType::White, ManaType::Black] {
+        assert_eq!(pool(&game, 0, t), 2 * added_of(t), "{t:?}: what remained after {{3}}, doubled");
+    }
+    assert_eq!(
+        added_of(ManaType::Colorless) + added_of(ManaType::White) + added_of(ManaType::Black),
+        4,
+        "seven free mana, three paid, four doubled"
+    );
+    assert_eq!(added_of(ManaType::Blue), 3, "three restricted blue count as three blue");
+    assert_eq!(pool(&game, 0, ManaType::Blue), 3, "and the copies are free");
+    assert_eq!(
+        game.players[0].mana_pool.special_atoms(),
+        &[(artifact_only_blue, 3)],
+        "the restricted three are untouched"
+    );
+}
+
+/// Doubling Cube's first ruling — "Doubling Cube's ability is a mana
+/// ability" — with {T} in its cost, so by CR 106.12 it is tapped for mana and
+/// Mana Reflection doubles the doubling: five green, three paid, the Cube
+/// produces the two that remained, Mana Reflection makes that production
+/// four, and the pool ends at six.
+#[test]
+fn doubling_cube_is_tapped_for_mana_so_mana_reflection_doubles_its_doubling() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, mana_reflection(), 0);
+    game.players[0].mana_pool.add(ManaType::Green, 5);
+    let dp = RecordingDecisionProvider::picking(0);
+    let cube = tap_for_mana(&mut game, doubling_cube(), 0, &dp).unwrap();
+
+    assert_eq!(pool(&game, 0, ManaType::Green), 6, "two remained, produced twice over");
+    assert_eq!(
+        mana_added(&game).pop(),
+        Some((cube, vec![(ManaType::Green, 4)], true)),
+        "one production of four, tapped for mana"
+    );
 }

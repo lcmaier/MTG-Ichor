@@ -1937,7 +1937,7 @@ impl GameState {
 
     // --- Helper: evaluate AmountExpr ---
 
-    fn evaluate_amount(
+    pub(crate) fn evaluate_amount(
         &self,
         expr: &AmountExpr,
         _ctx: &ResolutionContext,
@@ -1982,6 +1982,12 @@ impl GameState {
             AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
                 "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
             }),
+            // Doubling Cube's "each type of unspent mana you have": the
+            // controller's pool now, restricted units counted by their type
+            // (CR 106.6 — a restriction "doesn't affect the mana's type").
+            AmountExpr::UnspentMana(mana_type) => {
+                Ok(self.get_player(_ctx.controller)?.mana_pool.unspent(*mana_type))
+            }
             // The other number a CR 615.5 rider may refer to, and the same
             // refusal outside one.
             AmountExpr::DamagePrevented => _ctx.damage_prevented.ok_or_else(|| {

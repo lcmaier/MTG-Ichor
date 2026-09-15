@@ -3,8 +3,9 @@
 //! **The mana production event gets its first watchers.** Until RE-9 the two
 //! places that added mana wrote the pool directly and nothing could see
 //! them; `GameAction::ProduceMana` is that event, and these are the printed
-//! replacement effects CR 106.6a and CR 106.12b describe. Four cards, on
-//! two axes:
+//! replacement effects CR 106.6a and CR 106.12b describe — plus the one
+//! producer the corpus itself named as CR 106.6's integration test. Five
+//! cards, on three axes:
 //!
 //! | Card | What it is the first of | CR |
 //! |---|---|---|
@@ -12,8 +13,9 @@
 //! | [`nyxbloom_ancient`] | the second factor the arm has seen | 106.6a |
 //! | [`deep_water`] | a production retyped, with a filter on the permanent | 106.12b |
 //! | [`pale_moon`] | the same retype for every player's lands, from an instant | 106.12b |
+//! | [`doubling_cube`] | a mana ability with a dynamic amount, and {T} on a non-land | 106.6, 106.12 |
 //!
-//! Every one of them says "tap … for mana", which is CR 106.12's definition
+//! Every replacement among them says "tap … for mana", which is CR 106.12's definition
 //! — *"to activate a mana ability of that permanent that includes the {T}
 //! symbol in its activation cost"* — and so every one of them is
 //! `EventPattern::ProduceMana { tapped_for_mana: Some(true), .. }`. The
@@ -68,8 +70,8 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PatternFill, PlayerRef,
-    PlayerSet, Primitive,
+    AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet,
+    PatternFill, PlayerRef, PlayerSet, Primitive,
 };
 use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
@@ -323,6 +325,79 @@ pub fn pale_moon() -> Arc<CardData> {
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,
                 ),
+                EffectRecipient::Implicit,
+            ),
+        })
+        .build()
+}
+
+/// Doubling Cube — {2}
+/// Artifact
+///
+/// > {3}, {T}: Double the amount of each type of unspent mana you have.
+///
+/// **The corpus's own integration test for CR 106.6, and a mana ability with
+/// {T} on a permanent that is not a land.** The atomic-test session that
+/// wrote `ATOM-106.6-001` named this card as the integration test for
+/// restricted mana under doubling and deferred it to the suite; it lands
+/// here because RE-9 is where a production became an event. Its first ruling
+/// is what makes it this phase's: *"Doubling Cube's ability is a mana
+/// ability"* — CR 605.1a, no target, adds mana — and its cost includes {T},
+/// so by CR 106.12 tapping it is "tapping a permanent for mana" and Mana
+/// Reflection doubles what it produces.
+///
+/// The amount is the first dynamic one a mana ability has carried:
+/// `AmountExpr::UnspentMana(type)` per type, read off the activating
+/// player's pool when the ability resolves — after the {3} is paid, since an
+/// activation pays its costs before the ability resolves (CR 602.2, 605.3b).
+/// The output lists all six types; the performer adds nothing for a type at
+/// zero. Registered and unpooled: `available_mana_sources` enumerates fixed
+/// amounts only, so the random agent never reaches for it, and a card that
+/// doubles a pool would move the gameplay rows by design.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"Doubling Cube's ability is a mana ability."* → activated through
+///   `activate_mana_ability`, and its production says `tapped_for_mana`, so
+///   Mana Reflection doubles the doubling
+///   (`doubling_cube_is_tapped_for_mana_so_mana_reflection_doubles_its_doubling`).
+/// - *"The 'type' of mana is its color, or lack thereof."* → `UnspentMana`
+///   is asked per [`ManaType`], colorless included.
+/// - *"Any restrictions on the unspent mana aren't copied. For example, if you
+///   have {C}{W}{W}{B} with no restrictions on it and {U}{U}{U} that can be
+///   used only to cast artifact spells, you'll end up with
+///   {C}{C}{W}{W}{W}{W}{B}{B}, {U}{U}{U} that can be used only to cast
+///   artifact spells, and {U}{U}{U} that can be used for anything."* → the
+///   ruling's own board: restricted units counted by their type, the copies
+///   free (`doubling_cube_counts_restricted_mana_and_copies_it_unrestricted`).
+///   CR 106.6's sentence — a restriction "doesn't affect the mana's type" —
+///   is what makes the restricted {U}{U}{U} count as three blue.
+pub fn doubling_cube() -> Arc<CardData> {
+    CardDataBuilder::new("Doubling Cube")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("{3}, {T}: Double the amount of each type of unspent mana you have.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Mana,
+            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
+            effect: Effect::Atom(
+                Primitive::ProduceMana(ManaOutput {
+                    mana: [
+                        ManaType::White,
+                        ManaType::Blue,
+                        ManaType::Black,
+                        ManaType::Red,
+                        ManaType::Green,
+                        ManaType::Colorless,
+                    ]
+                    .into_iter()
+                    .map(|t| (t, AmountExpr::UnspentMana(t)))
+                    .collect(),
+                    special: Vec::new(),
+                }),
                 EffectRecipient::Implicit,
             ),
         })

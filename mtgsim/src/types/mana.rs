@@ -520,6 +520,23 @@ impl ManaPool {
         *self.pool.get(&mana_type).unwrap_or(&0)
     }
 
+    /// Every unit of `mana_type` in the pool, restricted or not.
+    ///
+    /// [`Self::amount`] is the free units only; this adds the restricted
+    /// groups of the same type. CR 106.6: a restriction "doesn't affect the
+    /// mana's type", so a "{U}{U}{U} that can be used only to cast artifact
+    /// spells" is three blue mana — which is how Doubling Cube counts them
+    /// (`AmountExpr::UnspentMana`), and its ruling's example says so.
+    pub fn unspent(&self, mana_type: ManaType) -> u64 {
+        self.amount(mana_type)
+            + self
+                .special
+                .iter()
+                .filter(|(atom, _)| atom.mana_type == mana_type)
+                .map(|(_, n)| n)
+                .sum::<u64>()
+    }
+
     pub fn has(&self, mana_type: ManaType, amount: u64) -> bool {
         self.amount(mana_type) >= amount
     }

@@ -4774,6 +4774,76 @@ table beside them — the `stress` columns re-recorded once more at 158 cards
 after the review registered Pale Moon, unpooled, so the sitting's
 `performance` columns stand and only the stress decks moved.
 
+**Measured again at review (2026-09-15), because the sitting could not answer
+the question the phase was for.** The reviewer's objection was exact: the
+engine arm measures a proposal with nothing watching it, and the pooled arm
+measures a replacement applying *and* a board twice the size, so nothing
+above isolates what a mana replacement costs per tap with the game held
+fixed — and that, on the hottest path in the engine, was the whole worry.
+Two more arms, the §8 recipe, built from the committed tree with the four
+cards unregistered and compared with that same engine arm at `--rounds 7`:
+
+- **applying** — at every game's setup, one `Duration::Indefinite` registry
+  row per player from a source in exile: `ProduceMana { tapped_for_mana:
+  Some(true) }`, `Amount(Multiplier(1))`, `You`. Every production is
+  gathered, found, chosen, applied and re-gathered; nothing about the game
+  changes, and no permanent is added for the layer walk to frame. Every
+  gameplay and layer row is **identical** to the engine arm at both seat
+  counts; `Replacement gathers` +81 and +151 (the re-gather after applying),
+  `Memo hits` +263 and +798.
+- **gated** — the engine arm with a hard-coded early return in `gather` for
+  `ProduceMana`: what §8's event-kind bitmask would compute on a board with
+  no mana watcher, RE-1's probe shape exactly.
+
+| two seats | engine | applying | gated |
+|---|---|---|---|
+| CPU/game median | 13.95 ms | 14.32 (**+2.7%**) | 13.97 (+0.1%) |
+| rounds | 13.89–14.10 | 14.28–14.40 | 13.92–14.08 |
+| ms / 1,000 queries | 0.233 | 0.239 (+2.2%) | 0.234 |
+| CPU/turn p50 | 0.410 | 0.420 | 0.420 |
+
+| four seats | engine | applying | gated |
+|---|---|---|---|
+| CPU/game median | 47.57 ms | 48.61 (**+2.2%**) | 47.29 (−0.6%) |
+| rounds | 45.44–48.25 | 47.64–49.63 | 44.89–47.73 |
+| ms / 1,000 queries | 0.269 | 0.273 (+1.7%) | 0.268 |
+| CPU/turn p50 | 0.740 | 0.760 | 0.740 |
+
+(The engine arm's absolute number differs from the sitting's 44.83 ms: two
+sittings on one machine drift, which is why every comparison here is inside
+one sitting and no absolute is recorded as a baseline.)
+
+**Two answers, and the second revises §8.** A mana replacement *applying*
+on every tap costs **+2.7%** of a two-player game with the board held fixed —
+about 4.6 µs per application, the CR 616.1 loop with a candidate: the
+registry scan, `applies_to`, the ordering check, the rewrite's two `Vec`s,
+the applied-set insert and the re-gather. That is the number the phase was
+worried about, and it is paid only on a board that has such a replacement,
+which the pool reaches in 41% of games at six mana. And **the event-kind
+gate returns nothing for this event kind**: gated and engine straddle at
++0.1%, so the +1.2% the proposal costs with nothing watching is not the
+sweep — it is the chokepoint's fixed cost per event, the batch opened and
+closed, `is_prohibited`, the grouping and applied-set allocations, the
+performer and the emit. RE-1 measured the sweep at half of its +5.0%; here
+it is none of the +1.2%, because a production's sweep is three memo reads.
+**Lever 2 stays unbuilt with a stronger reason than the prediction gave
+it**: it would buy RE-9 nothing. The lever that would is a different one and
+is named rather than built — an allocation-free fast path through
+`execute_batch_inner` for a single-member batch with no candidate and no
+prohibition, which is answer-preserving in §8's sense and is
+`codebase-state.md`'s to size (item 136).
+
+**On the v1 question.** The plan set no absolute budget; §8's discipline is
+the per-phase gate and the record. Summing RE's per-sitting engine deltas at
+two seats — RE-1 +5.0, RE-2 +0.5, RE-3 flat, RE-4 flat, RE-5 flat, RE-6
+−1.0, RE-7 identical, RE-8 flat, RE-10 +0.1, RE-9 +1.2 — the ten PRs cost
+the two-player `performance` game **about six points** of CPU, most of it
+RE-1's three begin proposals a step, and every point of it is the
+chokepoint's price for events that critical-path item 6's triggers will
+read. Whether six points is inside v1's budget is a number the owner has to
+set; what this sitting adds is that the next point does not come from the
+gather, and that a board with a mana doubler pays 2.7 more.
+
 ### Trace-page decisions — the phases that produced a candidate and declined it
 
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*
