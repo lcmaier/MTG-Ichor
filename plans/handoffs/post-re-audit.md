@@ -197,7 +197,7 @@ owner's switch; the 1.98 pin measured down to a floor of **1.88** (every
 target, every test; the let-chains are why 1.85 cannot build it), recorded as
 `rust-version` and the pin kept at 1.98 because the lint set was counted
 there. A/B IDENTICAL on both pools at two and four seats. **Comments
-(`audit/comments`, PR #COMMENTS):** the §2.1 sweep by its three steps, with
+(`audit/comments`, PR #144):** the §2.1 sweep by its three steps, with
 the counts and what they meant recorded in `engineering-practices.md` §2.1 as
 the instrument's first application — the wide grep is mostly "about" as a
 preposition, so a tighter tier is written down beside it; 13 undated
@@ -432,7 +432,7 @@ half-decided. The passes above carry each answer.
 | Plan | this file, decisions answered | #141 |
 | 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | #142 |
 | 1b — the eviction | planned 2026-09-15 (§3's table); opens after pass 1 merges | |
-| 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record | #143 (CI), #COMMENTS (comments) |
+| 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record | #143 (CI), #144 (comments) |
 | 3 — parallel-play readiness | not started | |
 | 4 — scheduling | not started | |
 | Codebase map | not started | |

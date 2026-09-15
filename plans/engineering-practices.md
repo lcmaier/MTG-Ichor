@@ -126,7 +126,7 @@ changed a measurable:
    one is a wrong answer a reader will act on.
 
 **First recorded application — 2026-09-15, the post-RE audit's pass 2 (PR
-#143 for CI, PR #COMMENTS for the sweep), 80 PRs after the last sweep at #62.**
+#143 for CI, PR #144 for the sweep), 80 PRs after the last sweep at #62.**
 The grep as written found **456 hits in `mtgsim/src`** (133 in `cards/`),
 **140 in `tests/`** and **1,049 in live `plans/`** (archive and the corpus
 excluded). Most of the `src/` count is the instrument's noise: 265 of the 323
