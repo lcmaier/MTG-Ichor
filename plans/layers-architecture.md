@@ -1954,6 +1954,323 @@ registered only once the engine can play it.
 
 ---
 
+## 13d. Phase A5 — CR 113.6, which abilities function in which zone (live plan, 2026-09-14)
+
+**Lettered `A5` rather than `LK` because `roadmap-v2.md` row A5 is where it was
+scheduled and four documents already call it that.** Written before the first
+PR the way §13a, §13b and §13c were: the finding that sets the scope, the
+decisions the phase was asked to settle first, the subrule triage, the pieces,
+and a size measured against the tree (`engineering-practices.md` §4).
+
+Critical-path **6a**, and the last gate before item 6. Both stated
+prerequisites are in: `codebase-state.md` item 124's rename ✅ PR #136, and
+item 9's zone-reaching `ObjectSet` ✅ PR #137 (§13c). `replacement-architecture.md`
+§11 item 9 sizes it as (a) the predicate, (b) the object timestamp and (c) a
+gate leg per zone — "one facility from three doors", and this is the phase
+that walks through all three.
+
+### The finding that sets the scope: the engine already answers CR 113.6, four times, privately
+
+The rule has no owner and it is not missing. It is *scattered*, and each copy
+is correct in its own file and invisible to the other three:
+
+- `register_static_effects` (`game_state.rs:1321`) runs from exactly one call
+  site, `place_on_battlefield` — so "a static ability functions on the
+  battlefield" is spelled as *where the function is called from*.
+- `CostSubject::applies_from_battlefield` (`types/cost_modification.rs`) is
+  CR 113.6d in a method, with 113.6d quoted in its doc comment.
+- `replacement::gather` sweeps `battlefield_ids_ordered` and says in its module
+  doc that source 2 — abilities functioning in other zones — is "deferred past
+  Phase RE".
+- `restriction::predicate` sweeps the same list for the same reason and says so
+  nowhere, because it inherited the shape.
+
+**So the deliverable is not a new capability bolted on; it is a predicate that
+those four stop answering for themselves.** That is what "the one facility four
+docs name and none owns" cashes out to in the tree, and it is why the PR is
+mostly *moves* and one new field.
+
+Three things the docs say that the tree does not, checked before trusting
+(the §13c convention, and all three cost something here):
+
+1. **`cleanup_zone_state`'s battlefield gate is load-bearing and its comment
+   does not say so.** `remove_by_source` drops *every* row of a source, not
+   only its static ones. A resolving instant registers its row with
+   `source = <the spell>` and then moves stack → graveyard; the only reason
+   Giant Growth is not deleted on the spot is the `if zone == Zone::Battlefield`
+   around the call. **A naive "clean up in every zone" generalization of that
+   function silently un-does every pump spell in the game**, and it is the
+   first thing this phase would reach for. Decision 3 is written around it.
+2. **`static_effect_timestamp`'s `None` arm is unreachable for one reason
+   only** — the single call site above — and this PR is what makes it
+   reachable. §13c decision 1 predicted exactly this sentence.
+3. **`Condition::SourceOnBattlefield` is not the zone-function question** and
+   its own comment (`condition.rs:107–123`) says why: it decides whether an
+   effect exists *given* a row, and today it is "always true when a static
+   ability asks it" because the duration answered destructively first. It is
+   item 6's leaf, not this row's, and reusing it here would give two rules one
+   arm.
+
+### Decisions — the five the tree poses
+
+**1. The predicate is `engine/zone_function.rs`, and it returns a `ZoneSet`
+rather than a `bool`.**
+
+Beside `engine/restriction/`, for that module's own reason: it is a rule that
+several subsystems ask and no subsystem owns, so it cannot live in
+`engine/layers/`, `engine/replacement/`, `engine/cost_determination/` or
+(later) the trigger module without three of the four reaching across.
+
+```rust
+/// CR 113.6 — the zones in which `ability` functions, for an object whose
+/// effective card types are `types`.
+pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> ZoneSet;
+
+/// CR 113.6 as the callers ask it.
+pub fn functions_in(ability: &AbilityDef, types: &HashSet<CardType>, zone: Zone) -> bool;
+```
+
+**A set, not a predicate, because the callers need the set.** Registration asks
+"which zones should I register this in" once per zone change; `Board::seed`'s
+sibling question (`reachable_zones`) is already a `ZoneSet` union over rows, and
+LJ's decision 3 settled the general form of this argument — reach has to be
+readable as a *value*, not recovered by a search. `functions_in` is the
+one-line `contains` on top, kept because every call site but registration asks
+that shape and `functioning_zones(..).contains(..)` at thirty sites reads worse
+than the question does.
+
+**The card types are an input rather than a read**, which is CLAUDE.md's
+layer-system invariant holding at a module boundary: CR 113.6's first sentence
+splits on instant-or-sorcery, the answer must be the *effective* types
+(a Song of the Dryads'd instant is not a thing, but Layer 4 is Layer 4), and a
+module that takes the types cannot read the wrong ones. The callers route
+through `oracle/characteristics.rs`; the two that run before a frame exists
+pass printed types and are tagged `// PRE-LAYER ZONE:` like every other.
+
+**No `playable_from` parameter.** §11 item 9's sizing and `roadmap-v2.md` A5
+both name CR 113.6e's "any zone from which it could be played or cast", and the
+honest answer today is that `check_cast_legality` hard-codes `Zone::Hand`
+(`cast.rs:626`) — so the parameter would have exactly one possible value at
+every call site, supplied by the caller, forever, until `backlog.md` §2.3
+lands. A parameter with one value is a guess about §2.3's shape dressed as an
+interface. 113.6e is deferred by decision 4 and the parameter arrives with it.
+
+**2. CR 613.7d's object timestamp rides. Counters do not.**
+
+`static_effect_timestamp` reads `self.battlefield.get(&id)`, and Wonder's
+source is in a graveyard: the `None` arm is finding 2 above. CR 613.7d — "an
+object receives a timestamp at the time it enters a zone" — is the field that
+fixes it, and there is one right shape:
+
+**`PermanentState.timestamp` moves to `GameObject.timestamp` and is deleted**,
+rather than a second field added beside it. A stored field must mean one thing
+(`codebase-state.md`'s LH-2 lesson), and two fields both meaning "CR 613.7's
+timestamp for this object" is two places to drift. The field is allocated in
+`move_object` (613.7d), at object creation for anything that enters a zone
+without moving — a token, a library card at setup — and re-allocated by
+CR 613.7e's attach re-stamp, which already goes through one writer. The
+battlefield reads it through `battlefield_ids_ordered` exactly as it does
+today; the values change, the order does not, and `battlefield_entities` and
+every count over the prefix are untouched.
+
+The one site that needs a word: `board.rs:731` gives the *entering* object
+`Timestamp::MAX` for CDA ordering, because it has no timestamp yet. After the
+move it has one — its **source zone's** — and that is older than every
+permanent on the board rather than newer. The `MAX` stays and its comment stops
+saying "has no timestamp" and starts saying "is about to receive the largest
+one" (CR 613.7d, at the entry the pipeline is still deciding).
+
+**Counters do not ride, and they are the same field on the same struct.**
+`replacement-architecture.md` §11 item 10 wants `PermanentState.counters` on
+`GameObject` for 71 suspend cards and CR 122.1a/b's "a card in a zone other
+than the battlefield". The two look like one move and are not:
+
+- The timestamp move has a consumer **in this PR** — Wonder's row cannot be
+  registered with a defensible timestamp without it. The counters move has
+  none: item 10's own trigger is "the first suspend card or the first CR 122.1b
+  keyword counter off the battlefield", and this PR registers neither.
+- It is not a field move. `perform_action`'s `AddCounters` arm errors for a
+  non-battlefield subject, so the move opens a new arm of the replacement
+  pipeline's surface with no card able to reach it — which is CLAUDE.md's
+  "an arm the engine cannot apply is worse than a missing one", exactly.
+- And it brings CR 122.2's "counters cease to exist" predicate at
+  `move_object`'s clear point with it, which is a behavior change no test in
+  this phase can observe.
+
+Deferring it costs a second pass over ~12 direct `.counters` sites. Doing it
+costs an untestable capability, which is the more expensive of the two.
+`ObjectFilter`'s fold rode in LJ on the opposite finding — that its cost half
+was **inert**, matched as `_` at every consumer — and that is the test this
+one fails.
+
+**3. `register_static_effects` grows a zone parameter and a second caller. The
+registry stays an over-approximation; the zone question is answered in the
+layer walk.**
+
+The alternative — make the registry the enforcement point, registering on entry
+to a functioning zone and removing on exit — is the one CLAUDE.md names as
+already having cost a redesign: *"registry membership is not effect existence"*,
+and *"don't reconcile the registry at state-mutation chokepoints"*. CR 113.6 is
+an **existence** question (does this ability function here), so it belongs where
+CR 604.2 and the "as long as" clause already are:
+`board::static_ability_still_exists`, re-asked at every layer against the
+source's live frame. A third leg on a function that has two.
+
+That makes registration free to be loose, which is what lets it be cheap:
+
+| | |
+|---|---|
+| `register_static_effects(id, controller, zone)` | one function, two callers |
+| caller A — `place_on_battlefield` | the battlefield, unchanged; it must run after the entity exists for the controller seed |
+| caller B — `move_object`'s tail | every other zone, after `add_to_zone_collection` and the CR 613.7d stamp |
+| the gate | the ability states a zone (decision 5's field is `Some`) — otherwise nothing is registered anywhere but the battlefield, which is every card in the registry but one |
+
+**Removal is the narrow leg, not the general one.** `cleanup_zone_state` keeps
+its battlefield branch verbatim — finding 1 — and gains a zone-general leg that
+retires only `EffectOrigin::StaticAbility` rows of the leaving object. A
+resolution's rows are `EffectOrigin::Resolution` and survive their source's
+move to the graveyard, which is what Giant Growth needs and what the
+battlefield branch gets away with only by never running. Provably a no-op
+before this PR: nothing registers a static row off the battlefield today.
+
+And the removal is **hygiene, not correctness** — the layer check above is the
+answer — for `register_copied_static_effects`'s stated reason: a stale row is
+inert because CR 604.2 re-asks, and what the removal buys is that
+`reachable_zones` and the working set do not stay wide after the card leaves.
+
+**4. Six of the fourteen subrules ship. Eight are deferred, each against a card.**
+
+CLAUDE.md's rule — an arm the engine cannot apply is worse than a missing one —
+read against `roadmap-v2.md` A5's three-way split, which is what decides most of
+this table: *which abilities function where* is this row, *whether a player may
+cast from a non-hand zone at all* is `backlog.md` §2.3, and **four of the eight
+deferrals are §2.3's, not this row's**.
+
+| Subrule | Verdict | Why, and the card |
+|---|---|---|
+| **113.6** (default) | **ships** — the base arm | Abilities of an instant or sorcery on the stack, everything else on the battlefield. Every registered card is its consumer; ATOM-113.6-001 is its atom, and it is Wonder's negative half |
+| **113.6a** CDAs everywhere | **ships as an assertion** | Already true, and not through this predicate: `engine/layers/cda.rs` applies CDAs off the object's own effective list and `compute_non_member` walks them in any zone (CR 604.3a(3) — "CDAs are never registry effects"). The predicate returns `ZoneSet::ALL` for `is_characteristic_defining`, which is a *statement of agreement* with a path that does not consult it. ATOM-113.6a-001, Tarmogoyf in a graveyard |
+| **113.6b** states its zones | **ships — the new facility** | **Wonder**. Decision 5's field, the registration leg, the existence leg |
+| **113.6c** states where it doesn't | **ships, as a spelling of 113.6b** | `ZoneSet::ALL.without(z)`, and `EVERYWHERE_BUT_BATTLEFIELD` is already a constant LJ wrote for Grist and Mycosynth Lattice. **No second arm and no card claimed** — a fixture asserts the complement round-trips through the same field |
+| **113.6d** cost abilities on the stack | **ships as a move** | Already answered by `CostSubject::applies_from_battlefield`; it becomes this predicate's arm and the method delegates. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
+| **113.6h** entry-modifying | **ships as an assertion** | Already true through RC-4's look-ahead frame and LJ's `in_zones_or_entering`: an entering object is admitted by a row iff the row reaches the battlefield. Registered consumer: Scarwood Treefolk, and ATOM-614.12-001 is the test that already passes |
+| 113.6e play/cast restrictions | **deferred — `backlog.md` §2.3** | Its first sentence needs "any zone from which it could be played", and that is `check_cast_legality`'s hard-coded `Zone::Hand`. Its second sentence is `codebase-state.md` item 75's gap and has nothing to grant *with*. Card: none until §2.3 |
+| 113.6f zone-of-play restrictions | **deferred — §2.3** | This *is* flashback, and §2.3 blocks all 210 |
+| 113.6g can't be countered / copied | **deferred** | Expressible — `Restriction::Event` over a `Countered` pattern — but the source would be a spell on the stack, and `restriction::predicate` sweeps `battlefield_ids_ordered`. That is §11 item 9's **(c)**, a gate leg per zone, and it wants its own card. Card: **Abrupt Decay** ("This spell can't be countered", Scryfall 2026-09-14) |
+| 113.6i counters can't be put on | **deferred** | Needs a self-scoped counter restriction and CR 122.1's entry moment. Card: **Solemnity**'s second clause, which is other-scoped and so is the near miss rather than the case |
+| 113.6j cost unpayable on the battlefield | **deferred** | Cycling's shape, and an *activated* ability — so it lands on `activatable_abilities` / `activate_ability`, CLAUDE.md's three ability-index sites, not on the static path this PR opens. ATOM-113.6j-001 |
+| 113.6k trigger conditions | **deferred — item 6** | No customer until the trigger phase exists. Card: **Bridge from Below** |
+| 113.6m moves its object out of a zone | **deferred** | The *inference* rule, and its consumer is activation from a graveyard. Card: **Reassembling Skeleton** ("{1}{B}: Return this card from your graveyard to the battlefield tapped"), which is ATOM-113.6b-001's board |
+| 113.6n deck construction | **deferred — nothing to build** | The engine has no deck-construction pass to modify. Phase 9 |
+| 113.6p emblems in the command zone | **deferred** | No emblem exists. `cost-architecture.md` §3.1 names the first customer ("an emblem's 'spells you cast cost {1} less'"), and it arrives with the command zone |
+
+**5. Leyline of the Void's opening-hand clause does not ride, and the reason is
+that it already has an owner.** `replacement-architecture.md` §3.3 source 2
+says the clause rides "the same change", and `codebase-state.md` **item 119**
+is more precise than that: its reachability line reads *"unreachable — the
+clause is a static ability functioning in the hand, which is §3.3's source 2
+and needs CR 113.6 (critical path item 6a)"*, and its sizing reads *"~60 lines
+in `Game::setup` … **after** 6a gives the hand-zone ability lookup"*.
+
+So the split is already drawn and this PR is on the near side of it. What A5
+owes item 119 is the lookup, and it delivers it: after this phase an ability
+may state `ZoneSet::HAND` and a hand-zone query answers. What item 119 owes is
+the CR 103.6 moment between `Game::setup`'s opening hands and
+`start_first_turn`, a `DecisionProvider` question per eligible card, and
+Gemstone Caverns' ordering ruling — none of which is a zone-function question
+and all of which this PR would have to invent to put the clause on the card.
+Registering the clause without them is an ability that functions and then has
+nothing to happen, which is the same failure as an unapplyable arm.
+**Item 119's reachability verdict is re-derived at this phase's close** — it
+stops being blocked on 6a and becomes ordinary unbuilt work.
+
+The narrower-card precedent stands as `phase_rb_cards` wrote it: the registered
+Leyline is its second clause only, and that is a correct card, not a stub.
+
+### The first consumer
+
+**Wonder** — **{3}{U}**, Creature — Incarnation, 2/2, "Flying. / As long as this
+card is in your graveyard and you control an Island, creatures you control have
+flying." (Scryfall, verified 2026-09-14. **{3}{U}, not {2}{U}** — A5's brief
+says {2}{U} and the card is {3}{U}.)
+
+§13c's table says why it is the right card in one line: **Wonder is precisely
+the card LJ does not unlock.** Its source is in a graveyard, which is this
+row's half; its affected set is on the battlefield, which LJ already does. And
+it is better than the brief claims, because **it has two abilities and they
+function in different zones**:
+
+| Ability | Functions | Which subrule |
+|---|---|---|
+| Flying | battlefield | 113.6, the default arm |
+| the grant | graveyard | 113.6b, the new arm |
+
+So one registered card exercises both arms of the predicate and the
+disagreement between them — a Wonder *on the battlefield* has flying and grants
+nothing, a Wonder in a graveyard grants flying and has none. That is the whole
+rule in one board, and neither half is an oracle query dressed as a test.
+
+Everything else it needs exists: `Condition::ControlPermanent(BySubtype(Island))`
+landed with LI-3, and the grant is an ordinary Layer 6 row over
+`FilteredPermanents(ByController(You) ∧ ByType(Creature))`.
+
+**And the interaction test is already in the pool.** Yixlid Jailer — LJ's own
+card — is "cards in graveyards lose all abilities". With both on the board,
+`static_ability_still_exists` reads Wonder's frame at Layer 6, the Jailer has
+already stripped it at Layer 6, and the grant retires. One card from each of
+the two phases, each reaching the zone the other is in, and no new machinery:
+it is CR 604.2 asked of a frame LJ made computable. `graveyard_painter` and
+`graveyard_reveler` are the fixtures that already prove the frame is real.
+
+### The pieces
+
+**One PR.** The subrule triage is what keeps it one: five of the eight
+deferrals are somebody else's row.
+
+| | Site | Size |
+|---|---|---:|
+| `AbilityDef.functions_in: Option<ZoneSet>` — the field | `objects/card_data.rs` | ~40 |
+| …and the 140 struct-literal sites it forces, **its own commit** | 42 files | ~140 |
+| `engine/zone_function.rs` — `functioning_zones`, `functions_in`, the fourteen-subrule walk-through, unit tests | new module | ~200 |
+| `GameObject.timestamp` (CR 613.7d) — the field, `move_object`'s stamp, token and setup creation, `PermanentState.timestamp` deleted, ~16 reads rerouted | `objects/object.rs`, `engine/zones.rs`, `state/{game_state,battlefield}.rs`, `engine/layers/board.rs` | ~130 |
+| `register_static_effects(id, controller, zone)` + caller B in `move_object` | `state/game_state.rs`, `engine/zones.rs` | ~70 |
+| `cleanup_zone_state`'s narrow zone-general leg + `remove_static_by_source` | `engine/zones.rs`, `state/continuous_effects.rs` | ~50 |
+| `static_ability_still_exists` — the CR 113.6 leg | `engine/layers/board.rs` | ~40 |
+| `CostSubject::applies_from_battlefield` delegates to the predicate | `types/cost_modification.rs` | ~30 |
+| Wonder, `PERFORMANCE_POOL` entry, one 113.6c fixture | `cards/phase_a5_cards.rs`, `registry.rs` | ~110 |
+| Tests — the two atoms, the two-ability board, the Jailer interaction, the assertions for 113.6a/h, determinism | `tests/phase_a5_integration_test.rs`, unit | ~280 |
+| Docs — this section, item 9's stub, items 75 and 119 re-derived, §11 item 9 (a)/(b)/(c), A5 closed, fuzz-record | `plans/` | ~280 |
+
+**~1,370 lines**, inside `engineering-practices.md` §4's 1,500–2,500 band. The
+140-line row is the one to argue about, and the argument is that it is
+*forced*: the field has no meaning without the rule, so it cannot be item 124's
+"its own PR, so a sweep does not ride inside a rules change". It gets the next
+best thing — its own commit, mechanical, one identical line per site, provable
+by scanning. Item 120's named constructors would collapse ~30 of the 140 and
+are explicitly **not** pulled forward: that item says "its own PR" and gives the
+reason, which is that new API has to be *read* where a sweep only has to be
+*scanned*.
+
+### Measure
+
+Not byte-identity: the phase registers a card, moves the pool, and re-numbers
+every timestamp in the game (CR 613.7d stamps zone changes, so a draw now
+allocates one). The order those timestamps induce is unchanged, which is what
+`determinism_test` and the three-run shell check assert.
+
+`plans/fuzz_ab.py`, two arms against a same-day `main` worktree, defaults
+(`--rounds 3 --games 200`), at two seats and four. **Frames/walk is the row to
+watch**, and the shape of the cost is new again: LJ's rows named a zone, so its
+cost scaled with how much of that zone exists (+1.1% at two seats, +4.1% at
+four). A5 puts a *source* off the battlefield, so what changes is
+`static_ability_still_exists`'s source read — `board.frame_of` for a graveyard
+source misses the live-frame map and goes down `compute_non_member` with a
+`(id, ceiling)` cache insert, once per layer per row. That is a per-**row**
+cost, not a per-zone-member one, and it should therefore *not* scale with seat
+count the way LJ's did. If it does, the guard is wrong.
+
+---
+
 ## 14. Testing Strategy
 
 Per phase:
