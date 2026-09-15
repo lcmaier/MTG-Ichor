@@ -180,6 +180,14 @@ impl Game {
                         return Ok(());
                     }
 
+                    // "another cleanup step begins" — a second occurrence of
+                    // the step, proposed like the first: CR 614.10's skips
+                    // are per occurrence, so this one is skippable too, and a
+                    // refused one runs no turn-based action.
+                    let actx = ActionContext::new(decisions);
+                    if !self.state.begin_step(StepType::Cleanup, &actx)? {
+                        break;
+                    }
                     self.perform_cleanup_actions(decisions)?;
                 }
             } else {

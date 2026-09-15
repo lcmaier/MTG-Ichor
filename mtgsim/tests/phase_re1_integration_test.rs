@@ -38,8 +38,10 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{AmountExpr, Duration, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -858,4 +860,48 @@ fn the_first_turn_and_its_untap_step_are_proposed() {
     // CR 103.4's opening hands are draws and nothing else is: the untap step's
     // own turn-based action drew nothing.
     assert_eq!(cards_drawn(&g.state), 14);
+}
+
+/// CR 514.3a: "if any state-based actions would be performed ... those
+/// state-based actions are performed ... then the active player gets
+/// priority ... Once the stack is empty and all players pass in succession,
+/// **another cleanup step begins**." A second *occurrence* of the step, and
+/// CR 614.10's skips are per occurrence, so it is proposed like the first —
+/// which is also what puts two `StepBegin { Cleanup }` in a log that used to
+/// hold one where the rules had two (`codebase-state.md` main item 118).
+///
+/// The board is entered at the cleanup step by fiat, so the first occurrence
+/// was never proposed and every cleanup `StepBegin` in the log is the loop's.
+#[test]
+fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
+    use mtgsim::state::game::Game;
+    use mtgsim::state::game_config::GameConfig;
+    use mtgsim::test_support::{place_bare, vanilla_creature};
+
+    let deck: Vec<Arc<CardData>> =
+        (0..20).map(|_| mtgsim::cards::basic_lands::forest()).collect();
+    let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    let dp = RandomDecisionProvider::seeded(514);
+    g.setup(&dp).unwrap();
+    g.state.set_turn_position(Phase {
+        phase_type: PhaseType::Ending,
+        step: Some(StepType::Cleanup),
+    });
+
+    // Placed without a state-based check, so CR 704.5f finds it at the
+    // cleanup step's own check — the case 514.3a describes.
+    let doomed = place_bare(&mut g.state, vanilla_creature(0, 0, &[]), 0);
+
+    let before = g.state.events.len();
+    g.run_turn(&dp).unwrap();
+
+    assert_eq!(g.state.get_object(doomed).unwrap().zone, Zone::Graveyard);
+    let cleanups = g
+        .state
+        .events
+        .records_from(before)
+        .iter()
+        .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup }))
+        .count();
+    assert_eq!(cleanups, 1, "CR 514.3a — the second cleanup step begins, and says so");
 }
