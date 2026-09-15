@@ -79,6 +79,9 @@ ROWS = [
     ("Dependency checks", r"^\s+Dependency checks:\s+(\d+)"),
     ("Replacement gathers", r"^\s+Replacement gathers:\s+(\d+)"),
     ("Restriction queries", r"^\s+Restriction queries:\s+(\d+)"),
+    # `GameAction::ProduceMana` performed, per game: the denominator the
+    # gathers row is read against on the hottest path (RE-9).
+    ("Mana productions", r"^\s+Mana productions:\s+(\d+)"),
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
     ("Replacement prompts", r"^\s+Replacement prompts:\s+([\d.]+)"),
     ("Max batch depth", r"^\s+Max batch depth:\s+(\d+)"),
@@ -164,6 +167,28 @@ def counters(text):
     return {name: (SPECIAL[name](text) if pat is None else grab(text, pat)) for name, pat in ROWS}
 
 
+ROW_LABEL = re.compile(r"^\s*([A-Za-z][A-Za-z /-]*?):\s", re.M)
+
+
+def comparable(text, base):
+    """`text` without the rows the baseline binary does not print at all.
+
+    A phase that adds a diagnostic row (RE-9's `Mana productions`) prints a
+    line `main` never will, and a whole-text compare would call every arm
+    `differ` for the sitting that introduces it. A row absent from the
+    baseline cannot be evidence of a changed game; it is the new row itself.
+    The table still shows it as `?` on the baseline, which is the honest cell.
+    """
+    labels = {m.group(1) for m in ROW_LABEL.finditer(base)}
+    keep = []
+    for line in text.split("\n"):
+        m = ROW_LABEL.match(line)
+        if m and m.group(1) not in labels:
+            continue
+        keep.append(line)
+    return "\n".join(keep)
+
+
 def fmt(name, value):
     if name in ("Layer walks", "Board walks", "Memo hits", "Layer frames", "Dependency checks") and value.isdigit():
         return f"{int(value):,}"
@@ -224,7 +249,7 @@ def main():
               {a: counted[(a, pool)][0] for a in labels}, [r for r, _ in ROWS])
         base = counted[(labels[0], pool)][1]
         for a in labels[1:]:
-            same = counted[(a, pool)][1] == base
+            same = comparable(counted[(a, pool)][1], base) == base
             print(f"  {a} vs {labels[0]} outside Timing: {'IDENTICAL' if same else 'differ'}")
         for a in labels:
             # "0.0" as readily as "0": the two-seat-only rows are averages.

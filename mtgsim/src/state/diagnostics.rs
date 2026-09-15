@@ -57,6 +57,7 @@ pub struct EngineCounters {
     prevention_allocations: Cell<u64>,
     replacement_prompts: Cell<u64>,
     max_batch_depth: Cell<u64>,
+    mana_productions: Cell<u64>,
 }
 
 impl EngineCounters {
@@ -171,6 +172,18 @@ impl EngineCounters {
         self.prevention_allocations.set(self.prevention_allocations.get() + 1);
     }
 
+    /// One `GameAction::ProduceMana` performed — a mana ability or a spell
+    /// added mana to a pool (CR 106.6a's event).
+    ///
+    /// **The denominator for every mana number after RE-9.** A production is
+    /// a gather, so this row beside [`Self::replacement_gathers`] is what
+    /// says how much of the sweep the hottest path in the engine is paying
+    /// for. Counted at the performer, so a production a replacement dropped
+    /// or one of nothing (the arm's no-op) is not one.
+    pub fn record_mana_production(&self) {
+        self.mana_productions.set(self.mana_productions.get() + 1);
+    }
+
     pub fn layer_walks(&self) -> u64 {
         self.layer_walks.get()
     }
@@ -221,5 +234,9 @@ impl EngineCounters {
 
     pub fn prevention_allocations(&self) -> u64 {
         self.prevention_allocations.get()
+    }
+
+    pub fn mana_productions(&self) -> u64 {
+        self.mana_productions.get()
     }
 }
