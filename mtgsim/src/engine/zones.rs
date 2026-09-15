@@ -91,44 +91,7 @@ impl GameState {
         // the epoch is a property of the move, and the CR 601.2 cast rollback
         // is a move too (it just is not an event). CR 704.6d reads the stamp;
         // CR 400.7 will read the same one.
-        let epoch = self.next_zone_change_epoch;
-        self.next_zone_change_epoch += 1;
-        // CR 613.7d — "an object receives a timestamp at the time it enters a
-        // zone". Here rather than in `place_on_battlefield` because 613.7d
-        // names the zone change and not the battlefield: a card entering a
-        // graveyard is stamped for the same rule as one entering play, which
-        // is what CR 613.7a reads off Wonder's source (A5). The `//
-        // CAST-ROLLBACK:` moves come through here too and are stamped like any
-        // other, which is right — the card really is back in its owner's hand.
-        let timestamp = self.allocate_timestamp();
-        let obj = self.get_object_mut(id)?;
-        obj.zone = to;
-        obj.zone_change_epoch = epoch;
-        obj.timestamp = timestamp;
-
-        // CR 113.6 — a static ability that *functions* in the zone this
-        // object just entered registers its rows now (A5,
-        // `layers-architecture.md` §13d decision 3). Wonder arriving in a
-        // graveyard is the card.
-        //
-        // **Not the battlefield**, which is `place_on_battlefield`'s: an
-        // entering permanent has no entity and no settled controller until the
-        // CR 614.1c pipeline has decided what it enters as, and this function
-        // returns before that happens (the tail comment above). Registering
-        // here would use the owner for a permanent spell somebody else cast.
-        //
-        // CR 108.4 for every other zone: a card outside the battlefield and
-        // the stack has no controller, so its owner is who "you" means.
-        if to != Zone::Battlefield {
-            let owner = self.get_object(id)?.owner;
-            self.register_static_effects(id, owner, to);
-        }
-
-        // Every collection touched above and the zone written here are
-        // layer-walk inputs; one bump after the last of them. The
-        // `// CAST-ROLLBACK:` moves come through here too, so a rewound cast
-        // leaves the memo without having been an event.
-        self.bump_layer_epoch();
+        self.arrive_in_zone(id, to)?;
 
         Ok(())
     }
@@ -191,11 +154,50 @@ impl GameState {
             ));
         }
         self.add_to_zone_collection(id, zone)?;
+        self.arrive_in_zone(id, zone)
+    }
+
+    /// An object has arrived in `zone`: write the zone, stamp it, register
+    /// whatever functions there, and bump the memo.
+    ///
+    /// **The one door, and there are exactly two callers** — [`Self::move_object`]
+    /// for a zone change and [`Self::put_token_into`] for a token created
+    /// somewhere other than the battlefield (CR 111.7). The battlefield has a
+    /// third door of its own, `GameState::place_on_battlefield`, because an
+    /// entering permanent is not *in* play until the CR 614.1c pipeline has
+    /// decided what it enters as — which is after both of these return.
+    fn arrive_in_zone(&mut self, id: ObjectId, zone: Zone) -> Result<(), String> {
         let epoch = self.next_zone_change_epoch;
         self.next_zone_change_epoch += 1;
+        // CR 613.7d — "an object receives a timestamp at the time it enters a
+        // zone". Here rather than in `place_on_battlefield` because 613.7d
+        // names the zone and not the battlefield: a card entering a graveyard
+        // is stamped for the same rule as one entering play, which is what
+        // CR 613.7a reads off Wonder's source (A5). The `// CAST-ROLLBACK:`
+        // moves come through here too and are stamped like any other, which is
+        // right — the card really is back in its owner's hand.
+        let timestamp = self.allocate_timestamp();
         let obj = self.get_object_mut(id)?;
         obj.zone = zone;
         obj.zone_change_epoch = epoch;
+        obj.timestamp = timestamp;
+        let owner = obj.owner;
+
+        // CR 113.6 — a static ability that *functions* in the zone this object
+        // just entered registers its rows now (A5, `layers-architecture.md`
+        // §13d decision 3). Wonder arriving in a graveyard is the card.
+        //
+        // The battlefield is skipped for the reason above; CR 108.4 answers
+        // for every other zone, where a card has no controller and its owner
+        // is who "you" means.
+        if zone != Zone::Battlefield {
+            self.register_static_effects(id, owner, zone);
+        }
+
+        // Every collection touched by the caller and the zone written here are
+        // layer-walk inputs; one bump after the last of them. The
+        // `// CAST-ROLLBACK:` moves come through here too, so a rewound cast
+        // leaves the memo without having been an event.
         self.bump_layer_epoch();
         Ok(())
     }

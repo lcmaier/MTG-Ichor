@@ -679,6 +679,12 @@ pub fn put_in_graveyard(
     let id = obj.id;
     game.add_object(obj);
     game.players[player].graveyard.push(id);
+    // The same registration `move_object` runs on arrival (CR 113.6, A5), for
+    // the reason `put_on_battlefield` calls `place_on_battlefield`: a helper
+    // that skips the engine's hook builds a board the engine cannot reach.
+    // CR 108.4 — a card in a graveyard has no controller, so "you" is its
+    // owner.
+    game.register_static_effects(id, player, Zone::Graveyard);
     id
 }
 
