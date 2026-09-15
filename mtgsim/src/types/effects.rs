@@ -3,6 +3,7 @@ use super::ids::{ObjectId, PlayerId};
 use super::keywords::KeywordFlag;
 use super::mana::{ManaAtom, ManaType};
 use super::zones::ZoneSet;
+use crate::state::game_state::PhaseType;
 
 // ---------------------------------------------------------------------------
 // Supporting types
@@ -1078,6 +1079,29 @@ pub enum Primitive {
     /// because no recipient this primitive accepts resolves to more than one
     /// player; the first that does adds the sort and says so.
     ExtraTurn,
+
+    /// Extra phases, spliced into **this** turn directly after the one the
+    /// effect resolved in (CR 500.8).
+    ///
+    /// A `Vec` rather than one phase, because one effect creates a run of them
+    /// — Aggravated Assault's *"an additional combat phase followed by an
+    /// additional main phase"* is one resolution and two phases, and their
+    /// printed order has to be the order they are spliced in rather than an
+    /// accident of which of two splices ran second.
+    ///
+    /// > 500.8. ... If a phase or step is created after the current one, ...
+    /// > if multiple extra phases are created after the same phase, the most
+    /// > recently created phase will occur first.
+    ///
+    /// That last sentence needs no comparator: a later splice at the same
+    /// index pushes the earlier one further back, which is the ordering the
+    /// rule describes — the same shape CR 500.7's "most recently created turn"
+    /// turned out to be `Vec::pop` for.
+    ///
+    /// Scheduling and not a board mutation, as [`Self::ExtraTurn`] is: each
+    /// spliced phase becomes a `GameAction::BeginPhase` proposal when the
+    /// drainer reaches it, which is what a skip replaces (CR 614.10).
+    ExtraPhases(Vec<PhaseType>),
 
     // === Mana ===
     /// Produce mana (for mana abilities, rule 605)
