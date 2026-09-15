@@ -130,8 +130,8 @@ fn modify(
 ///
 /// The preview and the cast read the same arithmetic, which is what keeps
 /// enumeration and enforcement agreeing (`cost-architecture.md` §3.6): a
-/// Thalia on the board no longer offers spells the cast then rolls back, and
-/// an Electromancer no longer withholds ones the player can afford.
+/// Thalia on the board would otherwise offer spells the cast then rolls back,
+/// and an Electromancer would withhold ones the player can afford.
 pub fn preview_mana_cost(game: &GameState, card: ObjectId, printed: &ManaCost) -> ManaCost {
     let instances = cost_modifications_for(game, card);
     if instances.is_empty() {
@@ -528,8 +528,6 @@ mod tests {
     }
 
     /// CR 118.8 — a kicker's mana joins the base cost's in one component.
-    /// Until CM-1 it was a second `Cost::Mana` that the generic split and the
-    /// mana window both read past.
     #[test]
     fn a_kickers_mana_joins_the_one_component() {
         let base = ManaCost::build(&[ManaType::Red], 1);
@@ -553,7 +551,7 @@ mod tests {
         );
     }
 
-    // --- CM-2: the spell's own cost abilities (CR 113.6d, 702.41a) ---------
+    // --- The spell's own cost abilities (CR 113.6d, 702.41a) --------------
 
     /// An artifact creature with `instances` copies of affinity for
     /// artifacts. Its own name is invented and it is registered nowhere

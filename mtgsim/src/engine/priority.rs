@@ -65,18 +65,14 @@ impl GameState {
 
             // `candidate_priority_actions` is an overapproximation: it includes
             // e.g. `CastSpell(id)` when affordability is heuristically met but
-            // the current mana pool can't actually cover the cost (see
+            // the current mana pool can't actually cover the cost, and the engine
+            // retries when execution rejects a DP-chosen action (§2.2 of
             // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
-            // Per that design (§2.2), the engine is responsible for retrying
-            // when execution rejects a DP-chosen action.
             //
-            // Retry loop (D26 / SPECIAL-2):
-            //   - On execution failure, blacklist the specific action for this
-            //     priority window and re-prompt with the filtered list.
-            //   - Bound retries at `3 × candidates.len()` (minimum 6) and fall
-            //     back to `Pass` when the budget is exhausted. This prevents
-            //     infinite loops and gives RandomDP / buggy candidate filters
-            //     a diagnostic signal via stderr.
+            // Retry loop: on execution failure, blacklist the action for this
+            // priority window and re-prompt with the filtered list; bound retries
+            // at `3 × candidates.len()` (minimum 6) and fall back to `Pass` when the
+            // budget is exhausted, with a diagnostic on stderr.
             let all_candidates = candidate_priority_actions(self, current_priority);
             let max_retries = all_candidates.len().saturating_mul(3).max(6);
             let mut blacklist: Vec<PriorityAction> = Vec::new();

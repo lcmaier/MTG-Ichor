@@ -120,9 +120,6 @@ pub fn test_dp() -> ScriptedDecisionProvider {
 ///
 /// **Fresh rather than shared, on purpose.** A single shared provider would let
 /// one test's scripted expectations leak into the next test that borrowed it.
-/// Nothing reads `ctx.dp` yet (Phase RA threads it; Phase RB consults it), so
-/// the hazard is not live — which is exactly why it is worth closing now,
-/// before a test starts depending on the wrong answer.
 ///
 /// If your test needs to script a choice, do not use this: build
 /// `ActionContext::new(&dp)` against a provider you own and can enqueue onto.
@@ -222,24 +219,18 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 /// **The complement of `ScriptedDecisionProvider`, not a replacement for it.**
 /// A scripted provider with an empty queue panics on the first prompt, which is
 /// the sharpest possible assertion that a path asks *nothing* — but it can
-/// only say "none", never "exactly one, and it was this kind". Tests that own a
-/// new decision site need the second half: RS-1 wanted it and grew a private
-/// `CountingDp`, CV-1 wanted it and grew a private `RecordingDp`, and a third
-/// copy is where a helper stops being premature.
+/// only say "none", never "exactly one, and it was this kind". Recording the
+/// *kind* rather than a count is the part worth sharing: a test that asserts
+/// "one prompt" passes just as well when the prompt was the wrong one.
 ///
-/// Recording the *kind* rather than a count is the part worth sharing. A test
-/// that asserts "one prompt" passes just as well when the prompt was the wrong
-/// one.
-///
-/// **It never declines, and since CM-4 that matters in a mana window.** CR
-/// 605.3a's window now runs until the player declines, so a board with a spare
-/// untapped source will be offered again after the cost is covered and this
-/// provider will take it — including the activation's *own* source, whose
-/// `Cost::Tap` the payment is about to owe (`codebase-state.md` item 83). Wrap
-/// it in [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
-/// activates an ability or casts a spell with mana sources to spare; that is
-/// what every shipped client does, and `prompts()` still counts what reached
-/// the recorder.
+/// **It never declines, and in a mana window that matters.** CR 605.3a's
+/// window runs until the player declines, so a board with a spare untapped
+/// source will be offered again after the cost is covered and this provider
+/// will take it — including the activation's *own* source, whose `Cost::Tap`
+/// the payment is about to owe (`codebase-state.md` item 83). Wrap it in
+/// [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
+/// activates an ability or casts a spell with mana sources to spare, as every
+/// shipped client does; `prompts()` still counts what reached the recorder.
 pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,
@@ -261,10 +252,8 @@ impl RecordingDecisionProvider {
     /// **The one that catches an over-permissive candidate list**, which
     /// [`Self::picking`] structurally cannot: a rule that should have removed an
     /// option leaves it somewhere in the list, and a provider that always takes
-    /// index 0 only notices when the wrongly-offered option happens to be
-    /// first. RC-5's CR 614.13a tests were killed by their mutation until a
-    /// third candidate was added in front of the excluded one, at which point
-    /// they passed with the rule deleted (`phase_rc5_integration_test`).
+    /// index 0 only notices when the wrongly-offered option happens to be first
+    /// (`phase_rc5_integration_test`'s CR 614.13a tests are the case).
     pub fn picking_all() -> Self {
         RecordingDecisionProvider {
             pick: 0,
@@ -575,9 +564,7 @@ pub fn equipment(name: &str) -> Arc<CardData> {
 // Continuous-effect rows
 //
 // These exist so that adding a field to `ContinuousEffect` breaks one function
-// instead of thirty struct literals scattered across four test modules. That is not
-// hypothetical: `AbilityDef` gained `is_characteristic_defining` in the CDA phase and
-// broke every inline copy of the Lightning Bolt builder at once.
+// instead of thirty struct literals scattered across four test modules.
 // ---------------------------------------------------------------------------
 
 /// One registry row applying to `id` alone, via [`ObjectSet::Fixed`].
@@ -678,11 +665,10 @@ pub fn put_in_graveyard(
     let id = obj.id;
     game.add_object(obj);
     game.players[player].graveyard.push(id);
-    // The same registration `move_object` runs on arrival (CR 113.6, A5), for
-    // the reason `put_on_battlefield` calls `place_on_battlefield`: a helper
-    // that skips the engine's hook builds a board the engine cannot reach.
-    // CR 108.4 — a card in a graveyard has no controller, so "you" is its
-    // owner.
+    // The same registration `move_object` runs on arrival (CR 113.6), for the
+    // reason `put_on_battlefield` calls `place_on_battlefield`: a helper that
+    // skips the engine's hook builds a board the engine cannot reach. CR 108.4 —
+    // a card in a graveyard has no controller, so "you" is its owner.
     game.register_static_effects(id, player, Zone::Graveyard);
     id
 }

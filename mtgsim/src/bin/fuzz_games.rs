@@ -17,24 +17,20 @@
 // forces one copy of each named card into every deck and reports casts,
 // resolutions, the share of games each reached, and whether the board it met
 // was a random one. Nothing about the deck is bent toward the required card:
-// every deck's mana base can pay for anything (`random_deck`), which is what
-// let the mode stop seeding a deck's colors from the card's (2026-09-03). An
-// empty list changes nothing: every RNG draw it adds is guarded, so a
-// `--require` run and a timing run come from the same binary without the
-// first perturbing the second.
+// every deck's mana base can pay for anything (`random_deck`). An empty list
+// changes nothing: every RNG draw it adds is guarded, so a `--require` run and
+// a timing run come from the same binary without the first perturbing the
+// second.
 //
 // **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast`
 // events; `resolved` counts stack departures a spell's *own resolution*
 // stamped, which is exact and excludes a counter, a fizzle and an exile off
-// the stack alike. It is deliberately not `cause == Resolved`: CR 608.2m's
-// move to the graveyard can itself be replaced, so under Leyline of the Void a
-// spell that resolved perfectly well leaves the stack as `Exiled` (RE-8,
-// 2026-09-14 — it was 13 of 142 casts in one 200-game `stress` run).
-//
-// The other direction is impossible — a spell
-// cannot resolve without having been cast — and the harness checks it in
-// every game, flag or no flag: see `uncast_resolutions`. `resolved > cast` in
-// this table was how `codebase-state.md` item 16c was found.
+// the stack alike. Deliberately not `cause == Resolved`: CR 608.2m's move to
+// the graveyard can itself be replaced, so under Leyline of the Void a spell
+// that resolved perfectly well leaves the stack as `Exiled` (13 of 142 casts
+// in one 200-game `stress` run, 2026-09-14). The other direction — a
+// resolution with no cast behind it — is checked in every game, flag or no
+// flag: see `uncast_resolutions`.
 //
 // `--pool` picks the card pool. `performance` is the frozen 55 every recorded
 // baseline was measured on and is the default, because an A/B against a pool
@@ -47,35 +43,29 @@
 // shuffle, AI — are derived from `master_seed + game_num` and nothing else, and
 // game `k` does not depend on games before it, so a run that panicked at game
 // `k` can be reproduced from its printed per-game seed alone. Anything that
-// leaks process state into a decision breaks this; see
-// `GameState::battlefield_ordered` for the one that did.
+// leaks process state into a decision breaks this (`CLAUDE.md`, determinism).
 //
-// **That independence is also what makes the worker pool safe.** Games are
-// distributed across threads by index, but every game's inputs are a pure
-// function of `master_seed + game_num`, so which worker runs which game cannot
-// change an outcome. Results are collected with their index and sorted back
-// into game order before anything is printed or aggregated, so stdout is
-// byte-identical at any `--threads` value — that is the acceptance test for
-// this harness, and `--threads 1` is kept as the serial reference.
+// **That independence is also what makes the worker pool safe.** Every game's
+// inputs are a pure function of `master_seed + game_num`, so which worker runs
+// which game cannot change an outcome. Results are collected with their index
+// and sorted back into game order before anything is printed or aggregated, so
+// stdout is byte-identical at any `--threads` value — the acceptance test for
+// this harness, with `--threads 1` as the serial reference.
 //
 // **Everything outside the `=== Timing ===` block is byte-identical across runs
 // at one seed.** That is what makes the three-run determinism check in
-// `CLAUDE.md` a plain `diff` of two regions rather than a hunt for scattered
-// timing lines, and it is why every duration-derived number — including the
-// slowest game's seed, which is chosen *by* a duration — lives in that block.
+// `CLAUDE.md` a plain `diff` of two regions, and it is why every
+// duration-derived number — including the slowest game's seed, which is chosen
+// *by* a duration — lives in that block.
 //
 // Timing is reported as a mean and a tail. `Time/game` is wall-clock divided by
 // games, so it falls as workers are added; `CPU/game` is the mean of each game's
 // own measured duration, so it *rises* — 89.8ms alone against 191.5ms with 16
-// games in flight (2026-08-24), because the layer walk is allocation-heavy and the workers
-// contend for memory bandwidth rather than for cores.
-//
-// The tail is there because **the mean is the one statistic guaranteed to hide a
-// performance cliff.** A card shape that makes the layer walk fall over moves
-// the slowest game by orders of magnitude and a 50-game mean by about two
-// percent. `CPU/turn` is the sharper of the two tails: the slowest *game* is
-// usually just the longest game, whereas a slow *turn* is an anomaly whatever
-// the game's length.
+// games in flight (2026-08-24), because the layer walk is allocation-heavy and
+// the workers contend for memory bandwidth rather than for cores. The tail is
+// there because the mean is the one statistic guaranteed to hide a performance
+// cliff; `CPU/turn` is the sharper of the two tails, since the slowest *game*
+// is usually just the longest game.
 //
 // **Which mode to use, measured 2026-08-24 (200 games / seed 12345, 10 runs each):**
 //
@@ -84,14 +74,11 @@
 //   pass/fail sweep.
 // - **Benchmarking wants `--threads 1`.** Threading inflates run-to-run CV from
 //   2.4% to 6.1%, and matching a serial median-of-five would take roughly 32
-//   threaded runs — which costs *more* wall time than the five serial ones.
-//   Contention noise is not a fixed offset that cancels in an A/B.
+//   threaded runs. Contention noise is not a fixed offset that cancels in an A/B.
 //
-// Scaling is sublinear and worth knowing before sizing a worker pool: on an
-// 8-core/16-thread machine, 8 workers return 5.3x and 16 return 6.7x, and
-// per-game cost inflates from two workers onward. Default to physical cores
-// rather than logical ones. `codebase-state.md` carries the measured curve and
-// what is and is not established about the cause.
+// Scaling is sublinear: 8 workers return 5.3x and 16 return 6.7x on an
+// 8-core/16-thread machine, and per-game cost inflates from two workers onward.
+// Default to physical cores. `codebase-state.md` carries the measured curve.
 
 use std::collections::HashMap;
 use std::panic;
@@ -135,12 +122,11 @@ struct Args {
     /// Stack `ui::ManaWindowStop` under the random agent (the default).
     ///
     /// With it, the agent declines CR 601.2g's window once the locked mana
-    /// component is covered — the point the engine itself used to stop at, so
-    /// the counters are the ones every earlier phase measured. Without it the
-    /// window is CR 605.3a's whole window and the agent has no stop of its
-    /// own: `AnyWillDo` never declines while a source is offered, so it taps
-    /// out to `WINDOW_ACTIVATION_CAP` on every cast. That is the A/B's middle
-    /// arm and not a way to play.
+    /// component is covered, so the counters are comparable with every recorded
+    /// baseline. Without it the window is CR 605.3a's whole window and the agent
+    /// has no stop of its own: `AnyWillDo` never declines while a source is
+    /// offered, so it taps out to `WINDOW_ACTIVATION_CAP` on every cast. That is
+    /// the A/B's middle arm and not a way to play.
     auto_pay: bool,
     /// How many players sit at the table — one random deck each, `--players`.
     ///
@@ -234,22 +220,12 @@ fn parse_args() -> Args {
             "--require" | "-r" => {
                 i += 1;
                 if i < args.len() {
-                    // Deduplicated, order preserved. A repeated name used to
-                    // produce two report rows counting the same events, which
-                    // double-counts anything summed off them, and forced two
-                    // copies into the deck while the flag's own docs promise
-                    // one. Names are matched exactly — `registry.create` is
-                    // case-sensitive, and a near-miss is fatal below rather
-                    // than silently required-nothing.
-                    //
-                    // **Repeatable, from RE-8 on**, and that is the whole fix
-                    // for a name with a comma in it: the comma stays a
-                    // separator, so every existing invocation means what it
-                    // meant, and `--require "Eligeth, Crossroads Augur"` — or
-                    // Vorinclex, Monstrous Raider, which RE-5 had to read
-                    // through its tests instead — is said on its own flag.
-                    // A second separator would have been a second spelling of
-                    // one thing.
+                    // Deduplicated, order preserved: a repeated name would produce two report
+                    // rows counting the same events and force two copies into the deck. Names
+                    // are matched exactly — `registry.create` is case-sensitive, and a near-miss
+                    // is fatal below rather than silently required-nothing. Repeatable, so a
+                    // name with a comma in it (`--require "Eligeth, Crossroads Augur"`) is said
+                    // on its own flag while the comma stays a separator.
                     for n in args[i].split(',').map(|n| n.trim()) {
                         if !n.is_empty() && !result.require.iter().any(|s| s == n) {
                             result.require.push(n.to_string());
@@ -334,30 +310,22 @@ const NONBASIC_LANDS_PER_DECK: usize = 5;
 /// Build one 60-card deck.
 ///
 /// 1. 36 nonland slots, drawn uniformly with repeats from **every** nonland the
-///    registry holds. There is no color filter (dropped 2026-09-03): the mana
-///    base below can pay for anything, so a filter would only decide which
-///    slice of the pool a card gets to meet.
+///    registry holds. No color filter: the mana base below can pay for
+///    anything, so a filter would only decide which slice of the pool a card
+///    gets to meet.
 /// 2. `NONBASIC_LANDS_PER_DECK` slots from the registry's nonbasic lands.
 /// 3. `BASIC_LANDS_PER_DECK` basics, one of each type.
 /// 4. Every remaining land slot is a land that taps for all five colors —
 ///    Everywhere, today. A pool with no such land falls back to basics.
 ///
-/// Until 2026-09-03 a deck rolled one or two colors and drew only the nonlands
-/// castable in them, because every land in the registry made one or two
-/// colors and a random 36 over random basics would have cast nothing. That is
-/// also why `--require` seeded a deck's colors from the required card's — which
-/// put a forced `{1}{G}{U}` against a G/U board in every game and never against
-/// a black, red or green card. An any-color mana base removes both.
-///
-/// Deck construction is deliberately crude — this is a fuzz harness, not a
-/// deckbuilder. It exists to produce a legal 60 that casts spells and attacks.
+/// Deliberately crude — a fuzz harness, not a deckbuilder. It exists to
+/// produce a legal 60 that casts spells and attacks.
 ///
 /// `required` is `--require`'s list, and **an empty list must leave this
 /// function exactly as it was**: every RNG draw below is guarded so that the
 /// stream, the deck and therefore every recorded number are unchanged when the
-/// flag is absent. That is the property that lets a reachability run and a
-/// timing run come from the same binary without the first contaminating the
-/// second.
+/// flag is absent, which is what lets a reachability run and a timing run come
+/// from the same binary.
 fn random_deck(
     registry: &CardRegistry,
     rng: &mut StdRng,
@@ -384,15 +352,12 @@ fn random_deck(
         }
     }
 
-    // One copy of each required **nonland** card, replacing a nonland slot
-    // rather than adding to the deck — 60 cards stays 60, so mana density and
-    // the draw curve are untouched. Deterministic (the first slots, no RNG
-    // draw) because the library is shuffled in-game anyway, and because a draw
-    // here would move the stream for every later card.
-    //
-    // A required *land* is held back to the land section below, for the same
-    // reason: spending a nonland slot on it would quietly make the deck
-    // 35/25 and move every number the pool exists to measure.
+    // One copy of each required **nonland** card, replacing a nonland slot so
+    // 60 stays 60 and mana density and the draw curve are untouched. The first
+    // slots, no RNG draw: the library is shuffled in-game anyway, and a draw here
+    // would move the stream for every later card. A required *land* is held
+    // back to the land section below for the same reason: a nonland slot spent
+    // on it would quietly make the deck 35/25.
     let mut required_lands: Vec<&Arc<CardData>> = Vec::new();
     let mut slot = 0usize;
     for card in required {
@@ -553,10 +518,9 @@ struct GameStats {
     /// seats, where a loss ends the game; at four it is how long a departed
     /// player's permanents stayed on a battlefield the game was still using.
     turns_after_departure: u32,
-    /// Permanents owned by a player who has left, still on the battlefield
-    /// at the game's end — `codebase-state.md` item 108's wrong answer,
-    /// counted. **RE-7 zeroes this row**: CR 800.4a removes them the moment
-    /// the player leaves.
+    /// Permanents owned by a player who has left, still on the battlefield at
+    /// the game's end. CR 800.4a removes them the moment the player leaves
+    /// (`player_left_the_game`), so this row reads zero and a nonzero is a bug.
     departed_owned_permanents: u32,
 }
 
@@ -580,8 +544,8 @@ fn extract_stats<'a>(
     let mut departed = false;
 
     // Printed name, not the effective one: this asks "did the card the flag
-    // named get cast", which is a question about the card, and CV-1 is the
-    // phase that makes a permanent's effective name something else entirely.
+    // named get cast", a question about the card, and a copy effect makes a
+    // permanent's effective name something else entirely.
     let named = |id: mtgsim::types::ids::ObjectId| -> Option<&str> {
         game.objects.get(&id).map(|o| o.card_data.name.as_str())
     };
@@ -627,38 +591,21 @@ fn extract_stats<'a>(
             }
             GameEvent::ZoneChange { object_id, from, to, lki, .. } => {
                 use mtgsim::types::zones::Zone;
-                // CR 608 — a spell finishes resolving by leaving the stack.
-                // An instant or sorcery goes to the graveyard; a permanent
-                // spell goes to the battlefield. Both are the path having run.
+                // CR 608 — a spell finishes resolving by leaving the stack: an instant or
+                // sorcery to the graveyard, a permanent spell to the battlefield.
                 //
-                // **A spell resolved iff its stack departure was stamped by
-                // its own resolution**, which is what `EventStamp::resolution`
-                // says and is exact. `resolve_top_of_stack` performs that move
-                // under `ActionContext::resolving`, so the stamp names the
-                // spell itself; every other way off the stack is stamped by
-                // somebody else or by nobody, which is precisely the
-                // difference being asked about:
-                //
-                // - **countered** (CR 701.5) — the move is the *countering*
-                //   spell's, so the stamp names that one;
-                // - **fizzled** (CR 608.3b) — `ActionContext::new`, no stamp;
-                // - **exiled off the stack by another effect** — that effect's
-                //   stamp. Nothing registered does this yet, and the predicate
-                //   is already right for the day one does, which a cause-based
-                //   or a countered-minus-departures reading would not be.
-                //
-                // **This was `cause == Resolved` until RE-8's own measurement
-                // caught it**, and the cause cannot do the job: CR 608.2m's
-                // move to the graveyard is an event like any other, so a
-                // replacement rewrites it — under Leyline of the Void a
-                // resolved sorcery leaves the stack as `Stack -> Exile
-                // [Exiled]`. It was **13 of Hymn to Tourach's 142 casts** in
-                // 200 `stress` games. Leyline replaces a *countered* spell's
-                // graveyard move too, so no cause tells the two apart; the
-                // stamp is untouched by any of it, because a substitution
-                // happens inside the resolution that proposed the event.
-                // → `codebase-state.md` "Found by RE-8", item 131, which is
-                // the same erasure seen from the engine's side.
+                // **A spell resolved iff its stack departure was stamped by its own
+                // resolution** (`EventStamp::resolution`), which is exact:
+                // `resolve_top_of_stack` performs that move under
+                // `ActionContext::resolving`, and every other way off the stack is stamped
+                // by somebody else or by nobody — a counter (CR 701.5) by the countering
+                // spell, a fizzle (CR 608.3b) by `ActionContext::new`, an exile off the
+                // stack by that effect. The cause cannot do the job: CR 608.2m's graveyard
+                // move is an event like any other, so under Leyline of the Void a resolved
+                // sorcery leaves as `Stack -> Exile [Exiled]` (13 of Hymn to Tourach's 142
+                // casts in 200 `stress` games, 2026-09-14), and Leyline replaces a
+                // *countered* spell's graveyard move too. → `codebase-state.md` "Found by
+                // RE-8", item 131.
                 if !watch.is_empty()
                     && *from == Zone::Stack
                     && record.resolution().is_some_and(|r| r.source == *object_id)
@@ -676,11 +623,9 @@ fn extract_stats<'a>(
                         bump(&mut stats, named(*object_id), false);
                     }
                 }
-                // Deaths, read off the zone change rather than a type-specific
-                // event. **This is why the number moved** (5.3 → 6.2 at
-                // --games 50 --seed 12345, 2026-08-26): `CreatureDied` was emitted only by
-                // the state-based-action sweep, so a creature killed by a spell
-                // never counted. The CR 603.10a frame says what it was.
+                // Deaths, read off the zone change rather than a type-specific event, so a
+                // creature killed by a spell counts as one killed by the state-based sweep
+                // does. The CR 603.10a frame says what it was.
                 if *from == Zone::Battlefield && *to == Zone::Graveyard {
                     let was_creature = lki.as_ref().is_some_and(|f| {
                         f.types.contains(&mtgsim::types::card_types::CardType::Creature)
@@ -712,10 +657,8 @@ fn extract_stats<'a>(
 /// object leaving the stack with `ZoneChangeCause::Resolved` has a `SpellCast`
 /// behind it; an ability ceases to exist instead and emits no zone change. An
 /// object with none was stranded on the stack by a cast that failed after
-/// 601.2a and did not rewind — main item 16c (closed 2026-09-03), which resolved
-/// about five spells per game unpaid in every fuzz run, because nothing asserted
-/// this. Reported the way a panic is, since it is a wrong answer rather than a
-/// slow one.
+/// 601.2a and did not rewind (`codebase-state.md` item 16c). Reported the way
+/// a panic is, since it is a wrong answer rather than a slow one.
 ///
 /// Counted per object, not remembered per object: a card cast twice (bounced
 /// and recast) owes two announcements, and `ObjectId` survives the round trip.
@@ -981,8 +924,7 @@ fn run_one_game(
         })
         .collect();
 
-    // The colors the required cards have between them, for the diversity
-    // line: a permanent outside this set is one the seeding used to exclude.
+    // The colors the required cards have between them, for the diversity line.
     let required_colors: std::collections::HashSet<Color> =
         required.iter().flat_map(|c| c.colors.iter().copied()).collect();
 
@@ -1466,16 +1408,15 @@ fn main() {
             );
         }
 
-        // Engine work, and it is a *fixture* like the block above rather than a
-        // benchmark like `=== Timing ===`. Every number here is a pure function
-        // of the seed and the card pool, so it is comparable across machines and
-        // across months — which is exactly what `ms/game` is not, and why
-        // `engineering-practices.md` §3 stores these and refuses to store that.
+        // Engine work, and a *fixture* like the block above rather than a benchmark
+        // like `=== Timing ===`: every number here is a pure function of the seed
+        // and the card pool, so it is comparable across machines and months, which
+        // `ms/game` is not (`engineering-practices.md` §3 stores these and refuses
+        // to store that).
         //
-        // **Read `Board walks` beside `Layer walks` first.** A layer walk is a
-        // memo *miss* (item 7a); since LI-1 a miss for a permanent walks the
-        // whole working set, which fills the memo for every member, so
-        // `Frames/walk` reads near the size of the board rather than near one.
+        // **Read `Board walks` beside `Layer walks` first.** A layer walk is a memo
+        // *miss*; a miss for a permanent walks the whole working set and fills the
+        // memo for every member, so `Frames/walk` reads near the size of the board.
         // Walks plus hits is the questions asked.
         println!();
         println!("=== Engine Work (avg per game) ===");
@@ -1492,13 +1433,13 @@ fn main() {
             }
         );
         // CR 613.8a hypotheticals: pairs the static channel check could not
-        // settle, applied to the live board and taken back (LI-2). Zero on a
-        // board with no dependency-shaped card; read beside `Board walks`.
+        // settle, applied to the live board and taken back. Zero on a board with
+        // no dependency-shaped card; read beside `Board walks`.
         println!("  Dependency checks: {:>7.0}", agg_stats.avg(agg_stats.total_dependency_checks));
         println!("  Replacement gathers: {:>5.0}", agg_stats.avg(agg_stats.total_replacement_gathers));
         println!("  Restriction queries: {:>5.0}", agg_stats.avg(agg_stats.total_restriction_queries));
-        // `GameAction::ProduceMana` performed, per game — one gather each,
-        // and the denominator RE-9's A/B reads the gathers row against.
+        // `GameAction::ProduceMana` performed, per game — one gather each, and the
+        // denominator the gathers row is read against.
         println!("  Mana productions: {:>8.0}", agg_stats.avg(agg_stats.total_mana_productions));
         // CR 616.1 questions put to a player, per game — what the gathers
         // above produced that `ordering_cannot_change_outcome` could not
@@ -1507,10 +1448,9 @@ fn main() {
         // The deepest batch nesting any game reached, a maximum: the number
         // `engine::actions::BATCH_NESTING_LIMIT` is a bound on.
         println!("  Max batch depth: {:>9}", agg_stats.max_batch_depth);
-        // CR 615.7 allocation prompts: a "prevent the next N damage" effect
-        // meeting two or more simultaneous sources (RD-2). A reachability
-        // count rather than a cost — zero until such an effect is in the pool,
-        // and read as the row that says the pool can build 615.7's board.
+        // CR 615.7 allocation prompts: a "prevent the next N damage" effect meeting
+        // two or more simultaneous sources. A reachability count rather than a cost
+        // — zero until such an effect is in the pool.
         println!("  Prevention allocations: {:>2.2}", agg_stats.avg(agg_stats.total_prevention_allocations));
     }
 
@@ -1548,10 +1488,9 @@ fn main() {
         if !dead.is_empty() {
             println!("  NEVER RESOLVED: {}", dead.join(", "));
         }
-        // What the required cards met. Their colors are what the deck used to
-        // be seeded with, so this is the share of games that would have had no
-        // such permanent under the old mode — and the number the resolution
-        // count cannot see.
+        // What the required cards met: the share of games whose board held a
+        // permanent outside the required cards' colors, which the resolution count
+        // cannot see.
         let required_colors: std::collections::HashSet<Color> =
             required.iter().flat_map(|c| c.colors.iter().copied()).collect();
         let mut letters: Vec<&str> = Vec::new();
@@ -1666,8 +1605,8 @@ mod tests {
 
     /// The mana base: one basic of each type, `NONBASIC_LANDS_PER_DECK` draws,
     /// and every other land slot taps for all five colors. That last tier is
-    /// what lets a forced `{1}{G}{U}` be cast in a deck that never rolled green
-    /// or blue — there is no roll any more — and it holds in both pools.
+    /// what lets a forced `{1}{G}{U}` be cast in any deck, and it holds in both
+    /// pools.
     #[test]
     fn every_deck_can_make_every_color_and_keeps_a_basic_of_each_type() {
         for registry in [CardRegistry::performance_pool(), CardRegistry::default_registry()] {

@@ -181,7 +181,7 @@ pub fn castable_spells(
         }
 
         // A mandatory additional cost is part of what casting takes, so a
-        // spell whose is unpayable is not castable (CR 601.2h, "unpayable
+        // spell whose mandatory cost is unpayable is not castable (CR 601.2h, "unpayable
         // costs can't be paid"). Enumeration and enforcement must agree
         // (`cost-architecture.md` §3.6): without this, Altar's Reap is offered
         // with no creature on the board and the cast rolls back. Optional

@@ -2,9 +2,8 @@
 //!
 //! The mirror of `replacement::gather` and `restriction::predicate`, narrower:
 //! two sources, each read off an *effective* ability list — the battlefield's
-//! cost-effect sources (CM-1), and the spell itself (CR 113.6d, affinity;
-//! CM-2). A registry of resolution-created cost effects is later
-//! (`cost-architecture.md` §4).
+//! cost-effect sources, and the spell itself (CR 113.6d, affinity). A registry
+//! of resolution-created cost effects is later (`cost-architecture.md` §4).
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
@@ -127,10 +126,10 @@ fn push_if_applies(
     let Some((condition, def)) = ability.effect.as_cost_modification() else {
         return;
     };
-    // "As long as [X]" — LI-3's shape, read against the settled board, which
-    // for a status leaf such as `SourceUntapped` is the entity and for a
-    // characteristic leaf is the finished frame. A spell on the stack has no
-    // entity, so a status clause on one is simply false.
+    // "As long as [X]", read against the settled board, which for a status
+    // leaf such as `SourceUntapped` is the entity and for a characteristic leaf
+    // is the finished frame. A spell on the stack has no entity, so a status
+    // clause on one is simply false.
     if let Some(condition) = condition
         && !settled_holds(condition, game, source) {
         return;
@@ -185,19 +184,16 @@ fn applies_to(
 ///
 /// **The subject is part of the question, not just the body.** Thalia prints
 /// a cost ability and a Thalia in hand modifies nothing of her own, so a gate
-/// that asked "prints a cost ability" opened for her at every castability
-/// preview and computed a frame source 2 then refused. That was five
-/// non-member layer walks per 200 measured games, and CM-1's A/B (2026-09-07)
-/// is what found it.
+/// that asked "prints a cost ability" would open for her at every castability
+/// preview and compute a frame source 2 then refuses.
 ///
 /// **This reads `card_data` for an object on the stack**, which the
 /// layer-system invariant otherwise forbids — and it is a gate, not an
 /// answer, in exactly the sense `cost_modification_ability_sources` is one.
 /// The answer still comes from the effective list above; this only decides
-/// whether the frame is worth computing. It has to: without it, source 2
-/// would put one `compute_characteristics` on every card in hand at every
-/// castability preview, on every board, for a mechanic 364 printed cards
-/// have — which is a layer walk per hand card per epoch bought for nothing.
+/// whether the frame is worth computing, and without it source 2 would put
+/// one `compute_characteristics` on every card in hand at every castability
+/// preview for a mechanic 364 printed cards have.
 ///
 /// **Exact today, and the two flags are the legs that keep it honest.**
 /// `compute_non_member` applies no registry rows, so a non-member's effective

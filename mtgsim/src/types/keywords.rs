@@ -32,40 +32,20 @@
 /// `CardData::abilities`, not as a variant here. That is quadrant ③, and it
 /// is what the rest of ③ and ④ should look like. `EffectModification::
 /// GrantAbility` is the Layer 6 channel for them; `GrantKeywordFlag` is the
-/// channel for this enum.
-///
-/// # Five variants used to be here
-///
-/// `Enchant`, `Equip`, `Landwalk`, `Protection` and `Ward` were removed once
-/// Layer 6 gained a real ability-granting channel, because a fieldless variant
-/// cannot hold what those keywords are *made of*:
-///
-/// - **Equip** (CR 702.6a) is an *activated* ability, "[Cost]: Attach this
-///   permanent to target creature you control." The cost is the ability —
-///   `equip {3}` on every Sword, `equip {1}` on Skullclamp. And CR 702.6d
-///   lets a permanent have *several* equip abilities, which a `HashSet` of one
-///   variant structurally cannot express.
-/// - **Enchant** (CR 702.5a) is a static ability, and it was already modeled
-///   properly elsewhere: `CardData::enchant_filter` is what the Aura targeting
-///   path actually reads. The variant was a duplicate of a working field.
-/// - **Protection** (CR 702.16a) is quadrant ②. Rules branch on it (702.16b–e
-///   govern targeting, enchanting, blocking and damage), but it carries a
-///   quality, and a permanent can have protection from several qualities at
-///   once. It wants `HashSet<Quality>` on the frame, not a name here.
-/// - **Landwalk** (CR 702.14a) is quadrant ② for the same reason, keyed on a
-///   land type.
-/// - **Ward** (CR 702.21a) is a *triggered* ability, so it needs CR 603
-///   regardless of how it is stored.
-///
-/// Removing them cost nothing — none was constructed anywhere in the crate —
-/// and keeping them would have made `GrantKeywordFlag(Protection)` look like the
-/// way to write "target creature gains protection from the color of your
-/// choice", which is common Magic and which it cannot express.
+/// channel for this enum. Equip (CR 702.6a) is an *activated* ability whose
+/// cost is the ability, and CR 702.6d lets a permanent have several; enchant
+/// (CR 702.5a) is `CardData::enchant_filter`; ward (CR 702.21a) is a
+/// *triggered* ability. None of them is a variant here, because a fieldless
+/// variant cannot hold what they are made of, and `GrantKeywordFlag(Ward)`
+/// would look like a way to write something it cannot express.
 ///
 /// # Still open
 ///
-/// - Quadrant ② has no frame representation yet. Built with the first card
-///   that needs one, not before.
+/// - Quadrant ② has no frame representation yet. Protection (CR 702.16a)
+///   and landwalk (CR 702.14a) are branched on by rules (702.16b–e govern
+///   targeting, enchanting, blocking and damage) but carry a quality, and a
+///   permanent can have several at once: they want `HashSet<Quality>` on the
+///   frame, not a name here. Built with the first card that needs one.
 /// - Naming an ability by its keyword ("this `AbilityDef` is *equip*") wants a
 ///   separate complete-CR-702 `KeywordName` enum — a different type doing a
 ///   different job from this one. Wanted by UI display and by cards that

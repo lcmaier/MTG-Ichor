@@ -92,8 +92,7 @@ pub enum CostSubject {
     ///
     /// `ObjectFilter` rather than a spell-specific filter because the leaves
     /// are characteristic predicates and a spell has every characteristic a
-    /// permanent has (CR 601.2a) — the type was renamed for exactly this
-    /// the type was renamed for exactly this consumer (CM-0).
+    /// permanent has (CR 601.2a).
     Spells(ObjectFilter),
     /// **This spell** — an ability on the object being cast, modifying what
     /// *that particular object* costs (CR 113.6d). Affinity is the
@@ -116,9 +115,7 @@ impl CostSubject {
     /// Read by `engine::zone_function::functioning_zones` to place the ability
     /// on the stack, and by the gather's second gate, because "prints a cost
     /// ability" is the wrong question there — Thalia prints one, and a Thalia
-    /// *in hand* is not modifying her own cost. Asking the body alone cost
-    /// five non-member layer walks per 200 measured games (CM-1, 2026-09-07),
-    /// which is how it was found.
+    /// *in hand* is not modifying her own cost.
     ///
     /// # Why this is a method and not `matches!` at the call site
     ///
@@ -128,20 +125,11 @@ impl CostSubject {
     /// Same instrument as `condition::holds` and `board::condition_reads`,
     /// for the same reason.
     ///
-    /// **There used to be two, and A5 took the other one.**
-    /// `applies_from_battlefield` answered "can an ability with this subject
-    /// modify a cost while its source sits on the battlefield", which is
-    /// CR 113.6d — a *zone* question, and one of the four private copies of
-    /// CR 113.6 that `engine::zone_function` now owns. It is derived there
-    /// from this method rather than asserted again here, and the
-    /// derivation holds for the arm §3.10 plans: CR 602.2b's activated
-    /// abilities answer `false` here and get the battlefield from
-    /// CR 113.6's default, which is what the deleted method said.
-    ///
-    /// The old pair carried a warning not to collapse them into one predicate
-    /// and a `!`, and that warning still stands — it is why the survivor is
-    /// the *identity* question and not the zone one. The two were never each
-    /// other's negation.
+    /// The *zone* question — can the ability apply while its source sits on the
+    /// battlefield, CR 113.6d — is `engine::zone_function`'s, derived from this
+    /// method rather than asserted again here. The two are not each other's
+    /// negation: CR 602.2b's activated abilities (`cost-architecture.md` §3.10)
+    /// answer `false` here and get the battlefield from CR 113.6's default.
     pub fn applies_to_its_own_object(&self) -> bool {
         match self {
             CostSubject::Spells(_) => false,

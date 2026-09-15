@@ -32,7 +32,7 @@ pub struct CombatDamageAssignment {
 /// no ordering or lethal-first constraint.
 ///
 /// If `first_strike_only` is true, only creatures with first strike or double
-/// strike assign damage. Phase 3: always false (no first/double strike exists).
+/// strike assign damage.
 pub fn assign_combat_damage(
     game: &GameState,
     decisions: &dyn DecisionProvider,
@@ -170,7 +170,7 @@ pub fn assign_combat_damage(
     // attacker still assigns to its blockers; only the player's share goes.
     //
     // Reachable in spite of CR 506.2 keeping a departed seat off the attack
-    // target list (RE-6): the defending player can leave between the declare
+    // target list: the defending player can leave between the declare
     // step and the damage step, which is what first strike makes routine.
     if game.is_multiplayer() {
         assignments.retain(|a| match a.target {

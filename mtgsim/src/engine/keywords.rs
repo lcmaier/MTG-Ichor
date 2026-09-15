@@ -43,21 +43,14 @@ pub fn apply_deathtouch_flag(
 ///
 /// The gain is not merely simultaneous with the damage, it is *part of the same
 /// event*: CR 120.4c processes damage into its results and CR 120.4d says the
-/// damage event then occurs, once. (An earlier version of this comment cited
-/// 702.15b for the word "simultaneously", which 702.15b does not contain.)
+/// damage event then occurs, once.
 ///
-/// The gain is **proposed**, not written. Until RA-2 this function subtracted
-/// into `life_total` and emitted `LifeChanged` itself — emitting without
-/// proposing, which is exactly how a census of emission sites missed it. A
-/// CR 614 life-gain watcher (Tainted Remedy: "If an opponent would gain life,
-/// they lose that much life instead") must see lifelink, and could not.
-///
-/// **This is the first re-entrant `execute_action`.** It runs from inside
-/// `perform_action(DealDamage)`, so the `GainLife` proposal nests inside a
-/// performance already in flight. Harmless while the pipeline is a passthrough;
-/// in RB it is a *contained* event with fresh lineage rather than a
-/// decomposition of the damage (`replacement-architecture.md` §3.2d), and RD's
-/// CR 120.3 results-of-damage decomposition generalizes exactly this shape.
+/// The gain is **proposed**, not written, so a CR 614 life-gain watcher
+/// (Tainted Remedy: "If an opponent would gain life, they lose that much life
+/// instead") sees lifelink. It runs from inside `perform_action(DealDamage)`,
+/// so the `GainLife` proposal nests inside a performance already in flight as
+/// a *contained* event with fresh lineage rather than a decomposition of the
+/// damage (`replacement-architecture.md` §3.2d).
 pub fn apply_lifelink(
     game: &mut GameState,
     source: ObjectId,

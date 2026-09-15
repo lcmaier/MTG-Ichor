@@ -35,22 +35,16 @@ impl Zone {
 ///
 /// **A complement is an ordinary value here, and that is the point of the set
 /// being concrete.** `ALL.without(BATTLEFIELD)` is a bitmask like any other:
-/// bounded, readable off the row, and costing `Board::seed` one `iter()`. What
-/// a filter *tree* cannot have is a zone leaf under a `Not`, because there the
-/// complement is only recoverable by an abstract interpretation that has to
-/// widen to "all zones" to stay sound. The limit is on where the complement
-/// lives, not on whether one exists — and the first cut of this comment had
-/// that wrong (owner review, 2026-09-14).
+/// bounded, readable off the row, and costing `Board::seed` one `iter()`. The
+/// limit is on where the complement lives, not on whether one exists.
 ///
-/// Printed cards want it. Grist, the Hunger Tide is "as long as Grist isn't on
+/// Printed cards want it: Grist, the Hunger Tide is "as long as Grist isn't on
 /// the battlefield, it's a 1/1 Insect creature in addition to its other
-/// types", and its ruling is "anywhere but on the battlefield, Grist is a
-/// Legendary Planeswalker Creature — Grist Insect" (Scryfall, verified
-/// 2026-09-14). Mycosynth Lattice and Painter's Servant open on the same
-/// shape: "all cards that aren't on the battlefield". And the rule outranks
-/// the card list anyway — the CR permits the expression, custom cards are a
-/// post-v1 goal, so a facility the CR states is owed whether or not a card
-/// prints it (`engineering-practices.md` §4, RE-5's review).
+/// types" (ruling: "anywhere but on the battlefield", Scryfall, 2026-09-14),
+/// and Mycosynth Lattice and Painter's Servant open on "all cards that aren't
+/// on the battlefield". The rule outranks the card list anyway: a facility
+/// the CR states is owed whether or not a card prints it
+/// (`engineering-practices.md` §4).
 ///
 /// A hand-rolled bitmask following `engine::layers::board::Channels` rather
 /// than a `bitflags` dependency the crate does not have.
@@ -166,26 +160,19 @@ impl std::ops::BitOrAssign for ZoneSet {
 /// finer than a call site can name: "destroyed by" appears on 1 card in all of
 /// Magic, "was sacrificed" on 3, "if it was destroyed" on 0.
 ///
-/// Three rules, all learned the hard way elsewhere in this tree:
+/// Three rules (`CLAUDE.md`, the chokepoint invariant):
 ///
 /// - **The caller sets it.** `Primitive::Sacrifice` knows it is sacrificing;
 ///   `perform_action` cannot recover that from `(from, to)`.
 /// - **Nothing may branch on it outside the replacement pipeline and the
 ///   trigger matcher.** A third reader is a third place for it to drift.
 /// - **No catchall variant. No `Other`, no `Unknown`, no `#[non_exhaustive]`.**
-///   This is the whole of what makes the enum cheap to extend later. Widening
-///   is only expensive when an existing site was labeled with a coarse variant
-///   that should have been finer, and re-triaging it is guesswork that fails
-///   silently — which requires a catchall to lump into. A genuinely new mutation
-///   arrives with its own new call site, so it adds a variant and touches
-///   nothing existing. A site with no honest reason to give is a site whose
-///   reason nobody has worked out, which is the bug — see
-///   `cast.rs::rollback_cast_to_hand` for what that looks like when it happens.
-///
-/// Several variants have no call site yet because their `Primitive` is still
-/// `NotImplemented` (`resolve.rs`). They are listed anyway: the enum is the
-/// statement of the vocabulary, and nothing matches on it exhaustively until
-/// Phase RB.
+///   Widening is only expensive when an existing site was labeled with a
+///   coarse variant that should have been finer, and re-triaging it is
+///   guesswork that fails silently. A genuinely new mutation arrives with its
+///   own call site, so it adds a variant and touches nothing existing; a site
+///   with no honest reason to give is a site whose reason nobody has worked
+///   out — see `cast.rs::rollback_cast_to_hand`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ZoneChangeCause {
     // --- effects (CR 701), one per object-moving `Primitive` ---
@@ -290,13 +277,12 @@ pub enum ZoneChangeCause {
 /// `None` would be a two-variant enum spelled as an absence, and the second
 /// variant's meaning would live only in a doc comment.
 ///
-/// **It has a printed customer, which is why it exists in Phase RB rather than
-/// waiting.** CR 122.1c's shield counter reads "If this permanent would be
-/// destroyed **as the result of an effect**, instead remove a shield counter
-/// from it" — a shield counter does not answer lethal damage through this
-/// path at all (its *other* half, the prevention effect, stops the damage
-/// before 704.5g ever asks). Without the distinction the counter would save a
-/// creature twice over.
+/// **It has a printed customer.** CR 122.1c's shield counter reads "If this
+/// permanent would be destroyed **as the result of an effect**, instead remove
+/// a shield counter from it" — a shield counter does not answer lethal damage
+/// through this path at all (its *other* half, the prevention effect, stops
+/// the damage before 704.5g ever asks). Without the distinction the counter
+/// would save a creature twice over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DestructionSource {
     /// CR 701.8b way 1 — a resolving spell or ability that uses the word

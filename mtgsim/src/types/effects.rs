@@ -48,10 +48,10 @@ pub enum AmountExpr {
     ///
     /// **Whose board is the whole question, and only one evaluator answers it.**
     /// `replacement::evaluate_enter_amount` reads the CR 614.12 frame when the
-    /// source is the entering permanent and the real battlefield otherwise, so
-    /// §5b's Elvish-Archdruid-under-Master-Biomancer falls out of RC-4's
-    /// asymmetry. The layer walk and the resolution evaluator both refuse it
-    /// rather than guessing at a source they were not given.
+    /// source is the entering permanent and the real battlefield otherwise
+    /// (`replacement-architecture.md` §5b). The layer walk and the resolution
+    /// evaluator both refuse it rather than guessing at a source they were not
+    /// given.
     SourcePower,
     /// "equal to that creature's power"
     TargetPower,
@@ -86,25 +86,15 @@ pub enum AmountExpr {
     /// artifact spells as three blue.
     ///
     /// **Its own arm, on this enum's own convention**: one arm per printed
-    /// quantity, evaluated where it is read — [`Self::AffectedManaValue`],
-    /// [`Self::DamageDealt`] and [`Self::StartingLifeTotal`] are the
-    /// precedents. Not a [`Self::CountOf`], because a [`Selector`] selects
-    /// *objects* and mana is not one, and `CountOf` has no resolution-time
-    /// evaluator anyway. And a category rather than one card's: eight
-    /// printed cards read unspent mana (Scryfall, 2026-09-15), five as an
-    /// amount. The two axes the arm would grow along are named by the
-    /// cards that would need them and are waited for, since each is a
-    /// compiler-forced field here and one arm at the evaluator: a **total
-    /// across types** (Glissa Sunseeker's "if its mana value is equal to the
-    /// amount of unspent mana you have") as an `Option<ManaType>`, and
-    /// **another player's pool** (Drain Power's "you add the mana lost this
-    /// way", Pygmy Hippo's "equal to the amount of mana that player lost")
-    /// as a `PlayerRef`. Omnath, Locus of Mana reads the same quantity on
-    /// the layer side ("Omnath gets +1/+1 for each unspent green mana you
-    /// have"), where `layers::compute` would evaluate it.
-    ///
-    /// The first dynamic amount a mana ability carries, and the reason
-    /// `resolve_mana_effect` evaluates rather than reading `Fixed` alone.
+    /// quantity, evaluated where it is read. Not a [`Self::CountOf`], because a
+    /// [`Selector`] selects *objects* and mana is not one. A category rather
+    /// than one card's: eight printed cards read unspent mana (Scryfall,
+    /// 2026-09-15), five as an amount. Two axes wait for the cards that need
+    /// them, each a compiler-forced field here and one arm at the evaluator:
+    /// a **total across types** (Glissa Sunseeker) as an `Option<ManaType>`,
+    /// and **another player's pool** (Drain Power, Pygmy Hippo) as a
+    /// `PlayerRef`. Omnath, Locus of Mana reads the same quantity on the layer
+    /// side, where `layers::compute` would evaluate it.
     UnspentMana(crate::types::mana::ManaType),
     /// CR 615.5's "the amount of damage that was prevented" — how much the
     /// prevention effect that queued a CR 615.5 rider actually prevented.
@@ -186,12 +176,10 @@ pub enum DiscardChooser {
 /// color, controller — plus the two object facts no layer reaches (`Token`,
 /// `ByOwner`) and one relation to the filter's source (`EachOther`).
 ///
-/// Named for what it matches. It was `PermanentFilter` until 2026-09-07, and
-/// by then it had matched creature cards in a graveyard (RC-5), cards in
-/// libraries (RB) and, from CM-1 on, spells on the stack — none of which is a
-/// permanent (CR 110.1). The rename is `cost-architecture.md` §3.2 / CM-0;
-/// the zone leaf `codebase-state.md`'s layers item 9 wants on this type is
-/// still that item's.
+/// Named for what it matches: creature cards in a graveyard, cards in
+/// libraries and spells on the stack, none of which is a permanent
+/// (CR 110.1). The zone leaf `codebase-state.md`'s layers item 9 wants on
+/// this type is still that item's.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ObjectFilter {
     All,
@@ -204,7 +192,7 @@ pub enum ObjectFilter {
     PowerLE(i32),
     /// CR 111.1 — the permanent is a token. "**Nontoken**" is `Not(Token)`.
     ///
-    /// The first `ObjectFilter` leaf Phase RB added, and it earns its place
+    /// Its own leaf, and it earns its place
     /// on breadth rather than on one card: "nontoken" is a printed quality on
     /// hundreds of cards (Kalitas, Anointed Procession's mirror image, every
     /// "nontoken creature you control" anthem), and it is not derivable from
@@ -261,23 +249,18 @@ pub enum ObjectSet {
     ///
     /// **The filter is stored unresolved.** `ObjectFilter::ByController`
     /// carries a `PlayerRef`, and `compute::object_matches_filter` resolves it
-    /// during the layer walk against the source's *effective* controller.
-    ///
-    /// This used to carry a `controller: Option<PlayerId>` that
-    /// `register_static_effects` filled in at ETB. CR 109.5 says the opposite —
-    /// "for a static ability, [you] is the **current** controller of the object
-    /// it's on" — so a snapshot taken when the source entered is wrong the
-    /// moment control of the source changes, and Glorious Anthem kept buffing
-    /// the team of whoever controlled it at ETB.
+    /// during the layer walk against the source's *effective* controller:
+    /// CR 109.5 makes a static ability's "you" the **current** controller of the
+    /// object it's on, so a snapshot taken when the source entered is wrong the
+    /// moment control of the source changes.
     ///
     /// **`zones` is which zones the filter reaches**, and it is read at a
     /// different time from `filter`: `Board::seed` asks it once per pass to
     /// decide the working set, before any layer runs, while `filter` is asked
     /// per layer per candidate. That is why it is a field here and not a leaf
-    /// inside [`ObjectFilter`] — `layers-architecture.md` §13c decision 3 has
-    /// the argument, and the short form is that reach must be readable
-    /// syntactically for the fast path to be sound, which a `Not` inside a
-    /// filter tree makes impossible.
+    /// inside [`ObjectFilter`] — reach must be readable syntactically for the
+    /// fast path to be sound, which a `Not` inside a filter tree makes
+    /// impossible (`layers-architecture.md` §13c decision 3).
     ///
     /// Build with [`ObjectSet::filter`] for the battlefield (almost every row)
     /// or [`ObjectSet::filter_in`] for a row that reaches further.
@@ -360,12 +343,9 @@ impl ObjectSet {
 /// sweep and the replacement pipeline — and a `Player` arm would be a variant
 /// two of the three must reject at every match. The two sets union: an event
 /// about an object asks `ObjectSet`, an event about a player asks this one.
-///
-/// The damage family is what makes it necessary, which is why it lands in
-/// Phase RD-1 rather than with RE's draw cards. Furnace of Rath's "a permanent
-/// **or player**", Circle of Protection's "damage that would be dealt to
-/// **you**" (23 printed), Fog's "all combat damage" — an effect that cannot
-/// scope to a player has no consumers here at all
+/// The damage family is what makes it necessary — Furnace of Rath's "a
+/// permanent **or player**", Circle of Protection's "damage that would be
+/// dealt to **you**" (23 printed), Fog's "all combat damage"
 /// (`replacement-architecture.md` §9, RD's decision 0).
 ///
 /// Resolved against the instance's controller exactly as
@@ -507,7 +487,7 @@ pub enum ModalCount {
 
 /// What an effect acts on.
 ///
-/// Separates two orthogonal concerns that were previously conflated:
+/// Two orthogonal concerns, kept apart:
 /// - **Who/what** the effect acts on (filter + count)
 /// - **Whether targeting rules apply** (hexproof/shroud/protection)
 ///
@@ -531,23 +511,20 @@ pub enum EffectRecipient {
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,
-    /// and — since RD-2 — at **resolution** by the primitives that act on more
-    /// than one object at once: `CreateReplacement` makes one row per matching
-    /// permanent (CR 615.11) and `DealDamage` proposes one batch member each
-    /// ("Pyroclasm deals 2 damage to each creature"). All three resolve it the
-    /// same way, `battlefield_ids_ordered` filtered against the resolution's
-    /// controller **now**, never captured.
+    /// and at **resolution** by the primitives that act on more than one object
+    /// at once: `CreateReplacement` makes one row per matching permanent
+    /// (CR 615.11) and `DealDamage` proposes one batch member each. All three
+    /// resolve it the same way, `battlefield_ids_ordered` filtered against the
+    /// resolution's controller **now**, never captured.
     ///
-    /// **The filter is not written into `ResolutionContext::targets`**, and
-    /// that is the point: "each creature" is not a targeting fact (CR 115.1
-    /// announces targets as the spell is cast), and filling the targets would
-    /// change what this variant means to the static-ability path that shares
-    /// it. Each primitive resolves it for itself.
+    /// **The filter is not written into `ResolutionContext::targets`**: "each
+    /// creature" is not a targeting fact (CR 115.1 announces targets as the
+    /// spell is cast), and filling the targets would change what this variant
+    /// means to the static-ability path that shares it.
     ///
     /// Use `ByController(PlayerRef::You)` in the filter to express "you control".
     /// The filter is stored verbatim; `compute::object_matches_filter`
-    /// resolves the `PlayerRef` during the layer walk, because CR 109.5 makes
-    /// a static ability's "you" the source's *current* controller.
+    /// resolves the `PlayerRef` during the layer walk (CR 109.5).
     FilteredPermanents(ObjectFilter),
     /// Every object matching the filter, in any of the named zones — Yixlid
     /// Jailer's "cards in graveyards", Mycosynth Lattice's "all cards that
@@ -686,11 +663,9 @@ pub enum ZoneFilter {
 /// color indicator. [`Self::card_data`] lowers it into the `CardData` a
 /// `GameObject` reads, once per creation.
 ///
-/// Every field a printed token needs is here (`backlog.md` §2.27 counted the
-/// gap at four — abilities, supertypes, rules text, an Aura's enchant
-/// filter — and RE-4 added them). What is *not* here is CR 111.10's twenty
-/// predefined tokens, which are constructors of this type and wait on the
-/// facilities their abilities need (§2.27, the library half).
+/// Every field a printed token needs is here. What is *not* here is
+/// CR 111.10's twenty predefined tokens, which are constructors of this type
+/// and wait on the facilities their abilities need (`backlog.md` §2.27).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TokenDef {
     /// `None` is CR 111.4's default — "its name is the same as its
@@ -732,7 +707,7 @@ pub struct TokenDef {
     /// replacement, the way CR 110.5b's "enters tapped" on a printed card is
     /// the card's own before anything else modifies the entry. "Tapped and
     /// attacking" is CR 508.4's and needs a combat-state write this does not
-    /// carry (`codebase-state.md`, RE-4's lines).
+    /// carry (`codebase-state.md`).
     pub enters_tapped: bool,
 }
 
@@ -835,12 +810,9 @@ pub enum CounterType {
 
     // --- Counters that create a replacement effect (rule 122.1c/d/h) ---
     //
-    // These three are the reason Phase RB can ship a working CR 616.1 pipeline
-    // with **zero new card-text machinery**: nothing on any card says what they
-    // do, the rule does, and between them they exercise destroy replacement,
-    // damage prevention, untap replacement and zone-change replacement across
-    // 164 printed cards.
-    //
+    // Nothing on any card says what these three do; the rule does, and between
+    // them they exercise destroy replacement, damage prevention, untap
+    // replacement and zone-change replacement across 164 printed cards.
     // `engine::replacement::gather` synthesizes their effects from the counter
     // itself, quoting the rule verbatim.
     /// CR 122.1c. Creates *two* effects: a replacement against destruction by
@@ -973,11 +945,7 @@ pub enum CopyRoles {
         /// **Whether the donor is excluded, and it is data because the cards
         /// disagree.** Mirrorweave says "each **other** creature"; Mirrorform
         /// says "each nonland permanent you control", which *includes* the
-        /// target whenever you control it. An earlier draft made the exclusion
-        /// structural on the reading that "each other" is the only phrasing
-        /// — Mirrorform is the counter-example, and it was found in review
-        /// rather than by the census, which is the argument for checking the
-        /// printed corpus before deciding a word is redundant.
+        /// target whenever you control it.
         ///
         /// A permanent copying *itself* is very nearly a no-op — the capture
         /// is its own post-layer-1 state, so applying it changes nothing at the
@@ -1043,12 +1011,11 @@ pub enum Primitive {
     // === Damage & life ===
     /// Deal damage (rule 120).
     ///
-    /// A struct variant from RD-4 on, and the field is the reason: CR 615.12's
-    /// "the damage can't be prevented" is a property of the event this
-    /// primitive proposes, so the primitive is where the card says it. Every
-    /// site spells `unpreventable` out rather than reaching a constructor —
-    /// nine cards in the whole game print the clause, and a default would let
-    /// the tenth forget it silently.
+    /// A struct variant because of the field: CR 615.12's "the damage can't be
+    /// prevented" is a property of the event this primitive proposes, so the
+    /// primitive is where the card says it. Every site spells `unpreventable`
+    /// out rather than reaching a constructor — nine cards in the whole game
+    /// print the clause, and a default would let the tenth forget it silently.
     DealDamage {
         amount: AmountExpr,
         /// Pinpoint Avalanche's last sentence. Becomes
@@ -1346,11 +1313,10 @@ pub enum Primitive {
     /// One or more permanents become a copy of another (CR 707.4).
     ///
     /// The `Duration` is authored for the reason [`Self::Restrict`]'s is: CR
-    /// 611.2's scope comes from the card's English, not from the mechanism. CV-1
-    /// ships the turn-bounded shapes only — `Duration::Indefinite` needs CR
-    /// 400.7 first, because a row reachable by neither expiry nor
-    /// `remove_by_source` outlives its subject without bound
-    /// (`copy-effects-architecture.md` §5.3).
+    /// 611.2's scope comes from the card's English, not from the mechanism. The
+    /// turn-bounded shapes only — `Duration::Indefinite` needs CR 400.7 first
+    /// (CV-1b), because a row reachable by neither expiry nor `remove_by_source`
+    /// outlives its subject without bound (`copy-effects-architecture.md` §5.3).
     ///
     /// The affected set is `ObjectSet::Fixed`, locked as the effect begins
     /// (CR 611.2c), and the captured values are locked with it (CR 707.2b/2c) —

@@ -1,9 +1,7 @@
 // Combat-related keyword ability helpers.
 //
-// Extracted from resolution.rs to keep keyword logic colocated and
-// independently testable. Each function handles one keyword's combat
-// behavior; assign_combat_damage in resolution.rs calls these as an
-// orchestrator.
+// Each function handles one keyword's combat behavior;
+// `assign_combat_damage` in resolution.rs calls these as an orchestrator.
 
 use crate::engine::combat::resolution::CombatDamageAssignment;
 use crate::events::event::DamageTarget;
@@ -125,19 +123,15 @@ pub fn assign_trample_damage(
 
     // Rule 702.19b: trample requires assigning at least lethal damage to
     // each blocker before excess can trample through to the defending target.
+    // When power < sum(lethals) no overflow to the defender is possible, so
+    // the defending-target bucket is capped at 0 and the per-blocker mins
+    // drop to 0 (the total cannot satisfy them all anyway); the DP divides
+    // freely among blockers.
     //
-    // When power < sum(lethals), the attacker cannot meet the lethal
-    // requirement for all blockers, so NO overflow to the defender is
-    // possible. We express this via per_bucket_maxs: blocker buckets are
-    // uncapped, but the defending-target bucket is capped at 0. The DP
-    // freely divides among blockers with per-blocker mins dropped to 0
-    // (since the total can't satisfy them all anyway).
-    //
-    // Note on array lengths: we pass blocker-only mins (length =
-    // alive_blockers.len()) because ask_choose_trample_damage_assignment
-    // appends the defender's min (0) internally. But we pass maxs for ALL
-    // buckets (length = alive_blockers.len() + 1, including the defender)
-    // because ask.rs passes maxs straight through to dp.allocate().
+    // Array lengths: blocker-only mins (`alive_blockers.len()`), because
+    // `ask_choose_trample_damage_assignment` appends the defender's min (0)
+    // internally, but maxs for ALL buckets (`+ 1`), because ask.rs passes
+    // maxs straight through to `dp.allocate()`.
     let min_sum: u64 = per_blocker_mins.iter().sum();
     let (effective_blocker_mins, maxs) = if min_sum > damage {
         let mins = vec![0u64; alive_blockers.len()];

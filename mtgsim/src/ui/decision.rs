@@ -312,8 +312,8 @@ impl ScriptedDecisionProvider {
     /// respect, so a Furnace of Rath doubling the result would look identical
     /// whether lethal was judged before or after the doubling.
     ///
-    /// Added to this provider rather than to a bespoke one (RD-1 review,
-    /// 2026-09-08): a fourth `DecisionProvider` in a test file has to implement
+    /// Added to this provider rather than to a bespoke one: a fourth
+    /// `DecisionProvider` in a test file has to implement
     /// all four methods, and the three it does not care about end up answering
     /// prompts the test never expected — which is the exact failure this
     /// provider's "every decision must be declared" design exists to prevent.

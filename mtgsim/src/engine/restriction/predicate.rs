@@ -73,16 +73,12 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     // The fast-path gate, and it is exact rather than a heuristic — the same
     // instrument as `replacement_ability_sources`, and it carries the same rule:
     // **a new source of static restriction abilities must add a leg here, or the
-    // source is silently dead on every board the gate skips.** An object on the
-    // battlefield can only *have* a static restriction ability if it printed one
-    // (recorded at ETB) or a Layer 6 row granted it one (the registry summary).
-    // Both over-approximate — CR 305.7 and Humility strip a printed ability
-    // without touching the set — and over-approximating costs a layer walk,
-    // never an answer.
-    //
-    // CV-1 added the third leg the comment here used to promise: CR 707.2a puts
-    // a copied ability on the effective list through neither of the other two.
-    // Sound until **Layer 3** exists, which is the one remaining route.
+    // source is silently dead on every board the gate skips.** Three legs —
+    // printed (recorded at ETB), granted and copied (the registry summary's two
+    // flags; CR 707.2a puts a copied ability on the effective list through
+    // neither of the others). All over-approximate — CR 305.7 and Humility
+    // strip a printed ability without touching the set — which costs a layer
+    // walk, never an answer. Layer 3 is the one remaining route without a leg.
     let has_static_source = !game.restriction_ability_sources.is_empty()
         || game.continuous_effects.summary().any_granted_restriction
         || game.continuous_effects.summary().any_copied_restriction;
@@ -213,14 +209,12 @@ fn matches(
             Query::Event { action, cause, .. },
         ) => {
             pattern_watches(game, pattern, action, controller)
-                // The union `ReplacementDef` already makes, and it is a union
-                // rather than a replacement because the two sets answer about
-                // different kinds of subject: `set_affects` asks one or the
-                // other by what the event is *about*, never both. So Skullcrack
-                // ("players can't gain life") carries `NO_OBJECTS` beside
-                // `Everyone`, and every restriction written before RE-3 keeps
-                // its object set beside a `Nobody` that says the same thing it
-                // always said.
+                // The union `ReplacementDef` already makes, and it is a union rather than
+                // a replacement because the two sets answer about different kinds of
+                // subject: `set_affects` asks one or the other by what the event is
+                // *about*, never both. So Skullcrack ("players can't gain life") carries
+                // `NO_OBJECTS` beside `Everyone`, and an object-scoped restriction carries
+                // its object set beside a `Nobody`.
                 && set_affects(
                     game,
                     affected_objects,
@@ -281,8 +275,8 @@ fn keyword_prohibits(game: &GameState, id: ObjectId, action: &GameAction) -> boo
     }
     // Resolved after the early-out, not before it: `controller_of` is a full
     // `compute_characteristics` walk and almost no object has a keyword
-    // restriction, so paying for it up front would have doubled what
-    // `is_blocked` used to cost on every proposed action about an object.
+    // restriction, so paying for it up front would double the cost of every
+    // proposed action about an object.
     let controller = controller_or_owner(game, id).unwrap_or(0);
     for def in defs {
         debug_assert!(

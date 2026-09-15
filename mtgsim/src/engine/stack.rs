@@ -120,15 +120,11 @@ impl GameState {
         self.resolve_effect(&entry.effect, &ctx, dp)?;
 
         // --- Post-resolution (rule 608.2n) ---
-        // The zone change goes through the chokepoint like every other one.
-        // Until RA-3 these were three `// REPLACEMENT-BYPASS:` sites that wrote
-        // the zone field by hand, because `move_object` would have tried to
-        // remove the object from the stack `Vec` a second time. `resolving`
-        // makes that expected rather than a bug, so nothing has to bypass.
-        //
-        // Not optional for v1 Commander: a commander permanent spell resolves
-        // through here, and CR 903.9b has to be able to offer the command zone
-        // instead.
+        // The zone change goes through the chokepoint like every other one;
+        // `resolving` is what makes the object's presence on the stack expected
+        // rather than a second removal. Not optional for v1 Commander: a commander
+        // permanent spell resolves through here, and CR 903.9b has to be able to
+        // offer the command zone instead.
         let actx = ActionContext::resolving(dp, &ctx);
         if !self.objects.contains_key(&object_id) {
             // CR 800.4a — the resolving object left the game during its own
@@ -147,12 +143,10 @@ impl GameState {
                 // It enters under its CR 110.2b *default* controller, which
                 // `default_enter_controller` reads off `resolving`; the steal's
                 // Layer 2 row continues to apply on top per CR 400.7a, so the
-                // effective controller is still the thief.
-                //
-                // The `PermanentEnteredBattlefield` event is emitted inside
-                // this call, by the `GameAction::EnterBattlefield` performer —
-                // it is the only place that knows what the permanent entered
-                // with, and RC-2 deleted the emit that used to sit here.
+                // effective controller is still the thief. The
+                // `PermanentEnteredBattlefield` event is emitted inside this call,
+                // by the `GameAction::EnterBattlefield` performer — the only place
+                // that knows what the permanent entered with.
                 self.change_zone(object_id, Zone::Battlefield, ZoneChangeCause::Resolved, &actx)?;
                 // CR 608.3e — "if a permanent spell resolves but its controller
                 // can't put it onto the battlefield, that player puts it into

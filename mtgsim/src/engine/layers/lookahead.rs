@@ -38,12 +38,11 @@ pub struct Lookahead {
     /// The CR 613.7d timestamp the object *would* receive on entering the
     /// battlefield — `next_timestamp` read without advancing it.
     ///
-    /// Carried here rather than read off the object, and that is the whole of
-    /// why LK's field move did not disturb the look-ahead: the object still
-    /// sits in its source zone while its entry is decided (RC-4b), so its real
-    /// timestamp is that zone's and is *older* than every permanent on the
-    /// board. What CR 614.12 asks is what it would be once it has entered,
-    /// and that is newer than all of them.
+    /// Carried here rather than read off the object: the object still sits in
+    /// its source zone while its entry is decided, so its real timestamp is
+    /// that zone's and is *older* than every permanent on the board. What
+    /// CR 614.12 asks is what it would be once it has entered, and that is
+    /// newer than all of them.
     pub(super) entity_timestamp: Timestamp,
     /// CR 614.12 clause (2): the registry rows its own static abilities would
     /// generate, exactly as `register_static_effects` would write them.

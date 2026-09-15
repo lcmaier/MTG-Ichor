@@ -407,11 +407,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
     use crate::events::event::GameEvent::*;
     match event {
         ZoneChange { object_id, owner, from, to, cause, lki } => {
-            // This one line replaced four events. `CreatureDied`,
-            // `PlaneswalkerDied`, `LegendRuleSacrificed` and `AuraDied` each
-            // said the object, its owner and one of its types; the cause says
-            // which rule moved it and the CR 603.10a frame says every type it
-            // had, which is what a Gideon or an artifact creature needs.
+            // The cause says which rule moved it and the CR 603.10a frame says every
+            // type it had, which is what a Gideon or an artifact creature needs.
             let was = lki.as_ref().map(|f| {
                 // Sorted: `types` is a `HashSet`, and an unsorted log line
                 // differs run to run.

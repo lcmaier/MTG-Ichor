@@ -1,6 +1,6 @@
 //! Storage for "can't" effects created by resolutions (CR 101.2, 611.2a).
 //!
-//! The fourth customer `duration_registry.rs` predicted, and it needs a
+//! A `duration_registry.rs` customer, and it needs a
 //! [`DurationRow`] impl and nothing else. `SortKey = ()`: no read of this
 //! registry wants an order, because CR 101.2 has no tiebreak among
 //! prohibitions — two "can't"s agree, so there is nothing for an order to

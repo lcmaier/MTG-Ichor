@@ -634,12 +634,9 @@ pub fn ask_choose_generic_mana_allocation(
 
 /// CR 704.6d / 903.9a — may this commander go to the command zone?
 ///
-/// A **state-based action**, not a replacement effect, and the correction is
-/// recorded rather than incidental: `codebase-state.md` had CR 903.9 down as
-/// one replacement effect until 2026-08-24. Current Oracle splits it — 903.9a
-/// (graveyard or exile) is listed at CR 704.6d and is an SBA, and only 903.9b
-/// (hand or library) is a replacement. So the graveyard half never needed the
-/// replacement pipeline at all.
+/// A **state-based action**, not a replacement effect: current Oracle splits
+/// CR 903.9, and only 903.9b (hand or library) is a replacement, so the
+/// graveyard half never needed the replacement pipeline at all.
 pub fn ask_commander_to_command_zone(
     dp: &dyn DecisionProvider,
     game: &GameState,
@@ -1256,8 +1253,8 @@ mod tests {
         let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
     }
 
-    /// The random agent no longer clamps for itself (it did, as policy, until
-    /// the prompt did it), so this is the statement that the engine's maxima
+    /// The random agent does not clamp for itself, so this is the statement
+    /// that the engine's maxima
     /// are what keeps every split payable: over 50 seeds against a board where
     /// exactly one type has surplus, the generic mana is always that type.
     #[test]

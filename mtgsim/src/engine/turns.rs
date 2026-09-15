@@ -100,9 +100,7 @@ impl GameState {
     ///
     /// **The plan does not grow under this loop.** CR 500.8's splice happens in
     /// a resolution and nothing resolves here, so `turn_plan.phases` is fixed
-    /// for the length of a drain — which is what keeps the termination argument
-    /// the same one RE-1 made, now over a finite `Vec` rather than a finite
-    /// chain.
+    /// for the length of a drain, which is the termination argument.
     fn drain(
         &mut self,
         mut step: Option<StepType>,
@@ -201,22 +199,18 @@ impl GameState {
     /// CR 800.4k — "if a player who has left the game would begin a turn, that
     /// turn doesn't begin" — is checked here rather than in the pipeline,
     /// because a turn that does not begin is not an event a replacement effect
-    /// could have replaced. RE-6 is what makes `player_lost` true for a reason;
-    /// this is the site it will use.
+    /// could have replaced.
     ///
     /// **And CR 800.4m is the same moment read from the other side.** "Any
     /// continuous effects with durations that last until that player's next
-    /// turn ... will last until that turn would have begun. They neither expire
-    /// immediately nor last indefinitely." A departed player's turn never
-    /// begins, so `on_turn_begin` never runs for them and the rows would last
-    /// for the rest of the game; the moment their turn *would have* begun is
-    /// the moment this function passes their seat, which is the only place that
-    /// knows. Idempotent, so the next rotation past the same seat finds
-    /// nothing. Its other half — "or until a specific point in that turn" — has
-    /// no rows: step- and phase-scoped durations are `backlog.md` §2.12's.
-    /// `turn_number + 1` is the number that turn would have carried: this runs
-    /// while the drainer is still deciding whose turn is next, so nothing has
-    /// advanced it yet.
+    /// turn ... will last until that turn would have begun." A departed player's
+    /// turn never begins, so `on_turn_begin` never runs for them; the moment
+    /// their turn *would have* begun is the moment this function passes their
+    /// seat, which is the only place that knows. Idempotent, so the next
+    /// rotation past the same seat finds nothing. Its other half — "or until a
+    /// specific point in that turn" — has no rows: step- and phase-scoped
+    /// durations are `backlog.md` §2.12's. `turn_number + 1` is the number that
+    /// turn would have carried, since nothing has advanced it yet.
     fn next_turn_taker(&mut self) -> Option<PlayerId> {
         while let Some(player) = self.turn_queue.pop() {
             if !self.player_lost[player] {
@@ -293,8 +287,8 @@ impl GameState {
 
     /// CR 611.2b's "until your next turn", on all three duration registries.
     ///
-    /// Two calls rather than three: RS-0 made `ReplacementEffectRegistry` an
-    /// alias of the generic `DurationRegistry`, which the restrictions share.
+    /// Two calls rather than three: `ReplacementEffectRegistry` is an alias of
+    /// the generic `DurationRegistry`, which the restrictions share.
     ///
     /// `turn` is the turn that is beginning — or, for CR 800.4m, the turn that
     /// *would have* begun; the registries use it only to refuse an expiry on
@@ -378,12 +372,9 @@ impl GameState {
                     self.active_player,
                     self.turn_number,
                 );
-                // ... and the CR 101.2 "can't"s, whose durations are the
-                // card's rather than the engine's. This replaces a hardcoded
-                // `cant_be_regenerated.clear()` that asserted every "can't be
-                // regenerated" was a this-turn fact with no rule cited; the
-                // scope is now a `Duration` argument on `Primitive::Restrict`,
-                // which is where CR 608.2c can be applied per card.
+                // ... and the CR 101.2 "can't"s, whose durations are the card's rather
+                // than the engine's: the scope is a `Duration` argument on
+                // `Primitive::Restrict`, where CR 608.2c can be applied per card.
                 self.restrictions.remove_expired_at_cleanup(
                     self.active_player,
                     self.turn_number,
@@ -433,17 +424,14 @@ impl GameState {
         player.reset_lands_played();
 
         // Untap permanents the active player *effectively* controls (CR 502.1).
+        // Two passes because the predicate is a `&self` layer query and the untap
+        // is a `&mut self` write.
         //
-        // Two passes because the predicate is a `&self` layer query and the
-        // untap is a `&mut self` write.
-        //
-        // **Ordered, and that is not cosmetic.** This sweep used to iterate
-        // `battlefield.keys()` under a comment saying it reached no decision.
-        // True while each untap was a direct write; false now that each is a
-        // replaceable `GameAction::Untap`. CR 616.1 prompts the affected
-        // permanent's controller when two effects want one untap (stun counters,
-        // CR 122.1d), so the order the proposals are made in is observable and
-        // `HashMap` order differs per process.
+        // **Ordered, and that is not cosmetic.** Each untap is a replaceable
+        // `GameAction::Untap`, and CR 616.1 prompts the affected permanent's
+        // controller when two effects want one untap (stun counters, CR 122.1d),
+        // so the order the proposals are made in is observable and `HashMap` order
+        // differs per process.
         let to_untap: Vec<ObjectId> = self
             .battlefield_ids_ordered()
             .into_iter()
@@ -469,22 +457,17 @@ impl GameState {
         if self.skip_first_draw {
             self.skip_first_draw = false;
         } else {
-            // Through the chokepoint, not straight to `draw_card`: CR 614.11
-            // draw replacements and CR 614.10 skips both act on the *proposal*,
-            // and the turn-based action is where the proposal is born.
+            // Through the chokepoint, not straight to `draw_card`: CR 614.11 draw
+            // replacements and CR 614.10 skips both act on the *proposal*, and the
+            // turn-based action is where the proposal is born. The **instruction**
+            // rather than the draw (CR 121.2a): CR 504.1's turn-based action is "draw a
+            // card", one "draw" of one card, and every draw instruction proposes the
+            // outer so that Divination and a pair of cantrips are told apart by `n`.
+            // The engine's one `DrawCause::TurnBased` site (CR 121.1).
             //
-            // The **instruction** rather than the draw (CR 121.2a). CR 504.1's
-            // turn-based action is "draw a card", which is one "draw" of one
-            // card, and every draw instruction proposes the outer so that
-            // Divination and a pair of cantrips are told apart by `n` rather
-            // than by which event the producer happened to build. This is the
-            // engine's one `DrawCause::TurnBased` site (CR 121.1).
-            //
-            // Not for an active player who has left the game (CR 800.4j —
-            // "the turn continues to its completion without an active
-            // player"): the turn-based action is theirs to perform, and there
-            // is nobody to perform it. A departed player drawing would also
-            // re-arm CR 704.5b for a player the check no longer proposes for.
+            // Not for an active player who has left the game (CR 800.4j — "the turn
+            // continues to its completion without an active player"): the turn-based
+            // action is theirs to perform, and there is nobody to perform it.
             if self.in_game(active) {
                 self.execute_action(
                     GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
@@ -510,9 +493,8 @@ enum TurnUnit {
     Step(StepType),
     /// The **index into this turn's plan** of the phase after the cursor's.
     ///
-    /// An index and not a `PhaseType` since RE-10: CR 500.8 lets one turn hold
-    /// two combat phases, and a turn unit naming a type cannot say which of
-    /// them it means.
+    /// An index and not a `PhaseType`: CR 500.8 lets one turn hold two combat
+    /// phases, and a turn unit naming a type cannot say which of them it means.
     Phase(usize),
     /// The turn boundary: the plan's last phase is behind the cursor.
     Turn,
@@ -527,10 +509,10 @@ enum TurnUnit {
 ///
 /// A free function rather than a method because it reads nothing but the plan
 /// and the cursor — which is what makes the drainer's termination argument
-/// checkable, and RE-10 strengthened it rather than spending it: the cursor
-/// advances through a `Vec` that is finite and, for the length of a drain,
-/// fixed. The one iteration that does not advance it is the one where a turn is
-/// skipped, and that one consumes a schedule entry or the rotation.
+/// checkable: the cursor advances through a `Vec` that is finite and, for the
+/// length of a drain, fixed. The one iteration that does not advance it is the
+/// one where a turn is skipped, and that one consumes a schedule entry or the
+/// rotation.
 fn next_turn_unit(
     plan: &TurnPlan,
     cursor: Option<usize>,
@@ -552,9 +534,7 @@ fn next_turn_unit(
             return TurnUnit::Step(next);
         }
     }
-    // Past the last entry is the turn boundary. This is one rule in one place:
-    // before RE-10 the ending phase was named here *and* wrapped to the
-    // beginning phase in `next_phase`, whose wrap arm this check made dead.
+    // Past the last entry is the turn boundary — one rule in one place.
     if index + 1 >= plan.phases.len() {
         return TurnUnit::Turn;
     }

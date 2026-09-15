@@ -26,7 +26,7 @@
 //!   is a claim that those rules permit an operation the list omits, and it
 //!   should arrive with the rule number that says so — and with a customer,
 //!   since an arm the pipeline cannot apply is worse than a missing one. The
-//!   table on [`Rewrite`] says which phase gave each arm its customer.
+//!   table on [`Rewrite`] lists each arm with the rule that permits it.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
@@ -74,8 +74,7 @@ pub struct ReplacementDef {
     /// questions; Angel of Suffering is `Fixed(vec![])` plus `You`, an effect
     /// about no object at all.
     ///
-    /// [`PlayerSet::Nobody`] on every effect written before Phase RD, which is
-    /// what [`ReplacementDef::new`] gives it.
+    /// [`PlayerSet::Nobody`] is what [`ReplacementDef::new`] gives it.
     pub affected_players: PlayerSet,
 
     /// What must have *caused* the event for this effect to apply — the
@@ -189,7 +188,7 @@ pub struct ReplacementDef {
 /// # One arm per variant, and the two without one
 ///
 /// `Attach` has no arm, since nothing replaces an attach, and `CreateTokenIn`
-/// none, since nothing prints "if a token would be created in exile" (RE-4).
+/// none, since nothing prints "if a token would be created in exile".
 /// Adding an arm is a normal diff — this enum is matched exhaustively and is
 /// not `#[non_exhaustive]`, so every reader fails to compile rather than
 /// defaulting. **`gather::pattern_watches` is the reader that does not**: it
@@ -826,18 +825,18 @@ impl LifeLossCausePattern {
 /// the `GameAction` vocabulary, which is bounded by the engine's own mutations
 /// plus CR 701 rather than by the card pool.
 ///
-/// The full algebra, with the phase that gives each arm a customer:
+/// The full algebra, each arm with the rule that permits it:
 ///
-/// | Arm | CR | Phase |
-/// |---|---|---|
-/// | `Prevent` | 614.6, 615.6 | **RB** |
-/// | `Instead` | 614.1a | **RB** |
-/// | `EnterWith(..)` | 614.1c/d | **RC-2** |
-/// | `EnterUnderControlOf(..)` | 616.1b, 614.1c | **RC-4** |
-/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention | **RD-1** |
-/// | `Retarget(..)` | 614.9 redirection | **RD-4** |
+/// | Arm | CR |
+/// |---|---|
+/// | `Prevent` | 614.6, 615.6 |
+/// | `Instead` | 614.1a |
+/// | `EnterWith(..)` | 614.1c/d |
+/// | `EnterUnderControlOf(..)` | 616.1b, 614.1c |
+/// | `Amount(..)` | 614.5 doublers, 615.7 partial prevention |
+/// | `Retarget(..)` | 614.9 redirection |
 ///
-/// Every arm now has a customer, so the enum is the algebra as claimed rather
+/// Every arm has a customer, so the enum is the algebra as claimed rather
 /// than the algebra minus one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rewrite {
@@ -1232,11 +1231,6 @@ pub struct AuxiliaryMove {
     /// What a candidate must be. Read off the layer walk on the battlefield and
     /// off the card anywhere else, which is the same split
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
-    ///
-    /// **`ObjectFilter` is the wrong name for what this does**: CR 110.1 makes a
-    /// permanent a card *on the battlefield*, and this matches creature cards in
-    /// a graveyard. The rename is `codebase-state.md` item 64 — mechanical, no
-    /// behavior, its own PR.
     pub filter: ObjectFilter,
 
     /// Where the chosen objects go, and why. The `cause` is what separates
@@ -1392,7 +1386,7 @@ impl EnterModsTemplate {
 ///
 /// A *hypothetical* "creatures your opponents control enter face down" would
 /// additionally need `ObjectSet::Filter` to reach an entering permanent,
-/// which it does since RC-3 (Root Maze).
+/// which it does (Root Maze).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EnterMods {
     /// CR 110.5b — the permanent enters tapped.

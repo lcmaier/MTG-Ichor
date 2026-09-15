@@ -1,5 +1,5 @@
 //! "As long as [X]" — a static ability's condition, evaluated during the pass
-//! (`layers-architecture.md` §13b, LI-3).
+//! (`layers-architecture.md` §13b).
 //!
 //! CR 604.2 makes a static ability's effect active "as long as the permanent
 //! with the ability remains on the battlefield and has the ability". A
@@ -80,18 +80,15 @@ pub(super) fn holds(
         Condition::LifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
         Condition::LifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
 
-        // "as long as there's a [X] card in your graveyard". The variant
-        // carries no player, and the printed shape it is written for is
-        // *your* graveyard; a condition over somebody else's is §15.1's
-        // `ZoneContainsCard`, which has an owner on it, when a card wants
-        // one. A graveyard card may be a non-member of the pass, in which case
-        // its frame is its own CDA walk at this ceiling (CR 604.3).
-        //
-        // **The filter is an `ObjectFilter` since LJ folded `CardFilter` in**,
-        // so this arm reads every leaf the layer walk reads rather than the
-        // three the old enum had — and CR 108.4a is what makes that sound off
-        // the battlefield: a card with no controller uses its owner wherever a
-        // controller is asked for, so `ByController` answers here too.
+        // "as long as there's a [X] card in your graveyard". The variant carries
+        // no player, and the printed shape it is written for is *your* graveyard;
+        // a condition over somebody else's is §15.1's `ZoneContainsCard`, which
+        // has an owner on it, when a card wants one. A graveyard card may be a
+        // non-member of the pass, in which case its frame is its own CDA walk at
+        // this ceiling (CR 604.3). The filter is an `ObjectFilter`, so this arm
+        // reads every leaf the layer walk reads, and CR 108.4a is what makes that
+        // sound off the battlefield: a card with no controller uses its owner
+        // wherever a controller is asked for, so `ByController` answers here too.
         Condition::CardInGraveyard(filter) => {
             let Some(you) = controller_of(game, board, source, layer_index) else {
                 return false;
@@ -106,26 +103,20 @@ pub(super) fn holds(
         }
 
         // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
-        // grant exists while the card is in the graveyard, and this is asked
-        // at every layer, so a Wonder that is exiled stops granting on the
-        // very next walk without anything reconciling the registry (§13d
-        // decision 3).
+        // grant exists while the card is in the graveyard, and this is asked at
+        // every layer, so a Wonder that is exiled stops granting on the very next
+        // walk without anything reconciling the registry (§13d decision 3).
         //
-        // The gate is `in_zones_or_entering` rather than zone equality, and
-        // the two differ in exactly one place: under a CR 614.12 look-ahead
-        // the entering object is still in its source zone, and 614.12 asks
-        // what it *would* be on the battlefield — so equality would answer
-        // `false` for the one question that is being asked counterfactually.
-        // The same gate a filter row asks, chosen for the same reason.
+        // The gate is `in_zones_or_entering` rather than zone equality: under a
+        // CR 614.12 look-ahead the entering object is still in its source zone,
+        // and 614.12 asks what it *would* be on the battlefield — so equality
+        // would answer `false` for the one question being asked counterfactually.
         //
-        // **Battlefield sources never see a `false` here**, and the reason is
-        // `cleanup_zone_state` rather than this arm: leaving the battlefield
-        // calls `remove_by_source`, which drops every row of that source
-        // whatever its duration, so there is no row left to check. That is
-        // still not a second spelling of the duration — the duration decides
-        // whether the row is in the registry, and this decides whether the
-        // effect exists given that it is. Off the battlefield the two come
-        // apart, which is what this phase is.
+        // **Battlefield sources never see a `false` here**, because leaving the
+        // battlefield calls `remove_by_source`, which drops every row of that
+        // source whatever its duration. That is still not a second spelling of the
+        // duration — the duration decides whether the row is in the registry, and
+        // this decides whether the effect exists given that it is.
         Condition::SourceInZone(zones) => board.in_zones_or_entering(game, source, *zones),
 
         // Every clause. Short-circuits, so a `SourceInZone` written first —
