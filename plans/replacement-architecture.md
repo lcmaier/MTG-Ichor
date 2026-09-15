@@ -3769,11 +3769,11 @@ archive, and `plans/fuzz-record.md`.
 
 **Builds:** decision 7 — `ProduceMana`, its arm, the one performer replacing
 `resolve_mana_effect`'s and `Primitive::ProduceMana`'s direct writes,
-`ManaAdded` emitted for the first time, and `tapped` read off the activation's
-paid cost. **Consumers:**
+`ManaAdded` emitted for the first time, and `tapped_for_mana` read off the
+activation cost (CR 106.12). **Consumers:**
 
 - **Mana Reflection** — "If you tap a permanent for mana, it produces twice as
-  much of that mana instead." `ProduceMana { tapped: Some(true) }`,
+  much of that mana instead." `ProduceMana { tapped_for_mana: Some(true) }`,
   `Fixed(vec![])` + `You`, `Amount(Multiplier(2))`. Rulings, four, three are
   tests: *only a mana ability with {T} in its cost* → Dark Ritual (in the
   pool) adds three, not six; *a triggered mana ability is unaffected* → item
@@ -3853,7 +3853,9 @@ template arm the row never counted. Decisions 6 and 7 take them.
 
 **1. The event is decision 7's, and its subject is the player whose pool it
 enters.** `GameAction::ProduceMana { player, source, mana: Vec<(ManaType,
-u64)>, special: Vec<ManaAtom>, tapped: bool }`. CR 106.6a's own noun is "the
+u64)>, special: Vec<ManaAtom>, tapped_for_mana: bool }` — the field named by
+the CR's phrase and not `tapped`, which at a call site reads as the
+permanent's state (review, 2026-09-15). CR 106.6a's own noun is "the
 amount of mana produced by a spell or ability", and CR 106.12b names the thing
 a replacement modifies "the mana production event"; `ProduceMana` is that
 event under the name `Primitive` already gave it. `source` is the permanent
@@ -3869,10 +3871,10 @@ permanent at all. `affected_objects` is `NO_OBJECTS` on every def; which
 *permanent* was tapped is the pattern's question (decision 6), not the set's.
 N-player by construction: a `PlayerSet`, nothing that says "the other player".
 
-**2. `tapped` is CR 106.12's, read off the activation cost, and it is a rule
-rather than the ruling decision 7 leaned on.** CR 106.12: *"To 'tap [a
-permanent] for mana' is to activate a mana ability of that permanent that
-includes the {T} symbol in its activation cost."* So `tapped` is
+**2. `tapped_for_mana` is CR 106.12's, read off the activation cost, and it
+is a rule rather than the ruling decision 7 leaned on.** CR 106.12: *"To 'tap
+[a permanent] for mana' is to activate a mana ability of that permanent that
+includes the {T} symbol in its activation cost."* So `tapped_for_mana` is
 `ability.costs` containing `Cost::Tap`, computed in `activate_mana_ability`
 where the effective ability is already in hand, and **never** read off
 `PaymentPlan` — the plan is `plan_payment`'s ordering of the same list, its
@@ -3880,13 +3882,34 @@ where the effective ability is already in hand, and **never** read off
 ability's. The two mechanisms decision 7 named as "CM-3's lock-in already knows
 what was paid" turn out to be one list read from the end the rule names. Three
 consequences fall out and each is a test: `Primitive::ProduceMana` from a
-spell proposes `tapped: false` (CR 605.5b — a spell is never a mana ability;
-Dark Ritual under Mana Reflection adds three, its first ruling); a mana ability
-with no {T} — Krark-Clan Ironworks' sacrifice, in the pool — proposes `false`
-and is not doubled; and a *triggered* mana ability (CR 605.1b, item 6's eight
-"whenever you tap … add an additional" cards) will propose `false` the day it
-exists, which is what Mana Reflection's second ruling says and what
-`ATOM-106.12a-001` will read. A `bool`, not an `Option`: every production knows.
+spell proposes `tapped_for_mana: false` (CR 605.5b — a spell is never a mana
+ability; Dark Ritual under Mana Reflection adds three, its first ruling); a
+mana ability with no {T} — Krark-Clan Ironworks' sacrifice, in the pool —
+proposes `false` and is not doubled; and a *triggered* mana ability (CR
+605.1b, item 6's eight "whenever you tap … add an additional" cards) will
+propose `false` the day it exists, which is what Mana Reflection's second
+ruling says and what `ATOM-106.12a-001` will read. A `bool`, not an `Option`:
+every production knows.
+
+**The fact has two readers, and both need it.** A *replacement* reads it off
+the **proposal**: CR 106.12b, "a replacement effect that applies if a
+permanent 'is tapped for mana' … modifies the mana production event", is Mana
+Reflection's pattern asking `tapped_for_mana` of the `GameAction` before
+anything is added. A *trigger* reads it off the **performed event**: CR
+106.12a, "an ability that triggers whenever a permanent 'is tapped for mana'
+… triggers whenever such a mana ability resolves and produces mana", is item
+6's matcher asking the same fact of `GameEvent::ManaAdded`. The flag rides
+from the one to the other unchanged, because no rewrite touches it (a
+type-changer retypes units; a multiplier repeats them). **Triggered mana
+abilities then shake out from the definition alone**: Wild Growth's "whenever
+enchanted land is tapped for mana, its controller adds an additional {G}" is a
+CR 605.1b trigger that item 6 fires on the `ManaAdded` with `tapped_for_mana: true`,
+resolving at once without the stack (CR 605.4a); its *own* production is a
+second `ProduceMana` proposal with `tapped_for_mana: false`, since no permanent
+was tapped to activate it, so Mana Reflection does not double the extra {G}
+— and that is Mana Reflection's second ruling, "that triggered mana ability
+won't be affected", verbatim. RE-9 builds the flag and the proposal; item 6
+builds the trigger and finds the answer already fixed.
 
 **3. Both writers become proposers of one event; `resolve_mana_effect` gains
 the two things it has never had; a production of nothing performs and
@@ -3896,8 +3919,8 @@ tapped, ctx)` — the signature change §9's row did not count, mechanical becau
 call. Its `Fixed`-only limitation stays exactly as decision 7 said; its
 `Sequence` arm stays too and proposes one event per atom, which no registered
 ability reaches. `Primitive::ProduceMana` evaluates its dynamic amounts as it
-does now and proposes with `ctx.controller`, `ctx.source`, `tapped: false`
-through the `actx` its arm already has in scope. The one performer,
+does now and proposes with `ctx.controller`, `ctx.source`, `tapped_for_mana:
+false` through the `actx` its arm already has in scope. The one performer,
 `perform_action`'s `ProduceMana` arm, is the only `mana_pool.add` and
 `add_special` outside tests. **A production whose every amount is zero and
 whose atom list is empty is the performer's no-op, not `never_happens`'**: no
@@ -3949,9 +3972,9 @@ two Ancients ninefold (both fourth rulings) with **no prompt**: `Multiplier`
 beside `Multiplier` is the commuting cell RD-1 wrote, `kinds_of` reads
 `Kinds::All` here, and the provider primed with nothing is the first assertion.
 
-**6. `EventPattern::ProduceMana { tapped: Option<bool>, source:
-Option<ObjectFilter> }`, reading no amount.** `tapped: Some(true)` is all
-fourteen printed cards; `None` is False Dawn's "would add colored mana"
+**6. `EventPattern::ProduceMana { tapped_for_mana: Option<bool>, source:
+Option<ObjectFilter> }`, reading no amount.** `tapped_for_mana: Some(true)` is
+all fourteen printed cards; `None` is False Dawn's "would add colored mana"
 (unregistrable, but printed, so the `Option` is not a two-arm enum wearing a
 `bool`); `Some(false)` has no card and is the field's honest third answer.
 `source` is the constraint on *which permanent* — "a land" (Contamination,
@@ -3988,11 +4011,19 @@ change does not drop the restriction, which is the ability's) — so Deep
 Water's first ruling ("the amount of mana produced is unchanged, but it will
 all be {U}") and Infernal Darkness's ("would add {W}{W}, it adds {B}{B}
 instead") are the two tests. `Fixed(n)` is Contamination's "instead of any
-other type *and amount*": `n` units of the type carrying the production's own
-metadata when that is uniform — all plain, or all atoms alike — and **refused
-as unmodeled when a production mixes restricted and free units**, a board no
-registered ability builds and no printed card reaches, loud rather than a
-silently dropped restriction. Contamination and Infernal Darkness are fixtures
+other type *and amount*": the production becomes `n` units of the type. **Which
+restriction those `n` units carry is the one question this leg has to answer
+without a rule**, because the old units are gone and only their metadata can
+say. Every printed mana ability produces mana that is *uniformly* restricted
+or uniformly free — a Forest's {G}, Boseiju's spend-only-on-instants — and for
+those the answer is plain: the `n` units carry whatever the old units all
+carried. A production mixing restricted units with free ones ("add {G}, and
+add {G} that can be spent only on creature spells" in one ability) has no
+printed instance and no CR sentence to decide it, so the leg **returns `Err`
+on that board instead of guessing** — the same loud refusal every other
+pairing the pipeline cannot answer gets, chosen over silently dropping a
+restriction the ability printed. A fixture asserts the refusal, and the day a
+card mixes, its ruling is the answer to write. Contamination and Infernal Darkness are fixtures
 in the test file, not registered: each carries an upkeep half that is item 6's
 (a trigger; cumulative upkeep). Hall of Gemstone, Naked Singularity and
 Harvest Mage wait for a chosen color on a permanent, a per-basic-type read and
@@ -4009,24 +4040,36 @@ multiplier stays CR 616.1's real question (`Fixed(1)` then ×2 is 2; ×2 then
 `Fixed(1)` is 1). No card's ruling contradicts either cell; none speaks to it.
 
 **8. `GameEvent::ManaAdded` is reshaped in the PR that first emits it:
-`{ player_id, source_id, mana: Vec<(ManaType, u64)>, tapped: bool }`.** The
-`HashMap` goes for decision 1's reason — the event has never been rendered,
-and the first render would have been the determinism regression's. `tapped`
-rides on the event because CR 106.12a's trigger reads it — "triggers whenever
-such a mana ability resolves and produces mana" — and `ATOM-106.12a-001`'s
-Mana Web wants *which* permanent, which `source_id` already is. Restricted
+`{ player_id, source_id, mana: Vec<(ManaType, u64)>, tapped_for_mana: bool }`.**
+The `HashMap` goes for decision 1's reason — the event has never been
+rendered, and the first render would have been the determinism regression's.
+`tapped_for_mana` rides on the event because CR 106.12a's trigger is its
+second reader (decision 2) — "triggers whenever such a mana ability resolves
+and produces mana" — and `ATOM-106.12a-001`'s Mana Web wants *which*
+permanent, which `source_id` already is. Restricted
 atoms are **folded into the per-type counts** in proposal order: CR 106.6's
 first sentence says a restriction "doesn't affect the mana's type", so the log
 reports {G}{G} for a doubled restricted Forest and the pool keeps the
 restriction where it lives. `display.rs`'s arm is rewritten to the `Vec`.
 
-**9. The probe lands as a permanent counter.** `EngineCounters::
-record_mana_production`, called once by the performer, printed by `fuzz_games`
-as `Mana productions` beside `Replacement gathers`, and a row in
-`fuzz_ab.py`'s `ROWS` and the fixture table. It is the denominator every mana
-number after this is read against — gathers per production — and it costs one
-`Cell` increment on the hottest path, which the A/B measures with everything
-else. The `main` arm of this one sitting reads `?` for it, by construction.
+**9. The probe lands as a permanent diagnostic row.** `record_mana_production`
+on the engine's diagnostics struct, called once by the performer, printed by
+`fuzz_games` as `Mana productions` beside `Replacement gathers`, and a row in
+`fuzz_ab.py`'s `ROWS` and the fixture table (decided at review, 2026-09-15).
+It is the denominator every mana number after this is read against — gathers
+per production — and it costs one `Cell` increment on the hottest path, which
+the A/B measures with everything else. The `main` arm of this one sitting
+reads `?` for it, by construction. **The struct's name collides with the game's
+counters, and the review is where it was seen**: `GameState.counters` is
+`EngineCounters`, the diagnostics, while `PermanentState.counters` and
+`PlayerState.counters` one struct over are CR 122's — three fields, one
+spelling, two meanings. The rename is a mechanical sweep (six `EngineCounters`
+sites, ~75 `.counters.record_*` and accessor calls) and rides in **no rules
+PR** (`refactor/object-set-rename`'s precedent, `codebase-state.md` main item
+124): its own PR, proposed as `EngineMeters` / `game.meters`, a
+word the CR never uses and one that reads as measurement at every call site.
+This PR adds its one method under the existing name and does not touch the
+collision.
 
 **10. `PERFORMANCE_POOL` +1, Mana Reflection, decided by the A/B's third arm.**
 A six-drop static on the hottest path in the engine, whose row is the one this
@@ -4062,7 +4105,7 @@ phase but RE-2 declined on the same ground.
 by the same fixture — the restricted mana is still green and pays a creature
 spell's {G}, its expected result verbatim. `ATOM-106.12a-001` `COVERS-PARTIAL`:
 the event carries "tapped for mana" as a fact (a Forest's production is
-`tapped: true`, Dark Ritual's `false`) and the atom's *query* — "was this
+`tapped_for_mana: true`, Dark Ritual's `false`) and the atom's *query* — "was this
 permanent tapped for mana this turn" — is item 6's trigger, said in the test.
 None of the three is in `owed`'s nine, by construction.
 
@@ -4070,20 +4113,22 @@ None of the three is in `owed`'s nine, by construction.
 amount` + `display.rs`; `pattern_watches` 1; `substitute` 1 leg and two
 predicate arms; `replaces_that_many` 1; `resolve_mana_effect` 1 rewritten +
 signature; `Primitive::ProduceMana` 1; `activate_mana_ability` 1 call; the
-counter 4 files. **~420 engine, ~260 cards (three registered, two fixtures
+diagnostic row 4 files. **~420 engine, ~260 cards (three registered, two fixtures
 with their rulings), ~650 tests, ~20 harness ≈ 1,300–1,450** — inside §4's band
 where the row's 950–1,150 was below its floor, and the difference is the
 template and its card.
 
-**Open for the owner, and the recommendation on each.** *(a)* Decision 7's
-scope — the type-changing leg with Deep Water — is the one addition to §9's
-row, taken on §4's rule; the recommendation is to ship it, and the fallback is
-a ledger line naming the six cards and the ~50 engine lines. *(b)* Whether
-`Mana productions` joins `fuzz-record.md`'s fixture table or stays a
-`fuzz_games` line; the recommendation is the table, since it is the
-denominator. *(c)* The name: `ProduceMana` is kept over the CR's "mana
-production event" because `Primitive::ProduceMana` has carried it since Phase
-5-Pre and one word for one event is the rule.
+**Reviewed 2026-09-15, the same day.** Two scope questions were put to the
+owner and both were taken as recommended: *(a)* decision 7's type-changing
+leg ships with Deep Water, the one addition to §9's row, on §4's rule; *(b)*
+`Mana productions` joins `fuzz-record.md`'s fixture table. Three review notes
+changed the text above and are marked where they landed: `tapped` became
+`tapped_for_mana` on the action, the pattern and the event, and decision 2
+gained its "two readers" paragraph, because the reviewer asked whether the
+flag was the triggers' or the replacements' — it is both, and the triggered
+mana ability question shakes out of the definition; decision 7's `Fixed`
+refusal was rewritten to say what board it refuses and why; and decision 9
+names the `counters` collision and the rename PR it is not.
 
 #### RE-10 — extra phases, and the turn plan (CR 500.8, 500.11, 505.1) — ✅ landed 2026-09-14
 
@@ -6639,6 +6684,19 @@ found them.
     event it emits. The event becomes a `Vec` in proposal order in the same
     PR. → RE-9 decision 8; `CLAUDE.md`'s determinism rule, "any collection
     reaching a choice, log or count".
+
+97. **`GameState.counters` is the diagnostics and its two sibling fields are
+    CR 122's, and the review is where the collision was seen.**
+    `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
+    poison and energy; `GameState.counters` holds `EngineCounters`, the layer
+    walks and gathers `fuzz_games` prints. Three fields, one spelling, two
+    meanings, and RE-9's design check wrote "a permanent counter" about a
+    diagnostic row without noticing which of the two it meant. Sized as a
+    mechanical sweep — six `EngineCounters` sites, ~75 `.counters.` calls —
+    and, on `codebase-state.md` main item 124's precedent, its own PR rather
+    than a rider on a rules change; the proposed name is `EngineMeters` /
+    `game.meters`, a word the CR never uses. RE-9 adds one method under the
+    existing name and leaves the collision where it is. → RE-9 decision 9.
 
 ## 12. Explicitly out of scope
 
