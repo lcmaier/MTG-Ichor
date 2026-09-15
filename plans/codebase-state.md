@@ -2788,10 +2788,40 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     **Reachability (2026-09-07):** unreachable — no route exists to put a row
     on a non-member, and no registered card asks for one.
 
+    **Re-derived (2026-09-14, LJ) — the route now exists, and the heading of
+    this item is what went stale.** "A registry row cannot reach an object off
+    the battlefield" is no longer true: a `Filter` row naming
+    `ZoneSet::STACK` reaches a spell, and one naming `HAND` reaches a card in
+    hand. The literal *reachability* sentence survives on a technicality — an
+    object a row reaches is a **member**, so nothing puts a row on a
+    non-member — and that technicality is the whole change, because
+    `compute_non_member` is now the walk of an object **no row names** rather
+    than of any object off the battlefield.
+
+    What this costs the item's two consequences:
+
+    - **The load-bearing one is still true, and is now true for a different
+      reason.** Source 2's printed gate leg reads `card_data.abilities` for a
+      spell, and that was *exact by construction* while no row could reach the
+      stack. It is now exact only because no registered row names it. The
+      backstop was already built and already OR'd into the gate —
+      `any_granted_cost_modification` and `any_copied_cost_modification` — so
+      the answer does not change today; what changed is that the gate rests on
+      a flag rather than on a structural impossibility, which is a thing to
+      know before writing the first stack-reaching cost ability.
+    - **The gap half narrowed.** CR 113.6e's second sentence still has nothing
+      to grant *with*, but no longer nothing to grant *to*: the zone half is
+      built and it is CR 113.6 itself that is missing, which is A5.
+
+    **Reachability (2026-09-14):** unreachable — still no registered card puts
+    a cost ability on an object off the battlefield, and the two summary flags
+    catch it when one does.
+
     **Sized:** none here; when a route exists, the gather's two summary flags
     (`any_granted_cost_modification`, `any_copied_cost_modification`) are
     already OR'd into source 2's gate and are what catches it, so the cost of
-    forgetting is bounded to whatever builds the route.
+    forgetting is bounded to whatever builds the route. LJ built half the
+    route and neither flag needed touching, which is that sentence holding.
 
 76. **`Effect::as_…` says what an ability *is*, never where it applies from,
     and all three cost gates are about where.** — ✅ closed, archived.
