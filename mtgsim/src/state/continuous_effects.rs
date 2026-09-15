@@ -294,7 +294,7 @@ impl ContinuousEffectRegistry {
     /// row a *resolution* created (CR 613.7b) in place.
     ///
     /// **The zone-general counterpart of `remove_by_source`, and narrower than
-    /// it on purpose** (A5, `layers-architecture.md` §13d decision 3).
+    /// it on purpose** (LK, `layers-architecture.md` §13d decision 3).
     /// `cleanup_zone_state` calls the broad one when a permanent leaves the
     /// battlefield and gets away with it only because it never runs anywhere
     /// else: a resolving instant registers its row with `source` = the spell

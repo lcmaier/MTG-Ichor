@@ -27,7 +27,7 @@ use super::phase_rs_cards;
 use super::phase_sba_cards;
 use super::phase_lh_cards;
 use super::phase_li_cards;
-use super::phase_a5_cards;
+use super::phase_lk_cards;
 use super::phase_cm_cards;
 
 /// The board an engine change is measured against — **representative, not
@@ -394,7 +394,7 @@ const PERFORMANCE_POOL: [&str; 88] = [
     // job is to be the Jailer's partner in the atom, where a graveyard is
     // arranged rather than arrived at.
     "Yixlid Jailer",
-    // A5 — CR 113.6, and the pool's first static ability that functions
+    // LK — CR 113.6, and the pool's first static ability that functions
     // **from** a zone other than the battlefield. It opens the path in
     // `move_object`: every zone change now asks `zone_function` whether the
     // arriving object has an ability that works there, and every registry row
@@ -830,16 +830,16 @@ impl CardRegistry {
         registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
         registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
 
-        // A5 — CR 113.6. Wonder is the first registered card whose static
+        // LK — CR 113.6. Wonder is the first registered card whose static
         // ability functions off the battlefield, and it is pooled: it opens
         // `move_object`'s registration path and puts a graveyard source in
         // front of the existence check.
         //
-        // `phase_a5_cards::exiled_ancestor` — CR 113.6c's complement, which
+        // `phase_lk_cards::exiled_ancestor` — CR 113.6c's complement, which
         // needs no second mechanism — is a fixture registered nowhere, for the
         // reason `registry.rs` gives elsewhere: the printed 113.6c population
         // is thin and every member of it wants something else as well.
-        registry.register("Wonder", phase_a5_cards::wonder);
+        registry.register("Wonder", phase_lk_cards::wonder);
 
         registry
     }

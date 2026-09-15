@@ -16,7 +16,7 @@
 
 use mtgsim::cards::basic_lands;
 use mtgsim::cards::creatures;
-use mtgsim::cards::phase_a5_cards::{exiled_ancestor, wonder};
+use mtgsim::cards::phase_lk_cards::{exiled_ancestor, wonder};
 use mtgsim::cards::phase_le_cards::tarmogoyf;
 use mtgsim::cards::phase_lj_cards::yixlid_jailer;
 use mtgsim::engine::actions::ZoneChangeCause;
@@ -75,7 +75,7 @@ fn test_a_static_ability_functions_from_a_graveyard() {
 ///
 /// A Wonder **on the battlefield** is a 2/2 flier that grants nothing — its
 /// ability states the graveyard, so on the battlefield it does not function.
-/// Before A5 the engine had it exactly backwards: registration happened at ETB
+/// Before LK the engine had it exactly backwards: registration happened at ETB
 /// and nowhere else, so this was the only board on which Wonder did anything.
 #[test]
 fn test_the_same_ability_does_not_function_from_the_battlefield() {

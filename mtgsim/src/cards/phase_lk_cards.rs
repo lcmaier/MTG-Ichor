@@ -1,4 +1,4 @@
-//! Phase A5 — CR 113.6, which abilities function in which zone
+//! Phase LK — CR 113.6, which abilities function in which zone
 //! (`layers-architecture.md` §13d).
 //!
 //! One registered card and one fixture. Both oracle texts were verified on
@@ -79,7 +79,7 @@ fn creatures_you_control() -> ObjectFilter {
 /// characteristics on the frame (`CLAUDE.md`'s keyword map), seeded from the
 /// card in every zone. A Wonder in a graveyard therefore still *reports*
 /// flying if something asks, which CR 113.6 says it should not — recorded as
-/// `codebase-state.md`'s A5 finding rather than fixed here, because nothing
+/// `codebase-state.md`'s LK finding rather than fixed here, because nothing
 /// reads a non-battlefield object's keyword flags for a rules decision and the
 /// fix belongs with whatever first does.
 pub fn wonder() -> Arc<CardData> {

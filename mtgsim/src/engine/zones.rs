@@ -184,7 +184,7 @@ impl GameState {
         self.set_object_timestamp(id, timestamp);
 
         // CR 113.6 — a static ability that *functions* in the zone this object
-        // just entered registers its rows now (A5, `layers-architecture.md`
+        // just entered registers its rows now (LK, `layers-architecture.md`
         // §13d decision 3). Wonder arriving in a graveyard is the card.
         //
         // The battlefield is skipped for the reason above; CR 108.4 answers
@@ -426,7 +426,7 @@ impl GameState {
     /// the departing entity's state. The PermanentState itself is
     /// removed afterwards by remove_from_zone_collection.
     ///
-    /// Two branches since A5, and they retire different things — see the
+    /// Two branches since LK, and they retire different things — see the
     /// `else`, which is where the reason is.
     fn cleanup_zone_state(&mut self, id: ObjectId, zone: Zone) {
         if zone == Zone::Battlefield {
@@ -470,7 +470,7 @@ impl GameState {
                 self.detach(attachment_id);
             }
         } else {
-            // A5 — the counterpart of `move_object`'s registration leg, and
+            // LK — the counterpart of `move_object`'s registration leg, and
             // **narrower than the battlefield branch above on purpose**: it
             // retires only the rows a *static ability* of this object
             // generated, never a resolution's.
@@ -483,7 +483,7 @@ impl GameState {
             // with the broad call only because it has never run anywhere else.
             //
             // Hygiene rather than correctness: CR 604.2's existence check
-            // re-asks every layer, and since A5 the zone clause is part of
+            // re-asks every layer, and since LK the zone clause is part of
             // what it asks (`Condition::SourceInZone`), so a row left behind
             // would be inert anyway. What this buys is that a card bouncing
             // between two zones does not accumulate rows.

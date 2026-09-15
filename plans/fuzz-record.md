@@ -37,6 +37,87 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-14 for LK** (CR 113.6, which abilities function in which
+zone; `layers-architecture.md` §13d). `PERFORMANCE_POOL` +1 — Wonder, 87 → 88
+— and the stress pool +1 (152 → 153, the pooled one; `exiled_ancestor` is a
+fixture registered nowhere), so **both tables are a re-record and neither
+column is an engine reading.** Wonder resolves in **45% of games** at 20 games
+/ seed 12345, and dies like any other creature, so the board carries a
+graveyard source for the rest of the game once it does.
+
+**The headline number of this sitting is not in the tables, and the tables are
+why.** Registering a card changes the decks, so the two-arm counters differ and
+a timing delta cannot be attributed — games got 3.6% shorter here and CPU/game
+went *down* 3.8%, which says nothing about the engine. The sitting therefore
+built a **third arm with Wonder unregistered**, whose counters are
+byte-identical to `main` by construction (`replacement-architecture.md` §11
+item 80's technique). That arm read **+16.5%**, which is how
+`layers-architecture.md` §13d decision 2's field move was caught: moving
+CR 613.7's timestamp off `PermanentState` onto `GameObject` put it one
+`HashMap` hop away from `battlefield_ordered` and `battlefield_ids_ordered`,
+which run ~5,700 times a game over ~16 permanents (`codebase-state.md` item
+77). Post-fix the same arm reads **−2.5%**, counters still identical on both
+pools.
+
+**Build the unregistered arm first.** The pool-moving arm cannot tell a 16%
+regression from a shorter game, and in this sitting it very nearly did not: the
+two-arm read was +5.2%, which is inside the documented spread and would have
+shipped.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| CPU/game median | 14.73 → 14.17 ms (−3.8%) | 54.23 → 49.33 ms (−9.0%) |
+| ms / 1,000 walks | 39.49 → 39.14 (−0.9%) | 63.65 → 63.41 (−0.4%) |
+| Layer walks | 373 → 362 | 852 → 778 |
+| Layer frames | 4,646 → 4,538 | 16,847 → 15,246 |
+| Frames/walk | 12.46 → 12.54 (+0.6%) | 19.78 → 19.59 (−1.0%) |
+| Memo hits | 61,908 → 59,133 | 193,334 → 175,453 |
+
+**Frames/walk is the row LJ's block said to watch, and it says the prediction
+held.** LJ moved it +1.1% at two seats and +4.1% at four, and the ratio was the
+shape of its cost: it scaled with how much of the *named zone* exists. LK puts
+a **source** off the battlefield instead, so its cost is per *row* — one
+`compute_non_member` walk and cache insert per layer per zone-functioning row —
+and should not scale with seat count at all. It does not: +0.6% at two seats
+and −1.0% at four, with the four-seat number moving the other way. Every other
+row here is the pool, not the engine.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools, the
+`new` arm):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 26 (52.0%) | 30 (60.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.3 | 30.9 |
+| Spells cast | 21.8 | 21.5 |
+| Lands played | 17.0 | 17.9 |
+| Combat w/ atk | 9.5 | 9.9 |
+| Creatures died | 6.3 | 4.8 |
+| Damage events | 20.4 | 20.7 |
+| Total damage | 56.6 | 58.3 |
+| Life changes | 13.5 | 15.4 |
+| Turns after a departure | ? | ? |
+| Departed-owned permanents | ? | ? |
+| **Layer walks** | **358** | **441** |
+| **Board walks** | **242** | **286** |
+| **Memo hits** | **54,349** | **77,676** |
+| **Layer frames** | **4,201** | **5,599** |
+| **Frames/walk** | **11.74** | **12.70** |
+| **Dependency checks** | **11** | **17** |
+| **Replacement gathers** | **927** | **1063** |
+| **Restriction queries** | **930** | **1066** |
+| Prevention allocations | 0.02 | 0.06 |
+| Replacement prompts | 0.00 | 0.98 |
+| Max batch depth | 5 | 5 |
+
+The `main` arm's same rows, for the pool these replace: performance
+376 / 247 / 59,404 / 4,687 / 12.47 / 37 / 999 / 1002; stress
+512 / 307 / 89,245 / 6,335 / 12.38 / 27 / 1167 / 1171.
+
+Determinism: three shell `fuzz_games` runs at seed 777, 40 games, identical
+line for line but the timing lines (`CLAUDE.md`).
+
 **Re-recorded 2026-09-14 for LJ** (the zone-reaching `ObjectSet`;
 `layers-architecture.md` §13c). `PERFORMANCE_POOL` +1 — Yixlid Jailer, 86 → 87
 — and the stress pool +2 (150 → 152: Scarwood Treefolk and the pooled one), so

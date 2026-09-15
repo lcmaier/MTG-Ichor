@@ -63,7 +63,7 @@ pub struct GameObject {
     /// > 613.7d. An object receives a timestamp at the time it enters a zone.
     ///
     /// **On the object rather than on `PermanentState`, because 613.7d says
-    /// "a zone" and the battlefield is one of seven** (A5,
+    /// "a zone" and the battlefield is one of seven** (LK,
     /// `layers-architecture.md` §13d decision 2). It lived on the battlefield
     /// entry until Wonder — a static ability functioning *from a graveyard*,
     /// whose effect CR 613.7a gives "the same timestamp as the object the

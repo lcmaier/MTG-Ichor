@@ -245,7 +245,7 @@ impl<'l> Board<'l> {
     /// object whose entry is being decided is still in its source zone and
     /// carries that zone's timestamp, which is older than every permanent on
     /// the board, where CR 614.12 asks what it would be once it has entered.
-    /// Before A5 the same distinction was spelled as "has an entity or does
+    /// Before LK the same distinction was spelled as "has an entity or does
     /// not", and that stopped working the day an object off the battlefield
     /// had a timestamp at all.
     pub(super) fn timestamp_of(&self, game: &GameState, id: ObjectId) -> Timestamp {

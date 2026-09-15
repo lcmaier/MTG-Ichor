@@ -1325,7 +1325,7 @@ impl GameState {
             // Two candidates, later wins. A printed ability has only the first,
             // so it is returned unchanged.
             //
-            // **The object, not the battlefield entry, since A5.** CR 613.7d
+            // **The object, not the battlefield entry, since LK.** CR 613.7d
             // gives an object a timestamp in every zone, which is what lets a
             // Wonder in a graveyard generate an effect the layer walk can order
             // — and the graveyard's own timestamp is the right one, because
@@ -1352,7 +1352,7 @@ impl GameState {
     /// extracts the primitive and recipient, and registers a
     /// `ContinuousEffect` in the registry.
     ///
-    /// **Two callers, and the zone is why there are two** (A5,
+    /// **Two callers, and the zone is why there are two** (LK,
     /// `layers-architecture.md` §13d decision 3):
     ///
     /// - `place_on_battlefield`, for `Zone::Battlefield`. It has to be there
@@ -1371,7 +1371,7 @@ impl GameState {
     /// Registration is *not* what decides whether an effect applies. CR 305.7
     /// and Layer 6 can take the generating ability away without touching the
     /// registry, so `compute.rs` re-checks existence at every layer — and
-    /// since A5 that check covers the zone too, because a card's zone clause
+    /// since LK that check covers the zone too, because a card's zone clause
     /// is a `Condition::SourceInZone` the existence check already evaluates.
     /// This function's job is only to put the row there with the right
     /// timestamp.
@@ -1393,7 +1393,7 @@ impl GameState {
         use crate::objects::card_data::AbilityType;
         use crate::types::effects::{Duration, Effect};
 
-        // An `Arc` bump rather than three deep clones, and since A5 that is
+        // An `Arc` bump rather than three deep clones, and since LK that is
         // load-bearing rather than tidy: `move_object` calls this on **every**
         // zone change, so a `Vec<AbilityDef>` clone here would land on every
         // draw, mill and discard in the game. The clone exists only because
@@ -1469,7 +1469,7 @@ impl GameState {
             // list at 601.2f. Through the "as long as" wrapper, which the two
             // tests above do not see (`cost-architecture.md` §8 item 1).
             //
-            // **Only a subject that can apply from here**, and since A5 that
+            // **Only a subject that can apply from here**, and since LK that
             // is the CR 113.6 gate above rather than a second predicate: a
             // spell's own cost ability functions on the stack (CR 113.6d), so
             // an affinity permanent never reaches this line. Recording one

@@ -601,17 +601,23 @@ pub(crate) fn set_affects(
             // CR 614.12 exists for. `CLAUDE.md`: an arm the pipeline cannot
             // apply is worse than a missing one.
             //
-            // **This assert is scaffolding and A5 deletes it** (owner review,
-            // 2026-09-14). It is not a permanent invariant — a replacement row
-            // over a hand or a graveyard is a thing the CR has and the engine
-            // will; the assert marks the window in which the *type* can express
-            // one and this function cannot honour it. Whoever builds CR 113.6
-            // replaces it with the real gate, and the failing assert is how
-            // they find this site.
+            // **This assert is scaffolding, and A5 did not delete it after
+            // all.** It was written expecting CR 113.6 to close the window
+            // (owner review, 2026-09-14); LK landed CR 113.6 the same day and
+            // the window is still open, because the two halves are not one
+            // piece. LK gave a static ability functioning off the battlefield a
+            // way to *register* — `register_static_effects` takes a zone — and
+            // left `replacement::gather`'s sweep over `battlefield_ids_ordered`
+            // alone, which is `replacement-architecture.md` §11 item 9's (c)
+            // and now carries its own card (one of the five "would be put into
+            // a graveyard from anywhere" replacements).
+            //
+            // So it stays a window rather than an invariant, and the failing
+            // assert is still how whoever builds that leg finds this site.
             debug_assert_eq!(
                 *zones,
                 ZoneSet::BATTLEFIELD,
-                "zone-reaching replacement row needs CR 113.6 (roadmap-v2.md A5)"
+                "zone-reaching replacement row needs the gather's own zone leg (§11 item 9's (c))"
             );
             game.object_matches_filter_of_source(
                 id,

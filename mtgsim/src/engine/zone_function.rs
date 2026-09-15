@@ -6,7 +6,7 @@
 //! > as follows: …
 //!
 //! **A module rather than a method, because four subsystems ask and none owns
-//! it** (`layers-architecture.md` §13d). Before A5 the rule was in the tree
+//! it** (`layers-architecture.md` §13d). Before LK the rule was in the tree
 //! four times and scattered: `register_static_effects` spelled "a static
 //! ability functions on the battlefield" as *which function calls it*,
 //! `CostSubject::applies_from_battlefield` was CR 113.6d in a method (A5

@@ -39,7 +39,7 @@ pub struct Lookahead {
     /// battlefield — `next_timestamp` read without advancing it.
     ///
     /// Carried here rather than read off the object, and that is the whole of
-    /// why A5's field move did not disturb the look-ahead: the object still
+    /// why LK's field move did not disturb the look-ahead: the object still
     /// sits in its source zone while its entry is decided (RC-4b), so its real
     /// timestamp is that zone's and is *older* than every permanent on the
     /// board. What CR 614.12 asks is what it would be once it has entered,

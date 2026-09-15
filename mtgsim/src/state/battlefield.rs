@@ -36,7 +36,7 @@ pub struct PermanentState {
     /// **The battlefield order key — a copy of `GameObject::timestamp`, kept
     /// here because the ordered sweeps cannot afford to look it up.**
     ///
-    /// CR 613.7's timestamp lives on the object since A5, because CR 613.7d
+    /// CR 613.7's timestamp lives on the object since LK, because CR 613.7d
     /// gives an object one for every zone it enters and a card in a graveyard
     /// needed one (`layers-architecture.md` §13d decision 2). That is the
     /// value the *rules* read — `GameState::static_effect_timestamp` reads the

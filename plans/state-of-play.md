@@ -55,6 +55,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `LI-2` — plans/layers-architecture.md
 - `LI-3` — plans/layers-architecture.md
 - `LJ` — plans/layers-architecture.md
+- `LK` — plans/layers-architecture.md
 - `RA-1` — plans/replacement-architecture.md
 - `RA-2` — plans/replacement-architecture.md
 - `RA-3` — plans/replacement-architecture.md
@@ -83,9 +84,9 @@ says nothing about progress, so there is one answer and it is derived.
 
 | | |
 |---|---:|
-| Cards registered | 152 |
-| …of them in `PERFORMANCE_POOL` | 87 |
-| `#[test]` functions | 1472 |
+| Cards registered | 153 |
+| …of them in `PERFORMANCE_POOL` | 88 |
+| `#[test]` functions | 1493 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -93,15 +94,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 5585 of 5800 lines (96%) |
-| Numbered items | 181 |
+| Section size | 5710 of 5925 lines (96%) |
+| Numbered items | 183 |
 | …closed, still recorded | 49 |
-| …open — unreachable, and says why | 79 |
+| …open — unreachable, and says why | 81 |
 | **…open — reachable, wrong today** | **5** |
 | …open — reachable, not wrong (perf, a name, a harness) | 20 |
 | …open — nothing to build, a record for a later phase | 23 |
 | **…open — reachability *not* stated** | **5** |
-| …open, carrying an explicit `**Sized:**` | 126 of 132 |
+| …open, carrying an explicit `**Sized:**` | 128 of 134 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

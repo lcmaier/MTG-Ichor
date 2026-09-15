@@ -1954,13 +1954,19 @@ registered only once the engine can play it.
 
 ---
 
-## 13d. Phase A5 — CR 113.6, which abilities function in which zone (live plan, 2026-09-14)
+## 13d. Phase LK — CR 113.6, which abilities function in which zone (live plan, 2026-09-14)
 
-**Lettered `A5` rather than `LK` because `roadmap-v2.md` row A5 is where it was
-scheduled and four documents already call it that.** Written before the first
-PR the way §13a, §13b and §13c were: the finding that sets the scope, the
-decisions the phase was asked to settle first, the subrule triage, the pieces,
-and a size measured against the tree (`engineering-practices.md` §4).
+#### LK — CR 113.6, which abilities function in which zone — ✅ landed 2026-09-14
+
+**Lettered `LK`, and the first cut called it `A5` — which is a roadmap *row*,
+not a phase code.** `roadmap-v2.md` A5 is three PRs and LJ was the second of
+them; a phase implementing part of a row takes the track's next letter, which
+is the convention `check_state_of_play.py` derives landed status from and the
+one way that derivation can under-report (its own docstring says so). Written
+before the first PR the way §13a, §13b and §13c were: the finding that sets the
+scope, the decisions the phase was asked to settle first, the subrule triage,
+the pieces, and a size measured against the tree
+(`engineering-practices.md` §4).
 
 Critical-path **6a**, and the last gate before item 6. Both stated
 prerequisites are in: `codebase-state.md` item 124's rename ✅ PR #136, and
@@ -2171,16 +2177,42 @@ source is in a graveyard: the `None` arm is finding 2 above. CR 613.7d — "an
 object receives a timestamp at the time it enters a zone" — is the field that
 fixes it, and there is one right shape:
 
-**`PermanentState.timestamp` moves to `GameObject.timestamp` and is deleted**,
-rather than a second field added beside it. A stored field must mean one thing
-(`codebase-state.md`'s LH-2 lesson), and two fields both meaning "CR 613.7's
-timestamp for this object" is two places to drift. The field is allocated in
-`move_object` (613.7d), at object creation for anything that enters a zone
-without moving — a token, a library card at setup — and re-allocated by
-CR 613.7e's attach re-stamp, which already goes through one writer. The
-battlefield reads it through `battlefield_ids_ordered` exactly as it does
-today; the values change, the order does not, and `battlefield_entities` and
-every count over the prefix are untouched.
+**`GameObject.timestamp` is CR 613.7's, and the battlefield entry keeps a
+copy.** The first cut of this decision said one field and *deleted*
+`PermanentState.timestamp` — "a stored field must mean one thing"
+(`codebase-state.md`'s LH-2 lesson). **The A/B says that costs +16.5% of total
+game time against an arm whose counters are byte-identical**, which is not the
+sitting's 2–6% spread and not the pool: the same tree with the copy restored
+measures +1.2%.
+
+The cause is `codebase-state.md` item 77's finding made worse.
+`battlefield_ordered` and `battlefield_ids_ordered` run ~5,700 times a game
+over ~16 permanents, and with the timestamp one map away every one of those
+elements pays a `HashMap` hop.
+
+So: the **object** carries CR 613.7's timestamp and is what the rules read —
+`static_effect_timestamp` reads it there, which is the whole point of the move
+— and the **entry** carries a copy whose only reader is those two sweeps. It
+is allocated in `move_object` (613.7d), at object creation for anything that
+enters a zone without moving (a token, a library card at setup), and
+re-allocated by CR 613.7e's attach re-stamp.
+
+**The copy cannot drift, and not because anything checks.** Two doors, each
+the only one of its kind: `GameState::set_object_timestamp` is the only writer
+of a timestamp on an object that has an entry and it writes both, and
+`insert_battlefield_entry` is the only way an entry is created and it stamps
+from the object. The second is not tidiness — an entry inserted without the
+copy carries `0`, which is not merely wrong but **tied**, and a tie in
+`battlefield_ids_ordered` is broken by `HashMap` order, which is the exact
+non-determinism the ordered sweeps exist to prevent. Two unit tests found it as
+a wrong answer; a third would have found it as a flake.
+
+**Item 77 is what deletes the copy.** A *maintained* order vector needs no
+timestamp on the entry at all, and that item already says to fold itself into
+"whatever next touches `place_on_battlefield`" — which is this phase. It is not
+folded in: item 77 sizes itself as medium-risk, a missed maintenance point
+silently corrupts every ordered sweep in the game, and this is a rules change.
+The measurement above is now on the record for whoever takes it.
 
 The one site that needs a word: `board.rs:731` gives the *entering* object
 `Timestamp::MAX` for CDA ordering, because it has no timestamp yet. After the
@@ -2284,6 +2316,7 @@ deferrals are §2.3's, not this row's**.
 |---|---|---|
 | **113.6** (default) | **ships** — the base arm | Abilities of an instant or sorcery on the stack, everything else on the battlefield. Every registered card is its consumer; ATOM-113.6-001 is its atom, and it is Wonder's negative half |
 | **113.6a** CDAs everywhere | **ships as an assertion** | Already true, and not through this predicate: `engine/layers/cda.rs` applies CDAs off the object's own effective list and `compute_non_member` walks them in any zone (CR 604.3a(3) — "CDAs are never registry effects"). The predicate returns `ZoneSet::ALL` for `is_characteristic_defining`, which is a *statement of agreement* with a path that does not consult it. ATOM-113.6a-001, Tarmogoyf in a graveyard |
+| **113.6 for a `KeywordFlag`** | **not reached, and the gap is new** | Quadrant ① keywords are frame *characteristics*, not `AbilityDef`s (`CLAUDE.md`'s keyword map), and `seed_frame` seeds them from the card in every zone — so this predicate never sees one. A Wonder in a graveyard still reports flying, which CR 113.6 says it should not. Found by writing Wonder and **recorded rather than fixed**: nothing reads a non-battlefield object's keyword flags for a rules decision, so there is no arm to apply. `codebase-state.md`'s A5 finding owns it |
 | **113.6b** states its zones | **ships — the new facility** | **Wonder**. Decision 5's field, the registration leg, the existence leg |
 | **113.6c** states where it doesn't | **ships, as a spelling of 113.6b** | `ZoneSet::ALL.without(z)`, and `EVERYWHERE_BUT_BATTLEFIELD` is already a constant LJ wrote for Grist and Mycosynth Lattice. **No second arm and no card claimed** — a fixture asserts the complement round-trips through the same field |
 | **113.6d** cost abilities on the stack | **ships as a move** | Already answered by `CostSubject::applies_from_battlefield`; it becomes this predicate's arm and the method delegates. Registered and pooled consumers: `phase_cm_cards`' two affinity cards. Its twin `applies_to_its_own_object` **stays** — it is a subject-identity question, not a zone question, and its doc comment already forbids collapsing the pair |
@@ -2330,19 +2363,21 @@ says {2}{U} and the card is {3}{U}.)
 
 §13c's table says why it is the right card in one line: **Wonder is precisely
 the card LJ does not unlock.** Its source is in a graveyard, which is this
-row's half; its affected set is on the battlefield, which LJ already does. And
-it is better than the brief claims, because **it has two abilities and they
-function in different zones**:
+row's half; its affected set is on the battlefield, which LJ already does.
 
-| Ability | Functions | Which subrule |
-|---|---|---|
-| Flying | battlefield | 113.6, the default arm |
-| the grant | graveyard | 113.6b, the new arm |
+**The plan claimed more than the card delivers, and the correction is worth
+keeping.** It said Wonder "has two abilities and they function in different
+zones" — Flying on the battlefield through CR 113.6's default arm, the grant in
+the graveyard through 113.6b — so one card would exercise both arms. Half of
+that is wrong: **Wonder's flying is a `KeywordFlag`, not an `AbilityDef`**
+(`CLAUDE.md`'s quadrant ①), so the predicate never sees it and `seed_frame`
+gives it to the card in every zone. Decision 4's last row is the gap that
+falls out.
 
-So one registered card exercises both arms of the predicate and the
-disagreement between them — a Wonder *on the battlefield* has flying and grants
-nothing, a Wonder in a graveyard grants flying and has none. That is the whole
-rule in one board, and neither half is an oracle query dressed as a test.
+What the card does deliver is the *rule* in both directions, which is what the
+tests assert: a Wonder in a graveyard grants flying to your creatures, and a
+Wonder **on the battlefield grants nothing**, which is the "only" in "only from
+those zones". Neither half is an oracle query dressed as a test.
 
 Everything else it needs exists: `Condition::ControlPermanent(BySubtype(Island))`
 landed with LI-3, and the grant is an ordinary Layer 6 row over
@@ -2363,16 +2398,22 @@ deferrals are somebody else's row — and decision 1b, which took ~180 lines of
 mechanical sweep out of the estimate and replaced them with two `Condition`
 leaves.
 
+**Built 2026-09-14, and the table below is the plan. Three rows moved**, each
+recorded where it happened: decision 2's field move grew a copy and two doors
+(the +16.5% measurement), `arrive_in_zone` appeared as a shared door
+`put_token_into` needed too, and `specdb.py`'s `ENTRY_RE` turned out to be
+eating five atoms.
+
 | | Site | Size |
 |---|---|---:|
 | `engine/zone_function.rs` — `functioning_zones`, `functions_in`, `stated_zones`, the fourteen-subrule walk-through, unit tests | new module | ~210 |
 | `Condition::SourceInZone(ZoneSet)` replacing `SourceOnBattlefield`, and `Condition::All(Vec<Condition>)` — the variants, the `holds` arms, the `condition_reads` arms | `types/effects.rs`, `engine/layers/condition.rs`, `engine/layers/board.rs` | ~90 |
 | `GameObject.timestamp` (CR 613.7d) — the field, `move_object`'s stamp, token and setup creation, `PermanentState.timestamp` deleted, ~16 reads rerouted | `objects/object.rs`, `engine/zones.rs`, `state/{game_state,battlefield}.rs`, `engine/layers/board.rs` | ~130 |
-| `register_static_effects(id, controller, zone)` + caller B in `move_object` | `state/game_state.rs`, `engine/zones.rs` | ~70 |
+| `register_static_effects(id, controller, zone)` + `arrive_in_zone`, the shared door `move_object` and `put_token_into` both needed | `state/game_state.rs`, `engine/zones.rs` | ~70 |
 | `cleanup_zone_state`'s narrow zone-general leg + `remove_static_by_source` | `engine/zones.rs`, `state/continuous_effects.rs` | ~50 |
 | `CostSubject::applies_from_battlefield` delegates to the predicate | `types/cost_modification.rs` | ~30 |
-| Wonder, `PERFORMANCE_POOL` entry, one 113.6c fixture | `cards/phase_a5_cards.rs`, `registry.rs` | ~110 |
-| Tests — the two atoms, the two-ability board, the Jailer interaction, the assertions for 113.6a/h, the `stated_zones` invariant, determinism | `tests/phase_a5_integration_test.rs`, unit | ~300 |
+| Wonder, `PERFORMANCE_POOL` entry, one 113.6c fixture | `cards/phase_lk_cards.rs`, `registry.rs` | ~110 |
+| Tests — the two atoms, the two-ability board, the Jailer interaction, the assertions for 113.6a/h, the `stated_zones` invariant, determinism | `tests/phase_lk_integration_test.rs`, unit | ~300 |
 | Docs — this section, item 9's stub, items 75 and 119 re-derived, §11 item 9 (a)/(b)/(c), A5 closed, fuzz-record | `plans/` | ~280 |
 
 **~1,270 lines**, inside `engineering-practices.md` §4's 1,500–2,500 band with
@@ -2399,7 +2440,21 @@ four). A5 puts a *source* off the battlefield, so what changes is
 source misses the live-frame map and goes down `compute_non_member` with a
 `(id, ceiling)` cache insert, once per layer per row. That is a per-**row**
 cost, not a per-zone-member one, and it should therefore *not* scale with seat
-count the way LJ's did. If it does, the guard is wrong.
+count the way LJ's did.
+
+**Measured 2026-09-14, and it does not.** Frames/walk 12.46 → 12.54 at two
+seats and 19.78 → 19.59 at four; the four-seat number moved the *other way*, so
+the prediction holds and the guard is right. The block is in
+`plans/fuzz-record.md`.
+
+**What the sitting actually found was somewhere else**, and finding it needed
+a third arm. Registering a card changes the decks, so the two-arm counters
+differ and a timing delta is unattributable — so the sitting also built an arm
+with Wonder **unregistered**, whose counters are byte-identical to `main` by
+construction (`replacement-architecture.md` §11 item 80's technique). That arm
+read **+16.5%**, which is how decision 2's field move was caught. Post-fix it
+reads −2.5%. **Build that arm first next time**: the pool-moving arm cannot
+tell a 16% regression from a shorter game, and it very nearly did not.
 
 ---
 
