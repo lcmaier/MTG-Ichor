@@ -20,6 +20,7 @@ use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
 use super::phase_lj_cards;
+use super::phase_re10_cards;
 use super::phase_re8_cards;
 use super::phase_re_cards;
 use super::phase_cv_cards;
@@ -820,6 +821,12 @@ impl CardRegistry {
             "Eligeth, Crossroads Augur",
             phase_re8_cards::eligeth_crossroads_augur,
         );
+
+        // RE-10 — extra phases. Aggravated Assault is CR 500.8's only
+        // producer in reach whole; the module doc says why the other 45
+        // are not, and why it is unpooled (eight mana to use once, and
+        // every activation makes the game bigger).
+        registry.register("Aggravated Assault", phase_re10_cards::aggravated_assault);
 
         // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
         // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and

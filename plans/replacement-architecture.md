@@ -3490,7 +3490,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 | **RE-6 — the game's end** | `PlayerLoses`, `PlayerWins`, their arms; four SBA loops → batch members; 704.7's player leg; the flag reset; `GameResult` onto `GameState`; `Primitive::{LoseGame, WinGame, SetLifeTotal}` (CR 119.5); 800.4j/k at two rotation sites; `--players 4` | exhaustive matches **3** ×2; `sba.rs` loops **4**; the dedupe **1**; `check_game_over` **1** + `Game.result` readers **~4**; `advance_turn` **1**, priority loop **1**; `fuzz_games` **~50 lines**. Predicted **~550 engine, ~400 cards, ~80 harness, ~800 tests ≈ 1,800–2,100** | **high** — top of the band; the sweep's shape changes, and the N-player half is measured for the first time |
 | **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
 | **RE-8 — the producers (CR 701.9, 701.22)** — ✅ landed | `Primitive::Discard` with 701.9b's chooser; **`ReplacementDef::by`** rather than the `caused_by` this row sized onto the zone-change pattern; `GameAction::Scry`, its arm, `Primitive::Scry` and two scry choice kinds. **The to-battlefield leg did not ship** — every printed customer is on a card in hand, which is CR 113.6 and critical-path item 6a (§11 item 87) | `resolve.rs` stubs **2** made real; `pattern_watches` **1** arm and no field, the cause predicate having moved off the pattern; exhaustive matches **3** for `Scry` plus `display.rs`, compiler-forced as in RE-4; `DecisionProvider` impls **0** — the CLI's prompt text only, the others being generic. Predicted at the design check **~200 types, ~430 engine, ~330 cards, ~600 tests, ~15 harness ≈ 1,575**; shipped **+1,737 / −115** — types 195, engine 445, cards 371, tests 710, harness 16 | low-medium, and it landed there; the risk that showed up was neither producer but CR 514.1's cleanup discard, which had been N events where the rule says one |
-| **RE-10 — extra phases, and the turn plan** | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300** | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
+| **RE-10 — extra phases, and the turn plan** — ✅ landed | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300**; shipped **+1,066 / −171** — engine 149, state 136, types 24, cards 147, tests 600, seam 10. **Three of this row's counts were wrong** (see the section's findings): `next_phase` had one production caller and not ~8 readers, its wrap arm was already dead, and "re-counts nobody's fixtures" missed 46 hand-written positions. The split inverted — the engine half came in at 466 against ~700 because the seam's 46 sites are one line each, and the test half at 600 against ~400 | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
 | **RE-9 — mana** | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped` from the activation | exhaustive matches **3**; writers **2** → **1**; `resolve_mana_effect` **1**, `Primitive::ProduceMana` **1**; `pattern_watches` **1**. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150** | low on shape, **the one whose A/B could say no** — a proposal on every land tap |
 
 **≈ 14,300–16,300 across ten, each inside the band, RE-5 and RE-6 at its top
@@ -3792,115 +3792,38 @@ the hottest path in the engine. Its row is the one this PR exists to read.
 survives the type — covered by the same fixture, and it is not in `owed`'s nine
 because its ticket is not `NEW`).
 
-#### RE-10 — extra phases, and the turn plan (CR 500.8, 500.11, 505.1)
+#### RE-10 — extra phases, and the turn plan (CR 500.8, 500.11, 505.1) — ✅ landed 2026-09-14
 
-**Added at RE-1's review (2026-09-11), on §11 item 49.** Decision 6 pulled
-CR 500.7 into a skips PR so that `backlog.md` §2.17 "does not rewrite
-`advance_turn` a second time"; that holds for extra *turns* and not for extra
-*phases*, because RE-1's cursor names a phase **type** and a turn can hold two
-combat phases. This PR is that cursor, its producer, and the card. It is a
-tenth RE PR rather than a rewrite of RE-1 because **it adds no event kind** —
-the proposal is still `BeginPhase { phase, player }`, unchanged.
+*Body evicted to `plans/archive/replacement-architecture-landed.md` under the
+same heading: the section's four design decisions, the six the tree posed and
+this PR answered, the three of the row's counts that were wrong, and what it
+measured.*
 
-**The design, in four decisions.** Sized after the other nine, so it carries
-its own rather than pointing at "The design check".
+**Shipped:** `GameState.turn_plan` — CR 500.1's phase sequence as a `Vec` the
+drainer indexes, rebuilt in place per turn, so a skipped turn builds no plan
+(CR 614.10a for free); `PlannedPhase`, holding a phase and **not** its steps,
+which is where CR 500.10's `Option<Vec<StepType>>` goes when item 6 makes it
+buildable; `TurnUnit::Phase(usize)`; `state::game_state::next_phase` **deleted**,
+its wrap arm having been dead already. `Primitive::ExtraPhases(Vec<PhaseType>)`
+splices at `cursor + 1`, and CR 500.8's *"most recently created phase will occur
+first"* is that splice's own behaviour with no comparator anywhere.
+`Primitive::Untap` gains the `EffectRecipient::FilteredPermanents` arm and both
+its recipient paths join one batch (CR 603.2c). Aggravated Assault, registered
+**unpooled**; `PERFORMANCE_POOL` +0 as predicted, with a `--require` row instead.
 
-**1. The cursor becomes an index into a per-turn plan, and `next_phase`'s chain
-goes.** `GameState.turn_plan: TurnPlan` is CR 500.1's five phases, seeded by
-`GameState::new` and rebuilt by `on_turn_begin` — so a **skipped turn builds
-no plan**, which is CR 614.10a for free — and `drain`'s cursor becomes
-`Option<usize>` into it. `TurnUnit::Phase` carries the index. This finally
-spends `state::game_state::next_phase`'s pre-RE-1 TODO, which described this
-type by name and which RE-1 rewrote into a pointer.
+**The cursor is the drainer's, not the performer's** — RE-1's own sentence about
+`turn_queue` one level down, since a cursor is *schedule* rather than board.
+That is what kept this a tenth PR instead of a rewrite of RE-1: `BeginPhase`,
+its pattern arm and its event are untouched, and the PR adds no event kind.
 
-**2. "After this phase" is an insertion at the cursor, and CR 500.8's ordering
-falls out of it.** `Primitive::ExtraPhases(Vec<PhaseType>)` splices at
-`cursor + 1`. *"If multiple extra phases are created after the same phase, the
-most recently created phase will occur first"* is then the splice's own
-behaviour — a second insertion at the same index pushes the first later — with
-no comparator anywhere, exactly as CR 500.7's "most recently created turn"
-turned out to be `Vec::pop`.
+**What the row did not price:** the position is two facts now, and **46 sites
+wrote one of them by hand**, 19 of which then drain. `GameState::set_turn_position`
+is the seam; the `debug_assert` in `advance_turn` found all 40 affected tests in
+one run. → §11 item 49, closed with that.
 
-**3. An inserted main phase is `PhaseType::Postcombat`, and the choice is
-unobservable.** Checked rather than assumed: **every production reader of the
-two main types matches them as one arm** — `cast.rs:659`, `zones.rs:190` and
-`oracle/legality.rs:50`, each asking "is this a main phase". The CR does not
-name an additional main phase either way; CR 500.8 says only "directly after
-the specified phase". The axis a later card would grow is a field on the plan
-entry, and its customer is the first card that prints a distinction between the
-two main phases the engine must keep.
-
-**4. CR 500.9 and 500.10 stay out, and the field they want is named.** An extra
-*step* needs a plan entry that overrides its phase's natural step list —
-500.10's "any other steps that phase would normally have are skipped" **is**
-that override, and it is one `Option<Vec<StepType>>` on `PlannedPhase`. Its
-only producer is Obeka, Splitter of Seconds, whose ability is **triggered**: it
-cannot land before item 6 whatever RE does. So the field waits, on "an arm the
-pipeline cannot apply is worse than a missing one", and this is the paragraph
-that says where it goes.
-
-**Builds:** `TurnPlan` and `PlannedPhase`; `GameState.turn_plan`; `drain`'s
-index cursor and `next_turn_unit` reading the plan; `next_phase`'s chain
-deleted; `Primitive::ExtraPhases` with its splice; `Primitive::Untap` gaining
-the `EffectRecipient::FilteredPermanents` arm that `DealDamage` and
-`CreateReplacement` already have. **Consumers:**
-
-- **Aggravated Assault** — {2}{R} Enchantment. *"{3}{R}{R}: Untap all
-  creatures you control. After this main phase, there is an additional combat
-  phase followed by an additional main phase. Activate only as a sorcery."*
-  The producer, and **the only one of the 46 in reach whole**:
-  `ActivationRestriction::OnlyAsSorcery` exists and is enforced
-  (`cast.rs:345`, where Bonesplitter's Equip is its current customer), and its
-  untap is the new recipient arm. Seize the Day needs flashback, World at War
-  needs rebound *and* "creatures that attacked this turn", Relentless Assault
-  needs the second of those, and the rest are triggers. Rulings pass at
-  registration, in the card file's doc comment.
-- **Moment of Silence** — registered by RE-1, and this is what gives its first
-  ruling a board the engine produces: *"if they manage to have two combat
-  phases, then only their next one combat phase is skipped."* RE-1 tests it
-  against a second `BeginPhase { Combat }` proposal the fixture makes by moving
-  the cursor and says so; RE-10 deletes the cursor move.
-
-**Tests:** two phases inserted after the main phase the ability resolved in, in
-that order; two activations, the second's phases taken first (CR 500.8); combat
-state reset between two combat phases in one turn — `on_phase_end(Combat)`
-already clears all five fields, and the test is what keeps that true; mana
-emptying at each inserted phase's end (CR 500.5); a turn's position count with
-and without; Moment of Silence's ruling without the fixture; four players.
-
-**Atoms: none, and that is a gap this section names rather than absorbs.**
-`session-4.md` files 500.8, 500.9 and 500.10 DEFERRED with no atom ids and
-assigns them to *Phase 9*, whose stated content is formats and multiplayer —
-which reads like the era's `TurnPlan` TODO rather than a judgement. `specdb
-owed` therefore cannot move either way. **CR 500.8 should have an atom**, and
-authoring one is the corpus's own work (`session-4.md`), not this PR's.
-
-**`PERFORMANCE_POOL` +0 predicted, and the A/B decides.** Aggravated Assault is
-{2}{R} plus a {3}{R}{R} activation — eight mana to use once — and every
-activation makes the game *bigger*, which is the shape §3.1a rejected Altar's
-Reap for at +20.2%; the reachability answer is a `--require` row, as it was for
-Circle of Protection: Red. The engine's change needs no pooled card at all: the
-plan replaces the chain on **every turn of every game**, so the middle arm
-walks it unforced. Predicted `Replacement gathers`, `Layer walks` and every
-gameplay row **flat**, and CPU flat or slightly down — an index beats a chained
-`match` per unit. **If the middle arm is not flat, the cursor change did
-something it should not have**, and that is the whole reading of this PR's A/B.
-
-**Measured size:** ~700 engine and cards, ~400 tests ≈ **1,100–1,300** — under
-the band's floor, like RE-7's 800–950, and for the same reason: one type, one
-cursor, one producer, one card.
-
-**One naming decision to make before the type is written**, found by RE-1's
-glossary pass: **the crate already has a plan.** `plan_payment`, `pay_with_plan`
-and `plan_and_pay` are the cost system's, and `planned_sacrifices` sits one
-letter from `PlannedPhase`. That is the `ToSource` / `ToSourceController` shape
-the glossary's polysemy gate exists for, caught this time *before* the build
-rather than mid-PR. Keep `TurnPlan` — it is the name
-`state::game_state::next_phase`'s own TODO used and the payment one is a local
-idiom rather than a type — and **land the collision as `plan`'s two numbered
-senses in `plans/glossary.md`** with this PR. It cannot be added earlier: the
-gate asserts every defined term resolves in `mtgsim/src`, and `TurnPlan` does
-not exist yet.
+**Measured:** `performance` counters **IDENTICAL** to `main` — every row — and
+CPU **+0.1%** at `--rounds 7`. No `fuzz-record.md` block: no table moved.
+Shipped **+1,066 / −171** against a predicted 1,100–1,300.
 
 #### Out of RE, decided rather than absorbed
 
@@ -3909,7 +3832,7 @@ not exist yet.
 - **CR 802's defending player**, and 800.4f–h's choices by a departed player
   — B3's ("Before Commander" item 4), with RE-7 having built the seam.
 - **Extra phases** (CR 500.8) — cut at RE's sizing, re-opened at RE-1's review
-  and **taken in**, as RE-10: the "written once" argument that pulled CR 500.7
+  and **taken in**, as RE-10 (**✅ landed 2026-09-14**): the "written once" argument that pulled CR 500.7
   into RE-1 applies one level down and was unkept there (§11 item 49), 46
   printed cards make an additional combat phase, and Moment of Silence is
   already *registered* with a ruling only a fixture covers. **Extra steps**
@@ -4119,6 +4042,22 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   the only two that legitimately could — a turn's position count, and the
   order phases are proposed in — are exactly what the arm is checking.
   `PERFORMANCE_POOL` +0 predicted, with a `--require` row instead.
+  **Measured 2026-09-14, and flat as predicted.** `performance` counters
+  **IDENTICAL** to `main` — every row, turns through gathers — which is the
+  whole reading: the cursor changed no turn's shape. `stress` differs, as it
+  must, because registering a card changes the decks. CPU **+0.1%** at
+  `--rounds 7`, with `p50`, `p99` and CPU/turn all level. `--require` on
+  `stress`: Aggravated Assault cast 147 / resolved 146 in **114 of 200 games
+  (57%)**, copies/deck 1.24; zero errors, zero panics, zero turn limits.
+  **One real cost was found by reading the mechanism rather than the
+  milliseconds**: `on_turn_begin` assigned a fresh `TurnPlan` and so
+  allocated a five-element `Vec` every turn where the chain it replaced
+  allocated nothing. `TurnPlan::reset` rebuilds in place. The seven-round
+  median was +2.8% before it and +0.1% after, but the second sitting was
+  tighter on both arms (~13.6ms against ~14.4ms), so **the two numbers do not
+  compare and the fix is justified by the mechanism, not by the delta** —
+  §11 item 54's lesson applied to a reading that happened to go our way.
+  No `fuzz-record.md` block: no table moved.
 
 The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
 pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
@@ -5513,6 +5452,19 @@ found them.
     registered card's fixture-only ruling is more pressure than several of RE's
     nine carry. §9's RE-10 section is the design; `backlog.md` §2.17 graduates
     with it.
+
+    **Closed 2026-09-14, and the second rewrite cost less than the first
+    charged for.** `advance_turn`'s cursor is an index into
+    `GameState.turn_plan` and `next_phase` is gone. What the finding did not
+    see is where the cost actually sat: not in the drainer, which lost lines,
+    but in **46 sites that write `GameState.phase` by hand**, 19 of which then
+    drain. The cursor is a second fact about the position, and a fixture that
+    writes one of two facts is a fixture that drains from somewhere else.
+    `GameState::set_position` is the seam that makes them unwriteable apart;
+    the `debug_assert` in `advance_turn` is what found all 40 affected tests
+    in one run. **The general shape, beside the one above:** a claim that a
+    rewrite is cheap because the *function* is small is a claim about the
+    function and not about its callers' picture of the state it reads.
 
     Worth keeping for the general shape: **a "we built it once so nobody
     rewrites it" claim is only as wide as the cursor it is made about.** RE-1's

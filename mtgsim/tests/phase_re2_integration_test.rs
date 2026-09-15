@@ -122,7 +122,7 @@ fn total_drawn(game: &GameState) -> usize {
 fn at_draw_step(game: &mut GameState, player: PlayerId) {
     game.active_player = player;
     game.priority_player = player;
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 }
 
 /// Advance until the draw step's turn-based action has happened.

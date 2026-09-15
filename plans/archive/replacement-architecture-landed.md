@@ -4047,6 +4047,233 @@ new *event*, not a new read. Recorded because the phase produced a candidate
 and declined it; the argument shares the shape of the five before it, under
 "Trace-page decisions" below.
 
+#### RE-10 — extra phases, and the turn plan (CR 500.8, 500.11, 505.1) — ✅ landed 2026-09-14
+
+*Evicted 2026-09-14 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+**Added at RE-1's review (2026-09-11), on §11 item 49.** Decision 6 pulled
+CR 500.7 into a skips PR so that `backlog.md` §2.17 "does not rewrite
+`advance_turn` a second time"; that holds for extra *turns* and not for extra
+*phases*, because RE-1's cursor names a phase **type** and a turn can hold two
+combat phases. This PR is that cursor, its producer, and the card. It is a
+tenth RE PR rather than a rewrite of RE-1 because **it adds no event kind** —
+the proposal is still `BeginPhase { phase, player }`, unchanged.
+
+**The design, in four decisions.** Sized after the other nine, so it carries
+its own rather than pointing at "The design check".
+
+**1. The cursor becomes an index into a per-turn plan, and `next_phase`'s chain
+goes.** `GameState.turn_plan: TurnPlan` is CR 500.1's five phases, seeded by
+`GameState::new` and rebuilt by `on_turn_begin` — so a **skipped turn builds
+no plan**, which is CR 614.10a for free — and `drain`'s cursor becomes
+`Option<usize>` into it. `TurnUnit::Phase` carries the index. This finally
+spends `state::game_state::next_phase`'s pre-RE-1 TODO, which described this
+type by name and which RE-1 rewrote into a pointer.
+
+**2. "After this phase" is an insertion at the cursor, and CR 500.8's ordering
+falls out of it.** `Primitive::ExtraPhases(Vec<PhaseType>)` splices at
+`cursor + 1`. *"If multiple extra phases are created after the same phase, the
+most recently created phase will occur first"* is then the splice's own
+behaviour — a second insertion at the same index pushes the first later — with
+no comparator anywhere, exactly as CR 500.7's "most recently created turn"
+turned out to be `Vec::pop`.
+
+**3. An inserted main phase is `PhaseType::Postcombat`, and the choice is
+unobservable.** Checked rather than assumed: **every production reader of the
+two main types matches them as one arm** — `cast.rs:659`, `zones.rs:190` and
+`oracle/legality.rs:50`, each asking "is this a main phase". The CR does not
+name an additional main phase either way; CR 500.8 says only "directly after
+the specified phase". The axis a later card would grow is a field on the plan
+entry, and its customer is the first card that prints a distinction between the
+two main phases the engine must keep.
+
+**4. CR 500.9 and 500.10 stay out, and the field they want is named.** An extra
+*step* needs a plan entry that overrides its phase's natural step list —
+500.10's "any other steps that phase would normally have are skipped" **is**
+that override, and it is one `Option<Vec<StepType>>` on `PlannedPhase`. Its
+only producer is Obeka, Splitter of Seconds, whose ability is **triggered**: it
+cannot land before item 6 whatever RE does. So the field waits, on "an arm the
+pipeline cannot apply is worse than a missing one", and this is the paragraph
+that says where it goes.
+
+**Builds:** `TurnPlan` and `PlannedPhase`; `GameState.turn_plan`; `drain`'s
+index cursor and `next_turn_unit` reading the plan; `next_phase`'s chain
+deleted; `Primitive::ExtraPhases` with its splice; `Primitive::Untap` gaining
+the `EffectRecipient::FilteredPermanents` arm that `DealDamage` and
+`CreateReplacement` already have. **Consumers:**
+
+- **Aggravated Assault** — {2}{R} Enchantment. *"{3}{R}{R}: Untap all
+  creatures you control. After this main phase, there is an additional combat
+  phase followed by an additional main phase. Activate only as a sorcery."*
+  The producer, and **the only one of the 46 in reach whole**:
+  `ActivationRestriction::OnlyAsSorcery` exists and is enforced
+  (`cast.rs:345`, where Bonesplitter's Equip is its current customer), and its
+  untap is the new recipient arm. Seize the Day needs flashback, World at War
+  needs rebound *and* "creatures that attacked this turn", Relentless Assault
+  needs the second of those, and the rest are triggers. Rulings pass at
+  registration, in the card file's doc comment.
+- **Moment of Silence** — registered by RE-1, and this is what gives its first
+  ruling a board the engine produces: *"if they manage to have two combat
+  phases, then only their next one combat phase is skipped."* RE-1 tests it
+  against a second `BeginPhase { Combat }` proposal the fixture makes by moving
+  the cursor and says so; RE-10 deletes the cursor move. **✅ landed
+  2026-09-14**: both of Moment of Silence's first two rulings moved to
+  `phase_re10_integration_test`, against an Aggravated Assault that makes
+  the second combat phase for real.
+
+**Tests:** two phases inserted after the main phase the ability resolved in, in
+that order; two activations, the second's phases taken first (CR 500.8); combat
+state reset between two combat phases in one turn — `on_phase_end(Combat)`
+already clears all five fields, and the test is what keeps that true; mana
+emptying at each inserted phase's end (CR 500.5); a turn's position count with
+and without; Moment of Silence's ruling without the fixture; four players.
+
+**Atoms: none, and that is a gap this section names rather than absorbs.**
+`session-4.md` files 500.8, 500.9 and 500.10 DEFERRED with no atom ids and
+assigns them to *Phase 9*, whose stated content is formats and multiplayer —
+which reads like the era's `TurnPlan` TODO rather than a judgement. `specdb
+owed` therefore cannot move either way. **CR 500.8 should have an atom**, and
+authoring one is the corpus's own work (`session-4.md`), not this PR's.
+
+**`PERFORMANCE_POOL` +0 predicted, and the A/B decides.** Aggravated Assault is
+{2}{R} plus a {3}{R}{R} activation — eight mana to use once — and every
+activation makes the game *bigger*, which is the shape §3.1a rejected Altar's
+Reap for at +20.2%; the reachability answer is a `--require` row, as it was for
+Circle of Protection: Red. The engine's change needs no pooled card at all: the
+plan replaces the chain on **every turn of every game**, so the middle arm
+walks it unforced. Predicted `Replacement gathers`, `Layer walks` and every
+gameplay row **flat**, and CPU flat or slightly down — an index beats a chained
+`match` per unit. **If the middle arm is not flat, the cursor change did
+something it should not have**, and that is the whole reading of this PR's A/B.
+
+**Measured size:** ~700 engine and cards, ~400 tests ≈ **1,100–1,300** — under
+the band's floor, like RE-7's 800–950, and for the same reason: one type, one
+cursor, one producer, one card.
+
+**One naming decision to make before the type is written**, found by RE-1's
+glossary pass: **the crate already has a plan.** `plan_payment`, `pay_with_plan`
+and `plan_and_pay` are the cost system's, and `planned_sacrifices` sits one
+letter from `PlannedPhase`. That is the `ToSource` / `ToSourceController` shape
+the glossary's polysemy gate exists for, caught this time *before* the build
+rather than mid-PR. Keep `TurnPlan` — it is the name
+`state::game_state::next_phase`'s own TODO used and the payment one is a local
+idiom rather than a type — and **land the collision as `plan`'s two numbered
+senses in `plans/glossary.md`** with this PR. It cannot be added earlier: the
+gate asserts every defined term resolves in `mtgsim/src`, and `TurnPlan` does
+not exist yet.
+
+**Three things this section and the row say that the tree does not**, checked
+against `6e5d76a` on 2026-09-14 before any of it was trusted — the §13c
+convention, and all three change a number above.
+
+1. **`next_phase` has one production caller, not "~8 readers".** The row counted
+   eight *mentions*: the definition, one `use`, the one call
+   (`turns.rs:531`) and **five asserts inside a single unit test**
+   (`game_state.rs:2250–2254`). Deleting the chain is one call site and one
+   test function, not eight migrations.
+2. **`next_phase`'s wrap arm is already dead code.** `next_turn_unit` returns
+   `TurnUnit::Turn` for the ending phase *before* it asks what follows, so
+   `PhaseType::Ending => PhaseType::Beginning` — the arm whose comment says
+   "wraps to next turn" — is reached only by the unit test in 1. The plan's
+   "past the last entry is `TurnUnit::Turn`" replaces a branch production never
+   took, which is why deleting the chain removes a turn-boundary rule from two
+   places and leaves it in one.
+3. **"It re-counts nobody's fixtures" is false, and the number is 46.** §9's
+   ordering paragraph says RE-10 changes `advance_turn`'s *cursor* and not a
+   turn's *shape*, "so unlike RE-1's CR 508.8 refusal it re-counts nobody's
+   fixtures". That is true of turn shape and false of the cursor: **46 sites
+   assign `GameState.phase` by hand** (28 through `Phase::new`, 18 as struct
+   literals), and **19 of them then drain** — `test_support.rs` 1,
+   `phase_lg_integration_test` 1, `phase_re1_integration_test` 10,
+   `phase_re2_integration_test` 1, `phase_re7_integration_test` 6. A cursor
+   those sites do not write is a cursor they desync from, and every one of
+   those 19 would advance from wherever the cursor happened to be rather than
+   from the phase the fixture set. Decision 1b is what that costs, and it is
+   the difference between this PR's prediction and its size.
+
+##### Decisions — what §9 left open, numbered by what is here
+
+**1a. `TurnPlan` is a field on `GameState`, it carries its own cursor, and the
+drainer maintains both — RE-1's `turn_queue` precedent, one level down.**
+
+The plan does not outlive the turn *as a fact* — `on_turn_begin` rebuilds it,
+so a skipped turn builds none and CR 614.10a is free, exactly as §9 says — but
+the **field** outlives it, because `advance_turn` returns between every two
+units and the cursor has to survive that return. Today it survives as
+`self.phase.phase_type`, which is the thing CR 500.8 makes ambiguous.
+
+The cursor is written by the drainer rather than by the `BeginPhase` performer,
+and that is not a chokepoint exemption: it is the sentence RE-1 already wrote
+about `turn_queue` and `turn_rotation` — *"the schedule is read and consumed
+here, not in a performer … neither is state a CR 614 replacement effect or a
+CR 603 trigger can see, and both have to be spent whether or not the turn
+begins."* A cursor is schedule, not board. It also keeps §9's "**it adds no
+event kind**" promise literally true: `GameAction::BeginPhase { phase, player }`
+is untouched, and so is its pattern arm, its event and its display line. The
+alternative — an index on `Phase`, filled by the performer — needs the index on
+the action, which is the event change this PR exists not to make.
+
+**1b. The 46 hand-written positions go through one seam,
+`GameState::set_position(phase_type, step)`, and the seam is the whole of what
+finding 3 costs.** It writes `self.phase` *and* seeks the cursor to the first
+plan entry of that type. All 46 migrate, not the 19 that drain: two ways to
+move the position by hand is how the twentieth fixture desyncs silently, and a
+seam only some callers use is not a seam. "First entry of that type" is
+well-defined for every fixture in the tree, because the only fixture that
+wanted a *second* combat phase is the one this PR deletes
+(`a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase`,
+RE-1's, which fakes it by moving the cursor) and Aggravated Assault replaces.
+
+**2. `PlannedPhase` holds a phase and not its steps, and the step chain
+survives untouched.** Decision 4 above already settled this without saying it
+was a decision: CR 500.10's override is `Option<Vec<StepType>>` on
+`PlannedPhase` and it waits for item 6, so a plan that held steps today would
+hold them as a copy of `initial_step`/`next_step` with no producer able to make
+it differ — a second spelling of the chain, which is the thing decision 1
+deletes the first spelling of. So `PlannedPhase { phase_type }`, one field,
+and `initial_step`/`next_step` keep answering. The type exists rather than the
+plan being a bare `Vec<PhaseType>` because both this section and `backlog.md`
+§2.17 name it as the home 500.10's field goes on, and a named home that does
+not exist is where a field lands somewhere else.
+
+**3. `Primitive::ExtraPhases(Vec<PhaseType>)` splices a list, and one
+resolution is one splice.** Aggravated Assault creates two phases —
+*"an additional combat phase followed by an additional main phase"* — in one
+resolution, and CR 500.8's ordering only works if they go in together: the
+list keeps the printed order inside one effect, and a *second* resolution
+splicing at the same index pushes the first pair later, which is
+*"the most recently created phase will occur first"* with no comparator, as
+decision 2 says. A single-phase variant would make Aggravated Assault two
+splices and the printed order an accident of which one ran second.
+
+**4. The `Primitive::Untap` arm rides, and its card is Aggravated Assault.**
+It is not speculative surface: the card's own first sentence is *"Untap all
+creatures you control"*, and without the arm the card is not registerable, so
+this PR would ship its producer and no consumer. The arm is
+`EffectRecipient::FilteredPermanents` resolved the way `DealDamage` resolves it
+(`resolve.rs:218`) — `battlefield_ids_ordered`, filtered, **one
+`execute_actions` batch**, because CR 701.26b's untaps here are simultaneous
+and CR 603.2c's "whenever one or more permanents untap" reads the batch. The
+existing target path joins the same batch rather than keeping its
+`execute_action` loop, which is the chokepoint rule's "a simultaneous rule
+needs `execute_actions`, not a loop" and changes nothing for the two registered
+consumers, both single-target (`alpha.rs:102`, `phase_lg_cards.rs:57`).
+CR 608.2b's off-battlefield skip stays ahead of the batch.
+
+**5. Only the phase half of `backlog.md` §2.17 graduates; the step half stays
+and the entry says which.** §2.17's own text already anticipates this — *"This
+entry stays open for that half"* — so the edit strikes CR 500.8 as graduated,
+leaves CR 500.9/500.10 with their Obeka reason, and retitles nothing: the entry
+keeps its name because the name is still what it is about.
+
+**6. The corpus files CR 500.7 and 500.11 as DEFERRED to Phase 9, and RE-1
+shipped both — a decision the tree posed and §9 did not.** `session-4.md:976` and `:982`,
+plus the summary table at `:2489`. RE-10 authors CR 500.8's atom because exit
+criterion 5 asks for it; the two stale DEFERRED lines beside it are RE-1's to
+have corrected and are **flagged here rather than edited**, for the reason
+§2.17 gives about the same file: the corpus is authored, and a correction to it
+is the corpus's own work rather than a side effect of the PR that noticed.
+
 ### Trace-page decisions — the phases that produced a candidate and declined it
 
 *Evicted 2026-09-13 from `plans/replacement-architecture.md`'s "Trace page" section, which keeps the rule, RE-2's page and the summary line. `engineering-practices.md` §7 owns the practice.*

@@ -7,7 +7,7 @@ use crate::engine::layers::types::{
 use crate::events::event::{CounterSubject, DamageTarget, LossReason};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
-use crate::state::game_state::GameState;
+use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
     AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, PatternFill,
     PlayerRef, Primitive,
@@ -497,6 +497,29 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 500.8 — scheduling, like the extra turn above: the phases
+            // become `GameAction::BeginPhase` proposals when the drainer
+            // reaches them. Inserted at `cursor + 1` because the rule says
+            // "directly after the specified phase", and the cursor is the
+            // phase this resolution is happening in.
+            //
+            // **A resolution outside a phase splices nothing.** The cursor is
+            // `None` only between a turn beginning and its first phase being
+            // proposed, when nothing can be resolving; the guard is here
+            // because a `Vec` insert past its end panics and a rules engine
+            // should not.
+            Primitive::ExtraPhases(phases) => {
+                let Some(cursor) = self.turn_plan.cursor else {
+                    return Ok(());
+                };
+                let at = cursor + 1;
+                self.turn_plan.phases.splice(
+                    at..at,
+                    phases.iter().map(|&phase_type| PlannedPhase { phase_type }),
+                );
+                Ok(())
+            }
+
             Primitive::ProduceMana(output) => {
                 // Evaluate dynamic amounts before taking &mut player
                 let resolved: Vec<_> = output.mana.iter()
@@ -631,23 +654,56 @@ impl GameState {
             }
 
             Primitive::Untap => {
-                // Untap target permanent (rule 701.26b).
-                for target in &ctx.targets {
-                    if let ResolvedTarget::Object(id) = target {
-                        // CR 608.2b: a spell whose targets are not *all* illegal
-                        // still resolves and does as much as it can, so a target
-                        // that has left the battlefield is skipped rather than
-                        // erroring. The performer is loud (RA-2), which makes
-                        // checking here the caller's job — same shape as
-                        // `Primitive::Destroy` above.
-                        if !self.battlefield.contains_key(id) {
-                            continue;
-                        }
-                        self.execute_action(GameAction::Untap {
-                            object: *id,
-                        }, &actx)?;
-                    }
+                // Untap permanents (rule 701.26b).
+                //
+                // The `FilteredPermanents` arm arrived with RE-10, whose card
+                // opens "Untap all creatures you control" before it creates the
+                // extra phases — so the producer would have shipped with no
+                // consumer without it (§9's RE-10 decision 4).
+                //
+                // `FilteredPermanents` is resolved here rather than filled into
+                // `ctx.targets`, for the reason `DealDamage` above gives: the
+                // recipient means "every permanent matching this **now**".
+                // Ordered, because the members reach a CR 616.1 prompt and a
+                // log — stun counters (CR 122.1d) make two effects want one
+                // untap, and the order they are proposed in is observable.
+                let ids: Vec<ObjectId> = match recipient {
+                    EffectRecipient::FilteredPermanents(filter) => self
+                        .battlefield_ids_ordered()
+                        .into_iter()
+                        .filter(|&id| {
+                            self.object_matches_filter(id, filter, ctx.controller)
+                                .unwrap_or(false)
+                        })
+                        .collect(),
+                    // CR 608.2b: a spell whose targets are not *all* illegal
+                    // still resolves and does as much as it can, so a target
+                    // that has left the battlefield is skipped rather than
+                    // erroring. The performer is loud (RA-2), which makes
+                    // checking here the caller's job — same shape as
+                    // `Primitive::Destroy` above.
+                    _ => ctx
+                        .targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Object(id) if self.battlefield.contains_key(id) => {
+                                Some(*id)
+                            }
+                            _ => None,
+                        })
+                        .collect(),
+                };
+                if ids.is_empty() {
+                    return Ok(());
                 }
+                // One batch: CR 701.26b's untaps here happen simultaneously,
+                // and CR 603.2c's "whenever one or more permanents untap"
+                // reads the batch rather than its members — the same argument
+                // the untap step's own sweep makes.
+                self.execute_actions(
+                    ids.into_iter().map(|object| GameAction::Untap { object }).collect(),
+                    &actx,
+                )?;
                 Ok(())
             }
 

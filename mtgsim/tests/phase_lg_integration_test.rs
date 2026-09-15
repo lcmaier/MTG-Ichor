@@ -437,7 +437,7 @@ fn test_untap_step_untaps_the_permanents_you_effectively_control() {
     // next turn transition makes P0 active and `on_step_begin(Untap)` runs the
     // sweep as part of `advance_turn`.
     set_active_player(&mut game, 1);
-    game.phase = Phase::new(PhaseType::Ending);
+    game.set_turn_position(Phase::new(PhaseType::Ending));
     while game.phase.step != Some(StepType::Untap) {
         game.advance_turn(&test_ctx()).unwrap();
     }

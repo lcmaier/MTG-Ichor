@@ -971,9 +971,59 @@ This is a restatement of 400.8. Test already generated as ATOM-400.8-001.
 
 ---
 
-**500.7** — DEFERRED. Extra turns — Phase 9 (mutable TurnPlan, D6 in roadmap).
+**500.7** — TESTABLE. Extra turns are taken after the current one, and two
+created in one turn are taken most-recently-created first.
 
-**500.8** — DEFERRED. Extra phases — Phase 9.
+**ATOM-500.7-001**
+- **Rule:** 500.7 — Some effects can give a player an extra turn. They do so
+  by adding the turns directly after the current turn. If a player gets
+  multiple extra turns, the most recently created turn will be taken first.
+- **Mechanism:** the extra turns are a **stack**, not a queue: pushed as each
+  effect resolves and popped when the turn machinery asks who is next. The
+  natural rotation is tracked separately, because an extra turn is inserted
+  after a turn and must not advance whose natural turn is next.
+- **Minimal Board:** Player A resolves two "take an extra turn after this
+  one" effects in their own turn, the second after the first.
+- **Action:** The turn ends.
+- **Expected Result:** Player A takes both extra turns, the one created
+  second first; the natural rotation then resumes with player B, not with
+  whoever would have followed A's last extra turn.
+- **Phase:** Phase 6 (Replacement effects)
+- **Ticket:** RE-1 — `replacement-architecture.md` §9. Covered.
+
+**500.8** — TESTABLE. Extra phases are created after a specified phase, and
+two created after the same one happen most-recently-created first.
+
+**ATOM-500.8-001**
+- **Rule:** 500.8 — Some effects can create additional phases. If a phase is
+  created after the current one, it occurs directly after the specified
+  phase; if multiple extra phases are created after the same phase, the most
+  recently created phase will occur first.
+- **Mechanism:** the turn's phase sequence must be data the engine can insert
+  into at a position, rather than a fixed chain from phase type to phase
+  type — a turn holding two combat phases makes "what follows" unanswerable
+  from a type. Insertion at the cursor gives the ordering sentence for free:
+  a later insertion at the same index displaces the earlier one.
+- **Minimal Board:** Aggravated Assault on the battlefield under the active
+  player, in their precombat main phase, with mana to activate it.
+- **Action:** Activate "{3}{R}{R}: Untap all creatures you control. After
+  this main phase, there is an additional combat phase followed by an
+  additional main phase."
+- **Expected Result:** the turn's remaining phases are combat, main, combat,
+  main, ending — the created pair directly after the main phase the ability
+  resolved in, in printed order, and ahead of the natural combat phase. A
+  second activation in the same main phase puts *its* pair ahead of the
+  first's.
+- **Phase:** Phase 6 (Replacement effects)
+- **Ticket:** RE-10 — `replacement-architecture.md` §9. Covered.
+
+**Corpus note, 2026-09-14:** 500.7, 500.8 and 500.11 were all filed DEFERRED
+to *Phase 9* against a "mutable TurnPlan" that did not exist. All three have
+shipped — 500.7 and 500.11 with RE-1 on 2026-09-11, 500.8 with RE-10 — so
+the three atoms above were authored where the deferrals were, and the tests
+that already proved them now claim them. The Phase 9 assignment was the
+era's guess about where the type would land and not a judgement about the
+rules; none of this moves `specdb owed`, which gates on shipped phases only.
 
 **500.9** — DEFERRED. Extra steps — Phase 9.
 
@@ -981,7 +1031,25 @@ This is a restatement of 400.8. Test already generated as ATOM-400.8-001.
 
 **500.10a** — DEFERRED. "You get" additional step limited to controller's turn — Phase 9.
 
-**500.11** — DEFERRED. Skip step/phase/turn — Phase 9 (mutable TurnPlan) + Phase 6 (replacement effects, rule 614.10).
+**500.11** — TESTABLE. A skipped turn, phase or step is proceeded past as
+though it did not exist — and a skipped phase offers none of its steps.
+
+**ATOM-500.11-001**
+- **Rule:** 500.11 — Some effects can cause a step, phase, or turn to be
+  skipped. When a step, phase, or turn is skipped, it is never played.
+- **Mechanism:** every unit is *proposed* before it starts (CR 614.1b makes
+  "skip" a replacement effect), and a proposal that is replaced with nothing
+  means the sequence resumes from the unit that did not happen rather than
+  from the last one that did. A skipped phase therefore proposes none of its
+  steps, and no turn-based action of a skipped unit runs.
+- **Minimal Board:** Player A in their precombat main phase, with "target
+  player skips their next combat phase this turn" having resolved on them.
+- **Action:** The turn advances.
+- **Expected Result:** The game goes straight from the precombat main phase
+  to the postcombat main phase. None of the combat phase's six steps begins,
+  and no combat turn-based action runs.
+- **Phase:** Phase 6 (Replacement effects)
+- **Ticket:** RE-1 — `replacement-architecture.md` §9. Covered.
 
 **500.12** — PURE-DEF. No game events between steps/phases/turns. Definitional constraint on engine event ordering.
 
@@ -2485,12 +2553,12 @@ These tests require 2+ atomic mechanisms working together.
 | 500.5a | TESTABLE | "Until end of combat" timing |
 | 500.5b | PURE-DEF | "Until end of turn" reference |
 | 500.6 | TESTABLE | "At the beginning of" triggers |
-| 500.7 | DEFERRED | Extra turns (Phase 9) |
-| 500.8 | DEFERRED | Extra phases (Phase 9) |
+| 500.7 | TESTABLE | Extra turns — ATOM-500.7-001 (RE-1) |
+| 500.8 | TESTABLE | Extra phases — ATOM-500.8-001 (RE-10) |
 | 500.9 | DEFERRED | Extra steps (Phase 9) |
 | 500.10 | DEFERRED | Adding step after phase (Phase 9) |
 | 500.10a | DEFERRED | "You get" step (Phase 9) |
-| 500.11 | DEFERRED | Skip step/phase/turn (Phase 9) |
+| 500.11 | TESTABLE | Skip step/phase/turn — ATOM-500.11-001 (RE-1) |
 | 500.12 | PURE-DEF | No events between steps |
 | 501.1 | PURE-DEF | Beginning phase structure |
 | 502.1 | DEFERRED | Phasing (Phase 9) |

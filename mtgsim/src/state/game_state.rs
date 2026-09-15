@@ -229,6 +229,9 @@ pub struct GameState {
     /// and *steps* (CR 500.8, 500.10) are this queue's second level and wait
     /// for their first card.
     pub turn_queue: Vec<PlayerId>,
+    /// This turn's phases and the drainer's place in them — CR 500.1's
+    /// sequence, spliced by CR 500.8. See [`TurnPlan`].
+    pub turn_plan: TurnPlan,
     /// The player the **natural** rotation has reached — CR 500.7's extra turns
     /// do not advance it.
     ///
@@ -571,27 +574,98 @@ pub fn next_step(phase_type: PhaseType, current_step: StepType) -> Option<StepTy
     }
 }
 
-/// The next phase in CR 500.1's order, wrapping from the ending phase to the
-/// next turn's beginning phase.
+/// One phase of a turn, as the turn's plan holds it.
 ///
-/// **Still a fixed sequence, and RE-1 is why that is now a decision rather
-/// than a stub.** The turn queue it built holds *extra turns* (CR 500.7), and
-/// `engine::turns`'s drainer asks this function for the natural order the
-/// queue interleaves with.
+/// A phase and not its steps, and that is a decision rather than an omission.
+/// CR 500.10's *"any other steps that phase would normally have are skipped"*
+/// is an `Option<Vec<StepType>>` overriding the natural list, and **this struct
+/// is where it goes**; its only producer is a triggered ability (Obeka,
+/// Splitter of Seconds), so it cannot be built before critical-path item 6.
+/// Until then a plan that carried steps would carry a copy of
+/// [`initial_step`]/[`next_step`] that nothing could make differ — a second
+/// spelling of the chain `next_phase`'s deletion just removed the first
+/// spelling of. → `replacement-architecture.md` §9 RE-10 decisions 2 and 4,
+/// `backlog.md` §2.17.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlannedPhase {
+    pub phase_type: PhaseType,
+}
+
+/// The phases this turn will have, in order, and how far the drainer has read.
 ///
-/// CR 500.8's extra **phases** are not a list beside this function: a turn with
-/// two combat phases makes "what follows" unanswerable from a phase *type*, so
-/// they need the cursor to index a per-turn plan and **this chain to go**. That
-/// is `replacement-architecture.md` §9's RE-10, which spends the TODO this doc
-/// comment replaced; CR 500.9/500.10's extra *steps* stay with item 6
-/// (`backlog.md` §2.17).
-pub fn next_phase(phase_type: PhaseType) -> PhaseType {
-    match phase_type {
-        PhaseType::Beginning => PhaseType::Precombat,
-        PhaseType::Precombat => PhaseType::Combat,
-        PhaseType::Combat => PhaseType::Postcombat,
-        PhaseType::Postcombat => PhaseType::Ending,
-        PhaseType::Ending => PhaseType::Beginning, // wraps to next turn
+/// **CR 500.1's sequence as data rather than as a `match`**, which is what
+/// CR 500.8 requires: a turn can hold two combat phases, and "what follows"
+/// is then unanswerable from a phase *type* — the question
+/// `state::game_state::next_phase` used to answer and the reason it is gone.
+/// The cursor is an index, so two entries of the same type are two positions.
+///
+/// **Rebuilt per turn, by `on_turn_begin`** — so a turn that is skipped builds
+/// no plan and splices nothing, which is CR 614.10a's *"anything scheduled for
+/// a skipped turn won't happen"* for free. Seeded by [`GameState::new`] for the
+/// same reason that constructor already describes turn 1: a bare `GameState` in
+/// a unit test has to read the way it always has.
+///
+/// **The cursor is schedule, not board, and the drainer owns it** — the
+/// sentence RE-1 wrote about `turn_queue` and `turn_rotation`, one level down.
+/// No CR 614 replacement effect and no CR 603 trigger can see it, and it has to
+/// be spent whether or not the phase begins, so it is maintained where the
+/// proposal is built rather than in `GameAction::BeginPhase`'s performer —
+/// which is also what leaves that action, its pattern arm and its event
+/// untouched by this PR.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TurnPlan {
+    /// CR 500.1's five phases, plus whatever CR 500.8 spliced in.
+    pub phases: Vec<PlannedPhase>,
+    /// The **last unit considered**, which is not the last unit that happened
+    /// — that difference is the whole of CR 500.11. `None` for the instant
+    /// after a turn begins and before any phase of it has been proposed.
+    pub cursor: Option<usize>,
+}
+
+impl TurnPlan {
+    /// CR 500.1's phases, in order.
+    const NATURAL: [PhaseType; 5] = [
+        PhaseType::Beginning,
+        PhaseType::Precombat,
+        PhaseType::Combat,
+        PhaseType::Postcombat,
+        PhaseType::Ending,
+    ];
+
+    /// CR 500.1's five phases, in order, with nothing spliced and nothing read.
+    ///
+    /// **`NATURAL` above is the static; this is not and cannot be.** A plan is
+    /// per-game mutable state — CR 500.8 splices into it, so each game owns a
+    /// `Vec` of its own — and the constant is the seed every one of them starts
+    /// from.
+    pub fn natural() -> Self {
+        TurnPlan {
+            phases: Self::NATURAL.map(|phase_type| PlannedPhase { phase_type }).to_vec(),
+            cursor: None,
+        }
+    }
+
+    /// Make this CR 500.1's five phases again, **keeping the allocation**.
+    ///
+    /// [`Self::natural`] with the `Vec` reused, and the reuse is the whole
+    /// reason it is a separate method: this runs once per turn that begins, and
+    /// assigning a fresh plan there would allocate on every turn of every game
+    /// where the chain it replaced allocated nothing.
+    pub fn reset(&mut self) {
+        self.phases.clear();
+        self.phases
+            .extend(Self::NATURAL.map(|phase_type| PlannedPhase { phase_type }));
+        self.cursor = None;
+    }
+
+    /// The phase at `index`, or `None` past the end of the turn.
+    pub fn phase_at(&self, index: usize) -> Option<PhaseType> {
+        self.phases.get(index).map(|planned| planned.phase_type)
+    }
+
+    /// The first entry of `phase_type`, for [`GameState::set_turn_position`].
+    fn first_index_of(&self, phase_type: PhaseType) -> Option<usize> {
+        self.phases.iter().position(|p| p.phase_type == phase_type)
     }
 }
 
@@ -625,6 +699,14 @@ impl GameState {
             priority_player: 0,
             phase: Phase::new(PhaseType::Beginning),
             turn_queue: Vec::new(),
+            // Turn 1's plan, beside the turn 1 the rest of this constructor
+            // describes. Its cursor is the beginning phase `phase` above names,
+            // so a bare `GameState` a fixture never drains is already
+            // self-consistent.
+            turn_plan: TurnPlan {
+                cursor: Some(0),
+                ..TurnPlan::natural()
+            },
             turn_rotation: 0,
             attacks_declared: false,
             blockers_declared: false,
@@ -659,6 +741,31 @@ impl GameState {
     /// reproducible is the safer default, and it makes every test that shuffles
     /// deterministic without opting in.
     pub const DEFAULT_RNG_SEED: u64 = 0x4D54_4749_4348_4F52; // "MTGICHOR"
+
+    /// Put the game at `phase_type`/`step` by hand — **the one seam a fixture
+    /// may move the position through.**
+    ///
+    /// The position is two facts since RE-10: `phase`, which everything reads,
+    /// and `turn_plan.cursor`, which the drainer reads. Writing `phase` alone
+    /// leaves the drainer to advance from wherever the cursor was, and 19 of
+    /// the tree's 46 hand-written positions then drain — so this exists to make
+    /// the pair unwriteable apart rather than to save a line. `advance_turn`
+    /// debug-asserts that the two still agree, which is what catches a fixture
+    /// that goes around it.
+    ///
+    /// **The first entry of that type**, which is the only reasonable reading:
+    /// a plan with two combat phases is one CR 500.8 built, and a board that
+    /// wants the second one gets it by resolving the card that made it rather
+    /// than by being placed there.
+    pub fn set_turn_position(&mut self, phase: Phase) {
+        self.turn_plan.cursor = self.turn_plan.first_index_of(phase.phase_type);
+        debug_assert!(
+            self.turn_plan.cursor.is_some(),
+            "no {:?} in this turn's plan to set the position to",
+            phase.phase_type
+        );
+        self.phase = phase;
+    }
 
     /// Begin turn `turn` with `player` as the active player, recording the turn
     /// start that CR 302.6 measures against.
@@ -2245,13 +2352,23 @@ mod tests {
         assert_eq!(initial_step(PhaseType::Postcombat), None);
     }
 
+    /// CR 500.1's order, now read off the plan rather than off a chain.
     #[test]
-    fn test_phase_progression() {
-        assert_eq!(next_phase(PhaseType::Beginning), PhaseType::Precombat);
-        assert_eq!(next_phase(PhaseType::Precombat), PhaseType::Combat);
-        assert_eq!(next_phase(PhaseType::Combat), PhaseType::Postcombat);
-        assert_eq!(next_phase(PhaseType::Postcombat), PhaseType::Ending);
-        assert_eq!(next_phase(PhaseType::Ending), PhaseType::Beginning);
+    fn the_natural_plan_is_cr_500_1s_five_phases_in_order() {
+        let plan = TurnPlan::natural();
+        assert_eq!(
+            plan.phases.iter().map(|p| p.phase_type).collect::<Vec<_>>(),
+            vec![
+                PhaseType::Beginning,
+                PhaseType::Precombat,
+                PhaseType::Combat,
+                PhaseType::Postcombat,
+                PhaseType::Ending,
+            ]
+        );
+        assert_eq!(plan.cursor, None, "nothing has been proposed yet");
+        assert_eq!(plan.phase_at(4), Some(PhaseType::Ending));
+        assert_eq!(plan.phase_at(5), None, "past the end is the turn boundary");
     }
 
     #[test]

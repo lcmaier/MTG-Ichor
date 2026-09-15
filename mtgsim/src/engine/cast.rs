@@ -696,7 +696,7 @@ mod tests {
         game.players[0].hand.push(card_id);
         game.players[0].mana_pool.add(ManaType::Red, 1);
         // Set to precombat main phase so sorcery-speed works too
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
@@ -897,7 +897,7 @@ mod tests {
         game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Set to combat phase — sorceries can't be cast here
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Combat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
 
         let decisions = ScriptedDecisionProvider::new();
         assert!(game.cast_spell(0, card_id, &decisions).is_err());
@@ -907,7 +907,7 @@ mod tests {
     fn test_cast_instant_during_combat() {
         let (mut game, card_id, decisions) = setup_for_casting();
         // Instants can be cast during any phase
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Combat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
         game.cast_spell(0, card_id, &decisions).unwrap();
         assert!(game.stack.contains(&card_id));
     }
@@ -945,7 +945,7 @@ mod tests {
         game.players[0].hand.push(card_id);
         // Need {R} + 3 generic = 4 total mana
         game.players[0].mana_pool.add(ManaType::Red, 4);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
@@ -982,7 +982,7 @@ mod tests {
         game.players[0].hand.push(card_id);
         // Only need {R} for X=0
         game.players[0].mana_pool.add(ManaType::Red, 1);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
@@ -1010,7 +1010,7 @@ mod tests {
         game.players[0].hand.push(card_id);
         // Only 2 Red, but X=3 needs 4 total
         game.players[0].mana_pool.add(ManaType::Red, 2);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
@@ -1062,7 +1062,7 @@ mod tests {
         game.add_object(obj);
         game.players[0].hand.push(card_id);
         // No mana needed — paying life instead
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();
@@ -1101,7 +1101,7 @@ mod tests {
         game.players[0].hand.push(card_id);
         // Need {1}{R} (base) + {R} (kicker) = 3 red total
         game.players[0].mana_pool.add(ManaType::Red, 3);
-        game.phase = crate::state::game_state::Phase::new(PhaseType::Precombat);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         let decisions = ScriptedDecisionProvider::new();

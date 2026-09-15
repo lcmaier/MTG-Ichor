@@ -87,7 +87,7 @@ fn test_game_over_bolt_to_zero() {
     game.state.players[0].hand.clear();
     let bolt_id = put_in_hand(&mut game.state, alpha::lightning_bolt(), 0);
     game.state.players[0].mana_pool.add(ManaType::Red, 1);
-    game.state.phase = mtgsim::state::game_state::Phase::new(PhaseType::Precombat);
+    game.state.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Precombat));
     game.state.active_player = 0;
 
     // Script: cast bolt targeting player 1, then pass for everything else
@@ -259,7 +259,7 @@ fn test_first_player_draw_skip() {
 #[test]
 fn test_cast_spell_rollback_on_insufficient_mana() {
     let mut game = GameState::new(2, 20);
-    game.phase = mtgsim::state::game_state::Phase::new(PhaseType::Precombat);
+    game.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Precombat));
     game.active_player = 0;
 
     // Give player 0 a bolt in hand but NO mana
@@ -324,7 +324,7 @@ fn test_can_pay_costs_validates_correctly() {
 #[test]
 fn test_counterspell_cleans_up_stack_entries() {
     let mut game = GameState::new(2, 20);
-    game.phase = mtgsim::state::game_state::Phase::new(PhaseType::Precombat);
+    game.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Precombat));
     game.active_player = 0;
 
     // Player 0 casts bolt

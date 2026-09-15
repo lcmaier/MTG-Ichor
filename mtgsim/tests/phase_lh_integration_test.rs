@@ -397,12 +397,12 @@ fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
     assert_eq!(pt(&game, bears), (2, 2), "unattached, the row names nothing");
 
     // Not a main phase.
-    game.phase = Phase::new(PhaseType::Combat);
+    game.set_turn_position(Phase::new(PhaseType::Combat));
     assert!(!offered_to(&game, 0, splitter));
     assert!(equip(&mut game, 0, splitter, 0).is_err());
 
     // A main phase, but not the active player's.
-    game.phase = Phase::new(PhaseType::Precombat);
+    game.set_turn_position(Phase::new(PhaseType::Precombat));
     game.active_player = 1;
     assert!(!offered_to(&game, 0, splitter));
     assert!(equip(&mut game, 0, splitter, 0).is_err());

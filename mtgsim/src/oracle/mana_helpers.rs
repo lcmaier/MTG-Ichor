@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn test_castable_spells_finds_affordable() {
         let mut game = GameState::new(2, 20);
-        game.phase = Phase::new(PhaseType::Precombat);
+        game.set_turn_position(Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         place_mountain(&mut game, 0);
@@ -590,7 +590,7 @@ mod tests {
     #[test]
     fn test_castable_spells_empty_when_unaffordable() {
         let mut game = GameState::new(2, 20);
-        game.phase = Phase::new(PhaseType::Precombat);
+        game.set_turn_position(Phase::new(PhaseType::Precombat));
         game.active_player = 0;
         // No lands
 
@@ -704,7 +704,7 @@ mod tests {
         // {1}{R} bolt with 1G in pool + 1 Mountain on battlefield
         // Pool covers the {1} generic, Mountain covers {R}
         let mut game = GameState::new(2, 20);
-        game.phase = Phase::new(PhaseType::Precombat);
+        game.set_turn_position(Phase::new(PhaseType::Precombat));
         game.active_player = 0;
 
         place_mountain(&mut game, 0);
@@ -739,7 +739,7 @@ mod tests {
     fn test_castable_spells_respects_timing() {
         let mut game = GameState::new(2, 20);
         // Combat phase — sorceries can't be cast
-        game.phase = Phase::new(PhaseType::Combat);
+        game.set_turn_position(Phase::new(PhaseType::Combat));
         game.active_player = 0;
 
         place_mountain(&mut game, 0);

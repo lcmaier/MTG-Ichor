@@ -16,10 +16,11 @@
 //! card's behavior. Recorded here rather than annotated anywhere
 //! (`replacement-architecture.md` §9, RE decision 6).
 //!
-//! CR 500.7 likewise has **no atom in the corpus** — `backlog.md` §2.17 said it
-//! was thin and RE-1's sizing confirmed it — so
-//! [`two_extra_turns_are_taken_most_recently_created_first`] claims none and
-//! tests the rule's own sentence instead.
+//! CR 500.7 and CR 500.11 had **no atom in the corpus** when this file was
+//! written — both were filed DEFERRED to Phase 9 against a `TurnPlan` that did
+//! not exist yet — so these tests were written against the rules' own
+//! sentences. RE-10 built that type and authored the three atoms where the
+//! deferrals were (`session-4.md`); the two tests below claim theirs.
 
 use std::sync::Arc;
 
@@ -147,7 +148,7 @@ fn at_the_turn_boundary(num_players: usize) -> GameState {
     for pid in 0..num_players {
         fill_library(&mut game, pid, 60);
     }
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     game
 }
 
@@ -229,6 +230,7 @@ fn an_extra_turn_is_taken_by_its_controller_before_the_rotation_resumes() {
 /// **No atom** — CR 500's corpus entries cover 500.1–500.5 and 500.7 has none
 /// (`backlog.md` §2.17 said so; RE-1's sizing confirmed it), so this claims
 /// nothing and tests the rule's own words.
+// COVERS: ATOM-500.7-001
 #[test]
 fn two_extra_turns_are_taken_most_recently_created_first() {
     let mut game = at_the_turn_boundary(4);
@@ -331,7 +333,7 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
     let before = game.events.len();
     let hand_before = game.players[0].hand.len();
@@ -364,7 +366,7 @@ fn eon_hub_takes_the_turn_from_the_untap_step_to_the_draw_step() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, eon_hub(), 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) });
 
     let before = game.events.len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
@@ -476,14 +478,17 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
 //
 // Moment of Silence's own ruling — "it must be used before the combat phase
 // starts or it has no effect" — which is the atom's first half on a different
-// unit. The second half has no board here: the row is `UntilEndOfTurn`, so
-// there is no next occurrence for it to wait for, and the test above is the
-// one that builds both.
+// unit. The second half has no board *here*: the row is `UntilEndOfTurn` and
+// this turn has one combat phase, so there is no next occurrence for it to
+// wait for. The test above builds both on the draw step, and since RE-10
+// `phase_re10_integration_test`'s
+// `a_skip_cast_during_a_combat_phase_is_spent_on_the_next_one` builds both on
+// this one — an extra combat phase is the next occurrence this board lacks.
 #[test]
 fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) });
 
     // Moment of Silence's second ruling: "It must be used before the combat
     // phase starts or it has no effect."
@@ -519,7 +524,7 @@ fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
 fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
 
     // Player 0 is the active player; the row is around player 1.
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(1)]);
@@ -537,68 +542,25 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     assert_eq!(game.replacement_effects.len(), 1, "and the row is unspent");
 }
 
-/// Moment of Silence's first ruling, second sentence: *"If they manage to have
-/// two combat phases, then only their next one combat phase is skipped."*
-///
-/// **The board is built by moving the cursor, because CR 500.8's extra phases
-/// are unbuilt** — the turn queue RE-1 landed holds extra *turns* only, and the
-/// drainer's cursor holds a phase *type*, so it could not tell two combat
-/// phases apart even if something produced one. **RE-10 is the PR that deletes
-/// this fixture** (`replacement-architecture.md` §9): once the cursor indexes a
-/// turn plan, Aggravated Assault makes the second combat phase for real. What the fixture produces is a genuine second
-/// `GameAction::BeginPhase { Combat }` proposal, which is the only thing the
-/// claim is about: a `Uses::Once` row created during the first combat phase
-/// meets no proposal there (CR 614.10's "once a phase has started, it can no
-/// longer be skipped") and is spent on the next one. Relentless Assault
-/// replaces the cursor move on the day its class lands.
-#[test]
-fn a_phase_skip_cast_during_combat_is_spent_on_the_next_combat_phase() {
-    let mut game = setup_two_player_game();
-    fill_library(&mut game, 0, 20);
-
-    // The first combat phase, already under way.
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::BeginCombat) };
-    resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
-
-    // It finishes: CR 614.10's last sentence, and the row is unspent.
-    let before = game.events.len();
-    while game.phase.phase_type == PhaseType::Combat {
-        game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
-    }
-    assert!(
-        steps_begun_from(&game, before).contains(&StepType::EndCombat),
-        "the combat phase that had started finished"
-    );
-    assert_eq!(game.replacement_effects.len(), 1, "and the row is unspent");
-
-    // A second combat phase, as CR 500.8 would insert one.
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
-    let before = game.events.len();
-    let (phase, step) = game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
-
-    assert_eq!(
-        (phase, step),
-        (PhaseType::Postcombat, None),
-        "the second combat phase is the one that gets skipped"
-    );
-    let records = game.events.records_from(before);
-    assert!(
-        !records.iter().any(|r| matches!(
-            r.event,
-            GameEvent::PhaseBegin { phase: PhaseType::Combat }
-        )),
-        "and it announced nothing"
-    );
-    assert!(game.replacement_effects.is_empty(), "one use, one phase");
-}
+// Moment of Silence's first ruling — *"if they manage to have two combat
+// phases, then only their next one combat phase is skipped"* — and its second
+// ("it must be used before the combat phase starts") **moved to
+// `phase_re10_integration_test`** when RE-10 landed. Both were tested here
+// against a second `BeginPhase { Combat }` proposal this file made by moving
+// the drainer's cursor by hand, because CR 500.8's extra phases were unbuilt.
+// Aggravated Assault builds them, so the boards are the engine's now and the
+// cursor move is gone. `ATOM-614.10-002` does **not** travel: the two tests
+// above still claim it, and what RE-10 adds is the half the partial below
+// says has no board here.
 
 /// The phase-level skip, and the rule a step-level one cannot show: a skipped
 /// phase proposes **none** of its steps (CR 500.11).
+// COVERS: ATOM-500.11-001
 #[test]
 fn a_skipped_phase_proposes_none_of_its_steps() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Precombat, step: None };
+    game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
 
     let before = game.events.len();
@@ -664,7 +626,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
     put_on_battlefield(&mut game, trigger, 0);
-    game.phase = Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
     let before = game.events.len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
@@ -832,7 +794,7 @@ fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
 fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 20);
-    game.phase = Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     assert!(!game.attacks_declared);
 
     let before = game.events.len();

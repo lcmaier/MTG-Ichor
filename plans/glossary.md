@@ -140,6 +140,30 @@ and the thing a skip replaces with nothing. **(2)** a unit of *work* — one
 branch, one PR (`CLAUDE.md`'s Git workflow). Sense 2 predates sense 1 and is
 prose only; nothing in the crate is named for it.
 
+**plan** — two, and the older one is not a type at all.
+**(1)** a *payment* plan — `plan_payment`, `pay_with_plan`, `plan_and_pay` and
+`planned_sacrifices`: the cost system working out what to tap and sacrifice
+before it does either (CR 601.2f–h). A local idiom, and a verb. **(2)** a
+**turn** plan — `GameState.turn_plan`, `TurnPlan`, `PlannedPhase`: CR 500.1's
+phase sequence as data the drainer indexes, so CR 500.8 can splice into it. A
+noun, and a stored fact. The collision was caught by RE-1's glossary pass
+*before* sense 2 was written rather than mid-PR, which is what this gate is
+for — `planned_sacrifices` sits one letter from `PlannedPhase`. Sense 2 keeps
+the name because it is the one `state::game_state::next_phase`'s own pre-RE-1
+TODO used. → `replacement-architecture.md` §9's RE-10; `cost-architecture.md`.
+
+**splice** — **(1)** CR 702.47's keyword ability: adding a card's rules text to
+an Arcane spell as it is cast (CR 612.10). **Unimplemented, and the name is
+taken by sense 2 before the mechanic arrives**, which is the collision this
+entry exists to record. **(2)** inserting phases into `GameState.turn_plan` at
+the cursor — CR 500.8, `Primitive::ExtraPhases`, literally `Vec::splice`. Sense
+2 keeps the word because it is the standard-library method's, and the CR's own
+sense is a keyword ability that will be spelled `KeywordFlag` when it lands and
+so cannot be confused with a call. **Found by `--suggest` only because the
+prose says "splices"**: the filter drops words the CR uses and the CR uses the
+singular, which is one thing that report cannot see. →
+`replacement-architecture.md` §9's RE-10.
+
 **schedule** — **(1)** what the turn machinery will propose next: `turn_queue`
 and `turn_rotation` together, read and **consumed** by `advance_turn` as it
 builds a proposal. Naming it is load-bearing — the schedule is an *input* to
@@ -351,14 +375,30 @@ and not as an `ObjectFilter` leaf. → `types/zones.rs`, `layers-architecture.md
 
 ## The turn structure (CR 500, 614.10)
 
-**drainer** / **cursor** — `advance_turn` is a *drainer*: it walks CR 500.1's
-sequence proposing each unit and stops when one begins, because CR 614.1b makes
-"skip" a replacement effect and the next unit in the sequence is not necessarily
-the one that happens. Its *cursor* is the last unit **considered**, which is not
-the last that happened — CR 500.11's "proceed past it as though it didn't
-exist" is the whole difference, and a skipped phase advances the cursor while
-beginning nothing. → `engine::turns::drain`; `replacement-architecture.md` §9's
-RE-1.
+**drain** — the **verb**, and `engine::turns::drain` is the loop that does it:
+propose the next unit of turn structure, and if it does not begin, propose the
+one after it, until one does. Named for what it consumes rather than for what
+it produces — each pass spends something that cannot be spent twice (a queued
+extra turn, a place in the rotation, a plan entry), which is also the
+termination argument. One call to `advance_turn` is one drain and ends at one
+**position**. → `engine::turns::drain`.
+
+**drainer** — the **thing** that drains: `advance_turn`, as opposed to a step
+function. The distinction is CR 614.1b's — "skip" is a replacement effect, so
+the next unit in CR 500.1's sequence is not necessarily the one that happens,
+and a function that returned "the next step" would be answering a question the
+rules do not have. → `replacement-architecture.md` §9's RE-1.
+
+**cursor** — the drainer's place in the sequence: the last unit **considered**,
+which is not the last that happened. CR 500.11's "proceed past it as though it
+didn't exist" is the whole difference — a skipped phase advances the cursor and
+begins nothing. Since RE-10 it is an **index** into `GameState.turn_plan` and
+not a phase *type*, because CR 500.8 lets one turn hold two combat phases and a
+type cannot say which of them is meant. Distinct from the **position**
+(`GameState.phase`), which is where the drainer *stopped*: the two agree at a
+drain boundary and diverge inside one, which is why
+`GameState::set_turn_position` writes both and `advance_turn` asserts they
+still match. → `replacement-architecture.md` §9's RE-1 and RE-10.
 
 **position** — where the drainer *stops*: a step, or a main phase, which has
 none. Not a synonym for unit — a phase with steps is a unit and never a

@@ -424,7 +424,7 @@ fn a_control_effect_with_no_duration_ends_when_the_player_it_favours_leaves() {
 
     // A cleanup first, to show the duration really is the thing that does not
     // end it.
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     advance(&mut game);
     assert_eq!(game.phase.step, Some(StepType::Cleanup));
     assert_eq!(get_effective_controller(&game, bears), Some(0), "no duration, nothing ended");
@@ -446,7 +446,7 @@ fn a_no_duration_effect_keeps_the_creature_when_its_default_controller_leaves() 
     steal_indefinitely(&mut game, bears, 2);
 
     departs(&mut game, 0, &test_dp());
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     advance(&mut game);
     assert_eq!(game.phase.step, Some(StepType::Cleanup));
 
@@ -586,7 +586,7 @@ fn a_control_effect_ending_with_its_default_controller_gone_exiles_the_object() 
 
     // Cleanup: Act of Treason's row expires, and there is no player left who
     // could control the creature.
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     advance(&mut game);
     assert_eq!(game.phase.step, Some(StepType::Cleanup));
 
@@ -601,7 +601,7 @@ fn a_control_effect_ending_with_its_default_controller_playing_hands_the_object_
     let bears = put_on_battlefield_under(&mut game, vanilla_creature(2, 2, &[]), 1, 0);
     steal(&mut game, bears, 2);
 
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
     advance(&mut game);
     assert_eq!(game.phase.step, Some(StepType::Cleanup));
 
@@ -793,7 +793,7 @@ fn an_until_your_next_turn_effect_lasts_until_the_departed_players_turn_would_ha
 
     // P1's turn would have been the next one; the rotation passes their seat on
     // the way to P2's.
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) });
     advance(&mut game);
 
     assert_eq!(game.active_player, 2, "CR 800.4k: P1's turn did not begin");
@@ -824,7 +824,7 @@ fn a_departed_seat_expires_only_its_own_until_your_next_turn_rows() {
     resolve_with(&mut game, 3, &pump, vec![ResolvedTarget::Object(bears)], &test_dp());
 
     departs(&mut game, 1, &test_dp());
-    game.phase = Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) };
+    game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) });
     advance(&mut game);
 
     assert_eq!(game.active_player, 2);

@@ -823,6 +823,16 @@ record.*
 
 ### 2.17 Extra phases and steps (CR 500.8, 500.9, 500.10)
 
+> **The phase half graduated 2026-09-14 to `replacement-architecture.md`
+> (RE-10) and is struck below.** `GameState.turn_plan` is CR 500.1's
+> sequence as a `Vec` the drainer indexes, rebuilt per turn;
+> `Primitive::ExtraPhases` splices at `cursor + 1`; `next_phase`'s chain is
+> deleted; Aggravated Assault is the producer. CR 500.8's *"most recently
+> created phase will occur first"* needs no comparator — a later splice at
+> the same index pushes the earlier one back. **This entry stays open for
+> the *step* half (CR 500.9, 500.10) only**, whose one field is named on
+> `PlannedPhase` and whose only producer is a triggered ability.
+
 **The turn half graduated 2026-09-11 to `replacement-architecture.md` (RE-1):**
 `GameState::turn_queue` is CR 500.7's stack, pushed by `Primitive::ExtraTurn`,
 drained by `advance_turn`'s `next_turn_taker`, with `turn_rotation` beside it
@@ -836,7 +846,7 @@ mechanic rather than a migration, which is why it is here and not in
   (a step added after a *phase* creates the containing phase, and that phase's
   other steps are **skipped** — CR 500.11, which makes this rule a skip
   *producer* and the reason it reads as replacement-adjacent).
-- **Verdict** — **the drainer's cursor cannot hold two of the same phase.**
+- ~~**Verdict** — **the drainer's cursor cannot hold two of the same phase.**~~ *(graduated; what shipped is above)*
   RE-1 wrote it as `(Option<PhaseType>, Option<StepType>, phase_began)` and
   `next_turn_unit` answers "what follows" from the phase *type*, so a turn with
   two combat phases cannot say which one the cursor is at. The shape that can
@@ -845,8 +855,10 @@ mechanic rather than a migration, which is why it is here and not in
   cursor indexes, spliced by a new producer. **So `advance_turn` is rewritten a
   second time** — see `replacement-architecture.md` §11 item 49, which is the
   finding this entry exists to carry.
-- **Size** — the plan plus its index cursor, one `Primitive`, and the per-turn
-  clear: ~250–350 additions, plus a card and its tests. Well inside one PR.
+- ~~**Size** — the plan plus its index cursor, one `Primitive`, and the per-turn
+  clear: ~250–350 additions, plus a card and its tests. Well inside one PR.~~
+  *(shipped at +1,066 / −171; the additions this line did not price are the
+  46 sites that write `GameState.phase` by hand — see RE-10's findings)*
   **Aggravated Assault is the cheapest whole card** ({2}{R} enchantment,
   `{3}{R}{R}` activated, `ActivationRestriction::OnlyAsSorcery`, which exists):
   its only other need is `Primitive::Untap` accepting an
@@ -855,7 +867,7 @@ mechanic rather than a migration, which is why it is here and not in
   War needs rebound and "creatures that attacked this turn"; Obeka needs item
   6's triggers, so **CR 500.10 cannot land before item 6** whatever happens to
   500.8.
-- **Blocks** — `o:"additional combat phase"` is **46 cards** (Scryfall,
+- ~~**Blocks**~~ *(the phase half's; the step half blocks Obeka alone)* — `o:"additional combat phase"` is **46 cards** (Scryfall,
   2026-09-11), `o:"additional main phase"` 9, `o:"additional upkeep step"` 3.
   And one card that is *already registered*: Moment of Silence's first ruling —
   "if they manage to have two combat phases, then only their next one combat
