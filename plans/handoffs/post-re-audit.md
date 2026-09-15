@@ -14,8 +14,10 @@ an owner, and the schedule is the owner's call.
 
 ## 0. Where things stand
 
-- Branch `audit/post-re-plan`, off `main` at e4dae3c (RE-9's merge). This file
-  and the regenerated board, nothing else.
+- Branch `audit/post-re-plan`, off `main` at e4dae3c (RE-9's merge), PR #141.
+  This file and the regenerated board, nothing else. The owner answered §6's
+  five decisions on the PR the same day; the answers are recorded there and
+  folded into §3 and §4.
 - Every count below was read from the tree on 2026-09-15. A pass re-reads
   what it touches; a number here is a starting point, not a claim about the
   tree the pass finds.
@@ -86,10 +88,24 @@ five wrong-today items each fixed or scheduled; the five unstated items each
 given a verdict line. Fixes are their own commits, each shown to fail first
 per `CLAUDE.md`; a fix that moves a pool is its own PR with a `fuzz-record.md`
 block. The retrospective the owner asked for is written here, while the
-material is fresh — see §6 for where.
+material is fresh: **§14 of `replacement-architecture.md`, "The phase in
+hindsight"** (§6 decision 1), pointers not prose, since §11's findings
+already hold the detail item by item.
 
-**Size:** one sitting of reading, one docs PR, up to three small fix commits.
-The brief is §8.
+**And the eviction that goes with it** (the same decision): the owner wants
+"a lot of that doc" moved to `plans/archive/replacement-architecture-landed.md`.
+The live doc is 6,497 lines and the archive's landed doc 4,933; each RE PR
+already evicted its own phase body under the ≤40-line stub rule, so what is
+left is the pre-build reasoning — §1's verdict, §8b and §8c's sizing, §9's
+two design checks (361 and 336 lines), §5b's corrections, and the closed
+majority of §11's 108 findings. The rule for what stays: what a reader
+changing the pipeline needs — §2a as built, §3's type surface, §4's loop,
+§5d's overlay as built, §6, §7, §8 and §8a, the open §11 items, §12, §13,
+§14. Plan it section by section before moving anything, and if it is a PR
+of its own, open it second.
+
+**Size:** one sitting of reading, one docs PR, up to three small fix commits,
+and possibly a second docs PR for the eviction. The brief is §8.
 
 ### Pass 2 — hygiene and CI
 
@@ -102,9 +118,10 @@ and the CI gaps.
 re-derived and dated or rewritten as history; restating comments deleted
 file by file in the files the grep touches; the twelve `TODO`s either given
 a live owner (a backlog section, a critical-path item) or deleted;
-`check_glossary.py` added to CI; a decision on clippy (a first run will
-produce hundreds of findings on 62K lines, so adoption is a scoped choice,
-not a flag flip) and on `cargo fmt --check`; the 1.98 pin either measured
+`check_glossary.py` added to CI; **clippy run once and counted before
+anything is decided** (§6 decision 2 — a first run on 62K lines will produce
+hundreds of findings, so adoption is a scoped choice made on the count, not
+a flag flip); a decision on `cargo fmt --check`; the 1.98 pin either measured
 down or left with its comment. The CI half is its own small PR.
 
 **Size:** one PR for CI, one or two for comments, mechanical.
@@ -120,13 +137,17 @@ against a stated target, with a ranked lever list — not code.
 **Produces:** the target, written down; a profile at four seats and one
 thread on the stress pool, with the clone question read off it; the panic
 surface separated into engine and test; a state-clone measurement at
-Commander scale (four 100-card decks) extending §4's table; the fork model
-decided from the numbers (§4 recommends one); the `DecisionProvider` and
-`ChoiceContext` serialization question answered (which fields, which
-crate, what it costs on the straight-line path); each lever sized and
-ranked against the target. Findings land in Deferred Migrations with
-reachability and size; the fork model, if it holds, is the seed of the
-harness's own architecture doc, which is Phase 10's and not this pass's.
+Commander scale (four 100-card decks) extending §4's table; **the fork
+model is decided** (§4, §6 decision 4 — priority boundaries), so what this
+pass owes is the enumeration of the inner asks and the cost of each way of
+answering them, and item 41's fork test promoted from "probably sound" to a
+requirement; the `DecisionProvider` and `ChoiceContext` serialization
+question answered (which fields, which crate, what it costs on the
+straight-line path); the target proposed in the metric §4 names, for the
+owner to set; each lever sized and ranked against it. Findings land in
+Deferred Migrations with reachability and size; the batched decision
+boundary §4 describes is the seed of the harness's own architecture doc,
+which is Phase 10's and not this pass's.
 
 **Size:** one sitting of measurement, one docs PR.
 
@@ -142,10 +163,11 @@ rows A4b, A4c, A6, and pass 1's and pass 3's outputs.
 and atoms, what it needs, and which of the triggers doc's questions (the
 four problems `state-tracking-architecture.md` names, CR 603.10a's
 visibility seam) needs it first; a proposed order for the between-phases
-slot; and a recommendation on whether this audit becomes a recurring
-practice at each spine-phase close (a §9 of `engineering-practices.md`,
-with this run as its first instance). The owner decides the order; this
-pass only proposes it.
+slot; and **the audit written up as a recurring practice** — §6 decision 5,
+decided — as a §9 of `engineering-practices.md`, with this run as its first
+instance, the cadence (each spine-phase close), the passes, and what each
+pass's instrument is. The owner decides the order; this pass only proposes
+it.
 
 **Size:** one docs PR.
 
@@ -209,23 +231,77 @@ smaller build. What the trigger phase must not do is add outcome-bearing
 state anywhere but `GameState` (item 40's invariant) — that is the one
 design constraint with a deadline.
 
-**Still open, and pass 3's to measure or decide:**
+**The fork point — decided (owner, 2026-09-15).** Decisions are asked
+through `DecisionProvider` *inside* engine calls, mid-resolution and
+mid-batch, while the engine holds `&mut GameState`; the provider sees a
+`ChoiceContext`, not the state. Of the two shapes — fork only at priority
+boundaries and answer inner asks from a policy, or a suspend-at-decision mode
+in the engine — the owner chose **priority boundaries**, and for a reason
+stronger than the engineering one: an RL agent should never be handed a view
+it cannot act on, so the observation boundary and the action boundary are
+the same boundary, and that boundary is priority. Three consequences for the
+engine, all pass 3's to write down:
+
+1. `codebase-state.md` item 41's priority-boundary fork test is a
+   requirement, no longer "probably sound today".
+2. Every inner ask — targets, modes, payment, a replacement choice, an
+   ordering — is either a *parameter of the action chosen at priority* (the
+   action space is complete legal actions, sub-choices resolved) or answered
+   by a policy the harness supplies; it is never a separate observation.
+   Pass 3 enumerates which asks are which. The residual to design for, not
+   the rule: an ask that lands on the *other* player mid-resolution (CR
+   616.1's affected player choosing among two or more, and CR 603.3b's
+   ordering once triggers exist).
+3. The observation is built from the per-viewer query (`backlog.md` §2.9),
+   which is why that entry sits before Phase 8 on the route.
+
+**The GPU question (owner, 2026-09-15): is "cores" even the right metric,
+when a researcher will want GPUs for higher parallelism — and does that mean
+bespoke code per vendor?** No to both, for a structural reason rather than a
+tooling one. A GPU runs thousands of threads in lockstep on one instruction
+stream; a branch that goes two ways inside a warp serializes it, and dynamic
+allocation, hash maps, trait objects and recursion are either unavailable or
+run at a small fraction of CPU speed. A CR-faithful rules engine is the
+opposite shape: every event is a branch, every board is a different-length
+cascade through the pipeline, and its state is `HashMap`s of `Arc`s. The
+board games that do run on a GPU (Pgx's chess and Go in JAX, Brax, the GPU
+Atari emulators) were written as fixed-size tensor states with masked
+arithmetic in place of branches; putting this engine there would mean a
+second engine, and it would not be this one.
+
+What a researcher does with a GPU is run the **agent** on it — the policy
+network — while the **environment** runs on CPU cores, many copies at once,
+observations batched to the GPU and actions returned. That is the shape of
+every large-scale RL system built on a complex environment (IMPALA,
+AlphaStar over StarCraft II, EnvPool, Sample Factory), and the vendor
+question disappears inside the researcher's framework: PyTorch and JAX
+abstract CUDA, ROCm and Metal, and nothing in this repository ever addresses
+a GPU. So cores are the engine's metric: throughput per core at four seats,
+and how many cores — on one machine or many — a run can keep busy.
+
+What the engine owes that architecture, and this is the concrete
+consequence: a **batched decision boundary**. Advance N games each to its
+next priority boundary, hand back N observations in a fixed encoding, accept
+N actions — the vectorized-environment interface, which is the fork model
+above with a batch dimension. Its pieces are all named already: the
+per-viewer query is the observation, `ChoiceContext` serialized is the
+prompt, `DecisionProvider`'s four methods are the action, and the binding (a
+Python module over the crate, or a socket protocol) is Phase 10's harness
+doc. Order of magnitude from today's numbers, for pass 3 to replace with a
+measurement: a four-seat random game is ~45 ms of CPU across on the order of
+hundreds of decisions, so the engine advances a game between decisions in
+roughly 100 µs; a small policy net batched over a thousand games is about a
+millisecond on a GPU; so a few dozen cores keep one GPU fed, and the engine's
+job is to stay off the profile.
+
+**Still open, and pass 3's to measure or propose:**
 
 - Memory per fork at Commander scale (four 100-card decks, ~40 permanents),
   and the clone at that scale — the table above is 60-card random decks.
-- **Where a search forks.** Decisions are asked through `DecisionProvider`
-  *inside* engine calls, mid-resolution and mid-batch, while the engine holds
-  `&mut GameState`; the provider sees a `ChoiceContext`, not the state. Two
-  shapes: fork only at priority boundaries (item 41's test, "probably sound
-  today") and answer inner asks from a policy; or a suspend-at-decision mode
-  in the engine. The first is the v1 recommendation — most inner asks are
-  orderings and replacement choices — and the second is what "flexible for
-  professionals" may eventually require. Name the cost of each; do not build
-  either in the audit.
-- The straight-line throughput target, which nothing states. Suggested shape:
-  games per core-second at four seats with random providers, as a floor the
-  fixture table can watch — the harness's own decision cost will dominate any
-  real training run, so the engine's job is to stay off the profile.
+- The throughput target, which nothing states, in the metric the paragraph
+  above settles: **decisions per core-second at four seats** — the unit an
+  RL loop consumes — with random providers, as a floor the fixture table can
+  watch. Pass 3 proposes the number; the owner sets it.
 
 ## 5. Where findings land
 
@@ -243,28 +319,33 @@ The way the project already records them, nothing new:
   2026-09-…` heading in `codebase-state.md`, the shape "Was the critical path
   complete? — audited 2026-08-27" already uses.
 
-## 6. Decisions left to the owner
+## 6. Decisions — answered by the owner on PR #141, 2026-09-15
 
-Named here, not decided. Each pass that meets one asks and proceeds on the
-recommendation if no answer has arrived.
+Five were named when the plan was written; four are decided and one is
+half-decided. The passes above carry each answer.
 
-1. **Where the retrospective lives.** Recommendation: a short §14 of
-   `replacement-architecture.md`, "The phase in hindsight" — under 150
-   lines, pointers not prose, since §11's findings already hold the detail
-   item by item. Alternative: the top of
-   `plans/archive/replacement-architecture-landed.md`, which nothing reads.
-2. **Clippy.** Adopt with a scoped allow-list, adopt only for new code via a
-   CI diff gate, or leave out. Recommendation: run it once in pass 2, count,
-   and decide on the count.
-3. **The throughput target** (§4's last bullet), before pass 3 profiles.
-4. **The fork model** (§4), after pass 3's numbers.
-5. **Whether the audit recurs** at each spine-phase close (pass 4 proposes).
+1. **Where the retrospective lives — decided.** §14 of
+   `replacement-architecture.md`, "The phase in hindsight", under 150 lines,
+   pointers not prose — **and** a larger eviction of that doc to
+   `plans/archive/replacement-architecture-landed.md` alongside it. Pass 1;
+   the section-by-section rule is in §3.
+2. **Clippy — decided in method.** Run once and count before anything is
+   decided; the count decides. Pass 2.
+3. **The throughput target — metric decided, number open.** Cores are the
+   engine's metric and the GPU is the agent's (§4); the unit is decisions
+   per core-second at four seats. Pass 3 proposes the number; the owner sets
+   it. The one thing still open in this file.
+4. **The fork model — decided.** Priority boundaries, for the RL reason in
+   §4: no view an agent cannot act on. Pass 3 enumerates the inner asks and
+   promotes item 41's test to a requirement.
+5. **Recurring — decided.** Yes, at each spine-phase close. Pass 4 writes it
+   as `engineering-practices.md` §9 with this run as the first instance.
 
 ## 7. Status
 
 | Pass | State | PR |
 |---|---|---|
-| Plan | this file | — |
+| Plan | this file, decisions answered | #141 |
 | 1 — close-out | not started | |
 | 2 — hygiene and CI | not started | |
 | 3 — parallel-play readiness | not started | |
@@ -298,7 +379,10 @@ paste.
 > 59, 60, 118, 122, 131; its unstated items are 1, 2, 88, 116, 121. The
 > TL;DR claims 914 tests and ~34,100 lines; the tree has 1,534 and 62,241.
 > RE's trace-page heading names RE-2 (yes) and RE-3–RE-9 (no); RE-1 and
-> RE-10 are unnamed.
+> RE-10 are unnamed. `replacement-architecture.md` is 6,497 lines;
+> `plans/archive/replacement-architecture-landed.md` is 4,933; every RD and
+> RE phase body is already a ≤40-line stub, so the eviction below is the
+> pre-build reasoning and the closed findings, not the phase bodies.
 >
 > **The checklist — every entry gets one of three dispositions** (closed,
 > scheduled with an owner, or deferred with a dated reachability line and a
@@ -315,8 +399,17 @@ paste.
 >    pool is its own PR with a `fuzz-record.md` block.
 > 6. Items 1, 2, 88, 116, 121: a `**Reachability (2026-09-…):**` line each.
 > 7. RE-1's and RE-10's trace-page decision, recorded on the heading.
-> 8. The retrospective (handoff §6 decision 1; proceed on the recommendation
->    if unanswered).
+> 8. The retrospective: §14 of `replacement-architecture.md`, "The phase in
+>    hindsight", under 150 lines, pointers not prose (handoff §6 decision 1,
+>    decided).
+> 9. The eviction plan for `replacement-architecture.md`, section by
+>    section, before anything moves: what a reader changing the pipeline
+>    needs stays live (§2a, §3, §4, §5d, §6, §7, §8, §8a, the open §11
+>    items, §12, §13, §14); the pre-build reasoning (§1, §5b, §8b, §8c, §9's
+>    two design checks) and §11's closed findings move to the landed doc
+>    under the ≤40-line stub rule, each stub keeping the heading `grep`
+>    finds. Size it; if it is a PR of its own, open it second, after the
+>    close-out merges, so the stubs point at a §14 that exists.
 >
 > **Then make the summaries true:** rewrite `codebase-state.md`'s TL;DR in
 > place; move the CR 614–616 row to ✅ with its own "not yet" list; bring
