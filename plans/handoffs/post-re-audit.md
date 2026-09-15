@@ -167,6 +167,22 @@ One docs PR, mechanical but not blind: every heading byte-identical so
 citations of §5b and §8c read against their stubs. **Opens second, after
 pass 1 merges, so the stubs point at a §14 that exists on `main`.**
 
+**Done 2026-09-15 (#PRNUM). Live 6,725 → 3,401, archive 4,933 → 8,647**,
+against this table's "~3,400 / ~8,400" — 3,324 lines out and 234 back in
+stubs. Every "moves" row matched its span. Three of this table's numbers did
+not, and the tree is what they are corrected against: §11's closed items sit
+under **seventeen** `### Answered …` / `### Found by …` headings, not twenty;
+the `ZoneChangeCause` derivation is **66** lines, not ~165 (the ~165 was §11's
+whole head, whose other 128 lines are items 1–7, five of which moved); and
+**"an arm the pipeline cannot apply is worse than a missing one" is not a
+sentence in §8c** — it is `CLAUDE.md`'s, argued at §3.2a/§3.2b and quoted by
+§9's RD-4 stub and "Cut, and argued", all of which stay — so §8c's stub keeps
+one rule, "two customers before a variant", and not two. Verified: every line
+removed from the live doc is present in the archive's additions, the only
+archive text that is not a moved line is a heading or an *Evicted* note, each
+moved heading has the same count in both files, and all 99 §11 items still
+carry a `N. **title**` line so every outside citation resolves.
+
 ### Pass 2 — hygiene and CI
 
 **Goal:** the §2.1 comment sweep by its own instrument, the twelve `TODO`s,
@@ -445,7 +461,7 @@ half-decided. The passes above carry each answer.
 |---|---|---|
 | Plan | this file, decisions answered | #141 |
 | 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | #142 |
-| 1b — the eviction | planned 2026-09-15 (§3's table); opens after pass 1 merges | |
+| 1b — the eviction | ✅ done 2026-09-15 — §3's table and the re-count under it; live 6,725 → 3,401, archive 4,933 → 8,647 | #PRNUM |
 | 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record; then the option-2 sweep (history out, four-line signal on inline blocks) over every non-card source file, §2.1's second record | #143 (CI), #144 (comments; merged into `audit/ci`, re-landed on main by #145), option 2: #146, #147, #148, #149, stacked in that order |
 | 3 — parallel-play readiness | not started | |
 | 4 — scheduling | not started | |

@@ -6,7 +6,8 @@
 //! That is good for shipping and bad for design: `EventPattern` would have been
 //! defined under no pressure whatsoever, and the first real card would then
 //! have found out what it could not express
-//! (`replacement-architecture.md` §8c, "should the grammar work move earlier?").
+//! (`replacement-architecture.md` §8c, "should the grammar work move earlier?",
+//! evicted 2026-09-15 to `plans/archive/replacement-architecture-landed.md`).
 //!
 //! Kalitas is the pressure. It is the only replacement effect in reach with a
 //! **two-sided filter** (a quality of the dying creature *and* whose it is), a
