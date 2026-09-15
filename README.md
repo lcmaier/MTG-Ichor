@@ -10,13 +10,18 @@ games.
 **4-player Commander** — and **highly parallel AI games** over the CLI. A correct
 two-player game is a checkpoint on the way, not the destination.
 
-> **Status:** The layer system (CR 613) core is live; replacement effects (CR 614–616) are
-> the phase starting now. Build is green with zero warnings.
+> **Status (2026-09-15):** The layer system (CR 613) is complete but for Layer 3 and Layer
+> 1b, including the CR 613.8 dependency algorithm. Replacement and prevention effects
+> (CR 614–616) landed as Phases RA–RE, 2026-08-25 → 2026-09-15, and closed through an
+> audit; every observable mutation is now a proposal the CR 616.1 pipeline sees before it
+> happens. Next on the spine: triggered abilities (CR 603). Build is green with zero
+> warnings.
 >
 > For anything more precise than that — per-rule coverage, what's stubbed, what's next —
-> read [`plans/codebase-state.md`](plans/codebase-state.md). It is the single source of
-> truth and it is maintained as part of the work that changes it. This README deliberately
-> does not duplicate its numbers.
+> read [`plans/state-of-play.md`](plans/state-of-play.md), the generated board, and
+> [`plans/codebase-state.md`](plans/codebase-state.md), the prose beside it. That file is
+> the single source of truth and is maintained as part of the work that changes it. This
+> README deliberately does not duplicate its numbers.
 
 ---
 
@@ -60,8 +65,10 @@ two-player game is a checkpoint on the way, not the destination.
   `Effect` combinators (`Atom`, `Sequence`, `Conditional`, `Modal`, …).
 - **Immutable card data.** `CardData` is `Arc`-shared across instances; the layer system
   computes effective characteristics on top of printed values.
-- **Action pipeline.** Observable mutations route through `execute_action(GameAction)` —
-  the seam the replacement-effect pipeline hooks into.
+- **One chokepoint.** Every observable mutation is a `GameAction` *proposal* through
+  `execute_actions`; the CR 614–616 pipeline (`engine/replacement/`) sits between the
+  proposal and the mutation, and the performed event is what the log — and, next,
+  triggered abilities — read. A direct write is invisible to it by construction.
 
 ### Three invariants worth knowing before touching the code
 
@@ -94,27 +101,32 @@ A coarse map. The per-CR-rule breakdown lives in
 
 | Area | Status |
 | --- | --- |
-| Turn structure, all phases and steps (CR 5) | ✅ |
-| Mana: pool, restrictions, persistence, context-aware spending (CR 106, 123) | ✅ |
-| Casting pipeline (CR 601.2), stack and resolution (CR 608) | ✅ core; modes and activation restrictions pending |
+| Turn structure, all phases and steps (CR 5) | ✅ every turn, phase and step is a proposed event; extra turns and phases; skips |
+| Mana: pool, restrictions, persistence, context-aware spending (CR 106, 123) | ✅ production is an event (CR 106.6a, 106.12) |
+| Casting pipeline (CR 601.2), stack and resolution (CR 608) | ✅ core, with cost determination as its own pipeline (CR 601.2f); modes and most activation restrictions pending |
 | Priority, mana-ability windows (CR 117, 601.2g) | ✅ |
 | Targeting (CR 115) | ✅ core; changing targets pending |
 | Combat, including 2025 damage-assignment rules (CR 506–511) | ✅ |
-| State-based actions (CR 704) | ✅ |
-| Keyword abilities (CR 702) | ✅ evergreen set; infect/wither, equip, bestow pending |
-| **Layer system (CR 613)** | 🟡 Layers 2, 4, 5, 6, 7a–7d live; 1 and 3 stubbed; **613.8 dependency algorithm not started** |
+| State-based actions (CR 704) | ✅ one simultaneous batch per check |
+| Keyword abilities (CR 702) | ✅ evergreen set, equip; infect/wither, bestow pending |
+| **Layer system (CR 613)** | ✅ Layers 1a, 2, 4, 5, 6, 7a–7d live, the CR 613.8 dependency algorithm inside one board-wide pass; Layer 3 and Layer 1b stubbed |
 | Characteristic-defining abilities (CR 604.3) | ✅ |
 | CR 305.7 land-type replacement (Blood Moon, Urborg) | ✅ |
-| **Replacement and prevention (CR 614–616)** | ❌ stub hook only — the phase starting now |
-| **Triggered abilities (CR 603)** | ❌ enum variant only |
-| Commander (CR 903) | 🟡 skeleton: command zone, commander-damage SBA and accumulation |
-| Multiplayer (CR 800/802) | ❌ |
-| CLI play, seeded and threaded fuzz harness | ✅ |
+| CR 113.6 — which abilities function in which zone | 🟡 the registration leg; the replacement and restriction sweeps still visit the battlefield alone |
+| **Replacement and prevention (CR 614–616)** | ✅ Phases RA–RE: the proposal chokepoint, the CR 616.1 loop, the CR 614.12 look-ahead frame, damage and prevention (CR 615), and every event kind the vocabulary derives |
+| "Can't" effects (CR 101.2, 614.17) | 🟡 the spine and the event chokepoint; casting, combat and cost restrictions pending |
+| Copy effects (CR 707) | 🟡 the copiable-values capture and "becomes a copy"; enters-as-a-copy, tokens, spell copies, faces, face-down pending |
+| **Triggered abilities (CR 603)** | ❌ enum variant only — next on the spine |
+| Commander (CR 903) | 🟡 command zone, CR 903.9a/b, commander damage; the tax, designation and `GameConfig::commander()` pending |
+| Multiplayer (CR 800/802) | 🟡 any number of seats, N-player rotation, a lost player leaves the game (CR 800.4a–e); CR 802 pending |
+| CLI play, seeded and threaded fuzz harness at any seat count | ✅ |
 
-**Cards:** 54 registered — basic and dual lands, Alpha staples, vanilla and keyword
-creatures, and the layer-exercising set that arrived with Phases LB–LG (Blood Moon,
-Humility, Glorious Anthem, March of the Machines, Tarmogoyf, Merfolk Thaumaturgist,
-Moonlace, …). Cards are data, not engine code — see `mtgsim/src/cards/`, and
+**Cards:** [`plans/state-of-play.md`](plans/state-of-play.md) carries the count, registered
+and pooled. Basic and dual lands, Alpha staples, vanilla and keyword creatures, the
+layer-exercising set from Phases LB–LK (Blood Moon, Humility, Glorious Anthem, Tarmogoyf,
+Wonder, …) and the replacement track's consumers (Leyline of the Void, Kalitas, Furnace of
+Rath, Doubling Season, Thought Reflection, Mana Reflection, …). Cards are data, not engine
+code — see `mtgsim/src/cards/`, and
 [`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) for which ticket unlocks
 what.
 
@@ -148,13 +160,16 @@ You play Player 0 against a random-decision bot.
 cd mtgsim && cargo run --bin fuzz_games -- --games 500 --seed 42 --threads 8
 ```
 
-Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--pool
-performance|stress`, `--verbose`, `--dump-events <path>`.
+Flags: `--games N`, `--max-turns N`, `--seed N`, `--threads N`, `--players N`, `--pool
+performance|stress`, `--require NAMES`, `--no-auto-pay`, `--verbose`,
+`--dump-events <path>`.
 
-Two card pools. `performance` is the frozen 55 every recorded baseline was measured on
+Two card pools. `performance` is a frozen pool every recorded baseline was measured on
 and is the default, because an A/B against a pool that moved is not an A/B; `stress` is
 every registered card, which is what hunts panics and exercises effect interactions.
-The harness prints which one it played.
+The harness prints which one it played and how many cards it holds. The record of every
+measurement, newest first, is [`plans/fuzz-record.md`](plans/fuzz-record.md);
+`plans/fuzz_ab.py` runs one sitting of the A/B.
 
 A given `--seed` reproduces a run exactly. Three runs at one seed must agree on every line
 except the two wall-clock lines; a differing turn count or outcome means process state
@@ -168,7 +183,8 @@ python plans/specdb.py stats
 
 `specdb` joins the atomic-test corpus to the test suite and to the CR, so "what is covered"
 is a query rather than hand-maintained prose. Also available: `next --phase`,
-`show <ATOM-ID>`, `gaps --chapter N`, `orphans`, `suspicious`.
+`show <ATOM-ID>`, `gaps --chapter N`, `orphans`, `suspicious`, and `owed` — the gate a
+phase does not close until it is clean.
 
 ---
 
@@ -213,25 +229,21 @@ Dependency order — each item needs the ones above it. [`CLAUDE.md`](CLAUDE.md)
 | 2 | Characteristic-defining abilities (CR 604.3 / 613.4a) | ✅ |
 | 3 | Layer 6 — ability adding and removing (Humility) | ✅ |
 | 4 | Layer 2 — control changing | ✅ |
-| 5 | **Replacement and prevention effects (CR 614–616)** | 🔜 **starting now** |
-| 6 | Triggered abilities (CR 603) — takes LKI and conditional statics with it | Planned |
-| 7 | The CR 613.8 cluster — dependency algorithm, board-wide sequential pass, memoization | Planned |
+| 7 | The CR 613.8 cluster — dependency algorithm, board-wide sequential pass, memoization | ✅ 2026-09-06 |
+| 5 | **Replacement and prevention effects (CR 614–616)** — Phases RA–RE | ✅ **2026-09-15** |
+| 6a | CR 113.6 — which abilities function in which zone | 🟡 registration leg landed; the sweeps' zone leg is one PR away |
+| 6 | **Triggered abilities (CR 603)** — takes LKI with it | 🔜 **next** — its architecture doc is written first |
 
-Interleaved after 5 rather than sequenced against it: the **Commander and multiplayer
-track** — cost modification (commander tax), CR 903.9a/b, `GameConfig::commander()`, CR 800
-priority, turn rotation and elimination, and CR 802.
+Beside the spine, not sequenced against it: **"can't" effects** (RS-1 landed; RS-2–RS-4
+open), **copy effects** (CV-1 landed; CV-2–CV-7 open), and the **Commander and
+multiplayer track** — cost modification landed (CM-0–CM-4), CR 903.9a/b landed, N-seat
+games run; the commander tax, `GameConfig::commander()`, designation and CR 802 remain.
 
-Item 7 is a hard back-stop before broad card work: a Commander-viable pool is dense in
-exactly the static abilities that interact, so dependency-ordering-sensitive cards cannot be
-authored until it lands.
-
-**On the ordering:** replacement effects come *before* triggered abilities. Replacement
-gates most real cards and Commander's 903.9b command-zone redirection, and triggers need to
-fire on events observed after replacement has applied.
-
-The execution plan for the current phase is
-[`plans/replacement-architecture.md`](plans/replacement-architecture.md): phases RA (event
-spine) → RB (pipeline) → RC (ETB replacements) → RD (damage) → RE (remaining event kinds).
+**On the ordering:** replacement effects came *before* triggered abilities on purpose.
+Triggers fire on events that *did* happen, so the performed-event stream had to be
+post-replacement truth first — which it is now.
+[`plans/replacement-architecture.md`](plans/replacement-architecture.md) §14 is that
+phase in hindsight; what item 6 inherits from it is listed there.
 
 ---
 
@@ -240,20 +252,26 @@ spine) → RB (pipeline) → RC (ETB replacements) → RD (damage) → RE (remai
 ```
 mtgsim/src/
 ├── bin/            cli_play.rs, fuzz_games.rs
-├── cards/          Card definitions (data only) + registry.rs
-├── engine/         actions, cast, costs, mana, priority, resolve, sba,
-│                   stack, targeting, turns, zones, keywords
-│   ├── combat/     validation, resolution, steps, keywords
-│   └── layers/     compute, types, cda, land_types  ← CR 613
+├── cards/          Card definitions (data only), one file per phase + registry.rs
+├── engine/         actions (the chokepoint), cast, costs, mana, priority,
+│                   resolve, sba, stack, targeting, turns, zones, keywords,
+│                   leaving, zone_function (CR 113.6)
+│   ├── combat/            validation, resolution, steps, keywords
+│   ├── cost_determination/ gather, total  ← CR 601.2f
+│   ├── layers/            board, compute, lookahead, condition, copy,
+│   │                      cda, land_types, types  ← CR 613
+│   └── replacement/       gather, instance, lookahead, pipeline  ← CR 614–616
 ├── events/         GameEvent + EventLog
 ├── objects/        CardData, AbilityDef, GameObject
 ├── oracle/         characteristics, legality, board, mana_helpers
 ├── state/          game, game_state, game_config, player, battlefield,
-│                   continuous_effects  ← the ContinuousEffect registry
-├── types/          ids, mana, effects, costs, card_types, colors,
-│                   keywords, keyword_actions, zones
+│                   duration_registry  ← shared by the three registries:
+│                   continuous_effects, replacement_effects, restrictions;
+│                   layer_memo, diagnostics
+├── types/          ids, mana, effects, costs, cost_modification, replacement,
+│                   restriction, card_types, colors, keywords, keyword_actions, zones
 └── ui/             decision (trait), ask (typed bridge), choice_types,
-                    cli, random, display
+                    cli, random, display, auto_payer, mana_window_stop
 ```
 
 Integration tests live in `mtgsim/tests/`, one file per phase.
@@ -266,10 +284,17 @@ Authority order — when two docs disagree, the higher one wins.
 
 | Doc | Authoritative for |
 | --- | --- |
-| [`plans/codebase-state.md`](plans/codebase-state.md) | **Current state.** Beats every other doc, this README included |
+| [`plans/state-of-play.md`](plans/state-of-play.md) | **The board** — generated, checked in CI: what landed, the counts, the debt, the open handoffs. Read first when picking up work |
+| [`plans/codebase-state.md`](plans/codebase-state.md) | **Current state.** Beats every other doc, this README included; its Deferred Migrations section is the debt register |
 | [`CLAUDE.md`](CLAUDE.md) | Invariants, conventions, commands, critical-path ordering |
 | [`plans/layers-architecture.md`](plans/layers-architecture.md) | The layer system: type shapes, module layout, dependency algorithm |
-| [`plans/replacement-architecture.md`](plans/replacement-architecture.md) | Replacement and prevention (CR 614–616): event vocabulary, the CR 616.1 pipeline, phase sequencing |
+| [`plans/replacement-architecture.md`](plans/replacement-architecture.md) | Replacement and prevention (CR 614–616): event vocabulary, the CR 616.1 pipeline, the phases as landed, §14 in hindsight |
+| [`plans/cant-effects-architecture.md`](plans/cant-effects-architecture.md) | "Can't" effects (CR 101.2 / 614.17 / 613.11) |
+| [`plans/copy-effects-architecture.md`](plans/copy-effects-architecture.md) | Copy effects (CR 707 / 712 / 708 / 729) and Layer 1 |
+| [`plans/cost-architecture.md`](plans/cost-architecture.md) | Cost determination and modification (CR 601.2f–h, 118, 903.8) |
+| [`plans/backlog.md`](plans/backlog.md) | Every mechanic off the critical path, one entry each: the surface that can't express it, size, what it blocks |
+| [`plans/roadmap-v2.md`](plans/roadmap-v2.md) | The route narrative: why the spine is ordered as it is, stakes per segment |
+| [`plans/handoffs/`](plans/handoffs/) | Half-finished work; a file here is an open plate |
 | [`plans/atomic-tests/sessions/`](plans/atomic-tests/sessions/) | The spec corpus — atomic tests from a close read of the CR. Authored, never generated |
 | [`MTG-Rules/versions/`](MTG-Rules/versions/) | The CR itself; `tmnt.txt` is the baseline the engine targets |
 | [`plans/cards-unlocked-ledger.md`](plans/cards-unlocked-ledger.md) | Which cards each ticket unlocks |

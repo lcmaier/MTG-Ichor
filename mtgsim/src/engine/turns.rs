@@ -246,7 +246,7 @@ impl GameState {
     }
 
     /// Propose `step`'s beginning; report whether it happened.
-    fn begin_step(&mut self, step: StepType, ctx: &ActionContext) -> Result<bool, String> {
+    pub(crate) fn begin_step(&mut self, step: StepType, ctx: &ActionContext) -> Result<bool, String> {
         // CR 508.8 — "if no creatures are declared as attackers ... skip the
         // declare blockers and combat damage steps". A **rule**, checked ahead
         // of the pipeline like CR 101.2's "can't"s: there is no event here for

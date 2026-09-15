@@ -224,7 +224,7 @@ facility's. Two consequences for other rows: `codebase-state.md` item 119
 now ordinary unbuilt work, and `replacement-architecture.md` §11 item 9's (c)
 landed as a *registration* leg only — the replacement and restriction sweeps
 still visit the battlefield alone, which is owed with its own card. **The rename ✅ landed 2026-09-14** as `refactor/object-set-rename`: `ReplacementDef.affected` and `ContinuousEffect.affected` are both `affected_objects`, and the type is `ObjectSet` — one PR with both halves, because the split state (`affected_objects: AffectedSet`) is the one spelling that reads worse than either end. The rename first because item 124 already says "its own PR, so a sweep does not ride inside a rules change" and because both later PRs touch that type, so every day it waits the sweep is bigger — which is the order CM-0 set when `PermanentFilter → ObjectFilter` landed before this row rather than inside it. **And the owner asked whether to pull the three forward, ahead of RE-9 and RE-10: yes.** Nothing in RE depends on them (RE-9 touches mana and RE-10 the turn cursor; RE-10's own bullet says it can be slotted anywhere), this row already gates A6, and RE-8 measured what the delay costs in cards — five printed "put it onto the battlefield instead" replacements plus Library of Leng and the madness/flashback population item 9 counted (`replacement-architecture.md` §11 item 87) | 1 (item 124 ✅) + 1 (item 9) + 1 |
-| A6 | **The triggers architecture doc**, then **critical-path item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; the four problems in `atomic-tests/supplemental-docs/state-tracking-architecture.md` are the bar; the first PR carries LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity — **the trace sink moved out to A4c (2026-09-08)**, so this phase starts with it already there. **One seam to name in the doc, added at RE-8's close (2026-09-14):** CR 603.10a's look-back list is written about *visibility* — "an object that **all players can see** is put into a hand or library" — and not about zones, which `atomic-tests/supplemental-docs/603-2f-complexity.md` demonstrates (Future Sight and Telepathy flip the answer without moving a card). The doc names it and consumes `Zone::is_public()`, which still has zero callers; `backlog.md` §2.9 is the per-viewer query that replaces it, and it is **not** being pulled forward — it gates nothing before Phase 8 | 4–6 |
+| A6 | **The triggers architecture doc**, then **critical-path item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; the four problems in `atomic-tests/supplemental-docs/state-tracking-architecture.md` are the bar; the first PR carries LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity — **the trace sink moved out to A4c (2026-09-08)**, so this phase starts with it already there. **Two seams to name in the doc.** The first, added at the post-RE audit (2026-09-15): CR 121.2c's recipient ordering — "the active player performs all of their draws first, then each other player in turn order" — which `Effect` cannot say (main item 122, RE-2's Alms Collector is the one customer) and which "whenever you draw a card" makes gameplay-visible, so the doc decides between item 122's two shapes beside its own APNAP ordering. The second, added at RE-8's close (2026-09-14): CR 603.10a's look-back list is written about *visibility* — "an object that **all players can see** is put into a hand or library" — and not about zones, which `atomic-tests/supplemental-docs/603-2f-complexity.md` demonstrates (Future Sight and Telepathy flip the answer without moving a card). The doc names it and consumes `Zone::is_public()`, which still has zero callers; `backlog.md` §2.9 is the per-viewer query that replaces it, and it is **not** being pulled forward — it gates nothing before Phase 8 | 4–6 |
 
 Rows A2–A3 and A4 commute; A2–A3 go first because they are sized, their seam
 is built, and one fixes a live bug. **A4b is the deliberate between-phases
@@ -311,13 +311,17 @@ worker pool already scales to ~6.7× on eight cores, and what is open is in
 the priority-boundary fork test (main item 41) before any refactor is priced.
 Profile-driven performance: the 7a residual (`layers-architecture.md` §12) and
 the `Arc<Vec<AbilityDef>>` lever (main item 67). **Both are gated on a
-measurement this row does not own** — every number the project has is
-two-player, because `fuzz_games` builds a literal pair of decks, and v1's
-profile is four-player Commander (main item 69, recorded 2026-09-07). The
-harness change is small and its prerequisite is CR 800 in row D, so the order
-is: multiplayer, then a four-player fuzz profile, then pick a lever against it.
-Choosing one now would be tuning the wrong board. Network play is a stretch
-goal. Milestone: **user-ready**, which is v1.
+measurement this row does not own.** Until RE-7 every number the project had
+was two-player, because `fuzz_games` built a literal pair of decks; since
+2026-09-13 the harness takes `--players`, every `fuzz-record.md` block
+carries two- and four-seat columns (RE-9's: 13.98 ms and 44.83 ms CPU per
+game), and what is still missing is the *Commander-scale* board — four
+100-card decks, ~40 permanents — which is main item 69's remaining half and
+pass 3 of `plans/handoffs/post-re-audit.md`'s to measure, in the metric that
+handoff settles (decisions per core-second at four seats). So the order is:
+that measurement, then pick a lever against it. Choosing one now would be
+tuning the wrong board. Network play is a stretch goal. Milestone:
+**user-ready**, which is v1.
 
 **Sizing, with §8's caveat.** Rows A and B sum to roughly the ~35–40 PRs §8
 guessed for "breadth unconstrained"; C–E are unsized in PRs, because C is

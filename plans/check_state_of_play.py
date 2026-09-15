@@ -110,7 +110,11 @@ def classify_item(body):
             return "closed"
         if v.startswith("unreachable"):
             return "unreachable"
-        if v.startswith("reachable") and "wrong today" in v[:40]:
+        # "reachable — wrong today" is the bolded row; "reachable but not
+        # wrong today" is not, and until 2026-09-15 the substring test read
+        # it as one (items 118 and 131 sat on the board as wrong answers).
+        head = v[:48]
+        if v.startswith("reachable") and "wrong today" in head and "not wrong" not in head:
             return "reachable_wrong"
         if v.startswith("reachable"):
             return "reachable_ok"
@@ -182,15 +186,17 @@ def selftest():
         "6. **Perf.** **Reachability (2026-09-03):** reachable — not wrong; perf only. **Sized:** z.",
         "7. **Struck later.** **Reachability (2026-09-03):** closed — PR #1.",
         "1) a prose list with the paren delimiter is not an item",
+        "8. **Reachable, and the log is the only reader.** **Reachability (2026-09-15):** reachable but not wrong today — nothing reads it. **Sized:** 10 lines.",
+        "9. **Bolded negation.** **Reachability (2026-09-15):** reachable, and **not wrong today**, and the bound is worth stating.",
     ])
     items = split_items(fixture)
     got = [classify_item(b) for b in items]
     want = ["closed", "unreachable", "reachable_wrong", "unreachable", "unstated",
-            "none_owed", "reachable_ok", "closed"]
-    assert len(items) == 8, f"selftest: expected 8 items, parsed {len(items)}"
+            "none_owed", "reachable_ok", "closed", "reachable_ok", "reachable_ok"]
+    assert len(items) == 10, f"selftest: expected 10 items, parsed {len(items)}"
     assert got == want, f"selftest: {got} != {want}"
     sized = sum(1 for b, c in zip(items, got) if c != "closed" and "Sized:" in b)
-    assert sized == 3, f"selftest: sized {sized} != 3"
+    assert sized == 4, f"selftest: sized {sized} != 4"
 
 
 def landed_phases():
@@ -329,9 +335,10 @@ def render():
     L.append("**The seam between them is real.** A defect in shipped behaviour that has no")
     L.append("atom is in neither list — RC-5's item 61 is one, because the ruling it violates")
     L.append("was never written into the corpus. And `owed`'s default scope is `SHIPPED_PHASES`,")
-    L.append("which lists three phases and not Phase 6, so a replacement phase closing against")
-    L.append("\"owed is clean\" is making a claim about *other* phases; what actually gated it")
-    L.append("was the `// COVERS:` annotation discipline. → `engineering-practices.md` §5.")
+    L.append("which gained Phase 6 only at the post-RE audit (2026-09-15): until then a")
+    L.append("replacement phase closing against \"owed is clean\" was making a claim about three")
+    L.append("*other* phases, and what actually gated it was the `// COVERS:` annotation")
+    L.append("discipline. → `engineering-practices.md` §5.")
     L.append("")
     L.append("## Half-finished work")
     L.append("")

@@ -961,7 +961,13 @@ def orphans():
 # be built and is not being waited on by anything -- which is the only way debt
 # goes quiet. Add a phase here when it lands; that is what makes `owed` a gate
 # rather than a report.
-SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers")
+#
+# Phase 6 joined on 2026-09-15, at the post-RE audit: the replacement track
+# (RA–RE, 24 PRs, 2026-08-25 → 2026-09-15) had closed against a scope that
+# did not contain it, so no replacement phase was ever gated by this query
+# (`engineering-practices.md` §5.1). The audit ran it once by hand, triaged
+# every uncovered atom, and armed it.
+SHIPPED_PHASES = ("ALREADY-IMPL", "Phase 5-Pre", "Phase 5-Layers", "Phase 6")
 
 
 def owed(phase=None, show_all=False):

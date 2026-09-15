@@ -14,7 +14,8 @@
 use std::sync::Arc;
 
 use mtgsim::cards::phase_rd_cards::{
-    daunting_defender, fog, guardian_seraph, pyroclasm, torbran_thane_of_red_fell,
+    circle_of_protection_red, daunting_defender, fog, guardian_seraph, pyroclasm,
+    torbran_thane_of_red_fell,
 };
 use mtgsim::engine::actions::{ActionContext, GameAction};
 use mtgsim::engine::combat::resolution::assign_combat_damage;
@@ -25,8 +26,8 @@ use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game_state::GameState;
 use mtgsim::state::replacement_effects::RegisteredReplacementEffect;
 use mtgsim::test_support::{
-    place_vanilla_creature, put_in_hand, put_on_battlefield, registered, set_attacking,
-    set_blocked_by, set_blocking, setup_two_player_game, test_ctx, test_dp,
+    place_vanilla_creature, put_in_hand, put_on_battlefield, put_spell_on_stack, registered,
+    set_attacking, set_blocked_by, set_blocking, setup_two_player_game, test_ctx, test_dp,
     RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
@@ -38,6 +39,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{
     AmountRewrite, EventPattern, ReplacementDef, Rewrite, SourcePattern, Uses,
 };
+use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 
@@ -420,4 +422,85 @@ fn torbran_divides_before_adding_two() {
         2,
         "the blocker is not an opponent's from Torbran's controller's side"
     );
+}
+
+// ---------------------------------------------------------------------------
+// CR 400.7c — a shield chosen on a spell follows it onto the battlefield
+// ---------------------------------------------------------------------------
+
+/// CR 400.7c: "prevention effects that apply to damage from a permanent spell
+/// on the stack continue to apply to damage from the permanent that spell
+/// becomes." CR 609.7a's choice is offered the spell — the Circle's ruling
+/// names "a spell on the stack (including one that creates a permanent)" —
+/// the spell resolves, and the permanent's first damage is the one prevented.
+///
+/// The engine gets this from object identity rather than from a rule of its
+/// own: `move_object` keeps the id and bumps `zone_change_epoch`, so the row's
+/// `SourcePattern.object` still names the permanent, and CR 609.7b's recheck
+/// still finds it red.
+// COVERS: ATOM-400.7c-001
+#[test]
+fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
+    let mut game = setup_two_player_game();
+    let circle = put_on_battlefield(&mut game, circle_of_protection_red(), 0);
+    let spell = put_spell_on_stack(&mut game, red_creature(6, &[]), 1);
+
+    // CR 609.7a's candidates are the battlefield in timestamp order and then
+    // the stack's spells — [circle, spell] — so index 1 is the spell.
+    let dp = RecordingDecisionProvider::picking(1);
+    let ctx = ResolutionContext {
+        source: circle,
+        ability_source: Some(circle),
+        controller: 0,
+        targets: Vec::new(),
+        replaced_amount: None,
+        damage_prevented: None,
+    };
+    game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp)
+        .unwrap();
+    assert_eq!(dp.prompts(), 1, "two candidates, one choice");
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.get_object(spell).unwrap().zone, Zone::Battlefield);
+
+    game.execute_action(
+        GameAction::DealDamage {
+            source: spell,
+            target: DamageTarget::Player(0),
+            amount: 6,
+            is_combat: false,
+            unpreventable: false,
+        },
+        &test_ctx(),
+    )
+    .unwrap();
+
+    assert_eq!(life(&game, 0), 20, "CR 400.7c — chosen as a spell, prevented as a permanent");
+    assert!(game.replacement_effects.is_empty(), "and the shield is spent (CR 615.8)");
+}
+
+// ---------------------------------------------------------------------------
+// CR 611.2c — a rule-modifying effect does not lock in its affected set
+// ---------------------------------------------------------------------------
+
+/// CR 611.2c: an effect from a resolving spell that modifies the rules of the
+/// game, rather than an object's characteristics, "applies at the time the
+/// effect is applied" — so Fog, resolved before the attacker existed, still
+/// prevents its damage. Partial for the atom, whose effect is "all damage
+/// creatures would deal"; Fog's is combat damage, and the claim is the same.
+// COVERS-PARTIAL: ATOM-611.2c-002
+#[test]
+fn fog_prevents_damage_from_a_creature_that_entered_after_it_resolved() {
+    let mut game = setup_two_player_game();
+    game.active_player = 1;
+    resolve_spell(&mut game, fog(), 0);
+
+    let attacker = place_vanilla_creature(&mut game, 1, 3, 3, &[]);
+    set_attacking(&mut game, attacker, 0);
+
+    let before = game.events.len();
+    game.process_combat_damage(&test_dp(), false).unwrap();
+
+    assert_eq!(life(&game, 0), 20, "CR 611.2c — the set was not fixed at resolution");
+    assert!(damage_batches(&game, before).is_empty(), "no damage was dealt at all");
 }

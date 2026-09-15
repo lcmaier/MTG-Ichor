@@ -370,7 +370,7 @@ Spell/ability continuous effects that modify characteristics or change controlle
 - **Action:** Query both creatures.
 - **Expected Result:** Original creature: gets +1/+1 (locked in) AND can't be blocked (rule-mod). New creature: does NOT get +1/+1 (not in locked set) but CAN'T be blocked (rule-mod applies dynamically).
 - **Phase:** Phase 5 Layers + Phase 6
-- **Ticket:** NEW — Mixed characteristic/rule effect independent set determination
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-3 for the "can't be blocked" half; the lock-in half is Phase 5-Layers'; was: NEW — Mixed characteristic/rule effect independent set determination
 
 ### 611.2d — TESTABLE
 
@@ -1341,7 +1341,7 @@ Skip + follow-up action: the follow-up is the first thing that happens in the ne
 - **Action:** Player A's next two draw steps.
 - **Expected Result:** First draw step: skipped entirely. Second draw step: the "draw two" action is the first thing that happens.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Skip follow-up action deferred to next real occurrence
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — critical-path item 6 — no printed card says "skip … then" (RE-1's census, 2026-09-11) and the follow-up half is a triggered ability; was: NEW — Skip follow-up action deferred to next real occurrence
 
 ### 614.11 — TESTABLE
 
@@ -1389,7 +1389,7 @@ If a draw is replaced, additional actions on "that card" don't apply to replacem
 - **Action:** The draw is replaced.
 - **Expected Result:** A card returns from graveyard to hand (replacement). The "discard that card" additional action is NOT performed on the returned card — the original draw was replaced, so "that card" no longer refers to anything.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Additional action lost on replaced draw
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.26, which names this atom; was: NEW — Additional action lost on replaced draw
 
 ### 614.12 — TESTABLE (with Examples)
 
@@ -1499,7 +1499,7 @@ Self-replacement effects: a resolving spell/ability replaces part of its own eff
 - **Action:** The spell resolves targeting a creature.
 - **Expected Result:** Self-replacement first: 3 → 6. Then prevention: 6 - 1 = 5 damage dealt. Self-replacement applied before the external prevention.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Self-replacement effect priority
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 — the self-replacement producer, fixture-first; was: NEW — Self-replacement effect priority
 
 **ATOM-614.15-002**
 - **Rule:** 614.15 — Self-replacement: Aang's Journey (real card, kicked search replacement)
@@ -1508,7 +1508,7 @@ Self-replacement effects: a resolving spell/ability replaces part of its own eff
 - **Action:** Aang's Journey resolves.
 - **Expected Result:** Self-replacement applies: instead of searching for just a basic land, Player A searches for a basic land AND a Shrine card. Both are revealed, put into hand, then shuffle. The self-replacement modifies the spell's own effect before any external replacements could apply.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Self-replacement real card example (Aang's Journey)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3, and Aang's Journey also needs `Primitive::Search` (`backlog.md` §2.5); was: NEW — Self-replacement real card example (Aang's Journey)
 
 ### 614.16 — TESTABLE
 
@@ -1548,7 +1548,7 @@ Token/counter replacement effects apply to tokens/counters created by other repl
 - **Action:** Combat continues.
 - **Expected Result:** The creature remains attacking. The "can't attack" effect can't retroactively undo a declaration that already happened.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — "Can't" effect timing (pre-event only)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-3 (combat); was: NEW — "Can't" effect timing (pre-event only)
 
 ### 614.17b — TESTABLE
 
@@ -1561,7 +1561,7 @@ If an event can't happen, a player can't choose to pay a cost that includes that
 - **Action:** Player A attempts to activate the sacrifice ability.
 - **Expected Result:** Activation is illegal — the cost (sacrifice a creature) involves an event that can't happen. The ability can't be activated.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Impossible cost events block activation
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-4 (§4.6, the derived cost restriction); was: NEW — Impossible cost events block activation
 - **Tags:** META-101.2
 
 ### 614.17c — TESTABLE
@@ -1575,7 +1575,7 @@ If an event can't happen, it can only be replaced by a self-replacement effect. 
 - **Action:** The source's effect resolves.
 - **Expected Result:** Self-replacement applies: damage is replaced with exile (event type changed entirely). Prevention shield is irrelevant — there's no longer a damage event to prevent. The "can't be prevented" is also irrelevant because no damage is dealt. The self-replacement successfully changed the event because it transformed it into a non-damage event.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Self-replacement for "can't" events must change event type
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 first (a self-replacement producer); `cant-effects-architecture.md` §5.2 has the pipeline's half; was: NEW — Self-replacement for "can't" events must change event type
 - **Tags:** META-101.2
 
 ### 614.17d — META (TESTABLE per-ETB-type)
@@ -1825,7 +1825,7 @@ Self-replacement effects have priority: if any applicable, one MUST be chosen be
 - **Action:** Spell resolves.
 - **Expected Result:** Self-replacement (616.1a) must be chosen first. After self-replacement, the remaining prevention may apply to the modified event.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Self-replacement priority in 616.1 ordering
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 — the CR 616.1a bucket exists (`ReplacementClass::SelfReplacement`) and nothing produces one; was: NEW — Self-replacement priority in 616.1 ordering
 
 ### 616.1b — TESTABLE
 
@@ -1853,7 +1853,7 @@ Copy-becoming replacements have third priority (after control-changing).
 - **Action:** Rusted Sentinel enters the battlefield.
 - **Expected Result:** Per 616.1c, copy replacement applied first: Rusted Sentinel becomes a copy of Essence of the Wild. The copy no longer has "enters tapped." Rusted Sentinel enters UNTAPPED as a copy of Essence of the Wild.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** NEW — Copy ETB replacement priority (616.1c)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-2 (enters as a copy, §4.1); the CR 616.1c bucket exists since RC-4; was: NEW — Copy ETB replacement priority (616.1c)
 
 ### 616.1d — DEFERRED — Phase 8: Transform
 Back-face-up replacements have fourth priority. Requires transform/DFC infrastructure.
@@ -2006,7 +2006,7 @@ Tests that require 2+ atomic mechanisms working together.
 - **Expected Result:** All layers applied in order 1–7. Clone is a 4/4 blue enchantment creature Bear with flying, controlled by the stealing player.
 - **Composes:** ATOM-613.1a-001 through ATOM-613.1g-001
 - **Phase:** Phase 5 Layers + Phase 6
-- **Ticket:** L04 through L12
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — Layer 3 is unbuilt (`layers-architecture.md`; `backlog.md` §3.1 files CR 612 there) and the Clone half is CV-2's; the per-layer atoms it composes are covered one by one; was: L04 through L12
 
 ---
 

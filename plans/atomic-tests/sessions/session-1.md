@@ -890,7 +890,7 @@ CR 805 is OUT-OF-SCOPE, so this is too.
 - **Action:** Creature resolves and enters the battlefield
 - **Expected Result:** Creature enters with 3 +1/+1 counters (X from CastInfo). The permanent's own X (in mana cost) is 0 per 107.3g, but the ETB effect uses the spell's X.
 - **Phase:** Phase 5-Pre (T06 carries x_value, T21a carries CastInfo) + Phase 6 (ETB replacement)
-- **Ticket:** T06 + T21a + Phase 6
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — Phase 8's first "enters with X counters" card; X is not readable at resolution at all today (`codebase-state.md`, the CR 601.2b row), so the fact half is that row's; was: T06 + T21a + Phase 6
 
 **107.3n** — TESTABLE (DEFERRED to Phase 7). Delayed trigger's X uses the creating spell/ability's X. Tests X-value persistence across delayed triggers.
 

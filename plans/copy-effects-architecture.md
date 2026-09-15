@@ -686,6 +686,14 @@ free, with no special case, *provided the ceiling is the end of 1b and not the
 end of 1a*. That is one integer, and §5.4 is about the fact that three files
 currently name the sublayers in the wrong order.
 
+**And one event CV-6 owns, named at the post-RE audit (2026-09-15):** the
+turn-face-up special action is the event CR 614.1e's replacements watch —
+"As [this permanent] is turned face up …" — and `replacement-architecture.md`
+§8a lists it as the one of its four missing kinds with an owner. Three printed
+cards (Bubble Smuggler, Gift of Doom, Hooded Hydra; Scryfall, 2026-09-15); the
+`GameAction` and its `EventPattern` arm land with the first morph creature
+that is turned up, on RE's per-kind shape.
+
 ### 4.7 The three ETB scans a copy defeats — rb-review I9, and its twin
 
 `rb-review.md` I9 attached one obligation to this document. Auditing it found a

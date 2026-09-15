@@ -218,7 +218,7 @@
 - **Action:** SBA check.
 - **Expected Result:** The copy ceases to exist (removed from the game).
 - **Phase:** Phase 6 (copy effects)
-- **Ticket:** NEW — SBA for spell copies ceasing to exist (D5 copy system)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-4 (CR 707.10a's cease-to-exist SBA); was: NEW — SBA for spell copies ceasing to exist (D5 copy system)
 
 **ATOM-704.5e-002**
 - **Rule:** 704.5e — A copy of a card in a zone other than stack or battlefield ceases to exist.
@@ -227,7 +227,7 @@
 - **Action:** SBA check.
 - **Expected Result:** The copy ceases to exist (it's a copy of a card in a zone other than the stack or battlefield). This covers non-token copies created by cast-a-copy effects where the player declines to cast.
 - **Phase:** Phase 6
-- **Ticket:** NEW — SBA for card copies ceasing to exist
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-4 (CR 707.10a's cease-to-exist SBA); was: NEW — SBA for card copies ceasing to exist
 
 **704.5f** — ALREADY-IMPLEMENTED. Creature with toughness ≤ 0 → owner's graveyard. Regeneration can't replace.
 

@@ -12,7 +12,7 @@
 | ID | Rule | Summary | Ticket | Session | Tags |
 |----|------|---------|--------|---------|------|
 | ATOM-106.6a-001 | 106.6a | If a replacement effect increases mana produced, restrictions apply to all mana | NEW — Mana replacement restriction propagation | S1 |  |
-| ATOM-107.3m-001 | 107.3m | An ETB trigger/replacement referring to X uses the value of X from the spell that became that permanent | T06 + T21a + Phase 6 | S1 |  |
+| ATOM-107.3m-001 | 107.3m | An ETB trigger/replacement referring to X uses the value of X from the spell that became that permanent | DEFERRED (2026-09-15, post-RE audit) — Phase 8's first "enters with X counters" card; X is not readable at resolution at all today (`codebase-state.md`, the CR 601.2b row), so the fact half is that row's; was: T06 + T21a + Phase 6 | S1 |  |
 | ATOM-110.5b-002 | 110.5b | "Unless a spell or ability says otherwise" — e.g., "enters the battlefield tapped" | Phase 6 — ETB replacement effects | S1 |  |
 | ATOM-119.10-001 | 119.10 | Replacement effects for life gain don't apply when gaining 0 life | Phase 6 | S1 |  |
 | ATOM-121.2a-001 | 121.2a | Replacement effect modifying number of draws is applied before individual draws | Phase 6 | S1 |  |
@@ -25,20 +25,20 @@
 | ATOM-400.6-001 | 400.6 | Replacement effects are applied to zone-change events before the object moves. | NEW — replacement effects on zone transitions (D8 in roadmap deferred items) | S4 |  |
 | ATOM-400.6-002 | 400.6 | When contradictory effects apply to the same zone change, the object's controller (or owner if no controller) chooses. | NEW — replacement effect conflict resolution (rule 616) | S4 |  |
 | ATOM-400.7c-001 | 400.7c | Prevention effects that apply to damage from a permanent spell on the stack continue to apply to damage from the permanent that spell becomes. | NEW — prevention effect continuity across stack→battlefield transition | S4 |  |
-| ATOM-400.7c-002 | 400.7c (Non-example from article) | Prevention effects on a source don't transfer to *other* objects that source creates. | NEW — prevention effect source identity (tokens ≠ source permanent) | S4 |  |
+| ATOM-400.7c-002 | 400.7c (Non-example from article) | Prevention effects on a source don't transfer to *other* objects that source creates. | DEFERRED (2026-09-15, post-RE audit) — Phase 8, with the first token-making planeswalker (Chandra, Flamecaller); the source-identity half is `ATOM-615.9-001`'s, covered; was: NEW — prevention effect source identity (tokens ≠ source permanent) | S4 |  |
 | ATOM-500.7-001 | 500.7 | Some effects can give a player an extra turn. They do so | RE-1 — `replacement-architecture.md` §9. Covered. | S4 |  |
 | ATOM-500.8-001 | 500.8 | Some effects can create additional phases. If a phase is | RE-10 — `replacement-architecture.md` §9. Covered. | S4 |  |
 | ATOM-500.11-001 | 500.11 | Some effects can cause a step, phase, or turn to be | RE-1 — `replacement-architecture.md` §9. Covered. | S4 |  |
 | ATOM-603.6d-001 | 603.6d | "[This permanent] enters with..." / "As [this permanent] enters..." / "[This permanent] enters tapped" — these are static abilities (not triggered abilities) whose effects are part of the ETB event. | Phase 6 replacement effects | S5 |  |
-| ATOM-607.2b-001 | 607.2b | If an object has a replacement effect that exiles cards AND an ability referring to "the exiled cards," they are linked. | T20, Phase 6 | S5 |  |
-| ATOM-607.2g-001 | 607.2g | Ability that causes paying a cost as it enters + ability referring to "the cost paid as [this] entered" are linked. | Phase 6 | S5 |  |
+| ATOM-607.2b-001 | 607.2b | If an object has a replacement effect that exiles cards AND an ability referring to "the exiled cards," they are linked. | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.2 (linked abilities); was: T20, Phase 6 | S5 |  |
+| ATOM-607.2g-001 | 607.2g | Ability that causes paying a cost as it enters + ability referring to "the cost paid as [this] entered" are linked. | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.2 (linked abilities); was: Phase 6 | S5 |  |
 | ATOM-608.3e-001 | 608.3e | If a permanent spell resolves but its controller can't put it onto the battlefield, that player puts it into its owner's graveyard. | Phase 6 | S5 |  |
 | BOUNDARY-DEF-609.7a-001 | 609.7a | Valid damage source choices | NEW — Damage source choice validation | S6 |  |
 | ATOM-609.7a-001 | 609.7a | All valid source categories are selectable | NEW — Full source-of-damage category validation | S6 |  |
 | ATOM-609.7b-001 | 609.7b | Prevention shield rechecks source properties | NEW — Prevention shield source property rechecking | S6 |  |
 | ATOM-609.7c-001 | 609.7c | Static prevention applies to non-battlefield sources too | NEW — Static prevention covers non-battlefield sources | S6 |  |
 | ATOM-611.2c-002 | 611.2c | Game-rule-modifying effect does NOT lock in | NEW — Game-rule prevention effects apply dynamically (611.2c) | S6 |  |
-| ATOM-611.2c-003 | 611.2c | Mixed effect: parts that modify characteristics lock in; parts that modify rules do not | NEW — Mixed characteristic/rule effect independent set determination | S6 |  |
+| ATOM-611.2c-003 | 611.2c | Mixed effect: parts that modify characteristics lock in; parts that modify rules do not | DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-3 for the "can't be blocked" half; the lock-in half is Phase 5-Layers'; was: NEW — Mixed characteristic/rule effect independent set determination | S6 |  |
 | ATOM-613.1a-001 | 613.1a | Layer 1 copy must apply before P/T modification; verified by observable outcome | NEW — Layer 1 copy effect ordering (D1 in roadmap) | S6 |  |
 | ATOM-613.2a-001 | 613.2a | Layer 1a copiable effects establish base characteristics | NEW — Layer 1a copiable effects (D1) | S6 |  |
 | ATOM-613.2c-001 | 613.2c | Post-Layer 1 characteristics are copiable values | NEW — Copiable values are post-Layer-1 state (D1) | S6 |  |
@@ -55,11 +55,11 @@
 | ATOM-614.10-001 | 614.10 | Skip replaces step/phase/turn with nothing | NEW — Skip step/phase replacement | S6 |  |
 | ATOM-614.10-002 | 614.10 | "Skip" beginning mid-step doesn't end current step | NEW — Skip effect doesn't end current step | S6 |  |
 | ATOM-614.10a-001 | 614.10a | Two skip effects consume two occurrences | NEW — Multiple skip effects consumed sequentially | S6 |  |
-| ATOM-614.10b-001 | 614.10b | Skip with follow-up action defers to next occurrence | NEW — Skip follow-up action deferred to next real occurrence | S6 |  |
+| ATOM-614.10b-001 | 614.10b | Skip with follow-up action defers to next occurrence | DEFERRED (2026-09-15, post-RE audit) — critical-path item 6 — no printed card says "skip … then" (RE-1's census, 2026-09-11) and the follow-up half is a triggered ability; was: NEW — Skip follow-up action deferred to next real occurrence | S6 |  |
 | ATOM-614.11-001 | 614.11 | Draw replacement applies even with empty library | NEW — Draw replacement on empty library | S6 |  |
 | ATOM-614.11-002 | 614.11 | Laboratory Maniac: draw replacement with empty library win condition | NEW — Draw replacement win condition (Lab Maniac style) | S6 |  |
 | ATOM-614.11a-001 | 614.11a | Draw replacement completes before sequence resumes | NEW — Draw replacement within draw sequence | S6 |  |
-| ATOM-614.11b-001 | 614.11b | "Additional action on drawn card" lost if draw replaced | NEW — Additional action lost on replaced draw | S6 |  |
+| ATOM-614.11b-001 | 614.11b | "Additional action on drawn card" lost if draw replaced | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.26, which names this atom; was: NEW — Additional action lost on replaced draw | S6 |  |
 | ATOM-614.12-001 | 614.12 | ETB replacement uses look-ahead characteristics | NEW — ETB look-ahead characteristic evaluation | S6 |  |
 | ATOM-614.12-002 | 614.12 | ETB replacement: permanent's own static ability applies | NEW — ETB look-ahead: own static abilities apply | S6 |  |
 | ATOM-614.12-003 | 614.12 | ETB replacement: permanent doesn't affect itself | NEW — ETB look-ahead: self doesn't affect self | S6 |  |
@@ -67,13 +67,13 @@
 | ATOM-614.13-001 | 614.13 | ETB replacement causes other zone changes | NEW — ETB replacement with auxiliary zone changes | S6 |  |
 | ATOM-614.13a-001 | 614.13a | Can't choose entering object or simultaneous-entry objects | NEW — ETB auxiliary zone change exclusion for simultaneous entry | S6 |  |
 | ATOM-614.13b-001 | 614.13b | Object can't be chosen for multiple ETB replacements | NEW — Single object for single ETB replacement | S6 |  |
-| ATOM-614.15-001 | 614.15 | Self-replacement applies before other replacements | NEW — Self-replacement effect priority | S6 |  |
-| ATOM-614.15-002 | 614.15 | Self-replacement: Aang's Journey (real card, kicked search replacement) | NEW — Self-replacement real card example (Aang's Journey) | S6 |  |
+| ATOM-614.15-001 | 614.15 | Self-replacement applies before other replacements | DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 — the self-replacement producer, fixture-first; was: NEW — Self-replacement effect priority | S6 |  |
+| ATOM-614.15-002 | 614.15 | Self-replacement: Aang's Journey (real card, kicked search replacement) | DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3, and Aang's Journey also needs `Primitive::Search` (`backlog.md` §2.5); was: NEW — Self-replacement real card example (Aang's Journey) | S6 |  |
 | ATOM-614.16-001 | 614.16 | Token replacement applies to tokens from other replacements | NEW — Token/counter replacement chains | S6 |  |
 | ATOM-614.17-001 | 614.17 | "Can't" effects follow replacement-like rules but aren't replacement effects | NEW — "Can't" effect overrides prevention | S6 | META-101.2 |
-| ATOM-614.17a-001 | 614.17a | "Can't" must pre-exist the event | NEW — "Can't" effect timing (pre-event only) | S6 |  |
-| ATOM-614.17b-001 | 614.17b | Can't pay costs involving impossible events | NEW — Impossible cost events block activation | S6 | META-101.2 |
-| ATOM-614.17c-001 | 614.17c | "Can't" event only replaceable by self-replacement that changes the event type | NEW — Self-replacement for "can't" events must change event type | S6 | META-101.2 |
+| ATOM-614.17a-001 | 614.17a | "Can't" must pre-exist the event | DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-3 (combat); was: NEW — "Can't" effect timing (pre-event only) | S6 |  |
+| ATOM-614.17b-001 | 614.17b | Can't pay costs involving impossible events | DEFERRED (2026-09-15, post-RE audit) — `cant-effects-architecture.md` RS-4 (§4.6, the derived cost restriction); was: NEW — Impossible cost events block activation | S6 | META-101.2 |
+| ATOM-614.17c-001 | 614.17c | "Can't" event only replaceable by self-replacement that changes the event type | DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 first (a self-replacement producer); `cant-effects-architecture.md` §5.2 has the pipeline's half; was: NEW — Self-replacement for "can't" events must change event type | S6 | META-101.2 |
 | ATOM-614.17d-001 | 614.17d | ETB "can't" uses look-ahead characteristics (representative: enters tapped) | NEW — ETB "can't" effect with look-ahead | S6 | META-101.2, META-614.17d |
 | BOUNDARY-DEF-615.1a-001 | 615.1a | "Prevent" identifies a prevention effect | NEW — Prevention effect classification by "prevent" keyword | S6 |  |
 | ATOM-615.4-001 | 615.4 | Prevention must exist before damage event | NEW — Prevention timing enforcement | S6 |  |
@@ -88,16 +88,16 @@
 | ATOM-615.12-002 | 615.12 | Unpreventable damage: additional prevention effects still fire | NEW — Unpreventable damage: additional effect conditional on amount prevented | S6 |  |
 | ATOM-615.12a-001 | 615.12a | Prevention on unpreventable damage: single application | NEW — Prevention single-application on unpreventable damage | S6 |  |
 | ATOM-616.1-001 | 616.1 | Player chooses which replacement/prevention to apply | NEW — Player choice for multiple applicable replacements | S6 |  |
-| ATOM-616.1a-001 | 616.1a | Self-replacement must be chosen first | NEW — Self-replacement priority in 616.1 ordering | S6 |  |
+| ATOM-616.1a-001 | 616.1a | Self-replacement must be chosen first | DEFERRED (2026-09-15, post-RE audit) — `replacement-architecture.md` §11 item 3 — the CR 616.1a bucket exists (`ReplacementClass::SelfReplacement`) and nothing produces one; was: NEW — Self-replacement priority in 616.1 ordering | S6 |  |
 | ATOM-616.1b-001 | 616.1b | Control-changing replacement chosen before other ETB replacements | NEW — Control-changing ETB replacement priority | S6 |  |
-| ATOM-616.1c-001 | 616.1c | Copy replacement chosen before generic ETB replacements | NEW — Copy ETB replacement priority (616.1c) | S6 |  |
+| ATOM-616.1c-001 | 616.1c | Copy replacement chosen before generic ETB replacements | DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-2 (enters as a copy, §4.1); the CR 616.1c bucket exists since RC-4; was: NEW — Copy ETB replacement priority (616.1c) | S6 |  |
 | ATOM-616.1f-001 | 616.1f | Iterative application until no more replacements apply | NEW — Iterative replacement application loop | S6 |  |
 | ATOM-616.1g-001 | 616.1g | Outer event replacement before inner event replacement | NEW — Outer/inner event replacement ordering | S6 |  |
 | ATOM-616.2-001 | 616.2 | Replacement chains: new replacement applies to modified event | NEW — Replacement effect chaining across event modifications | S6 |  |
 | COMP-614-616-DOUBLE-REPLACEMENT-001 | 614.5 + 616.1 | Two doublers with player choice | NEW | S6 |  |
 | COMP-614-DAMAGE-ORDERING-001 | 614.5 + 616.1 | Two damage-modification replacements: order matters for non-commutative operations | NEW — Non-commutative replacement ordering with player choice | S6 |  |
 | COMP-615-UNPREVENTABLE-SHIELD-001 | 615.12 + 615.7 | Unpreventable damage with shield | NEW | S6 |  |
-| COMP-613-LAYERS-FULL-STACK-001 | 613.1a–g | Full layer stack: copy + control + text + type + color + ability + P/T | L04 through L12 | S6 |  |
+| COMP-613-LAYERS-FULL-STACK-001 | 613.1a–g | Full layer stack: copy + control + text + type + color + ability + P/T | DEFERRED (2026-09-15, post-RE audit) — Layer 3 is unbuilt (`layers-architecture.md`; `backlog.md` §3.1 files CR 612 there) and the Clone half is CV-2's; the per-layer atoms it composes are covered one by one; was: L04 through L12 | S6 |  |
 | ATOM-701.8b-001 | 701.8b | The ONLY ways a permanent can be "destroyed" are: (1) an effect using "destroy", (2) SBA for lethal damage (704.5g), (3) SBA for deathtouch damage (704.5h). Any other graveyard move is NOT "destroyed." | NEW — destroy delta tagging (D20) | S7a | dependency, replacement-effects |
 | ATOM-701.8c-001 | 701.8c | A regeneration effect replaces a destruction event. | NEW — regeneration replacement (ties to 701.19) | S7a | dependency, replacement-effects |
 | ATOM-701.10g-001 | 701.10g | Doubling damage: source deals twice that much. This is a replacement effect. | NEW — damage doubling replacement | S7a | dependency, replacement-effects |
@@ -105,15 +105,15 @@
 | ATOM-701.19a-002 | 701.19a | Shield only protects once ("the next time"). Second destruction in same turn is not prevented. | NEW — regeneration shield single-use | S7a |  |
 | ATOM-701.19b-001 | 701.19b | Static ability regeneration replaces destruction EACH TIME (not one-shot). "Instead" replacement pattern. | NEW — static regeneration replacement | S7a |  |
 | ATOM-701.19c-001 | 701.19c | "Can't be regenerated" doesn't prevent creating shields — it prevents them from applying. | NEW — can't-be-regenerated blocks shield application | S7a |  |
-| ATOM-701.40f-001 | 701.40f | ETB prohibition prevents manifest. | NEW — manifest ETB prohibition | S7a |  |
+| ATOM-701.40f-001 | 701.40f | ETB prohibition prevents manifest. | DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-6 — manifest needs face-down (`backlog.md` §2.5); was: NEW — manifest ETB prohibition | S7a |  |
 | COMP-7A-001 |  | Sacrifice an indestructible creature bypasses destroy replacement (701.21a + 701.8b) |  | S7a |  |
 | COMP-7A-004 |  | Regeneration shield vs. "can't be regenerated" + destroy (701.19a + 701.19c + 701.8a) |  | S7a |  |
-| ATOM-702.2d-001 | 702.2d | The deathtouch rules function no matter what zone an object with deathtouch deals damage from. | DEFERRED — Phase 6. Requires zone-activated abilities + deathtouch from non-battlefield zone. | S7b | deathtouch, any-zone, DEFERRED |
-| ATOM-702.15d-001 | 702.15d | The lifelink rules function no matter what zone an object with lifelink deals damage from. | DEFERRED — Phase 6. Requires zone-activated abilities. | S7b | lifelink, any-zone, DEFERRED |
-| ATOM-702.176a-001 | 702.176a (ability 1+2) | Impending: alt cost → enters with N time counters | NEW — Impending keyword (alt cost, time counters, not-creature, end-step removal) | S8 |  |
-| ATOM-702.180a-002 | 702.180a (ability 3) | Harmonize: exile instead of going anywhere else when leaving stack | (same as above) | S8 |  |
-| ATOM-704.5e-001 | 704.5e | A copy of a spell in a zone other than the stack ceases to exist. | NEW — SBA for spell copies ceasing to exist (D5 copy system) | S9a |  |
-| ATOM-704.5e-002 | 704.5e | A copy of a card in a zone other than stack or battlefield ceases to exist. | NEW — SBA for card copies ceasing to exist | S9a |  |
+| ATOM-702.2d-001 | 702.2d | The deathtouch rules function no matter what zone an object with deathtouch deals damage from. | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.8 (where an ability functions), on CR 113.6 (LK, 2026-09-14); was: DEFERRED — Phase 6. Requires zone-activated abilities + deathtouch from non-battlefield zone. | S7b | deathtouch, any-zone, DEFERRED |
+| ATOM-702.15d-001 | 702.15d | The lifelink rules function no matter what zone an object with lifelink deals damage from. | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.8 (where an ability functions), on CR 113.6 (LK, 2026-09-14); was: DEFERRED — Phase 6. Requires zone-activated abilities. | S7b | lifelink, any-zone, DEFERRED |
+| ATOM-702.176a-001 | 702.176a (ability 1+2) | Impending: alt cost → enters with N time counters | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.6 (CR 702 keywords), after critical-path item 6 for the end-step trigger; was: NEW — Impending keyword (alt cost, time counters, not-creature, end-step removal) | S8 |  |
+| ATOM-702.180a-002 | 702.180a (ability 3) | Harmonize: exile instead of going anywhere else when leaving stack | DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.6 (harmonize); the exile-instead half is a `ZoneChange { from: Stack }` rewrite the pipeline expresses today; was: (same as above) | S8 |  |
+| ATOM-704.5e-001 | 704.5e | A copy of a spell in a zone other than the stack ceases to exist. | DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-4 (CR 707.10a's cease-to-exist SBA); was: NEW — SBA for spell copies ceasing to exist (D5 copy system) | S9a |  |
+| ATOM-704.5e-002 | 704.5e | A copy of a card in a zone other than stack or battlefield ceases to exist. | DEFERRED (2026-09-15, post-RE audit) — `copy-effects-architecture.md` CV-4 (CR 707.10a's cease-to-exist SBA); was: NEW — SBA for card copies ceasing to exist | S9a |  |
 | ATOM-704.7-001 | 704.7 | If multiple SBAs would have the same result simultaneously, a single replacement effect replaces all of them. | NEW — SBA coalescing for replacement effects (704.7) | S9a |  |
 | ATOM-707.2-001 | 707.2 | Copy acquires copiable values only. Type-changing effects, counters, and status are not copied. | D5 (copy system) | S9a |  |
 | ATOM-707.2-003 | 707.2 | Counters on the original are NOT copied. | D5 | S9a |  |

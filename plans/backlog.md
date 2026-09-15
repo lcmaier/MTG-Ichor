@@ -1366,6 +1366,82 @@ design. The entry is kept as written for the record.*
 
 ---
 
+### 2.30 Enters as an additional type (CR 614.1c, and a Layer 4 effect with no row)
+
+**The surface that cannot express it.** Master Biomancer: "Each other
+creature you control enters with a number of additional +1/+1 counters on it
+equal to Master Biomancer's power **and as a Mutant in addition to its other
+types**." `EnterMods` carries `tapped` and `counters` and nothing a type could
+go in; and once the permanent is on the battlefield the type has to live
+somewhere.
+
+**Sized against the tree at the post-RE audit (2026-09-15), and it is one
+PR, not the phase `codebase-state.md` main item 60 called it on 2026-09-03.**
+Item 60 was written before RE-5, and its two fears are each answered by
+something built since:
+
+- *"A type on `EnterMods` breaks the mods-invariance that lets
+  `ObjectFilter::ByType` be a frame-free check, so every CR 616.1 entry bucket
+  would start prompting."* That is exactly what +1/+1 counters did to
+  `ObjectFilter::PowerLE` at RE-5, and the answer was not to prompt every
+  bucket: `pipeline::kinds_present` reads which counter kinds *this* entry's
+  mods hold, and `commutes` asks per pair whether the kinds a member writes
+  meet the kinds another reads. A type is the same shape one axis over —
+  `filter_is_mods_invariant`'s `ByType`/`BySubtype`/`BySupertype` arms stop
+  being unconditionally `true` and become "true unless this entry's mods add
+  that type", read off the event the way `kinds_present` is. Containment
+  Priest's `ByType(Creature)` beside Master Biomancer's Mutant does not ask;
+  a `BySubtype(Mutant)` filter beside it does, and should. ~25 lines, and the
+  match is exhaustive so the compiler names the arm.
+- *"A Layer 4 effect that has no registry row, no source and no duration is a
+  shape the layer system does not have."* It has it twice already: counters
+  are state on `PermanentState` that the board pass reads at layers 6 and 7c
+  with the entity's timestamp (`board.rs`, "the entering object's are the
+  counters it would enter with"), and `Lookahead::new` builds the would-be
+  entity from the pending mods the same way. An entered-as type is a third
+  field of that kind — written once by `place_on_battlefield` from the mods,
+  read at Layer 4 at the entity's timestamp so a later `SetSubtypes` with a
+  later timestamp applies over it (CR 613.7), and carried into the look-ahead
+  frame by the same constructor. No row, because it is not an effect with a
+  source; the object *entered as* that type.
+
+The rest is mechanical, and the tripwires are already built: `is_fixed`
+destructures `EnterModsTemplate` in full, `merge` gains a union beside its
+`|=`, and there are 8 `EnterMods` struct literals in `src/` (0 in tests) and
+6 `EnterModsTemplate` literals. Scryfall lists one ruling for the card and it
+is about the counters, so the type's duration is the CR's: the modification
+is part of how the object entered (CR 614.1c), has no duration of its own,
+and lasts while the object stays on the battlefield — the reading this entry
+adopts, and the one fixture the PR should pin.
+
+| Field | |
+|---|---|
+| **Rules** | CR 614.1c ("enters the battlefield as"), CR 613.1d's layer 4 and CR 613.7's timestamp for where the type lives afterwards |
+| **Verdict** | `EnterModsTemplate` / `EnterMods` have no type field; `PermanentState` has no entered-as field for the board pass to read at Layer 4 |
+| **Size** | ~150–200 lines, one PR: the two fields and their merge, one write in `place_on_battlefield`, one read in `board.rs`'s Layer 4 seeding, one in `Lookahead::new`, the three filter arms made mods-aware, Master Biomancer's clause registered, and three tests (the type is there, a `BySubtype` filter beside it asks, a later Layer 4 row wins) |
+| **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably. Not to be confused with CR 707.9d's "in addition to its other types" on a *copy*, which is CV-2's exception path |
+| **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half — the PR files one |
+| **Owner** | — (any sitting; nothing on the spine waits on it, and nothing stored today would need migrating, since no permanent carries a type it should not) |
+
+### 2.31 Dice and coins (CR 705, 706)
+
+**The surface that cannot express it.** Nothing rolls: there is no
+`Primitive` for a die or a coin, no `GameAction` for the roll (so nothing a
+"would roll … instead" replacement could watch — `replacement-architecture.md`
+§8a's fourth missing kind), and no reader of `GameState.rng` outside
+shuffling and the random provider. CR 706.2's re-roll replacements and
+CR 706.3's "roll again" are the replacement side; CR 705's coins are the same
+shape with two outcomes.
+
+| Field | |
+|---|---|
+| **Rules** | CR 705.1–705.5 (coins), CR 706.1–706.6 (dice), CR 706.2's replacement ("would roll … instead") |
+| **Verdict** | no primitive, no event, no result carried to the effect that rolled; `AmountExpr` has no "the result" reading |
+| **Size** | one RE-shaped kind — a `GameAction::RollDice { player, sides, count }` family, its `EventPattern` arm, a performer drawing from `GameState.rng` (never ambient, `CLAUDE.md`), an `AmountExpr` for the result — ~300–400 lines with two cards, on RE's per-kind measure; coins fold in as `sides: 2` |
+| **Blocks** | ~84 printed cards roll a die outside Un-sets (Scryfall, 2026-09-15: the AFR and CLB Dragons, Barbarian Class, Pixie Guide, Wyll, Blade of Frontiers, …); seven of them replace the roll |
+| **Atoms** | the CR 705/706 atoms are Phase 8's and Phase 9's in the corpus |
+| **Owner** | — |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
@@ -1476,6 +1552,58 @@ layer, and §2.7 gained devotion's modifiability.
 Two of the nine were worth acting on rather than filing: the **605.1a pair**
 disagrees with a disposition in this file (still open — confirm before
 annotating), and the **502.3/703.4c pair** got its entry, §2.14 (2026-08-31).
+
+**Applied 2026-09-15 to Phase 6, at the post-RE audit's close-out** (pass 1 of
+`plans/handoffs/post-re-audit.md`). The replacement track had closed against a
+`SHIPPED_PHASES` that did not contain it, so this was the query's first run
+over the phase: **127 atoms, 50 uncovered, 21 of them ticketed `NEW`; `owed`
+21 → 0**, and Phase 6 joined the constant the same day. Four atoms were proven
+by tests that lacked their line (two with one assertion added so the claim is
+asserted and not implied), one got a test written the same day, four are
+partial, and twenty-two were re-filed with the owner written into the ticket
+— every re-filed ticket keeps its original words after `was:`, so nothing the
+corpus author wrote is lost. The nineteen CR 707 atoms carry `D5` and stay as
+they are: `copy-effects-architecture.md` §8 owns them by name and argues
+against re-tagging them.
+
+| Atom | Disposition (2026-09-15) |
+|---|---|
+| `ATOM-400.6-001` | **covered** — `test_tapland_enters_tapped` (RC-2) |
+| `ATOM-603.6d-001` | **covered** — the same test, with the stack asserted empty |
+| `BOUNDARY-DEF-614.1d-001` | **covered** — `test_root_maze_taps_an_entering_land` (RC-3), stack asserted empty |
+| `COMP-7A-004` | **covered** — `test_cant_be_regenerated_withholds_the_shield_without_destroying_it` (RB) |
+| `ATOM-400.7c-001` | **tested** — `a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield` (RD-3, new); the engine gets CR 400.7c from object identity, `move_object` keeping the id across the stack→battlefield move |
+| `ATOM-400.6-002` | **partial** — RB's two `ChooseReplacementEffect` tests: a sacrifice with exile against stay, not the atom's destruction with exile against hand |
+| `COMP-7A-001` | **partial** — `test_sacrifice_is_not_destruction_so_indestructible_does_not_save_it` (RS-1); the regeneration-shield half is not on the board |
+| `ATOM-613.1a-001` | **partial** — CV-1's `test_later_layers_still_apply_to_the_copy` proves the layer-1 base under a layer-7c add with a "becomes a copy" row; the entering Clone is CV-2's |
+| `ATOM-611.2c-002` | **partial** — `fog_prevents_damage_from_a_creature_that_entered_after_it_resolved` (RD-3, new); Fog is combat damage where the atom's effect is all damage |
+| `ATOM-400.7c-002` | **re-filed** — Phase 8's first token-making planeswalker; the identity half is `ATOM-615.9-001`'s, covered |
+| `ATOM-611.2c-003` | **re-filed** — RS-3 for "can't be blocked"; the lock-in half is Phase 5-Layers' |
+| `ATOM-614.10b-001` | **re-filed** — critical-path item 6; no printed card says "skip … then" (RE-1's census) and the follow-up is a trigger |
+| `ATOM-614.11b-001` | **re-filed** — §2.26 |
+| `ATOM-614.15-001`, `ATOM-614.15-002`, `ATOM-616.1a-001`, `ATOM-614.17c-001` | **re-filed** — `replacement-architecture.md` §11 item 3, the self-replacement producer, fixture-first |
+| `ATOM-614.17a-001` | **re-filed** — RS-3 (combat) |
+| `ATOM-614.17b-001` | **re-filed** — RS-4 (costs) |
+| `ATOM-616.1c-001` | **re-filed** — CV-2; the CR 616.1c bucket has existed since RC-4 |
+| `ATOM-701.40f-001` | **re-filed** — CV-6; manifest needs face-down |
+| `ATOM-702.176a-001` | **re-filed** — §2.6, after item 6 for the end-step trigger |
+| `ATOM-704.5e-001`, `ATOM-704.5e-002` | **re-filed** — CV-4, CR 707.10a's SBA |
+| `ATOM-107.3m-001` | **re-filed** — Phase 8's first "enters with X counters" card; X is unreadable at resolution at all today (`codebase-state.md`, the CR 601.2b row), which comes first |
+| `ATOM-607.2b-001`, `ATOM-607.2g-001` | **re-filed** — §2.2 |
+| `COMP-613-LAYERS-FULL-STACK-001` | **re-filed** — Layer 3 is unbuilt and the Clone half is CV-2's; the per-layer atoms it composes are covered one by one |
+| `ATOM-702.15d-001`, `ATOM-702.2d-001` | **kept deferred**, the owner added — §2.8, on CR 113.6 (LK) |
+| `ATOM-702.180a-002` | **re-filed** — §2.6 (harmonize); its exile-instead half is a stack-exit rewrite the pipeline expresses today |
+| nineteen `ATOM-707.*` and `BOUNDARY-707.2c-001` | **owned as they stand** — `copy-effects-architecture.md` §8: CV-2, CV-3, CV-4 |
+
+Three things the run learned, for the next close: **a `COVERS-PARTIAL` is enough
+to silence `owed`** — the gate reads the coverage table, which holds partials —
+so the partial column of `specdb stats` is where a phase's remainder lives once
+the gate is green, and a close should read both; **a ticket that is not `NEW`
+is invisible to the gate whatever it says** (`D5`, `T20`, `Phase 6`, "(same as
+above)"), which is the CR 707 pattern §8 already names, and the reason this
+pass read `--all` rather than the default; and **the two atoms that arrived
+already `DEFERRED`** (702.15d, 702.2d) were the only recorded deferrals in a
+127-atom phase, which is what the `SHIPPED_PHASES` omission cost.
 
 ### 3.4 Pass 2's remainder (17 sections, 49 atoms)
 

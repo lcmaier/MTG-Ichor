@@ -713,6 +713,32 @@ It was a record for item 70's fix — the answer was right, re-derived
     harness had said so.
 
 
+## Found by the RD-1 review (2026-09-08)
+
+*Item 88 evicted 2026-09-15 by the post-RE audit's close-out. It had been
+fixed the day it was found; its verdict never said "closed", so the board
+counted it as an unchecked claim for a week.*
+
+88. **A mill of N was N batches, and it should have been one (fixed in the
+    same review).** `Primitive::Mill` looped `change_zone`, so each card's move
+    opened its own batch. CR 701.17a says "that player puts **that many cards**
+    from the top of their library into their graveyard" — one simultaneous
+    move — and the CR has no analogue here to CR 121.2's "cards may only be
+    drawn one at a time", which is the rule that makes *drawing* the exception.
+    The consequence is CR 603.2c's: "whenever one or more cards are put into
+    your graveyard" would have fired once per card. Now one `execute_actions`
+    batch of N `ZoneChange` members, which keeps each card its own event for
+    CR 614.5 (Leyline of the Void applies to every card, not the first) while
+    giving the whole mill one `BatchId`.
+
+    **Reachability (2026-09-08):** it was unreachable as a *wrong answer* —
+    no trigger exists — and reachable as a wrong *shape*, which is why it was
+    fixed rather than deferred: item 6 would have inherited it silently.
+    Pinned by `a_mill_is_one_batch_of_many_moves`.
+
+    **Reachability (2026-09-15):** closed — the verdict above, re-worded so
+    the board reads it.
+
 ## Found by RD-2 — CR 615.7 prevention shields, and the loop's unit (2026-09-09)
 
 91. ~~**`AmountRewrite::PreventUpTo` has a performer and no printed
@@ -852,6 +878,36 @@ It was a record for item 70's fix — the answer was right, re-derived
      "Departed-owned permanents" row went 32.7 → 0.0 and `stress`'s 32.8 → 0.0
      (`engineering-practices.md` §3). The closer is the one the entry named.
 
+
+## Found by RE's sizing (2026-09-11)
+
+*Item 118 evicted 2026-09-15 by the post-RE audit's close-out, which fixed
+it: one proposal inside the 514.3a loop, shown to fail first.*
+
+118. **CR 514.3a's repeated cleanup step announces nothing.** RE-1 made a
+     step's beginning an event, and `Game::run_turn`'s 514.3a loop — "if
+     state-based actions are performed during the cleanup step, ... another
+     cleanup step begins" — re-runs `perform_cleanup_actions` and a priority
+     round without proposing a second `GameAction::BeginStep { Cleanup }`. So
+     the log shows one cleanup step where the rules had two, and a skip that
+     should meet the second occurrence meets nothing. Pre-existing in shape —
+     the loop has always re-run without a transition — and newly *visible*,
+     which is why it is recorded now rather than earlier.
+
+     **Reachability (2026-09-11):** reachable but not wrong today — nothing
+     triggers at cleanup (item 6's), and no printed card skips a cleanup step,
+     so the only reader of the missing event is the event log itself. It
+     becomes wrong the day either lands.
+
+     **Sized:** one `begin_step` call inside the 514.3a loop, ~10 lines, plus
+     the test that the log holds two `StepBegin { Cleanup }` when SBAs fire
+     during the first. The care is that CR 614.10's skips are per *occurrence*,
+     so the second cleanup step is genuinely skippable and must be proposed
+     rather than assumed.
+
+     **Reachability (2026-09-15):** closed — the fix above, in the close-out
+     PR of `plans/handoffs/post-re-audit.md`; no pooled game reaches a
+     repeated cleanup step, so no table moved.
 
 ## Found by the fork-and-search question (2026-09-01)
 

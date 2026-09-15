@@ -1795,6 +1795,37 @@ damage, and is RE-3's. Two things the table could not have known are named in
 §9 (RE, "The census"): mana production is a direct write with no event at all,
 and a lost player keeps taking turns in any game of three or more.
 
+**Re-read at the post-RE audit (2026-09-15), row by row, against the
+22-variant `GameAction`.** Losing and winning: ✅ RE-6 (`PlayerLoses`,
+`PlayerWins`). Discard: ✅ RE-8's producer beside RB's arm. Scry: ✅ RE-8
+(`GameAction::Scry`). Four rows the tree still lacks, each dispositioned:
+
+- **Turned face up** (CR 614.1e) — **scheduled, owner CV-6**
+  (`copy-effects-architecture.md` §4.6 names it now). The table's 2 was an
+  undercount: three printed cards say "As [this] is turned face up" (Scryfall
+  2026-09-15: Bubble Smuggler, Gift of Doom, Hooded Hydra). The event is the
+  turn-face-up special action CV-6 builds, and the replacement lands with the
+  first morph creature that is turned up.
+- **Rolling dice** (CR 706, and CR 705's coins with it) — **deferred, no
+  surface**: no primitive, no event, no reader of `GameState.rng` for it.
+  Seven printed "would roll … instead" cards outside Un-sets (Barbarian
+  Class, Pixie Guide, Wyll, Blade of Frontiers, …) of ~84 that roll at all.
+  `backlog.md` §2.31 is the entry, sized there.
+- **Searching a library** (CR 701.23; Aven Mindcensor, 1 card) — **deferred
+  with its producer**: `Primitive::Search` is one of `backlog.md` §2.5's
+  unimplemented arms, and on RD-1's precedent (`Primitive::Mill` landed in
+  the PR whose rider needed it) the event kind lands in the PR that lands the
+  producer — a `GameAction::SearchLibrary` family, its `EventPattern` arm and
+  its performer, ~300 lines by RE's per-kind measure.
+- **Countering a spell** (CR 701.6; Guile, 1 card) — **closed as an event
+  kind**, and the row was wrong the way the discard row was: countering is
+  performed as a `ZoneChange` out of the stack with `ZoneChangeCause::Countered`
+  (`Primitive::CounterSpell`, `resolve.rs`), which `EventPattern::ZoneChange
+  { cause }` has watched since RB, so Guile's "instead exile that spell" is a
+  `ZoneChangeTo(Exile)` the pipeline expresses today. What Guile still lacks
+  is its rider — "you may play that card without paying its mana cost" —
+  which is `backlog.md` §2.3's, casting from a non-hand zone.
+
 ### Two deliberate non-events, re-checked (2026-08-30, `rb-review.md` E4)
 
 The section above asks what the vocabulary is *missing*. The mirror question is
@@ -4109,7 +4140,18 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
 The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
 pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's, RE-7's, RE-8's and RE-9's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-1's, RE-3's, RE-4's, RE-5's, RE-6's, RE-7's, RE-8's, RE-9's and RE-10's
+
+**RE-1: no** and **RE-10: no**, recorded at the post-RE audit (2026-09-15) —
+the two RE phases this heading had not named, because neither produced a
+candidate under `engineering-practices.md` §7's rule. RE-1 adds three
+proposal kinds and a consumable queue: what is *proposed*, RE-4's argument.
+RE-10 moves where the turn's position is stored (a `Vec` the drainer indexes)
+and touches no read on any event's path. Each phase's boards are one test with
+one assertion — `two_meditates_make_a_player_skip_their_next_two_turns`,
+`two_extra_turns_are_taken_most_recently_created_first`, and RE-10's splice at
+`cursor + 1`. Recorded here rather than in the archive's "Trace-page
+decisions", which is for phases that produced a candidate and declined it.
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -4234,8 +4276,8 @@ review, 2026-08-24). Only one needs an answer before code starts:
 |---|---|---|
 | 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
 | 2 | `ObjectSet` reuse | **Answered.** A constraint to preserve, not a question |
-| 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RB, as planned.** RB gave `SelfReplacement` its CR 616.1a bucket and no producer; `ResolutionContext` still has three fields. The field lands with the first card that needs it — and item 12 answers *who sets the class* |
-| 4 | Replacement effects outside the battlefield | **Answered 2026-08-30 — item 9.** Sized at ~390 cards, and the blocker is not the sweep: it is CR 113.6, which the engine has nowhere and the layer system needs for the same cards |
+| 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RE (post-RE audit, 2026-09-15).** RB gave `SelfReplacement` its CR 616.1a bucket and no producer, and nothing through RE-9 needed one. The item below carries the reachability line and the size; item 12 answers *who sets the class* |
+| 4 | Replacement effects outside the battlefield | **Scheduled (post-RE audit, 2026-09-15).** CR 113.6 landed as LK (2026-09-14) and left the gather's zone leg — item 9's (c), `roadmap-v2.md` A5's third PR. The item below says where the builder finds the site |
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
 | 7 | `ScriptedDecisionProvider` blast radius | **Answered, and the watch held (RB, 2026-08-26).** Every test now traverses the pipeline and zero new prompts appeared. The rule was never relaxed |
@@ -4327,17 +4369,50 @@ rule number) — confirm the merge at labelling time.
    includes it)". If a future refactor collapses those variants, 614.12 breaks
    silently.
 
-3. **Open — how self-replacement effects (CR 614.15) reach the pipeline.**
-   They belong to the resolving spell/ability, not to any registry, so they
-   arrive through `ActionContext::resolution`. `ResolutionContext` is
-   `{source, controller, targets}` today and needs a fourth field. Low breadth
-   (Aang's Journey and kin), so the hook lands in RB and the field lands with
+3. **Deferred — how self-replacement effects (CR 614.15) reach the pipeline**
+   (Open until the post-RE audit, 2026-09-15). They belong to the resolving
+   spell/ability, not to any registry, so they arrive through
+   `ActionContext::resolution`. `ResolutionContext` is
+   `{source, ability_source, controller, targets, replaced_amount,
+   damage_prevented}` today and needs one more field. Low breadth
+   (Aang's Journey and kin), so the hook landed in RB and the field lands with
    the first card that needs it. Do not build a general mechanism first.
 
-4. **Open — replacement effects functioning outside the battlefield.** Source 2
-   in §3.3. Deferred past RE. Size it before building it (`dont-over-defer`):
-   count the cards, then decide whether it is a zone parameter on the sweep or a
-   separate registry.
+   **Reachability (2026-09-15):** unreachable — `ReplacementClass::SelfReplacement`
+   has its CR 616.1a step and `gather` discards everything else when an event
+   is blocked (CR 614.17c), and nothing produces one: no registered card, no
+   fixture. The printed self-replacements whose condition is fixed at cast
+   time (Aang's Journey's kicked clause, "if this spell was kicked … instead")
+   are `Effect::Conditional(SpellWasKicked, …)` and never enter the pipeline,
+   which is CR 616.1a by construction — the effect resolves its own clause
+   before the event is proposed, so what the other replacements see is already
+   the self-replaced event. The bucket's first *real* customer is a
+   self-replacement whose condition reads the event **as modified by others**
+   (`ATOM-616.1a-001`'s "if this damage would be prevented, deal double
+   instead"), and no printed card of that shape was found; the CR names the
+   facility, so a fixture is the customer (`codebase-state.md`'s section
+   header, 2026-09-14).
+
+   **Sized:** ~80 lines — the field on `ResolutionContext`, a third gather leg
+   reading it, `ReplacementClass::from_rewrite`'s override for it — plus the
+   fixture, as a small PR of its own at Phase 8's opening. Four Phase 6 atoms
+   are re-filed here (`backlog.md` §3.3): `ATOM-614.15-001`, `-002`,
+   `ATOM-616.1a-001`, `ATOM-614.17c-001`.
+
+4. **Scheduled — replacement effects functioning outside the battlefield**
+   (Open until the post-RE audit, 2026-09-15). Source 2 in §3.3, sized at
+   item 9 (~390 cards, six keyword families). What it needed was CR 113.6,
+   and **LK landed that on 2026-09-14** — as a *registration* leg only:
+   `register_static_effects` takes a zone, and `replacement::gather`'s sweep
+   still visits `battlefield_ids_ordered` alone (item 9's (c)). The
+   `debug_assert` on `ObjectSet::Filter { zones }` in `gather.rs` is the
+   window, and the failing assert is how the builder finds the site.
+   **Owner: `roadmap-v2.md` A5's third PR**, with its own card — one of the
+   five "would be put into a graveyard from anywhere, shuffle it into its
+   owner's library instead" (Blightsteel Colossus and kin), which functions in
+   every zone and is the leg's cleanest first consumer. Not a zone parameter
+   on a separate registry: LJ found the sweep is the easy half and the
+   working set (`Board::seed`, `membership`) the real one.
 
 5. **The overlay's shape — closed by performance, not by taste.**
    `layers-architecture.md` §15.2 item 3 left "clone vs. CoW overlay" open for
@@ -4647,6 +4722,25 @@ shape, and a decision recorded in a findings ledger dies with the ledger.
     argument §4.1 documents, and removing it is a hang. If the rules answer
     turns out to be "re-ask on a changed destination", the key becomes
     `(instance, destination)` — still finite, because destinations are.
+
+    **Deferred at the post-RE audit (2026-09-15), with the reading it adopts.**
+    CR 614.5 gives an effect "one opportunity to affect an event or any
+    modified events that may replace that event", and the engine spends that
+    opportunity on a refusal, which is right for every ordinary optional.
+    CR 903.9b's sentence — "may apply more than once to the same event. This
+    is an exception to rule 614.5" — exempts the *effect* from the
+    one-opportunity rule, not the player from having chosen; so when a later
+    replacement changes the destination, the modified event is one 903.9b
+    may apply to again, and the owner is asked again. That is the
+    `(instance, destination)` key, and it is the only reading under which the
+    exemption does any work, since without a second destination there is
+    never a second application to exempt. Unpinned until a board exists.
+
+    **Reachability (2026-09-15):** unreachable — nothing registered redirects
+    an event bound for a hand or a library to the other, and RE-8's discard
+    and RE-2's draw both leave the destination alone. **Sized:** ~20 lines,
+    the key and one fixture with a synthetic second redirector; the fixture is
+    the customer, per the section header's rule.
 
 15. **RD's design must open with this: CR 614.5's identity may be per
     `(event, affected object)`, not per batch member** (H9).
@@ -6463,35 +6557,169 @@ found them.
 
 ## 12. Explicitly out of scope
 
+Six bullets, written 2026-08-24; each re-read against the tree at the
+post-RE audit (2026-09-15) and amended in place where the tree moved.
+
 - **Layer 1 / the copy system (CR 707).** 23 Phase-6 atoms, a separate system.
-  CR 616.1c gets its ordering *bucket* in RC-4 so the classification is complete,
-  but nothing produces a copy-on-enter replacement until Layer 1 lands.
-- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (`backlog.md` §2.2).
+  CR 616.1c got its ordering *bucket* in RC-4 so the classification is complete.
+  **Layer 1 landed as CV-1 (2026-09-02, `EffectModification::CopyFrom`)**; what
+  is still out is copy-on-*enter*, which is CV-2's, and the two Phase 6 atoms
+  that need it (`ATOM-616.1c-001`, `ATOM-613.1a-001`) are re-filed there.
+- **CR 614.14 / 607 linked abilities.** Needs the CR 607 work (`backlog.md`
+  §2.2). Unchanged; `ATOM-607.2b-001` and `-2g-001` re-filed there, and
+  Sutured Ghoul (`codebase-state.md` item 59) is the wrong answer waiting on it.
 - **CR 614.12b** — "combined costs of those effects to not be payable" across
-  simultaneous entries. Needs cost modification; revisit with commander tax.
-- **CR 614.12c anchor words.** Linked abilities again.
-- **CR 615.13** — triggers on prevention. Phase 7.
+  simultaneous entries. **Was parked on cost modification, and CM-1–CM-4
+  landed (2026-09-07/08) without touching it, because that was the wrong
+  prerequisite.** It needs an entry replacement whose choice has a *cost*
+  (shocklands' "you may pay 2 life" — none registered; `EnterModsTemplate`
+  carries tapped and counters only) and a plural non-token entry (RE-4's
+  plural batch is tokens'), and the rule bites only with both.
+  `codebase-state.md` main item 134 carries the reachability and the size.
+- **CR 614.12c anchor words.** Linked abilities again — §2.2.
+- **CR 615.13** — triggers on prevention. **Critical-path item 6** ("Phase 7"
+  is the archived plan's name). RD-4 left the seam: `apply_rewrite`'s return
+  value carries the prevented amount, and whether a prevention is announced on
+  the performed stream is item 6's to decide.
 - **CR 731 loop detection.** Survives from `state-tracking-architecture.md`
-  Tiers 1–3, re-based on performed-action transcripts; not this phase.
+  Tiers 1–3, re-based on performed-action transcripts; not this phase. **Now
+  captured** as `backlog.md` §2.28 (2026-09-14), a capture and not a design.
 
 ---
 
 ## 13. Documents this phase owes
 
-Update as part of the work that changes them, not in a later pass:
+Update as part of the work that changes them, not in a later pass. Brought
+current at the post-RE audit (2026-09-15); "through RB" had stood since
+2026-08-26.
 
-- `codebase-state.md` — ✅ through RB. The CR 614–616 row, the CR 9 table
-  (item 11.1 above), and Deferred Migrations: **item 3 closed with RA-3, item 2's
-  three bypasses closed with RA-3**, and two new items were opened at commit time
-  (the CR 601.2a announcement, and the SBA mutations with no `GameAction`
-  variant). Keep adding a line per stub.
-- `CLAUDE.md` — ✅ through RB. The authority-table row exists; the chokepoint
-  invariant is stated, and RA-3 added its one-performer/one-emitter and
-  simultaneity sub-rules and struck the `// REPLACEMENT-BYPASS:` exemption.
+- `codebase-state.md` — ✅ through RE-9 and the audit. The CR 614–616 row is
+  ✅ with its own "not yet" list; the TL;DR was rewritten in place rather than
+  appended to; Deferred Migrations carries a dated block per phase (RD-1
+  through RE-9, and "Found by the post-RE audit") and each closed item is a
+  stub over `plans/archive/codebase-state-closed.md`. Keep adding a line per
+  stub.
+- `CLAUDE.md` — ✅. The authority-table row, the chokepoint invariant with
+  RA-3's sub-rules, and "The replacement pipeline (CR 614–616)" as its own
+  section — six rules and the two growth contracts, each with a pointer here.
 - `layers-architecture.md` §9 / §15.2 item 3 — ✅ the overlay decision,
   recorded with RC-4 (2026-09-02). RA-3's LKI frame had needed neither the
   accessor pair nor a clone — a `compute_characteristics` call taken *before* a
   mutation is not a hypothetical about a perturbed board — and RC-4's frame is
   the first thing that did.
-- `cards-unlocked-ledger.md` — ✅ RB's entry is in. The ETB unlock is the largest
-  single entry the ledger will take; add it with RC.
+- `cards-unlocked-ledger.md` — 🟡 RA, RB, RC (five rows) and RE (six rows)
+  are in; **RD has no section** — its four PRs' unlocks (Furnace of Rath's
+  family, the shield cycle, the CR 609.7 sources, redirection) are recorded
+  only in the phase stubs above. Owed with the next ledger pass (A4b's
+  rulings ledger is the natural sitting).
+- `engineering-practices.md` — ✅ §5.1's `owed` gap closed 2026-09-15 (Phase 6
+  in `SHIPPED_PHASES`); §7's trace-page list names RE-2 ✓ and RE-4 ✗.
+- `fuzz-record.md` — ✅ a block per phase that moved a pool, RE-9's the newest.
+
+---
+
+## 14. The phase in hindsight — written 2026-09-15, at the post-RE audit
+
+Pointers, not prose. §11 holds every finding item by item, the archive holds
+every phase body, `fuzz-record.md` holds every number; this is the index a
+reader wants before any of those, written once at the close and not
+maintained (`plans/handoffs/post-re-audit.md` §6, decision 1).
+
+### What it was
+
+- **Twenty-four PRs, 2026-08-25 → 2026-09-15**: RA-1–3 (#58–#60), RB (#62),
+  RC-1–5 with RC-4b, RD-1–4 (#119–#122), RE-1–10 (#126–#140), and the sizing
+  and eviction docs PRs between them (#118, #124, #125). Interleaved on the
+  same `main` with CM-0–4, LH, LI, LJ, LK, CV-1 and RS-1.
+- **The shape that held from RA's first commit**: propose, decide, perform,
+  announce — `CLAUDE.md`'s chokepoint invariant, §2a as built, §4.1's loop.
+  Every later kind (entering, damage, draw, tokens, counters, life, the
+  game's end, a turn's units, mana) was one more `GameAction` family through
+  the same arms: §8a's derivation holding, and RE's per-kind measure coming
+  out as predicted (§9, "Why ten, and the count").
+- **Cards**: `cards-unlocked-ledger.md` Part 3 (RD's rows owed — §13).
+  159 registered, 89 pooled at RE-9's close (`state-of-play.md`).
+- **Cost**: RE-9's block in `fuzz-record.md` is the last reading — +1.2%
+  CPU per game at two seats and +0.7% at four for making every mana
+  production a proposal. The per-event fixed cost is `codebase-state.md`
+  item 136; §8's event-kind gate was measured twice (RE-5, RE-9) and not
+  built, because it returned nothing.
+
+### What the building changed, against the design
+
+Each is a §11 item; the number is the pointer.
+
+- The rider queues at application and resolves after the performed event —
+  8; card-text "A, then B" never enters the pipeline — §4.1a.
+- The applied set is per event, never per batch — 9 — and its identity is
+  per `(event, affected object)`, which RD-2 made the loop's unit — 15.
+- Entering is one event carrying `from`, not a zone change plus an entry —
+  RC-4b, the largest re-cut (`codebase-state.md`, the RC-4 nesting audit's
+  item 4, archived).
+- A draw carries its lineage: the applied set travels with a decomposed
+  event — RE-2's trace page, items 50–56, and 53 is the one to read.
+- `pending_skips` was not built; a skip is `Rewrite::Prevent` on a proposed
+  unit — RE decision 6; then 47 (`turn_rotation`), 48 (`Game::setup` never
+  began turn 1), 49 (the cursor one level down, which became RE-10).
+- Mana production was a direct write with no event, RA's unnamed debt —
+  93–98, and RE-9.
+- A substitution overwrites the replaced event's `cause` — 90, 91;
+  `codebase-state.md` item 131 carries it to critical-path item 6.
+- CR 614.5's identity, CR 615.7's allocation across groups, CR 609.7b's
+  recheck at the event — RD's design check, seven decisions and the one
+  nobody asked (the archive, "RD").
+
+### What was learned about the process
+
+- **Size against the tree, not the paragraph.** RE was sized at seven,
+  re-cut to nine on review and to ten at RE-1's review, and its census
+  disagreed with the paragraph it replaced in both directions (§9, RE).
+  RD's "Why four" and RE's "Why ten" are the arguments to reread.
+- **The ≤40-line stub rule** — each PR evicts its own body and keeps the
+  heading `grep` finds — is what kept this document usable through
+  twenty-four PRs. The pre-build reasoning was the half it did not cover,
+  which is the eviction the audit planned (`post-re-audit.md`, pass 1).
+- **Trace pages: four across the track** (RC-4b, RC-5, RD-2, RE-2), each
+  decided at the close against `engineering-practices.md` §7's one rule,
+  each refusal argued in the archive's "Trace-page decisions".
+- **The `owed` gate was never armed for Phase 6** until this audit
+  (`engineering-practices.md` §5.1; `backlog.md` §3.3's second block). What
+  held the track was the `// COVERS:` discipline per PR — enough, and not a
+  gate: four atoms were found proven and unclaimed at the close-out.
+- **"Not wrong today" read as wrong today** on the board for a week — the
+  instrument, not the items (`check_state_of_play.py`, 2026-09-15).
+- **A CR-named facility is not closed by an empty Scryfall search** — item
+  43, closed that way and reopened at RE-5's review; the rule is in
+  `codebase-state.md`'s section header now, and item 3's fixture-first
+  disposition above is its first application.
+
+### What stays open, and where each waits
+
+- §11: item 3 (the self-replacement producer — deferred, sized, fixture
+  first), item 4 (effects off the battlefield — scheduled, A5's third PR),
+  item 14 (CR 903.9b's exemption and a refusal — deferred, unreachable).
+- §8a's four kinds: turned face up (CV-6), dice (`backlog.md` §2.31),
+  search (with `backlog.md` §2.5's producer), countering (closed — a zone
+  change with a cause).
+- §12's six, re-read 2026-09-15 and amended in place.
+- `codebase-state.md`: 59 (CR 607, `backlog.md` §2.2), 60 (`backlog.md`
+  §2.30), 122 and 131 (critical-path item 6), 134 (CR 614.12b, new);
+  118 fixed at the audit.
+- Phase 6's corpus: `owed` clean, 41 atoms uncovered with a recorded
+  deferral each (`backlog.md` §3.3).
+
+### What critical-path item 6 inherits
+
+The performed stream is post-replacement truth — the reason item 5 came
+before item 6. What the trigger phase reads, and the one thing it must not do:
+
+- reads `GameEvent::{TurnBegin, PhaseBegin, StepBegin}` (RE-1), every
+  `ZoneChange` with its cause and its CR 603.10a LKI frame (RA),
+  `DamageDealt` with CR 120.3's results (RD-1), `ManaAdded` with
+  `tapped_for_mana` (RE-9);
+- carries `codebase-state.md` items 121 (Eon Hub's two tests), 122
+  (CR 121.2c's order), 131 (a substitution's `cause`), CR 615.13 (§12), and
+  the second cleanup step it can now see (118);
+- must not add outcome-bearing state anywhere but `GameState` —
+  `codebase-state.md` item 40, the one design constraint with a deadline
+  (`post-re-audit.md` §4).

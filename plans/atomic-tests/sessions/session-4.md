@@ -212,7 +212,7 @@ See `rule-400-7-details.md` for the full article by a certified MTG judge detail
 - **Action:** The tokens attack and deal damage.
 - **Expected Result:** Token damage is NOT prevented — the tokens are separate sources from Chandra. Chandra's own -X ability damage WOULD be prevented (same source).
 - **Phase:** Phase 6 (Prevention Effects — source tracking)
-- **Ticket:** NEW — prevention effect source identity (tokens ≠ source permanent)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — Phase 8, with the first token-making planeswalker (Chandra, Flamecaller); the source-identity half is `ATOM-615.9-001`'s, covered; was: NEW — prevention effect source identity (tokens ≠ source permanent)
 
 ---
 

@@ -55,7 +55,7 @@ For these: ALREADY-IMPLEMENTED sub-rules go in the classification table only. Su
 - **Action:** Activate the graveyard ability, dealing 1 damage to the 5/5.
 - **Expected Result:** The 5/5 has `damaged_by_deathtouch = true` and is destroyed by SBAs despite only 1 damage being dealt.
 - **Phase:** Phase 6 (replacement/any-zone ability infrastructure)
-- **Ticket:** DEFERRED — Phase 6. Requires zone-activated abilities + deathtouch from non-battlefield zone.
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.8 (where an ability functions), on CR 113.6 (LK, 2026-09-14); was: DEFERRED — Phase 6. Requires zone-activated abilities + deathtouch from non-battlefield zone.
 - **Tags:** deathtouch, any-zone, DEFERRED
 
 **702.2e** — LKI determines deathtouch after zone change.
@@ -499,7 +499,7 @@ For these: ALREADY-IMPLEMENTED sub-rules go in the classification table only. Su
 - **Action:** Activate the graveyard ability, dealing 2 damage to P1.
 - **Expected Result:** P0 gains 2 life (now at 12). Lifelink applies regardless of the source's zone.
 - **Phase:** Phase 6 (any-zone ability infrastructure)
-- **Ticket:** DEFERRED — Phase 6. Requires zone-activated abilities.
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.8 (where an ability functions), on CR 113.6 (LK, 2026-09-14); was: DEFERRED — Phase 6. Requires zone-activated abilities.
 - **Tags:** lifelink, any-zone, DEFERRED
 
 **702.15e** — ALREADY-IMPLEMENTED. Multiple lifelink sources dealing damage simultaneously cause separate life-gain events. Implemented via per-source damage application in `engine/keywords.rs`.

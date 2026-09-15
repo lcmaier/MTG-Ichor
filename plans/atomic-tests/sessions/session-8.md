@@ -2682,7 +2682,7 @@ All sub-rules DEFERRED — Phase 9 (DFC casting transformed).
 - **Action:** Permanent enters
 - **Expected Result:** Permanent enters with 4 time counters on it.
 - **Phase:** Phase 5-Pre T17 + Phase 6 (replacement)
-- **Ticket:** NEW — Impending keyword (alt cost, time counters, not-creature, end-step removal)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.6 (CR 702 keywords), after critical-path item 6 for the end-step trigger; was: NEW — Impending keyword (alt cost, time counters, not-creature, end-step removal)
 - **Dependencies:** T17 (alt cost), T01 (counters), Phase 6 (replacement effect)
 
 **ATOM-702.176a-002**
@@ -2824,7 +2824,7 @@ All sub-rules DEFERRED — Phase 9 (DFC casting transformed).
 - **Action:** Spell would go to graveyard
 - **Expected Result:** Card is exiled instead of going to graveyard. Also exiled if countered.
 - **Phase:** Phase 6 (replacement)
-- **Ticket:** (same as above)
+- **Ticket:** DEFERRED (2026-09-15, post-RE audit) — `backlog.md` §2.6 (harmonize); the exile-instead half is a `ZoneChange { from: Stack }` rewrite the pipeline expresses today; was: (same as above)
 
 702.180b — Choose which creature to tap as you choose to pay harmonize cost (rule 601.2b), tap as you pay total cost. PURE-DEF (process ordering).
 
