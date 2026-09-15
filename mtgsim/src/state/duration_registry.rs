@@ -256,7 +256,7 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// places them in.
     ///
     /// `windows(2)` yields every adjacent pair, and a sequence is ordered
-    /// exactly when each neighbouring pair is — so this is "no row outranks the
+    /// exactly when each neighboring pair is — so this is "no row outranks the
     /// one after it". The comparison is strict `<` rather than `<=`, which also
     /// asserts no two rows tie: they cannot, because the id is the last
     /// component and ids are unique.

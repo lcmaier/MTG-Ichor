@@ -24,11 +24,6 @@ use crate::ui::decision::DecisionProvider;
 
 /// The zone change `cause` calls for on `id`.
 ///
-/// This was a struct with a third field until 2026-08-26, carrying the
-/// `CreatureDied`/`PlaneswalkerDied`/`LegendRuleSacrificed`/`AuraDied` event to
-/// emit after the batch. Those events are gone — a reader wants the zone change
-/// and its LKI frame — and the struct went with them.
-///
 /// **CR 704.5g does not come through here**; it uses [`sba_destroy`], because
 /// CR 701.8b makes lethal damage a *destruction* and 704.5f/i/j/m emphatically
 /// not. That distinction is the whole of why regeneration and shield counters
@@ -119,24 +114,19 @@ impl GameState {
         let mut any_performed = false;
 
         // CR 704.6d's window — "since the last time state-based actions were
-        // checked" — closed and reopened here, at the *top* of the check.
-        //
-        // Not at the bottom, and that is the whole subtlety: a commander that
-        // CR 704.5g puts into a graveyard moves *during* a check, so a
-        // boundary written at the end of that check would place the move before
-        // the boundary it is supposed to be after, and the commander would
-        // never be offered its command zone at all.
+        // checked" — closed and reopened at the *top* of the check: a commander
+        // that CR 704.5g puts into a graveyard moves *during* the check, so a
+        // boundary at the bottom would place that move before the boundary it is
+        // supposed to follow, and the command zone would never be offered.
         let since = self.last_sba_check_epoch;
         self.last_sba_check_epoch = self.next_zone_change_epoch;
 
-        // CR 704.5b's window is the same sentence — "since the last time
-        // state-based actions were checked" — and closes at the same place:
+        // CR 704.5b's window is the same sentence and closes at the same place:
         // read here, into the batch, and cleared. **Cleared whether or not the
-        // loss it proposes then happens.** A replaced loss (Exquisite
-        // Archangel: "you won't lose again until you try to draw again") and
-        // a refused one (Platinum Angel: "you keep playing") both leave the
-        // player in the game, and a flag that survived them would propose the
-        // same loss at every check for the rest of the game.
+        // loss it proposes then happens.** A replaced loss (Exquisite Archangel)
+        // and a refused one (Platinum Angel) both leave the player in the game,
+        // and a flag that survived them would propose the same loss at every
+        // check for the rest of the game.
         let drew_from_empty: Vec<bool> = self
             .players
             .iter_mut()
@@ -145,25 +135,19 @@ impl GameState {
 
         // --- CR 704.5a–c: the losses, as batch members ---------------------
         //
-        // One member per player, whatever the number of reasons: CR 704.7's
-        // "same result" is the player losing, and Lich's Mirror's ruling is
-        // that "a single Lich's Mirror will replace all of them". The dedupe on
-        // the batch below keys on the event's subject, so pushing in CR order
-        // is what makes the first reason the one the log carries. A player who
-        // has already left is gated here, ahead of the proposal, for the reason
-        // `next_turn_taker` gates CR 800.4k there: nothing about a departed
-        // player is an event.
+        // One member per player, whatever the number of reasons: CR 704.7's "same
+        // result" is the player losing (Lich's Mirror's ruling: "a single Lich's
+        // Mirror will replace all of them"). The dedupe below keys on the subject,
+        // so pushing in CR order makes the first reason the one the log carries.
+        // A player who has already left is gated ahead of the proposal, as
+        // `next_turn_taker` gates CR 800.4k.
         //
-        // **Gathered apart from the batch and appended to the end of it**, and
-        // that is CR 800.4a meeting CR 704.3. Every member is decided against
-        // one board and then performed in batch order, and each performer is
-        // loud about the board it finds; a loss is the only member that removes
-        // *other* members' subjects, since the departing player's objects leave
-        // the game inside its performer. So the rule this batch is built to is
-        // that a member which removes objects performs after the members
-        // decided against them — a creature the departing player owns and that
-        // is dying in this same check is destroyed first, and leaves the game
-        // from the graveyard a moment later.
+        // **Gathered apart and appended to the end of the batch**, CR 800.4a
+        // meeting CR 704.3: a loss is the only member that removes *other*
+        // members' subjects (the departing player's objects leave inside its
+        // performer), so it performs after the members decided against them — a
+        // creature the departing player owns and that is dying in this check is
+        // destroyed first, and leaves the game from the graveyard.
         let mut batch: Vec<GameAction> = Vec::new();
         let mut player_losses: Vec<GameAction> = Vec::new();
         for i in 0..self.players.len() {
@@ -186,27 +170,17 @@ impl GameState {
             }
         }
 
-        // 704.6d / 903.9a — a commander in a graveyard or in exile that was put
-        // there since the last time state-based actions were checked: its owner
-        // **may** put it into the command zone.
+        // CR 704.6d / 903.9a — a commander put into a graveyard or exile since
+        // the last check: its owner **may** put it into the command zone. A
+        // state-based action, not a replacement effect: only 903.9b (hand or
+        // library) is one.
         //
-        // **A state-based action, not a replacement effect**, and that is a
-        // correction rather than a convenience: `codebase-state.md` had CR 903.9
-        // recorded as one replacement until 2026-08-24. Current Oracle splits
-        // it, and only 903.9b (hand or library) is a replacement — so this half
-        // was never blocked on the pipeline and `check_state_based_actions`
-        // already had the `DecisionProvider` it needs.
-        //
-        // Offered here and **performed below with the deaths**, in the one
-        // batch CR 704.3 calls a single event. Performing each acceptance where
-        // it is offered makes every offer its own event, so a later owner's
-        // decision is taken against a board an earlier owner's move has already
-        // changed — the decide/perform interleaving the 704.3 block below
-        // exists to forbid, and 704.3 covers all of 704, not just 704.5.
-        //
-        // The zone-change epoch is what makes "since the last time" answerable
-        // at all; `since` was read at the top of this function, before anything
-        // moved.
+        // Offered here and **performed below with the deaths**, in the one batch
+        // CR 704.3 calls a single event; performing each acceptance where it is
+        // offered would take a later owner's decision against a board an earlier
+        // owner's move had already changed. The zone-change epoch is what makes
+        // "since the last time" answerable; `since` was read at the top, before
+        // anything moved.
         let commander_moves: Vec<GameAction> = {
             let mut to_offer: Vec<(ObjectId, PlayerId, Zone)> = Vec::new();
             for (id, obj) in moved_since(self, since) {
@@ -243,14 +217,10 @@ impl GameState {
         // simultaneously as a single event."
         //
         // Every condition below is evaluated against *this* game state, before
-        // any of the resulting moves is performed. That is the whole difference
-        // from the sweep this replaces, which performed 704.5f's moves before it
-        // asked 704.5g's question, and so could never produce the simultaneity
-        // CR 704.7 and CR 616.1 are written against.
-        //
-        // Ordered sweeps throughout: the batch order is the order a CR 616.1
-        // prompt would be offered in, and the graveyard is an ordered zone.
-        // The losses gathered above are already in it, first in CR order.
+        // any resulting move is performed — the simultaneity CR 704.7 and CR 616.1
+        // are written against. Ordered sweeps throughout: the batch order is the
+        // order a CR 616.1 prompt would be offered in, and the graveyard is an
+        // ordered zone. The losses gathered above are already in it, first.
 
         // 704.5f — Creature with toughness 0 or less is put into owner's graveyard
         for id in self.battlefield_ids_ordered() {
@@ -273,17 +243,11 @@ impl GameState {
             if effective_t <= 0 {
                 continue; // handled by 704.5f
             }
-            // **Indestructible is not checked here any more.** CR 704.5g's
-            // condition is lethal damage and says nothing about it; CR 702.12b
-            // is what stops the destruction, and CR 614.17 makes that a "can't"
-            // rather than a replacement effect. It is now asked once, in
-            // `engine::restriction::is_prohibited`, for every destruction from
-            // either of CR 701.8b's routes — so `Primitive::Destroy` and this
-            // sweep can no longer disagree about it.
-            //
-            // Regeneration is not checked here either: a shield is a
-            // registered replacement effect watching `GameAction::Destroy`, and
-            // this proposal is that event.
+            // Indestructible is not checked here: CR 704.5g's condition is lethal
+            // damage, and CR 702.12b is a "can't" (CR 614.17) asked once in
+            // `engine::restriction::is_prohibited` for both of CR 701.8b's routes.
+            // Regeneration is not checked either: a shield is a registered
+            // replacement effect watching `GameAction::Destroy`, which this proposal is.
             let entry = self.battlefield.get(&id).unwrap();
             let lethal = entry.damage_marked >= effective_t as u32
                 || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
@@ -306,11 +270,10 @@ impl GameState {
         // permanents with the same name, they choose one to keep and the
         // rest are put into their owners' graveyards.
         {
-            // Group legendary permanents by (controller, effective_name).
-            //
-            // `BTreeMap` over an ordered sweep, both deliberate: the controller
-            // is prompted once per group, so group order is decision order, and
-            // `ids` is the option list they pick from by index.
+            // Group legendary permanents by (controller, effective_name). `BTreeMap`
+            // over an ordered sweep, both deliberate: the controller is prompted once
+            // per group, so group order is decision order, and `ids` is the option
+            // list they pick from by index.
             let mut legend_groups: BTreeMap<(usize, String), Vec<ObjectId>> = BTreeMap::new();
             for (id, _entry) in self.battlefield_ordered() {
                 if self.objects.contains_key(&id)
@@ -327,17 +290,12 @@ impl GameState {
             }
 
             // For each group with more than one, the controller chooses one to keep.
-            //
-            // Note this now runs against a board that still contains creatures
-            // dying elsewhere in the same check — CR 704.3 is explicit that every
-            // condition is read before anything is performed — so a player with
-            // two Isamarus, one of them dead to lethal damage, is genuinely asked
-            // which to keep. The old sequential sweep skipped that prompt by
-            // having already removed the dead one.
-            // CR 101.4 again: one check can put two players in a legend
-            // conflict at once. `BTreeMap` order is controller *index* order,
-            // which is only APNAP while player 0 is the active player. Stable,
-            // so one player's several conflicts stay in the map's name order.
+            // This runs against a board that still contains creatures dying elsewhere
+            // in the same check (CR 704.3), so a player with two Isamarus, one dead to
+            // lethal damage, is genuinely asked which to keep. CR 101.4 again: one
+            // check can put two players in a legend conflict at once. `BTreeMap` order
+            // is controller *index* order, which is only APNAP while player 0 is the
+            // active player. Stable, so one player's conflicts stay in name order.
             let mut conflicts: Vec<_> =
                 legend_groups.iter().filter(|(_, ids)| ids.len() > 1).collect();
             conflicts.sort_by_key(|((controller, _), _)| self.apnap_index(*controller));
@@ -359,13 +317,10 @@ impl GameState {
             }
         }
 
-        // 704.5m — an Aura attached to an illegal object or player, **or**
-        // not attached to one at all, is put into its owner's graveyard. Both
-        // halves are 704.5m; the inner comments said 704.5n until 2026-09-08,
-        // and 704.5n is the Equipment rule further down.
-        //
-        // Collect aura IDs in a single pass to avoid borrow-checker issues:
-        // we need &self.objects for subtype checks but &mut self for move_object.
+        // 704.5m — an Aura attached to an illegal object or player, **or** not
+        // attached at all, is put into its owner's graveyard (704.5n is the
+        // Equipment rule further down). IDs collected in one pass: `&self.objects`
+        // for the subtype checks, `&mut self` for the move.
         let auras_to_graveyard: Vec<ObjectId> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
@@ -381,11 +336,9 @@ impl GameState {
                         if !self.battlefield.contains_key(&host_id) {
                             return Some(id);
                         }
-                        // or no longer matching the enchant restriction.
-                        // The enchant restriction is text on the Aura, so
-                        // CR 109.5 makes its "you" the Aura's controller — not
-                        // the enchanted creature's, which CR 303.4e keeps
-                        // separate.
+                        // or no longer matching the enchant restriction, whose "you" is
+                        // the Aura's controller (CR 109.5), not the enchanted creature's
+                        // (CR 303.4e).
                         if let Some(filter) = &obj.card_data.enchant_filter {
                             let candidate = ResolvedTarget::Object(host_id);
                             let you = get_effective_controller(self, id)?;
@@ -424,30 +377,23 @@ impl GameState {
         // --- Perform the gathered actions as one event (CR 704.3) -----------
         //
         // CR 704.7's same-result collapse is the dedupe, keyed on the event's
-        // subject: two state-based actions that would put the same permanent
-        // into the same graveyard at the same time have the same *result*, and
-        // so do two that would make the same player lose, so each pair is one
-        // event with one applied set, not two. The first condition in CR order
-        // names the cause — a creature that is both a duplicate legend and dead
-        // to lethal damage was destroyed (704.5g), not put away by the legend
-        // rule, and a player at 0 life with an empty library lost to 704.5a.
+        // subject: two actions that would put the same permanent into the same
+        // graveyard, or make the same player lose, are one event with one applied
+        // set. The first condition in CR order names the cause: a dead duplicate
+        // legend was destroyed (704.5g), a player at 0 life with an empty library
+        // lost to 704.5a.
         let mut seen: HashSet<EventSubject> = HashSet::new();
         batch.retain(|action| seen.insert(subject_of(action)));
 
         if !batch.is_empty() {
-            // **What the game recorded, not the proposal.** CR 704.3 repeats
-            // the check only "if any state-based actions are performed", and a
-            // proposal is not a performance: an indestructible creature with
-            // lethal damage produces a `Destroy` that CR 614.17's "can't"
-            // drops, and a sweep that counted the proposal would re-check
-            // forever. Nor is it only the performed *members*: a loss
-            // Exquisite Archangel replaced performs no member, but its rider
-            // performs — CR 614.6's modified event, "the rest of the effect"
-            // (615.5) — and Stunning Reversal's ruling that a short library
-            // loses "the game immediately after" needs *that* to count as an
-            // action performed, or a priority window opens between the draw
-            // that set CR 704.5b's condition and the check that reads it. The
-            // event log is where anything the check did shows.
+            // **What the game recorded, not the proposal.** CR 704.3 repeats the
+            // check only "if any state-based actions are performed": an indestructible
+            // creature with lethal damage produces a `Destroy` that CR 614.17's "can't"
+            // drops, and counting the proposal would re-check forever. Nor only the
+            // performed *members*: a loss Exquisite Archangel replaced performs none,
+            // but its rider does (CR 614.6, 615.5), and Stunning Reversal's ruling
+            // that a short library loses "immediately after" needs that to count, or
+            // a priority window opens between the draw and the check that reads it.
             let before = self.events.len();
             self.execute_actions(batch, &actx)?;
             any_performed |= self.events.len() > before;
@@ -455,7 +401,6 @@ impl GameState {
 
         // 704.5n — an Equipment or Fortification attached to an illegal
         // permanent becomes unattached and remains on the battlefield.
-        // (This block was labeled 704.5p until 2026-09-08; 704.5p is below.)
         let equip_bad_host: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
@@ -490,25 +435,14 @@ impl GameState {
         // Equipment, nor a Fortification is attached to an object or player,
         // it becomes unattached and remains on the battlefield."
         //
-        // **The first sentence is about what the permanent *is*, and that is
-        // why neither neighbour catches it**: 704.5n above asks whether the
-        // *host* is legal, and the second sentence exempts Auras, Equipment
-        // and Fortifications by subtype. An Equipment that becomes a creature
-        // is legally equipping a legal creature and keeps its subtype, so it
-        // escaped both — and until 2026-09-08 it escaped the engine too, still
-        // granting its bonus from under March of the Machines
-        // (`codebase-state.md` item 82).
-        //
-        // One predicate takes the Aura case with it: an Aura that is also a
-        // creature is unattached here, and 704.5m puts it into its owner's
-        // graveyard on the loop's next pass, since by then it is an Aura
-        // attached to nothing. That composition is the CR's own, which is why
-        // this does not special-case Auras.
-        //
-        // **One pass, and one characteristics read per attachment.** Asking
-        // `is_creature` in one loop and the three `has_subtype`s in another
-        // computed the same frame twice: +7,640 memo hits per measured game
-        // for an answer already in hand.
+        // The first sentence is about what the permanent *is*, which is why
+        // neither neighbor catches it: 704.5n asks whether the *host* is legal,
+        // and the second sentence exempts by subtype — so an Equipment that
+        // becomes a creature (March of the Machines) escaped both. An Aura that
+        // is also a creature is unattached here and 704.5m puts it into the
+        // graveyard on the next pass, the CR's own composition. One
+        // characteristics read per attachment: a second loop for the subtypes
+        // computed the same frame twice.
         let detachments: Vec<(ObjectId, ObjectId)> = self.battlefield_ordered()
             .into_iter()
             .filter_map(|(id, entry)| {
@@ -557,22 +491,15 @@ impl GameState {
             any_performed = true;
         }
 
-        // 704.5d — Token in a non-battlefield zone ceases to exist
-        // Tokens cease to exist — they are removed from the game entirely.
-        // This is NOT a zone change (no death trigger, no ZoneChange event).
+        // 704.5d — a token in a non-battlefield zone ceases to exist: removed from
+        // the game, not a zone change (no death trigger, no `ZoneChange`).
         //
-        // Ordered by the epoch of the move that took each token out of the
+        // Ordered by the epoch of the move that took each token off the
         // battlefield, because `self.objects` is a `HashMap` and this sweep
-        // announces. Two Zombies dying in one combat is the reachable case:
-        // nothing here *decides* on the order, so the event log is the only
-        // witness and per-process order hides from the whole determinism
-        // harness. `move_object` stamps the epoch, monotone and one per move,
-        // so a batch's tokens carry distinct ticks in batch order — the same
-        // key `moved_since` uses, and for the same reason it is not `ObjectId`,
-        // a v4 UUID. Every token is created *in* the battlefield zone
-        // (`create_tokens`), so one reaching here has either moved or was
-        // created elsewhere by `put_token_into`, which stamps the same
-        // counter — and its stamp is not the pregame 0 either way.
+        // announces: two Zombies dying in one combat would otherwise log in
+        // per-process order. `move_object` stamps the epoch, monotone and one per
+        // move — the key `moved_since` uses, and not a v4 `ObjectId`. A token
+        // created off the battlefield by `put_token_into` carries the same stamp.
         let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
             .map(|(&id, obj)| (id, obj.zone, obj.zone_change_epoch))
@@ -586,9 +513,7 @@ impl GameState {
             any_performed = true;
         }
 
-        // CR 704.3 — one check, one event. This used to be emitted once per
-        // performed action (and not at all for the two creature-death sweeps),
-        // which announced a simultaneity the rule denies.
+        // CR 704.3 — one check, one event.
         if any_performed {
             self.events.emit(GameEvent::StateBasedActionPerformed);
         }
@@ -608,16 +533,12 @@ impl GameState {
                 break;
             }
             checks += 1;
-            // CR 104.4b — "if a game ... somehow enters a 'loop' of mandatory
-            // actions, repeating a sequence of events with no way to stop, the
-            // game is a draw." A state-based check that keeps performing is
-            // that loop: a static "if you would lose the game, instead ..."
-            // whose rider does not clear the condition — Lich's Mirror
-            // controlled but not owned, with ten poison counters — is
-            // proposed, replaced and re-proposed at every check, and the
-            // rules' own answer is the one recorded here. No legitimate chain
-            // of checks comes near the limit; each one has to perform
-            // something new.
+            // CR 104.4b — a game that "enters a 'loop' of mandatory actions ... with
+            // no way to stop" is a draw. A state-based check that keeps performing
+            // is that loop: a static "if you would lose the game, instead ..." whose
+            // rider does not clear the condition (Lich's Mirror controlled but not
+            // owned, with ten poison counters) is proposed, replaced and re-proposed
+            // at every check. No legitimate chain comes near the limit.
             if checks >= MANDATORY_LOOP_CHECKS && self.result.is_none() {
                 self.result = Some(GameResult::Draw);
                 break;
@@ -893,7 +814,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // CR 704.3 — one check, one event (RA-3 ticket 9)
+    // CR 704.3 — one check, one event
     // -----------------------------------------------------------------------
 
     /// Two legendary creatures with the same name, both controlled by player 0.
@@ -1009,17 +930,11 @@ mod tests {
         // both 704.5g and 704.5j and must move once, under the cause that came
         // first in CR order.
         //
-        // **This is not the general mechanism, and CR 704.7's own example is
-        // outside it.** The dedupe is per *object*, over the zone-change
-        // sweeps. A player who would lose for both 704.5a (0 life) and 704.5b
-        // (drew from an empty library) is the case the rule is written around —
-        // Lich's Mirror, ATOM-704.7-001 — and it never reaches here: player
-        // loss is written straight into `player_lost` above and never becomes a
-        // `GameAction`, so there is nothing to dedupe and nothing for a
-        // replacement to see. The `!player_lost[i]` guard makes the *outcome*
-        // right by accident. A real 704.7 for it needs `GameAction::PlayerLoses`
-        // (CR 104; `replacement-architecture.md` §8a schedules it for Phase RE),
-        // and it is recorded in `codebase-state.md`.
+        // The dedupe is per *subject* over the whole batch, so CR 704.7's own
+        // example — a player who would lose for both 704.5a and 704.5b, Lich's
+        // Mirror — is the same mechanism: one `PlayerLoses` member per reason,
+        // collapsed to the first in CR order
+        // (`tests/phase_re6_integration_test.rs`, ATOM-704.7-001).
         let mut game = GameState::new(2, 20);
         let (doomed, healthy) = two_isamarus(&mut game);
         game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
