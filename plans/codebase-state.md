@@ -3883,21 +3883,12 @@ No code. Four facts about the tree the census found while counting RE's sites
 (`replacement-architecture.md` §9, Phase RE, "The census"), each owed to a
 named RE PR.
 
-111. **Mana production is a direct write with no event.** `mana.rs:91`
-     (`resolve_mana_effect`) and `resolve.rs:337` (`Primitive::ProduceMana`)
-     both write `mana_pool` below the chokepoint, and `GameEvent::ManaAdded`
-     is emitted at zero sites — which is why `--dump-events` has no mana lines
-     and the fuzz A/B recipe counts `Tapped:` land lines instead. RA's census
-     walked emissions and so could not see a mutation that emitted nothing.
-     CR 106.6a's two printed replacements and CR 605.1b's eight triggered mana
-     abilities read this event.
-
-     **Reachability (2026-09-11):** reachable — every land tap in every game;
-     wrong in the *log*, not on the board, since nothing watches mana yet.
-
-     **Sized:** RE-9, `replacement-architecture.md` §9 — one
-     `GameAction::ProduceMana`, one performer replacing two writers, ~300
-     engine lines; the A/B on the hottest path is the risk, not the diff.
+111. **~~Mana production is a direct write with no event.~~ — ✅ closed
+     2026-09-15 (RE-9).** — archived.
+     **Reachability (2026-09-15):** closed — `GameAction::ProduceMana` is the one
+     event, `perform_action`'s arm the one writer, and `GameEvent::ManaAdded` is
+     emitted; `--dump-events` has mana lines from here on.
+     Full entry: `plans/archive/codebase-state-closed.md`, main item 111.
 
 112. **~~`has_drawn_from_empty_library` is set and never cleared.~~ — ✅ closed
      2026-09-12 (RE-6).** The check reads every player's flag into the batch
@@ -5971,6 +5962,119 @@ beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
 effect making more than one player scry, and the corpus already defers it;
 `Cost::Discard` itself is `backlog.md` §2.5's unimplemented half and was not
 made reachable by this phase.
+
+### Found by RE-9 — mana (2026-09-15)
+
+**Shipped:** `GameAction::ProduceMana { player, source, mana, special,
+tapped_for_mana }` — CR 106.6a's "the amount of mana produced by a spell or
+ability", CR 106.12b's "the mana production event" — proposed by
+`resolve_mana_effect` (a mana ability, now with a source and a context) and
+`Primitive::ProduceMana` (a spell) and performed by one `perform_action` arm,
+the only `mana_pool.add` and `add_special` outside tests; `GameEvent::ManaAdded`
+emitted for the first time since the log was written, its `HashMap` a `Vec`
+in proposal order (`replacement-architecture.md` §11 item 96) and
+`tapped_for_mana` on it for CR 106.12a's triggers; `tapped_for_mana` read off
+the activation cost, which is CR 106.12's definition (item 93);
+`EventPattern::ProduceMana { tapped_for_mana, source }`; `Rewrite::Amount
+(Multiplier)` scaling every plain unit and repeating every restricted atom,
+CR 106.6a's "all mana produced" (item 95); `GameActionTemplate::ProduceMana
+{ mana_type, amount }`, CR 106.12b's "specific type", retyping in place under
+`ReplacedAmount` and refusing a mixed production under `Fixed`; the
+`Mana productions` diagnostic row, and `fuzz_ab.py`'s compare taught to drop
+a row the baseline never prints. Mana Reflection (pooled), Nyxbloom Ancient,
+Deep Water; item 111 closed. **The last of RE's ten PRs.**
+
+**Left absent, with its customer named:**
+
+132. **`GameState.counters` is the engine's diagnostics, and the two fields
+     one struct over with the same name are CR 122's counters.**
+     `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
+     poison and energy; `GameState.counters` holds `EngineCounters` — the
+     layer walks, gathers and productions `fuzz_games` prints. Three fields,
+     one spelling, two meanings; RE-9's design check wrote "a permanent
+     counter" about a diagnostic row and the review asked which
+     (`replacement-architecture.md` §11 item 97).
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a name. Every
+     reader compiles and every number is right; what is wrong is what a
+     reader assumes before the type tells them.
+
+     **Sized:** a mechanical sweep, six `EngineCounters` sites and ~75
+     `.counters.` calls and accessors, **its own PR** on main item 124's
+     precedent (`refactor/object-set-rename`): a rename does not ride inside
+     a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
+     CR never uses and one that reads as measurement at every call site.
+
+133. **CR 106.12b's "tapped for mana of a specific type" has no field on the
+     pattern.** The rule names it beside the amount, and one printed card
+     watches a type — False Dawn, "spells and abilities you control that
+     would add *colored* mana instead add that much white mana" — but its
+     second sentence (spend white as though it were any color) is a payment
+     rule `ManaPool` does not have, so nothing registers.
+
+     **Reachability (2026-09-15):** unreachable — no registered def names a
+     type, and the pattern has no field to name one with.
+
+     **Sized:** `mana_type: Option<ManaType>` on `EventPattern::ProduceMana`,
+     one `pattern_watches` clause and one `reads_the_amount` reading (still
+     `false`: a type is not a count), ~15 lines, compiler-forced; with its
+     first registrable card, which needs `backlog.md` §2.19's any-color
+     payment before False Dawn can be it.
+
+134. **Three of the six printed type-changers want three facilities RE-9 did
+     not build.** Hall of Gemstone ("that player chooses a color … lands
+     tapped for mana produce mana of the chosen color") needs a chosen color
+     stored on the permanent by an upkeep trigger — item 6's, plus a
+     `ChosenColor` read in the template. Naked Singularity ("Plains produce
+     {R}, Islands produce {G}, …") needs a template whose type is a function
+     of the tapped permanent's subtypes rather than a constant. Harvest Mage
+     ("one mana of a color of your choice") needs a choice *inside* the
+     substitution, which `pipeline::substitute` is a pure function on purpose
+     — RC-5's "an application that prompts" shape, on a different arm, and
+     the one of the three that changes the pipeline's contract.
+
+     **Reachability (2026-09-15):** unreachable — none is registered, and each
+     of the three needs its facility before its def can be written.
+
+     **Sized:** Hall of Gemstone ~40 lines after item 6; Naked Singularity a
+     `TemplateManaType::BySubtype(Vec<(LandType, ManaType)>)` beside the
+     constant, ~40 lines; Harvest Mage is `substitute` gaining a `ctx` and a
+     prompt, ~80 lines and a design question about which prompts a
+     substitution may ask. Contamination and Infernal Darkness need none of
+     this — their lines are fixtures in `tests/phase_re9_integration_test.rs`
+     and register the day item 6 owns their upkeep halves.
+
+135. **A mixed mana production under a fixed retype is refused, not
+     decided.** `GameActionTemplate::ProduceMana { amount: Fixed(n) }` on a
+     production carrying both restricted and unrestricted units returns `Err`
+     from `substitute`, because no rule says which restriction the `n` new
+     units carry: CR 106.6a is about an ability's restrictions applying to all
+     of its mana, and every printed mana ability produces mana that is
+     uniformly restricted or uniformly free. Loud, over a silently dropped
+     restriction; `a_mixed_production_under_a_fixed_retype_is_refused` asserts
+     the refusal.
+
+     **Reachability (2026-09-15):** unreachable — no registered ability mixes
+     the two, and no printed one does (Scryfall, 2026-09-15).
+
+     **Sized:** one arm in the `Fixed` leg, ~10 lines, the day a card brings
+     the ruling that decides it. Recorded rather than guessed because a wrong
+     answer here is a restriction that vanishes from a pool with nothing
+     pointing at it.
+
+What is *not* a ledger line, and where each waits: CR 605.1b's triggered mana
+abilities — Wild Growth's "whenever enchanted land is tapped for mana, its
+controller adds an additional {G}", eight cards — are critical-path item 6's,
+and what they will propose is already fixed by the definition: a second
+`ProduceMana` with `tapped_for_mana: false`, which is Mana Reflection's second
+ruling ("that triggered mana ability won't be affected") before a trigger
+exists; Virtue of Strength, the third multiplier, is an Adventure card and
+waits for the second face (`backlog.md`'s Adventure entry when it is written);
+`backlog.md` §2.19's any-color mana rewrites `resolve_mana_effect` next and is
+ordered after this PR as `replacement-architecture.md` §9 said; and the
+`--dump-events` A/B recipe that counted `Tapped:` land lines because the log
+had no mana lines now has `ManaAdded:` lines to count, which is a note for
+whoever next masks a dump and not a migration.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
