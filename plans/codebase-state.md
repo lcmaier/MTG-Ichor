@@ -2563,9 +2563,14 @@ measurement; what follows is what a later phase has to know.
 
     **Scheduled (2026-09-15, post-RE audit):** `backlog.md` §2.30 is the
     entry — one mechanic, "enters as an additional type", with its census
-    (five printed cards) and the two consequences above as its size. The
-    verdict stands: wrong today, and no outcome moves until a filter reads
-    the type.
+    (five printed cards). **Re-sized there the same day, and it is one PR of
+    ~150–200 lines, not a phase:** both consequences above were answered by
+    work that landed after this item was written — RE-5's `kinds_present`
+    answers the prompting fear per kind rather than per bucket, and the
+    board pass already reads rowless, durationless state off
+    `PermanentState` at layers 6 and 7c (counters), which is the shape an
+    entered-as type takes at Layer 4. The verdict stands: wrong today, and no
+    outcome moves until a filter reads the type.
 
 61. **Every auxiliary move of one entry event should be one batch, and RC-5
     ships one per application.** Thunder-Thrash Elder's own ruling

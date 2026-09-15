@@ -1373,21 +1373,55 @@ creature you control enters with a number of additional +1/+1 counters on it
 equal to Master Biomancer's power **and as a Mutant in addition to its other
 types**." `EnterMods` carries `tapped` and `counters` and nothing a type could
 go in; and once the permanent is on the battlefield the type has to live
-somewhere — a Layer 4 effect that has no registry row, no source that could
-lose the ability, and no duration, which is a shape the layer system does not
-have (`codebase-state.md` main item 60, where the two consequences are
-argued: a type on `EnterMods` breaks the mods-invariance that lets
-`ObjectFilter::ByType` be a frame-free check, so every CR 616.1 entry bucket
-would start prompting).
+somewhere.
+
+**Sized against the tree at the post-RE audit (2026-09-15), and it is one
+PR, not the phase `codebase-state.md` main item 60 called it on 2026-09-03.**
+Item 60 was written before RE-5, and its two fears are each answered by
+something built since:
+
+- *"A type on `EnterMods` breaks the mods-invariance that lets
+  `ObjectFilter::ByType` be a frame-free check, so every CR 616.1 entry bucket
+  would start prompting."* That is exactly what +1/+1 counters did to
+  `ObjectFilter::PowerLE` at RE-5, and the answer was not to prompt every
+  bucket: `pipeline::kinds_present` reads which counter kinds *this* entry's
+  mods hold, and `commutes` asks per pair whether the kinds a member writes
+  meet the kinds another reads. A type is the same shape one axis over —
+  `filter_is_mods_invariant`'s `ByType`/`BySubtype`/`BySupertype` arms stop
+  being unconditionally `true` and become "true unless this entry's mods add
+  that type", read off the event the way `kinds_present` is. Containment
+  Priest's `ByType(Creature)` beside Master Biomancer's Mutant does not ask;
+  a `BySubtype(Mutant)` filter beside it does, and should. ~25 lines, and the
+  match is exhaustive so the compiler names the arm.
+- *"A Layer 4 effect that has no registry row, no source and no duration is a
+  shape the layer system does not have."* It has it twice already: counters
+  are state on `PermanentState` that the board pass reads at layers 6 and 7c
+  with the entity's timestamp (`board.rs`, "the entering object's are the
+  counters it would enter with"), and `Lookahead::new` builds the would-be
+  entity from the pending mods the same way. An entered-as type is a third
+  field of that kind — written once by `place_on_battlefield` from the mods,
+  read at Layer 4 at the entity's timestamp so a later `SetSubtypes` with a
+  later timestamp applies over it (CR 613.7), and carried into the look-ahead
+  frame by the same constructor. No row, because it is not an effect with a
+  source; the object *entered as* that type.
+
+The rest is mechanical, and the tripwires are already built: `is_fixed`
+destructures `EnterModsTemplate` in full, `merge` gains a union beside its
+`|=`, and there are 8 `EnterMods` struct literals in `src/` (0 in tests) and
+6 `EnterModsTemplate` literals. Scryfall lists one ruling for the card and it
+is about the counters, so the type's duration is the CR's: the modification
+is part of how the object entered (CR 614.1c), has no duration of its own,
+and lasts while the object stays on the battlefield — the reading this entry
+adopts, and the one fixture the PR should pin.
 
 | Field | |
 |---|---|
-| **Rules** | CR 614.1c ("enters the battlefield as"), CR 613.1d's layer 4 for where the type lives afterwards |
-| **Verdict** | `EnterModsTemplate` / `EnterMods` have no type field; `ContinuousEffect` has no rowless, sourceless, durationless shape |
-| **Size** | a phase of its own — the field is small, the frame-cache consequence and the rowless layer-4 effect are not (item 60's sizing) |
-| **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably |
-| **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half |
-| **Owner** | — |
+| **Rules** | CR 614.1c ("enters the battlefield as"), CR 613.1d's layer 4 and CR 613.7's timestamp for where the type lives afterwards |
+| **Verdict** | `EnterModsTemplate` / `EnterMods` have no type field; `PermanentState` has no entered-as field for the board pass to read at Layer 4 |
+| **Size** | ~150–200 lines, one PR: the two fields and their merge, one write in `place_on_battlefield`, one read in `board.rs`'s Layer 4 seeding, one in `Lookahead::new`, the three filter arms made mods-aware, Master Biomancer's clause registered, and three tests (the type is there, a `BySubtype` filter beside it asks, a later Layer 4 row wins) |
+| **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably. Not to be confused with CR 707.9d's "in addition to its other types" on a *copy*, which is CV-2's exception path |
+| **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half — the PR files one |
+| **Owner** | — (any sitting; nothing on the spine waits on it, and nothing stored today would need migrating, since no permanent carries a type it should not) |
 
 ### 2.31 Dice and coins (CR 705, 706)
 
