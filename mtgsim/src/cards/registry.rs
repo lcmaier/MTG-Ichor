@@ -35,19 +35,14 @@ use super::phase_cm_cards;
 /// The board an engine change is measured against — **representative, not
 /// frozen** (revised 2026-09-01).
 ///
-/// It was frozen for a year, to keep runs comparable against baselines recorded
-/// in `plans/`. That rationale is gone: `CLAUDE.md` mandates an **interleaved
-/// A/B in one sitting**, both arms of which use this pool by construction, so
-/// stability across months buys the timing measurement nothing — and commit
-/// `a926627` showed a stored ms/game number is machine drift, not a baseline.
+/// Stability across months buys the timing measurement nothing, since
+/// `CLAUDE.md` mandates an **interleaved A/B in one sitting** and both arms
+/// use this pool by construction; a stored ms/game number is machine drift,
+/// not a baseline. What a freeze costs is *representativeness*: a phase that
+/// adds a gated subsystem no pooled card can open has an A/B that measures
+/// only the closed path.
 ///
-/// What a freeze cost instead was *representativeness*. RS-1 added a gated
-/// subsystem no card in the pool could open, so its A/B measured only the
-/// closed path — the pool had begun measuring a shrinking fraction of the
-/// engine. That is the same failure the two-pool split was created to fix one
-/// level down, where a card was kept out of the *registry* to protect a number.
-///
-/// **The rule now: a phase that opens a new engine path adds one card here,
+/// **The rule: a phase that opens a new engine path adds one card here,
 /// deliberately, and re-records the gameplay table in
 /// `plans/engineering-practices.md` §3.** That table's seed-deterministic rows
 /// — turns, spells cast, creatures died — are what an addition invalidates and
@@ -109,104 +104,100 @@ const PERFORMANCE_POOL: [&str; 89] = [
     "Bayou",
     "Plateau",
     "Tropical Island",
-    // RS-1 — the first cards that open the CR 101.2 restriction sweep. A pair,
-    // because neither is measurable alone: Sigarda populates
-    // `restriction_ability_sources` (and nothing else in the pool does), and
-    // the edict is the only resolution that asks her anything.
+    // The CR 101.2 restriction sweep. A pair, because neither is measurable
+    // alone: Sigarda populates `restriction_ability_sources` (and nothing else
+    // in the pool does), and the edict is the only resolution that asks her
+    // anything.
     "Sigarda, Host of Herons",
     "Diabolic Edict",
-    // RC-2 — the first cards that make entering the battlefield a replaceable
-    // event. A pair, because CR 614.1c's two halves are two code paths: one
-    // writes a status before anything can observe the permanent, the other
-    // allocates a CR 613.7c timestamp per counter kind. The land is also the
-    // pool's first nonbasic whose *own* ability CR 305.7 can strip, which is
-    // what makes Blood Moon's effect on a tapland measurable here.
+    // Entering the battlefield as a replaceable event. A pair, because
+    // CR 614.1c's two halves are two code paths: one writes a status before
+    // anything can observe the permanent, the other allocates a CR 613.7c
+    // timestamp per counter kind. The land is also the pool's first nonbasic
+    // whose *own* ability CR 305.7 can strip, which is what makes Blood Moon's
+    // effect on a tapland measurable here.
     "Idyllic Beachfront",
     "Chainbreaker",
-    // RC-3 — the pool's first replacement effect scoped by a *filter* rather
-    // than to its own source, and so the first board on which two replacement
-    // effects apply to one event and CR 616.1 has to ask which one first. With
-    // Idyllic Beachfront it is two `EnterWith(tapped)` rewrites on one land;
-    // with Chainbreaker it is a filter and CR 122.6a on one artifact.
+    // The pool's replacement effect scoped by a *filter* rather than to its
+    // own source, and so the board on which two replacement effects apply to
+    // one event and CR 616.1 has to ask which one first. With Idyllic
+    // Beachfront it is two `EnterWith(tapped)` rewrites on one land; with
+    // Chainbreaker it is a filter and CR 122.6a on one artifact.
     "Root Maze",
     // The first card in the crate to propose a `GameAction::AddCounters`.
     // Chainbreaker is already here and enters with -1/-1 counters, so this is
     // also what makes CR 704.5q's annihilation sweep run in a measured game
     // rather than only in a fixture.
     "Battlegrowth",
-    // RC-4 — the first `AmountExpr::CountOf` in the layer walk: a CDA that
-    // enumerates the battlefield, one frame per permanent per query. The
-    // look-ahead frame itself needs no card here — Root Maze already routes
-    // every land drop through it — but this is the quadratic §5a's enumeration
-    // row warned about, and it is measured rather than assumed.
+    // The `AmountExpr::CountOf` in the layer walk: a CDA that enumerates the
+    // battlefield, one frame per permanent per query — the quadratic
+    // `replacement-architecture.md` §5a's enumeration row warned about,
+    // measured rather than assumed. The look-ahead frame itself needs no card
+    // here; Root Maze already routes every land drop through it.
     "Keldon Warlord",
-    // CV-1 — the pool's only route to a layer 1 row, and so to the two gate
-    // legs and the static re-registration path the phase adds. Mirrorweave is
-    // registered but stays out: it opens the same engine path, and a second
-    // copy of one path buys a slower fuzz run rather than a wider one.
+    // The pool's only route to a layer 1 row, and so to the two gate legs and
+    // the static re-registration path a copy adds. Mirrorweave is registered
+    // but stays out: it opens the same engine path, and a second copy of one
+    // path buys a slower fuzz run rather than a wider one.
     "Cytoshape",
-    // The mana base (2026-09-03). Not a new engine path — five printed mana
-    // abilities and five basic land types, the same shape as the duals — but
-    // the land `random_deck` fills every unassigned land slot with, so the
-    // pool cannot build a deck without it. With it, every deck can pay for
-    // anything, the nonland draw stopped filtering by color, and `--require`
-    // stopped seeding a deck's colors from the required card's. The widest
+    // The mana base. Not a new engine path — five printed mana abilities and
+    // five basic land types, the same shape as the duals — but the land
+    // `random_deck` fills every unassigned land slot with, so the pool cannot
+    // build a deck without it, and every deck can pay for anything. The widest
     // board CR 305.7 has: Blood Moon strips five abilities here, not two.
     "Everywhere",
-    // RC-5 — the two new engine paths this phase opens, one card each.
-    // Thunder-Thrash Elder is an application that *prompts and mutates*
-    // (CR 614.13), the first rewrite that is not a pure function of the event,
-    // and the first non-`EnterWith` member a CR 616.1 entry step can hold —
-    // so `ordering_cannot_change_outcome` has something it must refuse to
-    // suppress. Sigarda is already here, which makes CR 101.2's candidate
-    // filter live rather than fixtured. Master Biomancer is the dynamic
-    // counter amount: a layer read per application, and §5b's asymmetry on a
-    // board a random game reaches. Sutured Ghoul stays out at `{4}{B}{B}{B}`.
+    // Two engine paths, one card each. Thunder-Thrash Elder is an application
+    // that *prompts and mutates* (CR 614.13), a rewrite that is not a pure
+    // function of the event and a non-`EnterWith` member a CR 616.1 entry step
+    // can hold — so `ordering_cannot_change_outcome` has something it must
+    // refuse to suppress; Sigarda is already here, which makes CR 101.2's
+    // candidate filter live rather than fixtured. Master Biomancer is the
+    // dynamic counter amount: a layer read per application, and §5b's
+    // asymmetry on a board a random game reaches. Sutured Ghoul stays out at
+    // `{4}{B}{B}{B}`.
     "Thunder-Thrash Elder",
     "Master Biomancer",
-    // LH-1 — the pool's first Aura, and so its first `Host` row:
-    // membership is a `battlefield` read per candidate per layer rather than
-    // a filter match, a new arm in `board::affected_members`. Also the first spell
-    // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
-    // fizzle and CR 704.5m/n in front of a random game.
+    // The pool's Aura, and so its `Host` row: membership is a `battlefield`
+    // read per candidate per layer rather than a filter match, its own arm in
+    // `board::affected_members`. Also the spell whose target comes from
+    // `enchant_filter`, which is what puts CR 608.3b's fizzle and CR 704.5m/n
+    // in front of a random game.
     "Holy Strength",
     "Bonesplitter",
-    // LI-2 — the pool's first effect that can depend on another's (CR 613.8):
-    // Blood Moon strips the ability that generates Urborg's effect, so Urborg
-    // waits for it whatever the timestamps say. Every pooled layer was
-    // pairwise independent under the static channel check until this card,
-    // which is what makes the loop's slow path — the hypothetical, counted as
-    // `Dependency checks` — live in a measured game. A land, so any deck
-    // that draws it drops it.
+    // The pool's effect that can depend on another's (CR 613.8): Blood Moon
+    // strips the ability that generates Urborg's effect, so Urborg waits for it
+    // whatever the timestamps say. Every other pooled layer is pairwise
+    // independent under the static channel check, so this is what makes the
+    // loop's slow path — the hypothetical, counted as `Dependency checks` —
+    // live in a measured game. A land, so any deck that draws it drops it.
     "Urborg, Tomb of Yawgmoth",
-    // CM-2 — the pool's first cost ability that is the *spell's own*
-    // (CR 113.6d), so the first measured game in which CR 601.2f's gather has
-    // a second source, the castability preview reads a hand card's own
-    // ability list, and an `AmountExpr::CountOf` runs at cast time rather
-    // than inside a layer walk. Colorless, so every deck can cast it; an
-    // artifact, so a second copy counts the first. Frogmite is registered and
-    // stays out: it opens the same path, and a second copy of one path buys a
-    // slower fuzz run rather than a wider one.
+    // The pool's cost ability that is the *spell's own* (CR 113.6d), so the
+    // measured game in which CR 601.2f's gather has a second source, the
+    // castability preview reads a hand card's own ability list, and an
+    // `AmountExpr::CountOf` runs at cast time rather than inside a layer walk.
+    // Colorless, so every deck can cast it; an artifact, so a second copy
+    // counts the first. Frogmite is registered and stays out: it opens the
+    // same path, and a second copy of one path buys a slower fuzz run rather
+    // than a wider one.
     "Myr Enforcer",
-    // LI-3 — the pool's first row whose *existence* is a condition rather
-    // than an ability lookup (CR 604.2), re-asked for every application in
-    // every layer of every pass. One red mana, and the pool has nine lands
-    // with the Forest subtype, so both answers happen in a measured game —
-    // including the one Blood Moon takes away two layers earlier.
+    // The pool's row whose *existence* is a condition rather than an ability
+    // lookup (CR 604.2), re-asked for every application in every layer of
+    // every pass. One red mana, and the pool has nine lands with the Forest
+    // subtype, so both answers happen in a measured game — including the one
+    // Blood Moon takes away two layers earlier.
     "Kird Ape",
-    // CM-1 — the pool's first cost effect, so the first card that populates
+    // The pool's cost effect, and the card that populates
     // `cost_modification_ability_sources` and makes CR 601.2f's sweep run in
     // a measured game; she taxes both players' noncreature spells, and with
     // Humility already here the stripped-source path runs too. Electromancer
     // and Trinisphere are registered and stay out: the same engine path.
     "Thalia, Guardian of Thraben",
-    // CM-3 — the pool's first cost that is not mana. Its sacrifice is the
-    // first payment routed through the chokepoint from `pay_costs`, the first
-    // mandatory additional cost (CR 118.8b), the first castability answer
-    // that turns on something other than the mana cost, and the first payment
-    // prompt that is not an allocation. Black, and every deck in the pool has
-    // creatures, so it is both castable and payable in a measured game.
-    // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
+    // The pool's cost that is not mana. Its sacrifice is a payment routed
+    // through the chokepoint from `pay_costs`, a mandatory additional cost
+    // (CR 118.8b), a castability answer that turns on something other than
+    // the mana cost, and a payment prompt that is not an allocation. Black,
+    // and every deck in the pool has creatures, so it is both castable and
+    // payable in a measured game.
     //
     // **Bone Splinters and not Altar's Reap, which opens the identical set.**
     // Altar's Reap draws two, so it made every measured game bigger — +20.2%
@@ -218,17 +209,16 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // Thunderscape Familiar, Krark-Clan Ironworks, Foundry Inspector and Mind
     // Stone are registered and stay out too: the Familiar and the Inspector
     // open the path Thalia already opens, and the Ironworks pair's window is
-    // CM-4's to measure once the window stops closing early.
+    // CR 605.3a's, a `--no-auto-pay` measurement rather than a slot.
     "Bone Splinters",
-    // RD-1 — the pool's first static ability that watches a *damage* event, so
-    // the first card that opens the gather sweep on something combat proposes
-    // several times a turn rather than once per entry. It is also the pool's
-    // first `Rewrite::Amount` and its first effect scoped to a **player**.
+    // The pool's static ability that watches a *damage* event, so the card
+    // that opens the gather sweep on something combat proposes several times
+    // a turn rather than once per entry. Also the pool's `Rewrite::Amount` and
+    // its effect scoped to a **player**.
     //
     // Not legendary and mono-red at four mana, which is the point: CR 614.5's
-    // own example is two of these multiplying damage by 4, and the branch had
-    // never been reachable from a registered board — `ATOM-614.5-001` had a
-    // passing test the whole time, built on a fixture
+    // own example is two of these multiplying damage by 4, and that branch is
+    // reachable from a registered board only through a pooled pair
     // (`engineering-practices.md` §3.3, tier 1).
     //
     // Ghosts of the Innocent, Gisela and Angel of Suffering stay out: Ghosts
@@ -240,17 +230,17 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // {W} and "any target": the first registry row a pooled damage event
     // meets, and the first CR 615.7 `allocate` prompt a fuzz game can reach —
     // two attackers into a shielded player is a board every combat step
-    // builds (`replacement-architecture.md` §9, RD-2). Samite Healer, Safe
+    // builds (`replacement-architecture.md` §9). Samite Healer, Safe
     // Passage and Samite Censer-Bearer stay out: the Healer opens the same
     // path from an activation the random agent will take anyway in `stress`,
     // Safe Passage is a whole-event prevention the pool already measures
     // through Angel of Suffering's shape, and the Censer-Bearer's rows are
     // one per creature at {W} plus itself — breadth, not a new cost.
     "Mending Hands",
-    // The first source in the pool whose gather evaluates an `ObjectFilter` on
-    // the damage's **source** rather than on its target — a new read per damage
-    // event for as long as it is on the battlefield, which is what this PR's
-    // A/B measures (`replacement-architecture.md` §9, RD-3). {2}{W}{W} for a
+    // The source in the pool whose gather evaluates an `ObjectFilter` on the
+    // damage's **source** rather than on its target — a read per damage event
+    // for as long as it is on the battlefield, which is what its A/B measured
+    // (`replacement-architecture.md` §9). {2}{W}{W} for a
     // 3/4 flier is castable in a white deck, and the predicate is one an
     // opponent's every attack satisfies.
     //
@@ -262,12 +252,11 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // engine cost is a batch the pool already pays; Torbran is legendary at
     // {1}{R}{R}{R}.
     "Guardian Seraph",
-    // RD-4 — the pool's first `Rewrite::Retarget`, and its first Aura whose
-    // static ability is a replacement effect rather than a continuous one. Two
-    // engine paths nothing else here opens: a rewrite that changes the event's
-    // *subject*, so the CR 616.1 chooser and the next iteration's gather are
-    // asked about a different object; and an `attached_to` read on a damage
-    // event.
+    // The pool's `Rewrite::Retarget`, and its Aura whose static ability is a
+    // replacement effect rather than a continuous one. Two engine paths
+    // nothing else here opens: a rewrite that changes the event's *subject*,
+    // so the CR 616.1 chooser and the next iteration's gather are asked about
+    // a different object; and an `attached_to` read on a damage event.
     //
     // Castable at {2}{W} in a white deck that already runs Mending Hands and
     // Guardian Seraph, and it needs a creature to enchant, which the random
@@ -281,9 +270,9 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // Damage is the chosen-source path Circle of Protection: Red already
     // measured, at {3}{R}{W}.
     "Pariah",
-    // RE-1 — the pool's first card whose effect is a *dropped* turn-structure
-    // proposal. Every other replacement source here watches something a spell
-    // or a combat step proposes; this one watches a unit the turn machinery
+    // The pool's card whose effect is a *dropped* turn-structure proposal.
+    // Every other replacement source here watches something a spell or a
+    // combat step proposes; this one watches a unit the turn machinery
     // proposes on a fixed schedule, so from the moment it resolves it opens
     // the per-permanent gather sweep on every player's upkeep, every turn,
     // for the rest of the game.
@@ -294,20 +283,19 @@ const PERFORMANCE_POOL: [&str; 89] = [
     //
     // The other four stay out, each for its own reason. Yawgmoth's Bargain
     // gives the random agent a use for its life total and would empty
-    // libraries, which is RE-6's board and a distortion of every fixture until
-    // then; Time Walk's extra turn moves `Avg turns/game` by design; Meditate
-    // and Moment of Silence are one-shots whose engine path this card already
-    // opens.
+    // libraries, a distortion of every fixture; Time Walk's extra turn moves
+    // `Avg turns/game` by design; Meditate and Moment of Silence are one-shots
+    // whose engine path this card already opens.
     "Eon Hub",
-    // RE-2 — the first pooled card that watches a *draw*, and so the first that
-    // opens the gather sweep on both of the phase's events: the instruction
-    // every turn's draw step proposes, and each individual draw under it. It is
-    // also the pool's first `Instead` whose output is decomposed, which is the
-    // path §3.2d's lineage rule runs on — with one copy nothing can re-apply,
-    // but the sweep, the substitution and the decomposition all run unforced.
+    // The pooled card that watches a *draw*, and so the one that opens the
+    // gather sweep on both draw events: the instruction every turn's draw
+    // step proposes, and each individual draw under it. Also the pool's
+    // `Instead` whose output is decomposed, which is the path §3.2d's lineage
+    // rule runs on — with one copy nothing can re-apply, but the sweep, the
+    // substitution and the decomposition all run unforced.
     //
     // Seven mana is the most any pooled card has cost, so its reachability is
-    // measured with `--require` rather than argued; see the RE-2 row in
+    // measured with `--require` rather than argued; see its row in
     // `engineering-practices.md` §3.
     //
     // The other three stay out. Alms Collector only ever watches an *opponent's*
@@ -316,60 +304,57 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // in most games; Teferi's Ageless Insight and Notion Thief are the same
     // shape as this card with a narrower pattern.
     "Thought Reflection",
-    // RE-3 — the first pooled card that meets a proposal the pool already
-    // makes: lifelink's contained `GainLife` has been proposed in every
-    // measured game since RB with nothing watching it, and Knight of
-    // Meadowgrain and Vampire Nighthawk are both here. So this is the one RE
-    // consumer whose gather sweep runs without a second card to set it up —
-    // and, with lifelink of its own, it doubles the life its own damage gains.
+    // The pooled card that meets a proposal the pool already makes: lifelink's
+    // contained `GainLife` is proposed in every measured game, and Knight of
+    // Meadowgrain and Vampire Nighthawk are both here. So this is the one
+    // replacement consumer whose gather sweep runs without a second card to
+    // set it up — and, with lifelink of its own, it doubles the life its own
+    // damage gains.
     "Rhox Faithmender",
-    // RE-6 — the game's end. A three-drop whose static is a draw watcher
-    // gated on a library state: the first conditional replacement in the
-    // pool, so the gather's "as long as" leg runs on every draw while it is
-    // on the battlefield, and the first card that makes decking a *win* in a
-    // measured game. Fuzz games deck out rarely, so the rows to read are
-    // `--require`'s and the "wins by effect" outcome line. Platinum Angel is
-    // registered and stays out: a seven-drop that turns every lethal board
-    // into a stall would move average turns by design and not by engine.
+    // The game's end. A three-drop whose static is a draw watcher gated on a
+    // library state: the pool's conditional replacement, so the gather's "as
+    // long as" leg runs on every draw while it is on the battlefield, and the
+    // card that makes decking a *win* in a measured game. Fuzz games deck out
+    // rarely, so the rows to read are `--require`'s and the "wins by effect"
+    // outcome line. Platinum Angel is registered and stays out: a seven-drop
+    // that turns every lethal board into a stall would move average turns by
+    // design and not by engine.
     "Laboratory Maniac",
-    // RE-4 — the first plural creation and the first `CreateTokens` watcher.
-    // Raise the Alarm is the producer: `{1}{W}`, so any white deck casts it,
-    // and its two Soldiers are the first plural entry batch a measured game
-    // builds — every entry decided against the board none has entered
-    // (CR 614.12), which is the engine path `codebase-state.md` item 46
-    // wanted measured. Parallel Lives is the outer event's first watcher,
-    // and the first board on which the creation's CR 616.1 loop and the
-    // entries' loops both run in one resolution (CR 616.1g). Kalitas's rider
-    // already makes single tokens in `stress`, so the registered-but-unpooled
-    // arm moves by one gather per Zombie and nothing else.
+    // Plural creation and its `CreateTokens` watcher. Raise the Alarm is the
+    // producer: `{1}{W}`, so any white deck casts it, and its two Soldiers are
+    // the plural entry batch a measured game builds — every entry decided
+    // against the board none has entered (CR 614.12), which is the engine
+    // path `codebase-state.md` item 46 wanted measured. Parallel Lives is the
+    // outer event's watcher, and the board on which the creation's CR 616.1
+    // loop and the entries' loops both run in one resolution (CR 616.1g).
+    // Kalitas's rider already makes single tokens in `stress`, so the
+    // registered-but-unpooled arm moves by one gather per Zombie and nothing
+    // else.
     //
     // Hordeling Outburst stays out: the Alarm's path at `{1}{R}{R}`. Hallowed
-    // Moonlight stays out: its row is RC-4b's substituted entry, and its one
-    // new line — a token created in exile — needs a creation under the row in
+    // Moonlight stays out: its row is a substituted entry, and its one new
+    // line — a token created in exile — needs a creation under the row in
     // the same turn, a `--require` question rather than a slot.
     "Parallel Lives",
     "Raise the Alarm",
-    // RE-5 — the first `EventPattern::AddCounters` watcher, at one mana. Hardened Scales
+    // The `EventPattern::AddCounters` watcher, at one mana. Hardened Scales
     // opens the sweep on every `AddCounters` (Battlegrowth is pooled) and on
     // every counter-bearing entry — Chainbreaker's, Master Biomancer's
-    // grants — through the door RE-5 added, and beside a second Scales it is
-    // the pool's first additive pair, which the predicate asks about
-    // (`backlog.md` §2.29). Doubling Season stays out: five mana, and its
-    // token half would double the pool's Soldiers, a gameplay change the
-    // A/B should not carry with the engine change. Vorinclex, Winding
-    // Constrictor, Primal Vigor and Live Fast stay out for the module doc's
-    // reasons — the same path at more mana, or a subject nothing pooled
-    // produces.
+    // grants — and beside a second Scales it is the pool's additive pair,
+    // which the predicate asks about (`backlog.md` §2.29). Doubling Season
+    // stays out: five mana, and its token half would double the pool's
+    // Soldiers, a gameplay change the A/B should not carry with the engine
+    // change. Vorinclex, Winding Constrictor, Primal Vigor and Live Fast stay
+    // out for the module doc's reasons — the same path at more mana, or a
+    // subject nothing pooled produces.
     "Hardened Scales",
-    // RE-8 — the pool's first discard outside the cleanup step, and its first
-    // scry. Two cards because they are two keyword actions with nothing in
-    // common but the phase: Mind Rot is `{2}{B}` for one batch of two
-    // `ZoneChange { cause: Discarded }` members from a resolution, which no
-    // measured game has ever produced, and Opt is `{U}` for a
-    // `GameAction::Scry` — a proposal, a prompt and a library rewrite that did
-    // not exist at all. Opt also draws, so it is the cheapest card in the pool
-    // that puts two instructions in one resolution (CR 608.2c) with a
-    // replacement watcher on the first of them.
+    // The pool's discard outside the cleanup step, and its scry. Two cards
+    // because they are two keyword actions with nothing in common: Mind Rot is
+    // `{2}{B}` for one batch of two `ZoneChange { cause: Discarded }` members
+    // from a resolution, and Opt is `{U}` for a `GameAction::Scry` — a
+    // proposal, a prompt and a library rewrite. Opt also draws, so it is the
+    // cheapest card in the pool that puts two instructions in one resolution
+    // (CR 608.2c) with a replacement watcher on the first of them.
     //
     // The other three stay out. Hymn to Tourach is a second two-card discard
     // and would double Mind Rot's measurement rather than add to it; Nephalia
@@ -378,46 +363,40 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // scry the pool can only get from Opt in the same deck.
     "Mind Rot",
     "Opt",
-    // LJ — the pool's first row that reaches a zone other than the
-    // battlefield, and the only way a measured game exercises the working-set
-    // change at all. Every other pooled card leaves
-    // `reachable_zones` at `BATTLEFIELD`, where the seed's zone loop does not
-    // run and `membership` answers as it did before the field existed — so
-    // without this card the A/B would measure the guard and never the path it
-    // guards.
+    // The pool's row that reaches a zone other than the battlefield, and the
+    // only way a measured game exercises the working-set path at all. Every
+    // other pooled card leaves `reachable_zones` at `BATTLEFIELD`, where the
+    // seed's zone loop does not run — so without this card the A/B would
+    // measure the guard and never the path it guards.
     //
     // `{1}{B}` for a 2/1, so a black deck casts it early and it stays out for
     // the rest of the game, which is the shape that matters: from the moment
     // it resolves, every graveyard card in the game is a member of every layer
-    // pass, and graveyards only grow. That is the cost this PR's A/B is for.
+    // pass, and graveyards only grow.
     //
     // Scarwood Treefolk is registered and stays out. It opens no engine path
     // — "enters tapped" is Idyllic Beachfront's row, already pooled — and its
     // job is to be the Jailer's partner in the atom, where a graveyard is
     // arranged rather than arrived at.
     "Yixlid Jailer",
-    // LK — CR 113.6, and the pool's first static ability that functions
-    // **from** a zone other than the battlefield. It opens the path in
-    // `move_object`: every zone change now asks `zone_function` whether the
-    // arriving object has an ability that works there, and every registry row
-    // whose source is in a graveyard sends the existence check down
-    // `compute_non_member` instead of reading a live frame.
-    //
-    // Wonder is the card that puts both in front of a random game rather than
-    // a fixture. `{3}{U}` for a 2/2 flier is castable, it dies like any other
-    // creature, and from the moment it does the board carries a row whose
-    // source is not on the battlefield — which is a cost shape neither LJ's
-    // block nor any earlier one measured.
+    // CR 113.6, and the pool's static ability that functions **from** a zone
+    // other than the battlefield. It opens the path in `move_object`: every
+    // zone change asks `zone_function` whether the arriving object has an
+    // ability that works there, and every registry row whose source is in a
+    // graveyard sends the existence check down `compute_non_member` instead
+    // of reading a live frame. `{3}{U}` for a 2/2 flier is castable, it dies
+    // like any other creature, and from the moment it does the board carries
+    // a row whose source is not on the battlefield — a cost shape no other
+    // pooled card measures.
     "Wonder",
-    // RE-9 — the pool's first watcher of the mana production event, and a
-    // static on the hottest path in the engine: from the turn it resolves,
-    // every land tap is a gather with a match, and every tap of every game
-    // was already a gather with none. That is the row this PR exists to
-    // read — the middle arm's `Replacement gathers` moves by one per
-    // production whether or not anything watches, and this card is what
-    // makes the sweep find something. Its pooled arm will move the gameplay
-    // rows by design (twice the mana is more spells and bigger boards), so
-    // the reading is `ms / 1,000 walks` beside `CPU/turn p50`.
+    // The pool's watcher of the mana production event, and a static on the
+    // hottest path in the engine: from the turn it resolves, every land tap is
+    // a gather with a match, where every tap of every game was already a
+    // gather with none. The middle arm's `Replacement gathers` moves by one
+    // per production whether or not anything watches, and this card is what
+    // makes the sweep find something. Its pooled arm moves the gameplay rows
+    // by design (twice the mana is more spells and bigger boards), so the
+    // reading is `ms / 1,000 walks` beside `CPU/turn p50`.
     //
     // Nyxbloom Ancient stays out: the same path at seven mana with a 5/5
     // trample body that changes combat. Deep Water stays out: an activated
@@ -483,7 +462,7 @@ impl CardRegistry {
         registry.register("Mountain", basic_lands::mountain);
         registry.register("Forest", basic_lands::forest);
 
-        // Alpha set spells (Phase 2)
+        // Alpha set spells
         registry.register("Lightning Bolt", alpha::lightning_bolt);
         registry.register("Ancestral Recall", alpha::ancestral_recall);
         registry.register("Counterspell", alpha::counterspell);
@@ -491,13 +470,13 @@ impl CardRegistry {
         registry.register("Volcanic Upheaval", alpha::volcanic_upheaval);
         registry.register("Giant Growth", alpha::giant_growth);
 
-        // Vanilla creatures (Phase 3)
+        // Vanilla creatures
         registry.register("Grizzly Bears", creatures::grizzly_bears);
         registry.register("Hill Giant", creatures::hill_giant);
         registry.register("Savannah Lions", creatures::savannah_lions);
         registry.register("Earth Elemental", creatures::earth_elemental);
 
-        // Keyword creatures (Phase 4)
+        // Keyword creatures
         registry.register("Serra Angel", keyword_creatures::serra_angel);
         registry.register("Thornweald Archer", keyword_creatures::thornweald_archer);
         registry.register("Raging Cougar", keyword_creatures::raging_cougar);
@@ -510,7 +489,7 @@ impl CardRegistry {
         registry.register("Giant Spider", keyword_creatures::giant_spider);
         registry.register("Vampire Nighthawk", keyword_creatures::vampire_nighthawk);
 
-        // Phase 5 pre cards
+        // `phase5_pre_cards`
         registry.register("Isamaru, Hound of Konda", phase5_pre_cards::isamaru_hound_of_konda);
         registry.register("Night's Whisper", phase5_pre_cards::nights_whisper);
         registry.register("Doom Blade", phase5_pre_cards::doom_blade);
@@ -518,7 +497,7 @@ impl CardRegistry {
         registry.register("Dark Ritual", phase5_pre_cards::dark_ritual);
         registry.register("Glorious Anthem", phase5_pre_cards::glorious_anthem);
 
-        // Layer-system cards (Phases LC-LF).
+        // Layer-system cards.
         //
         // Only the ones whose definition is faithful to the printed card, because
         // this registry feeds `cli_play` as well as `fuzz_games`. The other
@@ -544,11 +523,10 @@ impl CardRegistry {
         registry.register("Citanul Hierophants", phase_lf_cards::citanul_hierophants);
         registry.register("Act of Treason", phase_lg_cards::act_of_treason);
 
-        // Layer 7b and 7d had no random-play coverage until these two: March of
-        // the Machines was registered with no artifact in the crate to animate,
-        // and nothing anywhere switched a creature's P/T. Sol Ring is colorless,
-        // so every deck gets it; the Thaumaturgist rides in blue decks, which is
-        // where March lives too.
+        // Layer 7b and 7d's random-play coverage: March of the Machines needs an
+        // artifact to animate, and nothing else switches a creature's P/T. Sol
+        // Ring is colorless, so every deck gets it; the Thaumaturgist rides in
+        // blue decks, which is where March lives too.
         registry.register("Sol Ring", artifacts::sol_ring);
         registry.register("Darksteel Myr", artifacts::darksteel_myr);
         registry.register("Merfolk Thaumaturgist", utility_creatures::merfolk_thaumaturgist);
@@ -571,44 +549,38 @@ impl CardRegistry {
         // required card's.
         registry.register("Everywhere", dual_lands::everywhere);
 
-        // Phase RB — the first replacement effect with printed card text.
+        // The first replacement effect with printed card text.
         registry.register("Kalitas, Traitor of Ghet", phase_rb_cards::kalitas_traitor_of_ghet);
-        // The second and third replacement sources. Before these, CR 616.1's
-        // "two or more" branch was unreachable in any game — see
-        // `engineering-practices.md` §3.3.
+        // The second and third replacement sources, which make CR 616.1's
+        // "two or more" branch reachable in a game (`engineering-practices.md` §3.3).
         registry.register("Rest in Peace", phase_rb_cards::rest_in_peace);
         registry.register("Leyline of the Void", phase_rb_cards::leyline_of_the_void);
 
-        // Phase RS-1 — the first CR 101.2 "can't" with printed card text, and
+        // A CR 101.2 "can't" with printed card text, and
         // the resolution that makes its *absence of a prompt* observable.
         registry.register("Sigarda, Host of Herons", phase_rs_cards::sigarda_host_of_herons);
         registry.register("Diabolic Edict", phase_rs_cards::diabolic_edict);
 
-        // Phase RC-2 — the first cards that modify how a permanent enters
+        // Cards that modify how a permanent enters
         // (CR 614.1c/d). One per half of `EnterMods`: status and counters.
         registry.register("Idyllic Beachfront", phase_rc_cards::idyllic_beachfront);
         registry.register("Chainbreaker", phase_rc_cards::chainbreaker);
-        // The third RC-2 card, and it was written but never registered — its
-        // own doc comment says "this one grows the stress pool", which was
-        // false for as long as this line was missing.
         registry.register("Adaptive Shimmerer", phase_rc_cards::adaptive_shimmerer);
 
-        // Phase RC-3 — the first registered `ObjectSet::Filter` replacement,
-        // and the card that makes CR 616.1's multi-candidate branch reachable in
-        // a fuzz game. RC-2 recorded that branch as blocked on RC-3's gate; it
-        // was blocked on nothing (`phase_rc_cards::root_maze`).
+        // The registered `ObjectSet::Filter` replacement, and the card that makes
+        // CR 616.1's multi-candidate branch reachable in a fuzz game.
         registry.register("Root Maze", phase_rc_cards::root_maze);
-        // RC-4. Containment Priest is the entry replacement that does *not*
-        // commute with an `EnterWith`, so CR 616.1's multi-candidate branch
-        // stays reachable now that the commuting case no longer prompts; Dryad
-        // Arbor is the only road a fuzz game has to a creature that "wasn't
-        // cast". Keldon Warlord counts the battlefield, and does not count
-        // itself while entering (`phase_rc_cards`).
+        // Containment Priest is the entry replacement that does *not* commute
+        // with an `EnterWith`, so CR 616.1's multi-candidate branch stays
+        // reachable while the commuting case does not prompt; Dryad Arbor is the
+        // only road a fuzz game has to a creature that "wasn't cast". Keldon
+        // Warlord counts the battlefield, and does not count itself while
+        // entering (`phase_rc_cards`).
         registry.register("Containment Priest", phase_rc_cards::containment_priest);
         registry.register("Dryad Arbor", phase_rc_cards::dryad_arbor);
         registry.register("Keldon Warlord", phase_rc_cards::keldon_warlord);
 
-        // RC-5 — CR 614.13's auxiliary zone changes, one card per candidate
+        // CR 614.13's auxiliary zone changes, one card per candidate
         // zone (the battlefield and a player's graveyard are two enumerations),
         // plus the first entry replacement whose counter amount is read off the
         // board rather than printed on the card.
@@ -616,7 +588,7 @@ impl CardRegistry {
         registry.register("Sutured Ghoul", phase_rc_cards::sutured_ghoul);
         registry.register("Master Biomancer", phase_rc_cards::master_biomancer);
 
-        // Phase CV-1 — the first cards that put a row in layer 1. A pair,
+        // The cards that put a row in layer 1. A pair,
         // because `CopyRoles` has two arms and each card is one of them:
         // Cytoshape targets the permanent that becomes a copy and *chooses* its
         // donor, Mirrorweave targets the donor and affects everything else.
@@ -631,16 +603,15 @@ impl CardRegistry {
         // game — `engineering-practices.md` §3.3.
         registry.register("Battlegrowth", phase_sba_cards::battlegrowth);
 
-        // LH-1 — the first Aura. Its static ability is the first to lower to
-        // `ObjectSet::Host`, and it is the first spell whose
-        // recipient comes from `enchant_filter` (CR 303.4a) rather than a
+        // An Aura whose static ability lowers to `ObjectSet::Host`, and a spell
+        // whose recipient comes from `enchant_filter` (CR 303.4a) rather than a
         // spell ability — which is what makes CR 608.3b and CR 704.5m/n
         // reachable from a fuzz game at all (`phase_lh_cards`).
         registry.register("Holy Strength", phase_lh_cards::holy_strength);
         registry.register("Bonesplitter", phase_lh_cards::bonesplitter);
         registry.register("Cobbled Wings", phase_lh_cards::cobbled_wings);
 
-        // LI-2 — the CR 613.8 boards the rulings walk. Urborg is the existence
+        // The CR 613.8 boards the rulings walk. Urborg is the existence
         // dependency and pooled; Ashaya is the applies-to dependency on a
         // printed card, with a CR-derived answer; Opalescence is the CR 613.6
         // test with the Humility rulings' answers, and the first "each other"
@@ -650,13 +621,13 @@ impl CardRegistry {
         registry.register("Opalescence", phase_li_cards::opalescence);
         registry.register("Ashaya, Soul of the Wild", phase_li_cards::ashaya_soul_of_the_wild);
 
-        // LI-3 — conditional statics. Kird Ape is the cheapest printed one
+        // Conditional statics. Kird Ape is the cheapest printed one
         // and pooled; `phase_li_cards::flight_clause` (Rune of Flight's third
         // line) and `phase_li_cards::simian_clause` (a layer-4 condition
         // another layer-4 effect flips) are fixtures registered nowhere.
         registry.register("Kird Ape", phase_li_cards::kird_ape);
 
-        // CM-1 — cost modification, one card per position in CR 601.2f's
+        // Cost modification, one card per position in CR 601.2f's
         // order: an increase (pooled), a reduction, and the one printed card
         // that "directly affects the total cost". The fixtures in
         // `phase_cm_cards` — the reducers, the lessons, the locked sphere —
@@ -665,7 +636,7 @@ impl CardRegistry {
         registry.register("Goblin Electromancer", phase_cm_cards::goblin_electromancer);
         registry.register("Trinisphere", phase_cm_cards::trinisphere);
 
-        // CM-2 — affinity for artifacts (CR 702.41a): the spell's own cost
+        // Affinity for artifacts (CR 702.41a): the spell's own cost
         // ability, the gather's second source and its first dynamic amount.
         // Myr Enforcer is pooled; Frogmite is the second copy of the same
         // path, which buys a wider stress board and not a slower measured
@@ -673,7 +644,7 @@ impl CardRegistry {
         registry.register("Myr Enforcer", phase_cm_cards::myr_enforcer);
         registry.register("Frogmite", phase_cm_cards::frogmite);
 
-        // CM-3 — lock-in's payment side (CR 601.2h, 118.8b, 732.1)
+        // Lock-in's payment side (CR 601.2h, 118.8b, 732.1)
         registry.register("Altar's Reap", phase_cm_cards::altars_reap);
         registry.register("Bone Splinters", phase_cm_cards::bone_splinters);
         registry.register("Thunderscape Familiar", phase_cm_cards::thunderscape_familiar);
@@ -681,7 +652,7 @@ impl CardRegistry {
         registry.register("Foundry Inspector", phase_cm_cards::foundry_inspector);
         registry.register("Mind Stone", phase_cm_cards::mind_stone);
 
-        // RD-1 — the damage event's two subjects and its results. Four printed
+        // The damage event's two subjects and its results. Four printed
         // cards on two axes: which subject an effect is about, and what it does
         // to the amount. Furnace of Rath is pooled; the other three are the
         // stress pool's breadth — Ghosts of the Innocent is the halving arm and
@@ -703,7 +674,7 @@ impl CardRegistry {
         // what makes CR 704.5i reachable from a game — and pooled nowhere.
         registry.register("Loyalty Probe", phase_rd_cards::loyalty_probe);
 
-        // RD-2 — CR 615.7 prevention shields. One card per shape a
+        // CR 615.7 prevention shields. One card per shape a
         // resolution-created prevention effect takes: Mending Hands' targeted
         // count (pooled), Samite Healer's tapped-for count, Safe Passage's
         // filter asked at each event, and Samite Censer-Bearer's one row per
@@ -713,7 +684,7 @@ impl CardRegistry {
         registry.register("Safe Passage", phase_rd_cards::safe_passage);
         registry.register("Samite Censer-Bearer", phase_rd_cards::samite_censer_bearer);
 
-        // RD-3 — sources. The axis is which half of CR 609.7's source
+        // Sources. The axis is which half of CR 609.7's source
         // predicate each card writes: the Circle writes both, Reverse Damage
         // and Dark Sphere the chosen object alone, Guardian Seraph and Torbran
         // the property alone, Daunting Defender neither. Fog is the `combat`
@@ -736,7 +707,7 @@ impl CardRegistry {
             phase_rd_cards::torbran_thane_of_red_fell,
         );
 
-        // RD-4 — redirection and unpreventable damage. The axis is where a
+        // Redirection and unpreventable damage. The axis is where a
         // `Rewrite::Retarget` reads its destination: Pariah off the Aura's
         // host, Palisade Giant off its own source, Reflect Damage off the
         // *damage's* source's controller. Pinpoint Avalanche is the other
@@ -748,7 +719,7 @@ impl CardRegistry {
         registry.register("Pinpoint Avalanche", phase_rd_cards::pinpoint_avalanche);
         registry.register("Reflect Damage", phase_rd_cards::reflect_damage);
 
-        // RE-1 — skips, and the turn queue. The axis is which CR 614.10 unit a
+        // Skips, and the turn queue. The axis is which CR 614.10 unit a
         // skip names and where the effect comes from: a static on you
         // (Yawgmoth's Bargain), a static on everyone (Eon Hub), a consumable
         // row on you (Meditate), a targeted row (Moment of Silence) — plus
@@ -768,7 +739,7 @@ impl CardRegistry {
         registry.register("Alms Collector", phase_re_cards::alms_collector);
         registry.register("Notion Thief", phase_re_cards::notion_thief);
 
-        // RE-3 — life. Six cards over three events: a gain doubled (Rhox
+        // Life. Six cards over three events: a gain doubled (Rhox
         // Faithmender, Alhammarret's Archive), a gain turned into a loss
         // (Tainted Remedy), a draw turned into a gain (Words of Worship), the
         // loss inside damage clamped (Ali from Cairo), and the gain refused
@@ -784,7 +755,7 @@ impl CardRegistry {
         );
         registry.register("Skullcrack", phase_re_cards::skullcrack);
 
-        // RE-6 — the game's end. Four cards on one axis: a draw turned into a
+        // The game's end. Four cards on one axis: a draw turned into a
         // win (Laboratory Maniac), a loss replaced by a static (Exquisite
         // Archangel) or by a one-turn row (Stunning Reversal), and a loss
         // refused outright (Platinum Angel). Laboratory Maniac is pooled;
@@ -794,7 +765,7 @@ impl CardRegistry {
         registry.register("Stunning Reversal", phase_re_cards::stunning_reversal);
         registry.register("Platinum Angel", phase_re_cards::platinum_angel);
 
-        // RE-4 — tokens. Four cards on two axes: what makes a plural creation
+        // Tokens. Four cards on two axes: what makes a plural creation
         // (Raise the Alarm, Hordeling Outburst), what doubles one (Parallel
         // Lives), and what substitutes a token's entry (Hallowed Moonlight).
         // Parallel Lives and Raise the Alarm are pooled; the module doc says
@@ -803,13 +774,13 @@ impl CardRegistry {
         registry.register("Raise the Alarm", phase_re_cards::raise_the_alarm);
         registry.register("Hordeling Outburst", phase_re_cards::hordeling_outburst);
         registry.register("Hallowed Moonlight", phase_re_cards::hallowed_moonlight);
-        // The review's two: the kind-changing substitution over a creation
-        // (Divine Visitation) and a card both of whose halves RE-2 and RE-4
-        // had already built (Bard, King of Dale). Neither pooled.
+        // The kind-changing substitution over a creation (Divine Visitation) and
+        // a card whose two halves the draw and token watchers already cover
+        // (Bard, King of Dale). Neither pooled.
         registry.register("Divine Visitation", phase_re_cards::divine_visitation);
         registry.register("Bard, King of Dale", phase_re_cards::bard_king_of_dale);
 
-        // RE-5 — counters. Six cards on two axes: which subject the effect
+        // Counters. Six cards on two axes: which subject the effect
         // is around (a permanent, a player, or either) and what it does to
         // the count. Hardened Scales is pooled; the module doc says why the
         // other five stay out.
@@ -823,7 +794,7 @@ impl CardRegistry {
         registry.register("Live Fast", phase_re_cards::live_fast);
         registry.register("Primal Vigor", phase_re_cards::primal_vigor);
 
-        // RE-8 — the producers. Five cards on three axes: who picks a
+        // Discard and scry. Five cards on three axes: who picks a
         // discarded card (Mind Rot, Hymn to Tourach), what caused the discard
         // (Nephalia Academy, the one `ReplacementDef::by` in the registry),
         // and the scry both ways round (Opt makes one, Eligeth replaces one).
@@ -838,13 +809,13 @@ impl CardRegistry {
             phase_re8_cards::eligeth_crossroads_augur,
         );
 
-        // RE-10 — extra phases. Aggravated Assault is CR 500.8's only
+        // Extra phases. Aggravated Assault is CR 500.8's only
         // producer in reach whole; the module doc says why the other 45
         // are not, and why it is unpooled (eight mana to use once, and
         // every activation makes the game bigger).
         registry.register("Aggravated Assault", phase_re10_cards::aggravated_assault);
 
-        // RE-9 — mana. Three cards on two axes: CR 106.6a's multipliers (Mana
+        // Mana. Three cards on two axes: CR 106.6a's multipliers (Mana
         // Reflection, pooled; Nyxbloom Ancient) and CR 106.12b's retyping
         // (Deep Water, the one of six printed type-changers that registers
         // whole). The module doc says why the other eleven "tapped for mana"
@@ -855,7 +826,7 @@ impl CardRegistry {
         registry.register("Pale Moon", phase_re9_cards::pale_moon);
         registry.register("Doubling Cube", phase_re9_cards::doubling_cube);
 
-        // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
+        // The zone-reaching set. Yixlid Jailer is the printed consumer and
         // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and
         // opens no engine path, so it is registered and unpooled.
         // `phase_lj_cards::graveyard_painter` and `graveyard_reveler` — the
@@ -864,7 +835,7 @@ impl CardRegistry {
         registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
         registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
 
-        // LK — CR 113.6. Wonder is the first registered card whose static
+        // CR 113.6. Wonder is the registered card whose static
         // ability functions off the battlefield, and it is pooled: it opens
         // `move_object`'s registration path and puts a graveyard source in
         // front of the existence check.
