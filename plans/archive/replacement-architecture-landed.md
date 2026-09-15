@@ -4684,6 +4684,22 @@ commuting member. The ordering board came out as decision 7 wrote it — index
 108 doc-comment lines the branch added; "units" and "multiplier" are the CR's
 own or the code's already.
 
+**Corrected at the PR's review (2026-09-15), after the measurement.** The
+reviewer asked whether Damping Sphere belonged to the family, and it does —
+"tapped for **two or more** mana" is CR 106.12b's *amount* axis, which the
+census regex could not see. Re-run with the rule's phrasing the family is
+**sixteen**, not fourteen: Damping Sphere (an amount constraint that would
+read the amount), Pale Moon (a nonbasic-land retype, registrable whole and
+registered in the same review round) and Quarum Trench Gnomes (a *chosen*
+permanent, which decision 6 said nothing prints). The design check's
+"fourteen" and "six type-changers" above are left as the record of what was
+reviewed; §11 item 98 carries the correction and `codebase-state.md` item
+133 the three fields with their cards. Two other review notes changed the
+code's comments and not its behavior: `pattern_watches`' arm now says why a
+pattern field is an `Option` when the event's is a `bool`, and `substitute`'s
+`Fixed` leg spells its uniformity test as two named conditions rather than a
+guard clause.
+
 ## Measured (2026-09-15)
 
 **Four arms, two seats, `--rounds 7`, 200 games / seed 12345** — `main` at
@@ -4754,7 +4770,9 @@ cap for four seats rather than to explain it again.
 **Zero errors and zero panics on every arm at both seat counts; zero turn
 limits at two seats and the one four-seat tail above; `deterministic: yes` on
 every arm.** → `fuzz-record.md`, both tables re-recorded, the four-player
-table beside them.
+table beside them — the `stress` columns re-recorded once more at 158 cards
+after the review registered Pale Moon, unpooled, so the sitting's
+`performance` columns stand and only the stress decks moved.
 
 ### Trace-page decisions — the phases that produced a candidate and declined it
 

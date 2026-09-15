@@ -28,7 +28,7 @@ use std::sync::Arc;
 
 use mtgsim::cards::phase5_pre_cards::dark_ritual;
 use mtgsim::cards::phase_cm_cards::krark_clan_ironworks;
-use mtgsim::cards::phase_re9_cards::{deep_water, mana_reflection, nyxbloom_ancient};
+use mtgsim::cards::phase_re9_cards::{deep_water, mana_reflection, nyxbloom_ancient, pale_moon};
 use mtgsim::engine::actions::ActionContext;
 use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
@@ -717,7 +717,7 @@ fn a_mixed_production_under_a_fixed_retype_is_refused() {
     put_on_battlefield(&mut game, blackened_earth(), 0);
     let err = tap_for_mana(&mut game, half_bound_grove(), 0, &test_dp()).unwrap_err();
 
-    assert!(err.contains("mixes restricted and unrestricted units"), "{err}");
+    assert!(err.contains("units disagree about their restrictions"), "{err}");
 }
 
 /// The same mixed production under a retype that keeps the amount is not a
@@ -731,4 +731,31 @@ fn a_mixed_production_under_a_replaced_amount_retype_keeps_every_unit() {
     assert_eq!(pool(&game, 0, ManaType::Black), 1, "the free unit, retyped");
     let expected = ManaAtom { mana_type: ManaType::Black, ..creature_only_green() };
     assert_eq!(game.players[0].mana_pool.special_atoms(), &[(expected, 1)]);
+}
+
+/// Pale Moon's ruling — "does not change the amount of mana produced, only
+/// the color" — on "a player" (any player) and "a nonbasic land" (the
+/// filter): the opponent's two-mana nonbasic land produces two colorless,
+/// and a basic Forest is left alone.
+#[test]
+fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
+    let mut game = setup_two_player_game();
+    let card = pale_moon();
+    let source = put_in_graveyard(&mut game, card.clone(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: Vec::new(),
+        replaced_amount: None,
+        damage_prevented: None,
+    };
+    game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving Pale Moon");
+
+    tap_for_mana(&mut game, twin_plains(), 1, &test_dp()).unwrap();
+    assert_eq!(pool(&game, 1, ManaType::Colorless), 2, "the opponent's nonbasic land, retyped");
+    assert_eq!(pool(&game, 1, ManaType::White), 0);
+
+    tap_for_mana(&mut game, forest(), 0, &test_dp()).unwrap();
+    assert_eq!(pool(&game, 0, ManaType::Green), 1, "a basic land is not nonbasic");
 }

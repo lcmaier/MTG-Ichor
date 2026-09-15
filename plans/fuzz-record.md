@@ -40,8 +40,11 @@ worth it.
 **Re-recorded 2026-09-15 for RE-9** (CR 106.6a's mana production event and
 CR 106.12's "tapped for mana"; `replacement-architecture.md` §9, the last of
 RE's ten PRs). `PERFORMANCE_POOL` +1 — Mana Reflection, 88 → 89 — and the
-stress pool +3 (154 → 157: Nyxbloom Ancient, Deep Water and the pooled one), so
-**both tables are a re-record and neither column is an engine reading.** The
+stress pool +4 (154 → 158: Nyxbloom Ancient, Deep Water, Pale Moon and the
+pooled one), so **both tables are a re-record and neither column is an engine
+reading.** The A/B sitting ran at 157; Pale Moon was registered at the PR's
+review, unpooled, so the `performance` columns below are the sitting's to the
+byte and the `stress` columns were re-recorded at 158 afterwards. The
 engine reading is the third arm, this branch with the three cards
 unregistered, whose counters are `main`'s on every gameplay and layer row at
 both seat counts by construction; what it adds is one row and one movement:
@@ -82,27 +85,27 @@ board diversity. One four-player `stress` game on the pooled arm ran to the
 
 | | performance | stress |
 |---|---|---|
-| Wins by seat | 25 (50.0%) / 25 (50.0%) | 25 (50.0%) / 25 (50.0%) |
-| Wins by effect | 0 | 0 |
-| Avg turns | 33.0 | 31.3 |
-| Spells cast | 25.6 | 23.2 |
-| Lands played | 19.3 | 18.7 |
-| Combat w/ atk | 11.5 | 9.6 |
-| Creatures died | 8.2 | 5.9 |
-| Damage events | 24.2 | 22.4 |
-| Total damage | 67.3 | 54.5 |
-| Life changes | 15.4 | 15.1 |
-| **Layer walks** | **401** | **504** |
-| **Board walks** | **279** | **308** |
-| **Memo hits** | **73,622** | **90,618** |
-| **Layer frames** | **5,856** | **6,776** |
-| **Frames/walk** | **14.61** | **13.45** |
-| **Dependency checks** | **46** | **17** |
-| **Replacement gathers** | **1221** | **1243** |
-| **Restriction queries** | **1223** | **1246** |
-| Mana productions | 90 | 126 |
-| Prevention allocations | 0.00 | 0.00 |
-| Replacement prompts | 0.38 | 1.10 |
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 28 (56.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 33.0 | 30.3 |
+| Spells cast | 25.6 | 21.8 |
+| Lands played | 19.3 | 18.2 |
+| Combat w/ atk | 11.5 | 9.8 |
+| Creatures died | 8.2 | 4.8 |
+| Damage events | 24.2 | 20.2 |
+| Total damage | 67.3 | 50.6 |
+| Life changes | 15.4 | 15.6 |
+| **Layer walks** | **401** | **454** |
+| **Board walks** | **279** | **287** |
+| **Memo hits** | **73,622** | **83,409** |
+| **Layer frames** | **5,856** | **5,934** |
+| **Frames/walk** | **14.61** | **13.06** |
+| **Dependency checks** | **46** | **14** |
+| **Replacement gathers** | **1221** | **1206** |
+| **Restriction queries** | **1223** | **1209** |
+| Mana productions | 90 | 117 |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 0.38 | 4.54 |
 | Max batch depth | 5 | 5 |
 
 The `main` arm's same rows, for the pool these replace: performance
@@ -115,30 +118,30 @@ the `pooled` arm):
 
 | | performance | stress |
 |---|---|---|
-| Wins by seat | 23 (46.0%) / 19 (38.0%) / 7 (14.0%) / 1 (2.0%) | 19 (38.0%) / 17 (34.0%) / 8 (16.0%) / 6 (12.0%) |
+| Wins by seat | 23 (46.0%) / 19 (38.0%) / 7 (14.0%) / 1 (2.0%) | 16 (32.0%) / 25 (50.0%) / 6 (12.0%) / 3 (6.0%) |
 | Wins by effect | 0 | 0 |
-| Avg turns | 60.9 | 67.7 |
-| Spells cast | 44.4 | 47.8 |
-| Lands played | 36.1 | 38.7 |
-| Combat w/ atk | 25.2 | 26.2 |
-| Creatures died | 14.9 | 12.6 |
-| Damage events | 53.7 | 60.4 |
-| Total damage | 153.9 | 158.1 |
-| Life changes | 39.2 | 41.0 |
-| Turns after a departure | 21.6 | 21.7 |
+| Avg turns | 60.9 | 65.8 |
+| Spells cast | 44.4 | 45.9 |
+| Lands played | 36.1 | 38.5 |
+| Combat w/ atk | 25.2 | 25.9 |
+| Creatures died | 14.9 | 13.0 |
+| Damage events | 53.7 | 56.2 |
+| Total damage | 153.9 | 161.2 |
+| Life changes | 39.2 | 38.6 |
+| Turns after a departure | 21.6 | 20.0 |
 | Departed-owned permanents | 0.0 | 0.0 |
-| **Layer walks** | **801** | **1,284** |
-| **Board walks** | **531** | **701** |
-| **Memo hits** | **186,728** | **289,924** |
-| **Layer frames** | **15,778** | **23,637** |
-| **Frames/walk** | **19.71** | **18.41** |
-| **Dependency checks** | **156** | **120** |
-| **Replacement gathers** | **2270** | **2802** |
-| **Restriction queries** | **2274** | **2808** |
-| Mana productions | 155 | 264 |
+| **Layer walks** | **801** | **1,168** |
+| **Board walks** | **531** | **661** |
+| **Memo hits** | **186,728** | **262,148** |
+| **Layer frames** | **15,778** | **21,496** |
+| **Frames/walk** | **19.71** | **18.40** |
+| **Dependency checks** | **156** | **113** |
+| **Replacement gathers** | **2270** | **2661** |
+| **Restriction queries** | **2274** | **2667** |
+| Mana productions | 155 | 244 |
 | Prevention allocations | 0.00 | 0.04 |
-| Replacement prompts | 2.54 | 2.16 |
-| Max batch depth | 4 | 5 |
+| Replacement prompts | 2.54 | 3.36 |
+| Max batch depth | 4 | 7 |
 
 The `main` arm's same rows at four seats: performance
 788 / 515 / 178,289 / 15,083 / 19.15 / 147 / 2059 / 2064; stress

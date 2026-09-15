@@ -2399,11 +2399,16 @@ fn substitute(
         //
         // `Fixed(n)` makes `n` units of the type, and the one question with no
         // rule behind it is which restriction they carry, since the old units
-        // are gone. Every printed mana ability produces uniformly restricted
-        // or uniformly free mana, and for those the answer is plain: what the
-        // old units all carried. A production mixing the two has no printed
-        // instance and no CR sentence deciding it, so it is refused rather
-        // than guessed — loud, over a silently dropped restriction.
+        // are gone. The `n` new units carry what the old ones carried, and
+        // that has one answer only when the old units *agree*: all free, or
+        // all restricted alike. Every printed mana ability produces one or
+        // the other. A production that disagrees with itself — a free unit
+        // beside a restricted one, or two units under different restrictions
+        // — has no printed instance and no CR sentence deciding it, so it is
+        // refused rather than guessed: loud, over a silently dropped
+        // restriction. **Not an assumption that it never happens** — the
+        // fixture `Half-Bound Grove` makes it happen — but a refusal to
+        // invent the answer before a card brings the ruling.
         (
             GameActionTemplate::ProduceMana { mana_type, amount },
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },
@@ -2425,23 +2430,25 @@ fn substitute(
                             chosen.id, n
                         )
                     })?;
-                    match special.first() {
-                        None => (vec![(*mana_type, *n)], Vec::new()),
-                        Some(first) if plain == 0 && special.iter().all(|a| a == first) => {
-                            let unit = ManaAtom { mana_type: *mana_type, ..first.clone() };
-                            (Vec::new(), std::iter::repeat_n(unit, count).collect())
-                        }
-                        Some(_) => {
-                            return Err(format!(
-                                "replacement {:?} sets a mana production to {} {:?}, but the \
-                                 production mixes restricted and unrestricted units and no \
-                                 rule says which restriction the new mana carries (CR 106.6a \
-                                 is about an ability's restrictions applying to all of its \
-                                 mana). No printed mana ability produces such a mix; the \
-                                 first that does brings the ruling that decides this.",
-                                chosen.id, n, mana_type
-                            ))
-                        }
+                    let all_free = special.is_empty();
+                    let all_restricted_alike = plain == 0
+                        && special.windows(2).all(|pair| pair[0] == pair[1]);
+                    if all_free {
+                        (vec![(*mana_type, *n)], Vec::new())
+                    } else if all_restricted_alike {
+                        let unit = ManaAtom { mana_type: *mana_type, ..special[0].clone() };
+                        (Vec::new(), std::iter::repeat_n(unit, count).collect())
+                    } else {
+                        return Err(format!(
+                            "replacement {:?} sets a mana production to {} {:?}, but the \
+                             production's units disagree about their restrictions (free \
+                             beside restricted, or two restrictions), and no rule says \
+                             which the new mana carries (CR 106.6a is about an ability's \
+                             restrictions applying to all of its mana). No printed mana \
+                             ability produces such a mix; the first that does brings the \
+                             ruling that decides this.",
+                            chosen.id, n, mana_type
+                        ));
                     }
                 }
             };

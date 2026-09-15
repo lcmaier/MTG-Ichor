@@ -3,7 +3,7 @@
 //! **The mana production event gets its first watchers.** Until RE-9 the two
 //! places that added mana wrote the pool directly and nothing could see
 //! them; `GameAction::ProduceMana` is that event, and these are the printed
-//! replacement effects CR 106.6a and CR 106.12b describe. Three cards, on
+//! replacement effects CR 106.6a and CR 106.12b describe. Four cards, on
 //! two axes:
 //!
 //! | Card | What it is the first of | CR |
@@ -11,6 +11,7 @@
 //! | [`mana_reflection`] | a multiplier over a production | 106.6a |
 //! | [`nyxbloom_ancient`] | the second factor the arm has seen | 106.6a |
 //! | [`deep_water`] | a production retyped, with a filter on the permanent | 106.12b |
+//! | [`pale_moon`] | the same retype for every player's lands, from an instant | 106.12b |
 //!
 //! Every one of them says "tap … for mana", which is CR 106.12's definition
 //! — *"to activate a mana ability of that permanent that includes the {T}
@@ -22,22 +23,32 @@
 //!
 //! # What is not here, and what each waits for
 //!
-//! Fourteen printed cards replace "tapped for mana" (Scryfall, 2026-09-15).
-//! **Virtue of Strength** is the third multiplier ("if you tap a *basic land*
-//! for mana … three times") and an Adventure card, which the engine has no
-//! second face for. **Contamination** and **Infernal Darkness** are Deep
-//! Water's shape as statics, and each carries an upkeep half — a trigger,
-//! cumulative upkeep — that is critical-path item 6's; both are fixtures in
-//! `tests/phase_re9_integration_test.rs`, where the CR is the customer. **Hall
-//! of Gemstone** wants a color chosen at upkeep, **Naked Singularity** a map
-//! from basic land type to color, **Harvest Mage** a choice inside the
-//! substitution — three facilities, none of them this phase's. **False
-//! Dawn** — "spells and abilities you control that would add colored mana
-//! instead add that much white mana" — is the one printed watcher that does
-//! not say "tapped" and would be the pattern's `None`; its second sentence is
-//! a payment rule (spend white as any color) that `ManaPool` does not have.
-//! The eight "whenever you tap … for mana, add an additional" cards are CR
-//! 605.1b's triggered mana abilities and item 6's.
+//! **Sixteen** printed cards replace "tapped for mana" (Scryfall, 2026-09-15,
+//! re-run at review with the rule's phrasing rather than the card's —
+//! `replacement-architecture.md` §11 item 98). Three multiply; **Virtue of
+//! Strength** is the third ("if you tap a *basic land* for mana … three
+//! times") and an Adventure card, which the engine has no second face for.
+//! Seven retype to a constant: the two here, **Contamination** and **Infernal
+//! Darkness** (each with an upkeep half that is critical-path item 6's, so
+//! both are fixtures in `tests/phase_re9_integration_test.rs`, where the CR
+//! is the customer), **Ritual of Subdual** (cumulative upkeep, the same),
+//! **Damping Sphere** ("tapped for *two or more* mana" — an amount
+//! constraint the pattern has no field for, and a second ability that needs
+//! a spells-cast-this-turn count) and **Quarum Trench Gnomes** ("*target*
+//! Plains … instead of *white* mana" — a chosen permanent and a type
+//! constraint, on a row that lasts indefinitely). Five retype to a chosen or
+//! mapped color: **Hall of Gemstone** wants a color chosen at upkeep, **Naked
+//! Singularity** and **Reality Twist** a map from basic land type to color,
+//! **Harvest Mage** and **Pulse of Llanowar** a choice inside the
+//! substitution — facilities, none of them this phase's. **Chaos Moon**'s
+//! even half is Ritual of Subdual's line under an upkeep parity check.
+//! **False Dawn** — "spells and abilities you control that would add colored
+//! mana instead add that much white mana" — is the one printed watcher that
+//! does not say "tapped" and would be the pattern's `None`; its second
+//! sentence is a payment rule (spend white as any color) that `ManaPool`
+//! does not have. The eight "whenever you tap … for mana, add an additional"
+//! cards, and Snowfall, are CR 605.1b's triggered mana abilities and item
+//! 6's.
 //!
 //! # What a random deck can draw
 //!
@@ -53,7 +64,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{
     AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder,
 };
-use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
@@ -247,6 +258,67 @@ pub fn deep_water() -> Arc<CardData> {
                             }),
                         )
                         .affecting_players(PlayerSet::You),
+                    ),
+                    Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
+                ),
+                EffectRecipient::Implicit,
+            ),
+        })
+        .build()
+}
+
+/// Pale Moon — {1}{U}
+/// Instant
+///
+/// > Until end of turn, if a player taps a nonbasic land for mana, it
+/// > produces colorless mana instead of any other type.
+///
+/// **The second registrable type-changer, found at review** — the census
+/// regex read the card's phrase "tap … for mana" and this card says "taps a
+/// nonbasic land for mana" (`replacement-architecture.md` §11 item 98). Deep
+/// Water's shape on an instant: Fog's `CreateReplacement` until end of turn,
+/// `PlayerSet::Everyone` for "a player", and "nonbasic land" as the filter on
+/// the tapped permanent. Registered and unpooled: a one-shot whose engine path
+/// Deep Water already opens.
+///
+/// # The rulings, and where each is tested
+///
+/// - *"The ability does not change the amount of mana produced, only the
+///   color."* → `ReplacedAmount`: an opponent's two-mana nonbasic land
+///   produces two colorless, and a basic Forest is left alone
+///   (`pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone`).
+pub fn pale_moon() -> Arc<CardData> {
+    CardDataBuilder::new("Pale Moon")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 1))
+        .color(Color::Blue)
+        .card_type(CardType::Instant)
+        .rules_text(
+            "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+            id: new_ability_id(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            tapped_for_mana(Some(ObjectFilter::And(
+                                Box::new(ObjectFilter::ByType(CardType::Land)),
+                                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::BySupertype(
+                                    Supertype::Basic,
+                                )))),
+                            ))),
+                            ObjectSet::NO_OBJECTS,
+                            Rewrite::Instead(GameActionTemplate::ProduceMana {
+                                mana_type: ManaType::Colorless,
+                                amount: TemplateAmount::ReplacedAmount,
+                            }),
+                        )
+                        .affecting_players(PlayerSet::Everyone),
                     ),
                     Duration::UntilEndOfTurn,
                     PatternFill::Authored,

@@ -4049,8 +4049,18 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   seats against a new `Mana productions` row of **81** (one gather per
   production, the averages rounding apart by one) and **2012 → 2163** against
   **151** at four; `Memo hits` +0.4%, RE-1's fast-path sentence again, which
-  is why every arm reads `differ` and the check is the aggregates. **CPU/game
-  +1.2% at two seats and +0.7% at four**, rounds straddling both times,
+  is why every arm reads `differ` and the check is the aggregates. **The
+  number is the proposal's cost and not a replacement's, and productions are
+  not rare** — they are the commonest proposal after phases and steps. The
+  engine arm has no mana replacement to find by construction, so what a
+  production buys is a batch opened and closed, one `is_prohibited`, and
+  `gather`'s sweep over the static replacement sources a `performance` board
+  carries (about three, by the memo hits: 264 more a game over 81
+  productions), which is the overhead every event kind pays at RE-1's rate.
+  What a replacement *applying* costs is the pooled arm's question, where
+  Mana Reflection is out in 41% of games, and that arm's movement is game
+  size (below). **CPU/game +1.2% at two seats and +0.7% at four**, rounds
+  straddling both times,
   `CPU/turn p50` flat — under §11 item 54's 2.5-point gate, so **lever 2 is
   not built**, which decision 11 predicted from RE-1's and RE-2's rates. The
   pooled arm is a re-record and a bigger board: +20.1% CPU/game at two seats
@@ -6391,6 +6401,34 @@ found them.
     than a rider on a rules change; the proposed name is `EngineMeters` /
     `game.meters`, a word the CR never uses. RE-9 adds one method under the
     existing name and leaves the collision where it is. → RE-9 decision 9.
+
+98. **The census regex read the card's phrase and not the rule's, and it hid
+    two of CR 106.12b's three axes.** `o:/tap.* for mana/` matches "tap a
+    permanent for mana" and misses "tapped for **two or more** mana"
+    (Damping Sphere), "taps a **nonbasic land** for mana" (Pale Moon) and
+    "target Plains is tapped for mana" (Quarum Trench Gnomes); the union of
+    `o:/tapped for .*mana/` and `o:/tap.* for .*mana/` with `instead` is
+    **sixteen** cards, not fourteen. Classified rather than counted: three
+    multipliers; seven constant-type retypes (Contamination, Infernal
+    Darkness, Deep Water, Pale Moon, Ritual of Subdual, Damping Sphere,
+    Quarum Trench Gnomes); five chosen or mapped types (Hall of Gemstone,
+    Harvest Mage, Pulse of Llanowar, Naked Singularity, Reality Twist); and
+    Chaos Moon's even half. The two the regex hid are the two axes the rule
+    names beside the permanent: an **amount** — Damping Sphere's "two or
+    more", an `at_least` on the pattern that *reads the amount* exactly as
+    Alms Collector's does, so a doubler beside it is CR 616.1's real
+    question and Damping Sphere's own first ruling walks it ("choose one to
+    apply. After that, determine if any others are applicable") — and a
+    **chosen permanent**, Quarum Trench Gnomes' "target Plains", which is
+    `SourcePattern.object` and which decision 6 declined on the sentence
+    "nothing prints a chosen permanent tapped for mana", now false. Found by
+    the review asking whether Damping Sphere belonged in the family
+    (2026-09-15). Pale Moon registers whole on Deep Water's shape and does
+    in this PR; the two axes and the type field are `codebase-state.md`
+    item 133's, each with its card and the facility it also needs. The
+    lesson is item 94's one step further: a census that searches the card's
+    words finds the cards that share them, and CR 106.12b's own sentence
+    names three axes in a row — search each.
 
 ## 12. Explicitly out of scope
 

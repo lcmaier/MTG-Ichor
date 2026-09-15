@@ -6005,21 +6005,51 @@ Deep Water; item 111 closed. **The last of RE's ten PRs.**
      a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
      CR never uses and one that reads as measurement at every call site.
 
-133. **CR 106.12b's "tapped for mana of a specific type" has no field on the
-     pattern.** The rule names it beside the amount, and one printed card
-     watches a type — False Dawn, "spells and abilities you control that
-     would add *colored* mana instead add that much white mana" — but its
-     second sentence (spend white as though it were any color) is a payment
-     rule `ManaPool` does not have, so nothing registers.
+133. **`EventPattern::ProduceMana` has a field for one of CR 106.12b's three
+     axes.** The rule: a replacement applying "if a permanent 'is tapped for
+     mana' or tapped for mana **of a specific type and/or amount**". The arm
+     asks which permanent and nothing else; each of the other two has a
+     printed card, and so does the *chosen* permanent the `source` filter
+     cannot name (`replacement-architecture.md` §11 item 98, the review's
+     census re-run).
+
+     - **Type** — False Dawn ("would add *colored* mana"; its second
+       sentence is a spend-as-any-color payment rule `ManaPool` lacks) and
+       Quarum Trench Gnomes ("instead of *white* mana"). `mana_type:
+       Option<ManaType>`, one `pattern_watches` clause, `reads_the_amount`
+       still `false` — a type is not a count. ~15 lines.
+     - **Amount** — Damping Sphere, "if a land is tapped for **two or more**
+       mana, it produces {C} instead of any other type and amount".
+       `at_least: Option<u64>`, Alms Collector's field, and **it reads the
+       amount**: `reads_the_amount` becomes `at_least.is_some()`, so a
+       doubler beside it keeps CR 616.1's question — Damping Sphere's first
+       ruling is that board ("choose one to apply. After that, determine if
+       any others are applicable"): a one-mana land under Sphere and
+       Reflection is {C} with no choice (the Sphere is not applicable until
+       the doubling makes it so), a two-mana land is 1 or 2 by the order.
+       ~20 lines plus the ordering test; `engineering-practices.md` §4.1's
+       question is owed at the `reads_the_amount` arm. Damping Sphere's
+       second ability counts spells cast this turn per player, which nothing
+       tracks, so its first line is a fixture until then.
+     - **Chosen permanent** — Quarum Trench Gnomes, "{T}: If *target* Plains
+       is tapped for mana, it produces colorless mana instead of white mana.
+       (This effect lasts indefinitely.)" `source` becomes a `SourcePattern
+       { object, filter }` as `DealDamage`'s is (~20 lines, the three defs
+       wrapped), plus a `PatternFill` arm that writes the target into the
+       row (Circle of Protection's `ChosenDamageSource` shape, ~20 lines)
+       and an indefinite `Duration` for a row an activated ability makes.
 
      **Reachability (2026-09-15):** unreachable — no registered def names a
-     type, and the pattern has no field to name one with.
+     type, an amount or a chosen permanent, and the pattern has no field to
+     name any with. Pale Moon, the review's other find, needed none of the
+     three and is registered.
 
-     **Sized:** `mana_type: Option<ManaType>` on `EventPattern::ProduceMana`,
-     one `pattern_watches` clause and one `reads_the_amount` reading (still
-     `false`: a type is not a count), ~15 lines, compiler-forced; with its
-     first registrable card, which needs `backlog.md` §2.19's any-color
-     payment before False Dawn can be it.
+     **Sized:** ~15 + ~20 + ~40 lines, each with its card: False Dawn after
+     `backlog.md` §2.19's payment rule, Damping Sphere after a
+     spells-cast-this-turn count (a `PlayerState` field the cast path
+     increments and the turn resets, ~20 lines, CM's), the Gnomes after the
+     fill arm. The amount field is the one that changes a proof and is owed
+     the standing question when it lands.
 
 134. **Three of the six printed type-changers want three facilities RE-9 did
      not build.** Hall of Gemstone ("that player chooses a color … lands

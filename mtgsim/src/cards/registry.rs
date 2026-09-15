@@ -852,6 +852,7 @@ impl CardRegistry {
         registry.register("Mana Reflection", phase_re9_cards::mana_reflection);
         registry.register("Nyxbloom Ancient", phase_re9_cards::nyxbloom_ancient);
         registry.register("Deep Water", phase_re9_cards::deep_water);
+        registry.register("Pale Moon", phase_re9_cards::pale_moon);
 
         // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
         // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and

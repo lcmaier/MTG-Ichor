@@ -852,14 +852,23 @@ pub(crate) fn pattern_watches(
             defs.iter().any(|d| kind.as_ref().is_none_or(|k| k.matches(d)))
         }
 
-        // CR 106.12b's two constraints on a mana production: whether the
-        // permanent was tapped for it (CR 106.12's definition, a fact on the
-        // proposal) and *which* permanent — "a land", "a land you control",
-        // "a basic land" — asked of the source the way `DealDamage`'s filter
-        // is asked of its source, with `unwrap_or(false)` on the same three
-        // authoring errors. A spell's production has a spell for a source,
-        // which no land filter matches. Which *player* the effect is around
-        // is `set_affects`'s question.
+        // CR 106.12b's two constraints on a mana production. The *event*
+        // knows both facts outright — `actual` is a `bool`, `producer` an
+        // id — and the *pattern* states each as an `Option` because an effect
+        // may decline to ask: `None` on a pattern field is "this effect does
+        // not care", which is satisfied by every production, and that is the
+        // first `unwrap_or(true)` on each side. Mana Reflection's "if you tap
+        // a permanent for mana" asks `Some(true)` and nothing of the
+        // permanent; Deep Water's "a land you control" asks both.
+        //
+        // The inner `unwrap_or(false)` is a different thing: it swallows the
+        // `Err` `object_matches_filter` returns for an id with no object,
+        // `ObjectFilter::EachOther` with nothing to be other than, or
+        // `PowerLE` on a source with no power — the three card-authoring
+        // errors `DealDamage`'s arm swallows the same way, recorded as
+        // `codebase-state.md` item 103. A spell's production has a spell for a
+        // source, which no land filter matches. Which *player* the effect is
+        // around is `set_affects`'s question.
         (
             EventPattern::ProduceMana { tapped_for_mana, source: filter },
             GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
