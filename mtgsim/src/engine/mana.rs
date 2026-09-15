@@ -74,19 +74,24 @@ impl GameState {
     ///
     /// Mana abilities resolve immediately without the stack (rule 605.3b),
     /// so game state cannot change between activation and resolution, and a
-    /// dynamic amount is safe to read off the board here. The amounts go
-    /// through the same `evaluate_amount` a resolving spell's do, against a
-    /// resolution context with no targets — a mana ability has none (CR
-    /// 605.1a) — so a target-dependent expression is refused by that
-    /// function rather than here. Doubling Cube's `UnspentMana` is the first
-    /// dynamic amount a mana ability carries; Selvala's "greatest power" is
-    /// `CountOf`'s shape when it arrives.
+    /// dynamic amount is safe to read off the board here. **It is a
+    /// resolution**, so it gets a `ResolutionContext` like any other — the
+    /// permanent is both `source` (there is no stack object, CR 605.3b) and
+    /// `ability_source` (CR 113.7a's "the permanent whose ability is
+    /// resolving") — and the amounts go through the same `evaluate_amount` a
+    /// spell's do; a mana ability has no targets (CR 605.1a), so a
+    /// target-dependent expression is refused by that function rather than
+    /// here. Doubling Cube's `UnspentMana` is the first dynamic amount a mana
+    /// ability carries; Selvala's "greatest power" is `CountOf`'s shape when
+    /// it arrives.
     ///
-    /// The production is a proposal (CR 106.6a's replaceable event) and its
-    /// batch is its own, separate from the cost's: CR 605.3b makes the
-    /// resolution a step after the activation, and CR 106.12a's triggers
-    /// fire "whenever such a mana ability resolves and produces mana", not
-    /// when the permanent taps. A `Sequence` proposes one event per atom.
+    /// The production is a proposal (CR 106.6a's replaceable event), made
+    /// **under this resolution's stamp** so the log says which ability added
+    /// the mana, as it already does for Dark Ritual's; its batch is its own,
+    /// separate from the cost's: CR 605.3b makes the resolution a step after
+    /// the activation, and CR 106.12a's triggers fire "whenever such a mana
+    /// ability resolves and produces mana", not when the permanent taps. A
+    /// `Sequence` proposes one event per atom.
     fn resolve_mana_effect(
         &mut self,
         effect: &Effect,
@@ -97,14 +102,8 @@ impl GameState {
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let resolution = ResolutionContext {
-                    source,
-                    ability_source: None,
-                    controller: player_id,
-                    targets: Vec::new(),
-                    replaced_amount: None,
-                    damage_prevented: None,
-                };
+                let mut resolution = ResolutionContext::untargeted(source, player_id);
+                resolution.ability_source = Some(source);
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount_expr) in &output.mana {
                     mana.push((*mana_type, self.evaluate_amount(amount_expr, &resolution)?));
@@ -117,7 +116,7 @@ impl GameState {
                         special: output.special.clone(),
                         tapped_for_mana,
                     },
-                    ctx,
+                    &ActionContext::resolving(ctx.dp, &resolution),
                 )
             }
             Effect::Sequence(effects) => {

@@ -85,6 +85,24 @@ pub enum AmountExpr {
     /// type", and the Cube's ruling counts {U}{U}{U} spendable only on
     /// artifact spells as three blue.
     ///
+    /// **Its own arm, on this enum's own convention**: one arm per printed
+    /// quantity, evaluated where it is read — [`Self::AffectedManaValue`],
+    /// [`Self::DamageDealt`] and [`Self::StartingLifeTotal`] are the
+    /// precedents. Not a [`Self::CountOf`], because a [`Selector`] selects
+    /// *objects* and mana is not one, and `CountOf` has no resolution-time
+    /// evaluator anyway. And a category rather than one card's: eight
+    /// printed cards read unspent mana (Scryfall, 2026-09-15), five as an
+    /// amount. The two axes the arm would grow along are named by the
+    /// cards that would need them and are waited for, since each is a
+    /// compiler-forced field here and one arm at the evaluator: a **total
+    /// across types** (Glissa Sunseeker's "if its mana value is equal to the
+    /// amount of unspent mana you have") as an `Option<ManaType>`, and
+    /// **another player's pool** (Drain Power's "you add the mana lost this
+    /// way", Pygmy Hippo's "equal to the amount of mana that player lost")
+    /// as a `PlayerRef`. Omnath, Locus of Mana reads the same quantity on
+    /// the layer side ("Omnath gets +1/+1 for each unspent green mana you
+    /// have"), where `layers::compute` would evaluate it.
+    ///
     /// The first dynamic amount a mana ability carries, and the reason
     /// `resolve_mana_effect` evaluates rather than reading `Fixed` alone.
     UnspentMana(crate::types::mana::ManaType),

@@ -60,6 +60,30 @@ pub struct ResolutionContext {
     pub damage_prevented: Option<u64>,
 }
 
+impl ResolutionContext {
+    /// A resolution that names nothing — no targets, no rider, and no
+    /// permanent distinct from `source`.
+    ///
+    /// The literal this replaces set the two CR 615.5 numbers to `None` at
+    /// every site that was not a rider, which read as a claim about riders
+    /// being made by code that had never heard of them. **The two fields are
+    /// one optional thing wearing two `Option`s** — "for a rider and for
+    /// nothing else", their own docs say — and the type-side fix is a single
+    /// `rider: Option<RiderAmounts>`; that is a 48-site sweep and its own PR
+    /// (`codebase-state.md` "Found by RE-9", item 137). This constructor is
+    /// the call-side fix, and it is what a mana ability's resolution uses.
+    pub fn untargeted(source: ObjectId, controller: PlayerId) -> Self {
+        ResolutionContext {
+            source,
+            ability_source: None,
+            controller,
+            targets: Vec::new(),
+            replaced_amount: None,
+            damage_prevented: None,
+        }
+    }
+}
+
 /// A resolved target — validated as legal when the spell/ability was put on the
 /// stack. Legality is re-checked at resolution time (rule 608.2b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
