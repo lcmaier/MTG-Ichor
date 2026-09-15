@@ -387,7 +387,7 @@ fn test_summoning_sick_cannot_attack() {
     // so process_declare_attackers sees no legal pairs and returns Ok(false).
     let scripted = ScriptedDecisionProvider::new();
     let result = game.state.process_declare_attackers(&scripted);
-    assert_eq!(result.unwrap(), false);
+    assert!(!result.unwrap());
     // Creature should NOT be attacking
     assert!(game.state.battlefield.get(&bears_id).unwrap().attacking.is_none());
 }

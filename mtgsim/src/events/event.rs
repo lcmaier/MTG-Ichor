@@ -213,10 +213,10 @@ pub enum GameEvent {
     /// recompute the count from the library's length whenever a reader wants
     /// it. But "Scry 1. Draw a card." against a **one-card library** looks at
     /// that card and then draws it: by the time a trigger is put on the stack
-    /// the library holds zero, and the derivation gives 0 where the answer is
-    /// 1. Anything that empties or refills a library between the scry and the
-    /// read does the same. The count is a fact about an instant that has
-    /// passed, which is what an event log is for — the same argument
+    /// the library holds zero, and the derivation gives 0 where the answer is 1.
+    /// Anything that empties or refills a library between the scry and the read
+    /// does the same. The count is a fact about an instant that has passed,
+    /// which is what an event log is for — the same argument
     /// [`Self::ZoneChange`]'s `lki` frame makes one field over.
     ///
     /// **Not a zone change, even when cards moved.** A card going to the

@@ -490,10 +490,9 @@ fn land_mana_colors(card: &CardData) -> Vec<Color> {
             continue;
         };
         for (mana_type, _) in &output.mana {
-            if let Some(color) = mana_type_to_color(*mana_type) {
-                if !colors.contains(&color) {
-                    colors.push(color);
-                }
+            if let Some(color) = mana_type_to_color(*mana_type)
+                && !colors.contains(&color) {
+                colors.push(color);
             }
         }
     }
@@ -574,8 +573,10 @@ fn extract_stats<'a>(
     watch: &[String],
     required_colors: &std::collections::HashSet<Color>,
 ) -> GameStats {
-    let mut stats = GameStats::default();
-    stats.reach = watch.iter().map(|n| (n.clone(), 0, 0)).collect();
+    let mut stats = GameStats {
+        reach: watch.iter().map(|n| (n.clone(), 0, 0)).collect(),
+        ..Default::default()
+    };
     // Set at the first `PlayerLost`; the turns after it are the departure row.
     let mut departed = false;
 
@@ -1070,7 +1071,6 @@ fn run_one_game(
 /// results and they are merged and sorted at the end — no locking on the hot
 /// path, and the sort is what guarantees the output is thread-count
 /// independent.
-#[allow(clippy::too_many_arguments)]
 fn run_games(
     registry: &CardRegistry,
     master_seed: u64,

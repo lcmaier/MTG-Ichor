@@ -59,7 +59,7 @@ pub fn determine_total_cost(
                 .filter(|s| !matches!(s, ManaSymbol::X))
                 .copied()
                 .collect();
-            symbols.extend(std::iter::repeat(ManaSymbol::Generic).take(x_value as usize * x_count));
+            symbols.extend(std::iter::repeat_n(ManaSymbol::Generic, x_value as usize * x_count));
             vec![Cost::Mana(ManaCost::from_symbols(symbols))]
         }
     };
@@ -303,7 +303,7 @@ fn apply_total_at_least(mana: &mut ManaCost, n: u8) {
     let value = mana.mana_value();
     if value < n {
         let mut symbols = std::mem::take(&mut mana.symbols);
-        symbols.extend(std::iter::repeat(ManaSymbol::Generic).take((n - value) as usize));
+        symbols.extend(std::iter::repeat_n(ManaSymbol::Generic, (n - value) as usize));
         *mana = canonical(symbols);
     }
 }

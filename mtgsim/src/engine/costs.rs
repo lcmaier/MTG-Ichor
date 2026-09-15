@@ -1,3 +1,20 @@
+//! Shared cost payment logic — CR 601.2h and 602.2b.
+//!
+//! All spells and ability types (mana, activated, spell casting) that need to pay costs
+//! funnel through this module. This avoids duplicating the cost payment
+//! pattern across mana_abilities.rs, activated.rs, etc. *Determining* a
+//! spell's total cost (CR 601.2f) is `engine::cost_determination`'s.
+//!
+//! **Deciding is separated from performing.** [`GameState::plan_payment`]
+//! takes every choice CR 601.2h's payment needs — the generic mana split, and
+//! which permanents pay a `Cost::Sacrifice` — against the board as it stands
+//! before anything is paid; [`GameState::pay_costs`] then performs the plan
+//! and asks nobody anything. **No payment prompt is asked after a payment has
+//! been performed**, which is what lets a client stage a payment and let the
+//! player take it back until they confirm: the engine never holds a
+//! half-performed one. It is also the shape the replacement pipeline already
+//! uses for CR 704.3 (`replacement-architecture.md` §4.1).
+
 use std::collections::HashMap;
 
 use crate::engine::actions::{ActionContext, GameAction, LifeLossCause, ZoneChangeCause};
@@ -9,23 +26,6 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
-
-/// Shared cost payment logic — CR 601.2h and 602.2b.
-///
-/// All spells and ability types (mana, activated, spell casting) that need to pay costs
-/// funnel through this module. This avoids duplicating the cost payment
-/// pattern across mana_abilities.rs, activated.rs, etc. *Determining* a
-/// spell's total cost (CR 601.2f) is `engine::cost_determination`'s.
-///
-/// **Deciding is separated from performing.** [`GameState::plan_payment`]
-/// takes every choice CR 601.2h's payment needs — the generic mana split, and
-/// which permanents pay a `Cost::Sacrifice` — against the board as it stands
-/// before anything is paid; [`GameState::pay_costs`] then performs the plan
-/// and asks nobody anything. **No payment prompt is asked after a payment has
-/// been performed**, which is what lets a client stage a payment and let the
-/// player take it back until they confirm: the engine never holds a
-/// half-performed one. It is also the shape the replacement pipeline already
-/// uses for CR 704.3 (`replacement-architecture.md` §4.1).
 
 /// The decisions CR 601.2h's payment needs, taken against one board.
 ///

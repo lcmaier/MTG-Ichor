@@ -91,10 +91,9 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
     // clause of the card's text and the clause is a `Condition`; see
     // [`stated_zones`] for why that is the CR's shape rather than a
     // convenience.
-    if let Effect::Conditional(condition, _) = &ability.effect {
-        if let Some(zones) = stated_zones(condition) {
-            return zones;
-        }
+    if let Effect::Conditional(condition, _) = &ability.effect
+        && let Some(zones) = stated_zones(condition) {
+        return zones;
     }
 
     default_zones(types)

@@ -250,12 +250,11 @@ impl DecisionProvider for CliDecisionProvider {
                     valid = false;
                     break;
                 }
-                if let Some(maxs) = per_bucket_maxs {
-                    if val > maxs[i] {
-                        println!("Bucket {} allows at most {}, got {}.", i, maxs[i], val);
-                        valid = false;
-                        break;
-                    }
+                if let Some(maxs) = per_bucket_maxs
+                    && val > maxs[i] {
+                    println!("Bucket {} allows at most {}, got {}.", i, maxs[i], val);
+                    valid = false;
+                    break;
                 }
             }
             if valid {

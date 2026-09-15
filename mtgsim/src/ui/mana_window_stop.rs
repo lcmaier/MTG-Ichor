@@ -73,10 +73,9 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         // number of further mana abilities could have helped, so the old loop
         // was asking a question with no answer. A mana ability pays CR 601.2h's
         // mana; the rest of the total is not its business.
-        if let ChoiceKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind {
-            if remaining_cost.symbols.is_empty() {
-                return Vec::new();
-            }
+        if let ChoiceKind::ManaAbilityWindow { remaining_cost, .. } = &context.kind
+            && remaining_cost.symbols.is_empty() {
+            return Vec::new();
         }
         self.inner.pick_n(game, player, context, options, bounds)
     }

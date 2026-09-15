@@ -87,11 +87,10 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)
 fn lki_for(game: &GameState, id: ObjectId) -> Option<&EffectiveCharacteristics> {
     let mut found = None;
     for e in game.events.events() {
-        if let GameEvent::ZoneChange { object_id, lki, .. } = e {
-            if *object_id == id {
-                assert!(found.is_none(), "expected exactly one zone change for {}", id);
-                found = Some(lki.as_deref());
-            }
+        if let GameEvent::ZoneChange { object_id, lki, .. } = e
+            && *object_id == id {
+            assert!(found.is_none(), "expected exactly one zone change for {}", id);
+            found = Some(lki.as_deref());
         }
     }
     found.expect("no zone change for that object")

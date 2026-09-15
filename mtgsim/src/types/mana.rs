@@ -1127,7 +1127,7 @@ mod tests {
             s.insert(CardType::Instant);
             s
         });
-        static SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(|| HashSet::new());
+        static SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(HashSet::new);
         SpendContext {
             purpose: SpendPurpose::CastSpell {
                 card_types: &TYPES,
@@ -1456,7 +1456,7 @@ mod tests {
             s.insert(CardType::Artifact);
             s
         });
-        static ART_SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(|| HashSet::new());
+        static ART_SUBTYPES: LazyLock<HashSet<Subtype>> = LazyLock::new(HashSet::new);
         let ability_ctx = SpendContext {
             purpose: SpendPurpose::ActivateAbility {
                 source_card_types: &ART_TYPES,

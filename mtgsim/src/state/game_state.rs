@@ -264,6 +264,7 @@ pub struct GameState {
     /// - First strikers: dealt first-strike damage, skip normal step.
     /// - Double strikers: dealt first-strike damage, deal again in normal step.
     /// - Normal creatures: skip first-strike step, deal in normal step.
+    ///
     /// Cleared with other combat state in on_phase_end(Combat).
     pub dealt_first_strike_damage: HashSet<ObjectId>,
 
@@ -1218,21 +1219,20 @@ impl GameState {
             Some(obj) => obj.card_data.loyalty,
             None => return mods,
         };
-        if let Some(loyalty) = loyalty {
-            if loyalty > 0 {
-                let is_planeswalker = crate::engine::layers::compute_as_entering(
-                    self, id, controller, &EnterMods::NONE,
-                )
-                .is_some_and(|chars| {
-                    chars.types.contains(&crate::types::card_types::CardType::Planeswalker)
+        if let Some(loyalty) = loyalty
+            && loyalty > 0 {
+            let is_planeswalker = crate::engine::layers::compute_as_entering(
+                self, id, controller, &EnterMods::NONE,
+            )
+            .is_some_and(|chars| {
+                chars.types.contains(&crate::types::card_types::CardType::Planeswalker)
+            });
+            if is_planeswalker {
+                mods.counters.push(crate::types::replacement::EntryCounters {
+                    counter: CounterType::Loyalty,
+                    n: loyalty as u32,
+                    by: None,
                 });
-                if is_planeswalker {
-                    mods.counters.push(crate::types::replacement::EntryCounters {
-                        counter: CounterType::Loyalty,
-                        n: loyalty as u32,
-                        by: None,
-                    });
-                }
             }
         }
 
@@ -1369,19 +1369,17 @@ impl GameState {
         }
         // This creature was attacking: its blockers stop blocking it.
         for blocker in was_blocked_by {
-            if let Some(b) = self.battlefield.get_mut(&blocker) {
-                if let Some(info) = b.blocking.as_mut() {
-                    info.blocking.retain(|&a| a != id);
-                }
+            if let Some(b) = self.battlefield.get_mut(&blocker)
+                && let Some(info) = b.blocking.as_mut() {
+                info.blocking.retain(|&a| a != id);
             }
         }
         // This creature was blocking: the attackers stop being blocked by it.
         // CR 506.4b leaves them *blocked* — they simply have no blockers.
         for attacker in was_blocking {
-            if let Some(a) = self.battlefield.get_mut(&attacker) {
-                if let Some(info) = a.attacking.as_mut() {
-                    info.blocked_by.retain(|&b| b != id);
-                }
+            if let Some(a) = self.battlefield.get_mut(&attacker)
+                && let Some(info) = a.attacking.as_mut() {
+                info.blocked_by.retain(|&b| b != id);
             }
         }
     }
@@ -1598,10 +1596,10 @@ impl GameState {
                 continue;
             }
 
-            let atoms = Self::static_ability_atoms(ability, &card_name);
+            let atoms = Self::static_ability_atoms(ability, card_name);
 
             for (primitive, recipient) in atoms {
-                let Some(affected) = Self::static_object_set(recipient, &card_name) else {
+                let Some(affected) = Self::static_object_set(recipient, card_name) else {
                     continue;
                 };
 

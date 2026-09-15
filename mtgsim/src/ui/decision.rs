@@ -292,6 +292,12 @@ pub struct ScriptedDecisionProvider {
     allocation_mins: RefCell<Vec<Vec<u64>>>,
 }
 
+impl Default for ScriptedDecisionProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScriptedDecisionProvider {
     pub fn new() -> Self {
         ScriptedDecisionProvider {

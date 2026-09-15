@@ -67,21 +67,14 @@ pub fn find_mana_sources(
     // For each colored need, find a source that produces exactly that color.
     // TODO: Prefer single-color producers to avoid wasting dual-producers (not yet implemented).
     for needed_color in &color_needs {
-        if let Some(idx) = available.iter().position(|s| s.produces == *needed_color) {
-            tapped.push(available.remove(idx));
-        } else {
-            // Can't satisfy this colored requirement
-            return None;
-        }
+        let idx = available.iter().position(|s| s.produces == *needed_color)?;
+        tapped.push(available.remove(idx));
     }
 
     // Phase 2: Assign remaining sources to cover generic cost.
     for _ in 0..generic_need {
-        if let Some(source) = available.pop() {
-            tapped.push(source);
-        } else {
-            return None;
-        }
+        let source = available.pop()?;
+        tapped.push(source);
     }
 
     Some(tapped)
@@ -128,14 +121,13 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
             ) = &ability.effect
             {
                 for (mana_type, amount_expr) in &output.mana {
-                    if let crate::types::effects::AmountExpr::Fixed(amount) = amount_expr {
-                        if *amount > 0 {
-                            sources.push(ManaSource {
-                                permanent_id: id,
-                                ability_id: ability.id,
-                                produces: *mana_type,
-                            });
-                        }
+                    if let crate::types::effects::AmountExpr::Fixed(amount) = amount_expr
+                        && *amount > 0 {
+                        sources.push(ManaSource {
+                            permanent_id: id,
+                            ability_id: ability.id,
+                            produces: *mana_type,
+                        });
                     }
                 }
             }
@@ -191,10 +183,9 @@ pub fn castable_spells(
         // (CR 303.4a) and it has no spell ability to ask.
         if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) =
             spell_recipient(&obj.card_data)
+            && !game.has_any_legal_choice(f, None, player_id)
         {
-            if !game.has_any_legal_choice(f, None, player_id) {
-                continue;
-            }
+            continue;
         }
 
         // A mandatory additional cost is part of what casting takes, so a
@@ -447,7 +438,7 @@ fn can_afford_ability_costs(
                 }
             }
             other => {
-                if game.can_pay_costs(&[other.clone()], player_id, source_id).is_err() {
+                if game.can_pay_costs(std::slice::from_ref(other), player_id, source_id).is_err() {
                     return false;
                 }
             }

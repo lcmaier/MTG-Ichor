@@ -326,7 +326,7 @@ pub fn ask_choose_trample_damage_assignment(
     let ctx = ChoiceContext {
         kind: ChoiceKind::AssignTrampleDamage {
             attacker_id,
-            defending_target: defending_target.clone(),
+            defending_target,
         },
     };
     let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
@@ -1442,7 +1442,7 @@ mod tests {
         for _ in 0..20 {
             let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
             assert!(
-                result.len() >= 1 && result.len() <= 2,
+                !result.is_empty() && result.len() <= 2,
                 "pick_n returned {} selections, expected 1-2",
                 result.len()
             );

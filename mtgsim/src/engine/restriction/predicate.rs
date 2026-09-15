@@ -64,12 +64,10 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     //
     // Ahead of the gate, because `get_effective_abilities` is not how a keyword
     // is found and the gate would skip it (§3.5 commitment 2).
-    if let Query::Event { action, .. } = query {
-        if let EventSubject::Object(id) = subject_of(action) {
-            if keyword_prohibits(game, id, action) {
-                return true;
-            }
-        }
+    if let Query::Event { action, .. } = query
+        && let EventSubject::Object(id) = subject_of(action)
+        && keyword_prohibits(game, id, action) {
+        return true;
     }
 
     // The fast-path gate, and it is exact rather than a heuristic — the same

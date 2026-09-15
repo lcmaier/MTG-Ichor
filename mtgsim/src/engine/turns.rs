@@ -319,18 +319,15 @@ impl GameState {
         }
 
         // Phase-specific cleanup
-        match phase_type {
-            PhaseType::Combat => {
-                // Clear combat state from all permanents
-                for (_id, entry) in &mut self.battlefield {
-                    entry.clear_combat_state();
-                }
-                self.attacks_declared = false;
-                self.blockers_declared = false;
-                self.blocker_damage_divisions.clear();
-                self.dealt_first_strike_damage.clear();
+        if phase_type == PhaseType::Combat {
+            // Clear combat state from all permanents
+            for entry in self.battlefield.values_mut() {
+                entry.clear_combat_state();
             }
-            _ => {}
+            self.attacks_declared = false;
+            self.blockers_declared = false;
+            self.blocker_damage_divisions.clear();
+            self.dealt_first_strike_damage.clear();
         }
 
         Ok(())
@@ -365,7 +362,7 @@ impl GameState {
 
                 // Rule 514.2: Remove all damage marked on permanents and end
                 // "until end of turn" / "this turn" effects (simultaneous)
-                for (_id, entry) in &mut self.battlefield {
+                for entry in self.battlefield.values_mut() {
                     entry.damage_marked = 0;
                     entry.damaged_by_deathtouch = false;
                 }
@@ -408,16 +405,12 @@ impl GameState {
         Ok(())
     }
 
-    fn on_step_end(&mut self, step_type: StepType) -> Result<(), String> {
+    fn on_step_end(&mut self, _step_type: StepType) -> Result<(), String> {
         // Mana pools empty at end of each step (rule 106.4)
         // TODO(T12c): build BlanketPersistenceSet from continuous effects layer
         let blanket = BlanketPersistenceSet::none();
         for player in &mut self.players {
             player.mana_pool.empty_with_reason(ManaEmptyReason::StepOrPhase, &blanket);
-        }
-
-        match step_type {
-            _ => {} // Future: step-specific cleanup
         }
         Ok(())
     }
