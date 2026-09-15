@@ -74,12 +74,9 @@ pub(crate) struct Rider {
     /// `EffectRecipient::Target` in a `then` names the object or the player the
     /// replacement was about.
     ///
-    /// **An [`EventSubject`], not an `Option<ObjectId>`, from RD-1 on.** It was
-    /// the latter while every rider rode on an object event, and flattening a
-    /// player subject to `None` cost nothing then. Reverse Damage's "you gain
-    /// life" and Angel of Suffering's mill are riders on a *player* subject, and
-    /// they need to name that player (`replacement-architecture.md` §11
-    /// item 16, `codebase-state.md` item 27).
+    /// An [`EventSubject`] rather than an object id: a rider on a *player* event
+    /// (Reverse Damage's gain, Angel of Suffering's mill) has to name the player
+    /// (`replacement-architecture.md` §11 item 16).
     pub subject: EventSubject,
     /// The amount the replaced event carried when this rider was queued, read
     /// by `AmountExpr::ReplacedAmount` — CR 615.5's "that much"/"that many".
@@ -333,19 +330,9 @@ pub(crate) fn apply_replacements(
     );
 
     let mut applied: HashSet<ReplacementInstanceId> = inherited.clone();
-    // Declining is tracked **separately from CR 614.5's applied set**, and it
-    // has to be.
-    //
-    // CR 903.9b is `exempt_from_614_5`, which means the applied set does not
-    // filter it — that is the whole of the exception. It is also `optional`.
-    // Put those together with §4.1's decline path, which marks the effect
-    // applied and continues, and the loop re-offers the same declined choice
-    // forever: the mark is there but the filter ignores it. A hang, not a wrong
-    // answer, which is the worst shape of bug.
-    //
-    // The two sets are genuinely different questions. CR 614.5 is about
-    // *applying* more than once, and 903.9b's exception is to that. Declining
-    // is a final answer about this event, and no rule exempts anything from it.
+    // Declining is tracked separately from CR 614.5's applied set: CR 903.9b is
+    // both `exempt_from_614_5` and optional, so a decline recorded only in the
+    // applied set is re-offered forever — a hang (`CLAUDE.md`; §11 item 14).
     let mut declined: HashSet<ReplacementInstanceId> = HashSet::new();
     // Which exempt effect has applied, if any — see `check_exempt_terminates`,
     // which owns the whole termination argument for the effects CR 614.5 does
@@ -359,19 +346,12 @@ pub(crate) fn apply_replacements(
         members.into_iter().map(|m| (m.index, m.event)).collect()
     };
 
-    // Unbounded on purpose. **Every iteration consumes something finite**, and
-    // the three things that guarantee it are each enforced in code rather than
-    // asserted here: CR 614.5's `applied` set, the `declined` set, and
-    // `check_exempt_terminates` for the one class CR 614.5 exempts. A candidate
-    // pool cannot grow mid-loop either — `apply_rewrite` only rewrites the
-    // proposal and riders are queued rather than run (§4.1a), so nothing
-    // touches the board between iterations.
+    // Unbounded on purpose: every iteration consumes something finite — CR 614.5's
+    // `applied`, `declined`, or `check_exempt_terminates`'s slot — and nothing
+    // touches the board between iterations (riders queue, §4.1a).
     loop {
-        // CR 614.7a: an event that never happens has no replacement to make,
-        // and any rider it queued would be spent on nothing. Ahead of even the
-        // "can't" check, because there is no event here to forbid. Per member,
-        // because a prevention can empty one member of a group and leave the
-        // rest for the next iteration to see.
+        // CR 614.7a — a non-event has nothing to replace; ahead of the "can't" check,
+        // and per member, since a prevention can empty one member of a group.
         for m in &mut members {
             if m.event.as_ref().is_some_and(never_happens) {
                 m.event = None;
@@ -383,17 +363,10 @@ pub(crate) fn apply_replacements(
             return Ok((finish(members), applied));
         };
 
-        // **The group's key is not the members' subject after RD-4**, and the
-        // shadow is where that stops being a distinction without a difference.
-        // `subject` above is the key `execute_batch_inner` grouped by — one
-        // CR 616.1 loop, one applied set, one chooser — and it is fixed for the
-        // life of the group. A `Rewrite::Retarget` moves an *event's* subject
-        // (CR 614.9), so from the second iteration on the two can disagree, and
-        // every question below is about the event rather than about the group:
-        // who chooses (CR 616.1's affected object's controller), which object a
-        // prompt names, and which object a `RemoveCountersFromAffected` takes a
-        // counter from. Re-derived per iteration for the same reason `gather`
-        // is — CR 616.1f re-gathers against the modified event.
+        // The group's key, not the member's subject: a `Rewrite::Retarget` (CR 614.9)
+        // moves an event's subject, so from the second iteration the two can differ,
+        // and every question below — chooser, prompt, counter subject — is the event's.
+        // Re-derived per iteration for the same reason `gather` is (CR 616.1f).
         let subject = subject_of(&first);
 
         // CR 614.12 / 614.17d — the frame both questions below read for an
@@ -402,34 +375,23 @@ pub(crate) fn apply_replacements(
         // says the frame accounts for the replacements already applied.
         let frame = EntryFrame::new(game, &first);
 
-        // CR 614.4 — gathered against live state at the moment of proposal.
-        // There is no "go back in time" path because there is no other place
-        // to ask. Per member, and the union keyed by CR 614.5's identity: one
-        // instance that applies to two members is one candidate with two
-        // members, and it is offered to the chooser once.
+        // CR 614.4 — gathered against live state at proposal, per member, keyed by
+        // CR 614.5's identity: one instance over two members is one candidate.
         let mut candidates: Vec<Candidate> = Vec::new();
         for (pos, m) in members.iter_mut().enumerate() {
             let Some(event) = m.event.as_ref() else {
                 continue;
             };
-            // CR 614.17: a "can't" is checked ahead of the pipeline and wins
-            // (CR 101.2). Not a `ReplacementDef` and never one — modeling it
-            // as one would have put it in the CR 616.1 choice list, where a
-            // player could decline it.
-            //
-            // Re-asked on every iteration rather than once at the top, because
-            // CR 614.17c lets a self-replacement change the event's *type*,
-            // and an event of a different type is a different "can't"
-            // question.
+            // CR 614.17: a "can't" is checked ahead of the pipeline and wins (CR 101.2);
+            // never a `ReplacementDef`, or a player could decline it. Re-asked every
+            // iteration because CR 614.17c lets a self-replacement change the event's type.
             let blocked = is_prohibited(
                 game,
                 &Query::Event {
                     action: event,
-                    // Which source caused this, for a "can't" that names one
-                    // (§2.6's Sigarda family). `ActionContext` already threads
-                    // the resolution that proposed this; a turn-based or
-                    // state-based action has none, and no `SourceFilter`
-                    // matches it.
+                    // The source behind this event, for a "can't" that names one (Sigarda's
+                    // family): the resolution `ActionContext` threads, or none for a turn-based
+                    // or state-based action.
                     cause: cause_of(ctx),
                     lookahead: Some(&frame),
                 },
@@ -468,19 +430,10 @@ pub(crate) fn apply_replacements(
         // chooser for the whole group.
         let chooser = chooser_for(game, &first);
 
-        // **Never prompt with fewer than two candidates.** CR-correct (there is
-        // no choice to make with one), and it is what keeps every existing
-        // `ScriptedDecisionProvider` test green rather than drowning it in
-        // unexpected prompts now that every `execute_action` traverses this
-        // loop. If a phase finds itself relaxing this to make something work,
-        // it has found a design error, not a test problem
-        // (`replacement-architecture.md` §11 item 7).
-        //
-        // **And never prompt for a choice with one outcome** — §11 item 19.
-        // `ordering_cannot_change_outcome` is the provable form of that
-        // rule, and `unsuppressed` — the members it was chosen over, each with
-        // the group members it applied to — is what the debug build checks it
-        // against after the rewrite below.
+        // **Never prompt with fewer than two candidates** (`CLAUDE.md`; §11 item 7),
+        // and never for a choice with one outcome (§11 item 19):
+        // `ordering_cannot_change_outcome` is the provable form, and `unsuppressed`
+        // is what the debug build checks it against after the rewrite.
         let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
         let chosen = if choosable.len() == 1 {
             choosable.into_iter().next().expect("len checked")
@@ -516,12 +469,9 @@ pub(crate) fn apply_replacements(
         };
         let Candidate { instance: chosen, members: applicable } = chosen;
 
-        // "You **may** ... instead". Declining marks it applied but does not
-        // consume a use: being offered and refusing *is* CR 614.5's one
-        // opportunity, and without the mark the loop re-gathers the same
-        // candidate forever — a hang rather than a wrong answer. Not consuming
-        // the use is what leaves a regeneration shield intact for the next
-        // event.
+        // "You **may** … instead": declining marks it applied — the offer is CR 614.5's
+        // one opportunity, and without the mark the loop re-gathers it forever — but
+        // spends no use, so a declined regeneration shield stays for the next event.
         if chosen.def.optional {
             let chooser = chooser.ok_or_else(|| {
                 format!("optional replacement on {:?} has no player to ask", subject)
@@ -545,16 +495,10 @@ pub(crate) fn apply_replacements(
             applied.insert(chosen.id);
         }
 
-        // **The one rewrite that is not the same for every member**, and it is
-        // one board: Mending Hands' count facing two attackers at once, which
-        // CR 615.7 splits by the shielded player's own allocation. Every other
-        // rewrite in the algebra applies identically to each member — a
-        // doubler doubles both, a `Prevent` drops both.
-        //
-        // Not Harm's Way, which is the *other* non-uniformity and is unbuilt:
-        // it splits one event into two with different targets, a phase-1
-        // member insertion rather than a per-member rewrite (§11 item 23,
-        // RD-5's gate).
+        // The one rewrite that differs per member: Mending Hands' count facing two
+        // attackers at once, split by CR 615.7's allocation. Every other rewrite
+        // applies identically to each member. Harm's Way, which splits one event into
+        // two, is a member insertion and unbuilt (§11 item 23).
         let shares = match (&chosen.def.rewrite, chosen.def.uses) {
             (Rewrite::Amount(AmountRewrite::PreventRemaining), Uses::NextDamage(remaining)) => {
                 Some(next_damage_shares(game, ctx, &chosen, remaining, &members, &applicable, later)?)
@@ -619,11 +563,9 @@ pub(crate) fn apply_replacements(
                 // The group's final applied set, once the loop has it.
                 lineage: HashSet::new(),
                 controller: chosen.controller,
-                // The subject of the first member this application touched,
-                // read *before* its own rewrite — CR 615.5's "that much" is
-                // about the event the effect replaced. Reverse Damage's rider
-                // names the player the damage was headed for, and a redirect
-                // applied later in the same loop does not rename him.
+                // The first member's subject, read before its rewrite: CR 615.5's "that much"
+                // is about the event the effect replaced, so a later redirect in the same loop
+                // does not rename Reverse Damage's player.
                 subject: rider_subject.unwrap_or(subject),
                 replaced_amount,
                 prevented: outcome.prevented,
@@ -751,16 +693,12 @@ fn next_damage_shares(
 /// means it does, and the affected player is asked. The name is the
 /// question's, not the implementation's (`codebase-state.md` item 65).
 ///
-/// **A commutation table, since RE-5's review; a list of shapes before it.**
-/// Each candidate is classified by what its application does to the event
-/// that another candidate could read — [`Commuting`] — and the prompt is
-/// suppressed when every pair of members commutes on every counter kind both
-/// touch. The list it replaces (all `EnterWith`, all multipliers, all draw
-/// doublers, one shared `Instead`, one exit) grew one shape per phase and
-/// was corrected four times (`engineering-practices.md` §4.1; `backlog.md`
-/// §2.29), each time because a pair the list had no word for was asked with
-/// one outcome. The table has a word for every pair, and a pair it has no
-/// commuting cell for is asked.
+/// **A commutation table** (`backlog.md` §2.29 has the shape list it replaced
+/// and why each shape was wrong). Each candidate is classified by what its
+/// application does to the event another candidate could read —
+/// [`Commuting`] — and the prompt is suppressed when every pair of members
+/// commutes on every counter kind both touch; a pair with no commuting cell
+/// is asked.
 ///
 /// **What it checks** (§4.1's first half). Per member, def data: the rewrite's
 /// arm, the pattern's kind and [`EventPattern::reads_the_amount`], a
@@ -1121,24 +1059,18 @@ fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
 /// compounds — "loses twice that much life instead" as a template rather than
 /// as an `AmountRewrite`, which is why doubling lives on that type.
 ///
-/// **Why `k` is not pinned, which is the step the substitute cell's first
-/// draft got wrong until the review asked what the check actually checks.**
-/// It argued that after one application "the same set of members is still
-/// applicable, since applicability is decided against that event". It is
-/// not: `applies_to` resolves `affected_objects` / `affected_players` against
+/// **Why `k` is not pinned.** `applies_to` resolves the affected sets against
 /// *each instance's own* controller and source, so two defs that are `==` as
-/// data can differ on the same event — `PlayerSet::Opponents` around two
-/// different permanents is the printed case. Order can change **which**
-/// members apply and **how many**; idempotence is what makes that not matter,
-/// and it is the clause that was doing the work unstated. `Rewrite` derives
-/// `PartialEq`, so "the same rewrite" is the *def data* being equal; nothing
-/// here compares game state. **The residual, named:** a candidate that
-/// becomes applicable only after the rewrite (CR 616.2) joins a later
-/// `choosable` alongside whichever members have not applied, and those
-/// differ by order. Their *outcomes* are equal, by the argument above; what
-/// is not identical is the source-object list a prompt would name. No
-/// printed card reaches it, and it is a different question from the one
-/// the predicate answers.
+/// data can differ on one event (`PlayerSet::Opponents` around two different
+/// permanents is the printed case): order can change **which** members apply
+/// and **how many**, and idempotence is what makes that not matter. `Rewrite`
+/// derives `PartialEq`, so "the same rewrite" is def data; nothing here
+/// compares game state. **The residual, named:** a candidate that becomes
+/// applicable only after the rewrite (CR 616.2) joins a later `choosable`
+/// beside whichever members have not applied, and those differ by order.
+/// Their *outcomes* are equal by the argument above; what differs is the
+/// source list a prompt would name, no printed card reaches it, and it is a
+/// different question from the one the predicate answers.
 fn template_is_idempotent(template: &GameActionTemplate) -> bool {
     match template {
         GameActionTemplate::ZoneChangeTo { .. } => true,
@@ -1146,12 +1078,9 @@ fn template_is_idempotent(template: &GameActionTemplate) -> bool {
         GameActionTemplate::DrawCards { .. } => true,
         GameActionTemplate::GainLife { .. } => true,
         GameActionTemplate::LoseLife { .. } => true,
-        // The one arm whose answer is worth deriving rather than reading off.
-        // `T(e)` reads the subject and preserves it, so `T(T(e)) = T(e)` as a
-        // function — and beyond the function, a win is *terminal*: CR 104.1
-        // ends the game at the first, so no `k > 1` trace is ever performed
-        // whatever the loop computes. Two Laboratory Maniacs on one draw are
-        // therefore one outcome with no prompt, which is this table's job.
+        // Derived rather than read off: `T(e)` preserves the subject, so T(T(e)) = T(e)
+        // — and a win is terminal (CR 104.1), so no k > 1 trace is ever performed.
+        // Two Laboratory Maniacs on one draw are one outcome, no prompt.
         GameActionTemplate::PlayerWins => true,
         // Retyping twice is retyping once, and `Fixed(n)` twice is `Fixed(n)`.
         GameActionTemplate::ProduceMana { .. } => true,
@@ -1303,12 +1232,10 @@ fn check_order_invariance(
         return;
     }
 
-    // The exit cell, chosen the way that stops the others applying: the exit
-    // was taken first, so the suppressed mods-shaped and arithmetic members
-    // no longer match and continued applicability is not the claim. The
-    // claim is that the exit's substitute ignores whatever they would have
-    // written, checked by substituting against the same entry with its mods
-    // disturbed.
+    // The exit cell: the exit is applied first, so continued applicability is not
+    // the claim — the claim is that its substitute ignores what the mods-shaped
+    // and arithmetic members would have written, checked against the same entry
+    // with its mods disturbed.
     if is_exit(&chosen.def.rewrite) {
         if let (
             Rewrite::Instead(template),
@@ -1458,12 +1385,11 @@ fn subject_object(subject: EventSubject) -> Option<ObjectId> {
 ///
 /// So `Uses::Once` (CR 701.19a's regeneration shield, CR 615.8's "next time")
 /// removes the registry row only when the rewrite took effect — regeneration
-/// always does, since a `Prevent` on a `Destroy` cannot do nothing, which is
-/// why the order never mattered before RD-2 — and `Uses::NextDamage` is
-/// reduced by exactly the damage prevented (CR 615.7), which for an
-/// unpreventable event (RD-4) or a `Once` half that rounded to nothing is 0.
-/// Either way a shield spent on one group of a batch is correctly gone or
-/// reduced when the next group asks, because this writes game state.
+/// always does, since a `Prevent` on a `Destroy` cannot do nothing — and
+/// `Uses::NextDamage` is reduced by exactly the damage prevented (CR 615.7),
+/// which for an unpreventable event (CR 615.12) or a `Once` half that rounded
+/// to nothing is 0. Either way a shield spent on one group of a batch is gone
+/// or reduced when the next group asks, because this writes game state.
 ///
 /// A counter-derived effect consumes nothing here on purpose: CR 122.1c/d make
 /// the counter removal the *substituted event* or the rider, which propose
@@ -1569,27 +1495,16 @@ fn apply_rewrite(
     subject: EventSubject,
     share: Option<u64>,
 ) -> Result<(Option<GameAction>, Applied), String> {
-    // Every arm but `Amount` changes the event whenever it is chosen — which
-    // is why the order of `consume_use` never mattered before RD-2 — and
+    // Every arm but `Amount` changes the event whenever it is chosen, and
     // prevents nothing (CR 615.1a).
     let changed = Applied { took_effect: true, prevented: 0 };
     match &chosen.def.rewrite {
-        // CR 614.6 / 615.6 — the event does not happen.
-        //
-        // **On damage it prevents all of it, and the number is what a rider
-        // reads.** CR 615.6's "prevent that damage" is the whole amount, and
-        // CR 615.5's "the damage prevented this way" is Reverse Damage's life
-        // gain. Reported here rather than derived by the caller from a `None`
-        // event, because only this arm knows the event was damage: a `Prevent`
-        // on a destruction is regeneration and prevents no damage at all
-        // (CR 615.1 is about damage), which is the same line
-        // `ReplacementDef::is_prevention` draws.
-        //
-        // **CR 615.12's first application site.** On damage the whole event is
-        // what this arm prevents, so an unpreventable event is exactly the case
-        // the rule describes: the effect "is still applied", prevents nothing —
-        // the event survives untouched — and nothing is spent. `prevented_or_0`
-        // is the shared consult; the second site is the `Amount` arm below.
+        // CR 614.6 / 615.6 — the event does not happen. On damage the whole amount is
+        // what CR 615.5's rider reads (Reverse Damage's gain), reported here because
+        // only this arm knows the event was damage: a `Prevent` on a destruction is
+        // regeneration and prevents no damage (CR 615.1). CR 615.12's first site: an
+        // unpreventable event survives untouched and nothing is spent; `prevented_or_0`
+        // is the shared consult, and the `Amount` arm below is the second site.
         Rewrite::Prevent => match &event {
             GameAction::DealDamage { amount, unpreventable, .. } => {
                 if is_unpreventable(game, *unpreventable, subject) {
@@ -1606,19 +1521,11 @@ fn apply_rewrite(
             _ => Ok((None, Applied { took_effect: true, prevented: 0 })),
         },
 
-        // CR 614.1c/d — the event still happens; only *how* changes.
-        //
-        // Merged into the proposal rather than substituted for it, which is
-        // what makes CR 616.1f's re-gather accumulate: a permanent facing an
-        // "enters tapped" and an "enters with two charge counters" comes out
-        // the far side with both, in either application order. CR 614.5 is
-        // what stops the merge from repeating — the pattern still watches the
-        // rewritten event, and the applied set is what makes that terminate
-        // rather than loop.
-        //
-        // CR 101.2 at the door: a "can't have counters put on it" refuses the
-        // counters this rewrite would add (CR 614.17d), and the entry goes on
-        // without them.
+        // CR 614.1c/d — the event still happens; only *how* changes. Merged into the
+        // proposal rather than substituted, so CR 616.1f's re-gather accumulates
+        // ("enters tapped" plus "enters with two charge counters", in either order)
+        // and CR 614.5's applied set is what makes the merge terminate. CR 101.2 at
+        // the door: a "can't have counters put on it" refuses the counters (CR 614.17d).
         Rewrite::EnterWith(template) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
                 let extra = evaluate_enter_template(
@@ -1670,15 +1577,10 @@ fn apply_rewrite(
             )),
         },
 
-        // CR 614.5's doublers and CR 615.10's partial prevention. The one arm
-        // whose whole job is to read the amount the last application left,
-        // which is what makes CR 616.1's ordering choice observable.
-        //
-        // **CR 615.12's second application site**, and there are two of them
-        // because RD-3 gave `Rewrite::Prevent` a prevented amount of its own:
-        // both arms have to answer the rule the same way, so both ask
-        // `is_unpreventable` (`replacement-architecture.md` §9, RD-4's
-        // "As landed").
+        // CR 614.5's doublers and CR 615.10's partial prevention: the arm that reads
+        // the amount the last application left, which is what makes CR 616.1's order
+        // observable. CR 615.12's second site — both arms ask `is_unpreventable` the
+        // same way (`replacement-architecture.md` §9, RD-4's "As landed").
         Rewrite::Amount(amount_rewrite) => match event {
             GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
                 // CR 615.7's cap is the instance's count. `PreventRemaining`
@@ -1705,11 +1607,9 @@ fn apply_rewrite(
                             chosen.id, other
                         ))
                     }
-                    // Refused here so `AmountRewrite::apply` never has to
-                    // answer for it: the clamp is about a life total, and
-                    // damage has none. Ali from Cairo watches the loss
-                    // CR 120.3a contains inside the damage, which is the leg
-                    // below.
+                    // Refused here so `AmountRewrite::apply` never answers for it: the clamp is
+                    // about a life total, and damage has none — Ali from Cairo watches the loss
+                    // CR 120.3a contains inside the damage, the leg below.
                     (AmountRewrite::LifeFloor(_), _) => {
                         return Err(format!(
                             "replacement {:?} floors a life total but matched damage. \
@@ -1722,11 +1622,9 @@ fn apply_rewrite(
                     }
                     (other, _) => *other,
                 };
-                // The consult is on the *prevention* arms only. Ghosts of the
-                // Innocent halves Excruciator's unpreventable 7 to 3 and
-                // Gisela prevents none of it, which is the whole reason
-                // `Halve` and `PreventHalf` are two arms (CR 615.12, §11
-                // item 28) — and here it is one `prevents_damage()`.
+                // The consult is on the prevention arms only: Ghosts of the Innocent halves
+                // Excruciator's unpreventable 7 to 3 and Gisela prevents none of it — why
+                // `Halve` and `PreventHalf` are two arms (CR 615.12, §11 item 28).
                 let (after, prevented) = if arm.prevents_damage() {
                     let prevented = if is_unpreventable(game, unpreventable, subject) {
                         0
@@ -1749,15 +1647,9 @@ fn apply_rewrite(
                 ))
             }
 
-            // CR 119.3's gain and CR 120.3a's loss, on the same arithmetic
-            // minus CR 615 — Rhox Faithmender's doubler, Bloodletter of
-            // Aclazotz's, and Ali from Cairo's clamp.
-            //
-            // **A prevention arm here is an authoring error, not a rules
-            // corner.** CR 615.1 is about damage: "prevent half that damage"
-            // over a life gain is a def whose pattern and rewrite describe
-            // different events, and the pipeline reports it the way it reports
-            // every other such pairing.
+            // CR 119.3's gain and CR 120.3a's loss on the same arithmetic minus CR 615
+            // (Rhox Faithmender, Bloodletter of Aclazotz, Ali from Cairo's clamp). A
+            // prevention arm here is an authoring error: CR 615.1 is about damage.
             GameAction::GainLife { player, amount, source } => {
                 let after = life_arithmetic(chosen, *amount_rewrite, amount, None)?;
                 Ok((
@@ -1766,11 +1658,9 @@ fn apply_rewrite(
                 ))
             }
             GameAction::LoseLife { player, amount, cause } => {
-                // The clamp's board read, and the only one in this function
-                // that is not about an entry: CR 614.1a lets Ali from Cairo
-                // modify the loss by *how much of it the total can take*, which
-                // is a fact about the player right now (`codebase-state.md`
-                // item 53). A read, not a write.
+                // The clamp's board read: CR 614.1a lets Ali from Cairo modify the loss by
+                // how much of it the total can take, a fact about the player now
+                // (`codebase-state.md` item 53). A read, not a write.
                 let life = game.get_player(player)?.life_total;
                 let after = life_arithmetic(chosen, *amount_rewrite, amount, Some(life))?;
                 Ok((
@@ -1779,20 +1669,12 @@ fn apply_rewrite(
                 ))
             }
 
-            // CR 614.16's token half — Parallel Lives, Anointed Procession,
-            // Doubling Season's first ability. A multiplier repeats each def
-            // the pattern's kind matched **in place** (`[A, B]` → `[A, A, B,
-            // B]`): "twice as many of each kind" is Anointed Procession's
-            // ruling, and keeping a kind's tokens adjacent keeps the batch
-            // order — and so CR 613.7's timestamps — the creation's own. A
-            // def the kind did not match is repeated once, which is to say
-            // left alone (Ojer Taq's "creature tokens" beside a Clue).
-            //
-            // Every other arm is refused as the authoring error it is —
-            // including `Plus`: the printed "plus" (Xorn's "plus an additional
-            // Treasure token") adds a *named* token, which is
-            // `GameActionTemplate::CreateTokens { mode: Append }`, not
-            // arithmetic.
+            // CR 614.16's token half (Parallel Lives, Anointed Procession, Doubling
+            // Season). A multiplier repeats each def the kind matched **in place**
+            // (`[A, B]` → `[A, A, B, B]`: "twice as many of each kind", Anointed
+            // Procession's ruling), which keeps the creation's batch order and so its
+            // CR 613.7 timestamps; an unmatched def is left alone. Every other arm is an
+            // authoring error — a printed "plus" is `CreateTokens { mode: Append }`.
             GameAction::CreateTokens { defs, controller } => match amount_rewrite {
                 AmountRewrite::Multiplier(n) => {
                     let n = usize::try_from(*n).map_err(|_| {
@@ -1836,14 +1718,10 @@ fn apply_rewrite(
                 ))
             }
 
-            // CR 122.6's second door — the counters a permanent is given as
-            // it enters are *put on* it, so the arithmetic applies to each
-            // kind in the entry's mods the pattern matched: its kind, and its
-            // putter, which is the entry's controller (CR 122.6a). "Each of
-            // those kinds" is Vorinclex's and Winding Constrictor's own
-            // phrase. A kind a halving takes to zero leaves the mods: "enters
-            // with counters" is not "enters with zero counters", and the
-            // performer would otherwise spend a CR 613.7c timestamp on nothing.
+            // CR 122.6's second door: the counters a permanent enters with are *put on*
+            // it, so the arithmetic applies per matched kind in the entry's mods, with
+            // the entry's controller as putter (CR 122.6a). A kind a halving takes to
+            // zero leaves the mods — "enters with counters" is not "with zero counters".
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
                 let EventPattern::AddCounters { counter: kind, by } = &chosen.def.pattern
                 else {
@@ -1874,22 +1752,13 @@ fn apply_rewrite(
                 ))
             }
 
-            // CR 106.6a — "replacement effects [that] increase the amount of
-            // mana produced": Mana Reflection's doubler, Nyxbloom Ancient's
-            // tripler. A multiplier scales every plain entry and **repeats
-            // every restricted atom** `n` times in place, because the rule's
-            // next sentence is about each unit — "any restrictions … will
-            // apply to all mana produced" — and an atom is one unit carrying
-            // its restrictions, which is `ATOM-106.6a-001`'s board. The atom's
-            // `grants` and `persistence` ride on each copy, and that is the
-            // rule's last two sentences ("a separate effect is created once
-            // for each mana produced") for free.
-            //
-            // Every other arm is refused as the pairing error it is: nothing
-            // prints "produces one more mana" as a replacement — every "add
-            // an additional" is CR 605.1b's trigger — and nothing halves mana.
-            // `took_effect` is any unit changing, so `Multiplier(1)` reports
-            // untouched.
+            // CR 106.6a — "replacement effects [that] increase the amount of mana
+            // produced" (Mana Reflection, Nyxbloom Ancient). Every plain entry is scaled
+            // and every restricted atom repeated `n` times in place: the rule's next
+            // sentence applies restrictions "to all mana produced", and an atom is one
+            // unit carrying its restrictions (`ATOM-106.6a-001`). Every other arm is a
+            // pairing error — nothing prints "one more mana" as a replacement, and
+            // nothing halves mana. `took_effect` is any unit changing.
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana } => {
                 match amount_rewrite {
                     AmountRewrite::Multiplier(n) => {
@@ -1927,20 +1796,11 @@ fn apply_rewrite(
                 }
             }
 
-            // CR 701.22's count, and the arm Kenessos, Priest of Thassa is:
-            // "if you would scry a number of cards, scry that many cards plus
-            // one instead" — the second of the two printed "would scry" clauses
-            // and the only arithmetic one. The same `counter_arithmetic` the
-            // counter legs use, because the question is identical: a plain
-            // count with no life total under it, so the prevention arms and the
-            // floor are the pairing errors they are there too.
-            //
-            // A scry the arithmetic takes to 0 is **not** `never_happens`'
-            // business on the way out: CR 701.22b is written about a player
-            // being *instructed* to scry 0, and the loop re-asks
-            // `never_happens` at the top of its next iteration anyway, which is
-            // where a 0 is dropped and where a Kenessos would find nothing left
-            // to add one to.
+            // CR 701.22's count — Kenessos, Priest of Thassa's "scry that many cards plus
+            // one instead", the one arithmetic "would scry" clause. The same
+            // `counter_arithmetic` as the counter legs: a plain count, so the prevention
+            // arms and the floor are pairing errors here too. A scry taken to 0 is not
+            // dropped here: `never_happens` re-asks at the top of the next iteration.
             GameAction::Scry { player, n } => {
                 let after = plain_arithmetic(chosen, *amount_rewrite, n)?;
                 Ok((
@@ -1949,31 +1809,20 @@ fn apply_rewrite(
                 ))
             }
 
-            // Its `EventPattern` and its `Rewrite` describe different events —
-            // the same card-authoring error every other arm reports. The
-            // wording is about the *arm* and not about the event, because
-            // `DrawCards` carries CR 121.2a's count — a rider reads it through
-            // `event_amount` — while `Rewrite::Amount`'s arithmetic is CR 615's
-            // and still only about damage.
+            // Pattern and rewrite describe different events — the same authoring error
+            // every arm reports. `DrawCards` carries CR 121.2a's count for a rider to
+            // read; `Rewrite::Amount`'s arithmetic is CR 615's and only about damage.
             other => Err(format!(
                 "replacement {:?} changes an amount but matched {:?}, which has no `Rewrite::Amount` arm",
                 chosen.id, other
             )),
         },
 
-        // CR 614.9 — the same damage, somewhere else.
-        //
-        // Rewrites `target` and nothing else: `source`, `amount`, `is_combat`
-        // and `unpreventable` travel with the damage, which is Pariah's ruling
-        // ("the damage dealt to the enchanted creature instead is still combat
-        // damage") and Kor Chant's (it is still dealt by the original source).
-        //
-        // The re-check is here rather than in `applies_to`, and the difference
-        // is observable: a redirect whose destination is gone is still
-        // gathered, still offered to CR 616.1's chooser and still *chosen* —
-        // it then does nothing and is not spent (`ATOM-614.9-001`). Filtering
-        // it out at the door would make it vanish from a list the rule says it
-        // belongs on.
+        // CR 614.9 — the same damage, somewhere else: `target` changes and nothing
+        // else (Pariah's and Kor Chant's rulings). The re-check is here rather than
+        // in `applies_to` because the difference is observable: a redirect whose
+        // destination is gone is still gathered, offered and chosen, then does
+        // nothing and is not spent (`ATOM-614.9-001`).
         Rewrite::Retarget(spec) => match event {
             GameAction::DealDamage { source, target, amount, is_combat, unpreventable } => {
                 // The two outcomes differ in one field and in what they claim:
@@ -2037,20 +1886,13 @@ fn counter_arithmetic(
 /// life total under it and nothing to prevent.
 ///
 /// **Why this is a second function and not `counter_arithmetic` widened to
-/// `u64`** — asked at RE-8's review, and the answer is a count. The narrowing
-/// is not that helper being lazy about its type; it is where the ceiling
-/// actually is. `GameAction::AddCounters::n` and `EntryCounters::n` are both
-/// `u32`, because `PermanentState`'s and `PlayerState`'s counter maps are, and
-/// **those are the two call sites** — so a `u64`-returning
-/// `counter_arithmetic` would hand each of them a number it still had to
-/// narrow, with the same `try_from` and the same "which no permanent or player
-/// can hold" message written twice, or a third helper holding it. One wrapper
-/// is cheaper than either.
-///
-/// A scry's N is CR 701.22a's `u64` and narrows to nothing, which is the whole
-/// difference. The scry leg borrowed the counter helper at first and cast a
-/// `u64` down to `u32` and back — a silent wrap on a number no board can reach
-/// but a card could author, and a counter's error message on a scry.
+/// `u64`** (RE-8's review): the ceiling is the two `u32` call sites —
+/// `GameAction::AddCounters::n` and `EntryCounters::n`, because the counter
+/// maps are `u32` — so a `u64` helper would hand each a number it still had
+/// to narrow, with the same `try_from` and the same "which no permanent or
+/// player can hold" message twice. A scry's N is CR 701.22a's `u64` and
+/// narrows to nothing; routing it through the counter helper was a silent
+/// wrap on a number a card could author, with a counter's error message.
 ///
 /// The names stay two words apart on purpose: `count_arithmetic` beside
 /// `counter_arithmetic` would be the coin flip at every call site that
@@ -2188,20 +2030,11 @@ fn substitute(
             GameAction::ZoneChange { object, from, .. },
         ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
 
-        // Containment Priest and Hallowed Moonlight: "if a creature would
-        // enter … exile it instead". The entry is the zone change
-        // (CR 614.1c), so a card's substitute is a zone change from where
-        // the card is — one move, no hop through the battlefield — and the
-        // card never becomes a permanent: `PermanentEnteredBattlefield` is
-        // the entry performer's to emit, and it never runs.
-        //
-        // A token has no `from`: it was created in the battlefield zone and
-        // sits there with no entity until its entry is decided
-        // (`create_tokens`), so its substitute is not a move from anywhere
-        // but the creation itself, somewhere else — `CreateTokenIn`, the
-        // appearance the Moonlight ruling describes ("put into exile instead
-        // and then ceases to exist"). The template's cause names a move, and
-        // an appearance has none.
+        // Containment Priest, Hallowed Moonlight: the entry is the zone change
+        // (CR 614.1c), so a card's substitute is one move from where it is and it
+        // never becomes a permanent. A token has no `from` — created in the zone,
+        // entity pending (`create_tokens`) — so its substitute is the creation
+        // itself, elsewhere: `CreateTokenIn`, the Moonlight ruling's appearance.
         (
             GameActionTemplate::ZoneChangeTo { to, cause },
             GameAction::EnterBattlefield { object, from, .. },
@@ -2225,32 +2058,13 @@ fn substitute(
             }
         }
 
-        // CR 614.1a's "instead ... draw", and the substitute is always the
-        // **instruction** (CR 121.2a) whichever of the two draw events it
-        // replaced. Thought Reflection's "draw two cards instead" is one
-        // "draw" of two, so an inner-shaped substitute would hide from Alms
-        // Collector the very event it watches for.
-        //
-        // **The cause travels with the event**, because CR 614.6 makes this
-        // the original in modified form: a doubled draw-step draw still has
-        // a first card that is `DrawCause::TurnBased` and a second that is
-        // not, which is how Teferi's Ageless Insight's exception survives
-        // being doubled. Nothing here counts cards drawn this step.
-        //
-        // Three legs, and each is printed. Thought Reflection, Teferi's
-        // Ageless Insight and Notion Thief replace an individual draw; Alms
-        // Collector replaces an instruction with a smaller one, and CR 614.5's
-        // "any modified events that may replace that event" is why that half
-        // of its text has to be the rewrite rather than a rider — the affected
-        // player's one draw carries the applied set only this way, and its own
-        // ruling is that Alms Collector does not apply again to it. **Eligeth,
-        // Crossroads Augur is the third**, and it is the kind-changing one: a
-        // scry becomes a draw of "that many", which is the scry's own N read
-        // through `TemplateAmount::ReplacedAmount`.
-        //
-        // The amount is taken before the event is destructured, because the
-        // `match` above moved it into a tuple and `template_amount` needs to
-        // read it whole.
+        // CR 614.1a's "instead … draw": the substitute is always the **instruction**
+        // (CR 121.2a), so Alms Collector still sees the event it watches, and the
+        // cause travels with it (CR 614.6), which is how Teferi's Ageless Insight's
+        // exception survives doubling. The three printed legs — a draw replaced, an
+        // instruction shrunk (Alms Collector: a rewrite, so the applied set carries),
+        // a scry retyped (Eligeth) — are RE-2's decisions (`replacement-architecture.md`
+        // §9). The amount is read before the `match` above moves the event.
         (GameActionTemplate::DrawCards { n, player }, event) => {
             let n = template_amount(chosen, *n, &event)?;
             match event {
@@ -2266,12 +2080,9 @@ fn substitute(
                         cause,
                     })
                 }
-                // A scry has no `DrawCause` to inherit, and the substitute's
-                // is `Effect` rather than the draw step's: these draws are
-                // produced by a replacement effect, which is an effect, and
-                // CR 121.1's turn-based action is the draw step's one card.
-                // So Teferi's Ageless Insight doubles Eligeth's draws, which
-                // is right — they are not the first card that player drew.
+                // A scry has no `DrawCause`; the substitute's is `Effect`, since these draws
+                // are a replacement effect's and CR 121.1's turn-based draw is the step's own
+                // card — so Teferi's Ageless Insight doubles Eligeth's draws, correctly.
                 GameAction::Scry { player: affected, .. } => Ok(GameAction::DrawCards {
                     player: draw_recipient(chosen, player.as_ref(), affected)?,
                     n,
@@ -2290,12 +2101,10 @@ fn substitute(
             }
         }
 
-        // CR 614.16's kind-changing substitution over a creation: the defs
-        // the pattern's kind matched are replaced (Divine Visitation) or
-        // joined (Chatterfang, Xorn) by `count` of the template's def, and
-        // "that many" is the number the kind matched. The defs it did not
-        // match are untouched, in their order; the template's tokens come
-        // last, so a creation's timestamps stay the creation's.
+        // CR 614.16's kind-changing substitution: the defs the kind matched are
+        // replaced (Divine Visitation) or joined (Chatterfang, Xorn) by `count` of
+        // the template's; unmatched defs keep their order and the new ones come
+        // last, so a creation's timestamps stay its own.
         (
             GameActionTemplate::CreateTokens { def, count, mode },
             GameAction::CreateTokens { defs, controller },
@@ -2310,12 +2119,9 @@ fn substitute(
                 format!("replacement {:?} substitutes {} tokens, which no board can hold", chosen.id, n)
             })?;
             let out: Vec<TokenDef> = match (mode, count) {
-                // "That many … instead": each matched def becomes one of the
-                // template's, in its place, keeping how the creating effect
-                // said it enters — Divine Visitation's ruling is that the
-                // characteristics are replaced and "anything else specified
-                // in the effect creating the token (such as tapped …) still
-                // applies".
+                // Each matched def becomes one of the template's, in place, keeping how the
+                // creating effect said it enters — Divine Visitation's ruling ("anything
+                // else specified … such as tapped … still applies").
                 (TokenSubstitution::Replace, TemplateAmount::ReplacedAmount) => defs
                     .into_iter()
                     .map(|d| {
@@ -2338,21 +2144,11 @@ fn substitute(
             Ok(GameAction::CreateTokens { defs: out, controller })
         }
 
-        // CR 614.1a's kind-changing substitutions, and the pair is what
-        // §10's Eligeth test wanted: a draw becomes a life gain (Words of
-        // Worship), a gain becomes a loss (Tainted Remedy).
-        //
-        // **The subject does not move**, which is why neither carries a
-        // `player`. Both printed customers leave the life where the
-        // replaced event put it, and the affected player is what
-        // `subject_of` already answered — the `EventSubject::Object` arm is
-        // the authoring error, since nothing here can hand life to a
-        // permanent.
-        //
-        // A substituted loss is `LifeLossCause::Effect` and never
-        // `Damage`: it is produced by a replacement effect, and calling it
-        // damage would hand it to Ali from Cairo's clamp, which watches
-        // CR 120.3a's loss and nothing else.
+        // CR 614.1a's kind changes: a draw becomes a gain (Words of Worship), a gain
+        // a loss (Tainted Remedy). The subject does not move, so neither carries a
+        // `player`; an `EventSubject::Object` is the authoring error. A substituted
+        // loss is `LifeLossCause::Effect`, never `Damage` — calling it damage would
+        // hand it to Ali from Cairo's clamp, which watches CR 120.3a's loss only.
         (GameActionTemplate::GainLife { amount }, event) => match subject_of(&event) {
             EventSubject::Player(player) => Ok(GameAction::GainLife {
                     player,
@@ -2382,30 +2178,15 @@ fn substitute(
             )),
         },
 
-        // CR 106.12b's "of a specific type": Deep Water's and Infernal
-        // Darkness's "produces {U} / {B} instead of any other type", and
-        // Contamination's "instead of any other type and amount".
-        //
-        // `ReplacedAmount` **retypes every unit in place** — the plain entries
-        // merged into one of the type, each restricted atom keeping its
-        // restrictions with only its type changed (CR 106.6: a restriction
-        // "doesn't affect the mana's type", and the converse holds — a type
-        // change does not drop the restriction, which is the ability's). Deep
-        // Water's ruling: "the amount of mana produced is unchanged, but it
-        // will all be {U}".
-        //
-        // `Fixed(n)` makes `n` units of the type, and the one question with no
-        // rule behind it is which restriction they carry, since the old units
-        // are gone. The `n` new units carry what the old ones carried, and
-        // that has one answer only when the old units *agree*: all free, or
-        // all restricted alike. Every printed mana ability produces one or
-        // the other. A production that disagrees with itself — a free unit
-        // beside a restricted one, or two units under different restrictions
-        // — has no printed instance and no CR sentence deciding it, so it is
-        // refused rather than guessed: loud, over a silently dropped
-        // restriction. **Not an assumption that it never happens** — the
-        // fixture `Half-Bound Grove` makes it happen — but a refusal to
-        // invent the answer before a card brings the ruling.
+        // CR 106.12b's "of a specific type" (Deep Water, Infernal Darkness,
+        // Contamination). `ReplacedAmount` retypes every unit in place, restrictions
+        // kept (CR 106.6: a restriction "doesn't affect the mana's type", and the
+        // converse) — Deep Water's ruling. `Fixed(n)` makes `n` units of the type
+        // carrying what the old units carried, which has one answer only when they
+        // agree — all free, or all under one restriction, as every printed ability
+        // is. A production that disagrees with itself has no printed instance and
+        // no CR sentence, so it is refused rather than guessed; the fixture
+        // `Half-Bound Grove` is what reaches it.
         (
             GameActionTemplate::ProduceMana { mana_type, amount },
             GameAction::ProduceMana { player, source, mana, special, tapped_for_mana },
@@ -2452,11 +2233,9 @@ fn substitute(
             Ok(GameAction::ProduceMana { player, source, mana, special, tapped_for_mana })
         }
 
-        // CR 614.1a from a draw to the game's end — Laboratory Maniac's "you
-        // win the game instead". The affected player wins, for the two life
-        // templates' reason: nothing printed hands a substituted win to
-        // somebody else, so there is no `player` field and the day one is
-        // printed it arrives as `DrawCards`'s already has.
+        // CR 614.1a from a draw to the game's end (Laboratory Maniac). The affected
+        // player wins: nothing printed hands a substituted win elsewhere, so there
+        // is no `player` field until a card prints one.
         (GameActionTemplate::PlayerWins, event) => match subject_of(&event) {
             EventSubject::Player(player) => Ok(GameAction::PlayerWins { player }),
             EventSubject::Object(_) => Err(format!(
@@ -2906,22 +2685,11 @@ fn auxiliary_candidates(
             if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
                 return false;
             }
-            // CR 101.2 on the move this choice would produce — the axis-1
-            // question `sacrifice_of_choice` asks, for the same reason.
-            //
-            // `cause` is a `PlayerId` and not a richer context because that is
-            // the only question `SourceFilter` asks: its one variant is
-            // `ControlledBy(PlayerRef)`, and the printed population it serves —
-            // Sigarda's "spells and abilities **your opponents** control",
-            // Tamiyo's mirror of it — reads control and nothing else. A
-            // restriction that scoped by *which* ability ("abilities of
-            // creatures you control can't …") would need the source object
-            // here, and the field widens with the `SourceFilter` variant that
-            // needs it rather than ahead of it.
-            //
-            // The player is the effect's controller, which is why Sigarda does
-            // **not** stop her own controller's devour: her filter is
-            // `Opponent`, relative to her own controller.
+            // CR 101.2 on the move this choice would produce — `sacrifice_of_choice`'s
+            // axis-1 question. `cause` is a `PlayerId` because `SourceFilter`'s one
+            // variant, `ControlledBy(PlayerRef)`, reads control and nothing else; it
+            // widens with the variant that needs more. The player is the effect's
+            // controller, which is why Sigarda does not stop her own devour.
             !is_prohibited(
                 game,
                 &Query::Event {

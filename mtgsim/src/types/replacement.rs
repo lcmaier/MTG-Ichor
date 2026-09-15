@@ -24,14 +24,9 @@
 //! - [`Rewrite`] is a **closed algebra**. CR 614 and 615 enumerate what a
 //!   replacement effect may do to an event and the list is short; a new arm
 //!   is a claim that those rules permit an operation the list omits, and it
-//!   should arrive with the rule number that says so. It ships **six** —
-//!   `Prevent`, `Instead`, `EnterWith`, `EnterUnderControlOf`,
-//!   `EnterAfterMoving` and `Amount` — still not §3.2's six: an arm the
-//!   pipeline cannot apply is worse than a missing one, and `Retarget` waits
-//!   for RD-4. `EnterWith` gained its performer in Phase RC-2,
-//!   `EnterUnderControlOf` its CR 616.1b bucket in RC-4, `EnterAfterMoving`
-//!   arrived in RC-5 with CR 614.13, and `Amount` in RD-1 with CR 701.10g's
-//!   doublers and CR 615.10's partial prevention.
+//!   should arrive with the rule number that says so — and with a customer,
+//!   since an arm the pipeline cannot apply is worse than a missing one. The
+//!   table on [`Rewrite`] says which phase gave each arm its customer.
 //!
 //! Per-mechanic variety goes in [`ReplacementDef::then`], which is the existing
 //! `Effect` tree — no new vocabulary at all.
@@ -90,8 +85,7 @@ pub struct ReplacementDef {
     /// Nephalia Academy's "if a spell or ability an opponent controls causes
     /// you to discard a card" is `Some(ControlledBy(Opponent))`; sixteen of the
     /// seventeen printed "causes you to discard" cards say the same words
-    /// (Scryfall, 2026-09-14). `None` is "however caused", which is every
-    /// effect written before RE-8.
+    /// (Scryfall, 2026-09-14). `None` is "however caused", the default.
     ///
     /// **Here and not on [`EventPattern`]**, which is where §9's decision 8
     /// put it. Two reasons, and the second is the one that decides: an
@@ -192,40 +186,27 @@ pub struct ReplacementDef {
 /// corresponding `GameAction` change is the smell this contract exists to
 /// catch.
 ///
-/// # Why eighteen arms and not twenty
+/// # One arm per variant, and the two without one
 ///
-/// `GameAction` ships twenty variants and this enum eighteen, one arm per
-/// variant. The two with no arm at all are on purpose: `Attach`, since
-/// nothing replaces an attach, and `CreateTokenIn`, since nothing prints "if a
-/// token would be created in exile" (RE-4). The counter pair was the one place
-/// the projection was not 1:1 — one `CounterChange` arm with an `adding` flag
-/// — until RE-5's review split it into [`Self::AddCounters`] and
-/// [`Self::RemoveCounters`].
-///
-/// `DrawCard`, `GainLife` and `LoseLife` gained theirs in RE-2 and RE-3, and
-/// `PlayerLoses`/`PlayerWins` in RE-6, each with the card that watches it.
+/// `Attach` has no arm, since nothing replaces an attach, and `CreateTokenIn`
+/// none, since nothing prints "if a token would be created in exile" (RE-4).
 /// Adding an arm is a normal diff — this enum is matched exhaustively and is
 /// not `#[non_exhaustive]`, so every reader fails to compile rather than
 /// defaulting. **`gather::pattern_watches` is the reader that does not**: it
 /// falls through to `false`, so a `GameAction` variant with no arm there is
 /// silently unwatchable, which is `Attach`'s intended state and the trap for
-/// everything else.
-///
-/// **Until RD-1 the reason given here was that no set could scope one to a
-/// player, and that reason is gone.** [`ReplacementDef::affected_players`]
-/// scopes an effect to a player, because the damage family needed it first
-/// (§9's RD decision 0, §11 item 21). What is left is that no registered card
-/// wants one yet — which is the ordinary "an arm the pipeline cannot apply is
-/// worse than a missing one", not a missing mechanism.
+/// everything else. An arm scoped to a player is
+/// [`ReplacementDef::affected_players`]'s (§11 item 21); the ones missing
+/// wait for a card, the ordinary "an arm the pipeline cannot apply is worse
+/// than a missing one".
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPattern {
     /// CR 614.2 / 615.1. The event's subject is the damage *target*.
     ///
     /// **Two fields, and both are about the event rather than about the
     /// effect.** `affected` says which targets the effect is around; these say
-    /// which damage counts once it is. Both `None` is RB's and RD-1's and
-    /// RD-2's shape — "damage would be dealt to whatever I am affecting" —
-    /// and stays the common case.
+    /// which damage counts once it is. Both `None` — "damage would be dealt to
+    /// whatever I am affecting" — is the common case.
     ///
     /// `source` is CR 609.7's source-side predicate; see [`SourcePattern`] for
     /// which half of 609.7 each of its own fields is.
@@ -240,9 +221,8 @@ pub enum EventPattern {
     ///
     /// So the `Option` is not a two-arm enum wearing a `bool`: there are
     /// **three** answers and `None` is the third — the effect does not ask
-    /// about combat at all, which is what every def written before RD-3
-    /// carries and what a card like Guardian Seraph means by "1 of any damage,
-    /// not just combat damage".
+    /// about combat at all, which is what Guardian Seraph means by "1 of any
+    /// damage, not just combat damage".
     ///
     /// **Neither field reads the amount, which is load-bearing**:
     /// `pipeline::ordering_cannot_change_outcome` suppresses CR 616.1's prompt
@@ -411,8 +391,8 @@ pub enum EventPattern {
         cast: Option<bool>,
     },
 
-    /// CR 122.1's counters being put on a permanent or a player, and — since
-    /// RE-5 — an entry that gives the permanent counters (CR 122.6).
+    /// CR 122.1's counters being put on a permanent or a player, and an entry
+    /// that gives the permanent counters (CR 122.6).
     ///
     /// **Two doors, one event.** CR 122.6: "putting counters on that object
     /// ... refers to putting counters on that object while it's on the
@@ -433,14 +413,10 @@ pub enum EventPattern {
     /// admitted to no suppressed bucket.
     ///
     /// **Its own arm, bearing the action's name, not a direction flag on a
-    /// shared one.** RE-5 shipped the pair as `CounterChange { adding: bool }`,
-    /// the one place the growth contract's one-arm-per-variant was broken,
-    /// and the review split it: a rewrite cannot say which direction a
-    /// pattern watches (a `Prevent` or a restriction carries no `Plus`), and
-    /// a field asked of a putter had to be documented as meaningless on a
-    /// removal. The names are `GameAction`'s and `Primitive`'s, as every
-    /// other arm's are (`DealDamage`, `CreateTokens`, `PlayerLoses`): one
-    /// word for one event, wherever it is written.
+    /// shared one**: a rewrite cannot say which direction a pattern watches (a
+    /// `Prevent` or a restriction carries no `Plus`), and a putter field is
+    /// meaningless on a removal. The names are `GameAction`'s and `Primitive`'s,
+    /// as every other arm's are (`DealDamage`, `CreateTokens`, `PlayerLoses`).
     AddCounters {
         counter: Option<CounterType>,
         /// Who is putting the counters on — Vorinclex's "if *you* would put"
@@ -507,11 +483,10 @@ pub enum EventPattern {
     /// is the scrying player.
     ///
     /// **No fields**, and the census is why: `o:"would scry"` returns two
-    /// cards (Scryfall, re-run 2026-09-14 after the first reading named the
-    /// wrong second card) — Eligeth, Crossroads Augur and **Kenessos, Priest
-    /// of Thassa**, "if you would scry a number of cards, scry that many cards
-    /// plus one instead". Both say "a number of cards" and neither constrains
-    /// the number.
+    /// cards (Scryfall, 2026-09-14) — Eligeth, Crossroads Augur and **Kenessos,
+    /// Priest of Thassa**, "if you would scry a number of cards, scry that many
+    /// cards plus one instead". Both say "a number of cards" and neither
+    /// constrains the number.
     ///
     /// **Kenessos is why `Rewrite::Amount` has a scry leg.** Its static is
     /// `Amount(Plus(1))` over this pattern, buildable and tested as a fixture;
@@ -552,7 +527,7 @@ pub enum EventPattern {
     ///
     /// `tapped_for_mana` is CR 106.12's definition asked of the proposal.
     /// `Some(true)` is every one of the sixteen printed cards (Scryfall,
-    /// 2026-09-15, re-run at review: three multipliers, seven constant-type
+    /// 2026-09-15: three multipliers, seven constant-type
     /// retypes, five chosen or mapped types, and Chaos Moon's even half);
     /// `None` is False Dawn's "spells and abilities you control that would
     /// add colored mana" — the one printed watcher that does not say
@@ -668,7 +643,7 @@ impl TokenKind {
 /// # The filter is general, and the guard that decided it
 ///
 /// §8c's axis 2 says card breadth lands on predicates, and its second guard is
-/// "two customers before a leaf". Applied live in RD-3: the leaves this field
+/// "two customers before a leaf". Applied here: the leaves this field
 /// actually reaches are `ByColor` (Circle of Protection: Red, Torbran),
 /// `ByController` (Guardian Seraph, Torbran) and `And` — **all three already
 /// in `ObjectFilter` with customers of their own**, so a general filter costs
@@ -768,15 +743,10 @@ impl EventPattern {
             EventPattern::LoseLife { .. } => false,
             // Zones, a cause and a filter on the moving object.
             EventPattern::ZoneChange { .. } => false,
-            // **The arm has no fields, so there is nothing here to read an
-            // amount with** — which is the whole of the answer, and it is not
-            // vacuous: Kenessos, Priest of Thassa is an `Amount(Plus(1))` over
-            // this pattern, so applications really do change the number. A
-            // scry of any size still matches, so no application can carry one
-            // out of another member's reach, which is what this predicate is
-            // asked. Eligeth reads the amount in its *rewrite*
-            // (`TemplateAmount::ReplacedAmount`), which is a different
-            // question and one CR 615.5 answers.
+            // No fields, so nothing reads an amount — and not vacuously: Kenessos is an
+            // `Amount(Plus(1))` over this pattern, yet a scry of any size still matches,
+            // so no application carries a member out of another's reach. Eligeth reads
+            // the amount in its *rewrite* (`ReplacedAmount`), CR 615.5's question.
             EventPattern::Scry => false,
             // One individual draw. CR 121.2 makes it one card, so there is no
             // amount for a field to read.
@@ -785,12 +755,9 @@ impl EventPattern {
             EventPattern::EnterBattlefield { .. } => false,
             // CR 701.8b's two ways.
             EventPattern::Destroy { .. } => false,
-            // A counter kind and a putter, never a count: CR 614.16's
-            // doublers are written about "one or more", which the arm asks
-            // of the proposal's `n` and of each kind in an entry's mods — and
-            // a multiplier of one or more, or a plus, leaves every kind on
-            // the side of that line it was on. `Halve` can cross it (one to
-            // zero) and is admitted to no suppressed bucket.
+            // A kind and a putter, never a count: CR 614.16's "one or more" is asked of
+            // `n` and of each kind in an entry's mods, and a multiplier of one or more
+            // or a plus keeps every kind on its side of that line; `Halve` can cross it.
             EventPattern::AddCounters { .. } => false,
             // A counter kind. CR 701.2 makes a removal "as much as possible",
             // and no field here reads how much.
@@ -1080,21 +1047,18 @@ impl Rounding {
 
 /// What a [`Rewrite::Amount`] does to the amount it found.
 ///
-/// **Every arm ships with a printed customer in the PR that lands it**, which
-/// is the closed algebra's rule applied one level down: RD-1 has
-/// [`Self::Multiplier`] (Furnace of Rath, CR 701.10g), [`Self::Halve`] (Ghosts
-/// of the Innocent) and [`Self::PreventHalf`] (Gisela, Blade of Goldnight);
-/// RD-2 has [`Self::PreventRemaining`] (Mending Hands, Samite Healer, Samite
-/// Censer-Bearer) and the performer for [`Self::PreventUpTo`], whose printed
-/// statics — Guardian Seraph, Daunting Defender — are RD-3's because they need
-/// a source-side predicate the pattern does not carry yet. `Plus` waits for
-/// Torbran in RD-3.
+/// **Every arm shipped with a printed customer**, the closed algebra's rule
+/// one level down: [`Self::Multiplier`] (Furnace of Rath, CR 701.10g),
+/// [`Self::Halve`] (Ghosts of the Innocent), [`Self::PreventHalf`] (Gisela,
+/// Blade of Goldnight), [`Self::PreventRemaining`] (Mending Hands, Samite
+/// Healer), [`Self::PreventUpTo`] (Guardian Seraph, Daunting Defender) and
+/// [`Self::Plus`] (Torbran, Thane of Red Fell).
 ///
 /// **Halving and prevention-halving are two arms, not one with a flag**, and
 /// CR 615.12 is why. Ghosts of the Innocent "isn't a damage prevention effect"
 /// and still halves Excruciator's unpreventable 7 to 3; Gisela prevents none of
 /// it. Only the prevention arms report a prevented amount, and only they answer
-/// to CR 615.12's consult (RD-4).
+/// to CR 615.12's consult.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AmountRewrite {
     /// "deals double that damage ... instead" — CR 701.10g. Not `Times`, which
@@ -1104,8 +1068,7 @@ pub enum AmountRewrite {
     /// printed inverse. Replaces the amount; prevents nothing.
     Halve(Rounding),
     /// "it deals that much damage **plus 2** instead" — CR 614.1a's additive
-    /// modification. Torbran, Thane of Red Fell is the printed customer and
-    /// the reason this arm lands in RD-3 rather than beside the doublers.
+    /// modification; Torbran, Thane of Red Fell is the printed customer.
     ///
     /// **Not the same operation as [`Self::Multiplier`] with a different
     /// number, and CR 616.1's prompt is where the difference shows.**
@@ -1199,12 +1162,9 @@ impl AmountRewrite {
             AmountRewrite::PreventHalf(_)
             | AmountRewrite::PreventUpTo(_)
             | AmountRewrite::PreventRemaining => amount - self.prevented(amount),
-            // Unreachable, and loud about it rather than plausible: the clamp
-            // needs the affected player's life total, which this signature has
-            // no way to read. `pipeline::apply_rewrite`'s `LoseLife` leg is the
-            // only evaluator and its sibling legs refuse the pairing, so an
-            // arrival here is a leg that forgot to — and a wrong life total
-            // with nothing pointing at it is the failure this assertion buys.
+            // Unreachable, and loud: the clamp needs the affected player's life total,
+            // which this signature cannot read. `pipeline::apply_rewrite`'s `LoseLife`
+            // leg is the only evaluator; an arrival here is a leg that forgot to refuse.
             AmountRewrite::LifeFloor(_) => {
                 debug_assert!(
                     false,
@@ -1273,11 +1233,10 @@ pub struct AuxiliaryMove {
     /// off the card anywhere else, which is the same split
     /// `EventPattern::ZoneChange`'s `object` filter already makes.
     ///
-    /// **`ObjectFilter` is the wrong name for what this does** and has been
-    /// since RB: CR 110.1 makes a permanent a card *on the battlefield*, and
-    /// this matches creature cards in a graveyard. The type is right; the name
-    /// is two phases stale, and the rename is `codebase-state.md` item 64 —
-    /// ~120 mechanical call sites, no behavior, so it wants a PR of its own.
+    /// **`ObjectFilter` is the wrong name for what this does**: CR 110.1 makes a
+    /// permanent a card *on the battlefield*, and this matches creature cards in
+    /// a graveyard. The rename is `codebase-state.md` item 64 — mechanical, no
+    /// behavior, its own PR.
     pub filter: ObjectFilter,
 
     /// Where the chosen objects go, and why. The `cause` is what separates
@@ -1316,9 +1275,6 @@ pub struct AuxiliaryMove {
 /// so the definition carries an [`AmountExpr`] and
 /// `replacement::evaluate_enter_amount` turns it into an [`EnterMods`] inside
 /// the CR 616.1 loop.
-///
-/// Split out in RC-5. Until then one type did both jobs, which §3.2 recorded as
-/// a virtue and which held exactly as long as every amount was a literal.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnterModsTemplate {
     /// CR 110.5b — the permanent enters tapped. A status, so no amount.
@@ -1369,7 +1325,7 @@ impl EnterModsTemplate {
 
     /// Does every amount here read a constant?
     ///
-    /// The premise `pipeline::ordering_cannot_change_outcome` grew for RC-5:
+    /// The premise `pipeline::ordering_cannot_change_outcome` needs:
     /// an amount that reads the CR 614.12 frame changes with what already
     /// applied, so two such applications do not commute and CR 616.1's
     /// ordering prompt is real. `codebase-state.md` item 47 carries the
@@ -1418,9 +1374,10 @@ impl EnterModsTemplate {
 /// permanent a 2/2 colorless creature with no name, no mana cost, no creature
 /// types and no abilities — a change to its **copiable values**, which is
 /// Layer 1a. A `face_down: true` that only set a flag would leave every layer
-/// query answering off the printed card, so the field wants Layer 1 (Phase CV)
-/// underneath it and CR 614.12's frame (RC-4) beside it, since the entry is
-/// changing the very characteristics the frame is asked about.
+/// query answering off the printed card, so the field wants Layer 1b
+/// underneath it (CV-6, `copy-effects-architecture.md`) and CR 614.12's frame
+/// beside it, since the entry is changing the very characteristics the frame
+/// is asked about.
 ///
 /// **The printed population says the same thing from the other side.** Nothing
 /// prints "permanents enter the battlefield face down" as an effect over
@@ -1435,7 +1392,7 @@ impl EnterModsTemplate {
 ///
 /// A *hypothetical* "creatures your opponents control enter face down" would
 /// additionally need `ObjectSet::Filter` to reach an entering permanent,
-/// which is Phase RC-3 — the same gate that stops Root Maze and Kismet.
+/// which it does since RC-3 (Root Maze).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EnterMods {
     /// CR 110.5b — the permanent enters tapped.
@@ -1510,11 +1467,9 @@ impl EnterMods {
         self.tapped |= other.tapped;
         for row in &other.counters {
             match self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
-                // Plain addition, matching `PermanentState::add_counters`,
-                // which is where this number ends up. A saturating add here
-                // would be the only place in the engine with a different
-                // overflow story, and clamping at `u32::MAX` is not a rules
-                // answer — it is a width this type has no business choosing.
+                // Plain addition, matching `PermanentState::add_counters` where this number
+                // ends up: a saturating add here would be the engine's only different
+                // overflow story, and `u32::MAX` is not a rules answer.
                 Some(existing) => existing.n += row.n,
                 None => self.counters.push(*row),
             }
@@ -1623,7 +1578,7 @@ pub enum GameActionTemplate {
     ///
     /// **Why not `AmountRewrite::Plus` for Xorn**: "plus one" of *what* is a
     /// def, and the printed answer is a named token — a template's business,
-    /// not arithmetic's (`plans/handoffs/re-4-review.md`, R8).
+    /// not arithmetic's (RE-4's review).
     CreateTokens {
         def: TokenDef,
         count: TemplateAmount,
@@ -1698,11 +1653,9 @@ pub enum TemplateAmount {
 /// those; [`Self::Other`] is 616.1e's fallthrough, "any of the applicable
 /// replacement and/or prevention effects may be chosen".
 ///
-/// All five arms ship in Phase RB even though only `Other` has a producer,
-/// because the *ordering* is what item 3 implements and a step that does not
-/// exist cannot be ordered. `ControlChanging` gained its producer in RC-4
-/// ([`Rewrite::EnterUnderControlOf`]); `SelfReplacement` gets one with the
-/// first CR 614.15 card and `CopyOnEnter` with Phase CV-2's copy spine.
+/// All five arms exist because the *ordering* is the ladder. `SelfReplacement`
+/// has no producer yet (`replacement-architecture.md` §11 item 3,
+/// fixture-first) and `CopyOnEnter` waits on CV-2.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReplacementClass {
     /// CR 616.1a / 614.15.
@@ -1810,17 +1763,15 @@ impl ReplacementDef {
 
     /// Builder: also apply to these players (CR 614.1's other half).
     ///
-    /// A builder rather than a fourth argument to [`Self::new`]: every effect
-    /// written before Phase RD names no player, so `PlayerSet::Nobody` is the
-    /// honest default and a card that wants one says so. Furnace of Rath's
-    /// "a permanent **or** player" is [`Self::new`] plus this.
+    /// A builder rather than a fourth argument to [`Self::new`]: most effects name
+    /// no player, so `PlayerSet::Nobody` is the default and a card that wants one
+    /// says so. Furnace of Rath's "a permanent **or** player" is [`Self::new`]
+    /// plus this.
     ///
-    /// **One mechanism, not two.** A `for_players` *constructor* shipped
-    /// alongside this for one commit and was removed on review: two functions
-    /// whose names differ by an inflection, one a constructor and one a
-    /// builder, is a coin flip at every call site. An effect about players and
-    /// no object writes `ObjectSet::NO_OBJECTS` for its object half, which
-    /// names the empty set where the call site can see it.
+    /// **One mechanism, not two**: a constructor beside this builder, names
+    /// differing by an inflection, would be a coin flip at every call site. An
+    /// effect about players and no object writes `ObjectSet::NO_OBJECTS` for its
+    /// object half, which names the empty set where the call site can see it.
     pub fn affecting_players(mut self, players: PlayerSet) -> Self {
         self.affected_players = players;
         self
@@ -1829,9 +1780,9 @@ impl ReplacementDef {
     /// Builder: apply only to an event a matching source caused
     /// ([`Self::by`]).
     ///
-    /// A builder for [`Self::affecting_players`]'s reason: every effect
-    /// written before RE-8 asks nothing about the cause, so `None` is the
-    /// honest default and a card that asks says so.
+    /// A builder for [`Self::affecting_players`]'s reason: most effects ask
+    /// nothing about the cause, so `None` is the default and a card that asks
+    /// says so.
     pub fn caused_by(mut self, by: SourceFilter) -> Self {
         self.by = Some(by);
         self
@@ -1869,8 +1820,8 @@ impl ReplacementDef {
     /// and CR 701.19c treats the two differently, which is why
     /// [`Self::is_regeneration`] keeps its own authored bit.
     ///
-    /// Two readers: RD-2's pairing check — a [`Uses::NextDamage`] count on an
-    /// effect that prevents no damage is an authoring error — and RD-4's
+    /// Two readers: the pairing check — a [`Uses::NextDamage`] count on an
+    /// effect that prevents no damage is an authoring error — and the
     /// CR 615.12 consult, where an unpreventable event lets a prevention
     /// effect apply and prevent nothing.
     pub fn is_prevention(&self) -> bool {
