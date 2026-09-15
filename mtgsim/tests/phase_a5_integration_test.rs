@@ -162,6 +162,7 @@ fn test_leaving_the_named_zone_retires_the_effect() {
 /// A5 for a reason that no longer holds (registration ran at ETB and nowhere
 /// else), and it has to keep passing now that `move_object` registers too —
 /// which is exactly what the zone gate in `register_static_effects` is for.
+// COVERS: ATOM-113.6-001
 #[test]
 fn test_an_anthem_in_a_graveyard_does_not_apply_it() {
     let anthem = mtgsim::test_support::creature_with_ability(
@@ -206,6 +207,7 @@ fn test_an_anthem_in_a_graveyard_does_not_apply_it() {
 /// effects"). This is here so that A5's new zone gate is shown not to have
 /// broken it — the gate is in `register_static_effects`, which skips CDAs one
 /// line further down and always did.
+// COVERS: ATOM-113.6a-001
 #[test]
 fn test_a_cda_still_functions_in_a_graveyard() {
     let mut game = setup_two_player_game();

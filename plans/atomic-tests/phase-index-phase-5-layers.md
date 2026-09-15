@@ -27,7 +27,7 @@
 | ATOM-110.4c-001 | 110.4c | If a permanent loses all its permanent types, it remains on the battlefield | L09 | S1 |  |
 | ATOM-112.4-001 | 112.4 | Characteristic changes to a permanent spell persist on the resulting permanent | Post-v1 (D16 from session 6b — continuous effects on stack) | S1 |  |
 | ATOM-113.6-001 | 113.6 | Ability of a permanent functions only on the battlefield (default) | L03 (static ability registration) | S1 |  |
-| ATOM-113.6a-001 | 113.6a | Characteristic-defining abilities function in all zones 113.6b — "Activate this ability only from your graveyard" functions only in the graveyard | L18 T19 | S1 |  |
+| ATOM-113.6a-001 | 113.6a | Characteristic-defining abilities function in all zones | L18 | S1 |  |
 | ATOM-113.10b-001 | 113.10b | Effects that remove an ability remove all instances of it | L06 | S1 |  |
 | ATOM-113.12-001 | 113.12 | A P/T CDA is applied in Layer 7a, not as a granted ability | L18 | S1 |  |
 | ATOM-113.12-002 | 113.12 | A color CDA is applied in Layer 5, not Layer 6 | L18 | S1 |  |
