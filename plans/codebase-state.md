@@ -5445,6 +5445,35 @@ What the *shape* says, as opposed to what one endpoint suggested:
     Full entry: `plans/archive/codebase-state-closed.md`, "Cross-cutting —
     keep this section honest" item 124.
 
+### Found by the LJ review (2026-09-14)
+
+132. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+    LJ's review found a `player.graveyard.clone()` inside
+    `engine::layers::condition`'s `CardInGraveyard` arm that was never needed —
+    both borrows are immutable and it compiles without. It had been added
+    defensively rather than because the compiler asked, and it sat on a genuinely
+    hot path: CR 604.2's existence check runs per application, per layer, per
+    pass. **One unnecessary allocation found by eye is evidence of a class**, and
+    the owner's call at the review was to schedule the sweep rather than widen
+    this PR.
+
+    **Sized against the tree (2026-09-14):** 192 `.clone()` sites in `src/`.
+    121 are in `engine/`, of which **35 are in `engine/layers/`** — the
+    per-layer-per-object path, and the ones worth reading first — and 17 in
+    `engine/replacement/`. 9 are in `src/cards/`, which is card construction and
+    cold by definition. The audit is a read of the 35 first, then the 17, and it
+    is a *reading* pass with a fuzz A/B behind it, not a mechanical sweep: an
+    `Arc::clone` is a refcount bump and belongs where it is, a `Vec` clone in a
+    predicate is the shape this found, and telling them apart is the work.
+
+    **Trigger: the end of replacement effects**, where the owner wants a
+    housekeeping pass anyway — so it lands with RE closed and before Phase 6's
+    triggers build on the same paths. Not urgent: nothing here is *wrong*, which
+    is why it is scheduled rather than fixed.
+
+    **Reachability (2026-09-14):** reachable — not wrong; a performance question
+    on paths a measured game runs thousands of times a turn.
+
 ### Found by RE-6 — the game's end (2026-09-12)
 
 **Shipped:** `GameAction::{PlayerLoses, PlayerWins}` with their two

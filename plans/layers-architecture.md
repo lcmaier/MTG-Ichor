@@ -1846,14 +1846,33 @@ scoping preference.
 Asked at the review, and it is the sharpest question the phase got: *if nothing
 reads a graveyard card's abilities, how is Yixlid Jailer being tested at all?*
 
-**The honest answer is that the Jailer's own effect is not observable in
-gameplay yet.** Abilities are a characteristic (CR 109.3), so the layer walk
-computes them for a graveyard card and the Jailer removes them; but the things
-that would *read* a graveyard card's abilities — flashback, retrace, Bridge
-from Below's trigger — are each gated on CR 113.6, which is A5. So the Jailer's
-tests assert through `get_effective_abilities`, a direct read of the mechanism
-rather than of a consequence. That is a real gap in the evidence, not a
-technicality.
+**The first answer given here was "it is not observable yet", and that was too
+strong** (corrected at the owner's second pass). The precise statement is
+narrower: nothing yet reads a graveyard card's **ability list** — flashback,
+retrace and Bridge from Below's trigger are each gated on CR 113.6, which is
+A5. But an ability is not the only thing that goes when the Jailer applies,
+because **one of the abilities can be a CDA, and removing it changes another
+characteristic outright**.
+
+**Tarmogoyf is the case, and both cards are already in `PERFORMANCE_POOL`.**
+CR 208.2a gives its CDA "this ability functions everywhere, even outside the
+game", which is why a Tarmogoyf in a graveyard has a computed P/T at all; strip
+its abilities and what is left is the seed, `power_toughness(0, 1)` — the
+printed `*/1+*`. So the Jailer turns a 2/3 in a graveyard into a 0/1, which is
+a characteristic change read directly and not through an ability list.
+
+That test also reaches a **different code path** from everything else here:
+`engine/layers/cda.rs` applies CDAs off the object's own effective ability list
+at layers 4, 5 and 7a, never from the registry (CR 604.3a(3)). It asserts that
+the Jailer's Layer 6 strip lands on the list Layer 7a then reads, one zone
+over from the Humility case §6 describes. Its partner asserts the other
+direction — a Tarmogoyf **on the battlefield** is untouched, and in particular
+the Jailer does not reduce its count, because it removes abilities and not card
+*types*.
+
+What stays true is the narrower gap, and it is why the fixtures below still
+earn their place: a **rule** reading a zone-reaching change is a third thing
+again, and Tarmogoyf's graveyard P/T is read by almost nothing today.
 
 **A *color* in a graveyard is observable today**, and closing the loop needs
 nothing this PR does not already have. `Condition::CardInGraveyard` reads a

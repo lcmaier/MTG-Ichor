@@ -12,12 +12,15 @@
 //! about the working set moves. That is `RegistryScopeSummary::reachable_zones`
 //! earning its place — the claim is a structural zero, so it is testable.
 
+use mtgsim::cards::phase_le_cards::tarmogoyf;
 use mtgsim::cards::phase_lf_cards::humility;
 use mtgsim::cards::phase_lj_cards::{
     graveyard_painter, graveyard_reveler, scarwood_treefolk, yixlid_jailer,
 };
 use mtgsim::engine::actions::ZoneChangeCause;
-use mtgsim::oracle::characteristics::{get_effective_abilities, get_effective_power};
+use mtgsim::oracle::characteristics::{
+    get_effective_abilities, get_effective_power, get_effective_toughness,
+};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
@@ -489,5 +492,76 @@ fn test_a_zone_set_can_name_everywhere_but_the_battlefield() {
         complement.beyond_battlefield(),
         complement,
         "and it is entirely beyond the battlefield, so every zone of it is swept"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Yixlid Jailer + Tarmogoyf — two pooled cards, and the strip reaches a CDA
+// ---------------------------------------------------------------------------
+
+/// **Stripping a graveyard card's abilities changes its power and toughness**,
+/// because one of the abilities is a CDA.
+///
+/// Raised at the review against this document's claim that the Jailer's effect
+/// is not observable yet, and it is the sharper case: the *ability list* is
+/// what nothing reads until CR 113.6, but a CDA's removal cascades into a
+/// characteristic that is read directly. CR 208.2a gives Tarmogoyf's CDA "this
+/// ability functions everywhere, even outside the game", which is why a
+/// Tarmogoyf in a graveyard has a computed P/T at all; take the ability away
+/// and the seed is what is left — `power_toughness(0, 1)`, the printed `*/1+*`.
+///
+/// **A different code path from every other test here.** `engine/layers/cda.rs`
+/// applies CDAs off the object's *own effective ability list* at layers 4, 5
+/// and 7a, never from the registry (CR 604.3a(3), `CLAUDE.md`). So this asserts
+/// that the Jailer's Layer 6 strip lands on the list that Layer 7a then reads,
+/// for an object in a graveyard — the mechanism `layers-architecture.md` §6
+/// describes for Humility on the battlefield, now one zone over.
+///
+/// **Both cards are in `PERFORMANCE_POOL`**, so this is a board a measured
+/// fuzz game can build rather than a fixture.
+#[test]
+fn test_the_jailer_strips_a_graveyard_tarmogoyfs_cda_and_its_pt_falls_to_the_seed() {
+    let mut game = setup_two_player_game();
+
+    // Two card types in graveyards: the Goyf itself (creature) and a land.
+    let goyf = put_in_graveyard(&mut game, tarmogoyf(), 0);
+    put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 1);
+
+    assert_eq!(
+        (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
+        (Some(2), Some(3)),
+        "CR 208.2a — the CDA functions in the graveyard, and two card types are there"
+    );
+
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    assert_eq!(
+        (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
+        (Some(0), Some(1)),
+        "the CDA is gone with the rest of its abilities, so the printed seed is what is left"
+    );
+}
+
+/// The same board with the Jailer on the *battlefield* side: a Tarmogoyf in
+/// play is untouched, because it is not a card in a graveyard.
+///
+/// The half that keeps the test above honest. "Cards in graveyards lose all
+/// abilities" is scoped by zone and not by what the ability *counts* — a
+/// battlefield Goyf keeps its CDA and keeps counting the graveyards, which
+/// are exactly the zones the Jailer is reaching into. Getting this wrong in
+/// the other direction is the more tempting bug: the Jailer does not reduce
+/// the count, because it removes abilities and not card **types**.
+#[test]
+fn test_the_jailer_does_not_touch_a_tarmogoyf_on_the_battlefield() {
+    let mut game = setup_two_player_game();
+
+    put_in_graveyard(&mut game, mtgsim::cards::basic_lands::forest(), 1);
+    let goyf = put_on_battlefield(&mut game, tarmogoyf(), 0);
+    put_on_battlefield(&mut game, yixlid_jailer(), 1);
+
+    assert_eq!(
+        (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
+        (Some(1), Some(2)),
+        "one card type in graveyards (the land); the Goyf is a permanent, so the row misses it"
     );
 }
