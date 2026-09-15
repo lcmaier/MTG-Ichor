@@ -110,51 +110,38 @@ pub enum CostSubject {
 }
 
 impl CostSubject {
-    /// # Why these two are methods and not `matches!` at the call site
+    /// # Why this is a method and not `matches!` at the call site
     ///
-    /// They are exhaustiveness anchors, not routers. A `matches!` compiles
-    /// fine when a subject is added and is then silently wrong at *both*
-    /// gates; a wildcard-free `match` refuses to build until the new subject
-    /// answers each question. Same instrument as `condition::holds` and
-    /// `board::condition_reads`, for the same reason. They also name the
-    /// question rather than the shape, which is the one place a reader has to
-    /// notice that the two gates ask *different* things — assuming one
-    /// question where there are two is the bug this pair was written after.
+    /// It is an exhaustiveness anchor, not a router. A `matches!` compiles
+    /// fine when a subject is added and is then silently wrong; a
+    /// wildcard-free `match` refuses to build until the new subject answers.
+    /// Same instrument as `condition::holds` and `board::condition_reads`,
+    /// for the same reason.
     ///
-    /// **Do not collapse them into one predicate and a `!`.** They are not
-    /// each other's negation: CR 602.2b's activated abilities (§3.10) answer
-    /// `true` to the first and `false` to the second.
-
-    /// Can an ability with this subject modify a cost while its source sits on
-    /// the battlefield?
+    /// **There used to be two, and A5 took the other one.**
+    /// `applies_from_battlefield` answered "can an ability with this subject
+    /// modify a cost while its source sits on the battlefield", which is
+    /// CR 113.6d — a *zone* question, and one of the four private copies of
+    /// CR 113.6 that `engine::zone_function` now owns. It is derived there
+    /// from the method below rather than asserted again here, and the
+    /// derivation holds for the arm §3.10 plans: CR 602.2b's activated
+    /// abilities answer `false` below and get the battlefield from
+    /// CR 113.6's default, which is what the deleted method said.
     ///
-    /// [`Self::Itself`] cannot, and the answer is not merely an optimization:
-    /// a spell's own cost ability *functions* only on the stack (CR 113.6d),
-    /// and the subject is an identity test no permanent can satisfy. Saying so
-    /// keeps
-    /// an affinity creature out of `cost_modification_ability_sources`, so
-    /// having one on the battlefield does not widen CR 601.2f's sweep on
-    /// every cast for a match that cannot succeed.
-    ///
-    /// Matched exhaustively, so a new subject has to decide: CR 602.2b's
-    /// activated abilities (§3.10) will answer `true`.
-    pub fn applies_from_battlefield(&self) -> bool {
-        match self {
-            CostSubject::Spells(_) => true,
-            CostSubject::Itself => false,
-        }
-    }
+    /// The old pair carried a warning not to collapse them into one predicate
+    /// and a `!`, and that warning still stands — it is why the survivor is
+    /// the *identity* question and not the zone one. The two were never each
+    /// other's negation.
 
     /// Can an ability with this subject modify what its *own* object costs —
     /// CR 113.6d's "that particular object"?
     ///
-    /// The mirror of [`Self::applies_from_battlefield`], and not its negation:
-    /// CR 602.2b's activated abilities (§3.10) will answer `false` to this and
-    /// `true` to that. It is what the gather's second gate asks, because
-    /// "prints a cost ability" is the wrong question there — Thalia prints
-    /// one, and a Thalia *in hand* is not modifying her own cost. Asking the
-    /// body alone cost five non-member layer walks per 200 measured games,
-    /// which is how it was found.
+    /// Read by `engine::zone_function::functioning_zones` to place the ability
+    /// on the stack, and by the gather's second gate, because "prints a cost
+    /// ability" is the wrong question there — Thalia prints one, and a Thalia
+    /// *in hand* is not modifying her own cost. Asking the body alone cost
+    /// five non-member layer walks per 200 measured games, which is how it was
+    /// found.
     pub fn applies_to_its_own_object(&self) -> bool {
         match self {
             CostSubject::Spells(_) => false,

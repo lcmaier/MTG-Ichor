@@ -1439,16 +1439,15 @@ impl GameState {
             // list at 601.2f. Through the "as long as" wrapper, which the two
             // tests above do not see (`cost-architecture.md` §8 item 1).
             //
-            // **Only a subject that can apply from here.** A spell's own cost
-            // ability functions on the stack (CR 113.6d), so an affinity
-            // permanent is a source of nothing and recording it would widen
-            // the sweep on every cast for a match that can never succeed.
-            if zone == Zone::Battlefield
-                && ability
-                    .effect
-                    .as_cost_modification()
-                    .is_some_and(|(_, def)| def.applies_to.applies_from_battlefield())
-            {
+            // **Only a subject that can apply from here**, and since A5 that
+            // is the CR 113.6 gate above rather than a second predicate: a
+            // spell's own cost ability functions on the stack (CR 113.6d), so
+            // an affinity permanent never reaches this line. Recording one
+            // would widen the sweep on every cast for a match that cannot
+            // succeed. `CostSubject::applies_from_battlefield` used to say so
+            // here and was deleted with this edit — one answer, in
+            // `zone_function`.
+            if zone == Zone::Battlefield && ability.effect.as_cost_modification().is_some() {
                 self.cost_modification_ability_sources.insert(id);
             }
 

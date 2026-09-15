@@ -9,7 +9,8 @@
 //! it** (`layers-architecture.md` §13d). Before A5 the rule was in the tree
 //! four times and scattered: `register_static_effects` spelled "a static
 //! ability functions on the battlefield" as *which function calls it*,
-//! `CostSubject::applies_from_battlefield` was CR 113.6d in a method, and
+//! `CostSubject::applies_from_battlefield` was CR 113.6d in a method (A5
+//! deleted it; the arm below is where its answer lives now), and
 //! `replacement::gather` and `restriction::predicate` each swept
 //! `battlefield_ids_ordered` for the same unstated reason. This is the one
 //! answer they share, and critical-path item 6 adds a fifth caller for
