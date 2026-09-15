@@ -489,3 +489,108 @@ paste.
 > `check_state_of_play.py --check`, after `--write`); `cargo build
 > --all-targets` prints zero warnings and `cargo test` is green; handoff §7's
 > pass 1 row updated with the PR number; PR opened, merge left to the owner.
+
+## 9. Pass 2 brief
+
+Written 2026-09-15 at pass 1's close, with every number read from the tree
+that day. Paste this to start pass 2. Read this file first; it may be newer
+than the paste.
+
+> **Pass 2 of the post-RE audit — hygiene and CI.** Two PRs, both off `main`
+> after #142 merges: `audit/ci` first (small), then `audit/comments`
+> (mechanical; may split in two). `plans/handoffs/post-re-audit.md` is the
+> contract; §3's pass 2 and §5 say what lands where.
+>
+> **Read first, in this order:** `engineering-practices.md` §2 and §2.1 (the
+> comment rule and its instrument — the three-step sweep is the procedure);
+> `.github/workflows/ci.yml` end to end *including its comments* — each step's
+> reason is written there and the PR must not un-reason one; `CLAUDE.md`'s
+> "Commands" (the four checks that must pass) and "Conventions"; the
+> `codebase-state.md` Deferred Migrations header, "Item ids are section-scoped"
+> (how to cite what a `TODO` points at); handoff §6 decision 2 (clippy: run
+> once, count, then decide).
+>
+> **Verified against the tree, 2026-09-15:**
+> - CI runs nine steps: build with `-D warnings`, test, the harness build, both
+>   pools at 200 games, three-run determinism, the `CLAUDE.md` budget, module
+>   layout, the board check. **Absent:** `check_glossary.py` (which `CLAUDE.md`
+>   lists among the four that must pass), `cargo clippy`, `cargo fmt --check`.
+>   The toolchain is pinned at 1.98.0 with a comment saying it is "not a
+>   measured MSRV"; edition 2024's floor is 1.85.
+> - **Clippy, run once** (1.98.0, `--all-targets`, the default lint set):
+>   **114 sites, 26 lints, 48 files** — 82 in the library, 9 more in its unit
+>   tests, 4 in `fuzz_games`, 19 across seven integration-test targets. The
+>   top six: `collapsible_if` 37, `unnecessary_get_then_check` 16,
+>   `too_many_arguments` 8, `empty_line_after_doc_comments` 6,
+>   `doc_lazy_continuation` 6, `large_enum_variant` 4. Fifty-four of the
+>   library's 82 are `--fix` suggestions; one `#[allow(clippy::…)]` exists.
+>   "Hundreds" was wrong, so the question the count decides (§6 decision 2)
+>   is *which* lints go to `-D` and which are allowed with a reason, not
+>   whether.
+> - **`cargo fmt --check`: 148 of 165 Rust files would change, 2,441 hunks.**
+>   No `rustfmt.toml`. Adopting it means one whole-tree reformat commit first,
+>   which rewrites every file's blame.
+> - **The §2.1 instrument** — `grep -rnE "(roughly|about|one in|[0-9]+%|
+>   [0-9]+ of [0-9]+|measured|counted)"` over comment lines: **456 in `src/`**
+>   (133 of them in `cards/`) across 65 files; 140 in `tests/`; 1,031 in live
+>   `plans/` (254 in `codebase-state.md`, 259 in `replacement-architecture.md`).
+>   Most `plans/` hits already carry a date by convention, and the instrument's
+>   step 2 is "re-derive or date" — an already-dated claim is done, an undated
+>   one is the work. Comment lines are 17,016 of 49,653 non-card `src/` lines
+>   (34%). The last sweep was the RB review's themes C and E at PR #62; #142
+>   is 80 PRs later against a 15–20 cadence.
+> - **Twelve `TODO`s in `src/`**, so none is rediscovered:
+>   `combat/resolution.rs:150` ("Phase 4/5"); `combat/steps.rs:35` (the
+>   Cartesian product's scaling); `layers/board.rs:832` (other P/T counter
+>   kinds); `sba.rs:284` and `:511` (two that say a TODO *no longer* exists);
+>   `targeting.rs:541` ("once T22 lands" — hexproof/shroud); `turns.rs:315`
+>   and `:413` (`T12c`, `BlanketPersistenceSet`); `oracle/mana_helpers.rs:68`
+>   (producer preference); `state/game.rs:121` (London mulligan);
+>   `ui/ask.rs:71` ("Phase 9", `GameNumber`) and `:1277` (a `choose_ordering`
+>   test). `T##` and "Phase N" are the archived plan's vocabulary, which
+>   `CLAUDE.md` says is not a queue.
+>
+> **The checklist — every entry gets a disposition:**
+> 1. **The CI PR** (`audit/ci`): `check_glossary.py` beside the other three
+>    Python checks; a clippy step at the scope the count decides — the honest
+>    first cut is `cargo clippy --all-targets -- -D warnings` with a
+>    `[lints.clippy]` table in `Cargo.toml` allowing, one line of reason each,
+>    the lints judged not worth their diff (`too_many_arguments` and
+>    `large_enum_variant` are the candidates: they are design, not hygiene),
+>    and the rest fixed in the same PR; `cargo fmt --check`'s cost stated (148
+>    files, 2,441 hunks, one reformat commit) and the switch left to the owner
+>    unless told; the 1.98 pin either measured down (one build and test on
+>    1.85, the result written into the comment) or left with the comment
+>    amended to say when it was measured. Every CI step keeps a comment giving
+>    its reason, as the nine have.
+> 2. **The comment PR(s)** (`audit/comments`): the §2.1 sweep by its three
+>    steps — run the instrument, re-derive or date each undated `src/` hit
+>    (start with the 323 outside `cards/`; the card files' 133 are mostly
+>    Scryfall censuses that carry their date already), rewrite the stale ones
+>    as history, delete restating comments in the files the grep touches —
+>    file by file, never a blind sweep (§2's own words). Split by directory
+>    when a PR passes ~1,500 lines of diff (`engineering-practices.md` §4).
+>    The `plans/` half: undated claims only, live docs only.
+> 3. **The twelve `TODO`s:** each gets a live owner written into the comment
+>    in place of the archived label — a `backlog.md` §2 entry, a critical-path
+>    item, or a Deferred Migrations item — or is deleted where the code has
+>    moved past it (the two in `sba.rs` say so themselves).
+> 4. **The instrument's own record:** `engineering-practices.md` §2.1 gains
+>    this run's date and counts as its first recorded application, the way
+>    `backlog.md` §3.3 records `owed`'s.
+>
+> **Binding rules:** comment the why only where the code plus one rule number
+> does not recover it; do not refactor — a clippy fix that changes a signature
+> is a refactor, and is allowed with a reason rather than fixed; American
+> spelling; a behavior change is not this pass — a clippy fix that alters
+> behavior is its own commit, shown to fail first, and one that moves a pool is
+> its own PR with a `fuzz-record.md` block. Both pools' counters IDENTICAL to
+> `main` at 2 and 4 seats (`plans/fuzz_ab.py --rounds 0`) is the check that
+> nothing moved.
+>
+> **Exit:** CI green on each PR with the new steps in it; `cargo build
+> --all-targets` zero warnings and `cargo test` green (capture the whole log
+> to a file and grep it — a piped summary loses a FAILED line); the four
+> checks each pass on their own exit code; the instrument re-run and its
+> count recorded in §2.1; handoff §7's pass 2 row updated with the PR
+> numbers; PRs opened, merge left to the owner.
