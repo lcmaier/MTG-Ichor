@@ -285,7 +285,7 @@ impl GameState {
         // turn that made them: "after this main phase" names a phase of *this*
         // turn. Only a turn that began reaches here, so a skipped turn keeps
         // the plan it never got — which no cursor of it ever reads.
-        self.turn_plan = crate::state::game_state::TurnPlan::natural();
+        self.turn_plan.reset();
         self.expire_until_your_next_turn(player, turn);
         // CR 800.4c again, beside the other expiry — see the cleanup step.
         self.exile_objects_no_player_in_game_controls(ctx)

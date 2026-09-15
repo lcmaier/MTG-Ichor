@@ -623,21 +623,33 @@ pub struct TurnPlan {
 }
 
 impl TurnPlan {
+    /// CR 500.1's phases, in order.
+    const NATURAL: [PhaseType; 5] = [
+        PhaseType::Beginning,
+        PhaseType::Precombat,
+        PhaseType::Combat,
+        PhaseType::Postcombat,
+        PhaseType::Ending,
+    ];
+
     /// CR 500.1's five phases, in order, with nothing spliced and nothing read.
     pub fn natural() -> Self {
-        TurnPlan {
-            phases: [
-                PhaseType::Beginning,
-                PhaseType::Precombat,
-                PhaseType::Combat,
-                PhaseType::Postcombat,
-                PhaseType::Ending,
-            ]
-            .into_iter()
-            .map(|phase_type| PlannedPhase { phase_type })
-            .collect(),
-            cursor: None,
-        }
+        let mut plan = TurnPlan { phases: Vec::with_capacity(Self::NATURAL.len()), cursor: None };
+        plan.reset();
+        plan
+    }
+
+    /// Make this CR 500.1's five phases again, **keeping the allocation**.
+    ///
+    /// Called once per turn that begins, which is the only reason the capacity
+    /// is worth keeping: rebuilding by assignment would allocate a five-element
+    /// `Vec` every turn of every game where the chain this replaced allocated
+    /// nothing, and this PR's whole claim is that it costs nothing.
+    pub fn reset(&mut self) {
+        self.phases.clear();
+        self.phases
+            .extend(Self::NATURAL.into_iter().map(|phase_type| PlannedPhase { phase_type }));
+        self.cursor = None;
     }
 
     /// The phase at `index`, or `None` past the end of the turn.
