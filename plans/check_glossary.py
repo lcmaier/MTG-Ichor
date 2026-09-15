@@ -84,8 +84,8 @@ WATCHLIST = [
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event",
     "memo", "performer", "pool", "position", "proposal", "putter", "queue",
-    "registry", "rider", "schedule", "shield", "source", "step", "subject",
-    "subject group", "sweep", "unit", "walk",
+    "reach", "registry", "rider", "schedule", "shield", "source", "step",
+    "subject", "subject group", "sweep", "unit", "walk", "working set",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
@@ -115,6 +115,7 @@ BRITISH = {
 POLYSEMOUS = {
     "source": 3, "shield": 3, "registry": 3, "queue": 3, "census": 2,
     "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
+    "member": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

@@ -858,6 +858,42 @@ impl GameState {
         pairs.into_iter().map(|(_, id)| id).collect()
     }
 
+    /// Every object in `zone`, in that zone's own order — seat order first,
+    /// then the player's own list, for the four zones a player owns.
+    ///
+    /// **The walk order for a member outside the battlefield** (LJ,
+    /// `layers-architecture.md` §13c decision 4). CR 613.7 orders *effects* by
+    /// timestamp and says nothing about the objects they apply to, so a member
+    /// here needs a deterministic position and not a timestamp — which is why
+    /// this phase needs none of CR 613.7d's object timestamps. Every container
+    /// below is already a `Vec`, so the order is the zone's own and no sort is
+    /// involved; nothing reaches a `HashMap`, which is what
+    /// `CLAUDE.md`'s determinism invariant asks. For a graveyard the engine's
+    /// order is the rule's: CR 404.3 makes it an ordered zone.
+    ///
+    /// `Zone::Battlefield` answers `battlefield_ids_ordered` — CR 613.7
+    /// timestamp order — so a caller sweeping a `ZoneSet` that happens to
+    /// include it still gets the one order counts agree with.
+    pub fn zone_ids_ordered(&self, zone: Zone) -> Vec<ObjectId> {
+        match zone {
+            Zone::Battlefield => self.battlefield_ids_ordered(),
+            Zone::Stack => self.stack.clone(),
+            Zone::Exile => self.exile.clone(),
+            Zone::Command => self.command.clone(),
+            Zone::Library | Zone::Hand | Zone::Graveyard => {
+                let mut ids = Vec::new();
+                for player in self.players.iter() {
+                    ids.extend(match zone {
+                        Zone::Library => player.library.iter().copied(),
+                        Zone::Hand => player.hand.iter().copied(),
+                        _ => player.graveyard.iter().copied(),
+                    });
+                }
+                ids
+            }
+        }
+    }
+
     /// Allocate and return the next timestamp value.
     pub fn allocate_timestamp(&mut self) -> u64 {
         let ts = self.next_timestamp;
@@ -1684,8 +1720,13 @@ impl GameState {
             // "you" here would snapshot the source's controller at ETB; CR
             // 109.5 wants its *current* one, so `compute::object_matches_filter`
             // does it per layer.
+            // LJ — the zone-reaching form, lowered through the same
+            // constructor so the two recipients cannot mean different things.
+            EffectRecipient::FilteredObjectsIn(filter, zones) => {
+                Some(ObjectSet::filter_in(filter.clone(), *zones))
+            }
             EffectRecipient::FilteredPermanents(filter) => {
-                Some(ObjectSet::Filter { filter: filter.clone() })
+                Some(ObjectSet::battlefield_filter(filter.clone()))
             }
             EffectRecipient::Implicit => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is

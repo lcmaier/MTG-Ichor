@@ -47,6 +47,24 @@ doing nothing. → senses 1 and 2 are adjacent in `RetargetSpec`, which is why i
 arms are `ToEffectSource` and `ToDamageSourceController`; sense 3 is
 `replacement-architecture.md` §3.3's five and `cost-architecture.md` §4's two.
 
+**member** — two, and they are one word for a reason: each names the unit its
+subsystem *iterates*. **(1)** `Member`: one proposal inside a batch, as the
+replacement pipeline works through it — the proposal's index into the batch,
+plus its event as rewritten so far. The event becomes `None` when a replacement
+drops the proposal outright (CR 614.6, 614.7a, 614.17); the member itself stays,
+so the index it carries stays valid. **(2)** One object in the layer walk's
+**working set** — what `Board::members` holds and what a pass computes a frame
+for. Its opposite is a *non-member*, an object no row can reach, which gets
+`compute_non_member`: a solo walk of its own CDAs, exact precisely because
+nothing can reach it. `Membership` is the three-way answer the top-level entry
+dispatches on — `Member`, `NonMember`, and `ZoneOnly` for an object in the
+battlefield *zone* with no entity yet (a token mid-creation), which is a member
+of the one pass that asks about it and of no other. Added at LI-1's review
+(2026-09-06), renamed from `Query`, because the question is not "what is being
+asked" but "is this thing in the set". → sense 1 is
+`engine/replacement/pipeline.rs`; sense 2 is `engine/layers/board.rs::membership`
+and `layers-architecture.md` §13b decision 2.
+
 **shield** — three, and RD-2 is where they meet. **(1)** CR 614.1's metaphor:
 every replacement and prevention effect "act[s] like a shield" around what it
 affects. That is `ReplacementDef`, and nothing in code borrows the word for it.
@@ -182,12 +200,6 @@ one pass of the rule, one chooser, one applied set — so an effect applies to t
 pair once, not once each. → `engine/actions.rs`'s phase-1 comment;
 `replacement-architecture.md` §9.
 
-**member** — `Member`: one proposal inside a batch, as the replacement pipeline
-works through it — the proposal's index into the batch, plus its event as
-rewritten so far. The event becomes `None` when a replacement drops the proposal
-outright (CR 614.6, 614.7a, 614.17); the member itself stays, so the index it
-carries stays valid.
-
 **candidate** — `Candidate`: one applicable effect in a group's iteration, with
 the members it applies to. A candidate is not yet applied; `must_choose_among`
 narrows candidates to the ladder's first non-empty step.
@@ -293,6 +305,18 @@ recomputed. It is the cache key, not a clock.
 One walk fills every member's frame at its epoch, so the next object asked is a
 hit. → `engine/layers/compute.rs`.
 
+**working set** — written **W** where the docs reason about it. The objects
+one layer pass computes frames for,
+and the unit `Board::members` holds. Not "everything in the game" and not "the
+battlefield": it is *every object some registered row can reach*, derived from
+the rows rather than listed — the battlefield in CR 613.7 timestamp order,
+then the entering object, then whatever a `Fixed` row names, then (since LJ)
+the objects in the zones `RegistryScopeSummary::reachable_zones` names. An
+object outside it is a **non-member** and gets its printed characteristics plus
+its own CDAs, which is exact precisely because no row can reach it.
+→ `engine/layers/board.rs::Board::seed`, `layers-architecture.md` §13b
+decision 2 and §13c.
+
 **ceiling** — the layer a frame was computed *up to*, and the termination
 argument for `compute_characteristics` re-checking ability existence at every
 layer: each re-check reads a strictly lower ceiling, so the recursion descends
@@ -303,6 +327,13 @@ arm, `ObjectSet::Host` resolves `attached_to` during the walk. Named `Host`
 rather than `AttachedTo`, whose longer form read as "the things attached to me"
 — the wrong direction — and because "host" is what every attach site already
 called it. → `layers-architecture.md` §13a decision 4.
+
+**reach** — the zones a row's `ObjectSet` can name an object in, as a
+`ZoneSet` read off the row without touching the board. The union over the
+registry is `RegistryScopeSummary::reachable_zones`, and what makes it a union
+of *syntax* rather than a search is why the zone lives on `ObjectSet::Filter`
+and not as an `ObjectFilter` leaf. → `types/zones.rs`, `layers-architecture.md`
+§13c decision 3.
 
 **donor** — in a copy effect, the object whose copiable values are copied *from*
 — Mirrorweave's target, Cytoshape's chosen permanent. The word exists because

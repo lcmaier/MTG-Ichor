@@ -1164,10 +1164,13 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
 /// object? `SourceOnly`, `Fixed` and `Host` match by id; a
 /// `Filter` is invariant iff every leaf is. The entry half of
 /// [`ordering_cannot_change_outcome`]'s premise.
+///
+/// A `Filter`'s `zones` needs no arm: no `EnterMods` field moves an object
+/// between zones, so the zone half is invariant whatever it holds.
 fn object_set_is_mods_invariant(affected: &ObjectSet) -> bool {
     match affected {
         ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => true,
-        ObjectSet::Filter { filter } => filter_is_mods_invariant(filter),
+        ObjectSet::Filter { filter, .. } => filter_is_mods_invariant(filter),
     }
 }
 

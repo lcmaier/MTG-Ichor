@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_lj_cards;
 use super::phase_re8_cards;
 use super::phase_re_cards;
 use super::phase_cv_cards;
@@ -49,7 +50,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 86] = [
+const PERFORMANCE_POOL: [&str; 87] = [
     "Plains",
     "Island",
     "Swamp",
@@ -162,7 +163,7 @@ const PERFORMANCE_POOL: [&str; 86] = [
     "Master Biomancer",
     // LH-1 — the pool's first Aura, and so its first `Host` row:
     // membership is a `battlefield` read per candidate per layer rather than
-    // a filter match, a new arm in `effect_applies_to`. Also the first spell
+    // a filter match, a new arm in `board::affected_members`. Also the first spell
     // whose target comes from `enchant_filter`, which is what puts CR 608.3b's
     // fizzle and CR 704.5m/n in front of a random game.
     "Holy Strength",
@@ -374,6 +375,24 @@ const PERFORMANCE_POOL: [&str; 86] = [
     // scry the pool can only get from Opt in the same deck.
     "Mind Rot",
     "Opt",
+    // LJ — the pool's first row that reaches a zone other than the
+    // battlefield, and the only way a measured game exercises the working-set
+    // change at all. Every other pooled card leaves
+    // `reachable_zones` at `BATTLEFIELD`, where the seed's zone loop does not
+    // run and `membership` answers as it did before the field existed — so
+    // without this card the A/B would measure the guard and never the path it
+    // guards.
+    //
+    // `{1}{B}` for a 2/1, so a black deck casts it early and it stays out for
+    // the rest of the game, which is the shape that matters: from the moment
+    // it resolves, every graveyard card in the game is a member of every layer
+    // pass, and graveyards only grow. That is the cost this PR's A/B is for.
+    //
+    // Scarwood Treefolk is registered and stays out. It opens no engine path
+    // — "enters tapped" is Idyllic Beachfront's row, already pooled — and its
+    // job is to be the Jailer's partner in the atom, where a graveyard is
+    // arranged rather than arrived at.
+    "Yixlid Jailer",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -787,6 +806,15 @@ impl CardRegistry {
             "Eligeth, Crossroads Augur",
             phase_re8_cards::eligeth_crossroads_augur,
         );
+
+        // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
+        // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and
+        // opens no engine path, so it is registered and unpooled.
+        // `phase_lj_cards::graveyard_painter` and `graveyard_reveler` — the
+        // pair that proves a rule can *read* a zone-reaching change — are
+        // fixtures registered nowhere.
+        registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
+        registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
 
         registry
     }

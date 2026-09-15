@@ -643,7 +643,7 @@ fn a_token_that_cannot_enter_is_not_created() {
                 cause: None,
                 object: None,
             },
-            affected_objects: ObjectSet::Filter { filter: ObjectFilter::ByType(CardType::Creature) },
+            affected_objects: ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             affected_players: PlayerSet::Nobody,
             by: None,
         },
@@ -682,12 +682,10 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
     let may_refuse = static_ability(Effect::Replacement(Box::new(
         ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
-            ObjectSet::Filter {
-                filter: ObjectFilter::And(
+            ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                ),
-            },
+                )),
             Rewrite::Prevent,
         )
         .optional(),

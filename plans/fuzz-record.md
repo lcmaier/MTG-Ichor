@@ -37,6 +37,82 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-14 for LJ** (the zone-reaching `ObjectSet`;
+`layers-architecture.md` §13c). `PERFORMANCE_POOL` +1 — Yixlid Jailer, 86 → 87
+— and the stress pool +2 (150 → 152: Scarwood Treefolk and the pooled one), so
+**both tables are a re-record and neither column is an engine reading.**
+
+**This is the first real reading of item 9's `reachable_zones` argument**, which
+was that the facility costs nothing until a zone-reaching card is played. Half
+of that is structural and needs no measurement: with the mask at `BATTLEFIELD`
+the seed's zone loop does not run and `membership` answers as before, so an
+ordinary board pays exactly zero (`tests/phase_lj_integration_test.rs` asserts
+it). The half worth measuring is what a board that *does* play one pays, and
+the pool is what makes that a measured game rather than a fixture — the Jailer
+resolves in **130 of 200 games (65%)** at seed 12345.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| CPU/game median | 14.84 → 14.94 ms (**+0.7%**) | 55.01 → 56.21 ms (**+2.2%**) |
+| ms / 1,000 walks | 39.79 → 40.05 (+0.7%) | 67.25 → 65.97 (**−1.9%**) |
+| Layer walks | 373 → 373 | 818 → 852 (+4.2%) |
+| Layer frames | 4,596 → 4,646 (+1.1%) | 15,545 → 16,847 (+8.4%) |
+| Frames/walk | 12.33 → 12.46 (+1.1%) | 19.01 → 19.78 (+4.1%) |
+| Memo hits | 61,262 → 61,908 | 191,269 → 193,334 |
+
+**Read the two middle rows together, because they say different things.** At
+four seats the CPU/game delta is +2.2% — the bottom of the documented ~2–6%
+spread — while **ms per 1,000 walks went down 1.9%**. The walk did not get
+slower. There are more of them (+4.2%) and each frames more objects (+4.1%),
+which is precisely the zone members being seeded: from the turn the Jailer
+resolves, every card in every graveyard is a member of every pass, and
+graveyards only grow. That is the cost the facility has, it is confined to the
+one zone the card names, and it is what the mask exists to keep confined — the
+unguarded version is every library too, which at four seats is ~400 members a
+pass instead of ~40.
+
+**Frames/walk is the row to watch in the next phase that widens a `ZoneSet`.**
+It moved 4.1% for a card reaching graveyards at four seats and 1.1% at two,
+and the ratio between those two numbers is the shape of the cost: it scales
+with how much of the named zone exists, not with how many rows name it.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools, the
+`new` arm):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 23 (46.0%) / 27 (54.0%) | 28 (56.0%) / 21 (42.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.6 | 33.0 |
+| Spells cast | 23.7 | 24.6 |
+| Lands played | 17.7 | 18.9 |
+| Combat w/ atk | 10.9 | 11.1 |
+| Creatures died | 7.3 | 7.0 |
+| Damage events | 23.1 | 26.1 |
+| Total damage | 63.4 | 69.5 |
+| Life changes | 15.7 | 16.5 |
+| Turns after a departure | ? | ? |
+| Departed-owned permanents | ? | ? |
+| **Layer walks** | **376** | **512** |
+| **Board walks** | **247** | **307** |
+| **Memo hits** | **59,404** | **89,245** |
+| **Layer frames** | **4,687** | **6,335** |
+| **Frames/walk** | **12.47** | **12.38** |
+| **Dependency checks** | **37** | **27** |
+| **Replacement gathers** | **999** | **1167** |
+| **Restriction queries** | **1002** | **1171** |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.26 | 0.84 |
+| Max batch depth | 4 | 5 |
+
+The `main` arm's same rows, for the pool these replace: performance
+369 / 240 / 61,692 / 4,622 / 12.53 / 19 / 1003 / 1005; stress
+447 / 281 / 75,034 / 5,331 / 11.94 / 20 / 1076 / 1079.
+
+Both arms `deterministic: yes`; zero errors and zero panics on both pools at
+both seat counts. Counters differ from `main` by construction — the pool moved,
+so the decks moved — which is why no counter row above is an engine reading.
+
 **Re-recorded 2026-09-14 for RE-8** (CR 701.9's discard and CR 701.22's scry;
 `replacement-architecture.md` §9). `PERFORMANCE_POOL` +2 — Mind Rot and Opt,
 84 → 86 — and the stress pool +5 (145 → 150: Hymn to Tourach, Nephalia

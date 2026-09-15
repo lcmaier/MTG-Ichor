@@ -1,4 +1,4 @@
-use super::effects::{CardFilter, CounterType, ObjectFilter};
+use super::effects::{CounterType, ObjectFilter};
 use super::mana::ManaCost;
 
 /// Costs that must be paid to activate an ability or cast a spell.
@@ -22,9 +22,9 @@ pub enum Cost {
     /// Sacrifice N permanents matching a filter ("Sacrifice a creature")
     Sacrifice(ObjectFilter, u32),
     /// Discard N cards matching a filter ("Discard a card")
-    Discard(CardFilter, u32),
+    Discard(ObjectFilter, u32),
     /// Exile N cards from your graveyard matching a filter
-    ExileFromGraveyard(CardFilter, u32),
+    ExileFromGraveyard(ObjectFilter, u32),
     /// Remove N counters of a type from the source
     RemoveCounters(CounterType, u32),
     /// Add N counters of a type to the source (e.g. blight counters)

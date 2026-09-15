@@ -587,20 +587,21 @@ Continuous effects can and do touch hidden zones. Mycosynth Lattice ("All cards 
 
 What we *can* do is a **runtime fast path**: in the vast majority of games, no continuous effect targets objects outside the battlefield/stack. Detect that condition cheaply and skip the pipeline when it holds.
 
-**Mechanism:** the `ContinuousEffectRegistry` maintains a summary flag set computed on every `add`/`remove`:
+**Mechanism:** the `ContinuousEffectRegistry` maintains a summary flag set computed on every `add`/`remove`. **The three fields below were this section's plan and are not what shipped** — `RegistryScopeSummary` exists, carried eight fields by RE-8, and LJ added the zone field as a `ZoneSet` rather than as the two bools (§13c decision 2):
 
 ```rust
 pub struct RegistryScopeSummary {
-    /// True iff any active effect's `affected_objects` could match objects in
-    /// hand / library / graveyard / exile. Set on register; cleared on
-    /// the last applicable effect's removal.
-    pub touches_hidden_zones: bool,
-    /// True iff any active effect could match stack objects.
-    pub touches_stack: bool,
-    /// True iff any active CDA exists at all.
-    pub has_active_cdas: bool,
+    /// The union of every row's reachable zones — LJ. A set, not
+    /// `touches_hidden_zones: bool`, so a graveyard-scoped row costs
+    /// graveyards and not libraries; `beyond_battlefield()` is what
+    /// `Board::seed` adds members for, and it is empty on an ordinary board.
+    pub reachable_zones: ZoneSet,
+    // ...plus eight gate flags added by Layer 2, RS-1, CV-1, CM-1 and RE-8;
+    // `state/continuous_effects.rs` is the list, each with its own reason.
 }
 ```
+
+`touches_stack` and `has_active_cdas` were never built. The stack half is subsumed: `ZoneSet::STACK` is a zone like any other. The CDA half is not a registry question at all — CR 604.3a(3) keeps CDAs out of the registry entirely (§6), so the fast path's CDA term is `cda::has_any_cda` read off the object's own list, which is where `compute_non_member` already asks it.
 
 Then `compute_characteristics(game, id, zone)` dispatches:
 
@@ -1556,6 +1557,400 @@ read is answered, and the three boards above are its findings.
   check admit it; no printed card reaches it.
 - **CR 400.7** for a `Fixed` row naming an object that changed zones — item
   10, CV-1b; the working set keeps such an object so the answer is today's.
+
+---
+
+## 13c. Phase LJ — the zone-reaching `ObjectSet` (live plan, 2026-09-14)
+
+#### LJ — the zone-reaching `ObjectSet` — ✅ landed 2026-09-14
+
+**Lettered for the reason §13a and §13b are**, and written before LJ-1 the way
+both of those were written before their first PR: the finding that sets the
+scope, the decisions the phase was asked to settle first, the pieces, and a
+size measured against the tree (`engineering-practices.md` §4).
+
+`codebase-state.md` "Before Layers" item 9, and critical-path **6a**'s
+prerequisite — `roadmap-v2.md` A5 puts it second of three, after item 124's
+rename (✅ PR #136) and before CR 113.6 itself.
+
+### The finding that sets the scope: this is a working-set change, not a predicate change
+
+Item 9's opening sentence says the gate is `effect_applies_to` in
+`engine/layers/compute.rs`. **There is no such function** — the name died with
+the RC-3 refactor and survives only in five comments. The live gate is
+`Board::in_battlefield_zone_or_entering` (`board.rs:220`), asked at
+`board.rs:879` in `affected_members`' `ObjectSet::Filter` arm, *ahead of*
+`object_matches_filter` and never inside it.
+
+§11 item 9 of `replacement-architecture.md` then calls the sweep "the easy
+half — one loop over a zone list instead of `battlefield_ids_ordered`". That
+understates it, and the understatement is the whole phase. Relaxing the
+predicate changes nothing, because a graveyard card is not a **candidate**:
+
+- `Board::seed` (`board.rs:140–157`) builds `members` as the battlefield in
+  CR 613.7 timestamp order, then the entering object, then the `asked` object,
+  then every object a `Fixed` row names. A graveyard card is a member today
+  only if some row named it `Fixed`.
+- `affected_members`' `Filter` arm iterates `board.members`. A non-candidate
+  cannot be matched by a predicate however permissive.
+- `membership()` (`board.rs:1304`) agrees: a graveyard card with no `Fixed`
+  row is `NonMember`, and the top-level entry sends it to `compute_non_member`,
+  whose fast exit says in as many words that "with no CDA there is nothing any
+  layer can do to an object off the battlefield." **That sentence is what this
+  phase falsifies**, and it is the one line that must stop being true.
+
+So the change is to **W, the working set** — §13b decision 2's derived set —
+and only then to the gate. Two consequences follow immediately, and both are
+load-bearing:
+
+**`Board::entities` must keep meaning the battlefield — and is renamed
+`battlefield_entities` to say so** (owner, 2026-09-14; 7 sites, all in
+`board.rs`). It is the prefix length `battlefield_ids` slices
+(`board.rs:226`), which is every CR-level *count* the walk makes.
+**`entities` rather than `objects`**: CR 109.1's "object" spans every zone,
+which is exactly what this prefix excludes, and `Board::entity` already calls
+a `PermanentState` an entity. A name that spans zones is the wrong name for
+the one number that must not, in the phase that makes the distinction
+load-bearing. `replacement-architecture.md` §5b's boundary —
+"visible to filters, invisible to counts" — rides on that prefix, and a
+graveyard card appended anywhere but after it would silently join every
+"creatures you control" count in the game. Zone members append last.
+
+**The cost must be provably zero on a board with no zone-reaching row**, not
+"within noise". Libraries are ~60 cards a player; at four seats an unguarded
+working set is ~400 objects instead of ~40, each with a seeded frame, on every
+pass. This is why `reachable_zones` is not an optimization to schedule later
+(decision 2).
+
+### Decisions — the five the phase was asked to settle before a line of code
+
+**1. CR 613.7d's timestamp move does *not* ride.** Item 9 lists it as one of
+two required pieces, and the first consumer does not need it.
+`static_effect_timestamp` takes the **source** of a static ability and returns
+the timestamp that orders the *effect* under CR 613.7. Yixlid Jailer's source
+is on the battlefield; only the objects it reaches are in graveyards, and
+**CR 613.7 orders effects, never affected objects** — so no member of the
+working set needs a timestamp in order to be walked.
+
+What still reads `PermanentState.timestamp`, and why each is safe: 
+`battlefield_ids_ordered` (the battlefield prefix and every count over it) and
+`restamp_source_rows` (CR 613.7e) are about permanents, which this phase does
+not touch; `static_effect_timestamp`'s `Some` arm is about a source, and this
+phase adds no source off the battlefield. Its `None` arm keeps its
+`debug_assert!(false)` and keeps being unreachable, because
+`register_static_effects` still runs only from `place_on_battlefield`. It
+flips the day a static ability *functions* from a graveyard — Wonder — which
+needs A5 (CR 113.6) anyway, and A5 is the row item 9's own correction 1 sends
+it to. The piece is item 9's second half and stays owed, on A5.
+
+**2. `reachable_zones` rides.** Item 9 says to build it "with the first
+zone-reaching card, not before", and this PR plays the first zone-reaching
+card. It is also what makes decision 1's and the measurement's claims
+checkable rather than hopeful: with the mask empty — the state of every board
+that plays no zone-reaching card — `Board::seed` appends nothing, `membership`
+returns exactly what it returns today, and `compute_non_member`'s fast exit is
+untouched. Zero is then a structural fact, not a reading. The existing fast
+path cannot stand in for it: it early-outs only on a *wholly empty* registry,
+which is false on every interesting board.
+
+It extends `RegistryScopeSummary` rather than adding a parallel counter, which
+is what item 9 asks and what §5.1 of this document specifies. **§5.1 is stale
+on the struct's shape** — it names `touches_hidden_zones` / `touches_stack` /
+`has_active_cdas` and the struct has carried eight other fields since RE-8. A
+`ZoneSet` is strictly better than the two bools: it confines the walk to the
+zone a card actually reaches instead of to "hidden or not", which is the
+narrowing item 9 asks for in its own last paragraph.
+
+**3. The zone lives on `ObjectSet::Filter`, as a `zones: ZoneSet` field — not
+as an `ObjectFilter` leaf.** Item 9 says "a zone-aware `ObjectSet`" in one
+place and "one `ObjectFilter` with a zone leaf" in correction 1. Three reasons
+the set is right:
+
+- **The gate is already outside the filter, and has been since RC-3.**
+  `board.rs:879` asks `in_battlefield_zone_or_entering` *and then*
+  `object_matches_filter`. The zone question has never been a filter leaf. A
+  field parameterizes the gate that exists; a leaf moves a **seed-time**
+  question (which objects are candidates at all) into a **per-layer, per-
+  candidate** predicate, where it would be asked ten times for an answer that
+  cannot change.
+- **Reach has to be readable syntactically** for decision 2 to hold.
+  `reachable_zones` is a union over rows, O(1) each, with no board access.
+  Inside `ObjectFilter`'s boolean algebra it would not be:
+  `Not(InZone(Battlefield))` is a *complement* recoverable only by an abstract
+  interpretation over the filter tree, which has to widen to "all zones" at any
+  `Not` to stay sound — defeating the fast path on exactly the cards that
+  motivate it.
+
+  **The first cut of this decision drew the wrong conclusion from that, and the
+  owner's review caught it (2026-09-14).** It said a `ZoneSet` "cannot express
+  a complement, which is the right expressive limit: no CR effect reaches
+  'every zone but one'." Both halves were wrong. A complement *on a concrete
+  bitmask* is bit arithmetic — `ALL.without(BATTLEFIELD)` is a bounded,
+  syntactically readable set like any other, and `ZoneSet::
+  EVERYWHERE_BUT_BATTLEFIELD` is now a constant. And the CR does reach it:
+  **Grist, the Hunger Tide** is "as long as Grist isn't on the battlefield,
+  it's a 1/1 Insect creature in addition to its other types", whose ruling
+  reads "anywhere but on the battlefield, Grist is a Legendary Planeswalker
+  Creature — Grist Insect"; Mycosynth Lattice and Painter's Servant both open
+  on "all cards that aren't on the battlefield". The rule would outrank the
+  card list regardless — §4's "the CR is the customer" means a facility the
+  rules permit is owed whether or not a card prints it, and custom cards are a
+  post-v1 goal.
+
+  **So the limit is on where a complement lives, not on whether one exists**,
+  which is the same sentence the rest of this decision makes: the zone belongs
+  on the set, where its reach is a value, not in the tree, where it is a
+  search.
+- **`targeting.rs`'s four matchers must not see it.** A selection filter's
+  zone is already carried by `SelectionFilter`'s own variant —
+  `Creature` is the battlefield, `SpellOnStack` the stack. A leaf would oblige
+  all five matchers to answer a question four of them have already answered,
+  and `ObjectFilter::EachOther`'s precedent is that a matcher which cannot
+  answer a leaf must *refuse* it rather than guess.
+
+And the objection worth stating out loud, because the tree records it:
+`compute.rs:495–502` says `ObjectFilter::ByController` once returned `true`
+unconditionally and deferred to a `controller` **field on
+`ObjectSet::Filter`** — "the two halves of one question lived in two places
+and only one of them was re-asked during the walk." That is an argument
+against a leaf *and* a field for one question, not against a field. The zone
+has exactly one home under this decision; the snapshot bug needed two. The
+test that it stays one: no `ObjectFilter` leaf may mention a zone.
+
+`ZoneSet` is a hand-rolled `struct ZoneSet(u8)` over `Zone`'s seven variants,
+following `Channels(u16)` (`board.rs:357`) rather than taking a `bitflags`
+dependency the crate does not have.
+
+**4. A non-battlefield member's position in the walk is its zone's own
+order — seat order, then index within the zone.** This is the question
+decision 1 might have forced and does not: CR 613.7 orders *effects*, so a
+member needs only a **deterministic** position, not a timestamp.
+`PlayerState.library` / `.hand` / `.graveyard` and `GameState.exile` are
+already `Vec<ObjectId>`, already in a meaningful order, and iterated in seat
+order — no `HashMap`, so CLAUDE.md's determinism invariant is satisfied by
+construction rather than by a sort. CR 404.3 makes a graveyard an ordered zone
+in the CR's own words, so for the first consumer the engine's order *is* the
+rule's.
+
+Zone members append **after** the battlefield prefix, the look-ahead object,
+the `asked` object and the `Fixed`-named ones, so `battlefield_entities` keeps
+its meaning and `battlefield_ids` is byte-identical (the finding above).
+
+**Can a zone order leak?** Asked by the owner at this review, and worth the
+check even though the answer today is no: the layer walk holds **zero**
+`DecisionProvider`, prompt or log sites — it is pure computation producing
+frames, and a frame is observable only by querying that object. Nothing
+serializes member order. The first consumer additionally reaches only
+**graveyards, which CR 400.2 makes a *public* zone**; library and hand are the
+hidden ones. So LJ has no hidden-zone exposure at all.
+
+The constraint the facility nonetheless creates, recorded here and pointed at
+from `backlog.md` §2.9 because §2.9 lands before Phase 8 anyway: **a
+zone-reaching row over a hidden zone must not make that zone's order or
+contents observable.** The row itself is safe — it reads. What would not be is
+a later reader that counts members, orders a prompt by them, or logs them, and
+§2.9 is where that question gets an owner. It is filed as a constraint and not
+a deferral because there is no code today that could violate it.
+
+**5. The `CardFilter` fold rides.** Correction 1 plans it, and **the first
+cut of this section deferred it on a risk that sizing dissolved.** The
+argument for waiting was that two of its five uses sit on `Cost`, which CM-4
+landed on 2026-09-08, so the fold would put a sweep across the cost surface
+inside a PR already changing the working set. That is only a risk if the cost
+surface *reads* the filter, and it does not: the `CardFilter` inside
+`Cost::Discard` and `Cost::ExileFromGraveyard` is **inert** — every consumer
+in `engine/costs.rs` matches it as `_`. There is no behavior in the cost half
+to break, only a type the compiler swaps. The one live matcher is the
+three-arm one at `condition.rs:96–98` under `Condition::CardInGraveyard`,
+which becomes a call to `object_matches_filter`.
+
+**~70 lines, and `engineering-practices.md` §4's RE-4 precedent is exactly
+this case**: a change under about eighty lines on a type the PR already has
+open is a normal diff, and deferring it buys a second pass over the same code.
+`ObjectFilter` is open here by decision 3.
+
+So **item 9 closes owing one piece, not two**: CR 613.7d's timestamps
+(decision 1, on A5). The fold is done.
+
+### The pieces
+
+**One PR, and it is `LJ`, not `LJ-1` — there is no `LJ-2`.** Bare like `RB`,
+because the code names a phase and a number that never gets a sibling claims a
+series the tree does not have. Asked by the owner at this review; the other
+open items in this document's bucket each carry their own trigger and none is
+item 9's: "Before Layers" item 4 (mana-pool persistence, with T12c), item 7's
+grant-over-a-filter half (with the first Aura-granted static or Archetype
+lord), item 7d (`ContinuousEffectDraft`, "a quiet PR of its own" by its own
+note) and item 10 (the Layer 1a/1b split, which `copy-effects-architecture.md`
+owns — nothing in this document produces a layer 1 effect).
+
+**And LJ precedes RE-9, which is already on the record.** `roadmap-v2.md` A5
+says it twice — "three PRs, in this order" and "the owner asked whether to
+pull the three forward, ahead of RE-9 and RE-10: yes" — and the tree agrees:
+RE-9 is mana and RE-10 the turn cursor, neither depends on the zone-reaching
+set or on CR 113.6, while A5 gates A6. The route is **LJ → A5 → RE-9/RE-10**.
+
+| | Site | Size |
+|---|---|---:|
+| `ZoneSet` — the bitmask, `Zone` → bit, union, membership | `types/effects.rs` | ~60 |
+| `ObjectSet::Filter { filter, zones }` — the field, an `ObjectSet::filter(f)` constructor for the battlefield default and `filter_in(f, zones)` for the rest, and 64 construction sites rewritten onto them (28 `src/`, 36 tests; 4 destructuring patterns take `..`, 19 mentions are doc comments) | 16 `src/` files, 12 test files | ~200 |
+| `reachable_zones` on `RegistryScopeSummary`, unioned in `of()` | `state/continuous_effects.rs` | ~40 |
+| `Board::seed` — append zone members, gated on the mask; `entities` unchanged | `board.rs:140` | ~50 |
+| `membership()` + `compute_non_member`'s fast exit — both gated on the same mask | `board.rs:1304`, `compute.rs:184` | ~45 |
+| `affected_members` — the gate takes the row's zones | `board.rs:862` | ~25 |
+| `Board::entities` → `battlefield_entities` (decision 0) | `board.rs` × 7 | ~10 |
+| `CardFilter` folded into `ObjectFilter` (decision 5) — two inert `Cost` fields, `Condition::CardInGraveyard`, the three-arm matcher → `object_matches_filter` | `types/costs.rs`, `types/effects.rs`, `condition.rs` | ~70 |
+| Yixlid Jailer, Scarwood Treefolk, `PERFORMANCE_POOL` entry | `cards/` | ~90 |
+| Tests — the atom, the mask's zero-cost claim, determinism | `tests/`, unit | ~250 |
+| Docs — item 9's eviction, §11 item 9, A5, §5.1 | `plans/` | ~150 |
+
+**~990 lines**, against item 9's 2026-09-04 estimate of 400–600. The gap is
+decision 3's field: CM-0 and PR #136 both grew `ObjectSet`'s site count since
+that estimate was written, and the estimate predates the finding that this is
+a working-set change. Inside §4's 1,500–2,500 band with room, so one PR.
+
+### The first consumer, and why the test is an integration test
+
+**Yixlid Jailer** — {1}{B}, Creature — Zombie Wizard, 2/1, "Cards in
+graveyards lose all abilities." (Scryfall, verified 2026-09-14.) Item 9's
+correction 1 names it the right first card: its source is on the battlefield,
+so it needs nothing from CR 113.6, only the zone-scoped filter and a
+`LoseAllAbilities` row reaching a graveyard. `Primitive::LoseAllAbilities`
+already exists and already maps to `Channels::ABILITIES | Channels::KEYWORDS`
+(`board.rs:430`), so no new primitive.
+
+Its partner is **Scarwood Treefolk** — {3}{G}, Creature — Treefolk, 3/5,
+"This creature enters tapped." (Scryfall, verified 2026-09-14.)
+
+**ATOM-614.12-001** (`sessions/session-6.md`) is the atom, `COVERS-PARTIAL`
+today at `tests/phase_rc_integration_test.rs:406` against a battlefield-scoped
+effect. Its own board is Jailer + Treefolk and the graveyard half is what is
+missing: the Treefolk's ability is checked as it *would* exist on the
+battlefield, where the Jailer does not reach, **so it enters tapped** even
+though it had no abilities in the graveyard. That is a genuine integration
+test of this facility against RC-4's look-ahead overlay rather than a unit
+test of the filter, and it is what upgrades the annotation to `COVERS`.
+
+It will not appear in `specdb owed` — the atom is Phase 6 and `owed`'s default
+scope is `SHIPPED_PHASES`, which does not list it. The gate here is the
+`// COVERS:` annotation discipline, not the report (`state-of-play.md` says so
+in its own words).
+
+**Wonder is the second card, not the first** (A5 and the `Condition` AST);
+**Aminatou** is four systems deep and a Phase 8 card. Neither is reached for
+here — and the next section is why that sentence is structural rather than a
+scoping preference.
+
+### What can *see* a zone-reaching effect — and the fixture that closes the loop
+
+Asked at the review, and it is the sharpest question the phase got: *if nothing
+reads a graveyard card's abilities, how is Yixlid Jailer being tested at all?*
+
+**The first answer given here was "it is not observable yet", and that was too
+strong** (corrected at the owner's second pass). The precise statement is
+narrower: nothing yet reads a graveyard card's **ability list** — flashback,
+retrace and Bridge from Below's trigger are each gated on CR 113.6, which is
+A5. But an ability is not the only thing that goes when the Jailer applies,
+because **one of the abilities can be a CDA, and removing it changes another
+characteristic outright**.
+
+**Tarmogoyf is the case, and both cards are already in `PERFORMANCE_POOL`.**
+CR 208.2a gives its CDA "this ability functions everywhere, even outside the
+game", which is why a Tarmogoyf in a graveyard has a computed P/T at all; strip
+its abilities and what is left is the seed, `power_toughness(0, 1)` — the
+printed `*/1+*`. So the Jailer turns a 2/3 in a graveyard into a 0/1, which is
+a characteristic change read directly and not through an ability list.
+
+That test also reaches a **different code path** from everything else here:
+`engine/layers/cda.rs` applies CDAs off the object's own effective ability list
+at layers 4, 5 and 7a, never from the registry (CR 604.3a(3)). It asserts that
+the Jailer's Layer 6 strip lands on the list Layer 7a then reads, one zone
+over from the Humility case §6 describes. Its partner asserts the other
+direction — a Tarmogoyf **on the battlefield** is untouched, and in particular
+the Jailer does not reduce its count, because it removes abilities and not card
+*types*.
+
+What stays true is the narrower gap, and it is why the fixtures below still
+earn their place: a **rule** reading a zone-reaching change is a third thing
+again, and Tarmogoyf's graveyard P/T is read by almost nothing today.
+
+**A *color* in a graveyard is observable today**, and closing the loop needs
+nothing this PR does not already have. `Condition::CardInGraveyard` reads a
+graveyard card's characteristics, and decision 5's fold gave it `ObjectFilter`,
+so it can ask `ByColor`. Two fixtures in `phase_lj_cards.rs` — **Graveyard
+Painter** ("cards in graveyards are red in addition to their other colors",
+Painter's Servant's clause narrowed to one zone) and **Graveyard Reveler**
+("+2/+2 as long as there's a red card in your graveyard", Kird Ape's shape) —
+make the chain:
+
+> a zone-reaching row applies at Layer 5 → a black card in the graveyard is now
+> also red → CR 604.2's existence check on the Reveler's own ability sees a red
+> card there → its Layer 7c row exists → the Reveler is 3/3.
+
+Every link is a rule, and the assertion is the Reveler's **power** — two cards
+and two layers away from the row under test. `test_a_zone_reaching_row_changes_
+a_characteristic_a_rule_reads`, with the reverse (removing the Painter turns it
+back off) beside it, since CR 604.2 is re-asked and never latched.
+
+Registered nowhere, per the fixture convention `registry.rs` names by card.
+
+### What LJ can and cannot express — the source/affected split
+
+Asked by the owner at this review — *will Wonder or Aminatou be expressible
+after this, and what would it look like?* Answering it surfaced a distinction
+neither sizing of item 9 draws, and it is the one that makes decision 1
+correct rather than merely convenient.
+
+**Every zone-reaching effect asks two zone questions, not one:**
+
+1. Where is the **source** — the object whose static ability this is?
+2. Where are the **affected objects**?
+
+**LJ answers only the second.** The first *is* CR 113.6, which is A5's row and
+this document's item 9 second half. That is why the two split cleanly, and why
+`static_effect_timestamp` is untouched here: a timestamp is read off a
+*source*, and LJ adds no source off the battlefield.
+
+| Card | Source | Affected | After LJ |
+|---|---|---|---|
+| **Yixlid Jailer** — "Cards in graveyards lose all abilities" | battlefield | graveyards | ✅ complete; the first consumer |
+| **Mycosynth Lattice** cl. 2 — "All cards that aren't on the battlefield, spells, and permanents are colorless" | battlefield | every zone | ✅ complete — `zones: ALL`, and `RemoveAllColors` already lowers to `Channels::COLORS` |
+| **Painter's Servant** cl. 2 — "… are the chosen color in addition to their other colors" | battlefield | every zone | ✅ the set; the color choice is an as-enters replacement RC already has |
+| **Deeproot Historian** — "Merfolk and Druid cards in your graveyard have retrace" | battlefield | your graveyard | ✅ the set (§13b decision 2 names it); `retrace` is a keyword the engine lacks |
+| **Aminatou, Veil Piercer** cl. 1 — "Each enchantment card in your hand has miracle" | battlefield | your hand | ⚠ the **grant lands on the frame**; miracle does not *function* from hand (A5) and is trigger-linked (item 6) |
+| **Wonder** — "As long as this card is in your graveyard … creatures you control have flying" | **graveyard** | battlefield | ❌ source-side — A5 **and** CR 613.7d's timestamps |
+
+(Texts verified on Scryfall, 2026-09-14.)
+
+**So Wonder is precisely the card LJ does not unlock**, and that is the
+cleanest statement of decision 1: a source off the battlefield and a timestamp
+it has nowhere to read are the *same* missing facility, so deferring 613.7d
+costs nothing that A5 does not already owe. The `Condition` AST Wonder's "as
+long as … you control an Island" needs already exists — LI-3 landed
+`ControlPermanent`, so that half is not what blocks it.
+
+**Aminatou's crux is reachable as a fixture**, and it is the sharpest test of
+the affected side short of registering the card:
+
+```rust
+// "Each enchantment card in your hand has miracle"
+ObjectSet::Filter {
+    filter: ObjectFilter::And(
+        Box::new(ObjectFilter::ByType(CardType::Enchantment)),
+        // CR 108.4a — a card with no controller uses its owner, which is
+        // correction 1's whole reason one filter type serves both zones.
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ),
+    zones: ZoneSet::HAND,
+}
+```
+
+with a Layer 6 `GrantAbility` over it, and the assertion that
+`get_effective_abilities` on a card **in hand** returns the granted ability —
+which today it cannot, because that card is a `NonMember` and never receives a
+frame at all. Not registered in LJ: the fixture is the honest form while
+miracle is three systems away, and `CLAUDE.md`'s rule is that a card is
+registered only once the engine can play it.
 
 ---
 

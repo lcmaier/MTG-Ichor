@@ -61,7 +61,7 @@ use crate::types::mana::{ManaCost, ManaType};
 /// The first static ability in the pool that lowers to
 /// `ObjectSet::Host`, so the first row whose membership is a
 /// `battlefield` read per candidate per layer rather than a filter match. That
-/// is a new arm in `effect_applies_to`, and §3 asks that a new engine path be
+/// is a new arm in `board::affected_members`, and §3 asks that a new engine path be
 /// measured rather than assumed.
 pub fn holy_strength() -> Arc<CardData> {
     CardDataBuilder::new("Holy Strength")

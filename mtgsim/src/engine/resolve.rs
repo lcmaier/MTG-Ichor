@@ -207,6 +207,14 @@ impl GameState {
             Primitive::DealDamage { amount: amount_expr, unpreventable } => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
                 let targets: Vec<DamageTarget> = match recipient {
+                    // CR 119.3 — damage is dealt to permanents and players, so
+                    // a zone-reaching recipient has nothing to be dealt to.
+                    EffectRecipient::FilteredObjectsIn(..) => {
+                        return Err(format!(
+                            "a `Primitive::DealDamage` on {:?} has a zone-reaching recipient (CR 119.3)",
+                            ctx.source
+                        ));
+                    }
                     EffectRecipient::FilteredPermanents(filter) => self
                         .battlefield_ids_ordered()
                         .into_iter()
@@ -1055,6 +1063,15 @@ impl GameState {
                     // CR 615.11 — one per applicable permanent, fixed at
                     // resolution. Ordered, because the rows are offered to
                     // CR 616.1 prompts in registration order.
+                    // CR 615.11 makes one row per *permanent*; a row on a card
+                    // in another zone is §3.3 source 2 and needs CR 113.6
+                    // (`roadmap-v2.md` A5) before it could ever fire.
+                    EffectRecipient::FilteredObjectsIn(..) => {
+                        return Err(format!(
+                            "a `Primitive::CreateReplacement` on {:?} has a zone-reaching recipient; see roadmap-v2.md A5",
+                            ctx.source
+                        ));
+                    }
                     EffectRecipient::FilteredPermanents(filter) => {
                         debug_assert!(
                             authored_empty,

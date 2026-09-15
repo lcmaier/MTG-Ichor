@@ -57,7 +57,7 @@ use crate::types::effects::{
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::zones::Zone;
+use crate::types::zones::{Zone, ZoneSet};
 
 /// One pass's state: the working set and its live frames.
 ///
@@ -68,12 +68,20 @@ use crate::types::zones::Zone;
 /// The evaluators ask [`Board::frame_of`] and never care which.
 pub(super) struct Board<'l> {
     /// Members in walk order: battlefield entities by CR 613.7 timestamp,
-    /// then the entering object, then `Fixed`-named objects in row order.
+    /// then the entering object, then `Fixed`-named objects in row order,
+    /// then the objects a zone-reaching row names, in their zones' own order.
     members: Vec<ObjectId>,
     /// How many of `members`, from the front, are battlefield entities —
     /// the prefix a count over the battlefield enumerates (§5b's boundary:
     /// the entering object is visible to filters and invisible to counts).
-    entities: usize,
+    ///
+    /// **Named for the battlefield because it must keep meaning it.** Every
+    /// CR-level count the walk makes slices this prefix, so a member appended
+    /// anywhere but after it joins every "creatures you control" count in the
+    /// game — which is what a zone-reaching row would otherwise do to a
+    /// graveyard card. `entities` and not `objects`: CR 109.1's "object"
+    /// spans every zone, which is exactly what this excludes.
+    battlefield_entities: usize,
     frames: HashMap<ObjectId, EffectiveCharacteristics>,
     live: bool,
     /// CR 613.6 — the set of members a CR-level effect first applied to,
@@ -116,7 +124,7 @@ impl<'l> Board<'l> {
     pub(super) fn settled() -> Self {
         Board {
             members: Vec::new(),
-            entities: 0,
+            battlefield_entities: 0,
             frames: HashMap::new(),
             live: false,
             started: HashMap::new(),
@@ -138,7 +146,7 @@ impl<'l> Board<'l> {
     /// them.
     fn seed(game: &GameState, lookahead: Option<&'l Lookahead>, asked: Option<ObjectId>) -> Self {
         let mut members = game.battlefield_ids_ordered();
-        let entities = members.len();
+        let battlefield_entities = members.len();
         let mut seen: HashSet<ObjectId> = members.iter().copied().collect();
         if let Some(l) = lookahead {
             if seen.insert(l.object) {
@@ -159,13 +167,33 @@ impl<'l> Board<'l> {
                 }
             }
         }
+        // LJ — the objects a zone-reaching row can name. Appended **last**, so
+        // `battlefield_entities` keeps naming the prefix every count slices,
+        // and in each zone's own order (CR 404.3 for a graveyard), which is
+        // what a member outside the battlefield has instead of a timestamp.
+        //
+        // `beyond_battlefield` is empty on every board that plays no
+        // zone-reaching card, which is what makes this loop free rather than
+        // cheap — the alternative is every library in the game, ~400 members a
+        // pass at four seats instead of ~40.
+        //
+        // The look-ahead's own rows are deliberately not consulted: a
+        // `would_be` row's candidates are `[source]` alone (§5b's asymmetry),
+        // so it never reads a member it did not already have.
+        for zone in game.continuous_effects.summary().reachable_zones.beyond_battlefield().iter() {
+            for id in game.zone_ids_ordered(zone) {
+                if game.objects.contains_key(&id) && seen.insert(id) {
+                    members.push(id);
+                }
+            }
+        }
 
         let track_started = game.continuous_effects.summary().any_multi_row_group
             || lookahead.is_some_and(|l| l.summary.any_multi_row_group);
 
         let mut board = Board {
             members,
-            entities,
+            battlefield_entities,
             frames: HashMap::new(),
             live: true,
             started: HashMap::new(),
@@ -212,14 +240,39 @@ impl<'l> Board<'l> {
 
     /// Is `id` in the battlefield zone, or is it the object entering it?
     ///
-    /// The gate a filter row asks before matching. The *zone* rather than
-    /// entity membership (RC-3), which admits a token created in the zone
-    /// with no entity yet; the look-ahead admits the entering object, still
-    /// in its source zone while its entry is decided (RC-4b) — and nothing
-    /// else. A `Fixed`-named member in a graveyard fails it.
+    /// The *zone* rather than entity membership (RC-3), which admits a token
+    /// created in the zone with no entity yet; the look-ahead admits the
+    /// entering object, still in its source zone while its entry is decided
+    /// (RC-4b) — and nothing else.
+    ///
+    /// [`Self::in_zones_or_entering`] generalized this for LJ and this is now
+    /// that call with [`ZoneSet::BATTLEFIELD`]. Kept as its own name because
+    /// `Condition::SourceOnBattlefield` asks exactly this question and asking
+    /// it through a zone set would read as though the answer could vary.
     pub(super) fn in_battlefield_zone_or_entering(&self, game: &GameState, id: ObjectId) -> bool {
-        self.entering(id).is_some()
-            || matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield)
+        self.in_zones_or_entering(game, id, ZoneSet::BATTLEFIELD)
+    }
+
+    /// Is `id` in one of `zones` — the gate a filter row asks before matching?
+    ///
+    /// **The entering object is asked about as though it were already on the
+    /// battlefield, and that is CR 614.12 rather than a convenience.** The
+    /// look-ahead exists to ask what the object *would be* once it has
+    /// entered, so a row reaches it iff the row reaches the battlefield; its
+    /// source zone is not the question. That single line is the whole of
+    /// ATOM-614.12-001: Yixlid Jailer's "cards in graveyards lose all
+    /// abilities" is graveyard-scoped, so it does **not** reach a Scarwood
+    /// Treefolk entering *from* a graveyard, the Treefolk's "enters tapped"
+    /// survives the look-ahead, and it enters tapped — which is the printed
+    /// answer, and the CR's own worked example.
+    ///
+    /// A `Fixed`-named member is admitted to the working set wherever it is
+    /// (`Board::seed`), and still fails this gate unless a row names its zone.
+    pub(super) fn in_zones_or_entering(&self, game: &GameState, id: ObjectId, zones: ZoneSet) -> bool {
+        if self.entering(id).is_some() {
+            return zones.contains(Zone::Battlefield);
+        }
+        matches!(game.objects.get(&id), Some(obj) if zones.contains(obj.zone))
     }
 
     fn has_frame(&self, id: ObjectId) -> bool {
@@ -229,7 +282,7 @@ impl<'l> Board<'l> {
     /// The battlefield, in timestamp order, for a count over it.
     pub(super) fn battlefield_ids(&self, game: &GameState) -> Vec<ObjectId> {
         if self.live {
-            self.members[..self.entities].to_vec()
+            self.members[..self.battlefield_entities].to_vec()
         } else {
             game.battlefield_ids_ordered()
         }
@@ -244,7 +297,13 @@ impl<'l> Board<'l> {
         if let Some(frame) = self.frames.get(&id) {
             return Some(FrameRef::Live(frame));
         }
-        if !self.live && game.battlefield.contains_key(&id) {
+        // A member's frame comes from the pass (memoized), never from a lone
+        // walk. Read through `membership` rather than off `game.battlefield`
+        // so it stays the same answer the top-level entry gives: since LJ a
+        // member need not be a battlefield entity, and answering one here with
+        // `compute_non_member` would drop exactly the zone-reaching row that
+        // made it a member.
+        if !self.live && matches!(membership(game, id), Membership::Member) {
             return crate::engine::layers::compute::compute_characteristics(game, id).map(FrameRef::Shared);
         }
         if let Some(frame) = self.sub.borrow().get(&(id, ceiling)) {
@@ -621,7 +680,7 @@ fn effect_channels(
             reads.source |= Channels::ABILITIES;
             conditional_reads_of(game, board, first, layer_index, &mut reads, you_channel);
         }
-        if let ObjectSet::Filter { filter } = &first.affected_objects {
+        if let ObjectSet::Filter { filter, .. } = &first.affected_objects {
             filter_reads(filter, &mut reads, you_channel);
         }
     }
@@ -859,7 +918,7 @@ fn affected_members(
             .filter(|host| board.has_frame(*host))
             .into_iter()
             .collect(),
-        ObjectSet::Filter { filter } => {
+        ObjectSet::Filter { filter, zones } => {
             // §5b's asymmetry (`replacement-architecture.md`): the entering
             // object's own row is in its frame and reaches no other member,
             // because it is not on the battlefield yet and CR 604.3 makes
@@ -874,9 +933,11 @@ fn affected_members(
                 .iter()
                 .copied()
                 .filter(|&id| {
-                    // In the battlefield zone, checked first so a `Fixed`-named
-                    // graveyard card costs no filter evaluation.
-                    board.in_battlefield_zone_or_entering(game, id)
+                    // In one of the row's zones, checked first so a member the
+                    // row does not reach costs no filter evaluation — which is
+                    // every graveyard card on a board whose rows are all
+                    // battlefield-scoped.
+                    board.in_zones_or_entering(game, id, *zones)
                         && object_matches_filter(filter, id, &board.frames[&id], &mut players)
                 })
                 .collect()
@@ -1290,9 +1351,9 @@ pub(super) fn compute_board_traced<'l>(
 /// Whether `id` belongs to the working set, which decides how the
 /// top-level entry computes it.
 pub(super) enum Membership {
-    /// A battlefield entity, or an object a `Fixed` row names: a member of
-    /// every pass. Rows are scanned rather than summarised — `Fixed` rows
-    /// are few, and a miss is already a walk.
+    /// A battlefield entity, an object a `Fixed` row names, or an object in a
+    /// zone some row reaches: a member of every pass. Rows are scanned rather
+    /// than summarised — `Fixed` rows are few, and a miss is already a walk.
     Member,
     /// In the battlefield zone with no entity: a member of the pass that
     /// asks about it (see [`Board::seed`]).
@@ -1312,7 +1373,23 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
         .continuous_effects
         .iter()
         .any(|e| matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id)));
-    if fixed_named { Membership::Member } else { Membership::NonMember }
+    if fixed_named {
+        return Membership::Member;
+    }
+    // LJ — in a zone some row reaches. Summarised rather than scanned, unlike
+    // `Fixed` above: this is asked for every card in every hidden zone the
+    // oracle ever queries, and the summary answers `EMPTY` in one compare on
+    // any board with no zone-reaching row. It must agree with `Board::seed`,
+    // which reads the same field — a member the seed adds and this call
+    // reports as a non-member would be walked alone, without the row that
+    // made it a member.
+    let beyond = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
+    if !beyond.is_empty()
+        && matches!(game.objects.get(&id), Some(obj) if beyond.contains(obj.zone))
+    {
+        return Membership::Member;
+    }
+    Membership::NonMember
 }
 
 /// `id`'s frame as of the end of layer `ceiling - 1`, from outside any pass:

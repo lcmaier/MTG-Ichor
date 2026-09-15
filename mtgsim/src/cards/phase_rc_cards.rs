@@ -35,7 +35,8 @@
 //! permanent. That is false, and it was never true.** There are two filter
 //! paths and they are different functions:
 //!
-//! - `compute.rs::effect_applies_to` gates on `game.battlefield.contains_key`
+//! - the layer gate (then `compute.rs::effect_applies_to`, since RC-3
+//!   `board.rs::Board::in_zones_or_entering`) gates on `game.battlefield.contains_key`
 //!   and governs **`ContinuousEffect`** — the layer registry. That is the gate
 //!   RC-3 removes, and Blood Moon / Humility / Dress Down are the effects
 //!   behind it.
@@ -120,7 +121,8 @@ use crate::types::zones::{Zone, ZoneChangeCause};
 ///
 /// **It does not, and this card is what found out.** Blood Moon's row is a
 /// `ContinuousEffect` whose `ObjectSet` is a `Filter`, and
-/// `compute.rs::effect_applies_to` returns `false` for a filter effect against
+/// the layer gate (then `compute.rs::effect_applies_to`, now
+/// `board.rs::Board::in_zones_or_entering`) returns `false` for a filter effect against
 /// an object that is not on the battlefield — so the *layer registry* reaches
 /// no entering permanent. That gate is Phase **RC-3**'s one line, and until it
 /// moves the strip is real everywhere except at the instant it matters here.
@@ -366,12 +368,10 @@ pub fn root_maze() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::Or(
+                ObjectSet::battlefield_filter(ObjectFilter::Or(
                         Box::new(ObjectFilter::ByType(CardType::Artifact)),
                         Box::new(ObjectFilter::ByType(CardType::Land)),
-                    ),
-                },
+                    )),
                 Rewrite::EnterWith(EnterModsTemplate::tapped()),
             ))),
         })
@@ -447,12 +447,10 @@ pub fn containment_priest() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: Some(false) },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::And(
+                ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
-                    ),
-                },
+                    )),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -857,12 +855,10 @@ pub fn master_biomancer() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
                 EventPattern::EnterBattlefield { cast: None },
-                ObjectSet::Filter {
-                    filter: ObjectFilter::And(
+                ObjectSet::battlefield_filter(ObjectFilter::And(
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    ),
-                },
+                    )),
                 Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
                     CounterType::PlusOnePlusOne,
                     AmountExpr::SourcePower,

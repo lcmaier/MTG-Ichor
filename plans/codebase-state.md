@@ -2788,10 +2788,40 @@ games, 1.74 copies per deck. `fuzz-record.md` has the re-recorded table.
     **Reachability (2026-09-07):** unreachable — no route exists to put a row
     on a non-member, and no registered card asks for one.
 
+    **Re-derived (2026-09-14, LJ) — the route now exists, and the heading of
+    this item is what went stale.** "A registry row cannot reach an object off
+    the battlefield" is no longer true: a `Filter` row naming
+    `ZoneSet::STACK` reaches a spell, and one naming `HAND` reaches a card in
+    hand. The literal *reachability* sentence survives on a technicality — an
+    object a row reaches is a **member**, so nothing puts a row on a
+    non-member — and that technicality is the whole change, because
+    `compute_non_member` is now the walk of an object **no row names** rather
+    than of any object off the battlefield.
+
+    What this costs the item's two consequences:
+
+    - **The load-bearing one is still true, and is now true for a different
+      reason.** Source 2's printed gate leg reads `card_data.abilities` for a
+      spell, and that was *exact by construction* while no row could reach the
+      stack. It is now exact only because no registered row names it. The
+      backstop was already built and already OR'd into the gate —
+      `any_granted_cost_modification` and `any_copied_cost_modification` — so
+      the answer does not change today; what changed is that the gate rests on
+      a flag rather than on a structural impossibility, which is a thing to
+      know before writing the first stack-reaching cost ability.
+    - **The gap half narrowed.** CR 113.6e's second sentence still has nothing
+      to grant *with*, but no longer nothing to grant *to*: the zone half is
+      built and it is CR 113.6 itself that is missing, which is A5.
+
+    **Reachability (2026-09-14):** unreachable — still no registered card puts
+    a cost ability on an object off the battlefield, and the two summary flags
+    catch it when one does.
+
     **Sized:** none here; when a route exists, the gather's two summary flags
     (`any_granted_cost_modification`, `any_copied_cost_modification`) are
     already OR'd into source 2's gate and are what catches it, so the cost of
-    forgetting is bounded to whatever builds the route.
+    forgetting is bounded to whatever builds the route. LJ built half the
+    route and neither flag needed touching, which is that sentence holding.
 
 76. **`Effect::as_…` says what an ability *is*, never where it applies from,
     and all three cost gates are about where.** — ✅ closed, archived.
@@ -4599,62 +4629,16 @@ The layer system's designated single-point change site is `oracle/characteristic
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
     613) — now DURING Layers" item 12.
 
-9. **Abilities granted to cards outside the battlefield — ❌ inexpressible.** The layer system can only apply filter-based effects to objects in the battlefield *zone*: `effect_applies_to`'s gate is `in_battlefield_zone_or_entering` (`engine/layers/compute.rs`, since RC-3), and the filter type is `ObjectFilter`. So a whole class of real cards has no representation — Yawgmoth's Will and Underworld Breach (flashback on graveyard cards), Aminatou, Veil Piercer ("Each enchantment card in your hand has miracle"), Future Sight and Bolas's Citadel (playing off the library), foretell-style grants on face-down exile.
-
-   Two pieces are needed, in this order:
-   - **A card filter and a zone-aware `ObjectSet`,** so the effect can say which zone it reaches. This is the actual blocker; it is a type change, not a tuning problem.
-   - **Timestamps must move off `PermanentState` and onto the object.** CR 613.7d gives an object a timestamp when it enters *any* zone; we store one only on `PermanentState`. Wonder ("as long as this card is in your graveyard and you control an Island, creatures you control have flying" — a static ability functioning from the graveyard, CR 113.6b) has nowhere to read one from, so `GameState::static_effect_timestamp` has no answer for it. Its `None` arm is unreachable today only because `register_static_effects` is called from `place_on_battlefield`.
-
-   - **A `reachable_zones` bitmask on `ContinuousEffectRegistry`,** maintained on add/remove. **This now has a home:** `RegistryScopeSummary` exists (`state/continuous_effects.rs`), recomputed on every `add`/`remove`, carrying the one field the CR 604.2 existence check needed. `layers-architecture.md` §5.1 already specifies `touches_hidden_zones` / `touches_stack` / `has_active_cdas` on that same struct — extend it rather than adding a parallel counter. `compute_characteristics` checks the object's zone against it and returns base characteristics on a miss. This keeps the cost at zero until someone actually plays a zone-reaching card, and even then confines it to the one zone that card reaches — queried on demand at castability-check time, never as an eager sweep over every card in the game.
-
-   **Narrowed by the CDA phase (2026-08-22).** This item once carried CR 604.3's "CDAs function in all zones" as well. It doesn't: a CDA has no filter (CR 604.3a(3)), so it never needed a zone-aware `ObjectSet`, and it now works in every zone via the intrinsic pass. What remains here is the original thing — *filter-based* effects reaching other zones. Note for whoever builds the `reachable_zones` fast path: it must not early-out an object that has a CDA of its own, which is why `apply_effects`' existing fast path already has a third term.
-
-   The mask also generalizes the existing fast path, which today early-outs only when the registry is *entirely* empty: with it, a card in hand early-outs even with many battlefield effects registered. Worth building **with** the first zone-reaching card, not before — there is nothing to test against otherwise. Note that Aminatou additionally needs item 3 (the cost-modification pipeline) for "its miracle cost is equal to its mana cost reduced by {4}".
-
-   **Reachability (2026-09-04):** unreachable — no registered card grants an
-   ability to a card outside the battlefield; Leyline of the Void's opening-hand
-   clause is left off the registered card (`phase_rb_cards.rs`), which is the
-   narrower-card precedent, not a wrong answer. Re-derived with the breadth,
-   since "niche" was the risk: Scryfall gives 24 graveyard-side "has/have"
-   statics, 103 static cast-from-graveyard permissions, 25 "spells you cast
-   have" grants reaching the stack and 3 "cards in your hand have" — with the
-   replacement doc's ~390 sources outside the battlefield, a few hundred
-   cards.
-
-   **Sized:** a zone-aware `ObjectSet` with a card filter, CR
-   613.7d timestamps on `GameObject`, and `reachable_zones` on
-   `RegistryScopeSummary`: ~400–600 lines; with the first zone-reaching card,
-   and `replacement-architecture.md` §3.3 source 2 (Leyline's clause) rides the
-   same change.
-
-   **Three corrections (2026-09-04, after LH-1's review).**
-   1) *One filter type, not two.* "A card filter" above assumed a second type
-   beside the characteristic filter (then `PermanentFilter`). CR 108.4a — a
-   card that has no controller uses its owner wherever a controller is asked
-   for — means every existing leaf, `ByController` included, reads correctly
-   off a card in hand, so the shape is one `ObjectFilter` with a zone leaf and
-   `CardFilter` (three variants, five uses, `Condition::CardInGraveyard`) folded
-   in. **The rename landed 2026-09-07 as CM-0** (`cost-architecture.md` §3.2,
-   the first consumer that applies the filter to a spell): 275 sites in 25
-   `src/` files, 119 in 18 test files, the live plan docs, and the three
-   `permanent_matches_filter*` matchers became `object_matches_filter*`. The
-   zone leaf and the `CardFilter` fold are still this item's. ATOM-614.12-001 (Yixlid Jailer,
-   "Cards in graveyards lose all abilities") is the atom the zone leaf unblocks,
-   and that card is also the right **first consumer**: its source is on the
-   battlefield, so it needs nothing from CR 113.6 (A5) — only the zone-scoped
-   filter and a `LoseAllAbilities` row reaching a graveyard. Wonder needs A5 and
-   the `Condition` AST (7f) as well; it is the second card, not the first.
-   2) *Aminatou is four systems deep, and this item is only the first.*
-   Verified text (Scryfall, 2026-09-04): "Each enchantment card in your hand
-   has miracle. Its miracle cost is equal to its mana cost reduced by {4}." It
-   needs this item (a Layer 6 grant reaching hand, filtered by card type), A5's
-   CR 113.6 so miracle functions from hand, miracle itself (CR 702.94, a static
-   linked to a draw trigger — item 6, and RE's post-replacement draw stream),
-   and cost modification for the reduction (item 3, `backlog.md` §2.1). A
-   Phase 8 card, not this item's consumer.
-   3) The sentence at the top of this item was stale since RC-3 and is
-   corrected above: the gate is the battlefield *zone*, not `game.battlefield`
-   membership.
+9. **Abilities granted to cards outside the battlefield — ✅ the
+    zone-reaching half done (2026-09-14, LJ; `layers-architecture.md` §13c).**
+    — archived.
+    **Reachability (2026-09-14):** closed for the filter half — LJ, PR pending.
+    **Two pieces stay owed and neither is this item's any more:** CR 613.7d's
+    object timestamps went to `roadmap-v2.md` A5 with Wonder, which needs both
+    and which LJ deliberately does not reach (§13c decision 1); the
+    `CardFilter` fold landed here rather than waiting (§13c decision 5).
+    Full entry: `plans/archive/codebase-state-closed.md`, "Before Layers (CR
+    613) — now DURING Layers" item 9.
 
 10. **The `Layer` enum is missing a sublayer split — doc/code drift.** (The CDA half of this item is ✅ done, 2026-08-22; see below.)
 
@@ -5490,6 +5474,35 @@ What the *shape* says, as opposed to what one endpoint suggested:
     PR #136; both fields are `affected_objects` and the type is `ObjectSet`.
     Full entry: `plans/archive/codebase-state-closed.md`, "Cross-cutting —
     keep this section honest" item 124.
+
+### Found by the LJ review (2026-09-14)
+
+132. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
+    LJ's review found a `player.graveyard.clone()` inside
+    `engine::layers::condition`'s `CardInGraveyard` arm that was never needed —
+    both borrows are immutable and it compiles without. It had been added
+    defensively rather than because the compiler asked, and it sat on a genuinely
+    hot path: CR 604.2's existence check runs per application, per layer, per
+    pass. **One unnecessary allocation found by eye is evidence of a class**, and
+    the owner's call at the review was to schedule the sweep rather than widen
+    this PR.
+
+    **Sized against the tree (2026-09-14):** 192 `.clone()` sites in `src/`.
+    121 are in `engine/`, of which **35 are in `engine/layers/`** — the
+    per-layer-per-object path, and the ones worth reading first — and 17 in
+    `engine/replacement/`. 9 are in `src/cards/`, which is card construction and
+    cold by definition. The audit is a read of the 35 first, then the 17, and it
+    is a *reading* pass with a fuzz A/B behind it, not a mechanical sweep: an
+    `Arc::clone` is a refcount bump and belongs where it is, a `Vec` clone in a
+    predicate is the shape this found, and telling them apart is the work.
+
+    **Trigger: the end of replacement effects**, where the owner wants a
+    housekeeping pass anyway — so it lands with RE closed and before Phase 6's
+    triggers build on the same paths. Not urgent: nothing here is *wrong*, which
+    is why it is scheduled rather than fixed.
+
+    **Reachability (2026-09-14):** reachable — not wrong; a performance question
+    on paths a measured game runs thousands of times a turn.
 
 ### Found by RE-6 — the game's end (2026-09-12)
 

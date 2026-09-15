@@ -35,7 +35,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::types::restriction::ReplacementKindFilter;
@@ -589,15 +589,39 @@ pub(crate) fn set_affects(
         // effect's `source`, which this function has and a selection does not.
         // Palisade Giant's "other permanents you control" is the printed card
         // that needs it (`codebase-state.md` item 103).
-        ObjectSet::Filter { filter } => game
-            .object_matches_filter_of_source(
+        ObjectSet::Filter { filter, zones } => {
+            // **The zone half is not implemented on this side, and asserting
+            // that is the honest move** (LJ, `layers-architecture.md` §13c).
+            // A replacement row reaching a graveyard or a hand is
+            // §3.3 source 2 — madness in hand, flashback on the stack — and
+            // what it needs is CR 113.6, not a zone test here: this function is
+            // asked about an object that is on the battlefield *or entering
+            // it*, and an entering object is still in its source zone, so a
+            // naive `zones.contains(obj.zone)` would reject exactly the entry
+            // CR 614.12 exists for. `CLAUDE.md`: an arm the pipeline cannot
+            // apply is worse than a missing one.
+            //
+            // **This assert is scaffolding and A5 deletes it** (owner review,
+            // 2026-09-14). It is not a permanent invariant — a replacement row
+            // over a hand or a graveyard is a thing the CR has and the engine
+            // will; the assert marks the window in which the *type* can express
+            // one and this function cannot honour it. Whoever builds CR 113.6
+            // replaces it with the real gate, and the failing assert is how
+            // they find this site.
+            debug_assert_eq!(
+                *zones,
+                ZoneSet::BATTLEFIELD,
+                "zone-reaching replacement row needs CR 113.6 (roadmap-v2.md A5)"
+            );
+            game.object_matches_filter_of_source(
                 id,
                 filter,
                 controller,
                 source,
                 frame.and_then(|f| f.frame_of(id)),
             )
-            .unwrap_or(false),
+            .unwrap_or(false)
+        }
     }
 }
 
