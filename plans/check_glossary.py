@@ -85,7 +85,7 @@ WATCHLIST = [
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
     "lineage", "member", "outer event", "splice",
     "memo", "performer", "pool", "position", "proposal", "putter", "quadrant",
-    "queue", "reach", "registry", "rider", "schedule", "seed", "shield",
+    "queue", "reach", "registry", "retype", "rider", "schedule", "seed", "shield",
     "source", "spelled", "step",
     "subject", "subject group", "sweep", "unit", "walk", "working set",
 ]

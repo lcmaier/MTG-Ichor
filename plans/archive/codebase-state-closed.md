@@ -1446,3 +1446,36 @@ The original entry, as it stood on 2026-09-04:
     what shipped, and CM-0 set the precedent seven days earlier —
     `PermanentFilter` still stands in three archive files with the live docs
     fully swept.
+
+### Item 111 — closed 2026-09-15 by RE-9
+
+**What closed it.** `GameAction::ProduceMana` is the mana production event (CR
+106.6a, 106.12b), proposed by `resolve_mana_effect` and `Primitive::ProduceMana`
+and performed by one `perform_action` arm that writes the pool and emits
+`GameEvent::ManaAdded` — emitted for the first time since the log was written,
+its `HashMap` a `Vec` in proposal order. Mana Reflection and Nyxbloom Ancient
+are the two printed replacements the entry named, Deep Water the third card,
+and CR 605.1b's eight triggered mana abilities read `tapped_for_mana` off the
+event when critical-path item 6 builds them. The A/B on the hottest path, which
+the sizing called the risk, read +1.2% CPU/game at two seats against a
+2.5-point gate; `replacement-architecture.md` §9's RE-9 stub and the archive
+carry the reading. **The item's one wrong sentence:** it said `resolve.rs:337`,
+which RE-5's and RE-10's arms had pushed to 530 by the time it was read.
+
+*Original entry:*
+
+111. **Mana production is a direct write with no event.** `mana.rs:91`
+     (`resolve_mana_effect`) and `resolve.rs:337` (`Primitive::ProduceMana`)
+     both write `mana_pool` below the chokepoint, and `GameEvent::ManaAdded`
+     is emitted at zero sites — which is why `--dump-events` has no mana lines
+     and the fuzz A/B recipe counts `Tapped:` land lines instead. RA's census
+     walked emissions and so could not see a mutation that emitted nothing.
+     CR 106.6a's two printed replacements and CR 605.1b's eight triggered mana
+     abilities read this event.
+
+     **Reachability (2026-09-11):** reachable — every land tap in every game;
+     wrong in the *log*, not on the board, since nothing watches mana yet.
+
+     **Sized:** RE-9, `replacement-architecture.md` §9 — one
+     `GameAction::ProduceMana`, one performer replacing two writers, ~300
+     engine lines; the A/B on the hottest path is the risk, not the diff.

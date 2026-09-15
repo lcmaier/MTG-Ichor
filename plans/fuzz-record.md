@@ -37,6 +37,142 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-15 for RE-9** (CR 106.6a's mana production event and
+CR 106.12's "tapped for mana"; `replacement-architecture.md` §9, the last of
+RE's ten PRs). `PERFORMANCE_POOL` +1 — Mana Reflection, 88 → 89 — and the
+stress pool +5 (154 → 159: Nyxbloom Ancient, Deep Water, Pale Moon, Doubling
+Cube and the pooled one), so **both tables are a re-record and neither column
+is an engine reading.** The A/B sitting ran at 157; Pale Moon and Doubling
+Cube were registered at the PR's review, unpooled, so the `performance`
+columns below are the sitting's to the byte and the `stress` columns were
+re-recorded at 159 afterwards.
+
+**The review's two probe arms, and the number the phase was actually
+worried about.** The sitting's engine arm measures a proposal with nothing
+watching it; a third arm held the game fixed and made a mana replacement
+*apply* on every tap — one `Indefinite` no-op `Multiplier(1)` row per player
+from a source in exile — and a fourth gated `gather` for `ProduceMana` the
+way §8's event-kind bitmask would. Against the engine arm at `--rounds 7`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| a mana replacement applying on every tap, CPU/game | 13.95 → 14.32 ms (**+2.7%**) | 47.57 → 48.61 ms (**+2.2%**) |
+| the event-kind gate for `ProduceMana`, CPU/game | 13.95 → 13.97 (+0.1%) | 47.57 → 47.29 (−0.6%) |
+| Replacement gathers, applying arm | 1063 → 1144 | 2,163 → 2,312 |
+| every gameplay and layer row | identical | identical |
+
+The applying arm's rounds sit clear of the engine arm's; the gated arm's
+straddle them. So a board with a mana doubler pays about 2.5 points for the
+pipeline's work per tap, and the gate returns nothing for this event kind —
+the +1.2% a proposal costs is the chokepoint's fixed per-event work, not the
+sweep (`codebase-state.md` item 136 names the lever that would touch it). The
+engine reading is the third arm, this branch with the three cards
+unregistered, whose counters are `main`'s on every gameplay and layer row at
+both seat counts by construction; what it adds is one row and one movement:
+`Mana productions`, **new**, and `Replacement gathers` up by that many.
+
+**The row this PR exists to read, and it read as predicted.** Every mana
+production is a proposal now, so every land tap is a gather — RE-1's shape,
+one proposal per unit that also gathers — and the question the section asked
+in advance was whether the hottest path in the engine could carry it without
+§8's event-kind gate. `Mana productions` is the denominator that question is
+read against, added to the table here and to `fuzz_ab.py` in this sitting
+(the `main` column reads `?` for it once, by construction):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| CPU/game median (engine arm) | 13.82 → 13.98 ms (**+1.2%**) | 44.51 → 44.83 ms (**+0.7%**) |
+| ms / 1,000 walks | 38.18 → 38.62 (+1.2%) | 57.21 → 57.62 (+0.7%) |
+| CPU/turn p50 | 0.410 → 0.410 | 0.690 → 0.700 |
+| Replacement gathers | 983 → 1063 | 2,012 → 2,163 |
+| Mana productions | ? → 81 | ? → 151 |
+| Memo hits | 59,133 → 59,397 (+0.4%) | 175,453 → 176,255 (+0.5%) |
+| Layer walks / frames / frames-per-walk | 362 / 4,538 / 12.54, identical | 778 / 15,246 / 19.59, identical |
+
+Rounds straddle at both seat counts (two seats: `main` 13.65–14.00, engine
+13.79–14.03), and the number is under the 2.5-point gate §11 item 54 named,
+so **the gate was not built**. The pooled arm is the bigger board a six-drop
+that doubles mana makes — two seats: turns 29.6 → 32.1, spells 22.8 → 24.3,
+walks 362 → 394, `Frames/walk` 12.54 → 13.96, CPU/game **+20.1%** with the walk
+flat per *frame* (3.04 → 3.02 ms per thousand) — and at four seats +4.0%, a
+four-player game being the bigger board already. `--require`: Mana Reflection
+cast 119 / resolved 118 in **82 of 200 games (41%)**, 1.46 copies/deck, 100%
+board diversity. One four-player `stress` game on the pooled arm ran to the
+200-turn cap; at `--max-turns 600` it ends at 208 with nothing else moved, and
+`main`'s longest four-player `stress` game is 194.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools, the
+`pooled` arm):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 23 (46.0%) / 27 (54.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 33.0 | 31.8 |
+| Spells cast | 25.6 | 23.9 |
+| Lands played | 19.3 | 18.4 |
+| Combat w/ atk | 11.5 | 10.6 |
+| Creatures died | 8.2 | 6.2 |
+| Damage events | 24.2 | 24.1 |
+| Total damage | 67.3 | 57.7 |
+| Life changes | 15.4 | 16.9 |
+| **Layer walks** | **401** | **491** |
+| **Board walks** | **279** | **303** |
+| **Memo hits** | **73,622** | **82,252** |
+| **Layer frames** | **5,856** | **6,009** |
+| **Frames/walk** | **14.61** | **12.25** |
+| **Dependency checks** | **46** | **9** |
+| **Replacement gathers** | **1221** | **1243** |
+| **Restriction queries** | **1223** | **1245** |
+| Mana productions | 90 | 123 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 0.38 | 2.74 |
+| Max batch depth | 5 | 5 |
+
+The `main` arm's same rows, for the pool these replace: performance
+358 / 242 / 54,349 / 4,201 / 11.74 / 11 / 927 / 930; stress
+476 / 282 / 74,632 / 5,567 / 11.70 / 21 / 1026 / 1028. The engine arm's
+`Mana productions` at 50 games: 80 and 115.
+
+**The four-player table** (50 games / seed 12345, `--players 4`, both pools,
+the `pooled` arm):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 23 (46.0%) / 19 (38.0%) / 7 (14.0%) / 1 (2.0%) | 11 (22.0%) / 19 (38.0%) / 14 (28.0%) / 6 (12.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 60.9 | 64.5 |
+| Spells cast | 44.4 | 47.4 |
+| Lands played | 36.1 | 37.9 |
+| Combat w/ atk | 25.2 | 25.3 |
+| Creatures died | 14.9 | 11.4 |
+| Damage events | 53.7 | 61.0 |
+| Total damage | 153.9 | 149.9 |
+| Life changes | 39.2 | 43.6 |
+| Turns after a departure | 21.6 | 21.8 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **801** | **1,156** |
+| **Board walks** | **531** | **677** |
+| **Memo hits** | **186,728** | **269,381** |
+| **Layer frames** | **15,778** | **22,920** |
+| **Frames/walk** | **19.71** | **19.84** |
+| **Dependency checks** | **156** | **143** |
+| **Replacement gathers** | **2270** | **2677** |
+| **Restriction queries** | **2274** | **2682** |
+| Mana productions | 155 | 260 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 2.54 | 2.98 |
+| Max batch depth | 4 | 6 |
+
+The `main` arm's same rows at four seats: performance
+788 / 515 / 178,289 / 15,083 / 19.15 / 147 / 2059 / 2064; stress
+1,216 / 644 / 256,962 / 19,940 / 16.40 / 111 / 2354 / 2359.
+
+Every arm `deterministic: yes` at both seat counts on both pools — seven
+timing rounds each identical to the threaded counters run outside
+`=== Timing ===`; zero errors and zero panics everywhere; zero turn limits at
+two seats and the one four-seat tail above.
+
 **Re-recorded 2026-09-14 for LK** (CR 113.6, which abilities function in which
 zone; `layers-architecture.md` §13d). `PERFORMANCE_POOL` +1 — Wonder, 87 → 88
 — and the stress pool +1 (152 → 153, the pooled one; `exiled_ancestor` is a

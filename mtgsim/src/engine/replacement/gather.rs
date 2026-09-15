@@ -115,6 +115,9 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         // CR 616.1's "the affected player": the one who would lose or win.
         GameAction::PlayerLoses { player, .. } => EventSubject::Player(*player),
         GameAction::PlayerWins { player } => EventSubject::Player(*player),
+        // CR 106.6a's mana enters a *player's* pool, and CR 616.1's chooser
+        // is that player; a spell's production has no permanent to be about.
+        GameAction::ProduceMana { player, .. } => EventSubject::Player(*player),
     }
 }
 
@@ -847,6 +850,34 @@ pub(crate) fn pattern_watches(
         // *player* the effect is around is `set_affects`'s question.
         (EventPattern::CreateTokens { kind }, GameAction::CreateTokens { defs, .. }) => {
             defs.iter().any(|d| kind.as_ref().is_none_or(|k| k.matches(d)))
+        }
+
+        // CR 106.12b's two constraints on a mana production. The *event*
+        // knows both facts outright — `actual` is a `bool`, `producer` an
+        // id — and the *pattern* states each as an `Option` because an effect
+        // may decline to ask: `None` on a pattern field is "this effect does
+        // not care", which is satisfied by every production, and that is the
+        // first `unwrap_or(true)` on each side. Mana Reflection's "if you tap
+        // a permanent for mana" asks `Some(true)` and nothing of the
+        // permanent; Deep Water's "a land you control" asks both.
+        //
+        // The inner `unwrap_or(false)` is a different thing: it swallows the
+        // `Err` `object_matches_filter` returns for an id with no object,
+        // `ObjectFilter::EachOther` with nothing to be other than, or
+        // `PowerLE` on a source with no power — the three card-authoring
+        // errors `DealDamage`'s arm swallows the same way, recorded as
+        // `codebase-state.md` item 103. A spell's production has a spell for a
+        // source, which no land filter matches. Which *player* the effect is
+        // around is `set_affects`'s question.
+        (
+            EventPattern::ProduceMana { tapped_for_mana, source: filter },
+            GameAction::ProduceMana { tapped_for_mana: actual, source: producer, .. },
+        ) => {
+            tapped_for_mana.map(|t| t == *actual).unwrap_or(true)
+                && filter
+                    .as_ref()
+                    .map(|f| game.object_matches_filter(*producer, f, you).unwrap_or(false))
+                    .unwrap_or(true)
         }
 
         _ => false,

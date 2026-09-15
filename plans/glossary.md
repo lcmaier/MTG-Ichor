@@ -249,6 +249,14 @@ applied set is a hang. A **decomposition** inherits this set and so does a
 replace that event" — while a *contained* event starts a fresh one. See
 **lineage**; a rider given a fresh set was RE-4's loop.
 
+**retype** — to change the type of every unit a mana production carries and
+nothing else about it: CR 106.12b's "tapped for mana of a specific type"
+replacement, `GameActionTemplate::ProduceMana` with `ReplacedAmount`, and
+`pipeline::substitute`'s leg for it. Deep Water's "produces {U} instead of any
+other type" retypes; Contamination's "instead of any other type *and amount*"
+does more than retype, and is the same template with a `Fixed` amount. A
+retyped restricted unit keeps its restriction (CR 106.6).
+
 **ladder** — CR 616.1a–e's ordered classes, walked top-down: the first non-empty
 step decides the whole question and everything below it is not a choice the
 player has yet. `ReplacementClass` derives `Ord` in the rule's order, so the

@@ -41,6 +41,7 @@ use crate::types::effects::{
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::mana::ManaType;
 use crate::types::restriction::SourceFilter;
 use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, Zone, ZoneChangeCause};
 
@@ -543,6 +544,51 @@ pub enum EventPattern {
     /// puts it outside the pipeline.
     PlayerWins,
 
+    /// CR 106.12b — "a replacement effect that applies if a permanent 'is
+    /// tapped for mana' … modifies the mana production event". The event's
+    /// subject is the player whose pool the mana enters, and which player
+    /// the effect is around is [`ReplacementDef::affected_players`]'s
+    /// question: Mana Reflection's "if *you* tap" is `You`.
+    ///
+    /// `tapped_for_mana` is CR 106.12's definition asked of the proposal.
+    /// `Some(true)` is every one of the sixteen printed cards (Scryfall,
+    /// 2026-09-15, re-run at review: three multipliers, seven constant-type
+    /// retypes, five chosen or mapped types, and Chaos Moon's even half);
+    /// `None` is False Dawn's "spells and abilities you control that would
+    /// add colored mana" — the one printed watcher that does not say
+    /// "tapped", unregistrable for its second sentence but printed, so the
+    /// `Option` is not a two-arm enum wearing a `bool`; `Some(false)` has no
+    /// card and is the field's honest third answer.
+    ///
+    /// `source` is which *permanent* — "a land" (Contamination, Infernal
+    /// Darkness), "a land you control" (Deep Water), "a nonbasic land" (Pale
+    /// Moon), "a basic land" (Virtue of Strength) — asked of the proposal's
+    /// `source` exactly as [`Self::DealDamage`]'s `SourcePattern.filter` is
+    /// asked of a damage source. A plain [`ObjectFilter`] today and not a
+    /// `SourcePattern`: the one printed *chosen* permanent is Quarum Trench
+    /// Gnomes' "target Plains", whose row also needs a fill arm and an
+    /// indefinite duration, so the `object` half waits with that card
+    /// (`codebase-state.md` item 133). On the pattern and not in
+    /// `affected_objects` because the subject is the player and the set
+    /// cannot see the permanent.
+    ///
+    /// **The axes this arm does not grow along yet are CR 106.12b's other
+    /// two**, named in the rule's own sentence beside the permanent: "of a
+    /// specific type" — False Dawn's "colored mana", the Gnomes' "instead of
+    /// white mana" — as a `mana_type` field, and "amount" — Damping Sphere's
+    /// "tapped for two or more mana" — as an `at_least` field that would
+    /// *read the amount* exactly as [`Self::DrawCards`]'s does, so a doubler
+    /// beside it is CR 616.1's real question (Damping Sphere's own first
+    /// ruling walks it). Each waits for its first registrable card.
+    ///
+    /// **Reads no amount**, for [`Self::GainLife`]'s reason: neither field
+    /// reads a count, a production of any size matches, and two multipliers
+    /// commute — two Mana Reflections quadruple with no CR 616.1 prompt.
+    ProduceMana {
+        tapped_for_mana: Option<bool>,
+        source: Option<ObjectFilter>,
+    },
+
     /// CR 614.16 — "if an effect would create one or more tokens". The
     /// event's subject is the player the tokens are created under, and which
     /// player the effect is around is [`ReplacementDef::affected_players`]'s
@@ -757,6 +803,9 @@ impl EventPattern {
             | EventPattern::BeginStep { .. } => false,
             // The game's end has no number at all, and neither arm has a field.
             EventPattern::PlayerLoses | EventPattern::PlayerWins => false,
+            // A tapped-for-mana flag and a filter on the producing permanent
+            // (CR 106.12b); no count. A production of any size matches.
+            EventPattern::ProduceMana { .. } => false,
             // "One or more" is the only count, and a multiplier of one or more
             // keeps a creation on whichever side of it the creation was. The
             // kind is asked of each def and a multiplier repeats defs, so it
@@ -1593,6 +1642,28 @@ pub enum GameActionTemplate {
     /// **The first template whose idempotence is a derivation rather than a
     /// reading** — `pipeline::template_is_idempotent` says why it holds.
     PlayerWins,
+
+    /// CR 106.12b's "of a specific type" — a mana production retyped:
+    /// "it produces {U} instead of any other type" (Deep Water, Infernal
+    /// Darkness), "{B} instead of any other type and amount" (Contamination).
+    ///
+    /// `ReplacedAmount` keeps every unit and changes its type — Deep Water's
+    /// ruling, "the amount of mana produced is unchanged, but it will all be
+    /// {U}"; Infernal Darkness's, "{W}{W} … adds {B}{B} instead" — with each
+    /// restricted atom keeping its restrictions, since CR 106.6 makes a
+    /// restriction independent of the type. `Fixed(n)` is Contamination's
+    /// "and amount": `n` units of the type carrying what the old units all
+    /// carried; `pipeline::substitute` says what it does with a production
+    /// whose units disagree, and why.
+    ///
+    /// Six printed cards retype mana this way (Scryfall, 2026-09-15); Deep
+    /// Water is the one registrable whole today. Hall of Gemstone wants a
+    /// color chosen at upkeep, Naked Singularity a per-basic-type map, and
+    /// Harvest Mage a choice in the leg — each a facility, none this arm's.
+    ProduceMana {
+        mana_type: ManaType,
+        amount: TemplateAmount,
+    },
 }
 
 /// How a life template gets its number.

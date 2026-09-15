@@ -60,6 +60,30 @@ pub struct ResolutionContext {
     pub damage_prevented: Option<u64>,
 }
 
+impl ResolutionContext {
+    /// A resolution that names nothing — no targets, no rider, and no
+    /// permanent distinct from `source`.
+    ///
+    /// The literal this replaces set the two CR 615.5 numbers to `None` at
+    /// every site that was not a rider, which read as a claim about riders
+    /// being made by code that had never heard of them. **The two fields are
+    /// one optional thing wearing two `Option`s** — "for a rider and for
+    /// nothing else", their own docs say — and the type-side fix is a single
+    /// `rider: Option<RiderAmounts>`; that is a 48-site sweep and its own PR
+    /// (`codebase-state.md` "Found by RE-9", item 137). This constructor is
+    /// the call-side fix, and it is what a mana ability's resolution uses.
+    pub fn untargeted(source: ObjectId, controller: PlayerId) -> Self {
+        ResolutionContext {
+            source,
+            ability_source: None,
+            controller,
+            targets: Vec::new(),
+            replaced_amount: None,
+            damage_prevented: None,
+        }
+    }
+}
+
 /// A resolved target — validated as legal when the spell/ability was put on the
 /// stack. Legality is re-checked at resolution time (rule 608.2b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -520,19 +544,24 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 106.6a's event from a spell — Dark Ritual. `tapped_for_mana`
+            // is `false` by CR 106.12's definition and CR 605.5b ("a spell can
+            // never be a mana ability"), which is why Mana Reflection leaves
+            // it at three: its first ruling, and the definition says it first.
             Primitive::ProduceMana(output) => {
-                // Evaluate dynamic amounts before taking &mut player
-                let resolved: Vec<_> = output.mana.iter()
+                let mana: Vec<_> = output.mana.iter()
                     .map(|(mt, expr)| Ok((*mt, self.evaluate_amount(expr, ctx)?)))
                     .collect::<Result<_, String>>()?;
-                let player = self.get_player_mut(ctx.controller)?;
-                for (mana_type, amount) in resolved {
-                    player.mana_pool.add(mana_type, amount);
-                }
-                for atom in &output.special {
-                    player.mana_pool.add_special(atom.clone());
-                }
-                Ok(())
+                self.execute_action(
+                    GameAction::ProduceMana {
+                        player: ctx.controller,
+                        source: ctx.source,
+                        mana,
+                        special: output.special.clone(),
+                        tapped_for_mana: false,
+                    },
+                    &actx,
+                )
             }
 
             Primitive::CounterSpell => {
@@ -1932,7 +1961,7 @@ impl GameState {
 
     // --- Helper: evaluate AmountExpr ---
 
-    fn evaluate_amount(
+    pub(crate) fn evaluate_amount(
         &self,
         expr: &AmountExpr,
         _ctx: &ResolutionContext,
@@ -1977,6 +2006,12 @@ impl GameState {
             AmountExpr::ReplacedAmount => _ctx.replaced_amount.ok_or_else(|| {
                 "ReplacedAmount has no meaning outside a CR 615.5 rider".to_string()
             }),
+            // Doubling Cube's "each type of unspent mana you have": the
+            // controller's pool now, restricted units counted by their type
+            // (CR 106.6 — a restriction "doesn't affect the mana's type").
+            AmountExpr::UnspentMana(mana_type) => {
+                Ok(self.get_player(_ctx.controller)?.mana_pool.unspent(*mana_type))
+            }
             // The other number a CR 615.5 rider may refer to, and the same
             // refusal outside one.
             AmountExpr::DamagePrevented => _ctx.damage_prevented.ok_or_else(|| {

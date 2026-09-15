@@ -1,5 +1,7 @@
-use crate::engine::actions::ActionContext;
+use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::resolve::ResolutionContext;
 use crate::objects::card_data::AbilityType;
+use crate::types::costs::Cost;
 use crate::types::effects::{Effect, Primitive};
 use crate::state::game_state::GameState;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -56,8 +58,14 @@ impl GameState {
         let plan = self.plan_payment(&ability.costs, player_id, permanent_id, ctx)?;
         self.pay_costs(&plan, player_id, permanent_id, ctx)?;
 
+        // CR 106.12: "to 'tap [a permanent] for mana' is to activate a mana
+        // ability of that permanent that includes the {T} symbol in its
+        // activation cost" — the ability's costs, read here where the
+        // effective ability is in hand, and never the payment plan.
+        let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::Tap));
+
         // Resolve effect immediately (mana abilities don't use the stack)
-        self.resolve_mana_effect(&ability.effect, player_id)?;
+        self.resolve_mana_effect(&ability.effect, player_id, permanent_id, tapped_for_mana, ctx)?;
 
         Ok(())
     }
@@ -65,39 +73,55 @@ impl GameState {
     /// Resolve the effect of a mana ability.
     ///
     /// Mana abilities resolve immediately without the stack (rule 605.3b),
-    /// so game state cannot change between activation and resolution.
-    /// Dynamic `AmountExpr` variants (e.g. Selvala's "X = greatest power
-    /// among creatures you control") are safe to evaluate here — no
-    /// targeting context is needed, only board-state queries. Currently
-    /// only `Fixed` is wired up; when Selvala-style abilities arrive,
-    /// add a local evaluate path for non-targeting `AmountExpr` variants
-    /// (CountOf, etc.) and error only on target-dependent ones
-    /// (TargetPower, TargetToughness).
+    /// so game state cannot change between activation and resolution, and a
+    /// dynamic amount is safe to read off the board here. **It is a
+    /// resolution**, so it gets a `ResolutionContext` like any other — the
+    /// permanent is both `source` (there is no stack object, CR 605.3b) and
+    /// `ability_source` (CR 113.7a's "the permanent whose ability is
+    /// resolving") — and the amounts go through the same `evaluate_amount` a
+    /// spell's do; a mana ability has no targets (CR 605.1a), so a
+    /// target-dependent expression is refused by that function rather than
+    /// here. Doubling Cube's `UnspentMana` is the first dynamic amount a mana
+    /// ability carries; Selvala's "greatest power" is `CountOf`'s shape when
+    /// it arrives.
+    ///
+    /// The production is a proposal (CR 106.6a's replaceable event), made
+    /// **under this resolution's stamp** so the log says which ability added
+    /// the mana, as it already does for Dark Ritual's; its batch is its own,
+    /// separate from the cost's: CR 605.3b makes the resolution a step after
+    /// the activation, and CR 106.12a's triggers fire "whenever such a mana
+    /// ability resolves and produces mana", not when the permanent taps. A
+    /// `Sequence` proposes one event per atom.
     fn resolve_mana_effect(
         &mut self,
         effect: &Effect,
         player_id: PlayerId,
+        source: ObjectId,
+        tapped_for_mana: bool,
+        ctx: &ActionContext,
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
-                let player = self.get_player_mut(player_id)?;
+                let mut resolution = ResolutionContext::untargeted(source, player_id);
+                resolution.ability_source = Some(source);
+                let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount_expr) in &output.mana {
-                    let amount = match amount_expr {
-                        crate::types::effects::AmountExpr::Fixed(n) => *n,
-                        other => return Err(format!(
-                            "Mana abilities only support Fixed amounts, got {:?}", other
-                        )),
-                    };
-                    player.mana_pool.add(*mana_type, amount);
+                    mana.push((*mana_type, self.evaluate_amount(amount_expr, &resolution)?));
                 }
-                for atom in &output.special {
-                    player.mana_pool.add_special(atom.clone());
-                }
-                Ok(())
+                self.execute_action(
+                    GameAction::ProduceMana {
+                        player: player_id,
+                        source,
+                        mana,
+                        special: output.special.clone(),
+                        tapped_for_mana,
+                    },
+                    &ActionContext::resolving(ctx.dp, &resolution),
+                )
             }
             Effect::Sequence(effects) => {
                 for sub_effect in effects {
-                    self.resolve_mana_effect(sub_effect, player_id)?;
+                    self.resolve_mana_effect(sub_effect, player_id, source, tapped_for_mana, ctx)?;
                 }
                 Ok(())
             }

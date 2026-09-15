@@ -3491,7 +3491,7 @@ proposing no zone change (CR 701.22 moves nothing between zones).
 | **RE-7 — leaving the game (CR 800.4a–e, 800.4m)** | inside `PlayerLoses`' performer, as 800.4a says ("as soon as the player leaves"): owned objects leave the game with one `LeftTheGame` event each, control-changing rows in the departed player's favor end, their stack objects not represented by cards cease, objects they still control are exiled through `change_zone` with a new cause; 800.4b/d refusals at `propose_entry` and the token performer; 800.4e at combat assignment; 800.4m on the three duration registries | the five zone collections + the stack **6** sweeps; `ContinuousEffect` rows keyed by controller **1**; `propose_entry` **1**, `CreateTokens` **1**, `assign_combat_damage` **1**; `remove_expired_at_turn_start` **3**. Predicted **~400 engine, ~450 tests ≈ 800–950**, no cards: Act of Treason is in the pool and is the consumer both ways round | medium — the first sweep that removes objects from every zone at once, and the four-player fuzz is the only board that runs it unforced |
 | **RE-8 — the producers (CR 701.9, 701.22)** — ✅ landed | `Primitive::Discard` with 701.9b's chooser; **`ReplacementDef::by`** rather than the `caused_by` this row sized onto the zone-change pattern; `GameAction::Scry`, its arm, `Primitive::Scry` and two scry choice kinds. **The to-battlefield leg did not ship** — every printed customer is on a card in hand, which is CR 113.6 and critical-path item 6a (§11 item 87) | `resolve.rs` stubs **2** made real; `pattern_watches` **1** arm and no field, the cause predicate having moved off the pattern; exhaustive matches **3** for `Scry` plus `display.rs`, compiler-forced as in RE-4; `DecisionProvider` impls **0** — the CLI's prompt text only, the others being generic. Predicted at the design check **~200 types, ~430 engine, ~330 cards, ~600 tests, ~15 harness ≈ 1,575**; shipped **+1,737 / −115** — types 195, engine 445, cards 371, tests 710, harness 16 | low-medium, and it landed there; the risk that showed up was neither producer but CR 514.1's cleanup discard, which had been N events where the rule says one |
 | **RE-10 — extra phases, and the turn plan** — ✅ landed | `TurnPlan` + `PlannedPhase`; `drain`'s cursor becomes an index; `next_phase`'s chain deleted; `Primitive::ExtraPhases` splicing at the cursor; `Primitive::Untap` gains the `FilteredPermanents` arm | `next_turn_unit` **1** and `drain` **1** (the cursor), `next_phase` **1** deleted + **~8** readers; `GameState` **1** field, seeded **1** and rebuilt **1**; `Primitive` exhaustive matches **1**; `Primitive::Untap`'s recipient **1**. Predicted **~700 engine and cards, ~400 tests ≈ 1,100–1,300**; shipped **+1,066 / −171** — engine 149, state 136, types 24, cards 147, tests 600, seam 10. **Three of this row's counts were wrong** (see the section's findings): `next_phase` had one production caller and not ~8 readers, its wrap arm was already dead, and "re-counts nobody's fixtures" missed 46 hand-written positions. The split inverted — the engine half came in at 466 against ~700 because the seam's 46 sites are one line each, and the test half at 600 against ~400 | low-medium — the second and last rewrite of `advance_turn`, and the first turn structure that is data rather than a `match`; it changes no turn's *shape*, so nothing else's fixtures move |
-| **RE-9 — mana** | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped` from the activation | exhaustive matches **3**; writers **2** → **1**; `resolve_mana_effect` **1**, `Primitive::ProduceMana` **1**; `pattern_watches` **1**. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150** | low on shape, **the one whose A/B could say no** — a proposal on every land tap |
+| **RE-9 — mana** — ✅ landed | `ProduceMana`, its arm, one performer replacing two writers, `ManaAdded` emitted, `tapped_for_mana` from the activation cost; **and**, added at the design check on §4's eighty-line rule, `GameActionTemplate::ProduceMana` for CR 106.12b's six type-changers, with Deep Water | exhaustive matches **3** + `reads_the_amount` + `display.rs`; writers **2** → **1**; `resolve_mana_effect` **1** (plus a signature the row did not count), `Primitive::ProduceMana` **1**; `pattern_watches` **1**; `substitute` **1** leg and three predicate arms. Predicted **~300 engine, ~200 cards, ~450 tests ≈ 950–1,150**, re-counted at the design check to **1,300–1,450**; shipped **+1,423 / −29** — engine 334, cards 285, tests 734, harness 14 | low on shape, **the one whose A/B could say no** — a proposal on every land tap. **It said yes: +1.2% at two seats, under the 2.5-point gate, and lever 2 stays unbuilt** |
 
 **≈ 14,300–16,300 across ten, each inside the band, RE-5 and RE-6 at its top
 and RE-7 and RE-10 below its floor.** Hard orders: RE-2 → RE-3 (Words of Worship needs the draw pattern and
@@ -3765,32 +3765,45 @@ whole movement to that reshape and leaves the two producers costing a board
 with nothing watching them exactly nothing. Pooled is a re-record. → the
 archive, and `plans/fuzz-record.md`.
 
-#### RE-9 — mana (CR 106.6a; RA's unnamed debt)
+#### RE-9 — mana (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
 
-**Builds:** decision 7 — `ProduceMana`, its arm, the one performer replacing
-`resolve_mana_effect`'s and `Primitive::ProduceMana`'s direct writes,
-`ManaAdded` emitted for the first time, and `tapped` read off the activation's
-paid cost. **Consumers:**
+*Body evicted to `plans/archive/replacement-architecture-landed.md` under the
+same heading: the section as sized, the design check's thirteen decisions and
+their review, what was built, and what it measured.*
 
-- **Mana Reflection** — "If you tap a permanent for mana, it produces twice as
-  much of that mana instead." `ProduceMana { tapped: Some(true) }`,
-  `Fixed(vec![])` + `You`, `Amount(Multiplier(2))`. Rulings, four, three are
-  tests: *only a mana ability with {T} in its cost* → Dark Ritual (in the
-  pool) adds three, not six; *a triggered mana ability is unaffected* → item
-  6's, recorded; *restrictions and riders apply to all the mana* →
-  `ATOM-106.6a-001`, on a fixture ability with a `special` atom, since no
-  registered land restricts its mana; *two Reflections quadruple* → the
-  `Amount` pair, fourth kind.
-- **Nyxbloom Ancient** — "Trample. If you tap a permanent for mana, it
-  produces three times as much of that mana instead." `Multiplier(3)`, the
-  second factor the arm has seen. Ruling: *two Ancients: nine times* → test.
+**Shipped:** `GameAction::ProduceMana { player, source, mana, special,
+tapped_for_mana }` — CR 106.12b's "mana production event" — proposed by the two
+writers that had written the pool directly since Phase 5-Pre and performed by
+one arm; `GameEvent::ManaAdded` emitted for the first time, its `HashMap` a
+`Vec` (§11 item 96); `tapped_for_mana` read off the activation cost, which is
+CR 106.12's definition and not the ruling decision 7 leaned on (item 93);
+`EventPattern::ProduceMana { tapped_for_mana, source }`; `Amount(Multiplier)`
+over every unit with the restricted atoms repeated, CR 106.6a's "all mana
+produced" (item 95); `GameActionTemplate::ProduceMana { mana_type, amount }`,
+CR 106.12b's "specific type", added at the design check on §4's eighty-line
+rule (item 94); the `Mana productions` diagnostic row. Mana Reflection
+(**`PERFORMANCE_POOL` +1**), Nyxbloom Ancient, Deep Water; Contamination's and
+Infernal Darkness's lines as fixtures until item 6 owns their upkeeps.
+`ATOM-106.6a-001` and `ATOM-106.6-001` covered, `ATOM-106.12a-001` partial.
 
-**`PERFORMANCE_POOL` +1, Mana Reflection**, predicted: a six-drop static on
-the hottest path in the engine. Its row is the one this PR exists to read.
+**Not shipped, with the facility named** (`codebase-state.md`, "Found by
+RE-9", items 132–135): the pattern's `mana_type` field (False Dawn); Hall of
+Gemstone's chosen color, Naked Singularity's per-subtype map, Harvest Mage's
+choice inside the substitution; a mixed production under `Fixed`, refused
+rather than guessed; and the `EngineCounters` rename (§11 item 97), its own PR.
 
-**Atoms:** `ATOM-106.6a-001`; `ATOM-106.6-001` (Phase 5-Pre, the restriction
-survives the type — covered by the same fixture, and it is not in `owed`'s nine
-because its ticket is not `NEW`).
+**Measured:** the engine arm **identical to `main`** on every gameplay and
+layer row at two seats and four; gathers +80 / +151 a game against 81 / 151
+productions; **CPU/game +1.2% and +0.7%**, rounds straddling — under §11 item
+54's 2.5-point gate, so **lever 2 stays unbuilt**, as decision 11 predicted.
+Pooled is a re-record and a bigger board. At review, two more arms: a mana
+replacement *applying* on every tap, game held fixed, is **+2.7% / +2.2%**,
+and the gate returns **nothing** for this kind — the bare +1.2% is the
+chokepoint's fixed work (§11 item 99, item 136). → the archive, `fuzz-record.md`.
+
+Shipped **+1,423 / −29** before the docs — engine 334, cards 285, tests 734,
+harness 14 — against 1,300–1,450. **RE closes with it: ten PRs, no handoff
+left open, `owed` still 9.**
 
 #### RE-10 — extra phases, and the turn plan (CR 500.8, 500.11, 505.1) — ✅ landed 2026-09-14
 
@@ -4032,6 +4045,40 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
   gate is needed and does not close the gap, RE-9 is the PR the owner decides
   against, and the two writers keep their direct write with a Deferred
   Migrations line that names the number.**
+  **Measured 2026-09-15, and the gate said yes.** Four arms, both pools, two
+  seats and four, `--rounds 7`. The engine arm — the three cards unregistered
+  — is **identical to `main` on every gameplay and layer row** at both seat
+  counts, with `Replacement gathers` **983 → 1063** on `performance` at two
+  seats against a new `Mana productions` row of **81** (one gather per
+  production, the averages rounding apart by one) and **2012 → 2163** against
+  **151** at four; `Memo hits` +0.4%, RE-1's fast-path sentence again, which
+  is why every arm reads `differ` and the check is the aggregates. **The
+  number is the proposal's cost and not a replacement's, and productions are
+  not rare** — they are the commonest proposal after phases and steps. The
+  engine arm has no mana replacement to find by construction, so what a
+  production buys is a batch opened and closed, one `is_prohibited`, and
+  `gather`'s sweep over the static replacement sources a `performance` board
+  carries (about three, by the memo hits: 264 more a game over 81
+  productions), which is the overhead every event kind pays at RE-1's rate.
+  What a replacement *applying* costs is the pooled arm's question, where
+  Mana Reflection is out in 41% of games, and that arm's movement is game
+  size (below). **CPU/game +1.2% at two seats and +0.7% at four**, rounds
+  straddling both times,
+  `CPU/turn p50` flat — under §11 item 54's 2.5-point gate, so **lever 2 is
+  not built**, which decision 11 predicted from RE-1's and RE-2's rates. The
+  pooled arm is a re-record and a bigger board: +20.1% CPU/game at two seats
+  with `Frames/walk` +11.3% and the walk flat per frame. `--require`: Mana
+  Reflection cast 119 / resolved 118 in **82 of 200 games (41%)**, 1.46
+  copies/deck. One four-player `stress` game ran to a 200-turn cap `main`'s
+  longest game was already within 3% of; at `--max-turns 600` it ends at 208
+  and nothing else moves. **Measured again at review with two more arms**,
+  because neither arm above isolates what a mana replacement costs per tap
+  with the game held fixed: a no-op row applying on every production reads
+  **+2.7%** at two seats and +2.2% at four, rounds clear of the engine arm's,
+  and `gather` gated for `ProduceMana` reads +0.1% and −0.6%, straddling —
+  the gate returns nothing here, and the bare proposal's +1.2% is the
+  chokepoint's fixed per-event work (§11 item 99; `codebase-state.md` item
+  136). → the archive, "RE-9"; `fuzz-record.md`.
 
 - **RE-10:** the one arm in RE predicted **flat in every row**, and that is the
   whole reading. The plan replaces `next_phase`'s chain on every turn of every
@@ -4062,7 +4109,7 @@ cost builds a fourth binary — its engine with the cards *unregistered*, so
 The fixture table is re-recorded in `fuzz-record.md` once per PR that moves the
 pool, at 50 games, after the A/B; from RE-6 on, the four-player table beside it.
 
-#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's, RE-7's and RE-8's
+#### Trace page — ✅ written at RE-2's close; **no** at RE-3's, RE-4's, RE-5's, RE-6's, RE-7's, RE-8's and RE-9's
 
 `engineering-practices.md` §7's rule is met twice: RE-2 changes *how* the
 applied set is answered for a decomposed event (a draw carries its lineage), and
@@ -5320,7 +5367,12 @@ found them.
     to it, the mirror of the lifelink finding, which emitted without proposing.
     Two printed replacements (Mana Reflection, Nyxbloom Ancient) and item 6's
     "whenever you tap a land for mana" family read the event. → RE-9, and
-    `codebase-state.md` item 111.
+    `codebase-state.md` item 111. **✅ Closed 2026-09-15 (RE-9).** One
+    performer, `GameEvent::ManaAdded` emitted, both cards registered and one
+    pooled; the family turned out to be fourteen cards rather than two, and
+    six of them retype rather than multiply (item 94). The census lesson
+    stands as written: a mutation that emits nothing is invisible to an
+    emissions walk, and the fix was a proposal, not an emission.
 
 44. **A lost player keeps taking turns and receiving priority in any game of
     three or more, and `has_drawn_from_empty_library` never clears.**
@@ -6292,6 +6344,122 @@ found them.
     mechanical whenever it is wanted** — one function per template, since
     nothing in the match shares state — and the trigger is written at the
     function: **when a third template needs a nested match.**
+
+### Found by RE-9's design check (2026-09-15)
+
+93. **"Tapped for mana" is a CR definition, not a ruling, and it names the
+    activation cost.** Decision 7 grounded `tapped` on Mana Reflection's
+    ruling and left "where `tapped` comes from" open between CM-3's payment
+    plan and a field. CR 106.12 answers both: *"To 'tap [a permanent] for
+    mana' is to activate a mana ability of that permanent that includes the
+    {T} symbol in its activation cost"*, and CR 106.12b says a replacement so
+    worded "modifies the mana production event" — the event's name in the
+    CR's own words. So the flag is `Cost::Tap` in `ability.costs`, read where
+    the effective ability is already in hand, and the plan is never consulted.
+    Found by §8's third grep (the phrase, across the whole file) after the
+    first two — CR 106 and CR 605 — had been read for a day without it.
+    → RE-9 decision 2.
+
+94. **The census undercounted the family by a factor of two, and the miss is
+    a substitution leg.** §9's RE table read "if you tap a permanent for mana
+    **2**; produces twice/three times 3; would add … instead 1". Re-run with
+    `o:/tap.* for mana/ o:instead` and `o:/tapped for mana/ o:instead` the
+    family is **fourteen**, and six of them change the mana's *type* —
+    Contamination, Infernal Darkness, Deep Water, Hall of Gemstone, Naked
+    Singularity, Harvest Mage — which is CR 106.12b's "of a specific type
+    and/or amount" and needs an `Instead` template the row never priced. One
+    of the six registers whole today (Deep Water, on Fog's
+    `CreateReplacement` shape), which is what put the leg inside
+    `engineering-practices.md` §4's eighty-line rule rather than in the
+    ledger. The lesson is the one item 46 already states, from the other end:
+    a census regex written for the *amount* family cannot see the *type*
+    family standing next to it, and the check is to search the rule's own
+    phrase — 106.12b's — rather than the card's. → RE-9 decisions 6 and 7.
+
+95. **Decision 7's "`special` riding through unchanged" is wrong for a
+    multiplier.** CR 106.6a: restrictions "apply to **all mana produced**". A
+    `ManaAtom` is one unit, so a doubled production of one restricted {G} is
+    two restricted atoms, and passing the `Vec` through unchanged would have
+    produced one restricted and one free — `ATOM-106.6a-001`'s board with the
+    wrong answer, on the atom this PR exists to cover. The correct shape is
+    RE-4's `repeat_n` over defs, and CR 106.6a's per-mana sentences (a
+    delayed trigger and a continuous effect "created once for each mana
+    produced") are then the atom's own `grants` and `persistence` on each
+    copy. → RE-9 decision 5.
+
+96. **`GameEvent::ManaAdded` has carried a `HashMap` since the log was
+    written, and the first emitter would have been the determinism
+    regression.** `--dump-events` renders every event through `display.rs`,
+    whose `ManaAdded` arm iterates the map; three shell runs at one seed
+    would have disagreed on the line the first time a production carried two
+    types. Unobservable for as long as nothing emitted the event — which is
+    exactly item 43's shape, a defect invisible to an emissions census —
+    and caught here only because RE-9 is the first PR that has to read the
+    event it emits. The event becomes a `Vec` in proposal order in the same
+    PR. → RE-9 decision 8; `CLAUDE.md`'s determinism rule, "any collection
+    reaching a choice, log or count".
+
+97. **`GameState.counters` is the diagnostics and its two sibling fields are
+    CR 122's, and the review is where the collision was seen.**
+    `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
+    poison and energy; `GameState.counters` holds `EngineCounters`, the layer
+    walks and gathers `fuzz_games` prints. Three fields, one spelling, two
+    meanings, and RE-9's design check wrote "a permanent counter" about a
+    diagnostic row without noticing which of the two it meant. Sized as a
+    mechanical sweep — six `EngineCounters` sites, ~75 `.counters.` calls —
+    and, on `codebase-state.md` main item 124's precedent, its own PR rather
+    than a rider on a rules change; the proposed name is `EngineMeters` /
+    `game.meters`, a word the CR never uses. RE-9 adds one method under the
+    existing name and leaves the collision where it is. → RE-9 decision 9.
+
+98. **The census regex read the card's phrase and not the rule's, and it hid
+    two of CR 106.12b's three axes.** `o:/tap.* for mana/` matches "tap a
+    permanent for mana" and misses "tapped for **two or more** mana"
+    (Damping Sphere), "taps a **nonbasic land** for mana" (Pale Moon) and
+    "target Plains is tapped for mana" (Quarum Trench Gnomes); the union of
+    `o:/tapped for .*mana/` and `o:/tap.* for .*mana/` with `instead` is
+    **sixteen** cards, not fourteen. Classified rather than counted: three
+    multipliers; seven constant-type retypes (Contamination, Infernal
+    Darkness, Deep Water, Pale Moon, Ritual of Subdual, Damping Sphere,
+    Quarum Trench Gnomes); five chosen or mapped types (Hall of Gemstone,
+    Harvest Mage, Pulse of Llanowar, Naked Singularity, Reality Twist); and
+    Chaos Moon's even half. The two the regex hid are the two axes the rule
+    names beside the permanent: an **amount** — Damping Sphere's "two or
+    more", an `at_least` on the pattern that *reads the amount* exactly as
+    Alms Collector's does, so a doubler beside it is CR 616.1's real
+    question and Damping Sphere's own first ruling walks it ("choose one to
+    apply. After that, determine if any others are applicable") — and a
+    **chosen permanent**, Quarum Trench Gnomes' "target Plains", which is
+    `SourcePattern.object` and which decision 6 declined on the sentence
+    "nothing prints a chosen permanent tapped for mana", now false. Found by
+    the review asking whether Damping Sphere belonged in the family
+    (2026-09-15). Pale Moon registers whole on Deep Water's shape and does
+    in this PR; the two axes and the type field are `codebase-state.md`
+    item 133's, each with its card and the facility it also needs. The
+    lesson is item 94's one step further: a census that searches the card's
+    words finds the cards that share them, and CR 106.12b's own sentence
+    names three axes in a row — search each.
+
+99. **The event-kind gate returns nothing for mana, so §8's one pre-approved
+    lever does not touch the cost the phase was worried about.** The review
+    asked how the sitting knew the hottest path was safe when its engine arm
+    had nothing to find and its pooled arm was a bigger board, and the
+    answer was two more arms. A no-op `Multiplier(1)` row per player,
+    applied on every tap with the game held fixed, costs **+2.7%** at two
+    seats and +2.2% at four — the CR 616.1 loop's work with a candidate,
+    about 4.6 µs an application, paid only where a mana replacement is on
+    the board. And `gather` returning early for `ProduceMana`, RE-1's probe
+    exactly, reads +0.1% and −0.6% with rounds straddling: the sweep is
+    three memo reads, and the +1.2% a bare proposal costs is the batch,
+    the prohibition check, the grouping allocations, the performer and the
+    emit. RE-1 found the gate worth half its cost; here it is worth none,
+    and the difference is what a production's sweep finds — nothing, fast.
+    **§8's lever list is one short**: the fixed per-batch work of a
+    single-member batch with no candidate is the cost every cheap event
+    kind pays, and an allocation-free path through it is answer-preserving
+    in §8's own sense. `codebase-state.md` item 136 sizes it and names the
+    budget question it is waiting on. → RE-9's archive, "Measured again at
+    review".
 
 ## 12. Explicitly out of scope
 

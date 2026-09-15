@@ -22,6 +22,7 @@ use super::phase_rd_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
+use super::phase_re9_cards;
 use super::phase_re_cards;
 use super::phase_cv_cards;
 use super::phase_rs_cards;
@@ -52,7 +53,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 88] = [
+const PERFORMANCE_POOL: [&str; 89] = [
     "Plains",
     "Island",
     "Swamp",
@@ -408,6 +409,21 @@ const PERFORMANCE_POOL: [&str; 88] = [
     // source is not on the battlefield — which is a cost shape neither LJ's
     // block nor any earlier one measured.
     "Wonder",
+    // RE-9 — the pool's first watcher of the mana production event, and a
+    // static on the hottest path in the engine: from the turn it resolves,
+    // every land tap is a gather with a match, and every tap of every game
+    // was already a gather with none. That is the row this PR exists to
+    // read — the middle arm's `Replacement gathers` moves by one per
+    // production whether or not anything watches, and this card is what
+    // makes the sweep find something. Its pooled arm will move the gameplay
+    // rows by design (twice the mana is more spells and bigger boards), so
+    // the reading is `ms / 1,000 walks` beside `CPU/turn p50`.
+    //
+    // Nyxbloom Ancient stays out: the same path at seven mana with a 5/5
+    // trample body that changes combat. Deep Water stays out: an activated
+    // `{U}` the random agent would spend on nothing, so its reachability is a
+    // `--require` row.
+    "Mana Reflection",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -827,6 +843,17 @@ impl CardRegistry {
         // are not, and why it is unpooled (eight mana to use once, and
         // every activation makes the game bigger).
         registry.register("Aggravated Assault", phase_re10_cards::aggravated_assault);
+
+        // RE-9 — mana. Three cards on two axes: CR 106.6a's multipliers (Mana
+        // Reflection, pooled; Nyxbloom Ancient) and CR 106.12b's retyping
+        // (Deep Water, the one of six printed type-changers that registers
+        // whole). The module doc says why the other eleven "tapped for mana"
+        // cards are not here.
+        registry.register("Mana Reflection", phase_re9_cards::mana_reflection);
+        registry.register("Nyxbloom Ancient", phase_re9_cards::nyxbloom_ancient);
+        registry.register("Deep Water", phase_re9_cards::deep_water);
+        registry.register("Pale Moon", phase_re9_cards::pale_moon);
+        registry.register("Doubling Cube", phase_re9_cards::doubling_cube);
 
         // LJ — the zone-reaching set. Yixlid Jailer is the printed consumer and
         // is pooled; Scarwood Treefolk is its partner in ATOM-614.12-001 and

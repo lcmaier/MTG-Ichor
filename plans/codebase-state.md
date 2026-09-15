@@ -3883,21 +3883,12 @@ No code. Four facts about the tree the census found while counting RE's sites
 (`replacement-architecture.md` §9, Phase RE, "The census"), each owed to a
 named RE PR.
 
-111. **Mana production is a direct write with no event.** `mana.rs:91`
-     (`resolve_mana_effect`) and `resolve.rs:337` (`Primitive::ProduceMana`)
-     both write `mana_pool` below the chokepoint, and `GameEvent::ManaAdded`
-     is emitted at zero sites — which is why `--dump-events` has no mana lines
-     and the fuzz A/B recipe counts `Tapped:` land lines instead. RA's census
-     walked emissions and so could not see a mutation that emitted nothing.
-     CR 106.6a's two printed replacements and CR 605.1b's eight triggered mana
-     abilities read this event.
-
-     **Reachability (2026-09-11):** reachable — every land tap in every game;
-     wrong in the *log*, not on the board, since nothing watches mana yet.
-
-     **Sized:** RE-9, `replacement-architecture.md` §9 — one
-     `GameAction::ProduceMana`, one performer replacing two writers, ~300
-     engine lines; the A/B on the hottest path is the risk, not the diff.
+111. **~~Mana production is a direct write with no event.~~ — ✅ closed
+     2026-09-15 (RE-9).** — archived.
+     **Reachability (2026-09-15):** closed — `GameAction::ProduceMana` is the one
+     event, `perform_action`'s arm the one writer, and `GameEvent::ManaAdded` is
+     emitted; `--dump-events` has mana lines from here on.
+     Full entry: `plans/archive/codebase-state-closed.md`, main item 111.
 
 112. **~~`has_drawn_from_empty_library` is set and never cleared.~~ — ✅ closed
      2026-09-12 (RE-6).** The check reads every player's flag into the batch
@@ -5971,6 +5962,213 @@ beside it; CR 701.22c's simultaneous scry in APNAP order has no producer, no
 effect making more than one player scry, and the corpus already defers it;
 `Cost::Discard` itself is `backlog.md` §2.5's unimplemented half and was not
 made reachable by this phase.
+
+### Found by RE-9 — mana (2026-09-15)
+
+**Shipped:** `GameAction::ProduceMana { player, source, mana, special,
+tapped_for_mana }` — CR 106.6a's "the amount of mana produced by a spell or
+ability", CR 106.12b's "the mana production event" — proposed by
+`resolve_mana_effect` (a mana ability, now with a source and a context) and
+`Primitive::ProduceMana` (a spell) and performed by one `perform_action` arm,
+the only `mana_pool.add` and `add_special` outside tests; `GameEvent::ManaAdded`
+emitted for the first time since the log was written, its `HashMap` a `Vec`
+in proposal order (`replacement-architecture.md` §11 item 96) and
+`tapped_for_mana` on it for CR 106.12a's triggers; `tapped_for_mana` read off
+the activation cost, which is CR 106.12's definition (item 93);
+`EventPattern::ProduceMana { tapped_for_mana, source }`; `Rewrite::Amount
+(Multiplier)` scaling every plain unit and repeating every restricted atom,
+CR 106.6a's "all mana produced" (item 95); `GameActionTemplate::ProduceMana
+{ mana_type, amount }`, CR 106.12b's "specific type", retyping in place under
+`ReplacedAmount` and refusing a mixed production under `Fixed`; the
+`Mana productions` diagnostic row, and `fuzz_ab.py`'s compare taught to drop
+a row the baseline never prints. Mana Reflection (pooled), Nyxbloom Ancient,
+Deep Water; at review, Pale Moon (§11 item 98's census re-run) and Doubling
+Cube — the corpus's own integration test for CR 106.6, whose dynamic amount
+is `AmountExpr::UnspentMana` and the first a mana ability has carried, so
+`resolve_mana_effect` evaluates through `evaluate_amount` against a
+targetless resolution context rather than reading `Fixed` alone; item 111
+closed. **The last of RE's ten PRs.**
+
+**Left absent, with its customer named:**
+
+132. **`GameState.counters` is the engine's diagnostics, and the two fields
+     one struct over with the same name are CR 122's counters.**
+     `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
+     poison and energy; `GameState.counters` holds `EngineCounters` — the
+     layer walks, gathers and productions `fuzz_games` prints. Three fields,
+     one spelling, two meanings; RE-9's design check wrote "a permanent
+     counter" about a diagnostic row and the review asked which
+     (`replacement-architecture.md` §11 item 97).
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a name. Every
+     reader compiles and every number is right; what is wrong is what a
+     reader assumes before the type tells them.
+
+     **Sized:** a mechanical sweep, six `EngineCounters` sites and ~75
+     `.counters.` calls and accessors, **its own PR** on main item 124's
+     precedent (`refactor/object-set-rename`): a rename does not ride inside
+     a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
+     CR never uses and one that reads as measurement at every call site.
+
+133. **`EventPattern::ProduceMana` has a field for one of CR 106.12b's three
+     axes.** The rule: a replacement applying "if a permanent 'is tapped for
+     mana' or tapped for mana **of a specific type and/or amount**". The arm
+     asks which permanent and nothing else; each of the other two has a
+     printed card, and so does the *chosen* permanent the `source` filter
+     cannot name (`replacement-architecture.md` §11 item 98, the review's
+     census re-run).
+
+     - **Type** — False Dawn ("would add *colored* mana"; its second
+       sentence is a spend-as-any-color payment rule `ManaPool` lacks) and
+       Quarum Trench Gnomes ("instead of *white* mana"). `mana_type:
+       Option<ManaType>`, one `pattern_watches` clause, `reads_the_amount`
+       still `false` — a type is not a count. ~15 lines.
+     - **Amount** — Damping Sphere, "if a land is tapped for **two or more**
+       mana, it produces {C} instead of any other type and amount".
+       `at_least: Option<u64>`, Alms Collector's field, and **it reads the
+       amount**: `reads_the_amount` becomes `at_least.is_some()`, so a
+       doubler beside it keeps CR 616.1's question — Damping Sphere's first
+       ruling is that board ("choose one to apply. After that, determine if
+       any others are applicable"): a one-mana land under Sphere and
+       Reflection is {C} with no choice (the Sphere is not applicable until
+       the doubling makes it so), a two-mana land is 1 or 2 by the order.
+       ~20 lines plus the ordering test; `engineering-practices.md` §4.1's
+       question is owed at the `reads_the_amount` arm. Damping Sphere's
+       second ability counts spells cast this turn per player, which nothing
+       tracks, so its first line is a fixture until then.
+     - **Chosen permanent** — Quarum Trench Gnomes, "{T}: If *target* Plains
+       is tapped for mana, it produces colorless mana instead of white mana.
+       (This effect lasts indefinitely.)" `source` becomes a `SourcePattern
+       { object, filter }` as `DealDamage`'s is (~20 lines, the three defs
+       wrapped), plus a `PatternFill` arm that writes the target into the
+       row (Circle of Protection's `ChosenDamageSource` shape, ~20 lines)
+       and an indefinite `Duration` for a row an activated ability makes.
+
+     **Reachability (2026-09-15):** unreachable — no registered def names a
+     type, an amount or a chosen permanent, and the pattern has no field to
+     name any with. Pale Moon, the review's other find, needed none of the
+     three and is registered.
+
+     **Sized:** ~15 + ~20 + ~40 lines, each with its card: False Dawn after
+     `backlog.md` §2.19's payment rule, Damping Sphere after a
+     spells-cast-this-turn count (a `PlayerState` field the cast path
+     increments and the turn resets, ~20 lines, CM's), the Gnomes after the
+     fill arm. The amount field is the one that changes a proof and is owed
+     the standing question when it lands.
+
+134. **Three of the six printed type-changers want three facilities RE-9 did
+     not build.** Hall of Gemstone ("that player chooses a color … lands
+     tapped for mana produce mana of the chosen color") needs a chosen color
+     stored on the permanent by an upkeep trigger — item 6's, plus a
+     `ChosenColor` read in the template. Naked Singularity ("Plains produce
+     {R}, Islands produce {G}, …") needs a template whose type is a function
+     of the tapped permanent's subtypes rather than a constant. Harvest Mage
+     ("one mana of a color of your choice") needs a choice *inside* the
+     substitution, which `pipeline::substitute` is a pure function on purpose
+     — RC-5's "an application that prompts" shape, on a different arm, and
+     the one of the three that changes the pipeline's contract.
+
+     **Reachability (2026-09-15):** unreachable — none is registered, and each
+     of the three needs its facility before its def can be written.
+
+     **Sized:** Hall of Gemstone ~40 lines after item 6; Naked Singularity a
+     `TemplateManaType::BySubtype(Vec<(LandType, ManaType)>)` beside the
+     constant, ~40 lines; Harvest Mage is `substitute` gaining a `ctx` and a
+     prompt, ~80 lines and a design question about which prompts a
+     substitution may ask. Contamination and Infernal Darkness need none of
+     this — their lines are fixtures in `tests/phase_re9_integration_test.rs`
+     and register the day item 6 owns their upkeep halves.
+
+135. **A mixed mana production under a fixed retype is refused, not
+     decided.** `GameActionTemplate::ProduceMana { amount: Fixed(n) }` on a
+     production carrying both restricted and unrestricted units returns `Err`
+     from `substitute`, because no rule says which restriction the `n` new
+     units carry: CR 106.6a is about an ability's restrictions applying to all
+     of its mana, and every printed mana ability produces mana that is
+     uniformly restricted or uniformly free. Loud, over a silently dropped
+     restriction; `a_mixed_production_under_a_fixed_retype_is_refused` asserts
+     the refusal.
+
+     **Reachability (2026-09-15):** unreachable — no registered ability mixes
+     the two, and no printed one does (Scryfall, 2026-09-15).
+
+     **Sized:** one arm in the `Fixed` leg, ~10 lines, the day a card brings
+     the ruling that decides it. Recorded rather than guessed because a wrong
+     answer here is a restriction that vanishes from a pool with nothing
+     pointing at it.
+
+136. **The chokepoint's fixed cost per event is the whole of what a proposal
+     with nothing watching it costs, and the one lever §8 pre-approved cannot
+     touch it.** RE-9's review probe: the engine arm with `gather` returning
+     early for `ProduceMana` — what the event-kind bitmask would compute on a
+     board with no mana watcher — reads +0.1% at two seats and −0.6% at four
+     against the engine arm, rounds overlapping both times, where RE-1's
+     same probe returned half of its cost. A production's sweep is three
+     memo reads; what the +1.2% buys is `execute_batch_inner`'s per-batch
+     work for a single member with no candidate: the `groups`, `decided`,
+     `applied_to` and `riders` `Vec`s, the cloned `HashSet` per member,
+     `apnap_batch_order`, the entry-selection and allocation saves,
+     `is_prohibited`, the frame, and the emit — about 2 µs a proposal, 81
+     proposals a game, on the commonest proposal after phases and steps. The
+     same probe put a mana replacement *applying* on every tap, board held
+     fixed, at **+2.7%** and **+2.2%** (`replacement-architecture.md`, the
+     RE-9 archive's "Measured again at review").
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a cost. Every
+     answer is right; the price is paid on every land tap of every game.
+
+     **Sized:** an answer-preserving fast path, §8's own criterion: a batch
+     of one member whose `gather` returns nothing, whose `is_prohibited` says
+     no and whose action is not an entry performs directly, allocating none
+     of the above, with the emit and the batch id unchanged so CR 603.2c
+     sees the same event. ~40 lines in `execute_batch_inner`, a debug
+     assertion that the fast path and the loop agree, and the A/B that says
+     what it returns — measured before it is kept, like RE-1's gate. Not
+     this PR's: RE's exit criteria name lever 2 as the pre-approved
+     optimization, this is a different lever, and §8's ordering is measure
+     first. The number to beat is +1.2% at two seats and +0.7% at four; the
+     number that says whether it matters is a v1 CPU budget the plan has
+     never set, and this item is where to write it when it is.
+
+137. **`ResolutionContext` carries CR 615.5's two rider numbers as two
+     `Option<u64>` fields that every non-rider resolution sets to `None`.**
+     Their own docs say "for a rider and for nothing else"; the type says
+     two independent optionals, so every site that builds a context — seven
+     in `src/`, forty-one in `tests/` — writes `replaced_amount: None,
+     damage_prevented: None` about a mechanism it has never heard of, which
+     the RE-9 review called out at the mana resolver. The honest shape is one
+     optional thing: `rider: Option<RiderAmounts { replaced_amount:
+     Option<u64>, damage_prevented: u64 }>` — `None` on every ordinary
+     resolution, and inside a rider the prevented amount is a plain number
+     (its `Some(0)` case is a rider that prevented nothing) while the
+     replaced amount stays optional (a zone change has none).
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a shape.
+     `AmountExpr::ReplacedAmount` and `DamagePrevented` refuse correctly
+     outside a rider today; what is wrong is what forty-eight sites have to
+     say to construct a context.
+
+     **Sized:** the struct, the one writer (`resolve_rider` in
+     `engine/actions.rs`), the two readers in `evaluate_amount`, and a
+     mechanical sweep of the literals — ~48 sites, most of them
+     `rider: None` — **its own PR**, on main item 124's precedent that a
+     sweep does not ride inside a rules change. `ResolutionContext::
+     untargeted(source, controller)` is the call-side half and shipped with
+     RE-9; the mana resolver uses it.
+
+What is *not* a ledger line, and where each waits: CR 605.1b's triggered mana
+abilities — Wild Growth's "whenever enchanted land is tapped for mana, its
+controller adds an additional {G}", eight cards — are critical-path item 6's,
+and what they will propose is already fixed by the definition: a second
+`ProduceMana` with `tapped_for_mana: false`, which is Mana Reflection's second
+ruling ("that triggered mana ability won't be affected") before a trigger
+exists; Virtue of Strength, the third multiplier, is an Adventure card and
+waits for the second face (`backlog.md`'s Adventure entry when it is written);
+`backlog.md` §2.19's any-color mana rewrites `resolve_mana_effect` next and is
+ordered after this PR as `replacement-architecture.md` §9 said; and the
+`--dump-events` A/B recipe that counted `Tapped:` land lines because the log
+had no mana lines now has `ManaAdded:` lines to count, which is a note for
+whoever next masks a dump and not a migration.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
