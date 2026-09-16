@@ -552,7 +552,7 @@ half-decided. The passes above carry each answer.
 | 1 — close-out | ✅ done 2026-09-15 — §3's "Done" block; item 118 fixed in it | #142 |
 | 1b — the eviction | ✅ done 2026-09-15 — §3's table and the re-count under it; live 6,725 → 3,401, archive 4,933 → 8,647 | #151 |
 | 2 — hygiene and CI | ✅ done 2026-09-15 — §3's "Done" block; clippy counted at 114 and gated, the floor measured at 1.88, the §2.1 sweep's first record; then the option-2 sweep (history out, four-line signal on inline blocks) over every non-card source file, §2.1's second record | #143 (CI), #144 (comments; merged into `audit/ci`, re-landed on main by #145), option 2: #146, #147, #148, #149, stacked in that order |
-| 3 — parallel-play readiness | not started | |
+| 3 — parallel-play readiness | ✅ done 2026-09-15 — §3's "Done" block; the target proposed (`codebase-state.md` item 138), the fork test's one finding (item 139), item 69 closed, the ask table in `backlog.md` §2.22; the four-seat `stress` profile owed, recipe in §3's block | #153 |
 | 4 — scheduling | not started | |
 | Codebase map | not started | |
 | Rust notes | not started | |
