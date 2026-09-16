@@ -485,6 +485,8 @@ struct GameStats {
     replacement_prompts: u64,
     max_batch_depth: u64,
     mana_productions: u64,
+    decisions: u64,
+    priority_decisions: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -720,6 +722,8 @@ struct AggregateStats {
     /// The deepest batch nesting any game reached — a maximum, not a total.
     max_batch_depth: u64,
     total_mana_productions: u64,
+    total_decisions: u64,
+    total_priority_decisions: u64,
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
     reach: Vec<(String, u64, u64, u64)>,
@@ -754,6 +758,8 @@ impl AggregateStats {
         self.total_replacement_prompts += game.replacement_prompts;
         self.max_batch_depth = self.max_batch_depth.max(game.max_batch_depth);
         self.total_mana_productions += game.mana_productions;
+        self.total_decisions += game.decisions;
+        self.total_priority_decisions += game.priority_decisions;
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -977,6 +983,8 @@ fn run_one_game(
                 s.replacement_prompts = c.replacement_prompts();
                 s.max_batch_depth = c.max_batch_depth();
                 s.mana_productions = c.mana_productions();
+                s.decisions = c.decisions();
+                s.priority_decisions = c.priority_decisions();
                 s
             },
         ))
@@ -1452,6 +1460,15 @@ fn main() {
         // two or more simultaneous sources. A reachability count rather than a cost
         // — zero until such an effect is in the pool.
         println!("  Prevention allocations: {:>2.2}", agg_stats.avg(agg_stats.total_prevention_allocations));
+        // `DecisionProvider` prompts with two or more legal answers, per game —
+        // `codebase-state.md` item 138's unit, and the denominator
+        // `engineering-practices.md` §3.1's ratchet reads CPU per game against.
+        // Not the prompt count: the engine asks at every priority point and
+        // most of those offer only `Pass`, so a prompt count measures the pass
+        // loop where this measures what an agent is handed. The second row is
+        // the first one's priority share, `backlog.md` §2.22's B boundary.
+        println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
+        println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`

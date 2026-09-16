@@ -37,7 +37,9 @@ construction.
 Reads the counters, not the milliseconds: the timing table prints ms per
 1,000 walks and per 1,000 queries (walks plus memo hits) beside the median,
 because "the game got longer", "the walk got slower" and "fewer questions
-walked" are three different findings.
+walked" are three different findings. It prints us per decision for a fourth:
+the ratchet's own unit (`engineering-practices.md` 3.1), which is what says
+whether a change cost the agent anything rather than the machine.
 """
 
 import argparse
@@ -85,6 +87,11 @@ ROWS = [
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
     ("Replacement prompts", r"^\s+Replacement prompts:\s+([\d.]+)"),
     ("Max batch depth", r"^\s+Max batch depth:\s+(\d+)"),
+    # Item 138's two: prompts with two or more legal answers, and their
+    # priority share. A fixture row like the rest, and the denominator the
+    # timing table's `µs / decision` divides CPU/game by.
+    ("Decisions", r"^\s+Decisions:\s+(\d+)"),
+    ("Priority decisions", r"^\s+Priority decisions:\s+(\d+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can
@@ -219,6 +226,11 @@ def main():
     ap.add_argument("--players", type=int, default=None,
                     help="seats at the table, passed to every run (default: the binary's, two). "
                          "The four-player run is its own table in §3, diffed RE-7 against RE-6, never against a two-player arm")
+    ap.add_argument("--deck-size", type=int, default=None,
+                    help="cards per deck, passed to every run (default: the binary's, 60). "
+                         "100 with --life 40 --players 4 is the Commander-scale board")
+    ap.add_argument("--life", type=int, default=None,
+                    help="starting life, passed to every run (default: the binary's, 20)")
     ap.add_argument("--out", default=None, help="directory for the raw outputs (default: a temp dir)")
     args = ap.parse_args()
 
@@ -234,6 +246,10 @@ def main():
     common = ["--seed", str(args.seed)]
     if args.players is not None:
         common += ["--players", str(args.players)]
+    if args.deck_size is not None:
+        common += ["--deck-size", str(args.deck_size)]
+    if args.life is not None:
+        common += ["--life", str(args.life)]
     t0 = time.time()
     print(f"outputs: {out}")
 
