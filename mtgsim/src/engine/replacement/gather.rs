@@ -242,7 +242,7 @@ pub(crate) fn gather(
         // CR 113.6h: asked as on the battlefield, which is the zone the frame
         // computes it in.
         if let Some(chars) = frame.frame_of(*object) {
-            let asked = AskedForReplacements {
+            let asked = CheckedForReplacements {
                 id: *object,
                 controller: *controller,
                 chars,
@@ -286,7 +286,7 @@ pub(crate) fn gather(
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
-                let asked = AskedForReplacements {
+                let asked = CheckedForReplacements {
                     id,
                     controller,
                     chars: &chars,
@@ -379,7 +379,7 @@ pub(crate) fn gather(
         }
         let Some(obj) = game.objects.get(&id) else { continue };
         let Some(chars) = compute_characteristics(game, id) else { continue };
-        let asked = AskedForReplacements {
+        let asked = CheckedForReplacements {
             id,
             // CR 108.4 — no controller off the battlefield, so its owner.
             controller: controller_or_owner(game, id).unwrap_or(obj.owner),
@@ -424,7 +424,7 @@ struct EventProposal<'a, 'g> {
 }
 
 /// An object a sweep is asking for its replacement abilities.
-struct AskedForReplacements<'a> {
+struct CheckedForReplacements<'a> {
     id: ObjectId,
     controller: PlayerId,
     /// Its **effective** frame.
@@ -510,7 +510,7 @@ enum SelfScope {
 ///
 /// `zone` is where the object is asked *as*: its own zone for the sweeps, the
 /// battlefield for the entering permanent (CR 113.6h — "functions as that
-/// object is entering the battlefield"). AskedForReplacements of every ability, on the
+/// object is entering the battlefield"). CheckedForReplacements of every ability, on the
 /// battlefield too, so the rule has one home: a "from your graveyard" clause
 /// on a permanent is skipped here for the same reason it is skipped in a
 /// library.
@@ -526,10 +526,10 @@ enum SelfScope {
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
-    asked: &AskedForReplacements<'_>,
+    asked: &CheckedForReplacements<'_>,
     p: &EventProposal<'_, '_>,
 ) {
-    let AskedForReplacements { id, controller, chars, zone, scope } = *asked;
+    let CheckedForReplacements { id, controller, chars, zone, scope } = *asked;
     for ability in &chars.abilities {
         if ability.ability_type != AbilityType::Static {
             continue;
