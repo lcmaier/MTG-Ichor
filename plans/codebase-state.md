@@ -6416,7 +6416,7 @@ Commander-scale board closes item 69.
      batching a thousand games per GPU-millisecond needs about a hundred
      cores per GPU (§4's arithmetic).
 
-     **The instrument, built 2026-09-16 (A4e).** Two cells on
+     **The instrument, built 2026-09-16 (A4e, PR #155).** Two cells on
      `EngineCounters`, `decisions` and `priority_decisions`, recorded in
      `ui::ask`'s four `validate_*` helpers rather than in the 24 bodies: each
      helper runs exactly once per prompt with the candidate list *and* the
@@ -6907,7 +6907,7 @@ owner decided it the same day.
      counter at two and four seats on both pools, then the hasher, read as a
      CPU delta and a callgrind re-read against §12's reading.
 
-### Found by A4e — the decision counters (2026-09-16)
+### Found by A4e — the decision counters (PR #155, 2026-09-16)
 
 145. **Three asks still prompt when the answer is forced, and CR 102.2 says
      a forced choice is not made.** Found by building item 138's counter,
