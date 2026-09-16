@@ -2288,6 +2288,35 @@ section never asked.
     whichever first — item 138 ranks it first among the levers for the fork
     use case and nowhere for straight-line throughput.
 
+    **The stream design (the owner's review of PR #153, 2026-09-15).** What
+    the rules need from the past is bounded, and the survey that settled it
+    is worth keeping. This-turn counters: spells cast, life lost, cards
+    drawn, permanents that left, damage dealt, lands played — every "this
+    turn" condition the CR or a card states. Last-turn counters, and the
+    turn is *the player's own*: the day/night rule (CR 726) reads the
+    previous turn's spell count; Paladin of Atonement asks whether you lost
+    life last turn; Arboria reads what a player did during *their* last
+    turn; Concert Kaboomist counts your noncreature spells "since the
+    beginning of your last turn", which at four seats spans a whole turn
+    cycle — so the window is each player's current and previous own turn,
+    not two turns of the table. A few "this game" counters, Approach of
+    the Second Sun's cast count the printed one. Last-known information
+    inside a single resolution (CR 603.10). Trigger matching, which reads
+    the current batch (`records_from`). Loop detection (CR 731, `backlog.md`
+    §2.28), which compares state hashes, not events. None reads the whole
+    log. So the honest build materializes those summaries as **per-player
+    counters on the turn**, two turns deep per player, bumped at the
+    chokepoint — the lesson `PermanentState`'s materialized fields taught:
+    a stored field means one thing, and a condition scanning even a short
+    window of events is deriving CR state live — which leaves the trigger
+    matcher's suffix as the window's only in-state consumer. Everything
+    that wants the whole history is outside the engine and reads the sink:
+    trace pages, `--dump-events`, the fork test's comparison, a GUI's game
+    log, the fuzz harness's statistics. Sized: the per-player turn
+    summaries, ~60 lines beside `last_turn_began`; the window plus the sink
+    keeping `records_from` semantics, the ~100–150 above; the fork test
+    compares the sink's output instead of the state's log.
+
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
     2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
     `EntryCountersTemplate.by`, the merge keyed on `(kind, putter)`, the entry
@@ -6506,11 +6535,49 @@ Commander-scale board closes item 69.
      that every `ChoiceKind` carries its subject, which a wire format
      enforces for free.
 
+     **The payload rule (the owner's review of PR #153, 2026-09-15).** A
+     `ChoiceKind` payload names things by id and by CR vocabulary — an
+     `ObjectId`, a `PlayerId`, an `AbilityId`, a number, a `Zone`, a
+     `CounterType`, a `ManaCost` — and never embeds an engine AST: not an
+     `EffectRecipient`, an `ObjectFilter`, an `Effect` or a `Cost` tree.
+     Arms are cheap (item 68: appending a variant is O(1)); payload depth is
+     what costs, because everything in a payload must be serialized,
+     versioned and understood by every client, and an AST value drags its
+     whole vocabulary with it. The closure is 36 types only because
+     `SelectRecipients` carries an `EffectRecipient`, which pulls in
+     `SelectionFilter`, `ObjectFilter` and every subtype enum,
+     `CreatureType`'s 303 lines included, and `ChoiceOption::AlternativeCost`
+     and `AdditionalCost` carry `Cost` trees the same way. What a client
+     needs is not the filter but what the engine already computed from it:
+     the options *are* the legality, the subject id says which card is
+     asking, and a rendering says why — `subject()` and `describe()` on
+     `ChoiceKind`, `backlog.md` §2.21's shape, with the CR rule number as
+     the stable handle. **Context is not dropped; it moves from
+     engine-private structure to engine-rendered facts.** A GUI opens its
+     dialog on the variant, highlights the subject, makes the options
+     clickable and reads the text; an agent encodes the variant, the subject
+     id, the option ids and the bounds, and learns the semantics from which
+     ids get offered, as it learns a card from its id. Anything a client
+     wants *structured* about the rule is an oracle query, never a prompt
+     field. The events are untouched: a visual effect keys on the performed
+     stream — `ZoneChange` with its catchall-free `ZoneChangeCause`,
+     `PlayerLost`, `Tapped`, `ManaAdded` — whose own closure is enum- and
+     id-shaped by construction, and whose per-viewer projection is
+     `backlog.md` §2.9's. The shape: keep the structured payload in-process
+     (the decorators read `ManaCost`), add the two rendering methods so the
+     engine owns the text, and have the boundary adapter send ids plus that
+     rendering; the wire closure then shrinks from 36 types to the ids and a
+     handful of enums, and §2.21's gate becomes a mechanical check on the
+     two methods.
+
      **Reachability (2026-09-15):** unreachable — nothing serializes.
 
-     **Sized:** `#[derive(Serialize, Deserialize)]` on the 36 types and the
-     `uuid` feature, ~60 lines, with the harness's adapter (Phase 10);
-     nothing before.
+     **Sized:** `subject()` and `describe()` matched exhaustively over the
+     25 variants, ~120 lines, plus §2.21's test that walks a game and
+     asserts every prompt renders — one small PR, any time; then
+     `#[derive(Serialize, Deserialize)]` on the ids and the vocabulary
+     enums the rendering leaves in the wire type, ~30 lines, with the
+     harness's adapter (Phase 10); nothing before.
 
 142. **The panic surface, separated into engine and test — the separator is
      `plans/panic_surface.py`.** "341 `.unwrap()` in non-card `src/`"

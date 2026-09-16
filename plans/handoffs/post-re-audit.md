@@ -804,8 +804,10 @@ the paste.
 >    readiness, scheduling); and each pass's instrument by name — the board
 >    and `specdb owed --phase`; the ≤40-line stub rule and the archive;
 >    §2.1's grep tiers and the clippy count; the census provider, the clone
->    timer, the fork record-and-replay, `plans/panic_surface.py` and the
->    three-run contention read; the table this pass produces.
+>    timer, the fork record-and-replay, `plans/panic_surface.py`, the
+>    three-run contention read and callgrind under WSL (`engineering-
+>    practices.md` §3.1's cost reading, re-taken at each close); the table
+>    this pass produces.
 > 4. **The record** — the `### … — audited 2026-09-15` heading in
 >    `codebase-state.md`, pointers not prose; then delete this file.
 >
