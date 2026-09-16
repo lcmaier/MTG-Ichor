@@ -328,9 +328,11 @@ decisions per core-second at four seats, a decision being a prompt with two
 or more options — the engine read **10,000** on the 60-card `performance`
 board and **7,950** at Commander scale that day, and the rate is read in an
 A/B sitting against seed-deterministic decision counts, never compared
-across machines; item 138 proposes the
-target (20,000 and 10,000) for the owner to set and ranks the levers against
-it, item 141 answers the serialization question, and the fork test (main
+across machines; item 138 sets the
+target as a ratchet — a 2.5-point budget per PR, a dated reading at each
+spine close that may not get worse per decision, cores per GPU as the
+use-case check — and ranks the levers by what each returns per decision,
+item 141 answers the serialization question, and the fork test (main
 item 41, promoted to a requirement) found the one thing on the stack that
 should not be, main item 139. So the order is: the owner sets the number,
 then pick a lever against it. Network play is a stretch goal. Milestone:

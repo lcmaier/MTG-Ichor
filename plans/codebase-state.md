@@ -6136,11 +6136,12 @@ closed. **The last of RE's ten PRs.**
      optimization, this is a different lever, and §8's ordering is measure
      first. The number to beat is +1.2% at two seats and +0.7% at four; the
      number that says whether it matters is a v1 CPU budget the plan has
-     never set, and this item is where to write it when it is. **Proposed
-     2026-09-15 (the post-RE audit's pass 3, item 138):** 20,000 decisions
-     per core-second at four seats on `performance`, against 10,000 today;
-     at that bar this lever's 1.2% is about 120 decisions per core-second,
-     which ranks it last of the levers item 138 lists.
+     never set, and this item is where to write it when it is. **Set
+     2026-09-15 as a ratchet (the post-RE audit's pass 3, item 138):** a PR
+     may cost 2.5 points of CPU per decision on `performance`, and each
+     spine close may not read worse per decision than the last; this
+     lever's 1.2% is half of one PR's budget, which ranks it last of the
+     levers item 138 lists.
 
 137. **`ResolutionContext` carries CR 615.5's two rider numbers as two
      `Option<u64>` fields that every non-rider resolution sets to `None`.**
@@ -6274,14 +6275,29 @@ Commander-scale board closes item 69.
      is a pure function of the seed. Between prompts the engine spends 23–40
      µs; between decisions, 56–126 µs.
 
-     **The target, proposed — the owner sets it: 20,000 decisions per
-     core-second at four seats on `performance`, 60-card decks, and 10,000
-     at Commander scale** — 2× and 1.25× today. Why those: at 20,000 a
-     64-core box makes ~1.3 M decisions a second, which is one GPU batching a
-     small policy over a thousand games per millisecond (§4's arithmetic), so
-     the engine stays off the profile at the scale a researcher would buy;
-     and the levers below plausibly reach 2× on the 60-card board, where
-     Commander's extra cost is mostly turns, which no lever shortens.
+     **The target — proposed as 20,000 decisions per core-second, set by
+     the owner on review (2026-09-15) as a ratchet instead.** The objection
+     that decided it: today's pool has few abilities per permanent and no
+     triggers, so 100 µs a decision is a floor of what Commander will cost,
+     and a number about a board that does not exist yet cannot be watched —
+     but neither can "as little as possible", which never says when a
+     regression matters. Three rules make minimization watchable:
+     1) **a per-PR budget** — a phase's `performance` A/B at four seats may
+     cost at most 2.5 points of CPU per game at identical counters, CPU per
+     decision once the counters below land, or the PR says why (RE-9's gate,
+     `replacement-architecture.md` §11 item 54, now the rule in
+     `engineering-practices.md` §3.1); 2) **a dated reading at each spine
+     close** — the recurring audit's readiness pass records decisions per
+     core-second on both boards beside the previous close's, and it may not
+     read worse per decision without a written reason; **the first reading
+     is this table's: 10,000 on the 60-card `performance` board and 7,950
+     at Commander scale, 2026-09-15, this machine**; 3) **the use-case
+     check**, the only form that is about the harness rather than the
+     machine — the engine is fast enough when the policy network, not the
+     engine, bounds the loop, which is cores per GPU for a stated policy
+     size, re-derived when the board changes; at today's rate a policy
+     batching a thousand games per GPU-millisecond needs about a hundred
+     cores per GPU (§4's arithmetic).
 
      **The instrument, sized and not built** (this pass is measurement and
      docs): two cells on `EngineCounters` — `decisions` (prompts with two or
@@ -6297,8 +6313,8 @@ Commander-scale board closes item 69.
      in an A/B sitting, never a stored millisecond
      (`engineering-practices.md` §3).
 
-     **The levers, sized and ranked against 20,000.** The profile that would
-     order the top three precisely is owed (below).
+     **The levers, sized and ranked by what each returns per decision.** The
+     profile that would order the top three precisely is owed (below).
 
      1. **Worker-thread scaling, and the allocator** — a worker is one of
         `fuzz_games --threads N`'s OS threads, each playing whole games one
@@ -6340,8 +6356,8 @@ Commander-scale board closes item 69.
         fifteen-twentieths of a clone (item 143).
      5. **Item 67, `Arc<Vec<AbilityDef>>`**: 15,778 frames a four-seat game;
         small. Rank 5.
-     6. **Item 136's fast path**: +1.2% at two seats, +0.7% at four — about
-        120 decisions per core-second. Rank last.
+     6. **Item 136's fast path**: +1.2% at two seats, +0.7% at four — half of
+        one PR's budget. Rank last.
      7. **Harness-side, not engine**: skipping forced prompts saves the
         provider round trip (~0.5 µs × 2,000 in-process, ~2%; out of process
         it is the difference between shipping 2,544 views and 513). A forced
@@ -6359,13 +6375,13 @@ Commander-scale board closes item 69.
      goes into `layers-architecture.md` §12 when it is taken and re-orders
      this list.
 
-     **Reachability (2026-09-15):** reachable — not wrong today; a target the
-     plan had never set and an instrument that does not exist, so the number
-     cannot be watched until the two cells land.
+     **Reachability (2026-09-15):** reachable — not wrong today; a ratchet
+     whose first reading is recorded and whose instrument does not exist, so
+     the next reading is a probe's until the two cells land.
 
      **Sized:** the instrument, ~80 lines across `state/diagnostics.rs`,
      `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`, its own small
-     PR, no A/B; the target is the owner's line to write here.
+     PR, no A/B; the next reading is the next spine close's.
 
 139. **A retry re-prompt offers a list computed before the rejected action
      changed the board — the one thing the fork test found on the stack.**

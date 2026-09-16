@@ -272,10 +272,13 @@ decks and streams (draw for draw, so the games are the fixture tables'): a
 counting provider for the decision census, a clone timer with a counting
 allocator, and item 41's fork test — record every answer, clone at a round
 start, replay, compare with ids masked. What landed where: **the target** —
-`codebase-state.md` item 138, 20,000 decisions per core-second at four
-seats on `performance` and 10,000 at Commander scale against 10,000 and
-7,950 today, a decision being a prompt with two or more options (91.5% of
-priority prompts are forced passes), the twelfth and thirteenth counters
+`codebase-state.md` item 138, proposed as 20,000 decisions per core-second
+and set by the owner on review as a ratchet instead (a 2.5-point budget per
+PR, a dated reading at each spine close that may not get worse per
+decision, cores per GPU as the use-case check) with 10,000 at four seats on
+`performance` and 7,950 at Commander scale as the first reading, a decision
+being a prompt with two or more options (91.5% of priority prompts are
+forced passes), the twelfth and thirteenth counters
 sized at ~80 lines and not built, and the levers ranked — worker scaling
 first for a batch (6.0× on eight cores at +31% CPU a game, measured), §12's
 oracle traffic and the per-prompt candidate enumeration next pending the
@@ -324,11 +327,21 @@ the elevated command alone suffices, from an Administrator PowerShell in
 
     samply record --save-only --rate 4000 -o prof_stress4.json.gz .\target-prof\release\fuzz_games.exe --games 200 --seed 12345 --threads 1 --players 4 --pool stress
 
-The saved file is Firefox Profiler JSON, which
-a script reads for inclusive and self time by function; the reading goes to
-`layers-architecture.md` §12 and re-orders item 138's list. Docker and WSL
-were considered for callgrind and declined for the toolchain surface each
-adds; the counters are the exact half of the instrument already.
+**On Windows `samply` drives ETW through `xperf`, which is not installed
+here** (found 2026-09-15 when the line was first run): `xperf` is the
+Windows Performance Toolkit, a Microsoft-signed component of the Windows
+ADK, installed by unchecking everything but that toolkit in the ADK
+installer. The saved file is Firefox Profiler JSON, which a script reads for
+inclusive and self time by function; the reading goes to
+`layers-architecture.md` §12 and re-orders item 138's list. **The
+alternative that needs neither an administrator prompt nor the ADK is
+WSL**: an Ubuntu distro with rustup and `valgrind`, where `perf` samples
+unprivileged and callgrind's instruction counts at a fixed seed are stable
+to well under a percent — the cost fixture §3 lacks, and the instrument
+that makes the ratchet's readings comparable across closes without machine
+drift. Docker and WSL were first declined for the toolchain surface each
+adds; with the ratchet chosen, WSL's callgrind is the better long-term
+instrument, and the owner's call.
 
 ### Pass 4 — scheduling
 
@@ -511,11 +524,14 @@ legal action — exactly the view §4's rule forbids handing an agent.]
   above settles: **decisions per core-second at four seats** — the unit an
   RL loop consumes — with random providers, as a floor the fixture table can
   watch. Pass 3 proposes the number; the owner sets it. **Proposed
-  2026-09-15, item 138: 20,000 at four seats on the 60-card `performance`
-  board and 10,000 at Commander scale, against 10,000 and 7,950 today**,
-  with the instrument that reads it — a decision is a prompt with two or
-  more options, counted by a twelfth `EngineCounters` cell and read beside
-  `CPU/game` — sized at ~50 lines and not built (§3's rule: measurement and
+  2026-09-15 as 20,000 at four seats, and set by the owner on PR #153's
+  review as a ratchet instead — a 2.5-point budget per PR, a dated reading
+  at each spine close that may not get worse per decision, cores per GPU
+  as the use-case check — with 10,000 on the 60-card `performance` board
+  and 7,950 at Commander scale as the first reading (item 138)**, and the
+  instrument that reads it — a decision is a prompt with two or more
+  options, counted by two `EngineCounters` cells and read beside
+  `CPU/game` — sized at ~80 lines and not built (§3's rule: measurement and
   docs, no engine code).
 
 ## 5. Where findings land
@@ -549,7 +565,11 @@ half-decided. The passes above carry each answer.
 3. **The throughput target — metric decided, number open.** Cores are the
    engine's metric and the GPU is the agent's (§4); the unit is decisions
    per core-second at four seats. Pass 3 proposes the number; the owner sets
-   it. The one thing still open in this file.
+   it. **Set on PR #153's review (2026-09-15): a ratchet rather than a
+   number — a 2.5-point budget per PR, a dated reading at each spine close
+   that may not get worse per decision, cores per GPU as the use-case check
+   (`codebase-state.md` item 138, `engineering-practices.md` §3.1).**
+   Nothing in this file is open now.
 4. **The fork model — decided.** Priority boundaries, for the RL reason in
    §4: no view an agent cannot act on. Pass 3 enumerates the inner asks and
    promotes item 41's test to a requirement.

@@ -544,6 +544,22 @@ addition is the one moment a delta is not readable, so it is a decision with a
 re-record attached rather than a side effect of registering a card. A stress run
 is pass/fail against a ceiling; only the performance pool measures a delta.
 
+**The budget (adopted 2026-09-15, on the review of the post-RE audit's pass 3).**
+A phase's `performance` delta at four seats may cost at most **2.5 points of
+CPU per game at identical counters** — CPU per *decision* once
+`codebase-state.md` item 138's counters land, a decision count being a fixture
+row like the rest — or the PR says why in its `fuzz-record.md` block and the
+reviewer decides. RE-9 used the number as its gate
+(`replacement-architecture.md` §11 item 54); this makes it the rule. It is the
+per-PR half of a ratchet: the other half is the readiness pass of each
+spine-phase audit, which records decisions per core-second on both boards as a
+dated reading beside the previous close's and may not read worse per decision
+without a written reason. The owner chose a ratchet over an absolute rate
+because today's pool has few abilities per permanent and no triggers, so a
+number about this board is a floor of Commander's cost rather than a target;
+"as little as possible" is the goal, and this is the form of it that can be
+watched.
+
 **Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
 byte-identical across runs at one seed and at any `--threads`, so `fuzz_ab.py`
 gets the three-run check in `CLAUDE.md` for free — every timing round must
