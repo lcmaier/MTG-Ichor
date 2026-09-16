@@ -14,9 +14,9 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame; damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
-- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; the replacement and restriction sweeps still visit the battlefield alone, `replacement-architecture.md` §11 item 4). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
+- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the gather's zone leg (`replacement-architecture.md` §11 item 4, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
+- **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
@@ -142,7 +142,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 609–611 | Effects (one-shot, continuous) | ✅ one-shot via `Effect`/`Primitive`; continuous via the layer registry with duration-based expiry | `state/continuous_effects.rs` |
 | 612 | Text-changing effects | ❌ |
 | **613** | **Continuous effects — layer system** | 🟡 **core landed; layers 7b/7c/7d, 5, and 4 live.** `Layer` enum + `EffectiveCharacteristics` + `ContinuousEffect` registry + `compute_characteristics` all exist and are exercised by the Phase LB/LC/LD tests. **Missing:** Layer 3 (text), Layer 1b (face-down, CV-6). **Landed since this row was written:** the board-wide pass (LI-1) with the CR 613.8 dependency algorithm (LI-2) and conditional statics (LI-3), all 2026-09-06, `engine/layers/board.rs`; the zone-reaching `ObjectSet` (LJ) and CR 113.6's registration leg (LK), 2026-09-14. Layers 2 and 6 live since 2026-08-23; CR 305.7/305.6 land semantics landed in Phase LD Part B. | `engine/layers/{types,board,compute,cda,land_types}.rs`, `state/continuous_effects.rs`, `oracle/characteristics.rs` |
-| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); effects functioning off the battlefield (the gather's zone leg — §11 item 4, `roadmap-v2.md` A5's third PR); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13 (critical-path item 6); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
+| **614–616** | **Replacement + prevention + interaction** | ✅ **Phases RA–RE complete (2026-08-25 → 2026-09-15, twenty-four PRs); critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through `execute_actions`, carrying `ZoneChangeCause`, the CR 603.10a LKI frame, a `BatchId` and its resolution (RA); `apply_replacements` runs CR 616.1a–g between proposal and mutation, with CR 614.4/5/6/7a/17, 616.2, CR 615.5 riders and CR 101.4 APNAP (RB); the CR 614.12 look-ahead frame (RC-4), entering as one event (RC-4b), CR 614.13's auxiliary moves (RC-5); damage with CR 120.3's results, CR 615.7's shields decided per `(batch, subject)`, CR 609.7's sources, CR 614.9's redirection and CR 615.12's unpreventable damage (RD-1–4); skips and the turn queue, draw with its lineage, life, tokens, counters on permanents and players, the game's end and a player leaving it, the discard and scry producers, mana, extra phases and the turn plan (RE-1–10). `Rewrite` is the closed algebra `replacement-architecture.md` §3.2b claims. **Not yet:** CR 614.15 self-replacement (bucket, no producer — §11 item 3); CR 614.1e turned face up (CV-6); CR 614.12b (main item 134); CR 614.12c and 614.14 (`backlog.md` §2.2); CR 614.9's *partial* redirection (`backlog.md` §2.25); CR 615.13 (critical-path item 6); dice (`backlog.md` §2.31) and search (`backlog.md` §2.5, with its producer) as events; CR 121.2c's draw order (main item 122); a substitution keeping the replaced event's `cause` (main item 131); CR 731 (`backlog.md` §2.28). §14 there is the phase in hindsight. |
 
 ### CR 7 — Additional Rules
 
@@ -6070,6 +6070,21 @@ named:**
      can tell it is wrong. **Where a stamp fits, it is the pattern to copy** —
      it answered the harness's question exactly and needs no field at all.
 
+     **A third instance, sharper than both (RF's review, 2026-09-16).** Under
+     Darksteel Colossus's clause a milled member's substitute is a zone
+     change from the library *to the library*, and `perform_zone_change`
+     performs and announces nothing for a same-zone move — so there is no
+     record at all on which a kept cause could ride. The owner's wrinkle:
+     "whenever an opponent mills one or more cards, you gain life equal to
+     the number milled", on a mill of three with a Colossus in it. The
+     performed stream shows two `Milled` records (and none under Rest in
+     Peace, whose substitute writes `Exiled`); CR 701.17c's framing — "the
+     zone it moved to from the library" — treats a milled card that went
+     elsewhere as milled all the same, which reads 3, while the owner's first
+     reading was 2. Which is right is item 6's to settle with 701.17c open;
+     what RF adds is that a *stamp* is the only shape that can carry the
+     fact, because a stamp can exist where no record does.
+
      **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
      zone-change matcher, as sized above; `replacement-architecture.md` §14
      lists it among what item 6 inherits. The board had counted this item as
@@ -6995,6 +7010,71 @@ owner decided it the same day.
 
      **Sized:** ~~~30 lines plus the A/B and the re-read~~ — built: ~60 lines of
      engine, ~340 of test migration, one `fuzz-record.md` block.
+
+### Found by RF — the gather's zone leg (2026-09-16)
+
+146. **The restriction sweep visits the battlefield alone — the gather's zone
+     leg has no twin in `engine::restriction::predicate`.**
+     `is_prohibited` sweeps `battlefield_ids_ordered` gated on
+     `restriction_ability_sources`, which `register_static_effects` fills only
+     for `Zone::Battlefield`, so a "can't" printed on a card off the
+     battlefield is invisible to it. `layers-architecture.md` §13d decision 4
+     named the card: **Abrupt Decay**'s "This spell can't be countered"
+     (CR 113.6g), whose *zone* answer is already free from
+     `functioning_zones`'s default arm — an instant's abilities function on
+     the stack — and whose gate leg is not built. RF built the replacement
+     half deliberately alone (`replacement-architecture.md` §9, Phase RF
+     decision 2): the two sweeps read different ability bodies, and the
+     summary's restriction legs stayed bools for that reason.
+
+     **Reachability (2026-09-16):** unreachable — no registered card prints
+     a restriction that functions off the battlefield. RS-2
+     (`cant-effects-architecture.md`), where casting and countering
+     restrictions land, is the natural home.
+
+     **Sized:** RF's shape exactly — a `zone_restriction_ability_sources` set
+     filled at the same three doors and retired at `cleanup_zone_state`, a leg
+     in `is_prohibited` after the battlefield loop reading the effective list
+     with `functions_in`, and `set_affects` already asks the zone; ~80 lines
+     plus Abrupt Decay and a counter-it test. One difference from the
+     gather's leg to keep: a spell on the stack asks its *own* "can't be
+     countered", so the restriction leg must not skip a stack source the way
+     the gather's skips the entering object — being countered is not
+     entering.
+
+147. **`hollow_hands` owes the tests that show a strip in hand turning off
+     what functions there, and none of that exists yet.** The fixture
+     ("Cards in hands lose all abilities", `phase_rf_cards.rs`) proves today
+     that the gather's zone leg reads the effective list — a Colossus in hand
+     under it is discarded like any card. What it will *also* have to turn
+     off is every ability that functions from a hand: cycling and channel
+     (CR 113.6j, activated from hand — `layers-architecture.md` §13d decision
+     4's 113.6j row), and the evoke and madness families once `backlog.md`
+     §2.3 lets a card be cast from anywhere but a hand's ordinary door.
+     Raised at RF's review (2026-09-16).
+
+     **Reachability (2026-09-16):** nothing owed by the engine — no
+     hand-functioning ability exists to be stripped. A record for the keyword
+     that lands first.
+
+     **Sized:** one test per keyword, ~30 lines each, in that keyword's own
+     phase file, with this fixture as the negative: the ability is usable
+     without Hollow Hands and not with it.
+
+148. **Exile is the one zone the Colossus family's tests do not move
+     *from*, and the reason is a missing cause.** The clause functions in
+     exile (`ZoneSet::ALL`; `create_in_zone` and `arrive_in_zone` register
+     there, and `test_the_candidate_set_follows_the_card_from_zone_to_zone`
+     asserts the map holds an exiled Colossus), but no registered card moves
+     a card from exile into a graveyard and no `ZoneChangeCause` names that
+     move. Pull from Eternity — "put target face-up exiled card into its
+     owner's graveyard" — is the card, and the no-catchall rule makes it
+     bring its cause. Raised at RF's review (2026-09-16).
+
+     **Reachability (2026-09-16):** unreachable — no producer.
+
+     **Sized:** the card, its cause, and one test: a Colossus in exile under
+     Pull from Eternity is shuffled into its owner's library instead. Phase 8.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

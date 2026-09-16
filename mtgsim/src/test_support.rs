@@ -361,10 +361,11 @@ pub fn put_spell_on_stack(
     controller: PlayerId,
 ) -> ObjectId {
     let recipient = crate::engine::targeting::spell_recipient(&card_data);
-    let obj = GameObject::new(card_data, controller, Zone::Stack);
-    let id = obj.id;
-    game.add_object(obj);
-    game.stack.push(id);
+    // Through the engine's door, so a static ability that functions on the
+    // stack (CR 113.6) is registered as it would be by a cast.
+    let id = game
+        .create_in_zone(GameObject::new(card_data, controller, Zone::Stack))
+        .expect("the stack takes any object");
     game.set_stack_entry(crate::state::game_state::StackEntry {
         object_id: id,
         controller,
@@ -383,12 +384,21 @@ pub fn put_spell_on_stack(
 }
 
 /// Put a card into a player's hand and register it in the game.
+///
+/// Through `create_in_zone`, for the reason [`put_in_graveyard`] registers:
+/// a helper that skips the engine's CR 113.6 hook builds a board the engine
+/// cannot reach.
 pub fn put_in_hand(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Hand);
-    let id = obj.id;
-    game.add_object(obj);
-    game.players[player].hand.push(id);
-    id
+    game.create_in_zone(GameObject::new(card_data, player, Zone::Hand))
+        .expect("a hand takes any card")
+}
+
+/// Put a card on top of a player's library and register it in the game.
+///
+/// On top — the library's last element — so a mill or a draw finds it next.
+pub fn put_in_library(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
+    game.create_in_zone(GameObject::new(card_data, player, Zone::Library))
+        .expect("a library takes any card")
 }
 
 /// Put any permanent onto the battlefield **with ETB hooks**.
@@ -661,16 +671,11 @@ pub fn put_in_graveyard(
     card_data: Arc<CardData>,
     player: PlayerId,
 ) -> ObjectId {
-    let obj = GameObject::new(card_data, player, Zone::Graveyard);
-    let id = obj.id;
-    game.add_object(obj);
-    game.players[player].graveyard.push(id);
     // The same registration `move_object` runs on arrival (CR 113.6), for the
     // reason `put_on_battlefield` calls `place_on_battlefield`: a helper that
-    // skips the engine's hook builds a board the engine cannot reach. CR 108.4 —
-    // a card in a graveyard has no controller, so "you" is its owner.
-    game.register_static_effects(id, player, Zone::Graveyard);
-    id
+    // skips the engine's hook builds a board the engine cannot reach.
+    game.create_in_zone(GameObject::new(card_data, player, Zone::Graveyard))
+        .expect("a graveyard takes any card")
 }
 
 /// Put a permanent onto the battlefield with ETB hooks, entering **this** turn — so it

@@ -5,7 +5,7 @@
 
 use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Layer, Timestamp};
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
-use crate::types::effects::Duration;
+use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::ZoneSet;
 
@@ -93,45 +93,62 @@ pub struct RegistryScopeSummary {
     /// abilities is common — the gate would be permanently on, and the fast
     /// path would buy nothing on exactly the boards that are most expensive to
     /// walk.
-    pub any_granted_replacement: bool,
+    ///
+    /// **Since RF this is two fields, and "unattributed" is their word for
+    /// it**: a replacement ability an object has on its effective list without
+    /// having printed it, which neither printed set
+    /// (`GameState::replacement_ability_sources`, its zone twin) can name.
+    /// Two producers put one there, a Layer 6 grant and a copy row (CR 707.2a),
+    /// and the gather needs to know *where such an object can be*, because it
+    /// sweeps every zone a static ability can function in (CR 113.6) and a
+    /// grant into a hand — Aminatou, Veil Piercer's shape — puts one on an
+    /// object the battlefield sweep never visits. A row answers by its
+    /// affected set, and the two shapes answer differently:
+    ///
+    /// - a `Filter` row names **zones**, and those go here — the gather walks
+    ///   each of them whole while the row exists;
+    /// - a `SourceOnly`, `Fixed` or `Host` row names **objects**, and sets
+    ///   [`Self::any_named_unattributed_replacement`] — the gather reads the
+    ///   named objects off the rows, wherever they are, and walks no zone.
+    ///
+    /// `EMPTY` here and `false` there is "no such row", the structural zero
+    /// every board without a grant or copy of a replacement ability gets. The
+    /// battlefield bit plus the bool is what the two old bools said.
+    pub unattributed_replacement_zones: ZoneSet,
+
+    /// True iff some grant or copy row over a named set (`SourceOnly`,
+    /// `Fixed`, `Host`) carries a replacement body — see
+    /// [`Self::unattributed_replacement_zones`]. Exact by construction: the
+    /// gather reads the rows' named objects, so a `SourceOnly` grant from a
+    /// source in a graveyard is found in the graveyard without the summary
+    /// having to know which zone that is.
+    pub any_named_unattributed_replacement: bool,
 
     /// True iff some row grants an ability whose body is an
     /// `Effect::Restriction` — i.e. some object on the battlefield may have a
     /// restriction ability that it did not print.
     ///
     /// The other half of `engine::restriction::is_prohibited`'s gate, and a
-    /// separate flag rather than a widening of `any_granted_replacement` for
-    /// that flag's own stated reason: the two sweeps read different ability
-    /// bodies, so a shared flag would turn each one's fast path on for the
-    /// other's cards.
+    /// separate flag rather than a widening of the replacement fields for
+    /// their own stated reason: the two sweeps read different ability bodies,
+    /// so a shared flag would turn each one's fast path on for the other's
+    /// cards. Still a bool, and still split from its copied twin: the
+    /// restriction sweep visits the battlefield alone, and its zone leg is
+    /// owed against Abrupt Decay (`codebase-state.md` main item 146).
     pub any_granted_restriction: bool,
-
-    /// True iff some `EffectModification::CopyFrom` row's captured values carry
-    /// a static replacement ability — i.e. some object on the battlefield may
-    /// have a replacement ability it neither printed nor was granted.
-    ///
-    /// The **third** leg of `engine::replacement::gather`'s gate
-    /// (`copy-effects-architecture.md` §4.7): `gather` reads the *effective*
-    /// ability list, and CR 707.2a puts a copied ability on that list through
-    /// neither of the other two legs. Without it a copied replacement effect is
-    /// silently dead on every board the gate skips.
-    ///
-    /// A summary flag rather than an insert into
-    /// `GameState::replacement_ability_sources`, for that set's own reason: it
-    /// is "a set rather than a count, so it cannot drift", cleared only at
-    /// `cleanup_zone_state`, and a copy row can **expire** with no zone change.
-    /// The summary is recomputed from the rows on every mutation, so it cannot
-    /// drift at all.
-    pub any_copied_replacement: bool,
 
     /// True iff some `EffectModification::CopyFrom` row's captured values carry
     /// a static restriction ability.
     ///
-    /// The same leg on the *other* gate (`engine::restriction::predicate`).
-    /// Split from `any_copied_replacement` for the reason
-    /// `any_granted_restriction` is split from `any_granted_replacement`: the two
-    /// sweeps read different ability bodies, so a shared flag would turn each
-    /// one's fast path on for the other's cards.
+    /// The copy leg of the *other* gate (`engine::restriction::predicate`,
+    /// `copy-effects-architecture.md` §4.7). A summary flag rather than an
+    /// insert into `GameState::restriction_ability_sources`, for that set's
+    /// own reason: it is "a set rather than a count, so it cannot drift",
+    /// cleared only at `cleanup_zone_state`, and a copy row can **expire**
+    /// with no zone change. The summary is recomputed from the rows on every
+    /// mutation, so it cannot drift at all. The replacement gate's copy leg
+    /// is folded into the two unattributed fields above, since a copy row
+    /// answers "where" the way a grant row does.
     pub any_copied_restriction: bool,
 
     /// True iff some row grants an ability whose body is an
@@ -191,13 +208,21 @@ impl RegistryScopeSummary {
                 summary.any_multi_row_group = true;
             }
             summary.reachable_zones |= effect.affected_objects.reachable_zones();
+            // Where an object carrying an ability this row puts on it can be:
+            // a `Filter` row says which zones, a named row says which objects.
+            if puts_a_replacement_ability(effect) {
+                match &effect.affected_objects {
+                    ObjectSet::Filter { zones, .. } => summary.unattributed_replacement_zones |= *zones,
+                    ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => {
+                        summary.any_named_unattributed_replacement = true
+                    }
+                }
+            }
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
-                    match def.effect {
-                        Effect::Replacement(_) => summary.any_granted_replacement = true,
-                        Effect::Restriction(_) => summary.any_granted_restriction = true,
-                        _ => {}
+                    if matches!(def.effect, Effect::Restriction(_)) {
+                        summary.any_granted_restriction = true;
                     }
                     if def.effect.as_cost_modification().is_some() {
                         summary.any_granted_cost_modification = true;
@@ -208,10 +233,8 @@ impl RegistryScopeSummary {
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
                     for ability in &values.abilities {
-                        match ability.effect {
-                            Effect::Replacement(_) => summary.any_copied_replacement = true,
-                            Effect::Restriction(_) => summary.any_copied_restriction = true,
-                            _ => {}
+                        if matches!(ability.effect, Effect::Restriction(_)) {
+                            summary.any_copied_restriction = true;
                         }
                         if ability.effect.as_cost_modification().is_some() {
                             summary.any_copied_cost_modification = true;
@@ -222,6 +245,24 @@ impl RegistryScopeSummary {
             }
         }
         summary
+    }
+
+}
+
+/// Does this row put a static replacement ability on the objects it affects —
+/// a Layer 6 grant of one, or a copy whose captured list carries one
+/// (CR 707.2a)? Through an "as long as" clause too, since the gather sees
+/// through it. Asked by the summary to say *where* such an object can be,
+/// and by `engine::replacement::gather`'s named leg to read the rows that
+/// say *which* object.
+pub fn puts_a_replacement_ability(effect: &ContinuousEffect) -> bool {
+    use crate::engine::layers::types::EffectModification;
+    match &effect.modification {
+        EffectModification::GrantAbility(def) => def.effect.replacement_body().is_some(),
+        EffectModification::CopyFrom(values) => {
+            values.abilities.iter().any(|a| a.effect.replacement_body().is_some())
+        }
+        _ => false,
     }
 }
 

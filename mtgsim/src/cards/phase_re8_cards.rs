@@ -59,7 +59,7 @@ use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite, TemplateAmount,
 };
 use crate::types::restriction::SourceFilter;
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 
 /// A spell whose whole text is "target player discards N cards", differing
 /// only in who picks (CR 701.9b).
@@ -143,9 +143,10 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
 /// **`ReplacementDef::by`'s printed customer, and the one card in the
 /// "causes you to discard" family that does not need CR 113.6.** It is a
 /// Land, so the battlefield sweep finds it, and its `ObjectSet::Filter`
-/// reaches a card in its controller's hand the way every `Filter` already
-/// reaches any object in any zone. The other sixteen are either on a card in
-/// hand (the Dodecapod family, critical-path item 6a) or need a second facility of their own.
+/// reaches a card in its controller's hand because it says so —
+/// `ZoneSet::HAND`, which `set_affects` has asked since RF. The other sixteen
+/// are either on a card in hand (the Dodecapod family, critical-path item 6a)
+/// or need a second facility of their own.
 ///
 /// Three things the def says, each a different rule:
 ///
@@ -198,7 +199,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
                     // permanent's controller's hand. Ownership rather than
                     // control, because a card in a hand has no controller and
                     // CR 400.3 sends a discard to its owner's graveyard.
-                    ObjectSet::battlefield_filter(ObjectFilter::ByOwner(PlayerRef::You)),
+                    ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
                     Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                         to: Zone::Library,
                         cause: ZoneChangeCause::Discarded,

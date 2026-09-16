@@ -1291,6 +1291,53 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 701.24a — whose library is the recipient's whole question.
+            // `Controller` is "shuffle your library"; `Implicit` is the *source's
+            // owner's* — "shuffle it into **its owner's** library" as the rider of
+            // a replacement whose substitute has already made the move, where "it"
+            // is the source (Darksteel Colossus). Moving nothing here is CR 701.24c:
+            // a 903.9b that sent a commander to the command zone instead leaves it
+            // there, and its owner's library is shuffled all the same. A target is
+            // a player, or an object standing for its owner. The filter recipients
+            // are refused by name: no card shuffles a library per matching object.
+            Primitive::ShuffleLibrary => {
+                let players: Vec<PlayerId> = match recipient {
+                    EffectRecipient::Controller => vec![ctx.controller],
+                    EffectRecipient::Implicit => vec![self.get_object(ctx.source)?.owner],
+                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => ctx
+                        .targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Player(pid) => Some(*pid),
+                            ResolvedTarget::Object(id) => {
+                                self.objects.get(id).map(|obj| obj.owner)
+                            }
+                        })
+                        .collect(),
+                    EffectRecipient::FilteredPermanents(_)
+                    | EffectRecipient::FilteredObjectsIn(..)
+                    | EffectRecipient::Host => {
+                        return Err(format!(
+                            "a `Primitive::ShuffleLibrary` on {:?} has a filter recipient, \
+                             and a library is a player's, not an object's",
+                            ctx.source
+                        ));
+                    }
+                };
+                // One batch, not a loop: "each player shuffles" (Timetwister) is N
+                // libraries shuffled at once, which CR 704.3's batching and CR 101.4's
+                // APNAP order want as one event of N members, one per library — a
+                // shuffle stays a fact about one player's library (CR 701.24a).
+                let batch: Vec<GameAction> = players
+                    .into_iter()
+                    .map(|player| GameAction::ShuffleLibrary { player })
+                    .collect();
+                if !batch.is_empty() {
+                    self.execute_actions(batch, &actx)?;
+                }
+                Ok(())
+            }
+
             // === Unimplemented primitives — `backlog.md` §2.5 ===
 
             Primitive::ReturnToHand

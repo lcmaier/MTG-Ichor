@@ -37,6 +37,134 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-16 for RF** (the gather's zone leg —
+`replacement-architecture.md` §9, Phase RF; §3.3's source 2). `PERFORMANCE_POOL`
++1 — Darksteel Colossus, 89 → 90 — and the stress pool +2 (159 → 161: Nexus of
+Fate and the pooled one), so **both tables are a re-record and neither column
+is comparable to A4e's**.
+
+**Three arms, and the middle one is the engine's reading.** `main` (1fe9a14),
+the leg with both cards registered and unpooled, and the pool entry on top —
+**as measured at the review commit (ca88adf)**, which added the printed-def
+precheck; the landing's own sitting is kept below it, because the difference
+between the two is the review's finding.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| engine vs `main`, `performance`, every counter | **IDENTICAL** | **one row**: `Memo hits` 189,560 → 189,566, every other row identical — attributed below |
+| engine vs `main`, `stress` | differ, by construction (registration moves the decks) | differ, by construction |
+| pooled vs `main`, both pools | differ, by construction | differ, by construction |
+| `µs / decision`, engine vs `main` | 68.7 → 66.7, **−2.9%** | 121.1 → 119.2, **−1.6%** |
+| `µs / decision`, pooled vs `main` | 68.7 → 68.6, −0.1% | 121.1 → 114.9, −5.1% |
+| `Layer walks`, `performance`, main → engine → pooled | 367 → 367 → 363 | 809 → 809 → 787 |
+| `Frames/walk`, `performance` | 12.61 → 12.61 → 12.38 | 20.29 → 20.29 → 19.46 |
+| `Replacement gathers`, `performance` | 1081 → 1081 → 1097 | 2270 → 2270 → 2227 |
+
+**The engine half is inside §3.1's 2.5 points at both seat counts.** A board
+that plays no zone-functioning card has an empty candidate map, and the leg
+costs it one `is_empty` per gather. **The pooled half now costs nothing the
+walk row can see**: the pooled arm walks *fewer* frames than `main` because
+its games are different games, not because a Colossus is cheaper than
+nothing. The cost scales with the number of such cards in play, not with the
+size of the libraries, which is what a candidate map buys over a zone walk.
+
+**The six memo hits are attributed, not guessed.** A fourth arm — the review
+commit with one change reverted, `puts_a_replacement_ability` matching only a
+bare `Effect::Replacement` body as the two old bools did — is byte-identical
+to `main` at four seats on every line outside `=== Timing ===`, and the engine
+arm differs from it on that one line alone. So the six are the wrapper peel:
+a **copied** Laboratory Maniac ("if you would draw a card while your library
+has no cards in it", a `Conditional` body, pooled beside Cytoshape) now
+lights the gate its wrapper had hidden it from, and the battlefield sweep
+walks that board's permanents — six memo hits, no new frame — in the few
+games where the copy exists. That was a silent gap: the copied ability was
+never gathered (`cost-architecture.md` §8 item 1 named the shape for the cost
+gate). No draw from an empty library met it in 200 games, so no other row
+moved.
+
+**At landing (2026-09-16, before the review), the same three arms read**:
+engine vs `main` IDENTICAL at both seat counts, +0.6% / −1.2% per decision;
+pooled `Layer walks` 367 → **521** at two seats and 809 → **1,365** at four,
+`Frames/walk` 12.61 → 8.93 and 20.29 → 11.65, per decision +3.9% / −0.3%. One
+non-member frame per gather per Colossus in a hand or a library, on every
+event — the shape decision 1 predicted and the review declined to accept;
+decision 7 (the printed-def precheck) is what took the rows back to `main`'s.
+
+**Reachability** (`--require "Darksteel Colossus,Nexus of Fate"` on the pooled
+binary, `--pool stress` because Nexus is unpooled, 200 games, seed 12345,
+one copy of each forced into every deck):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Darksteel Colossus — cast / resolved / games with a cast / copies per deck | 45 / 45 / 38 (19%) / 1.25 | 68 / 68 / 60 (30%) / 2.46 |
+| Nexus of Fate — cast / resolved / games with a cast / copies per deck | 138 / 137 / 89 (44%) / 1.28 | 127 / 127 / 88 (44%) / 2.51 |
+
+One of the two-seat Nexuses was countered, which is the stack-side
+replacement reached in a random game; every resolved Nexus is CR 608.2n's
+move replaced. Errors, panics and turn-limit hits are 0 on every arm and
+every run but the one four-seat `stress` game A4e already recorded at the
+cap.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 20 (40.0%) / 30 (60.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.3 | 30.8 |
+| Spells cast | 22.2 | 22.5 |
+| Lands played | 17.7 | 18.0 |
+| Combat w/ atk | 10.0 | 9.0 |
+| Creatures died | 6.1 | 4.7 |
+| Damage events | 21.6 | 19.8 |
+| Total damage | 67.6 | 49.7 |
+| Life changes | 13.4 | 15.9 |
+| **Layer walks** | **352** | **487** |
+| **Board walks** | **237** | **316** |
+| **Memo hits** | **58,513** | **91,715** |
+| **Layer frames** | **4,203** | **6,542** |
+| **Frames/walk** | **11.94** | **13.44** |
+| **Dependency checks** | **6** | **11** |
+| **Replacement gathers** | **1063** | **1237** |
+| **Restriction queries** | **1066** | **1239** |
+| Mana productions | 83 | 134 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.34 | 1.16 |
+| Max batch depth | 5 | 5 |
+| Decisions | 233 | 386 |
+| Priority decisions | 91 | 165 |
+
+**And the four-player table** (50 games / seed 12345):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 22 (44.0%) / 15 (30.0%) / 11 (22.0%) / 2 (4.0%) | 18 (36.0%) / 20 (40.0%) / 9 (18.0%) / 3 (6.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 57.4 | 66.6 |
+| Spells cast | 42.4 | 47.3 |
+| Lands played | 34.5 | 38.6 |
+| Combat w/ atk | 23.9 | 25.5 |
+| Creatures died | 13.8 | 11.9 |
+| Damage events | 51.2 | 58.3 |
+| Total damage | 148.5 | 149.7 |
+| Life changes | 37.4 | 42.0 |
+| Turns after a departure | 18.6 | 21.2 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **773** | **1,230** |
+| **Board walks** | **496** | **705** |
+| **Memo hits** | **169,819** | **292,195** |
+| **Layer frames** | **14,505** | **23,859** |
+| **Frames/walk** | **18.77** | **19.39** |
+| **Dependency checks** | **144** | **96** |
+| **Replacement gathers** | **2150** | **2775** |
+| **Restriction queries** | **2155** | **2780** |
+| Mana productions | 151 | 279 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 1.22 | 3.40 |
+| Max batch depth | 5 | 5 |
+| Decisions | 437 | 821 |
+| Priority decisions | 175 | 341 |
+
 **Re-recorded 2026-09-16 for A4e** (item 138's two decision counters and item
 145's forced-prompt guard, PR #155). **The pool did not change** — 89 and 159,
 the same cards — and this is a re-record anyway, which is the unusual part and

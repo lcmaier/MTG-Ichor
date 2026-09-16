@@ -19,6 +19,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
+use mtgsim::cards::phase_re_cards::laboratory_maniac;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -431,8 +432,9 @@ fn test_a_superseded_copy_stops_its_derived_row_applying() {
 }
 
 /// `copy-effects-architecture.md` §4.7 **leg 1**, replacement half — a copied
-/// replacement ability turns `RegistryScopeSummary::any_copied_replacement` on,
-/// which is what lets `gather`'s fast-path gate see it.
+/// replacement ability lights `RegistryScopeSummary::any_named_unattributed_replacement`,
+/// which is what lets `gather`'s fast-path gate see it: the copy row names
+/// its copyist, so the gather reads that object by name rather than a zone.
 #[test]
 fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let mut game = setup_two_player_game();
@@ -440,17 +442,42 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     assert!(
-        !game.continuous_effects.summary().any_copied_replacement,
+        !game.continuous_effects.summary().any_named_unattributed_replacement,
         "no copy row yet"
     );
     copy_onto(&mut game, copyist, donor);
     assert!(
-        game.continuous_effects.summary().any_copied_replacement,
+        game.continuous_effects.summary().any_named_unattributed_replacement,
         "§4.7 leg 1 — the gate's third leg"
+    );
+    assert!(
+        game.continuous_effects.summary().unattributed_replacement_zones.is_empty(),
+        "a named row adds no zone to walk: the copyist is read by name"
     );
     assert!(
         !game.continuous_effects.summary().any_copied_restriction,
         "narrower than 'any copy at all': the two sweeps read different bodies"
+    );
+}
+
+/// A copied replacement ability under an "as long as" wrapper lights the gate
+/// too. Found by RF's review A/B (2026-09-16): the two old bools matched a
+/// bare `Effect::Replacement` body, so a copied Laboratory Maniac — "if you
+/// would draw a card while your library has no cards in it", a `Conditional`
+/// body, pooled beside Cytoshape — lit nothing and was never gathered. The
+/// summary now reads the body through `Effect::replacement_body`, and the six
+/// memo hits that moved on the four-seat arm are this board.
+#[test]
+fn test_a_copied_conditional_replacement_ability_lights_the_gather_gate() {
+    let mut game = setup_two_player_game();
+    let donor = put_on_battlefield(&mut game, laboratory_maniac(), 0);
+    let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    copy_onto(&mut game, copyist, donor);
+    assert!(
+        game.continuous_effects.summary().any_named_unattributed_replacement,
+        "the wrapper is not the body: a conditional replacement is one"
     );
 }
 
@@ -468,7 +495,7 @@ fn test_a_copied_restriction_ability_lights_the_restriction_gate() {
         game.continuous_effects.summary().any_copied_restriction,
         "the second gate's third leg"
     );
-    assert!(!game.continuous_effects.summary().any_copied_replacement);
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
 }
 
 /// A copy of a vanilla creature must turn **neither** gate on. The flags are a
@@ -482,7 +509,7 @@ fn test_a_copy_of_a_vanilla_creature_lights_neither_gate() {
 
     copy_onto(&mut game, copyist, donor);
     let summary = game.continuous_effects.summary();
-    assert!(!summary.any_copied_replacement);
+    assert!(!summary.any_named_unattributed_replacement);
     assert!(!summary.any_copied_restriction);
 }
 
@@ -649,7 +676,7 @@ fn test_a_turn_bounded_copy_and_its_derived_rows_expire_together() {
         Some(3),
         "the derived row carried the copy row's duration"
     );
-    assert!(!game.continuous_effects.summary().any_copied_replacement);
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
 }
 
 // ---------------------------------------------------------------------------

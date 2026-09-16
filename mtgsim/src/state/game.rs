@@ -55,10 +55,10 @@ impl Game {
 
         for (player_id, decklist) in decklists.into_iter().enumerate() {
             for card_data in decklist {
-                let obj = GameObject::in_library(card_data, player_id);
-                let id = obj.id;
-                state.add_object(obj);
-                state.players[player_id].library.push(id);
+                // Through the door that registers what functions in a library
+                // (CR 113.6), so a card whose static ability works "from
+                // anywhere" is a gather candidate from the first mill.
+                state.create_in_zone(GameObject::in_library(card_data, player_id))?;
             }
         }
 

@@ -1180,6 +1180,7 @@ Three existed when the practice was written down, and they are the template:
 | `li-1-one-pass-per-board.html` | LI-1 | the `Board` struct field by field, the entry's three routes, and Humility + Citanul Hierophants through the old walk and the pass — the one read that produced the wrong answer, and where it reads from now; a look-ahead entry; a graveyard Keldon Warlord |
 | `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
+| `rf-a-source-off-the-battlefield.html` | RF | the gather's zone leg read by read: a Colossus in a library while a Bolt resolves, which is why neither library is ever walked (the map, the printed-def precheck, and the two things that *would* walk a zone); the same Colossus second of three in a mill — one batch, one member replaced, the same-zone no-op, the rider after the batch; a Colossus commander sacrificed, which is CR 616.1 twice on one card and CR 701.24c's shuffle of a library the card never reached; the read-by-read table |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
@@ -1191,7 +1192,11 @@ one RD phase that qualifies, decided at its close as §9 scheduled), RE-2 ✓ (t
 applied set answered for a decomposed event; one of the two RE phases §9 named,
 decided at its close), RE-4 ✗ (decided *no* at its close, 2026-09-13: the
 read it was named for was RC-5's page's already, and what it changed is what
-is proposed — the archive's "Trace-page decisions" has the argument),
+is proposed — the archive's "Trace-page decisions" has the argument), RF ✓
+(decided *no* at its close on the same test and reversed at its review the
+same day, 2026-09-16: the owner could not see why the gather's zone leg walks
+no library the moment a Colossus is in one, which is this section's own
+trigger — a question the diff could not answer),
 **RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.

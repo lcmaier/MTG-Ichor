@@ -212,6 +212,15 @@ pub enum GameEvent {
     /// the proposal by `replacement::never_happens`.
     Scried { player_id: PlayerId, n: u64, looked_at: u64 },
 
+    /// A player shuffled their library (CR 701.24a) — what "whenever a player
+    /// shuffles their library" will read.
+    ///
+    /// **Not a zone change**, for [`Self::Scried`]'s reason: the cards were
+    /// reordered inside one zone. The move a "shuffle it into its owner's
+    /// library" makes is its own `ZoneChange` line, announced first
+    /// (CR 701.24c), and this line follows whether or not that move happened.
+    LibraryShuffled { player_id: PlayerId },
+
     // --- Counters ---
     /// Counters were put on or taken off a permanent or a player (CR 122.1).
     ///

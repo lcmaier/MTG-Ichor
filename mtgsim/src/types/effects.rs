@@ -998,6 +998,13 @@ pub enum Primitive {
     PutOnBottomOfLibrary,
     /// Shuffle into owner's library
     ShuffleIntoLibrary,
+    /// Shuffle a library (CR 701.24a). Whose is the recipient's: `Controller`
+    /// is "shuffle your library", `Implicit` the source's **owner's** — the
+    /// rider of "shuffle it into its owner's library" once the substitute
+    /// has made the move (Darksteel Colossus), where "it" is the source — and
+    /// a target is a player or an object standing for its owner. Proposes
+    /// `GameAction::ShuffleLibrary`.
+    ShuffleLibrary,
     /// Mill N cards (rule 701.17)
     Mill(AmountExpr),
     /// Discard N cards (rule 701.9), chosen as [`DiscardChooser`] says.
@@ -1453,6 +1460,31 @@ impl Effect {
             Effect::CostModification(def) => Some((None, def)),
             Effect::Conditional(condition, inner) => match inner.as_ref() {
                 Effect::CostModification(def) => Some((Some(condition), def)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// The replacement effect this static ability is, if it is one — looking
+    /// through an "as long as" clause if there is one, since "as long as you
+    /// control an Island, if X would happen, Y happens instead" is still a
+    /// replacement effect.
+    ///
+    /// Three callers ask only *whether* an ability carries a replacement
+    /// effect, to decide if its object is worth the gather's attention:
+    /// `register_static_effects` filing the object as a source,
+    /// `RegistryScopeSummary::of` noting that a grant or copy row carries
+    /// one, and the gather's named leg reading such rows. None of them cares
+    /// whether the "as long as" clause is true right now — that is asked at
+    /// each proposal, against the board as it is then, by the gather itself.
+    /// So this function never evaluates the condition; it only looks past
+    /// it. The same peel as [`Self::as_cost_modification`].
+    pub fn replacement_body(&self) -> Option<&crate::types::replacement::ReplacementDef> {
+        match self {
+            Effect::Replacement(def) => Some(def),
+            Effect::Conditional(_, inner) => match inner.as_ref() {
+                Effect::Replacement(def) => Some(def),
                 _ => None,
             },
             _ => None,

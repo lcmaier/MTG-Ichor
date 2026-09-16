@@ -253,6 +253,7 @@ Today: `DealDamage`, `DrawCard`, `GainLife`, `LoseLife`, `ZoneChange`, `Untap`,
 | `ProduceMana` | 106.6a | RE | RE-9; one proposal from the two silent writers `mana.rs` and `resolve.rs` hold today |
 | `PlayerLoses { player, reason }` / `PlayerWins { player }` | 104.2b, 104.3e, 704.5a–c, 704.7 | RE | added by §8a's audit (2026-08-24); RE-6, where the four SBA loops become batch members |
 | `CreateTokenIn { object, zone }` | 111, 704.5d | RE | RE-4: the substituted form of a token's entry — an *appearance*, not a move — and the second deliberate no-`EventPattern` variant after `Attach` |
+| `ShuffleLibrary { player }` | 701.24a | RF | the third no-`EventPattern` variant — nothing printed says "would shuffle … instead" — and the first in-game writer of a library's order; proposed by `Primitive::ShuffleLibrary`, the rider of Darksteel Colossus's "shuffle it into its owner's library" (CR 701.24c) |
 
 `ZoneChangeCause` is the semantic carrier that makes CR 701.8b answerable:
 
@@ -734,8 +735,14 @@ the failure mode that shows up as a card silently doing nothing:
    scan. This is not a shortcut — it is what makes Humility and Blood Moon
    strip a replacement ability for free, and it is CR 614.4's "must exist before
    the event" asked at the one instant that matters.
-2. **Static abilities functioning in other zones.** Same sweep, other zones.
-   Deferred past RE; recorded in §11 with its breadth.
+2. **Static abilities functioning in other zones** (CR 113.6). The same read
+   off a different candidate list — **RF, 2026-09-16** (§9): the objects
+   whose printed ability functions where they are
+   (`GameState::zone_replacement_ability_sources`), plus the zones a Layer 6
+   grant or a copy row can reach, in CR 613.7d timestamp order, each ability
+   asked `zone_function::functions_in` of the zone its object is in. Not a
+   walk of the zones: a library is ~60 objects a seat and a gather runs
+   ~2,300 times a game.
 3. **Continuous effects with a duration, from resolutions.** CR 614.3 — "Prevent
    all damage that would be dealt this turn". These go in the replacement
    registry with a `Duration`, expiring through the same cleanup/turn-start
@@ -2836,6 +2843,37 @@ its siblings have not entered — turned out to be RC-5's page's last trace.
    opened by the first RE PR that spans a session and deleted by the last RE
    PR to land.
 
+### Phase RF — the gather's zone leg (CR 113.6, §3.3 source 2) — landed 2026-09-16
+
+#### RF — the gather's zone leg — ✅ landed 2026-09-16
+
+*Body evicted to `plans/archive/replacement-architecture-landed.md` under the
+same heading: the finding that sets the scope, the seven decisions and what
+the PR refused, the pieces measured, and the A/B. Trace page:
+`plans/traces/rf-a-source-off-the-battlefield.html`.*
+
+**Shipped:** the read leg for §3.3's source 2 —
+`GameState::zone_replacement_ability_sources`, a map the registration doors
+keep (`arrive_in_zone`, `place_on_battlefield`, and the new `create_in_zone`
+for a card created in a zone) from each object off the battlefield to its
+printed replacement defs, swept after the battlefield in CR 613.7d timestamp
+order with the entering object skipped and a frame computed only when a
+printed def could apply; the registry summary's unattributed legs — a
+`Filter` row names zones, a named row names objects, read by name; `zone_
+function::functions_in` asked of every ability the sweeps read; the affected
+side's zone check in `set_affects` in place of the `debug_assert`, with Rest
+in Peace, Leyline of the Void and Nephalia Academy saying what their cards
+say; `GameAction::ShuffleLibrary`, `GameEvent::LibraryShuffled` and
+`Primitive::ShuffleLibrary` for the card's rider; Darksteel Colossus (pooled)
+and Nexus of Fate (registered) with three fixtures. `Board::seed` and
+`membership` untouched. The engine arm is `IDENTICAL` to `main` at two seats
+and four; the numbers are the archive's "Measure" and `fuzz-record.md`'s
+block. Closes §11 item 4 and critical-path 6a.
+
+→ The section as written at the close, what the building changed and the
+measurement: `plans/archive/replacement-architecture-landed.md`, "RF"
+(evicted 2026-09-16).
+
 ### Interleaved — Commander
 
 Per `CLAUDE.md`, the Commander/multiplayer track interleaves after item 5 rather
@@ -2909,7 +2947,7 @@ review, 2026-08-24). Only one needs an answer before code starts:
 | 1 | CR 903.9 is half an SBA | **Answered.** A finding, not a question — `codebase-state.md` corrected |
 | 2 | `ObjectSet` reuse | **Answered.** A constraint to preserve, not a question |
 | 3 | Self-replacement (CR 614.15) plumbing | **Deferred past RE (post-RE audit, 2026-09-15).** RB gave `SelfReplacement` its CR 616.1a bucket and no producer, and nothing through RE-9 needed one. The item below carries the reachability line and the size; item 12 answers *who sets the class* |
-| 4 | Replacement effects outside the battlefield | **Scheduled (post-RE audit, 2026-09-15).** CR 113.6 landed as LK (2026-09-14) and left the gather's zone leg — item 9's (c), `roadmap-v2.md` A5's third PR. The item below says where the builder finds the site |
+| 4 | Replacement effects outside the battlefield | **✅ Closed 2026-09-16 by RF** (§9). CR 113.6 landed as LK (2026-09-14) as a registration leg; RF is the gather's read leg — item 9's (c), `roadmap-v2.md` A5b — with Darksteel Colossus and Nexus of Fate. The item below says what shipped and what it refused |
 | 5 | Overlay shape | **Answered** — read-side accessor, closed on measurement |
 | 6 | Skips are not `execute_action` events | **Answered.** A design note; the work is in RE |
 | 7 | `ScriptedDecisionProvider` blast radius | **Answered, and the watch held (RB, 2026-08-26).** Every test now traverses the pipeline and zero new prompts appeared. The rule was never relaxed |
@@ -2972,6 +3010,20 @@ the bug.
    every zone and is the leg's cleanest first consumer. Not a zone parameter
    on a separate registry: LJ found the sweep is the easy half and the
    working set (`Board::seed`, `membership`) the real one.
+
+   **✅ Closed 2026-09-16 by RF** (§9, "Phase RF"). The read leg, its
+   gate and the affected side's zone check; Darksteel Colossus rather than
+   Blightsteel (infect is unbuilt, and a card may not wear a real name while
+   behaving differently), Nexus of Fate beside it as the stack-shaped second
+   card. "Not a zone parameter on a separate registry" cashed out as: no
+   registry at all on the source side — a second candidate *set* the
+   registration doors keep, read off the effective list like source 1 — and
+   **the working set untouched**: a source off the battlefield is read as a
+   non-member, which LJ's `Board::seed` and `membership` already make
+   correct, so neither was opened. What the sizing above missed is that the
+   card's clause needs a library shuffle the engine had no in-game writer
+   for (§3.1's `ShuffleLibrary` row), and that three registered rows were
+   hiding behind the `debug_assert`.
 
 5. **The overlay's shape — closed by performance, not by taste.** → archive
 
@@ -3373,8 +3425,9 @@ Each is a §11 item; the number is the pointer.
 ### What stays open, and where each waits
 
 - §11: item 3 (the self-replacement producer — deferred, sized, fixture
-  first), item 4 (effects off the battlefield — scheduled, A5's third PR),
-  item 14 (CR 903.9b's exemption and a refusal — deferred, unreachable).
+  first), item 4 (effects off the battlefield — scheduled, A5's third PR;
+  **closed 2026-09-16 by RF**, §9), item 14 (CR 903.9b's exemption and a
+  refusal — deferred, unreachable).
 - §8a's four kinds: turned face up (CV-6), dice (`backlog.md` §2.31),
   search (with `backlog.md` §2.5's producer), countering (closed — a zone
   change with a cause).
