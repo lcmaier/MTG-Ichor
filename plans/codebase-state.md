@@ -4298,7 +4298,7 @@ through RB", and `owed` scoped to three older phases at every RE close.
   §12's callgrind subsection and the levers ranked by it; `backlog.md`
   §2.22's ask table; item 41 promoted to a requirement and its RNG question
   decided; item 69 closed.
-- **Pass 4, scheduling:** `roadmap-v2.md` §3b — one table over every open
+- **Pass 4, scheduling (PR #154):** `roadmap-v2.md` §3b — one table over every open
   track phase and lattice entry, and a proposed order for the between-phases
   slot; `engineering-practices.md` §9; the codebase map and the Rust notes
   homed at `roadmap-v2.md` row A4d; this heading, and the handoff deleted.

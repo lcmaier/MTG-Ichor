@@ -1419,7 +1419,7 @@ the brief says so about itself.
 
 **The first instance — the post-RE audit, 2026-09-15**, at critical-path item
 5's close, the day RE-9 merged. Planned as `plans/handoffs/post-re-audit.md`
-(PR #141), which pass 4's PR deleted; its last text is `git show
+(PR #141), which pass 4's PR #154 deleted; its last text is `git show
 341ebf9:plans/handoffs/post-re-audit.md`, and the record is
 `codebase-state.md`, "Was critical-path item 5 done, and what sits before item
 6? — audited 2026-09-15". Where each pass's output lives:
@@ -1442,7 +1442,7 @@ the brief says so about itself.
   and ratchet; `layers-architecture.md` §12's callgrind subsection;
   `backlog.md` §2.22's ask table; `plans/panic_surface.py`; item 41 promoted
   to a requirement and item 69 closed.
-- **Scheduling:** `roadmap-v2.md` §3b, this section, and the audited heading
+- **Scheduling (PR #154):** `roadmap-v2.md` §3b, this section, and the audited heading
   above; the two after-the-passes artifacts — the codebase map (§7.1's tier 3)
   and the Rust notes — homed at `roadmap-v2.md` row A4d.
 
