@@ -3299,7 +3299,8 @@ current at the post-RE audit (2026-09-15); "through RB" had stood since
 Pointers, not prose. §11 holds every finding item by item, the archive holds
 every phase body, `fuzz-record.md` holds every number; this is the index a
 reader wants before any of those, written once at the close and not
-maintained (`plans/handoffs/post-re-audit.md` §6, decision 1).
+maintained (the post-RE audit's decision 1; its record is `codebase-state.md`,
+"Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15").
 
 ### What it was
 
@@ -3354,7 +3355,7 @@ Each is a §11 item; the number is the pointer.
 - **The ≤40-line stub rule** — each PR evicts its own body and keeps the
   heading `grep` finds — is what kept this document usable through
   twenty-four PRs. The pre-build reasoning was the half it did not cover,
-  which is the eviction the audit planned (`post-re-audit.md`, pass 1).
+  which is the eviction the audit planned and ran as pass 1b (PR #151).
 - **Trace pages: four across the track** (RC-4b, RC-5, RD-2, RE-2), each
   decided at the close against `engineering-practices.md` §7's one rule,
   each refusal argued in the archive's "Trace-page decisions".
@@ -3398,4 +3399,4 @@ before item 6. What the trigger phase reads, and the one thing it must not do:
   the second cleanup step it can now see (118);
 - must not add outcome-bearing state anywhere but `GameState` —
   `codebase-state.md` item 40, the one design constraint with a deadline
-  (`post-re-audit.md` §4).
+  (the post-RE audit's fork model, `codebase-state.md` main item 41).

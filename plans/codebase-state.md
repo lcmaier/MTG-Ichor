@@ -16,8 +16,8 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; the replacement and restriction sweeps still visit the battlefield alone, `replacement-architecture.md` §11 item 4). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the gather's zone leg (`roadmap-v2.md` A5's third PR, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6; beside it RS-2, CV-2, A4b's rulings ledger and A4c's trace sink, in an order pass 4 of the audit proposes (`plans/handoffs/post-re-audit.md`).
-- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 186 items as of 2026-09-15, three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
+- **What is next on the spine:** the gather's zone leg (`replacement-architecture.md` §11 item 4, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3b): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
+- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
 
@@ -4251,6 +4251,80 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
      first each-player draw producer**, wherever Phase 8 lands it; the
      rotation it will sort by exists now.
 
+### Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15
+
+Asked by the owner the day RE-9 merged (PR #140) and critical-path item 5
+closed with it: twenty-four replacement PRs had landed between 2026-08-25 and
+2026-09-15, interleaved with CM-0–CM-4, LH, LI, LJ, LK, CV-1 and RS-1, and the
+next spine item was a doc nobody had sized. Planned as
+`plans/handoffs/post-re-audit.md` (PR #141), run as five passes on
+2026-09-15, and closed by the pass that deleted the handoff — this heading is
+its record, pointers not prose. The handoff's last text is `git show
+341ebf9:plans/handoffs/post-re-audit.md`; the practice it became is
+`engineering-practices.md` §9, which names each pass's instrument and is
+where the next run, at item 6's close, starts.
+
+**Yes, with a "not yet" list, and the list is the CR 614–616 row's.** The
+close-out read "done" off five places and collected it in one; nothing it
+found was a wrong pipeline, and three things it found were wrong claims —
+the TL;DR's line and test counts, `replacement-architecture.md` §13's "✅
+through RB", and `owed` scoped to three older phases at every RE close.
+
+- **Pass 1, the close-out (PR #142):** the board's classifier — "reachable
+  but not wrong today" had been read as wrong, RD-1's prose list counted as
+  three items, three verdicts worded so the board could not read them; the
+  Phase 6 `owed` triage, `backlog.md` §3.3's second block, 21 `NEW` → 0 and
+  Phase 6 in `SHIPPED_PHASES`; item 118 fixed, shown to fail first, A/B
+  `IDENTICAL`; `replacement-architecture.md` §8a's four kinds dispositioned,
+  §11 items 3, 4 and 14, §12 re-read, §13 current, §14 written; this file's
+  "Found by the post-RE audit (2026-09-15)" — item 134 — and items 59, 60,
+  122 and 131 scheduled, 88 and 118 closed, 116 and 121 re-worded.
+- **Pass 1b, the eviction (PR #151):** `replacement-architecture.md` 6,725 →
+  3,401 lines, `plans/archive/replacement-architecture-landed.md` 4,933 →
+  8,647; every heading byte-identical, every §11 item still at its own
+  number.
+- **Pass 2, hygiene and CI (PRs #143, #144 re-landed by #145, then
+  #146–#149):** clippy counted at 114 sites and adopted at `-D warnings`
+  with five lints allowed; `check_glossary.py` in CI; the toolchain floor
+  measured at 1.88 (`rust-version`) with the pin kept at 1.98; `cargo fmt
+  --check` costed and left to the owner; `engineering-practices.md` §2.1's
+  two recorded applications, 17,278 → 15,806 comment lines; twelve `TODO`s
+  re-owned, `backlog.md` §2.32 filed for one.
+- **Pass 3, readiness (PR #153):** items 138–143 below — the target as a
+  ratchet with its first reading, the retry re-prompt's stale list, the
+  round-resume entry point, the serialization boundary and the payload rule,
+  the panic surface with `plans/panic_surface.py`, the clone at Commander
+  scale; `engineering-practices.md` §3.1's per-PR budget; `layers-architecture.md`
+  §12's callgrind subsection and the levers ranked by it; `backlog.md`
+  §2.22's ask table; item 41 promoted to a requirement and its RNG question
+  decided; item 69 closed.
+- **Pass 4, scheduling:** `roadmap-v2.md` §3b — one table over every open
+  track phase and lattice entry, and a proposed order for the between-phases
+  slot; `engineering-practices.md` §9; the codebase map and the Rust notes
+  homed at `roadmap-v2.md` row A4d; this heading, and the handoff deleted.
+
+**The board at the close** (`state-of-play.md`, 2026-09-15): 193 items, three
+reachable and wrong today — 59, 60 and 122, each with an owner — and none
+with reachability unstated. The ratchet's first reading is item 138's table:
+10,000 decisions per core-second on the 60-card `performance` board at four
+seats and 7,950 at Commander scale, this machine, that day; the instruction
+count that travels is `layers-architecture.md` §12's.
+
+**What the audit changed in the rules, each where it lives:** §2.1's tighter
+grep tier and its history-word block list; §3.1's 2.5-point budget and the
+ratchet; §9 itself; clippy and the glossary gate in CI; `SHIPPED_PHASES`
+gaining Phase 6; the board reading "not wrong today" as its own row. Nothing
+changed in `CLAUDE.md`, by its own rule.
+
+**What it left open, each with an owner and a size:** the engine items pass 3
+sized — item 138's two levers and two counters, 139 with item 41's test, 140,
+141's two methods, 42's summaries and window — ordered in `roadmap-v2.md`
+§3b; the two after-the-passes artifacts at row A4d, neither started; the
+three wrong-today items.
+
+**Next:** at critical-path item 6's close, per `engineering-practices.md` §9,
+its first duty the ratchet's second reading against item 138's first.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a
@@ -6224,7 +6298,7 @@ whoever next masks a dump and not a migration.
 ### Found by the post-RE audit (2026-09-15)
 
 **The close-out of critical-path item 5** — pass 1 of
-`plans/handoffs/post-re-audit.md`, the day after RE-9 merged. It read the
+the post-RE audit ("Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" above), the day after RE-9 merged. It read the
 done-checklist off the tree and gave every entry a disposition where the
 entry lives: `replacement-architecture.md` §8a (the four missing event
 kinds), §11 items 3, 4 and 14, §12 (re-read), §13 (brought current), §14 (the
@@ -6275,7 +6349,7 @@ as its own PR after this one merges.
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
 **Is the engine on track for the AI-harness use case?** Pass 3 of
-`plans/handoffs/post-re-audit.md` measured rather than argued: a throwaway
+the post-RE audit (its record: "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" above) measured rather than argued: a throwaway
 counting provider around `fuzz_games`' own decks and streams (draw for draw,
 so the games are the fixture tables'), a clone timer with a counting
 allocator, and item 41's fork test run as a probe — record every answer,
@@ -6656,8 +6730,9 @@ What is *not* a ledger line: the 24 asks classified for the fork model are
 `backlog.md` §2.22's table, beside the middleware census that will consume
 them; item 69 is closed by the Commander-scale measurement and evicted; item
 40's table row and item 41's status are corrected in place; and the
-`samply` recipe for the owed profile is in the handoff's pass-3 block, not
-here, because it is a procedure and not a migration.
+profile's recipe is `layers-architecture.md` §12's instrument paragraph and
+`engineering-practices.md` §9's readiness pass, not here, because it is a
+procedure and not a migration.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
