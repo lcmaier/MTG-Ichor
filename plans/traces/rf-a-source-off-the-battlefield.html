@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch replacement/gather-zone-leg at ca88adf (the review
+  commit) and the frozen CR `tmnt`; never maintained — a later phase that
+  changes these paths gets its own page. Self-contained: fonts from Google
+  Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>A Source Off the Battlefield — RF</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.registry { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+
+<div class="page">
+
+<h1>A Source Off the Battlefield</h1>
+<p class="lede">RF let the replacement gather read a static ability where CR 113.6 says it functions — a Colossus in a library, a Nexus of Fate on the stack. The question asked at review was the right one to walk: <em>why does the gather not walk every card in both libraries the moment a Colossus is in one?</em> Three boards, read by read, and the table of what each read consults.</p>
+<p class="meta"><span class="pin">replacement/gather-zone-leg @ ca88adf</span><span class="pin">CR tmnt</span><span class="pin">2026-09-16, at review</span> Authority for the design: <code>plans/archive/replacement-architecture-landed.md</code>, "RF" (evicted from §9), and <code>plans/replacement-architecture.md</code> §3.3 source 2, §11 item 4. Tests: <code>mtgsim/tests/phase_rf_integration_test.rs</code>, and one unit test in <code>gather.rs</code>.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Three boards. The first is the one the review asked about and is deliberately dull — nothing happens to the Colossus — because the cost of a source off the battlefield is paid on the events that <em>cannot</em> touch it, which is almost all of them. The second is the card's own clause end to end. The third is two replacement effects on one card's journey, and the reason the rider moves nothing.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td>A <b>Darksteel Colossus in player 0's library</b>; player 1's Lightning Bolt deals 3 to a bear</td><td>What does the gather read for a source that cannot watch this event — and where would a library ever be walked?</td><td>the pooled A/B's <code>Layer walks</code> row (<code>fuzz-record.md</code>, RF)</td></tr>
+<tr><td><b>B</b></td><td>The same Colossus <b>second of three</b> in a mill</td><td>One event, three members: which one is replaced, what "put into the library it is already in" performs, and when the shuffle runs</td><td><code>test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member</code></td></tr>
+<tr><td><b>C</b></td><td>A Colossus that is a <b>commander</b>, sacrificed</td><td>Two replacements on one event: who is asked, in what order, and why the rider shuffles a library the card never reached</td><td><code>test_a_colossus_commander_goes_to_the_command_zone_and_its_owners_library_is_still_shuffled</code></td></tr>
+</table>
+</div>
+
+<h3>The path, with RF's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  EA["execute_action(action)"] --> AR["apply_replacements"]
+  AR --> G["gather"]
+  G --> GATE["the gate: two printed sets, two summary fields"]:::changed
+  GATE -->|"nothing anywhere"| REG
+  GATE --> BF["battlefield sweep<br/>probe replacement_ability_sources by id"]
+  BF --> ZL["zone leg"]:::new
+  ZL --> PR["printed map: for each (id, defs)<br/>printed_could_apply?"]:::new
+  PR -->|"no"| SKIP["no frame, no walk"]:::new
+  PR -->|"yes"| FR["compute_characteristics(id)<br/>functions_in · condition · def_applies"]:::new
+  ZL --> NM["named rows: row.source / Fixed ids<br/>off the battlefield"]:::new
+  ZL --> ZW["zoned rows: zone_ids_ordered(zone)<br/>only while a Filter grant reaches it"]:::new
+  FR --> SORT["sort by CR 613.7d timestamp<br/>skip the entering object"]:::new
+  NM --> SORT
+  ZW --> SORT
+  SORT --> REG["registry rows (sources 3, 4)"]
+  REG --> LOOP["CR 616.1 loop"]
+  classDef new stroke:#6B4FA0,stroke-width:2px;
+  classDef changed stroke:#2E7D4F,stroke-width:2px;
+</pre>
+<div class="legend"><span class="n">new in RF</span><span class="c">changed in RF</span><span class="d">a decision, or the point a wrong answer would be made</span></div>
+
+<h2>Trace A — a Colossus in a library while a Bolt resolves</h2>
+<div class="prose">
+<p>Player 0's library holds a Darksteel Colossus somewhere in its sixty cards. Player 1 has a tapland on the battlefield (a printed "enters tapped", the ordinary pooled shape) and resolves Lightning Bolt at a bear. The Colossus's clause watches one kind of event — "would be put into a graveyard" — and this is not it. What does the gather do for the Colossus?</p>
+</div>
+<ol class="trace">
+<li><span class="fn">execute_action(DealDamage { source: Bolt, target: bear, amount: 3 })</span> → <span class="fn">apply_replacements</span> builds <code>EntryFrame::new</code> — empty, since a damage event enters nothing — and calls <span class="fn">gather</span>. <code>subject = Object(bear)</code>, <code>cause = Some(1)</code>.</li>
+<li class="changed"><span class="fn">gather</span>, the gate <span class="read state">state</span>: <code>replacement_ability_sources</code> = {tapland} (a battlefield object that printed a replacement), <code>zone_replacement_ability_sources</code> = {Colossus → [its printed def]} (filed by <span class="fn">create_in_zone</span> at <code>Game::new</code>, where <span class="fn">functions_in(clause, printed types, Library)</span> said yes because the clause states <code>SourceInZone(ALL)</code>). The summary <span class="read registry">registry</span>: <code>unattributed_replacement_zones = EMPTY</code>, <code>any_named_unattributed_replacement = false</code> — no row grants or copies a replacement ability. So <code>has_static_source</code> is true and the sweeps run.</li>
+<li><span class="fn">battlefield_ids_ordered</span> <span class="read board">board</span>: the bear is not in the printed set and no unattributed row reaches the battlefield → skipped without a walk. The tapland is in the set → one <span class="fn">compute_characteristics</span> (a memo hit unless the layer epoch moved), its "enters tapped" pattern is <code>EnterBattlefield</code> and the event is <code>DealDamage</code> → not a candidate. This is RC-2's per-permanent gate, unchanged.</li>
+<li class="new"><span class="fn">gather</span>, the zone leg, printed list <span class="read state">state</span>: one entry. <span class="fn">printed_could_apply(Colossus, def)</span> → <span class="fn">def_applies</span>: <code>by</code> is <code>None</code> ✓; <span class="fn">pattern_watches(ZoneChange { to: Graveyard }, DealDamage)</span> → the match has no arm for that pair → <b>false</b>. <b>No frame is computed. Nothing in the library is touched.</b> The Colossus cost this gather one pattern match.</li>
+<li class="decide">The named list: <code>any_named_unattributed_replacement</code> is false → the registry rows are not scanned. The zoned list: <code>unattributed_zones.beyond_battlefield()</code> is <code>EMPTY</code> → <span class="fn">zone_ids_ordered</span> is <b>never called</b>. This is the step the review asked about: the library is a candidate list only when a <em>Filter-scoped</em> grant or copy row reaches the <code>LIBRARY</code> zone — "cards in libraries have 'if this would …'" — and no registered card makes such a row. The printed leg never walks a zone; it iterates a map whose keys are the cards that printed a clause functioning where they are.</li>
+<li><span class="fn">gather</span>, sources 3 and 4 <span class="read registry">registry</span>: no rows. Candidates: <code>[]</code>. The Bolt resolves as it would have before RF.</li>
+</ol>
+<div class="callout rule"><b>Why the precheck is exact and not a shortcut.</b> The gather's rule is that a static replacement ability is discovered off the <em>effective</em> list, never a registry (<code>CLAUDE.md</code>). The zone leg keeps that rule — when it reads, it reads the frame — but asks first whether any <em>printed</em> def could apply. Sound because an object's effective replacement defs are its printed ones or fewer: Layer 6 can strip one (Hollow Hands) or grant one, and a granted or copied def reaches the leg through the named or zoned list, never through this map; nothing rewrites a printed def in place, Layer 3 being the route every gate leg leaves open. So a printed def that does not apply has no effective def that could. Asked through <span class="fn">def_applies</span>, the same function the effective def is asked through, so the pairing of patterns and events lives once.</div>
+<div class="callout before"><b>Before the review's change</b>, step 4 computed the Colossus's frame on every gather — a one-frame non-member walk, or a memo hit — and found the pattern did not match one function later. Exact, and flat per decision at four seats, but ~150 walks a game at two seats and ~550 at four for nothing. The review's "there has to be a more efficient way" was right, and the way was to ask the printed def first.</div>
+
+<h2>Trace B — the same Colossus, second of three, milled</h2>
+<div class="prose">
+<p>Player 0's library, top down: a 2/2, the Colossus, a 1/1. A spell player 0 controls resolves "mill three cards". CR 701.17a puts the top three into the graveyard; <code>Primitive::Mill</code> proposes them as <b>one batch</b> of three <code>ZoneChange { from: Library, to: Graveyard, cause: Milled }</code> members, top first, and <span class="fn">execute_batch_inner</span> decides each member's group against the same board.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">resolve_primitive(Mill(3))</span> reads the top three ids off the library <span class="read board">board</span> before anything moves, and calls <span class="fn">execute_actions([above, Colossus, below])</span>.</li>
+<li>Member <b>above</b>: <span class="fn">gather</span>. Battlefield sweep: nothing printed. Zone leg, printed list: <span class="fn">printed_could_apply(Colossus, def)</span> → <span class="fn">pattern_watches(ZoneChange { to: Graveyard }, ZoneChange { to: Graveyard })</span> ✓ → <span class="fn">set_affects(SourceOnly)</span>: <code>source == subject</code>? Colossus ≠ above → <b>false</b>. No frame. Candidates <code>[]</code>. Performed: above → graveyard, announced with its LKI-less <code>ZoneChange</code> line.</li>
+<li class="new">Member <b>Colossus</b>: <span class="fn">printed_could_apply</span> ✓ — same pattern, and now the subject is the source. Only now: <span class="fn">compute_characteristics(Colossus)</span> <span class="read board">board</span> → <span class="fn">membership</span> says <code>NonMember</code> (no row reaches the library) → <span class="fn">compute_non_member</span>, a one-frame CDA walk seeded from the card. Its effective abilities: the clause. <span class="fn">functions_in(clause, {Artifact, Creature}, Library)</span> → <span class="fn">stated_zones</span> reads <code>SourceInZone(ALL)</code> → contains <code>Library</code> ✓. The "as long as" wrapper: <span class="fn">settled_holds(SourceInZone(ALL))</span> ✓. Scope is <code>Existing</code>. <span class="fn">def_applies</span> ✓ (the same three checks as step 2, now against the effective def). <b>One candidate.</b></li>
+<li class="decide">CR 616.1 loop: one candidate, mandatory → applied without a prompt. <span class="fn">apply_rewrite(Instead(ZoneChangeTo { Library, PutIntoLibrary }))</span> → the substitute is <code>ZoneChange { object: Colossus, from: Library, to: Library }</code>; <code>applied = {Colossus's clause}</code>; one rider queued — <code>then</code> = <code>ShuffleLibrary</code> with an <code>Implicit</code> recipient, subject Colossus, source Colossus. Iteration 2 on the substitute: <span class="fn">pattern_watches(to: Graveyard, to: Library)</span> → nothing → return.</li>
+<li><span class="fn">perform_zone_change(Colossus, Library, Library)</span> <span class="read board">board</span>: <code>from == to</code> → <code>Ok(())</code>, <b>nothing moves and nothing is announced</b>. A card put into the zone it is in has not changed zones (CR 400.1's zones are the seven), so there is no <code>ZoneChange</code> line to write; CR 701.24c's "even if … remain in their current zone" is this branch.</li>
+<li>Member <b>below</b>: as step 2 — the printed def's subject check fails, no frame, milled. The batch is done: two <code>ZoneChange</code> lines, the Colossus alone in the library.</li>
+<li class="new">Riders, after the batch (§4.1a): <span class="fn">resolve_rider</span> builds a <code>ResolutionContext { source: Colossus, targets: [Object(Colossus)] }</code> and resolves <code>Atom(ShuffleLibrary, Implicit)</code>. <span class="fn">resolve_primitive</span>: <code>Implicit</code> → the <em>source's owner</em>, player 0 — "its owner's library" — and one batch of one <code>GameAction::ShuffleLibrary { player: 0 }</code> through <span class="fn">execute_actions</span>. <span class="fn">gather</span> finds nothing (no pattern watches a shuffle; there is deliberately no arm). <span class="fn">perform_action</span> → <span class="fn">shuffle_library(0)</span> <span class="read board">board</span> → <code>LibraryShuffled { player_id: 0 }</code>. The log reads <em>mill, mill, shuffle</em>: the whole event, then the rest of the instruction.</li>
+</ol>
+<div class="callout rule"><b>One event, not a loop that stops.</b> CR 616.1 decides each member against the same board and the batch performs them together; the Colossus's clause replaced its own member and nothing else, and the card below it was milled although it sat under a card that "would be put into a graveyard … instead". The test asserts the graveyard's order (<code>above</code>, <code>below</code>), the library (<code>[Colossus]</code>) and the log's order.</div>
+
+<h2>Trace C — a Colossus commander, sacrificed</h2>
+<div class="prose">
+<p>Player 0's Darksteel Colossus is on the battlefield and is their commander (<code>is_commander</code>). It is sacrificed. Two replacement effects are about this card's journey, and they apply to <em>different</em> events.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">change_zone(Colossus, Graveyard, Sacrificed)</span> → <span class="fn">gather</span>. CR 903.9b: <span class="fn">commander_zone_replacement</span> asks <code>to ∈ {Hand, Library}</code> → Graveyard → <b>none</b>. Battlefield sweep: the Colossus is in <code>replacement_ability_sources</code> → its frame → the clause functions on the battlefield (<code>ALL</code> ∋ Battlefield) → <span class="fn">def_applies</span> ✓. One candidate, mandatory.</li>
+<li class="decide">Iteration 1: apply → substitute <code>ZoneChange { from: Battlefield, to: Library, cause: PutIntoLibrary }</code>, <code>applied = {clause}</code>, the shuffle rider queued.</li>
+<li class="decide">Iteration 2, on the substitute: <span class="fn">commander_zone_replacement</span> now sees <code>to: Library</code> and <code>is_commander</code> → an <b>optional</b>, CR 614.5-exempt candidate (<code>ZoneChangeTo { Command }</code>). The battlefield sweep finds the clause again and CR 614.5 filters it — it is in <code>applied</code>. One candidate, optional → <span class="fn">ask_apply_optional_replacement</span> <span class="read player">player</span>: player 0, the affected object's controller, says yes. Substitute: <code>ZoneChange { to: Command, cause: CommanderZoneReplacement }</code>. Iteration 3: 903.9b asks <code>to ∈ {Hand, Library}</code> → Command → none; the clause is filtered; return.</li>
+<li><span class="fn">perform_zone_change(Colossus, Battlefield, Command)</span> <span class="read board">board</span>: the LKI frame is captured (it was a permanent), <span class="fn">cleanup_zone_state</span> retires its battlefield registration, the card lands in the command zone and is announced.</li>
+<li class="new">The rider: <code>ShuffleLibrary</code> with <code>Implicit</code> → the source's owner, player 0 → <span class="fn">shuffle_library(0)</span>. <b>The card is in the command zone and the rider does not go looking for it</b>: it shuffles a library, it does not move an object, and that is CR 701.24c — "that library is shuffled even if … an effect causes all of those objects to be moved to another zone". Had the rider been "shuffle it into its owner's library" as a move, it would have pulled the commander out of the command zone 903.9b just put it in.</li>
+</ol>
+<div class="callout"><b>Why <code>Primitive::ShuffleIntoLibrary</code> stays unbuilt.</b> A spell's "shuffle target card from your graveyard into your library" must move the card and then shuffle; a rider on a substitute must shuffle and must not move. The same words, two contracts, and the rider's is the one this card needs. The spell's is <code>backlog.md</code> §2.5's, one <code>change_zone</code> plus one <code>ShuffleLibrary</code> proposal per target.</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>The read</th><th>Before RF</th><th>After</th><th>Why the difference is observable</th></tr>
+<tr><td><span class="fn">gather</span>'s candidate list off the battlefield</td><td class="diff-old">none — the sweep visited <code>battlefield_ids_ordered</code> alone, and a Colossus milled from a library went to the graveyard</td><td class="diff-new">a map of the objects whose printed clause functions where they are, plus the objects named or the zones reached by grant and copy rows</td><td>Trace B: the Colossus stays in the library</td></tr>
+<tr><td>What the zone leg reads per gather for a Colossus in a library</td><td class="diff-old">(at landing) its frame, on every proposed action</td><td class="diff-new">its printed def, through <span class="fn">def_applies</span>; the frame only when that def could apply</td><td>Trace A: one pattern match, no walk; the pooled <code>Layer walks</code> row in <code>fuzz-record.md</code></td></tr>
+<tr><td><span class="fn">zone_ids_ordered</span> from the gather</td><td class="diff-old">never</td><td class="diff-new">only for a zone a <em>Filter-scoped</em> grant or copy row reaches (<code>unattributed_replacement_zones.beyond_battlefield()</code>), and no registered card makes one</td><td>the answer to the review's question: a library is walked by no printed clause, ever</td></tr>
+<tr><td>A grant or copy row over a named set</td><td class="diff-old">a bool, "some permanent may have one" — the battlefield walked every permanent</td><td class="diff-new">the same bool for the battlefield, and the named objects read off the rows for the zone leg</td><td>a <code>SourceOnly</code> grant from a graveyard source is found in the graveyard with no zone walked and no field on the row</td></tr>
+<tr><td><span class="fn">functions_in</span> in the gather</td><td class="diff-old">not asked — every source was a permanent</td><td class="diff-new">asked of every ability, on the battlefield too, of the zone the object is asked <em>as</em> in</td><td>Timid Golem: the same clause without "from anywhere" is an ordinary card in hand and in a library</td></tr>
+<tr><td><span class="fn">set_affects</span>, <code>Filter</code> arm</td><td class="diff-old">the filter alone; a <code>debug_assert</code> that <code>zones == BATTLEFIELD</code></td><td class="diff-new">the entering object counts as on the battlefield (CR 614.12), anything else must be in the row's zones; then the filter</td><td>Sealing Ward leaves a milled creature <em>card</em> alone; Rest in Peace, now <code>ALL</code>, exiles it</td></tr>
+<tr><td>The entering object, from the zone leg</td><td class="diff-old">n/a</td><td class="diff-new">skipped — source 1a reads it off CR 614.12's frame with <code>SourceOnly</code> scope</td><td>"permanents enter tapped" on a card on the stack does not tap itself (the unit test)</td></tr>
+<tr><td>The order of the zone leg's candidates</td><td class="diff-old">n/a</td><td class="diff-new">CR 613.7d timestamps, distinct by construction; a tie is a <code>debug_assert</code></td><td>the map's iteration order never reaches CR 616.1's list</td></tr>
+<tr><td>A library's order, in play</td><td class="diff-old">never written — the one shuffle was <code>Game::setup</code>'s, pre-game</td><td class="diff-new"><code>GameAction::ShuffleLibrary</code> through the chokepoint, announced as <code>LibraryShuffled</code>, no pattern arm</td><td>Traces B and C: the rider; a batch of N for "each player shuffles"</td></tr>
+</table>
+</div>
+
+<h2>What RF changed, trace by trace — and what is still open</h2>
+<div class="prose">
+<p><b>A</b> is the answer to the review's question, and it is structural rather than measured: the printed leg iterates a map keyed by the cards that filed themselves, and the only thing that ever walks a zone is a Filter-scoped grant or copy row reaching it. At landing, A cost a frame per gather per Colossus; at review it costs a pattern match, because the printed def can be asked first without losing exactness.</p>
+<p><b>B</b> is the card's clause end to end and the shape of a batch: one event, each member decided against the same board, the substitute a same-zone no-op, the rider after. It is also why "shuffle it into its owner's library" is a substitute plus a rider and not one template.</p>
+<p><b>C</b> is CR 616.1 twice on one card, with two different choosers' questions (one mandatory, one a prompt), and the reason the rider is <code>ShuffleLibrary</code> rather than <code>ShuffleIntoLibrary</code>.</p>
+<p><b>Open</b>, each with a dated line in <code>codebase-state.md</code>: the restriction sweep still visits the battlefield alone and its zone leg is owed against Abrupt Decay (main item 146); Hollow Hands owes the tests that show a strip in hand turning off cycling, channel and the rest, once one of them exists (147). The precheck is the zone leg's alone: the battlefield sweep still computes a frame for every printed source on every gather, and the same argument would let it ask the printed def first — an answer-preserving lever that moves the <code>Layer walks</code> row and so wants its own A/B.</p>
+</div>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true, curve: "basis" } });
+</script>
+</body>
+</html>

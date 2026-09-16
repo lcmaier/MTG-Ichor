@@ -412,7 +412,7 @@ pub(crate) fn gather(
 
 /// The proposed event as every leg asks about it — one value carried through
 /// the sweeps rather than four parameters, so no leg can hand a candidate a
-/// different event from its neighbour's.
+/// different event from its neighbor's.
 struct Proposal<'a, 'g> {
     action: &'a GameAction,
     subject: EventSubject,

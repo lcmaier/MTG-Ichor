@@ -19,6 +19,7 @@ use std::sync::Arc;
 use mtgsim::cards::phase5_pre_cards::glorious_anthem;
 use mtgsim::cards::phase_cv_cards::{cytoshape, mirrorform, mirrorweave};
 use mtgsim::cards::phase_rc_cards::containment_priest;
+use mtgsim::cards::phase_re_cards::laboratory_maniac;
 use mtgsim::engine::layers::copy::copiable_values;
 use mtgsim::engine::layers::types::{EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -456,6 +457,27 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     assert!(
         !game.continuous_effects.summary().any_copied_restriction,
         "narrower than 'any copy at all': the two sweeps read different bodies"
+    );
+}
+
+/// A copied replacement ability under an "as long as" wrapper lights the gate
+/// too. Found by RF's review A/B (2026-09-16): the two old bools matched a
+/// bare `Effect::Replacement` body, so a copied Laboratory Maniac — "if you
+/// would draw a card while your library has no cards in it", a `Conditional`
+/// body, pooled beside Cytoshape — lit nothing and was never gathered. The
+/// summary now reads the body through `Effect::replacement_body`, and the six
+/// memo hits that moved on the four-seat arm are this board.
+#[test]
+fn test_a_copied_conditional_replacement_ability_lights_the_gather_gate() {
+    let mut game = setup_two_player_game();
+    let donor = put_on_battlefield(&mut game, laboratory_maniac(), 0);
+    let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
+    copy_onto(&mut game, copyist, donor);
+    assert!(
+        game.continuous_effects.summary().any_named_unattributed_replacement,
+        "the wrapper is not the body: a conditional replacement is one"
     );
 }
 

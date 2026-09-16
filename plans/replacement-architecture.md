@@ -2848,24 +2848,27 @@ its siblings have not entered — turned out to be RC-5's page's last trace.
 #### RF — the gather's zone leg — ✅ landed 2026-09-16
 
 *Body evicted to `plans/archive/replacement-architecture-landed.md` under the
-same heading: the finding that sets the scope, the six decisions and what the
-PR refused, the pieces measured, and the A/B.*
+same heading: the finding that sets the scope, the seven decisions and what
+the PR refused, the pieces measured, and the A/B. Trace page:
+`plans/traces/rf-a-source-off-the-battlefield.html`.*
 
 **Shipped:** the read leg for §3.3's source 2 —
-`GameState::zone_replacement_ability_sources`, a second candidate set the
-registration doors keep (`arrive_in_zone`, `place_on_battlefield`, and the new
-`create_in_zone` for a card created in a zone), swept after the battlefield in
-CR 613.7d timestamp order with the entering object skipped; the registry
-summary's granted and copied replacement legs as `ZoneSet`s;
-`zone_function::functions_in` asked of every ability the sweeps read; the
-affected side's zone check in `set_affects` in place of the `debug_assert`,
-with Rest in Peace, Leyline of the Void and Nephalia Academy saying what their
-cards say; `GameAction::ShuffleLibrary`, `GameEvent::LibraryShuffled` and
+`GameState::zone_replacement_ability_sources`, a map the registration doors
+keep (`arrive_in_zone`, `place_on_battlefield`, and the new `create_in_zone`
+for a card created in a zone) from each object off the battlefield to its
+printed replacement defs, swept after the battlefield in CR 613.7d timestamp
+order with the entering object skipped and a frame computed only when a
+printed def could apply; the registry summary's unattributed legs — a
+`Filter` row names zones, a named row names objects, read by name; `zone_
+function::functions_in` asked of every ability the sweeps read; the affected
+side's zone check in `set_affects` in place of the `debug_assert`, with Rest
+in Peace, Leyline of the Void and Nephalia Academy saying what their cards
+say; `GameAction::ShuffleLibrary`, `GameEvent::LibraryShuffled` and
 `Primitive::ShuffleLibrary` for the card's rider; Darksteel Colossus (pooled)
 and Nexus of Fate (registered) with three fixtures. `Board::seed` and
 `membership` untouched. The engine arm is `IDENTICAL` to `main` at two seats
-and four and reads +0.6% / −1.2% per decision; the pooled arm +3.9% / −0.3%
-(`fuzz-record.md`). Closes §11 item 4 and critical-path 6a.
+and four; the numbers are the archive's "Measure" and `fuzz-record.md`'s
+block. Closes §11 item 4 and critical-path 6a.
 
 → The section as written at the close, what the building changed and the
 measurement: `plans/archive/replacement-architecture-landed.md`, "RF"

@@ -14,7 +14,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame; damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
-- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; the restriction sweep still visits the battlefield alone, main item 147). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
+- **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
@@ -6998,30 +6998,7 @@ owner decided it the same day.
 
 ### Found by RF — the gather's zone leg (2026-09-16)
 
-146. **`RegistryScopeSummary::zones_a_grant_can_reach` answers `ALL` for a
-     `SourceOnly` row, and that is an over-approximation with no producer.**
-     A static ability functioning off the battlefield (CR 113.6b) that grants
-     *its own object* a replacement ability — a `GrantAbility` row over
-     `SourceOnly` from a Wonder-shaped source in a graveyard — puts one on an
-     object the battlefield sweep never visits, and the summary is computed
-     from the rows alone, so it cannot say which zone. `ALL` is the sound
-     answer, and the gather's zone leg pays for it by walking every zone on
-     every gather while such a row exists (`replacement-architecture.md` §9,
-     Phase RF decision 2). `Fixed` and `Host` answer the battlefield on
-     CR 611.2c and 400.7 and are exact.
-
-     **Reachability (2026-09-16):** unreachable — no registered card and no
-     fixture produces a `SourceOnly` `GrantAbility` row with a replacement
-     body. `static_ability_atoms` lowers an `Implicit` recipient to
-     `SourceOnly`, so the shape is one card away: "as long as this card is in
-     your graveyard, it has 'if it would be exiled, …'". A fixture is the
-     customer until one prints.
-
-     **Sized:** ~20 lines — `source_zone: Zone` on `ContinuousEffect`, written
-     by `register_static_effects` from its zone parameter and read here in
-     place of `ALL` — plus the A/B that shows the walk gone.
-
-147. **The restriction sweep visits the battlefield alone — the gather's zone
+146. **The restriction sweep visits the battlefield alone — the gather's zone
      leg has no twin in `engine::restriction::predicate`.**
      `is_prohibited` sweeps `battlefield_ids_ordered` gated on
      `restriction_ability_sources`, which `register_static_effects` fills only
@@ -7049,6 +7026,25 @@ owner decided it the same day.
      countered", so the restriction leg must not skip a stack source the way
      the gather's skips the entering object — being countered is not
      entering.
+
+147. **`hollow_hands` owes the tests that show a strip in hand turning off
+     what functions there, and none of that exists yet.** The fixture
+     ("Cards in hands lose all abilities", `phase_rf_cards.rs`) proves today
+     that the gather's zone leg reads the effective list — a Colossus in hand
+     under it is discarded like any card. What it will *also* have to turn
+     off is every ability that functions from a hand: cycling and channel
+     (CR 113.6j, activated from hand — `layers-architecture.md` §13d decision
+     4's 113.6j row), and the evoke and madness families once `backlog.md`
+     §2.3 lets a card be cast from anywhere but a hand's ordinary door.
+     Raised at RF's review (2026-09-16).
+
+     **Reachability (2026-09-16):** nothing owed by the engine — no
+     hand-functioning ability exists to be stripped. A record for the keyword
+     that lands first.
+
+     **Sized:** one test per keyword, ~30 lines each, in that keyword's own
+     phase file, with this fixture as the negative: the ability is usable
+     without Hollow Hands and not with it.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

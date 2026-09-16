@@ -44,30 +44,51 @@ Fate and the pooled one), so **both tables are a re-record and neither column
 is comparable to A4e's**.
 
 **Three arms, and the middle one is the engine's reading.** `main` (1fe9a14),
-the leg with both cards registered and unpooled, and the pool entry on top:
+the leg with both cards registered and unpooled, and the pool entry on top —
+**as measured at the review commit (ca88adf)**, which added the printed-def
+precheck; the landing's own sitting is kept below it, because the difference
+between the two is the review's finding.
 
 | | 2 seats | 4 seats |
 |---|---|---|
-| engine vs `main`, `performance`, every counter | **IDENTICAL** | **IDENTICAL** |
+| engine vs `main`, `performance`, every counter | **IDENTICAL** | **one row**: `Memo hits` 189,560 → 189,566, every other row identical — attributed below |
 | engine vs `main`, `stress` | differ, by construction (registration moves the decks) | differ, by construction |
 | pooled vs `main`, both pools | differ, by construction | differ, by construction |
-| `µs / decision`, engine vs `main` | 65.3 → 65.6, **+0.6%** | 117.2 → 115.7, **−1.2%** |
-| `µs / decision`, pooled vs `main` | 65.3 → 67.8, +3.9% | 117.2 → 116.8, −0.3% |
-| `Layer walks`, `performance`, main → engine → pooled | 367 → 367 → 521 | 809 → 809 → 1,365 |
-| `Frames/walk`, `performance` | 12.61 → 12.61 → 8.93 | 20.29 → 20.29 → 11.65 |
-| `ms / 1,000 walks`, pooled vs `main` | −26.8% | −41.9% |
+| `µs / decision`, engine vs `main` | 68.7 → 66.7, **−2.9%** | 121.1 → 119.2, **−1.6%** |
+| `µs / decision`, pooled vs `main` | 68.7 → 68.6, −0.1% | 121.1 → 114.9, −5.1% |
+| `Layer walks`, `performance`, main → engine → pooled | 367 → 367 → 363 | 809 → 809 → 787 |
+| `Frames/walk`, `performance` | 12.61 → 12.61 → 12.38 | 20.29 → 20.29 → 19.46 |
 | `Replacement gathers`, `performance` | 1081 → 1081 → 1097 | 2270 → 2270 → 2227 |
 
-**The engine half is inside §3.1's 2.5 points at both seat counts, and its
-counters are byte-identical**: a board that plays no zone-functioning card has
-an empty candidate set, and the leg costs it one `is_empty` per gather. **The
-pooled half is the card's price, and it is the shape the design predicted**:
-the walk row moves by one cheap frame per gather for every Colossus sitting in
-a hand or a library — a non-member walk of one frame, which is why
-`Frames/walk` falls and `ms / 1,000 walks` with it — and per decision it reads
-flat at four seats and +3.9% at two, inside the sitting's 2–6% spread both
-times. The cost scales with the number of such cards in play, not with the
-size of the libraries, which is what a candidate set buys over a zone walk.
+**The engine half is inside §3.1's 2.5 points at both seat counts.** A board
+that plays no zone-functioning card has an empty candidate map, and the leg
+costs it one `is_empty` per gather. **The pooled half now costs nothing the
+walk row can see**: the pooled arm walks *fewer* frames than `main` because
+its games are different games, not because a Colossus is cheaper than
+nothing. The cost scales with the number of such cards in play, not with the
+size of the libraries, which is what a candidate map buys over a zone walk.
+
+**The six memo hits are attributed, not guessed.** A fourth arm — the review
+commit with one change reverted, `puts_a_replacement_ability` matching only a
+bare `Effect::Replacement` body as the two old bools did — is byte-identical
+to `main` at four seats on every line outside `=== Timing ===`, and the engine
+arm differs from it on that one line alone. So the six are the wrapper peel:
+a **copied** Laboratory Maniac ("if you would draw a card while your library
+has no cards in it", a `Conditional` body, pooled beside Cytoshape) now
+lights the gate its wrapper had hidden it from, and the battlefield sweep
+walks that board's permanents — six memo hits, no new frame — in the few
+games where the copy exists. That was a silent gap: the copied ability was
+never gathered (`cost-architecture.md` §8 item 1 named the shape for the cost
+gate). No draw from an empty library met it in 200 games, so no other row
+moved.
+
+**At landing (2026-09-16, before the review), the same three arms read**:
+engine vs `main` IDENTICAL at both seat counts, +0.6% / −1.2% per decision;
+pooled `Layer walks` 367 → **521** at two seats and 809 → **1,365** at four,
+`Frames/walk` 12.61 → 8.93 and 20.29 → 11.65, per decision +3.9% / −0.3%. One
+non-member frame per gather per Colossus in a hand or a library, on every
+event — the shape decision 1 predicted and the review declined to accept;
+decision 7 (the printed-def precheck) is what took the rows back to `main`'s.
 
 **Reachability** (`--require "Darksteel Colossus,Nexus of Fate"` on the pooled
 binary, `--pool stress` because Nexus is unpooled, 200 games, seed 12345,
@@ -98,11 +119,11 @@ cap.
 | Damage events | 21.6 | 19.8 |
 | Total damage | 67.6 | 49.7 |
 | Life changes | 13.4 | 15.9 |
-| **Layer walks** | **518** | **666** |
+| **Layer walks** | **352** | **487** |
 | **Board walks** | **237** | **316** |
-| **Memo hits** | **59,468** | **92,598** |
-| **Layer frames** | **4,369** | **6,721** |
-| **Frames/walk** | **8.44** | **10.10** |
+| **Memo hits** | **58,513** | **91,715** |
+| **Layer frames** | **4,203** | **6,542** |
+| **Frames/walk** | **11.94** | **13.44** |
 | **Dependency checks** | **6** | **11** |
 | **Replacement gathers** | **1063** | **1237** |
 | **Restriction queries** | **1066** | **1239** |
@@ -129,11 +150,11 @@ cap.
 | Life changes | 37.4 | 42.0 |
 | Turns after a departure | 18.6 | 21.2 |
 | Departed-owned permanents | 0.0 | 0.0 |
-| **Layer walks** | **1,327** | **1,897** |
+| **Layer walks** | **773** | **1,230** |
 | **Board walks** | **496** | **705** |
-| **Memo hits** | **173,048** | **295,848** |
-| **Layer frames** | **15,059** | **24,526** |
-| **Frames/walk** | **11.35** | **12.93** |
+| **Memo hits** | **169,819** | **292,195** |
+| **Layer frames** | **14,505** | **23,859** |
+| **Frames/walk** | **18.77** | **19.39** |
 | **Dependency checks** | **144** | **96** |
 | **Replacement gathers** | **2150** | **2775** |
 | **Restriction queries** | **2155** | **2780** |
