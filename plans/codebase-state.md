@@ -6448,28 +6448,41 @@ Commander-scale board closes item 69.
      a *candidate* count would drop — a mana window with one untapped source,
      13 a game — and drops the 30.
 
-     **The six boards, re-read with the instrument** (seed 12345, one thread,
-     200 games at 60 cards and 100 at Commander scale). `priority_decisions`
-     reproduces the table above exactly on all four 60-card boards, and the
-     prompt counts reproduce `backlog.md` §2.22's — which is what says these
-     are the census's prompt sites and the only thing that moved is the
-     rule:
+     **The instrument reproduces the census before anything else moved.** On
+     the counters-only arm — the commit before item 145's fix, A/B `IDENTICAL`
+     to `main` on every other row — `priority_decisions` reads 103 / 167 / 188 /
+     314, which is the table above exactly, and the prompt counts reproduce
+     `backlog.md` §2.22's. So the instrument sits on the census's prompt sites
+     and the only thing that differs is the rule: 266 / 407 / 483 / 764 against
+     the table's 282 / 446 / 513 / 833, the forced prompts and nothing else.
+
+     **The six boards as shipped** (seed 12345, one thread, 200 games at 60
+     cards and 100 at Commander scale, item 145's guard in). Every row moved
+     from the paragraph above because the guard removes prompts and a prompt is
+     an RNG draw, so these are different games — not a different engine cost:
 
      | | decisions / game (priority + inner) | CPU / game | per core-second | µs / decision |
      |---|---:|---:|---:|---:|
-     | `performance`, 2 seats | 266 (103 + 163) | 18.4 ms | 14,400 | 69 |
-     | `stress`, 2 seats | 407 (167 + 240) | 25.5 ms | 15,900 | 63 |
-     | **`performance`, 4 seats** | **483** (188 + 295) | **52.8 ms** | **9,140** | 109 |
-     | `stress`, 4 seats | 764 (314 + 450) | 76.3 ms | 10,000 | 100 |
-     | `performance`, 4 seats, Commander scale | 716 (271 + 445) | 107.5 ms | 6,660 | 150 |
-     | `stress`, 4 seats, Commander scale | 1,162 (472 + 690) | 144.4 ms | 8,050 | 124 |
+     | `performance`, 2 seats | 236 (96 + 140) | 14.9 ms | 15,800 | 63 |
+     | `stress`, 2 seats | 376 (161 + 215) | 24.3 ms | 15,500 | 65 |
+     | **`performance`, 4 seats** | **464** (188 + 276) | **52.8 ms** | **8,790** | 114 |
+     | `stress`, 4 seats | 759 (322 + 437) | 77.5 ms | 9,800 | 102 |
+     | `performance`, 4 seats, Commander scale | 692 (268 + 424) | 107.8 ms | 6,420 | 156 |
+     | `stress`, 4 seats, Commander scale | 1,163 (487 + 676) | 161.6 ms | 7,200 | 139 |
 
-     **So the ratchet's first reading is restated in the unit the instrument
-     counts: 9,140 on the 60-card `performance` board at four seats and 6,660
-     at Commander scale, 2026-09-16, this machine.** Same engine — a
-     denominator about 6% smaller and a CPU column that drifted upward about
-     3%. The 2026-09-15 rows keep their date and their numbers; what they may
-     no longer be read as is a decision count.
+     **So the ratchet's first reading is 8,790 decisions per core-second on the
+     60-card `performance` board at four seats and 6,420 at Commander scale,
+     2026-09-16, this machine.** The 2026-09-15 rows keep their date and their
+     numbers; what they may no longer be read as is a decision count.
+
+     **And the first thing the ratchet taught, on its first reading:** a change
+     that moves the RNG stream re-bases it. Item 145's guard makes the engine do
+     strictly less — 30 fewer prompts a game — and the reading *fell* 4%, because
+     the games that follow a moved stream are different games. A reading is
+     comparable across a change that leaves the stream alone and across nothing
+     else; the arm that proves this one is the counters-only arm above, and the
+     rule this makes concrete is `engineering-practices.md` §3's, "never A/B any
+     number across a pool change", one level up.
 
      **What the count is mostly made of, and why it will fall.**
      `activate_mana_ability` is 194 of the 325 inner prompts a game at four
@@ -6909,8 +6922,9 @@ owner decided it the same day.
 
 ### Found by A4e — the decision counters (PR #155, 2026-09-16)
 
-145. **Three asks still prompt when the answer is forced, and CR 102.2 says
-     a forced choice is not made.** Found by building item 138's counter,
+145. **~~Three asks still prompt when the answer is forced~~ ✅ FIXED
+     2026-09-16 (PR #155, the same one), and CR 102.2 says a forced choice is
+     not made.** Found by building item 138's counter,
      which had to decide per primitive what "two or more" means and so
      counted what the engine asks with one legal answer. At `performance`,
      four seats, 200 games: `choose_generic_mana_allocation` 4,738 forced
@@ -6926,24 +6940,49 @@ owner decided it the same day.
      leave the single case to the caller. These three want the same guard,
      either at the caller or at the top of the ask — about 30 lines.
 
-     **What makes it its own PR rather than an inline fix: it moves the RNG
-     stream.** Item 138's lever 10 is right about `pick_n` — a one-option
-     shuffle draws nothing, so dropping the forced `select_recipients`
-     prompts is stream-neutral — but not about `allocate`:
-     `RandomDecisionProvider::allocate` walks the remainder bucket by bucket
-     drawing as it goes, so a forced allocation *does* consume draws and
-     skipping it changes every later game. So: an A/B, a `fuzz-record.md`
-     block, and the two prompt-count rows in `backlog.md` §2.22 re-read.
+     **Why it was not deferred** (the owner, on PR #155's review): with
+     `decisions` the numerator of a throughput metric, a prompt that produces no
+     decision is CPU and a round trip spent against the ratchet itself — so
+     "reachable, not wrong" was the wrong classification, and the fix rode in
+     the PR that built the instrument rather than waiting behind it.
 
-     **And it moves no counter this PR shipped**, which is the point of
-     separating them — `decisions` already declines to count these, so the fix
-     shows up as a fall in *prompts* and nothing else.
+     **What shipped.** `ui::ask::forced_allocation` answers a split with one
+     legal allocation — nothing left over the minimums, nothing spare under the
+     maxima, or one bucket free — and the four `allocate` sites take its answer
+     instead of prompting; `ask_select_recipients` returns a fixed count that
+     takes none of the legal recipients or all of them, in `legal_selections`
+     order for `ask_discard`'s stated reason. `validate_allocation` counts a
+     decision off the same predicate, so the count cannot drift from what the
+     callers skip.
 
-     **Reachability (2026-09-16):** reachable — not wrong; the engine asks a
-     question with one answer, which costs a round trip out of process and
-     nothing in it.
+     **It moves the RNG stream, and that is most of its cost.** Item 138's
+     lever 10 is right about `pick_n` — a one-option shuffle draws nothing — but
+     not about `allocate`: `RandomDecisionProvider::allocate` walks the remainder
+     bucket by bucket drawing as it goes, so a forced allocation consumes draws
+     and skipping it changes every later game. The consequences, all measured:
+     the A/B is a three-arm sitting (`main`, counters-only, the fix) where the
+     counters arm is `IDENTICAL` and the fix differs by construction; **40
+     scripted tests across 8 files** encoded prompts that no longer happen and
+     were migrated with it; and one four-seat `stress` game reaches the 200-turn
+     cap where none did before — at `--max-turns 600` the longest is 234 turns
+     and nothing hits the cap, so it is a long game and not a hang, RE-9's
+     finding in another place.
 
-     **Sized:** ~30 lines plus the A/B and the re-read; its own PR, any time.
+     **What the migration is worth reading for.** Three of those tests used the
+     *prompt count* as their instrument — `phase_rs`'s edict controls, "one
+     choice of two, not two choices of one" — and a forced board now reads zero
+     either way, so each got one more creature and the claim became provable
+     again rather than vacuous. Two more were `should_panic` tests about the
+     generic split's clamp (`codebase-state.md` 16c's reproducer): one is now
+     the statement that the only payable split is *taken* and never offered, and
+     the other needed a third mana so that a choice still exists for the clamp
+     to refuse. **A fixture that scripts an answer is a record of what the engine
+     asks**, which is why 40 of them moved and why none was deleted.
+
+     **Reachability (2026-09-16):** closed — fixed.
+
+     **Sized:** ~~~30 lines plus the A/B and the re-read~~ — built: ~60 lines of
+     engine, ~340 of test migration, one `fuzz-record.md` block.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
