@@ -1062,3 +1062,63 @@ fn commander_zone_replacement(
         def,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::objects::card_data::CardDataBuilder;
+    use crate::test_support::{put_spell_on_stack, setup_two_player_game, static_ability, test_dp};
+    use crate::types::card_types::CardType;
+    use crate::types::effects::Condition;
+    use crate::types::replacement::{EnterMods, EnterModsTemplate};
+    use crate::types::zones::ZoneSet;
+
+    /// The zone leg skips the entering object, which source 1a owns with
+    /// CR 614.12's narrower scope.
+    ///
+    /// The board that shows why: a permanent card whose "permanents enter
+    /// tapped" functions from anywhere (CR 113.6b), on the stack, entering. Its
+    /// row is filter-scoped, so CR 614.12's parenthesis says it must not apply
+    /// to its own entry — source 1a admits `SourceOnly` alone. The zone leg
+    /// finds the same card on the stack, where the ability functions, and
+    /// reading it there with the sweeps' scope would offer that row to the
+    /// entry it is about. Zero candidates is the CR's answer.
+    #[test]
+    fn the_zone_leg_does_not_read_the_entering_object() {
+        let mut game = setup_two_player_game();
+        let card = CardDataBuilder::new("Orb From Anywhere")
+            .card_type(CardType::Artifact)
+            .ability(static_ability(Effect::Conditional(
+                Condition::SourceInZone(ZoneSet::ALL),
+                Box::new(Effect::Replacement(Box::new(ReplacementDef::new(
+                    EventPattern::EnterBattlefield { cast: None },
+                    ObjectSet::battlefield_filter(ObjectFilter::All),
+                    Rewrite::EnterWith(EnterModsTemplate::tapped()),
+                )))),
+            )))
+            .build();
+        let orb = put_spell_on_stack(&mut game, card, 0);
+        assert!(
+            game.zone_replacement_ability_sources.contains(&orb),
+            "filed on the stack, where the ability functions"
+        );
+
+        let action = GameAction::EnterBattlefield {
+            object: orb,
+            from: Some(Zone::Stack),
+            controller: 0,
+            mods: EnterMods::NONE,
+            cause: Some(ZoneChangeCause::Resolved),
+        };
+        let dp = test_dp();
+        let ctx = ActionContext::new(&dp);
+        let frame = EntryFrame::new(&game, &action);
+        let found = gather(&game, &action, &ctx, false, &frame);
+        assert!(
+            found.is_empty(),
+            "CR 614.12 — a filter-scoped row on the entering object reaches its own entry \
+             through no source: {:?}",
+            found.iter().map(|i| i.id).collect::<Vec<_>>()
+        );
+    }
+}
