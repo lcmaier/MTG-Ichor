@@ -1196,53 +1196,18 @@ registered card returns an object.
 
     **Sized:** none.
 
-69. **Every performance number this project owns is two-player, and v1's
-    profile is four (recorded 2026-09-07).** `fuzz_games` builds
-    `Game::new(config, vec![deck1, deck2])` — a literal pair, no `--players`
-    flag — so `fuzz-record.md`'s tables, `layers-architecture.md` §12's
-    measurements and §13b's scaling table all describe a board the target use
-    case does not build. `Game::new` already takes a `Vec` of decks and
-    `GameState.players` is a `Vec`, so the harness is the only thing that is
-    two-player here.
+69. **~~Every performance number this project owns is two-player, and v1's
+    profile is four~~ ✅ CLOSED 2026-09-15 (the post-RE audit, pass 3) —
+    measured.** `fuzz_games --players N` landed with RE-7 (2026-09-13) and
+    every `fuzz-record.md` block since carries two- and four-seat columns; the
+    Commander-scale board this item still owed — four 100-card decks at 40
+    life — is measured in items 138 (decisions and cost) and 143 (the clone):
+    83-turn games holding ~30 permanents at a priority prompt, 1.7–1.8× the
+    CPU of a 60-card game, most of it length rather than board.
+    → `plans/archive/codebase-state-closed.md`.
 
-    **Why it matters more than a percentage.** Since 7a the cost model is
-    roughly *board walks × cost of one pass*, and a pass is linear in members
-    and in the applications each layer holds. Both scale with player count: a
-    four-player Commander board carries several times the permanents of a
-    pooled two-player game, and several times the static abilities. The LI-1
-    scaling table is the one to read, and it spans two orders of magnitude
-    across the range a real board covers — 6.4 µs at 10 permanents with one
-    row, 1,195 µs at 80 with 80. Which end v1 sits at is not known, and no
-    amount of two-player fuzzing will say.
-
-    **This is the measurement to bump, not the optimizations.** The two
-    remaining answer-preserving levers — the `Arc<Vec<AbilityDef>>` elision
-    (item 67) and interning `EffectGroup` (§12) — were both measured *before*
-    7a cut walks per game by ~40×, and item 67 already says re-measure before
-    paying. Optimising a two-player 70-card profile for a four-player
-    Commander target is optimising the wrong board; the fix is to be able to
-    see the right one.
-
-    **What triggers do and do not change.** Item 6 adds *queries* — a
-    characteristics read per trigger condition and per intervening "if" — and
-    since 7a most of those are memo hits against an unchanged board. What it
-    adds to the cost model is *writes*, which bump the epoch and force a fresh
-    pass. So triggers move the `Board walks` term, which the harness already
-    prints, rather than introducing a term nobody has measured. That is why
-    the board-size question can be asked now and the query-volume question
-    cannot: the first is a property of the game state, the second of a system
-    that does not exist.
-
-    **Reachability (2026-09-07):** reachable — not a wrong answer, a blind
-    spot. Nothing is mis-computed; the profile is simply invisible.
-
-    **Sized:** `--players N` on `fuzz_games` plus `random_deck` per player and
-    the two-player assumptions in the harness's own summary rows, ~80–120
-    lines. Independently owed by `CLAUDE.md`'s "write new systems N-player-shaped
-    from the start" — the harness is a system and it is not. **Blocked on CR
-    800** for a game that *runs* correctly past two players (priority passes
-    loop player0 → player1, line 189 above), so the honest order is: CR 800,
-    then this, then re-measure, then choose a lever.
+    **Reachability (2026-09-15):** closed — measured; the levers this item
+    said to re-measure first are re-ranked against that board in item 138.
 
 ### Found by the Everywhere pool change (2026-09-03)
 
@@ -2172,7 +2137,7 @@ section never asked.
 
     | Site | Stack-resident | Outcome-bearing? |
     |---|---|---|
-    | `priority.rs` priority loop | `blacklist`, `retries`, `all_candidates` | **No** — drop them and the fork re-offers a cast that fails again. Slower, same game |
+    | `priority.rs` priority loop | `blacklist`, `retries`, `all_candidates` | **No for `retries`; wrong for the other two, measured 2026-09-15.** `all_candidates` is computed once per round and reused across the retry loop while a rejected cast's mana taps stay (CR 732.1), so a retry re-prompt offers a list a fresh enumeration would not, and `blacklist` is what filters it; a fork at that prompt cannot rebuild either. Item 139 has the measurement and the size |
     | `cast.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
     | `cast.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
     | `apply_replacements` | `applied` / `declined` / `exempt_applied` | **Yes** — see below |
@@ -2222,7 +2187,10 @@ section never asked.
     answers (`prevention_allocations`), because they are read across the
     prompts of groups decided later, which is exactly the fork-at-a-prompt
     test. Item 55's `entry_selection` was the first instance of the fix's
-    shape; this is the second, and the table above gains no third violator.
+    shape; this is the second, and the table above gained no third violator
+    then. **It has one now (2026-09-15, the post-RE audit's pass 3):** the
+    priority loop's `all_candidates` and `blacklist`, found by running item
+    41's test as a probe — item 139.
 
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
@@ -2249,12 +2217,38 @@ section never asked.
     it is wrong. The two forks share nothing and diverge, and which of those is
     intended has never been written down.
 
-    **Reachability (2026-09-03):** unreachable — the test does not exist;
-    `tests/determinism_test.rs` clones nothing at a priority pass.
+    **Measured 2026-09-15 (the post-RE audit's pass 3), and promoted to a
+    requirement.** The test was run as a throwaway probe in the shape above —
+    record every provider answer; clone `GameState` at the first prompt of a
+    priority round; replay the recorded answers from that prompt on; compare
+    the rendered logs with ids masked — over 20 games at two seats
+    (`performance`), 20 at four (`stress`) and 10 at Commander scale (four
+    100-card decks, 40 life): **779 forks, 741 identical continuations, and
+    every one of the 38 divergences is item 139's retry list** — a prompt
+    mismatch at the fork itself, none silent. So nothing else on the stack
+    at a round start is outcome-bearing, which is what this item predicted,
+    and the one thing that is was not in item 40's table. Two things the
+    probe could not fork: a prompt mid-round (item 140) and the cleanup
+    step's CR 514.3a re-loop. **The requirement:** a fork at any priority
+    prompt, resumed with the same answers, replays the original event
+    stream identically; the test lands in item 139's PR, asserting every
+    round-start fork, and gains the mid-round forks when item 140 lands.
+    **The RNG question, decided rather than discovered:** a fork carries
+    both streams — `GameState.rng` in the clone, and the provider's `StdRng`
+    by cloning the provider (`RandomDecisionProvider` needs
+    `#[derive(Clone)]`; `RefCell<StdRng>` is `Clone`) — so replay-exact is
+    the default and the test's premise; a search that wants determinization
+    reseeds the *branch's provider* explicitly, never the state's `rng`;
+    and re-randomizing an unseen library is `backlog.md` §2.9's per-viewer
+    question, since a clone carries every library in its shuffled order and a
+    search over it is omniscient until that query exists.
 
-    **Sized:** the test, ~150 lines, plus the
-    `RandomDecisionProvider` RNG decision it forces; one sitting when the AI
-    track opens.
+    **Reachability (2026-09-15):** unreachable — nothing forks; the test was
+    run as a throwaway probe and does not exist in the tree.
+
+    **Sized:** the test, ~250 lines beside `tests/determinism_test.rs` — a
+    recording provider, a replaying one, the id mask — in item 139's PR;
+    `#[derive(Clone)]` on the random provider, one line.
 
 42. **`EventLog` is on `GameState` and grows monotonically.** `clear()` is
     documented as between-games only, so a ~33-turn game carries every
@@ -2270,13 +2264,20 @@ section never asked.
     log is unbounded" is the kind of fact that is obvious once and invisible
     afterwards.
 
-    **Reachability (2026-09-03):** reachable — not wrong; every game's log grows
-    without bound and is cloned whole with every `GameState` clone.
+    **Reachability (2026-09-15):** reachable — not wrong; every game's log grows
+    without bound and is cloned whole with every `GameState` clone. Measured
+    at Commander scale by the post-RE audit's pass 3 (item 143): the log is
+    47 KB of a 92 KB clone at turn 40 and 700 KB of 786 KB when a 113-turn
+    four-seat game ends, and it takes a 5 µs clone to 125 µs — so for a
+    search that forks at every decision it is fifteen-twentieths of the
+    fork, and for a batch of a thousand straight-line games it is most of a
+    gigabyte of resident log.
 
     **Sized:** a bounded in-state window plus a sink, keeping
     `records_from` semantics, ~100–150 lines in `events/`; lands with the
     `TraceSink` ("Before Triggered abilities" item 5) or the first fork harness,
-    whichever first.
+    whichever first — item 138 ranks it first among the levers for the fork
+    use case and nowhere for straight-line throughput.
 
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
     2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
@@ -6135,7 +6136,11 @@ closed. **The last of RE's ten PRs.**
      optimization, this is a different lever, and §8's ordering is measure
      first. The number to beat is +1.2% at two seats and +0.7% at four; the
      number that says whether it matters is a v1 CPU budget the plan has
-     never set, and this item is where to write it when it is.
+     never set, and this item is where to write it when it is. **Proposed
+     2026-09-15 (the post-RE audit's pass 3, item 138):** 20,000 decisions
+     per core-second at four seats on `performance`, against 10,000 today;
+     at that bar this lever's 1.2% is about 120 decisions per core-second,
+     which ranks it last of the levers item 138 lists.
 
 137. **`ResolutionContext` carries CR 615.5's two rider numbers as two
      `Option<u64>` fields that every non-rider resolution sets to `None`.**
@@ -6227,6 +6232,325 @@ self-replacement producer is `replacement-architecture.md` §11 item 3's,
 with its reachability line there; and the eviction of that document's
 pre-build reasoning is planned section by section in the handoff and opens
 as its own PR after this one merges.
+
+### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
+
+**Is the engine on track for the AI-harness use case?** Pass 3 of
+`plans/handoffs/post-re-audit.md` measured rather than argued: a throwaway
+counting provider around `fuzz_games`' own decks and streams (draw for draw,
+so the games are the fixture tables'), a clone timer with a counting
+allocator, and item 41's fork test run as a probe — record every answer,
+clone at a round start, replay, compare. Nothing here is engine code; the
+probe was thrown away, `plans/panic_surface.py` was kept. The answer is
+yes with one number to set (138), one thing on the stack that should not be
+(139), one entry point missing (140), and the serialization question closed
+(141); the ask classification is `backlog.md` §2.22's table, and the
+Commander-scale board closes item 69.
+
+138. **The throughput target, proposed, with the instrument that reads it and
+     the levers ranked against it.** The metric is the handoff's (§4, §6
+     decision 3): decisions per core-second at four seats, random providers,
+     `--threads 1`. **A decision is a `DecisionProvider` prompt with two or
+     more options.** The engine already asks no inner question with fewer
+     (`CLAUDE.md`'s rule), so the only forced prompts are priority prompts
+     whose list is `[Pass]` — 91.5% of all priority prompts at four seats. A
+     prompt count would measure the pass loop; a decision count measures
+     what an agent is handed.
+
+     **Measured 2026-09-15**, 200 games at 60 cards and 100 at Commander scale
+     (four 100-card decks, 40 life), seed 12345, one thread:
+
+     | | prompts / game | decisions / game (priority + inner) | CPU / game | per core-second | µs / decision |
+     |---|---:|---:|---:|---:|---:|
+     | `performance`, 2 seats | 872 | 282 (103 + 179) | 17.2 ms | 16,400 | 61 |
+     | `stress`, 2 seats | 1,062 | 446 (167 + 279) | 25.0 ms | 17,900 | 56 |
+     | **`performance`, 4 seats** | 2,544 | **513** (188 + 325) | **51.2 ms** | **10,000** | 100 |
+     | `stress`, 4 seats | 3,024 | 833 (314 + 519) | 75.8 ms | 11,000 | 91 |
+     | `performance`, 4 seats, Commander scale | 3,469 | 692 (248 + 445) | 87.1 ms | 7,950 | 126 |
+     | `stress`, 4 seats, Commander scale | 4,278 | 1,253 (476 + 777) | 136.6 ms | 9,170 | 109 |
+
+     The CPU column is this machine on this day (RE-9's 44.83 ms game reads
+     51–52 ms here) and drifts like every timing number; every other column
+     is a pure function of the seed. Between prompts the engine spends 23–40
+     µs; between decisions, 56–126 µs.
+
+     **The target, proposed — the owner sets it: 20,000 decisions per
+     core-second at four seats on `performance`, 60-card decks, and 10,000
+     at Commander scale** — 2× and 1.25× today. Why those: at 20,000 a
+     64-core box makes ~1.3 M decisions a second, which is one GPU batching a
+     small policy over a thousand games per millisecond (§4's arithmetic), so
+     the engine stays off the profile at the scale a researcher would buy;
+     and the levers below plausibly reach 2× on the 60-card board, where
+     Commander's extra cost is mostly turns, which no lever shortens.
+
+     **The instrument, sized and not built** (this pass is measurement and
+     docs): two cells on `EngineCounters` — `decisions` (prompts with two or
+     more options) and `priority_decisions` (the same, at priority) —
+     incremented in the 24 `ask_*` bodies after the provider answers (~30
+     lines; or in the four `validate_*` helpers with an `&EngineCounters`
+     parameter, ~30); two `=== Engine Work ===` rows in `fuzz_games` (~8),
+     the two `ROWS` entries in `plans/fuzz_ab.py` (~4), and `µs per decision`
+     beside `ms per 1,000 walks` in its timing table (~6). A `Cell` increment
+     is below the noise the other eleven were A/B'd at, so no A/B; the rows
+     are new, so no re-record — the next phase's block records their first
+     values. The reading that watches the target is `CPU/game ÷ decisions`
+     in an A/B sitting, never a stored millisecond
+     (`engineering-practices.md` §3).
+
+     **The levers, sized and ranked against 20,000.** The profile that would
+     order the top three precisely is owed (below).
+
+     1. **Worker scaling, and the allocator** — the harness multiplies
+        everything. Measured the same day, 200 games, `performance` at four
+        seats: 52.2 ms of CPU a game at one worker, 68.3 at eight (+31%),
+        99.1 at sixteen (+90%); wall-clock 52.9 → 8.79 → 6.46 ms a game,
+        **6.0× on eight physical cores and 8.2× on sixteen threads**;
+        `stress` reads +29% / +82% and 6.1× / 7.7×; every counter identical
+        across worker counts. The inflation is what a global allocator or
+        less allocation could recover — up to a quarter of a full box's
+        throughput at eight workers, a third at sixteen — and the
+        2026-08-24 reading (+113% at sixteen, 6.7×) says the epoch memo
+        already took some of it. Sized: a `#[global_allocator]` line and one
+        dependency — the supply-chain cost the owner raised on 2026-09-15 is
+        the whole price — measured with these three runs. **Rank 1 for a
+        batch harness, nothing for one core.** One doctrine line falls out
+        now: `--threads` defaults to sixteen here and eight is the efficient
+        count.
+     2. **The oracle traffic §12 named** (`layers-architecture.md`, the 7a
+        residual): the SBA sweep's three `has_subtype` questions per
+        permanent per check where one frame read answers all three, and
+        `get_effective_abilities`' deep clone out of a memo hit (12,923 a
+        game at two seats). Sized there, ~40 and ~30 lines,
+        answer-preserving; those two are about half the questions asked, at
+        ~100 ns each — of the order of 10–20% of a game. **Rank 2, pending
+        the profile.**
+     3. **The candidate list per priority prompt**: `candidate_priority_actions`
+        runs 2,219 times a four-seat game and 91.5% of the lists it builds
+        are `[Pass]`, with the enumeration (`castable_spells` and its
+        affordability heuristic, `activatable_abilities`) paid in full for a
+        prompt that offers nothing. A "nothing to do" pre-check — no untapped
+        source, no land drop, no free spell — or a dirty flag on the list is
+        answer-preserving; unsized without the profile (5% to 30%). Item
+        139's recompute-after-rejection makes the list right; this makes it
+        cheap. **Rank 3, pending the profile.**
+     4. **Item 42, the event-log window**: nothing for straight-line
+        throughput; **rank 1 for the fork use case**, where the log is
+        fifteen-twentieths of a clone (item 143).
+     5. **Item 67, `Arc<Vec<AbilityDef>>`**: 15,778 frames a four-seat game;
+        small. Rank 5.
+     6. **Item 136's fast path**: +1.2% at two seats, +0.7% at four — about
+        120 decisions per core-second. Rank last.
+     7. **Harness-side, not engine**: skipping forced prompts saves the
+        provider round trip (~0.5 µs × 2,000 in-process, ~2%; out of process
+        it is the difference between shipping 2,544 views and 513). A forced
+        prompt consumes no RNG draw (`RandomDecisionProvider::pick_n`
+        shuffles a one-element list), so the skip is stream-neutral and an
+        engine-side version would be A/B-identical by construction.
+
+     **The profile, owed.** No sampling profiler runs unprivileged on this
+     machine — no WSL distro, no administrator shell — so the profile at four
+     seats on `stress` was not taken in this pass. A symbolized `fuzz_games`
+     was built into `mtgsim/target-prof/` (`CARGO_PROFILE_RELEASE_DEBUG=2`,
+     a separate target dir, ignored locally) and the `samply record` line is
+     in the handoff's pass-3 block; its reading — which of levers 2 and 3 is
+     larger, and the hot `.clone()` sites the "clone question" asks about —
+     goes into `layers-architecture.md` §12 when it is taken and re-orders
+     this list.
+
+     **Reachability (2026-09-15):** reachable — not wrong today; a target the
+     plan had never set and an instrument that does not exist, so the number
+     cannot be watched until the two cells land.
+
+     **Sized:** the instrument, ~80 lines across `state/diagnostics.rs`,
+     `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`, its own small
+     PR, no A/B; the target is the owner's line to write here.
+
+139. **A retry re-prompt offers a list computed before the rejected action
+     changed the board — the one thing the fork test found on the stack.**
+     `run_priority_round` computes `all_candidates` once per round and the
+     retry loop re-asks with that list minus a `blacklist`; when the rejected
+     action was a cast whose mana abilities stay activated (CR 732.1's "may
+     not reverse" branch, item 72), the board at the re-prompt has fewer
+     untapped sources and more mana floating than the list was computed
+     from, so the re-prompt offers casts a fresh enumeration would not — and
+     a fork at that prompt, resuming with a fresh round, offers a different
+     list. Measured 2026-09-15 by running item 41's test as a throwaway
+     probe — record every provider answer, clone `GameState` at the first
+     prompt of a priority round, replay the recorded answers from that
+     prompt on, compare the rendered logs with ids masked: **779 forks over
+     50 games, 741 replayed the original game event for event, and every one
+     of the other 38 was this mechanism** — a prompt mismatch at the fork
+     itself, and none diverged without one. Twenty-one of the 38 rejoined
+     the original game anyway (the random agent's next pick converged);
+     seventeen played a different game. The three boards: `performance` at
+     two seats, 353 forks, 336 identical; `stress` at four, 314, 296;
+     Commander scale, 112, 109.
+
+     **Why it is not a rules bug.** The candidate list is an overapproximation
+     by contract (`plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`
+     §2) and the engine rejects what it cannot pay; the game played is
+     legal. What is wrong is that item 40's table called `all_candidates`
+     and `blacklist` harmless — "drop them and the fork re-offers a cast that
+     fails again, slower, same game" — and it is not the same game: the
+     re-offer is of a *different* list. So the prompt is not a function of
+     the state, which is the property the fork model needs and the one item
+     40's invariant was written to protect.
+
+     **Reachability (2026-09-15):** reachable — not wrong today; a legal
+     game, and a prompt a fork cannot rebuild. Every game reaches it: 54–85
+     same-player re-asks a game at four seats.
+
+     **Sized:** recompute the candidates after a rejected action — move the
+     enumeration inside the retry loop, minus the blacklist — ~5 lines in
+     `engine/priority.rs`; it moves the random agent's stream, so its own PR
+     with the A/B and a `fuzz-record.md` block, and item 41's test rides in
+     it (the test cannot be green without it). The `blacklist` stays
+     stack-resident until item 140.
+
+140. **A prompt mid-round cannot be resumed: `consecutive_passes` and
+     `current_priority` are loop locals, and `run_priority_round` starts
+     every round at the active player.** So of a four-seat game's priority
+     prompts only the round starts can be forked today — 972 of 2,799 on
+     `stress`, 1,172 of 3,367 at Commander scale — and the 1,827 / 2,195
+     mid-round prompts, each a seat's own decision point, cannot. Neither
+     local is outcome-bearing by item 40's test: `priority_player` is already
+     on `GameState`, and the passes so far are the turn-order distance from
+     the round's first player to it (a player is asked at most once per
+     round, in order). What is missing is an entry point, not state. The
+     cleanup step's CR 514.3a re-loop is the other unforkable place — its
+     priority loop is nested in `Game::run_turn`'s cleanup branch — at 0.05
+     prompts a game.
+
+     **Reachability (2026-09-15):** unreachable — nothing forks; the probe was
+     a throwaway.
+
+     **Sized:** `run_priority_round` taking the player to start from and
+     deriving the pass count, ~30 lines; a `Game` entry that finishes the
+     current step from its priority loop rather than re-running the step's
+     turn-based actions (the probe did it by hand: `run_priority_loop`,
+     `advance_turn`, then `run_turn`), ~30 lines; the `blacklist` either
+     onto `GameState`, cleared per round (~20 lines), or made moot by the
+     exact action space, which is Phase 10's. Lands with the first
+     fork-based harness, after item 139.
+
+141. **The `DecisionProvider` boundary, serialized: which fields, which
+     crate, what it costs — and the `&GameState` parameter stays.** The wire
+     surface is `ChoiceContext` (one field, `ChoiceKind`, 25 variants),
+     `ChoiceOption` (12 variants) and `PriorityAction` (4), plus the four
+     methods' scalars; its transitive closure over the crate's own types is
+     **36 types, 788 definition lines**, and `ChoiceKind::SelectRecipients`'
+     `EffectRecipient` is what drags most of it in — `SelectionFilter` →
+     `ObjectFilter` → `Subtype` → `CreatureType` (303 lines),
+     `PlaneswalkerType`, `PlanarType` — while ids are `Uuid` (`uuid`'s
+     `serde` feature) and `usize`. The crate: `serde` with `derive` and
+     `serde_json` or a binary codec; `serde` appears nowhere in the tree
+     today. **What it costs on the straight-line path: nothing** — a derive
+     generates code the in-process path never calls, and the compile-time
+     price is the proc-macro crate once. **What it costs per prompt out of
+     process is more than the engine**: 2,544 prompts a four-seat game ×
+     (microseconds to encode a 100–500-byte prompt plus tens of microseconds
+     of round trip) is 30–130 ms against a 51 ms game — which is why §4's
+     batched boundary, forced-prompt suppression (item 138's lever 7) and an
+     in-process binding are the harness's shape and per-prompt RPC is not.
+     **The `&GameState` parameter.** §4 said the provider sees only a
+     `ChoiceContext`; the trait hands every method the state, and two
+     in-crate providers read it — `RandomDecisionProvider` for its tap
+     preference and its X value, the CLI for display — while the decorators
+     forward it. Out of process a provider cannot be handed it, so it is
+     exactly the observation hook: the adapter at the boundary builds the
+     observation from it through `backlog.md` §2.9's per-viewer query (§4
+     consequence 3). Keeping it costs nothing, a reference; removing it is
+     nine impls times four methods for no gain until that query exists.
+     **Decided: keep.** Two watch items ride with it — `roadmap-v2.md` §9's
+     trait shape (a new method serializes too) and `backlog.md` §2.21's rule
+     that every `ChoiceKind` carries its subject, which a wire format
+     enforces for free.
+
+     **Reachability (2026-09-15):** unreachable — nothing serializes.
+
+     **Sized:** `#[derive(Serialize, Deserialize)]` on the 36 types and the
+     `uuid` feature, ~60 lines, with the harness's adapter (Phase 10);
+     nothing before.
+
+142. **The panic surface, separated into engine and test — the separator is
+     `plans/panic_surface.py`.** "341 `.unwrap()` in non-card `src/`"
+     (handoff §2) counted the unit tests: `src` holds 59 `#[cfg(test)] mod
+     tests` tails, 14,071 of its 60,631 lines. Split at the column-0 marker
+     (plus one indented test-only fn in `costs.rs`), 2026-09-15:
+
+     | | engine (44,342 lines) | harness (`src/bin`, 1,642) | unit-test tails (14,071) | `tests/` (32,907) |
+     |---|---:|---:|---:|---:|
+     | `panic!` | 7 | 0 | 10 | 12 |
+     | `unreachable!` | 6 | 0 | 0 | 0 |
+     | `.unwrap()` | 8 | 8 | 375 | 785 |
+     | `.expect(` | 16 | 6 | 8 | 196 |
+     | `assert!`, `assert_eq!`, `assert_ne!` | 23 | 0 | 1,596 | 2,794 |
+     | `debug_assert*` (off in release) | 51 | 0 | 0 | 0 |
+
+     **The engine's release-active surface is 60 sites, of four kinds.** 27
+     are the provider contract — `ui/ask.rs`'s four `validate_*` helpers
+     (13 asserts) and its eight "two or more candidates" caller assertions,
+     plus `ScriptedDecisionProvider`'s expectation checks (5 `panic!`, 2
+     asserts) — which a misbehaving provider trips and the engine cannot; 2
+     are construction-time guards (`performance_pool` on a renamed card, a
+     dual land's basic type); the 6 `unreachable!` and the 24 `unwrap` /
+     `expect` each sit one line after the check that makes them so
+     (`self.battlefield.get(&id).unwrap()` under a membership test,
+     `stack.last()` under a non-empty check, the plan cursor under
+     `phase_began`), and one `unwrap` is `ui/random.rs`'s own. None is a
+     card-reachable panic by inspection, and 800 fuzz games on both pools at
+     two and four seats reached none; `fuzz_games` already catches a panic
+     per game (`catch_unwind`), so a training batch loses a game and not a
+     batch, and `Game::run_turn`'s `Err` covers the engine's own refusals.
+     The engine's real invariant surface is the 51 `debug_assert`s, and a
+     debug fuzz run is the only thing that exercises them.
+
+     **Reachability (2026-09-15):** nothing owed — a record and its
+     instrument; re-run the script at each spine close, and a surface that
+     grows faster than the engine is the finding.
+
+     **Sized:** none.
+
+143. **The clone at Commander scale, and memory per fork.** Handoff §4's
+     table extended with the same method (2,000 clones a checkpoint, release,
+     one thread) plus bytes and allocations per clone from a counting
+     allocator; four 100-card decks at 40 life, `stress`, both seeds the
+     original table used:
+
+     | seed | turn | objects | on battlefield | events | µs / clone | KB / clone | allocs | µs, no log | KB, no log | allocs, no log |
+     |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+     | 12345 | 1 | 400 | 0 | 59 | 4.1 | 52 | 15 | 3.5 | 46 | 14 |
+     | 12345 | 40 | 402 | 41 | 1,379 | 21.4 | 227 | 258 | 5.3 | 69 | 36 |
+     | 12345 | 80 | 400 | 64 | 3,070 | 62.9 | 440 | 544 | 6.1 | 92 | 36 |
+     | 12345 | 113 (over) | 100 | 16 | 5,040 | 124.6 | 786 | 1,662 | 3.8 | 89 | 22 |
+     | 777 | 40 | 400 | 28 | 1,259 | 26.9 | 205 | 224 | 4.8 | 61 | 29 |
+     | 777 | 88 (over) | 100 | 19 | 3,523 | 87.8 | 563 | 1,114 | 3.3 | 68 | 20 |
+
+     The 60-card rows re-taken the same way, for the join to §4's table:
+     four seats at turn 40, 28.0 µs with the log and 4.5 without (67 KB, 35
+     allocations); two seats at turn 30, 34.4 and 3.2 (45 KB). **Reading.**
+     The board costs a fork about a microsecond — 400 objects and 64
+     permanents clone in 6 µs and 92 KB, against 4.5 µs and 67 KB at 60
+     cards — and the game's length costs it a hundred: the log is the whole
+     of the growth, 700 of 786 KB and 1,600 of 1,662 allocations at the end
+     of a 113-turn game, which is item 42 measured. `GameState` is 1,536
+     bytes inline; a no-log clone is 14–37 allocations, most of them the
+     per-player zone `Vec`s and the object and battlefield maps. For a batch
+     of a thousand straight-line games that is 90 MB of state and up to 800
+     MB of log; for a search forking at every decision it is the difference
+     between 5 µs and 125 µs a branch.
+
+     **Reachability (2026-09-15):** reachable — not wrong; a cost, item 42's.
+
+     **Sized:** item 42's window; nothing else — the no-log clone is already
+     at the floor `Arc<CardData>` sets.
+
+What is *not* a ledger line: the 24 asks classified for the fork model are
+`backlog.md` §2.22's table, beside the middleware census that will consume
+them; item 69 is closed by the Commander-scale measurement and evicted; item
+40's table row and item 41's status are corrected in place; and the
+`samply` recipe for the owed profile is in the handoff's pass-3 block, not
+here, because it is a procedure and not a migration.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

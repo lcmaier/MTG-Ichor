@@ -1535,3 +1535,73 @@ which RE-5's and RE-10's arms had pushed to 530 by the time it was read.
      **Sized:** RE-9, `replacement-architecture.md` §9 — one
      `GameAction::ProduceMana`, one performer replacing two writers, ~300
      engine lines; the A/B on the hottest path is the risk, not the diff.
+
+## Found by the CV-1 review (2026-09-02; absorbed 2026-09-03)
+
+### Item 69 — closed 2026-09-15 by the post-RE audit's pass 3
+
+**What closed it.** Two halves, and both landed without this item being
+touched. `fuzz_games --players N` shipped with RE-7 on 2026-09-13 —
+`fuzz-record.md`'s blocks carry four-seat columns from RE-7 on — which was
+the whole of the "Sized" line, and RE-7's CR 800.4a work answered the
+"Blocked on CR 800" line the same day. The Commander-scale board was
+measured on 2026-09-15 by a throwaway probe: four 100-card decks at 40 life
+on both pools, 100 games each at seed 12345 — 83 turns a game against 61–62
+at 60 cards, 29.6–31.7 permanents on the battlefield at a priority prompt
+(max 78–81) against 25.0–26.6 (max 69–73), 406 / 889 objects at most
+(`performance` / `stress`) against 246 / 253, and 87 / 137 ms of CPU a game
+against 51 / 76 ms. So the board is about 1.2× the size and the game about
+1.7–1.8× the cost, and the cost is mostly length. The numbers live in
+`codebase-state.md` items 138 and 143, which re-rank the levers this item
+said to re-measure first. **What the item had wrong:** its opening sentence
+was stale from RE-7 on.
+
+*Original entry:*
+
+69. **Every performance number this project owns is two-player, and v1's
+    profile is four (recorded 2026-09-07).** `fuzz_games` builds
+    `Game::new(config, vec![deck1, deck2])` — a literal pair, no `--players`
+    flag — so `fuzz-record.md`'s tables, `layers-architecture.md` §12's
+    measurements and §13b's scaling table all describe a board the target use
+    case does not build. `Game::new` already takes a `Vec` of decks and
+    `GameState.players` is a `Vec`, so the harness is the only thing that is
+    two-player here.
+
+    **Why it matters more than a percentage.** Since 7a the cost model is
+    roughly *board walks × cost of one pass*, and a pass is linear in members
+    and in the applications each layer holds. Both scale with player count: a
+    four-player Commander board carries several times the permanents of a
+    pooled two-player game, and several times the static abilities. The LI-1
+    scaling table is the one to read, and it spans two orders of magnitude
+    across the range a real board covers — 6.4 µs at 10 permanents with one
+    row, 1,195 µs at 80 with 80. Which end v1 sits at is not known, and no
+    amount of two-player fuzzing will say.
+
+    **This is the measurement to bump, not the optimizations.** The two
+    remaining answer-preserving levers — the `Arc<Vec<AbilityDef>>` elision
+    (item 67) and interning `EffectGroup` (§12) — were both measured *before*
+    7a cut walks per game by ~40×, and item 67 already says re-measure before
+    paying. Optimising a two-player 70-card profile for a four-player
+    Commander target is optimising the wrong board; the fix is to be able to
+    see the right one.
+
+    **What triggers do and do not change.** Item 6 adds *queries* — a
+    characteristics read per trigger condition and per intervening "if" — and
+    since 7a most of those are memo hits against an unchanged board. What it
+    adds to the cost model is *writes*, which bump the epoch and force a fresh
+    pass. So triggers move the `Board walks` term, which the harness already
+    prints, rather than introducing a term nobody has measured. That is why
+    the board-size question can be asked now and the query-volume question
+    cannot: the first is a property of the game state, the second of a system
+    that does not exist.
+
+    **Reachability (2026-09-07):** reachable — not a wrong answer, a blind
+    spot. Nothing is mis-computed; the profile is simply invisible.
+
+    **Sized:** `--players N` on `fuzz_games` plus `random_deck` per player and
+    the two-player assumptions in the harness's own summary rows, ~80–120
+    lines. Independently owed by `CLAUDE.md`'s "write new systems N-player-shaped
+    from the start" — the harness is a system and it is not. **Blocked on CR
+    800** for a game that *runs* correctly past two players (priority passes
+    loop player0 → player1, line 189 above), so the honest order is: CR 800,
+    then this, then re-measure, then choose a lever.

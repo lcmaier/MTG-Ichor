@@ -265,6 +265,59 @@ which is Phase 10's and not this pass's.
 
 **Size:** one sitting of measurement, one docs PR.
 
+**Done 2026-09-15**, branch `audit/pass-3-parallel-play`, one docs PR (the
+number is in §7) plus one instrument, `plans/panic_surface.py`. Measured
+rather than argued, with three throwaway probes around `fuzz_games`' own
+decks and streams (draw for draw, so the games are the fixture tables'): a
+counting provider for the decision census, a clone timer with a counting
+allocator, and item 41's fork test — record every answer, clone at a round
+start, replay, compare with ids masked. What landed where: **the target** —
+`codebase-state.md` item 138, 20,000 decisions per core-second at four
+seats on `performance` and 10,000 at Commander scale against 10,000 and
+7,950 today, a decision being a prompt with two or more options (91.5% of
+priority prompts are forced passes), the twelfth and thirteenth counters
+sized at ~80 lines and not built, and the levers ranked — worker scaling
+first for a batch (6.0× on eight cores at +31% CPU a game, measured), §12's
+oracle traffic and the per-prompt candidate enumeration next pending the
+profile, the event-log window first for the fork use case, item 136's fast
+path last; **the profile, owed** — no sampling profiler runs unprivileged on
+this machine, so a symbolized binary was built into `mtgsim/target-prof/`
+and the recipe is below; **the panic surface** — item 142, 60 release-active
+engine sites of four kinds, against the 375 unit-test unwraps the raw count
+had folded in; **the clone at Commander scale** — item 143, §4's table
+extended with bytes and allocations, 5–6 µs and 69–92 KB a clone without
+the log, 125 µs and 786 KB with it; **the inner asks** — `backlog.md`
+§2.22's table, 24 asks in three classes plus the residual (about 2–7 a game
+at four seats: CR 616.1's affected player, a targeted discard, a legend
+rule or commander SBA on someone else's permanent), with three of the 24
+turn-based actions' own boundaries rather than parameters of anything;
+**item 41** promoted to a requirement with its RNG question decided (a fork
+carries both streams; determinization reseeds the branch's provider), and
+the test itself found the one thing on the stack that should not be — item
+139, the retry re-prompt's stale candidate list (779 forks, 741 identical,
+all 38 divergences that one mechanism) — and the one entry point missing,
+item 140; **serialization** — item 141, 36 types and 788 lines in the
+closure, free on the straight-line path and dearer than the engine per
+prompt out of process, with the `&GameState` parameter kept as the
+observation hook; **item 69** closed and evicted. Three things this pass's
+brief had wrong, corrected where they sat: `ChoiceOption` has 12 variants,
+not 13; §4's "hundreds of decisions" is 2,544 prompts and 513 decisions;
+and §4's "the provider sees a `ChoiceContext`, not the state" — every
+method takes `&GameState`.
+
+**The profile recipe, for whoever holds an administrator prompt.** `samply`
+(installed 2026-09-15; a Mozilla tool, and `cargo install --locked samply`
+is the hygienic spelling next time) over the symbolized build:
+`CARGO_PROFILE_RELEASE_DEBUG=2 cargo build --release --bin fuzz_games
+--target-dir target-prof` in `mtgsim/`, then from an elevated PowerShell
+`samply record --save-only --rate 4000 -o prof_stress4.json.gz
+.\target-prof\release\fuzz_games.exe --games 200 --seed 12345 --threads 1
+--players 4 --pool stress`. The saved file is Firefox Profiler JSON, which
+a script reads for inclusive and self time by function; the reading goes to
+`layers-architecture.md` §12 and re-orders item 138's list. Docker and WSL
+were considered for callgrind and declined for the toolchain surface each
+adds; the counters are the exact half of the instrument already.
+
 ### Pass 4 — scheduling
 
 **Goal:** what sits between now and the triggers doc, and in what order.
@@ -348,7 +401,12 @@ design constraint with a deadline.
 **The fork point — decided (owner, 2026-09-15).** Decisions are asked
 through `DecisionProvider` *inside* engine calls, mid-resolution and
 mid-batch, while the engine holds `&mut GameState`; the provider sees a
-`ChoiceContext`, not the state. Of the two shapes — fork only at priority
+`ChoiceContext`, not the state [**corrected by pass 3, 2026-09-15:** the
+trait hands every one of its four methods `game: &GameState`
+(`ui/decision.rs`), and `RandomDecisionProvider` reads it for its tap
+preference and its X value; the `ChoiceContext` is the *prompt*, and the
+state parameter is the observation hook — `codebase-state.md` item 141
+decides to keep it]. Of the two shapes — fork only at priority
 boundaries and answer inner asks from a policy, or a suspend-at-decision mode
 in the engine — the owner chose **priority boundaries**, and for a reason
 stronger than the engineering one: an RL agent should never be handed a view
@@ -362,6 +420,12 @@ engine, all pass 3's to write down:
    ordering — is either a *parameter of the action chosen at priority* (the
    action space is complete legal actions, sub-choices resolved) or answered
    by a policy the harness supplies; it is never a separate observation.
+   [**Pass 3, 2026-09-15:** not a fact about the tree — `PriorityAction` is
+   four variants carrying no sub-choice, and targets, modes, X, the costs
+   and the payment are separate asks made after the action is chosen; the
+   24 asks are classified in `backlog.md` §2.22's table, and three of them
+   — attackers, blockers, damage assignment — are turn-based actions' own
+   decisions, boundaries of their own rather than parameters of anything.]
    Pass 3 enumerates which asks are which. The residual to design for, not
    the rule: an ask that lands on the *other* player mid-resolution (CR
    616.1's affected player choosing among two or more, and CR 603.3b's
@@ -406,16 +470,41 @@ measurement: a four-seat random game is ~45 ms of CPU across on the order of
 hundreds of decisions, so the engine advances a game between decisions in
 roughly 100 µs; a small policy net batched over a thousand games is about a
 millisecond on a GPU; so a few dozen cores keep one GPU fed, and the engine's
-job is to stay off the profile.
+job is to stay off the profile. [**Measured by pass 3, 2026-09-15
+(`codebase-state.md` item 138):** a four-seat `performance` game is 2,544
+provider prompts, of which **513** offer two or more options — 188 at
+priority, the other 2,031 priority prompts being forced passes, and 325
+inner asks — in 51 ms of CPU: 20 µs between prompts, **~100 µs between
+decisions**, 10,000 decisions per core-second; at Commander scale 692 in
+87 ms, 7,950 per core-second. So the estimate's µs was right and its count
+was an order of magnitude low, and "a few dozen cores" becomes about a
+hundred per GPU at today's rate, or fifty at the proposed target. The
+harness rule that falls out: the batched boundary advances past a forced
+prompt without an observation, or 92% of what it ships is a view with one
+legal action — exactly the view §4's rule forbids handing an agent.]
 
 **Still open, and pass 3's to measure or propose:**
 
 - Memory per fork at Commander scale (four 100-card decks, ~40 permanents),
   and the clone at that scale — the table above is 60-card random decks.
+  **Measured 2026-09-15, `codebase-state.md` item 143**, same method, the
+  table extended with bytes and allocations per clone: four 100-card decks
+  at 40 life, `stress`, seed 12345 — 400 objects, 41 permanents at turn 40
+  and 64 at turn 80; **5.3–6.1 µs and 69–92 KB a clone with the log out,
+  21–125 µs and 227–786 KB with it** (258 → 1,662 allocations); the log is
+  the whole of the growth, as item 42 says, and at 60 cards the no-log clone
+  reads 2.2–4.5 µs and 43–67 KB, so the board's size costs a fork about a
+  microsecond and the game's length costs it a hundred.
 - The throughput target, which nothing states, in the metric the paragraph
   above settles: **decisions per core-second at four seats** — the unit an
   RL loop consumes — with random providers, as a floor the fixture table can
-  watch. Pass 3 proposes the number; the owner sets it.
+  watch. Pass 3 proposes the number; the owner sets it. **Proposed
+  2026-09-15, item 138: 20,000 at four seats on the 60-card `performance`
+  board and 10,000 at Commander scale, against 10,000 and 7,950 today**,
+  with the instrument that reads it — a decision is a prompt with two or
+  more options, counted by a twelfth `EngineCounters` cell and read beside
+  `CPU/game` — sized at ~50 lines and not built (§3's rule: measurement and
+  docs, no engine code).
 
 ## 5. Where findings land
 
@@ -648,3 +737,82 @@ than the paste.
 > checks each pass on their own exit code; the instrument re-run and its
 > count recorded in §2.1; handoff §7's pass 2 row updated with the PR
 > numbers; PRs opened, merge left to the owner.
+
+## 10. Pass 4 brief
+
+Written 2026-09-15 at pass 3's close, every number read from the tree that
+day. Paste this to start pass 4. Read this file first; it may be newer than
+the paste.
+
+> **Pass 4 of the post-RE audit — scheduling.** One docs PR,
+> `audit/pass-4-scheduling`, off `main` after pass 3's PR merges.
+> `plans/handoffs/post-re-audit.md` is the contract: §3's pass 4 block is
+> the goal, §5 says where findings land, §6 decision 5 is the
+> recurring-audit decision, and **this is the last pass, so its PR deletes
+> the handoff** (the file's own rule, first paragraph) and writes the
+> audit's record as a `### … — audited 2026-09-15` heading in
+> `codebase-state.md` (§5's last bullet). The two after-the-passes
+> artifacts — the codebase map and the Rust notes — need a home for their
+> status before the file goes: a `backlog.md` §2 entry or a `roadmap-v2.md`
+> row, the owner's call.
+>
+> **Read first, in this order:** `cant-effects-architecture.md` §7.1 (the
+> Track R/S reading; its rows 9, 11, 12, 14 are RS-2, RS-4, RS-3a, RS-3b,
+> all open and all unblocked since item 7 landed on 2026-09-06);
+> `copy-effects-architecture.md` §7.1 and its phase table (CV-1b and
+> CV-2–CV-7 open; CV-7 back-stopped before Phase 8); `layers-architecture.md`
+> §13c's list of open layers items; `backlog.md` §2.24 ("as though", 287
+> cards, sized as a `Permission` mirror of `Restriction`, no doc), §2.9 (the
+> information model, before Phase 8's reveal cards and before Phase 10),
+> §2.20 (several target clauses, back-stopped before RS-2 and before A6's
+> first PR), §2.22 (the middleware census, now with pass 3's ask table);
+> `roadmap-v2.md` §3a rows A4b (the rulings ledger, "1 + a sitting", the
+> owner's between-phases slot), A4c (the trace sink, 1 PR, ordering-free)
+> and A6 (the triggers doc, unsized — "write its doc first"); pass 1's
+> outputs (§3's pass 1 block; `codebase-state.md`'s "Found by the post-RE
+> audit (2026-09-15)") and pass 3's (items 138–143; `backlog.md` §2.22's
+> table); `engineering-practices.md` §8, for the shape a numbered section
+> of that file takes.
+>
+> **Verified against the tree, 2026-09-15:** no triggers architecture doc
+> exists. `atomic-tests/supplemental-docs/state-tracking-architecture.md`
+> numbers **five** problems, not the four §3's pass 4 block says — CR
+> 603.8's mid-resolution state triggers, 603.1b's multi-condition triggers,
+> cross-turn lookback, resolution counting, and CR 731's loop detection,
+> the last owned by `backlog.md` §2.28 — and CR 603.10a's visibility seam
+> and CR 121.2c's ordering (main item 122) are A6's two named seams.
+> `plans/handoffs/` holds this file alone. Pass 3 left three engine items
+> scheduled against the harness rather than the spine — item 139 (~5 lines,
+> its own PR with an A/B, carrying item 41's test), item 140 (~80 lines,
+> after 139), item 138's two counters (~80 lines, no A/B) — and none gates
+> the triggers doc.
+>
+> **The checklist:**
+> 1. **The table** — one row per open track phase and lattice entry: RS-2,
+>    RS-3a, RS-3b, RS-4; CV-1b, CV-2–CV-7; A4b, A4c; §2.24, §2.9, §2.20,
+>    §2.22's census; pass 3's items 138–140. Columns: what it unlocks in
+>    cards (cite `cards-unlocked-ledger.md` and each doc's consumer lists;
+>    re-derive no Scryfall count) and in atoms (`specdb.py`), what it needs,
+>    and which of the triggers doc's questions — the five problems above,
+>    the two seams — needs it first.
+> 2. **A proposed order for the between-phases slot** — the owner decides;
+>    this pass proposes. A4b already holds the slot; say what sits beside
+>    it and what waits for the doc.
+> 3. **The audit as a recurring practice** — `engineering-practices.md` §9,
+>    with this run as the first instance: the cadence (each spine-phase
+>    close, §6 decision 5); the passes (close-out, eviction, hygiene and CI,
+>    readiness, scheduling); and each pass's instrument by name — the board
+>    and `specdb owed --phase`; the ≤40-line stub rule and the archive;
+>    §2.1's grep tiers and the clippy count; the census provider, the clone
+>    timer, the fork record-and-replay, `plans/panic_surface.py` and the
+>    three-run contention read; the table this pass produces.
+> 4. **The record** — the `### … — audited 2026-09-15` heading in
+>    `codebase-state.md`, pointers not prose; then delete this file.
+>
+> **Binding rules:** docs only; no count re-derived that a doc already
+> carries with a date; American spelling; a number in a heading is a number
+> that will be wrong.
+>
+> **Exit:** one docs PR; the four checks each on their own exit code;
+> `check_state_of_play.py --write` (deleting the handoff moves the board's
+> half-finished list) then `--check`; merge left to the owner.

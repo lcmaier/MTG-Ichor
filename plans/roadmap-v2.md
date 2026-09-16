@@ -316,12 +316,20 @@ measurement this row does not own.** Until RE-7 every number the project had
 was two-player, because `fuzz_games` built a literal pair of decks; since
 2026-09-13 the harness takes `--players`, every `fuzz-record.md` block
 carries two- and four-seat columns (RE-9's: 13.98 ms and 44.83 ms CPU per
-game), and what is still missing is the *Commander-scale* board — four
-100-card decks, ~40 permanents — which is main item 69's remaining half and
-pass 3 of `plans/handoffs/post-re-audit.md`'s to measure, in the metric that
-handoff settles (decisions per core-second at four seats). So the order is:
-that measurement, then pick a lever against it. Choosing one now would be
-tuning the wrong board. Network play is a stretch goal. Milestone:
+game), and the *Commander-scale* board — four 100-card decks at 40 life —
+was measured by pass 3 of `plans/handoffs/post-re-audit.md` (2026-09-15,
+`codebase-state.md` items 138 and 143): 83-turn games holding ~30 permanents
+at a priority prompt (max 78–81), 87 ms (`performance`) and 137 ms
+(`stress`) of CPU a game against 51 and 76 ms for 60-card decks, and a clone
+of 5–6 µs without the event log, 125 µs with it. In the metric that handoff
+settles — decisions per core-second at four seats, a decision being a prompt
+with two or more options — the engine reads **10,000** on the 60-card
+`performance` board and **7,950** at Commander scale; item 138 proposes the
+target (20,000 and 10,000) for the owner to set and ranks the levers against
+it, item 141 answers the serialization question, and the fork test (main
+item 41, promoted to a requirement) found the one thing on the stack that
+should not be, main item 139. So the order is: the owner sets the number,
+then pick a lever against it. Network play is a stretch goal. Milestone:
 **user-ready**, which is v1.
 
 **Sizing, with §8's caveat.** Rows A and B sum to roughly the ~35–40 PRs §8
