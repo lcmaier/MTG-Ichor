@@ -1407,7 +1407,7 @@ needs the close-out and readiness.
    count re-derived) and in atoms (`spec.sqlite` by rule prefix, the prefixes
    named), what it needs, and which of the next spine phase's design questions
    needs it landed first; then a proposed order for the between-phases slot.
-   The pass proposes; the owner decides. The instance is `roadmap-v2.md` §3b.
+   The pass proposes; the owner decides. The first instance is `roadmap-v2.md` §3a's A table — the between-phases rows it gained on 2026-09-15, which §3b explains.
 
 **Binding rules across passes.** Docs and small fixes only — anything larger
 becomes a scheduled item with an owner. No count is re-derived that a doc
@@ -1442,7 +1442,7 @@ the brief says so about itself.
   and ratchet; `layers-architecture.md` §12's callgrind subsection;
   `backlog.md` §2.22's ask table; `plans/panic_surface.py`; item 41 promoted
   to a requirement and item 69 closed.
-- **Scheduling (PR #154):** `roadmap-v2.md` §3b, this section, and the audited heading
+- **Scheduling (PR #154):** `roadmap-v2.md` §3a's A table (the `A4x` rows) and §3b, this section, and the audited heading
   above; the two after-the-passes artifacts — the codebase map (§7.1's tier 3)
   and the Rust notes — homed at `roadmap-v2.md` row A4d.
 

@@ -16,7 +16,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; the replacement and restriction sweeps still visit the battlefield alone, `replacement-architecture.md` §11 item 4). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the gather's zone leg (`replacement-architecture.md` §11 item 4, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3b): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
+- **What is next on the spine:** the gather's zone leg (`replacement-architecture.md` §11 item 4, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
 - **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
@@ -4298,9 +4298,10 @@ through RB", and `owed` scoped to three older phases at every RE close.
   §12's callgrind subsection and the levers ranked by it; `backlog.md`
   §2.22's ask table; item 41 promoted to a requirement and its RNG question
   decided; item 69 closed.
-- **Pass 4, scheduling (PR #154):** `roadmap-v2.md` §3b — one table over every open
-  track phase and lattice entry, and a proposed order for the between-phases
-  slot; `engineering-practices.md` §9; the codebase map and the Rust notes
+- **Pass 4, scheduling (PR #154):** `roadmap-v2.md` §3a's A table, the one
+  path-to-triggers table, extended in proposed order by the between-phases
+  rows (the `A4x` family) with what each owes the doc, and the B rows with
+  their atoms; §3b explains it; `engineering-practices.md` §9; the codebase map and the Rust notes
   homed at `roadmap-v2.md` row A4d; this heading, and the handoff deleted.
 
 **The board at the close** (`state-of-play.md`, 2026-09-15): 193 items, three
@@ -6449,10 +6450,16 @@ Commander-scale board closes item 69.
         every memo, object and battlefield lookup (13.5 M `is_creature`
         lookups in 200 games alone). Both ids are v4, so a `BuildHasher`
         reading the low 64 bits is a load: ~30 lines plus a mechanical sweep
-        of 20 map declarations, answer-preserving. The one cost: iteration
-        order becomes process-independent, so the three-run determinism
-        check stops catching an order-dependent sweep unless `RandomState`
-        stays on for that check. **Rank 2.**
+        of 20 map declarations, answer-preserving. The caveat this lever first carried — that a fixed hasher makes
+        `HashMap` iteration order process-independent — is **wrong while the
+        keys are v4 UUIDs** (corrected 2026-09-16, pass 4's review): the keys
+        themselves are minted from the OS per process, so the order stays
+        per-process random under any hasher (`game_state.rs`'s own note under
+        `battlefield_ordered`) and the three-run determinism check keeps
+        catching an order-dependent sweep. The order becomes process-stable
+        only if the ids do — a per-game counter in place of v4, the same change
+        that would retire the log masks — and *that* change re-arms the check.
+        Which key the lever hashes is `roadmap-v2.md` A4g's question. **Rank 2.**
      3. **The SBA sweep's per-permanent questions** — `is_creature` 65,000
         times a game, 14.7% inclusive, one per permanent per check; one
         frame read per permanent (§12's `has_subtype` finding, now sized),
