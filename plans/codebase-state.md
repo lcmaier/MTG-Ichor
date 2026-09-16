@@ -6979,14 +6979,16 @@ owner decided it the same day.
      to refuse. **A fixture that scripts an answer is a record of what the engine
      asks**, which is why 40 of them moved and why none was deleted.
 
-     **One middleware lost a job to it, and that is the census's to settle.**
-     `AutoPayer::allocate` answers `GenericManaAllocation` "when forced" and
+     **One middleware lost one job to it — the smallest of three.**
      `auto_payer::split_is_forced` is the same predicate `forced_allocation`
-     now applies one layer down, so the payer's CR 601.2h half cannot fire from
-     a game any more. Nothing was deleted and nothing is wrong
-     (`cost-architecture.md` §3.4, `backlog.md` §2.22's row). The line worth
-     keeping: **a prompt with one legal answer belongs to the engine, not to a
-     middleware** — a decorator can only spare a round trip the engine had
+     applies one layer down, so `AutoPayer::allocate`'s forced branch is not
+     reached from a game. It keeps `OrderCostReductions`, and it keeps the
+     thing §3.4 built it for: never taking a split while the pool has surplus,
+     which is what leaves `{U}{U}` up for Counterspell. Whether the dead branch
+     retires is the census's — `backlog.md` §2.22, which owns the middleware
+     stack; `cost-architecture.md` §3.4 carries a note and no more. The line
+     worth keeping: **a prompt with one legal answer belongs to the engine, not
+     to a middleware** — a decorator can only spare a round trip the engine had
      already decided to spend.
 
      **Reachability (2026-09-16):** closed — fixed.
