@@ -558,7 +558,13 @@ without a written reason. The owner chose a ratchet over an absolute rate
 because today's pool has few abilities per permanent and no triggers, so a
 number about this board is a floor of Commander's cost rather than a target;
 "as little as possible" is the goal, and this is the form of it that can be
-watched.
+watched. **The reading that travels across machines is an instruction
+count**, not a millisecond: `valgrind --tool=callgrind` over `fuzz_games` at a
+fixed seed in the WSL Ubuntu distro (a four-seat `stress` game is ~2.8 s under
+it, so 200 games take ten minutes, and the counters outside `=== Timing ===`
+come out identical to the native run's), first taken by item 138 on
+2026-09-15 and read in `layers-architecture.md` §12; milliseconds stay in the
+A/B sitting.
 
 **Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
 byte-identical across runs at one seed and at any `--threads`, so `fuzz_ab.py`

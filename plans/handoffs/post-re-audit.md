@@ -279,13 +279,16 @@ decision, cores per GPU as the use-case check) with 10,000 at four seats on
 `performance` and 7,950 at Commander scale as the first reading, a decision
 being a prompt with two or more options (91.5% of priority prompts are
 forced passes), the twelfth and thirteenth counters
-sized at ~80 lines and not built, and the levers ranked — worker scaling
-first for a batch (6.0× on eight cores at +31% CPU a game, measured), §12's
-oracle traffic and the per-prompt candidate enumeration next pending the
-profile, the event-log window first for the fork use case, item 136's fast
-path last; **the profile, owed** — no sampling profiler runs unprivileged on
-this machine, so a symbolized binary was built into `mtgsim/target-prof/`
-and the recipe is below; **the panic surface** — item 142, 60 release-active
+sized at ~80 lines and not built, and the levers ranked by the profile's
+instruction shares — the ability list behind an `Arc` (22.5%) and an id
+hasher in place of SipHash (22.1%) first, the SBA sweep's per-permanent
+questions and the per-prompt enumeration next, worker scaling first for a
+batch (6.0× on eight cores at +31% CPU a game), the event-log window first
+for the fork use case, item 136's fast path last; **the profile** — taken
+after the review, callgrind under WSL
+over 200 four-seat `stress` games, the instrument `engineering-practices.md`
+§3 now names for cost, its reading in `layers-architecture.md` §12 and
+item 138's lever order; **the panic surface** — item 142, 60 release-active
 engine sites of four kinds, against the 375 unit-test unwraps the raw count
 had folded in; **the clone at Commander scale** — item 143, §4's table
 extended with bytes and allocations, 5–6 µs and 69–92 KB a clone without
@@ -307,41 +310,6 @@ brief had wrong, corrected where they sat: `ChoiceOption` has 12 variants,
 not 13; §4's "hundreds of decisions" is 2,544 prompts and 513 decisions;
 and §4's "the provider sees a `ChoiceContext`, not the state" — every
 method takes `&GameState`.
-
-**The profile recipe, for whoever holds an administrator prompt.** `samply`
-(installed 2026-09-15; a Mozilla tool, and `cargo install --locked samply`
-is the hygienic spelling next time) over the symbolized build. **Each
-command is one line** — a wrapped paste runs `cargo build` alone, a dev
-build into the shared `target/`, and then fails on `--release`. The build,
-in `mtgsim/`, from Git Bash:
-
-    CARGO_PROFILE_RELEASE_DEBUG=2 cargo build --release --bin fuzz_games --target-dir target-prof
-
-From PowerShell, which has no `VAR=value command` prefix:
-
-    $env:CARGO_PROFILE_RELEASE_DEBUG = "2"; cargo build --release --bin fuzz_games --target-dir target-prof
-
-The 2026-09-15 build is already in `mtgsim/target-prof/release/`, so today
-the elevated command alone suffices, from an Administrator PowerShell in
-`mtgsim/`:
-
-    samply record --save-only --rate 4000 -o prof_stress4.json.gz .\target-prof\release\fuzz_games.exe --games 200 --seed 12345 --threads 1 --players 4 --pool stress
-
-**On Windows `samply` drives ETW through `xperf`, which is not installed
-here** (found 2026-09-15 when the line was first run): `xperf` is the
-Windows Performance Toolkit, a Microsoft-signed component of the Windows
-ADK, installed by unchecking everything but that toolkit in the ADK
-installer. The saved file is Firefox Profiler JSON, which a script reads for
-inclusive and self time by function; the reading goes to
-`layers-architecture.md` §12 and re-orders item 138's list. **The
-alternative that needs neither an administrator prompt nor the ADK is
-WSL**: an Ubuntu distro with rustup and `valgrind`, where `perf` samples
-unprivileged and callgrind's instruction counts at a fixed seed are stable
-to well under a percent — the cost fixture §3 lacks, and the instrument
-that makes the ratchet's readings comparable across closes without machine
-drift. Docker and WSL were first declined for the toolchain surface each
-adds; with the ratchet chosen, WSL's callgrind is the better long-term
-instrument, and the owner's call.
 
 ### Pass 4 — scheduling
 

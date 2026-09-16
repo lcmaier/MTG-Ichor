@@ -1179,6 +1179,15 @@ registered card returns an object.
     copied board (Mirrorform onto twenty permanents) measures it, or with §12's
     next perf item.
 
+    **Re-measured 2026-09-15 (callgrind, the post-RE audit's pass 3; item
+    138's lever 1).** Cloning `Vec<AbilityDef>` is 22.5% of all instructions
+    in a four-seat `stress` game: 6.6% is this item's per-frame clone from
+    `CardData` on a walk, and ~15% is `get_effective_abilities` cloning the
+    list out of a memo hit for the enumeration wrappers and the two sweeps —
+    so the `Arc` this item names is the largest single lever the engine has,
+    the wrapper returns the `Arc` with it, and "re-measure before paying" is
+    paid.
+
 68. **A `ChoiceKind` is named for the question, never for the card (C3).** Asked
     whether the vocabulary should be swept and designed ahead; no — appending a
     variant is O(1) (`ChooseCopySource` cost 14 lines across two files, both DPs
@@ -6313,67 +6322,80 @@ Commander-scale board closes item 69.
      in an A/B sitting, never a stored millisecond
      (`engineering-practices.md` §3).
 
-     **The levers, sized and ranked by what each returns per decision.** The
-     profile that would order the top three precisely is owed (below).
+     **The profile, taken** — after the review, callgrind under WSL over 200
+     four-seat `stress` games (`layers-architecture.md` §12, "Measured at
+     four seats on `stress`, 2026-09-15"): 865 M instructions a game, the
+     counters identical to the native run's, and the engine's own logic a
+     minor share — the instructions go to cloning, hashing and allocating
+     the ability tree. The ranking below is that profile's.
 
-     1. **Worker-thread scaling, and the allocator** — a worker is one of
+     **The levers, sized and ranked by instruction share** — the profile's
+     inclusive figures, which overlap, so they do not add:
+
+     1. **The ability list behind an `Arc`** — 22.5% of all instructions
+        clone `Vec<AbilityDef>`: 6.6% seeding a frame from `CardData` on a
+        walk (item 67), and ~15% `get_effective_abilities` copying the list
+        *out of a memo hit* for `activatable_abilities`,
+        `available_mana_sources`, `is_prohibited` and `gather`.
+        `CardData.abilities` and `EffectiveCharacteristics.abilities` as
+        `Arc<Vec<AbilityDef>>`, the wrapper returning the `Arc`,
+        `Arc::make_mut` in the Layer 4 and 6 arms — item 67's shape,
+        ~100–150 lines plus 13 call sites, answer-preserving — and most of
+        the 24% spent in `malloc` and `free` goes with it. **Rank 1.**
+     2. **An id hasher** — 22.1% hashes 16-byte `Uuid` keys with SipHash for
+        every memo, object and battlefield lookup (13.5 M `is_creature`
+        lookups in 200 games alone). Both ids are v4, so a `BuildHasher`
+        reading the low 64 bits is a load: ~30 lines plus a mechanical sweep
+        of 20 map declarations, answer-preserving. The one cost: iteration
+        order becomes process-independent, so the three-run determinism
+        check stops catching an order-dependent sweep unless `RandomState`
+        stays on for that check. **Rank 2.**
+     3. **The SBA sweep's per-permanent questions** — `is_creature` 65,000
+        times a game, 14.7% inclusive, one per permanent per check; one
+        frame read per permanent (§12's `has_subtype` finding, now sized),
+        ~40 lines. **Rank 3**, and mostly lever 2 in another place.
+     4. **The candidate list per priority prompt** — 27.2% inclusive for
+        2,462 prompts a game, 91.5% of them `[Pass]`; the enumeration is
+        levers 1 and 2 at work, so its residual is measured after they
+        land. A "nothing to do" pre-check or an epoch-keyed cached list is
+        the shape, ~30 lines. Item 139 makes the list right; this makes it
+        cheap. **Rank 4, re-measure first.**
+     5. **The mana window** — 15.0%: CR 601.2g's loop re-enumerates every
+        mana ability per prompt, 394 times a game at ~220,000 instructions
+        each. Levers 1 and 2 shrink it; `backlog.md` §2.18's solver removes
+        it, one enumeration per cast. **Rank 5.**
+     6. **The timestamp sort** — `battlefield_ordered` and
+        `battlefield_ids_ordered` sort on every call, 5.1%; an order cached
+        per epoch, ~30 lines, 42 call sites untouched. **Rank 6.**
+     7. **Worker-thread scaling, and the allocator** — a worker is one of
         `fuzz_games --threads N`'s OS threads, each playing whole games one
         after another, and the harness multiplies everything. Measured the
-        same day, 200 games, `performance` at four
-        seats: 52.2 ms of CPU a game at one worker, 68.3 at eight (+31%),
-        99.1 at sixteen (+90%); wall-clock 52.9 → 8.79 → 6.46 ms a game,
-        **6.0× on eight physical cores and 8.2× on sixteen threads**;
-        `stress` reads +29% / +82% and 6.1× / 7.7×; every counter identical
-        across worker counts. The inflation is what a global allocator or
-        less allocation could recover — up to a quarter of a full box's
-        throughput at eight workers, a third at sixteen — and the
-        2026-08-24 reading (+113% at sixteen, 6.7×) says the epoch memo
-        already took some of it. Sized: a `#[global_allocator]` line and one
-        dependency — the supply-chain cost the owner raised on 2026-09-15 is
-        the whole price — measured with these three runs. **Rank 1 for a
-        batch harness, nothing for one core.** One doctrine line falls out
-        now: `--threads` defaults to sixteen here and eight is the efficient
-        count.
-     2. **The oracle traffic §12 named** (`layers-architecture.md`, the 7a
-        residual): the SBA sweep's three `has_subtype` questions per
-        permanent per check where one frame read answers all three, and
-        `get_effective_abilities`' deep clone out of a memo hit (12,923 a
-        game at two seats). Sized there, ~40 and ~30 lines,
-        answer-preserving; those two are about half the questions asked, at
-        ~100 ns each — of the order of 10–20% of a game. **Rank 2, pending
-        the profile.**
-     3. **The candidate list per priority prompt**: `candidate_priority_actions`
-        runs 2,219 times a four-seat game and 91.5% of the lists it builds
-        are `[Pass]`, with the enumeration (`castable_spells` and its
-        affordability heuristic, `activatable_abilities`) paid in full for a
-        prompt that offers nothing. A "nothing to do" pre-check — no untapped
-        source, no land drop, no free spell — or a dirty flag on the list is
-        answer-preserving; unsized without the profile (5% to 30%). Item
-        139's recompute-after-rejection makes the list right; this makes it
-        cheap. **Rank 3, pending the profile.**
-     4. **Item 42, the event-log window**: nothing for straight-line
+        same day, 200 games, `performance` at four seats: 52.2 ms of CPU a
+        game at one worker, 68.3 at eight (+31%), 99.1 at sixteen (+90%);
+        wall-clock 52.9 → 8.79 → 6.46 ms a game, **6.0× on eight physical
+        cores and 8.2× on sixteen threads**; `stress` reads +29% / +82% and
+        6.1× / 7.7×; every counter identical across worker counts. The
+        inflation is what a global allocator or less allocation could
+        recover — up to a quarter of a full box's throughput at eight
+        workers, a third at sixteen — and lever 1 removes most of the
+        allocation before any allocator is chosen. Sized: a
+        `#[global_allocator]` line and one dependency — the supply-chain
+        cost the owner raised on 2026-09-15 is the whole price — measured
+        with these three runs, after lever 1. **Rank 7 on one core, rank 1
+        for a batch.** One doctrine line falls out now: `--threads` defaults
+        to sixteen here and eight is the efficient count.
+     8. **Item 42, the event-log window**: nothing for straight-line
         throughput; **rank 1 for the fork use case**, where the log is
         fifteen-twentieths of a clone (item 143).
-     5. **Item 67, `Arc<Vec<AbilityDef>>`**: 15,778 frames a four-seat game;
-        small. Rank 5.
-     6. **Item 136's fast path**: +1.2% at two seats, +0.7% at four — half of
-        one PR's budget. Rank last.
-     7. **Harness-side, not engine**: skipping forced prompts saves the
+     9. **Item 136's fast path**: +1.2% at two seats, +0.7% at four — half of
+        one PR's budget; `gather`'s 14.3% is levers 1 and 2 per permanent,
+        not the batch's fixed cost. Rank last.
+     10. **Harness-side, not engine**: skipping forced prompts saves the
         provider round trip (~0.5 µs × 2,000 in-process, ~2%; out of process
         it is the difference between shipping 2,544 views and 513). A forced
         prompt consumes no RNG draw (`RandomDecisionProvider::pick_n`
         shuffles a one-element list), so the skip is stream-neutral and an
         engine-side version would be A/B-identical by construction.
-
-     **The profile, owed.** No sampling profiler runs unprivileged on this
-     machine — no WSL distro, no administrator shell — so the profile at four
-     seats on `stress` was not taken in this pass. A symbolized `fuzz_games`
-     was built into `mtgsim/target-prof/` (`CARGO_PROFILE_RELEASE_DEBUG=2`,
-     a separate target dir, ignored locally) and the `samply record` line is
-     in the handoff's pass-3 block; its reading — which of levers 2 and 3 is
-     larger, and the hot `.clone()` sites the "clone question" asks about —
-     goes into `layers-architecture.md` §12 when it is taken and re-orders
-     this list.
 
      **Reachability (2026-09-15):** reachable — not wrong today; a ratchet
      whose first reading is recorded and whose instrument does not exist, so

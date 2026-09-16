@@ -1091,6 +1091,67 @@ frame read answers all three: the SBA sweep's attachment checks are half of
 everything the oracle hears. A finer memo key would address the 2.5%; those two
 address the rest, and both are content-neutral. Neither is this PR.
 
+### Measured at four seats on `stress`, 2026-09-15 — callgrind, the post-RE audit's pass 3
+
+**The instrument.** `valgrind --tool=callgrind` over `fuzz_games --games 200
+--seed 12345 --threads 1 --players 4 --pool stress`, the Linux build at
+`CARGO_PROFILE_RELEASE_DEBUG=2` in the WSL Ubuntu distro: 173.0 G instructions
+over 200 games, **865 M a game**, with every counter outside `=== Timing ===`
+identical to the native run's (62.0 turns a game, 0 errors, 0 panics), 524 s
+of wall clock — about 2.6 s a game against 76 ms native. Instruction counts at
+a fixed seed are the machine-independent half of a cost reading
+(`engineering-practices.md` §3.1); the shares below are of instructions,
+inclusive figures overlap, and `callgrind_annotate --inclusive=yes | c++filt`
+reproduces them.
+
+**Where the instructions go, by what the CPU is doing (self cost):**
+
+| | share | what |
+|---|---:|---|
+| SipHash of `Uuid` keys | ~25% | every memo, object and battlefield lookup hashes a 16-byte id with SipHash-1-3; `hash_one::<&Uuid>` is 22.1% inclusive |
+| `malloc` and `free` | ~24% | almost all of it the clones below |
+| `memcpy` | 7.4% | moving `AbilityDef`s and frames |
+| clone and drop glue of the ability tree | ~6% | `Effect::clone` is 10.5% inclusive; `ManaOutput`, `Vec<Cost>`, `AmountExpr`, `drop_glue::<Primitive>` |
+| sorting | ~3.3% | `battlefield_ordered` and `battlefield_ids_ordered` sort by timestamp on every call, 5.1% inclusive |
+| the engine's own logic | the rest | `compute_characteristics`' own body is 0.5% |
+
+**Where they go, by subsystem (inclusive, overlapping):**
+
+| function | share | reading |
+|---|---:|---|
+| `run_priority_round` | 87.1% | the game is the priority loop |
+| `compute_characteristics` | 34.6% | every oracle question, hits and misses |
+| `check_state_based_actions` | 31.0% | of which `is_creature` is 14.7% — 13.1 M lookups in 200 games, 65,000 a game, one per permanent per check |
+| `candidate_priority_actions` | 27.2% | 2,462 prompts a game, 91.5% of them `[Pass]`; `activatable_abilities` 17.1%, `castable_spells` 10.1% |
+| `execute_batch_inner` | 24.4% | the chokepoint; `apply_replacements` 20.2%, of which `gather` is 14.3% — 2,194 gathers a game at ~56,000 instructions each |
+| **`<AbilityDef as ConvertVec>::to_vec`** | **22.5%** | **the clone question's answer**: cloning `Vec<AbilityDef>` — 6.6% seeding a frame from `CardData` on a walk (item 67's lever), and ~15% `get_effective_abilities` copying the list *out of a memo hit* for `activatable_abilities` (5.6%), `available_mana_sources` (5.6%), `is_prohibited` (2.5%) and `gather` (1.2%) |
+| `hash_one::<&Uuid>` | 22.1% | `find_mana_sources` 11.6%, `enumerate_activatable_mana_abilities` 10.0%; `is_creature` 13.5 M lookups, `object_matches_filter` 10.5 M, `has_type` 7.0 M |
+| `run_mana_ability_window` | 15.0% | CR 601.2g's loop re-enumerates every mana ability per prompt — 394 enumerations a game at ~220,000 instructions each |
+| `Effect::clone` | 10.5% | inside the `to_vec` row |
+| `battlefield_ordered` + `battlefield_ids_ordered` | 5.1% | a sort per call, 42 call sites |
+| `LayerMemo::insert` + `Arc<EffectiveCharacteristics>` drops | 6.8% | the memo's own price; a finer key is still not the lever |
+
+**What follows, and `codebase-state.md` item 138 ranks it.** The engine's own
+logic is a minor share; the instructions go to moving, hashing and allocating
+the ability tree. Two answer-preserving changes cover most of it. (1) The
+ability list behind an `Arc`: `CardData.abilities` and
+`EffectiveCharacteristics.abilities` as `Arc<Vec<AbilityDef>>`,
+`get_effective_abilities` returning the `Arc`, `Arc::make_mut` in the Layer 4
+and 6 arms — item 67's shape, ~100–150 lines plus 13 call sites — which is the
+whole 22.5% and most of the allocation. (2) An id hasher: both `ObjectId` and
+`AbilityId` are v4 UUIDs, whose low 64 bits are already uniform, so a
+`BuildHasher` that reads them is a load instead of SipHash (20 map
+declarations, ~30 lines plus a mechanical sweep), most of the 22.1% — with one
+cost to write down: a fixed hasher makes `HashMap` iteration order
+process-independent, so the three-run determinism check stops catching an
+order-dependent sweep unless `RandomState` stays on for that check. The
+findings above this subsection stand, now with sizes: the SBA sweep's
+per-permanent questions and `get_effective_abilities`' copy are exactly what
+this measured. The per-prompt enumeration (27.2%) and the mana window (15.0%)
+are mostly (1) and (2) in another place; their residual is re-measured after
+those land, and the window's real fix is `backlog.md` §2.18's solver — one
+enumeration per cast rather than one per prompt.
+
 ---
 
 ## 13. Work-Phase Plan
