@@ -6300,8 +6300,10 @@ Commander-scale board closes item 69.
      **The levers, sized and ranked against 20,000.** The profile that would
      order the top three precisely is owed (below).
 
-     1. **Worker scaling, and the allocator** — the harness multiplies
-        everything. Measured the same day, 200 games, `performance` at four
+     1. **Worker-thread scaling, and the allocator** — a worker is one of
+        `fuzz_games --threads N`'s OS threads, each playing whole games one
+        after another, and the harness multiplies everything. Measured the
+        same day, 200 games, `performance` at four
         seats: 52.2 ms of CPU a game at one worker, 68.3 at eight (+31%),
         99.1 at sixteen (+90%); wall-clock 52.9 → 8.79 → 6.46 ms a game,
         **6.0× on eight physical cores and 8.2× on sixteen threads**;

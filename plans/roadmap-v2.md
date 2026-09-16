@@ -319,12 +319,16 @@ carries two- and four-seat columns (RE-9's: 13.98 ms and 44.83 ms CPU per
 game), and the *Commander-scale* board — four 100-card decks at 40 life —
 was measured by pass 3 of `plans/handoffs/post-re-audit.md` (2026-09-15,
 `codebase-state.md` items 138 and 143): 83-turn games holding ~30 permanents
-at a priority prompt (max 78–81), 87 ms (`performance`) and 137 ms
-(`stress`) of CPU a game against 51 and 76 ms for 60-card decks, and a clone
-of 5–6 µs without the event log, 125 µs with it. In the metric that handoff
-settles — decisions per core-second at four seats, a decision being a prompt
-with two or more options — the engine reads **10,000** on the 60-card
-`performance` board and **7,950** at Commander scale; item 138 proposes the
+at a priority prompt (max 78–81), 1.7–1.8× the CPU of a 60-card game, and
+a clone of 5–6 µs without the event log, 125 µs with it — the ratios
+travel; the milliseconds behind them (87 and 137 against 51 and 76) are
+one machine on 2026-09-15 and are stored nowhere as a fixture
+(`engineering-practices.md` §3). In the metric that handoff settles —
+decisions per core-second at four seats, a decision being a prompt with two
+or more options — the engine read **10,000** on the 60-card `performance`
+board and **7,950** at Commander scale that day, and the rate is read in an
+A/B sitting against seed-deterministic decision counts, never compared
+across machines; item 138 proposes the
 target (20,000 and 10,000) for the owner to set and ranks the levers against
 it, item 141 answers the serialization question, and the fork test (main
 item 41, promoted to a requirement) found the one thing on the stack that
