@@ -202,46 +202,44 @@ delivers it.
 
 ### A. The path to triggers
 
+**One table, in order.** Rows read top to bottom in the proposed order, and
+every row sits after what it needs; a label is a stable name other documents
+cite, never a rank — the `A4x` family is the between-phases slot after A4, and
+the post-RE audit's pass 4 filled it (2026-09-15, §3b), so it sits after A5's
+remainder. `CLAUDE.md` owns the ordering; this table carries the why and the
+proposal. Landed rows keep one line and a pointer to where their history
+lives.
+
 | # | Do this | Why here | PRs |
 |---|---|---|---:|
-| A1 | The CR 704.5d token-order leak (`codebase-state.md` main item 6) | the matcher reads that log; five lines and a test | 1 |
-| A2 | ✅ **LH-1, LH-2** (2026-09-04, 2026-09-05) — attachment as a layers input (critical-path 6b) | sized (`layers-architecture.md` §13a: ~730, ~900); Aura and Equipment triggers need `attached_to` as a fact the effective-ability list reads; must precede 7 | 2 |
-| A3 | ✅ **done 2026-09-06** — **the CR 613.8 cluster** (7), with the `Condition` AST for conditional statics ("Before Layers" 7f) | fixes the live board; the board-wide pass is the frame conditional statics and CR 603.4's intervening-ifs both evaluate against, and `layers-architecture.md` §15.2 already says they share one AST — build it here so the trigger phase adds a reader, not a language; unblocks RS-3b | 1–2 |
-| A4 | **RD**, then **RE** (the rest of 5) | RD's CR 120.3 decomposition is what "whenever you lose life" needs to see combat damage; RE's `CreateTokens` is CR 603.2c's "one or more" for 249 token-watching cards and the token-in-exile back-stop ("Before card breadth" item 8), plus `PlayerLoses` and draw replacement so 391 draw-watchers see the post-replacement draw | **RD: 4** (sized 2026-09-08) + **RE: 9** (sized 2026-09-11, re-cut the same day on review: skips first as a turn queue, the CR 701 producers and CR 800.4a–e pulled in), both `replacement-architecture.md` §9 |
-| A4b | **The rulings ledger** (`engineering-practices.md` §3.4a), then the retroactive pass over the pooled cards | **Scheduled here by the owner (2026-09-08): after replacements, between phases.** It gates nothing and nothing gates it, which is exactly why it needs a slot rather than a "whenever" — and A4 is the last point at which the registry is small enough for the retroactive half to be a sitting rather than a project. Two halves, separable: the **tool** is a fetch, a checked-in data file and a `--check` that fails when a registered card has a ruling no test names, and it must precede the static parser it is the acceptance test for (row C); the **reading** needs no tool at all and is the half that already paid — 145 rulings across the registry, 87 on the pooled cards, and the first three pooled cards read produced `codebase-state.md` item 82, a live wrong answer in the measured pool that 1,063 tests and months of fuzzing had not | 1 + a sitting |
-| A4c | **The trace sink** — tier 2 of `engineering-practices.md` §7.1 (`codebase-state.md` "Before Triggered abilities" item 5) | **Out of A6's first PR and into its own, after CM-4** (the owner, 2026-09-08). It had been cargo on the trigger phase, which is the PR least able to carry it: A6 is 4–6 PRs of new subsystem, and "why did this fire, or not" is a question you want answerable *before* that phase starts rather than delivered alongside it. **It is ordering-free against CM-4** — the sink's emit points (`execute_batch_inner`, `apply_replacements`, `compute_characteristics`, `compute_as_entering`) are all built and none is CM-4's — so CM-4 goes first because CM-4 is the next phase on the spine, not because the sink needs anything from it. **Design-check findings already on the record, before a line is written:** item 5's "makes tier 1 generated rather than written" is wrong as stated — a sink can generate a page's step spine, never its argument (§7.1); and its "gated the way `EngineCounters` is" describes no mechanism, because `EngineCounters` is seven always-on `Cell<u64>`s while one emit point runs ~62,000 times a game | 1 |
+| A1 | ✅ **done 2026-09-04** — the CR 704.5d token-order leak (`codebase-state.md` main item 6) | the matcher reads that log; five lines and a test, closed in 83333e9 | 1 |
+| A2 | ✅ **LH-1, LH-2** (2026-09-04, 2026-09-05) — attachment as a layers input (critical-path 6b) | `layers-architecture.md` §13a: Aura and Equipment triggers need `attached_to` as a fact the effective-ability list reads; had to precede 7 | 2 |
+| A3 | ✅ **done 2026-09-06** — the CR 613.8 cluster (7), with the `Condition` AST for conditional statics | `layers-architecture.md` §13b: the board-wide pass is the frame conditional statics and CR 603.4's intervening-ifs both evaluate against, so the trigger phase adds a reader, not a language; unblocked RS-3b | 3 |
+| A4 | ✅ **RD, then RE** (2026-09-08 → 2026-09-15) — the rest of critical-path item 5, closed with RE-9 and audited the same day | `replacement-architecture.md` §9 and §14; RD's CR 120.3 decomposition is what "whenever you lose life" sees, RE's `CreateTokens`, `PlayerLoses` and draw replacement are what 249 token-watchers and 391 draw-watchers see post-replacement; the audit's record is `codebase-state.md`, "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" | 4 + 9 |
+| A5 | ✅ **done 2026-09-14** — CR 113.6, which abilities function in which zone (critical-path 6a): the `ObjectSet` rename, then LJ, then LK | the one facility four docs named and none owned, three PRs in the order the owner set at RE-8's close; what shipped narrower and wider than this row assumed is `layers-architecture.md` §13c and §13d, `replacement-architecture.md` §11 items 4 and 9, and `codebase-state.md` item 119 (unblocked). The three-way split held under the build: *which abilities function where* was this row, *casting from a non-hand zone* is `backlog.md` §2.3, *a continuous effect reaching a non-battlefield object* was LJ | 3 |
+| A5b | **The gather's zone leg** — `replacement::gather`'s sweep still visits `battlefield_ids_ordered` alone; LK landed the registration leg only (`replacement-architecture.md` §11 item 4) | critical-path 6a's remainder and the spine's own next step, so it precedes A6's first PR; Blightsteel Colossus is the leg's cleanest consumer; the doc can be written while it lands | 1 |
+| A4e | **Item 138's two counters** — `decisions` and `priority_decisions` on `EngineCounters`, their rows in `fuzz_games` and `plans/fuzz_ab.py` | first in the slot because it costs nothing (~80 lines, no A/B, no re-record) and changes what every later A/B reads: CPU per decision, the ratchet's own unit (`engineering-practices.md` §3.1) | 1 |
+| A4f | **Lever 1 — the ability list behind an `Arc`** (`codebase-state.md` main items 67 and 138) | 22.5% of a four-seat `stress` game's instructions (`layers-architecture.md` §12, 2026-09-15); answer-preserving, ~100–150 lines plus 13 call sites; A/B `IDENTICAL` on both pools at two and four seats, then a callgrind re-read against §12's reading. The owner's preference (2026-09-15) is the two levers before the doc so the trigger phase's own A/Bs are cleaner, and the engineering half of that: the matcher's per-event sweep is `get_effective_abilities` per object per event, the exact path this turns from a `Vec` clone into a refcount | 1 |
+| A4g | **Lever 2 — the id hash** (item 138) | 22.1% of instructions; answer-preserving, ~30 lines plus the 25 map and set declarations keyed by an id, A/B and a callgrind re-read. **Which key it hashes is the UUID review's question (2026-09-16):** a cheap hasher over the v4 keys as sized, or a per-game counter id that makes the hasher trivial, halves every id and retires the log masks. The three-run determinism check is unaffected by the hasher while the keys stay v4 — they are minted per process — and is re-armed if the ids become process-stable (item 138, corrected 2026-09-16). Both levers before A4h, because an instruction count travels only at identical games and A4h moves the stream, so the levers' re-reads are the last that compare with the first profile | 1 |
+| A4h | **Item 139 — the retry re-prompt's stale list — carrying item 41's fork test** | ~5 lines in `engine/priority.rs`; it moves the random agent's stream, so its own A/B and a `fuzz-record.md` block; the test is ~250 lines beside `tests/determinism_test.rs` plus `#[derive(Clone)]` on the random provider. After the levers for the reason above; **before A6's first PR** because the test is main item 40's check — the pending trigger queue must be on `GameState`, the one design constraint with a deadline | 1 |
+| A4b | **The rulings ledger** (`engineering-practices.md` §3.4a), then the retroactive pass over the pooled cards | **Scheduled here by the owner (2026-09-08): after replacements, between phases.** It gates nothing and nothing gates it, which is exactly why it needs a slot rather than a "whenever". Two halves, separable: the **tool** is a fetch, a checked-in data file and a `--check` that fails when a registered card has a ruling no test names, and it must precede the static parser it is the acceptance test for (row C); the **reading** needs no tool and is pool-first — 145 rulings over 92 registered cards, 87 on the pool, at the 2026-09-08 census, and the registry is 159 now, so it re-counts first; the first three pooled cards read produced `codebase-state.md` item 82, a live wrong answer in the measured pool. Beside A4e–A4h in any order, Python and docs, no A/B; **the tool before item 6's first card PR**, since the phase's registrations are the first large batch of triggered cards the rulings pass (§3.4) will read | 1 + a sitting |
+| A4i | **`backlog.md` §2.20 — several target clauses on one spell** | its own back-stop (2026-09-04): **before RS-2 and before A6's first PR** — CR 603.3d chooses a trigger's targets per instance as the ability goes on the stack, and RS-2's `validate_targets` builds on the same shape, so either would otherwise build on the one-recipient `StackEntry` and re-thread after it. One PR in the band; a bite spell is its consumer, 36 real cards; its eight atoms are named in the entry. Commutes with everything above; lands while the doc is being written | 1 |
+| A4j | **Item 141's `subject()` and `describe()` on `ChoiceKind`**, with `backlog.md` §2.21's test that every prompt renders | ~150 lines, any time before A6's first PR, so the phase's new `ChoiceKind`s (CR 603.3b's ordering, "may" triggers) decide their subject at birth against an exhaustive match; the payload rule item 141 records is what a trigger prompt must obey | 1 |
+| A4k | **`backlog.md` §2.22 — the middleware census** | a doc sitting, sequenced ahead of full control by the owner (2026-09-08); beside the doc, because CR 603.3b's ordering prompt joins the census's residual the day triggers exist and the doc classifies it (B, P or C) at birth against the table §2.22 already carries | a sitting |
+| A4c | **The trace sink** — tier 2 of `engineering-practices.md` §7.1 (`codebase-state.md` "Before Triggered abilities" item 5) | **Out of A6's first PR and into its own (the owner, 2026-09-08)**: A6 is 4–6 PRs of new subsystem, and "why did this fire, or not" wants answering before that phase starts. Its four emit points are built, so it is ordering-free; last in the slot, immediately before the doc, because P1 (§3b) is its first customer and the dispatcher becomes its fifth emit point. Design-check findings on the record before a line is written: a sink generates a page's step spine, never its argument (§7.1), and "gated the way `EngineCounters` is" describes no mechanism — what "off" costs is its first decision, and the check is `IDENTICAL` with the sink compiled in and off. Main item 42's window and sink may ride; if they do, `--dump-events` and the harness statistics move to the sink in the same PR | 1 |
+| A6 | **The triggers architecture doc**, then **critical-path item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; **the five problems and two seams §3b names are the bar** — P1–P5 from `atomic-tests/supplemental-docs/state-tracking-architecture.md`, S1 CR 603.10a's look-back list written about *visibility* (the doc consumes `Zone::is_public()`, zero callers, and does **not** pull `backlog.md` §2.9 forward), S2 CR 121.2c's recipient ordering (main item 122, RE-2's Alms Collector the customer; the doc decides between item 122's two shapes beside its own APNAP ordering). The first PR carries LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity. **What waits for the doc, because the doc names its fields:** item 42's per-player turn summaries (P2–P4), §2.28's mandatory half (P5), item 122 (S2), the LKI reader ("Before Triggered abilities" item 3), CR 800.4d's refusal (item 7), CR 603.6c's qualifier (item 6), CV-4's CR 707.10b half. Written before CV-7, on the single-component `PermanentState`, so it says which of its reads key on the permanent and which on a component (CR 729.3d) | 4–6 |
 | A4d | **The codebase map**, then **the Rust notes** — the post-RE audit's two after-the-passes artifacts (2026-09-15). The map is `engineering-practices.md` §7.1's tier 3, drawn with the CR 614 pipeline at its center: the chokepoint's arms, the three gate legs, the pipeline's loop, the look-ahead frame, the decision sites `codebase-state.md` main item 40 tracks, and the ten-line check that its arm list matches the enum. The notes are `plans/references/rust-through-the-engine.md`: the same tour annotated for a reader coming from another language — why the chokepoint is a function and not a trait, what the borrow checker forced (the accessor pair, `FrameCache`'s overlay in place of a clone, `ActionContext`'s plumbing), where `Arc` sits and why, what `Cell` buys `EngineCounters`, the `test-support` feature in `Cargo.toml` | Homed here rather than in `backlog.md` because they are tooling with a slot question, like A4c, and not a mechanic the type surface cannot express (`backlog.md` §1's line) — the owner may move them. Neither was started at the audit's close; the map first, since the notes annotate it; a day to draw, then minutes per refresh (§7.1); any time, and before item 6's close if the trigger phase is not to be the first subsystem the map absorbs after the fact | 1 + 1, docs |
-| A5 | ✅ **done 2026-09-14** — **CR 113.6**, which abilities function in which zone (critical-path **6a**) — with object timestamps (CR 613.7d) | the one missing facility **four** docs name and none owns: Wonder (layers item 9), Leyline's opening-hand clause (`replacement-architecture.md` §3.3 source 2), Bridge from Below (triggers), and — added 2026-09-07 by CM-2 — cost abilities in other zones (`cost-architecture.md` §3.1: an emblem's "spells you cast cost {1} less", Convergence of Dominion) together with `codebase-state.md` item 75, which is CR 113.6e's second sentence having nothing to grant with. **Three distinct gaps get confused for one and this row owns only the first**: *which abilities function where* is this row; *whether a player may cast from a non-hand zone at all* is `backlog.md` §2.3 (`check_cast_legality` hard-codes `Zone::Hand`, no owner, and it is what blocks flashback and Commander's B2); *whether a continuous effect can reach a non-battlefield object* is layers item 9's zone-reaching `ObjectSet`, which precedes this row and **✅ landed 2026-09-14 as LJ** (`layers-architecture.md` §13c; `codebase-state.md` item 9 closed). **So this row is unblocked**: both of its stated prerequisites — CM-0's rename and item 9's zone-reaching set — are in, and it is next. Sized in `replacement-architecture.md` §11 item 9. The `PermanentFilter → ObjectFilter` rename this row was to be preceded by ✅ landed 2026-09-07 as CM-0 (`cost-architecture.md` §3.2); still preceded by item 9's zone-reaching `ObjectSet`, whose first consumer needs nothing from this row. **Asked by the owner at RE-8's close and answered there (2026-09-14): three PRs, in this order — `codebase-state.md` item 124's rename, then item 9's zone-reaching set, then this row.** **Item 9 ✅ landed 2026-09-14 as LJ**, one PR, bare rather than `LJ-1` because there is no LJ-2 — §13c lists the other open layers items and each carries its own trigger. It shipped narrower than this row assumed in one way and wider in another: CR 613.7d's object timestamps did **not** ride, because CR 613.7 orders *effects* and a row's timestamp is read off its **source**, so a battlefield source reaching a graveyard needs none — the timestamp is the *source-side* facility and belongs to this row, with Wonder, which is exactly the card LJ cannot express. The `CardFilter` fold did ride. **The remaining route is A5 → RE-9/RE-10.** **Its third PR ✅ landed 2026-09-14 as `LK`**
-(`layers-architecture.md` §13d), one PR, and **critical-path item 6 is
-unblocked — which is this row's headline, because A5 was the last gate before
-triggers.** What shipped: `engine/zone_function.rs` owns CR 113.6, six of its
-fourteen subrules with a card named against each of the eight deferrals, and
-`codebase-state.md` item 9 closes entirely (CR 613.7d's object timestamp landed
-with it, which is what lets Wonder — registered and pooled — generate an effect
-from a graveyard). **The three-way split this row has always insisted on held
-under the build and is the reason it stayed one PR**: four of the eight
-deferrals (113.6e, f, j, m) turned out to be `backlog.md` §2.3's, not this
-facility's. Two consequences for other rows: `codebase-state.md` item 119
-(CR 103.6's pre-game step, Leyline's opening-hand clause) is unblocked and is
-now ordinary unbuilt work, and `replacement-architecture.md` §11 item 9's (c)
-landed as a *registration* leg only — the replacement and restriction sweeps
-still visit the battlefield alone, which is owed with its own card. **The rename ✅ landed 2026-09-14** as `refactor/object-set-rename`: `ReplacementDef.affected` and `ContinuousEffect.affected` are both `affected_objects`, and the type is `ObjectSet` — one PR with both halves, because the split state (`affected_objects: AffectedSet`) is the one spelling that reads worse than either end. The rename first because item 124 already says "its own PR, so a sweep does not ride inside a rules change" and because both later PRs touch that type, so every day it waits the sweep is bigger — which is the order CM-0 set when `PermanentFilter → ObjectFilter` landed before this row rather than inside it. **And the owner asked whether to pull the three forward, ahead of RE-9 and RE-10: yes.** Nothing in RE depends on them (RE-9 touches mana and RE-10 the turn cursor; RE-10's own bullet says it can be slotted anywhere), this row already gates A6, and RE-8 measured what the delay costs in cards — five printed "put it onto the battlefield instead" replacements plus Library of Leng and the madness/flashback population item 9 counted (`replacement-architecture.md` §11 item 87) | 1 (item 124 ✅) + 1 (item 9) + 1 |
-| A6 | **The triggers architecture doc**, then **critical-path item 6** | 52 CR 603 atoms plus ~80 more Phase 7 atoms in CR 610/608/724/707/605; the four problems in `atomic-tests/supplemental-docs/state-tracking-architecture.md` are the bar; the first PR carries LKI's consumers, `cast_by` (main 9), CR 605.1b (main 11) and CR 707.10b's ability identity — **the trace sink moved out to A4c (2026-09-08)**, so this phase starts with it already there. **Two seams to name in the doc.** The first, added at the post-RE audit (2026-09-15): CR 121.2c's recipient ordering — "the active player performs all of their draws first, then each other player in turn order" — which `Effect` cannot say (main item 122, RE-2's Alms Collector is the one customer) and which "whenever you draw a card" makes gameplay-visible, so the doc decides between item 122's two shapes beside its own APNAP ordering. The second, added at RE-8's close (2026-09-14): CR 603.10a's look-back list is written about *visibility* — "an object that **all players can see** is put into a hand or library" — and not about zones, which `atomic-tests/supplemental-docs/603-2f-complexity.md` demonstrates (Future Sight and Telepathy flip the answer without moving a card). The doc names it and consumes `Zone::is_public()`, which still has zero callers; `backlog.md` §2.9 is the per-viewer query that replaces it, and it is **not** being pulled forward — it gates nothing before Phase 8 | 4–6 |
 
-Rows A2–A3 and A4 commute; A2–A3 go first because they are sized, their seam
-is built, and one fixes a live bug. **A4b is the deliberate between-phases
-slot** — the one row here whose value is found rather than built, and the only
-one that would otherwise keep being deferred for being nobody's blocker. **Beside A, pulled when a card family
-wants them:** RS-2 (hexproof and shroud; trigger targets then inherit it),
-CV-2 (copy on enter, which makes CR 707.5's ETB-of-a-copy testable), item 30's
-capture PR (§5 amendment 1), B1–B3 once A4 is in, and Deferred Migrations
-steps 3–5. **And `backlog.md` §2.20, several target clauses on one spell —
-back-stopped before RS-2 and before A6's first PR** (2026-09-04): both build on
-`StackEntry`'s one-recipient shape — RS-2 at `validate_targets` and the two
-enumeration sites, item 6 when CR 603.3d chooses a trigger's targets as it goes
-on the stack — so on the fact/feature triage it is a fact, and it re-threads
-whatever is built on that shape after it. Commutes with A2–A4. A bite spell is
-its consumer: two targets, no division, 36 real cards.
+**Beside A, pulled when a card family wants them, on neither side of the doc**
+— what each owes the doc, and its atoms, are in its B row: the CV-2 → main
+item 10 with CV-1b → RS-2 chain (hexproof is the family, and item 10's own
+"before RS-2" is the link), CV-3 and CV-4, RS-3a → RS-4 → RS-3b (B5's order),
+CV-5 → CV-6 → CV-7 (B6, with CV-7's back-stop), §2.24's permission half after
+B5 (B8), §2.9 (B4), item 30's capture PR (§5 amendment 1), B1–B3 once A4 is
+in, item 140 with the first fork harness (Phase 10's), and the four open
+layers items `layers-architecture.md` §13c names — "Before Layers" item 4,
+item 7's grant-over-a-filter half, item 7d, item 10's 1a/1b split — each with
+its own trigger.
 
 ### B. What breadth needs — beside and after triggers
 
@@ -250,11 +248,11 @@ its consumer: two targets, no division, 36 real cards.
 | B1 | **Cost modification** — `plans/cost-architecture.md`: **CM-0 and CM-1 ✅ 2026-09-07**; CM-2 (the spell's own cost abilities), CM-3 (sacrifice as a cost), CM-4 (the mana window and the payer), CP-1 (payment) sized there | commander tax runs through it; RS-4 reads better after it; the 25 unjudged CR 601 atoms get their verdicts here (§7); **CM-3 and CM-4 before A6**, since the Ironworks loop is item 6's integration test; **CM-4 is next as of 2026-09-08**, with A4c's trace sink after it | 4 left |
 | B2 | **`GameConfig::commander()`** and designation, CR 903.7, `DeckLimits` validation | "Before Commander" items 2–3 and main item 32; CR 903.9a/b and 704.6d already work and wait on `is_commander` | 1 |
 | B3 | **CR 800/802**, with a `--players 4` fuzz mode | "Before Commander" item 4: the priority loop, turn rotation and APNAP are already modulo `num_players`; CR 800.4 (a player leaves) and 802's defending-player choice are not | 1 |
-| B4 | **The information model** (`backlog.md` §2.9) | a v1 blocker, not breadth: the GUI renders one player's view and an AI observation must not leak a hidden zone; **hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work**; depends on nothing above, so it can go anywhere in A or B | 1–2 |
-| B5 | **RS-3a, RS-4, RS-3b** | combat predicates (1,267 of 1,277 Tier-1a clauses), costs, then the solver, which waits on A3 | 3 |
-| B6 | **CV-3 … CV-7** | CV-7 (merging, CR 729) is back-stopped before Phase 8 because a multi-component permanent is a fact every later phase would otherwise code against | ~5 |
+| B4 | **The information model** (`backlog.md` §2.9) | a v1 blocker, not breadth: the GUI renders one player's view and an AI observation must not leak a hidden zone; **hard back-stop before Phase 8's face-down and reveal cards and before any Phase 10 work**; depends on nothing above, so it can go anywhere in A or B **Added 2026-09-15 (pass 4):** S1 (§3b) names it and does not pull it forward — the triggers doc consumes `Zone::is_public()` and leaves the per-viewer query here; 4 atoms filed in the entry plus CR 400.2. | 1–2 |
+| B5 | **RS-3a, RS-4, RS-3b** | combat predicates (1,267 of 1,277 Tier-1a clauses), costs, then the solver, which waits on A3 **Added 2026-09-15 (pass 4):** none of the four is a triggers-doc question — trigger targets inherit hexproof at `validate_targets` the day both exist, a test for the phase — and `cant-effects-architecture.md` §3.7's two asks on RS-3a and RS-4 are what keep B8 a normal diff later. RS-2 waits for A4i and for main item 10 with CV-1b (B6), by item 10's own "before RS-2"; RS-3a needs nothing; RS-3b is unblocked since A3 and needs RS-3a first. Atoms by rule prefix (`spec.sqlite`, 2026-09-15): RS-2 41 uncovered under CR 601.3, 602.5, 115.6, 702.11, 702.16 and 702.18, ticketed `L15` and `T22` so `owed`'s default hides them; RS-3a 16 under CR 508.1c, 509.1b and the evasion keywords 702.13, 702.14, 702.28, 702.31, 702.36, 702.111 and 702.118, three marked `ALREADY-IMPL` with zero coverage (§8 item 3); RS-3b 4 under 508.1d, 509.1c and 701.15; RS-4 `ATOM-614.17b-001`. | 3 |
+| B6 | **CV-3 … CV-7** | CV-7 (merging, CR 729) is back-stopped before Phase 8 because a multi-component permanent is a fact every later phase would otherwise code against **Added 2026-09-15 (pass 4):** CV-2 is unblocked (RC-2 and RC-4 landed) and first in the chain CV-2 → main item 10 with CV-1b → RS-2; CV-4 is free at any point and its 39 CR 707.10b clauses are item 6's; CV-6 after CV-5 and unsized on purpose (count `cast.rs`'s alternative-cost sites first), with "Before Layers" item 10's 1a/1b split and `replacement-architecture.md` §8a's turned-face-up event kind; CV-7 its own design pass. What the doc owes each: its LKI section decides against item 10's shape — the `Fixed`-set prune and `target_epochs` — whether or not item 10 has landed (CV-1b); CR 707.5's ETB-of-a-copy becomes a test (CV-2); CR 726's day/night reads the previous turn's spell count, P3's tracker (CV-5); which reads key on the permanent and which on a component before CV-7 (CR 729.3d). Atoms: `copy-effects-architecture.md` §8's 101 (2026-08-29), four of CR 707's partial since CV-1 — CV-1b's slice is 707.2, 707.3 and 707.7; CV-2's 707.5, 707.6 and 707.9, thirteen with the two composites; CV-4's the nine under 707.10–707.12; CV-5's the 34 of 712 plus 710's 3; CV-6's 708's 10; CV-7's 729's 19 plus 712.4's 3; no 707.1 atom exists for CV-3. | ~5 |
 | B7 | **The lattice** (§4's table) | feature-shaped, order free; §2.8 (functioning zones, activation restrictions) first, since §2.3's cast-from-elsewhere keywords are written in it | 10–13 |
-| B8 | **"As though" effects** (CR 609.4) — `backlog.md` §2.24, graduating to `as-though-architecture.md` | **The permission half is back-stopped before C**, and this row is what schedules it: 287 cards, but a *mechanism* rather than breadth, so without it Phase 8 codes around it one card at a time — the same profile and the same back-stop as B6's CV-7 and as B4. **After B5, never before**: `cant-effects-architecture.md` §3.7 cuts its seam at RS-3a and RS-4, and going first would cut the same four combat functions from the permission side and retrofit the restrictions instead — the doubled rewrite mirrored. The **payment half** (609.4b) rides with **CP-1** rather than taking a slot, because §2.24 sizes it at ~200–300 *on top of* CP-1's payment site. The **value-substitution half** gets no back-stop on purpose: it is unsized, it needs RC-4's frame generalized past entries, and §2.24's own invariant — the fiction never reaches `compute_characteristics`, or Masako's creature is untapped for the untap step — has to be designed before a date means anything | 2 + CP-1 |
+| B8 | **"As though" effects** (CR 609.4) — `backlog.md` §2.24, graduating to `as-though-architecture.md` | **The permission half is back-stopped before C**, and this row is what schedules it: 287 cards, but a *mechanism* rather than breadth, so without it Phase 8 codes around it one card at a time — the same profile and the same back-stop as B6's CV-7 and as B4. **After B5, never before**: `cant-effects-architecture.md` §3.7 cuts its seam at RS-3a and RS-4, and going first would cut the same four combat functions from the permission side and retrofit the restrictions instead — the doubled rewrite mirrored. The **payment half** (609.4b) rides with **CP-1** rather than taking a slot, because §2.24 sizes it at ~200–300 *on top of* CP-1's payment site. The **value-substitution half** gets no back-stop on purpose: it is unsized, it needs RC-4's frame generalized past entries, and §2.24's own invariant — the fiction never reaches `compute_characteristics`, or Masako's creature is untapped for the untap step — has to be designed before a date means anything **Added 2026-09-15 (pass 4):** no triggers-doc question; 5 atoms under CR 609.4, all `NEW`, Phase 8. | 2 + CP-1 |
 
 ### C. Phase 8 — card breadth (643 atoms)
 
@@ -346,113 +344,49 @@ scheduling any row.
 
 ---
 
-## 3b. Between phases — the post-RE audit's scheduling table, proposed 2026-09-15
+## 3b. Between phases — what the post-RE audit's pass 4 put on the route, 2026-09-15
 
 **Pass 4 of the post-RE audit asked one question: what sits between now and
-the triggers architecture doc, and in what order.** This section is the answer
-in the form that audit's scheduling pass produces (`engineering-practices.md`
-§9): one table, then a proposed order for the between-phases slot that A4b
-holds. **The order is proposed, never set** — `CLAUDE.md` owns the ordering,
-this file carries the why, and the owner decides. Every card count is a doc's
-own dated count, cited to it; the atom counts are `spec.sqlite` read by rule
-prefix on 2026-09-15, with the prefixes named so the query can be re-run, and
-they are re-read at the next audit's scheduling pass. The audit's record is
-`codebase-state.md`, "Was critical-path item 5 done, and what sits before
-item 6? — audited 2026-09-15".
+the triggers architecture doc, and in what order.** Its answer is **in §3a's A
+table, which is the one path-to-triggers table**: the audit's rows are the
+`A4x` family — the between-phases slot after A4 — in proposed order between
+A5's remainder and A6, and the off-path phases keep their B rows, each with
+what it owes the doc and its atoms added on 2026-09-15. A first draft carried
+a second table here, one row per open track phase and lattice entry; the
+owner's review (2026-09-16) read it as a second authority in a dubious order,
+and it was folded into A and B. **The order is proposed, never set** —
+`CLAUDE.md` owns the ordering, this file carries the why, and the owner
+decides. The audit's record is `codebase-state.md`, "Was critical-path item 5
+done, and what sits before item 6? — audited 2026-09-15"; the practice is
+`engineering-practices.md` §9, whose scheduling pass re-derives the rows at
+the next spine close.
 
-**The triggers doc's questions, named once.** The five problems
-`atomic-tests/supplemental-docs/state-tracking-architecture.md` numbers —
-**P1** CR 603.8's mid-resolution state triggers, **P2** CR 603.1b's
+**The triggers doc's questions, named once and cited by letter from A and B.**
+The five problems `atomic-tests/supplemental-docs/state-tracking-architecture.md`
+numbers — **P1** CR 603.8's mid-resolution state triggers, **P2** CR 603.1b's
 multi-condition triggers, **P3** cross-turn lookback, **P4** resolution
 counting (CR 603.7h), **P5** CR 731's loop detection (`backlog.md` §2.28) —
 and the two seams A6 names: **S1**, CR 603.10a's look-back list is written
 about *visibility*, not zones (`Zone::is_public()`, `backlog.md` §2.9), and
 **S2**, CR 121.2c's recipient ordering (`codebase-state.md` main item 122).
-The last column says which of these needs the row landed *first*; "none"
-means the row and the doc commute, and the cell then says what the two owe
-each other, if anything.
+A row's "why here" says which of these needs it landed first; where none does,
+the row and the doc commute and the cell says what the two owe each other.
 
-| Row | Unlocks — cards | Unlocks — atoms | Needs | Which of the doc's questions needs it first |
-|---|---|---|---|---|
-| **RS-2** — casting, activating, targeting | 206 clauses / ~200 cards, plus hexproof 336, shroud 35, protection 197 — the whole `T22` ticket (`cards-unlocked-ledger.md` Part 4) | 41 uncovered under CR 601.3, 602.5, 115.6, 702.11, 702.16 and 702.18, none covered; `cant-effects-architecture.md` §8 names the 614.17 and 601.3 ones, ticketed `L15` and `T22` so `owed`'s default hides them | `backlog.md` §2.20 first (its back-stop), then main item 10 with CV-1b (item 10's own "before RS-2"), which needs CV-2; six enforcement and two enumeration sites on the ability-index invariant; a trace page at close (`engineering-practices.md` §7 names it) | none — trigger targets inherit hexproof at `validate_targets` the day both exist, a test for the phase and not a question for the doc |
-| **RS-3a** — combat, the predicate half | 1,267 of 1,277 Tier-1a clauses; menace 405, landwalk 122, the fear/intimidate/shadow/skulk/horsemanship family 147 (Part 4) | 16 uncovered under CR 508.1c, 509.1b and the keyword rules 702.13, 702.14, 702.28, 702.31, 702.36, 702.111 and 702.118 — three of them marked `ALREADY-IMPL` with zero coverage (§8 item 3) | nothing — it does not need CR 613.8; `cant-effects-architecture.md` §3.7's two asks (a consult says *which* restriction forbade; a base-rule clause reads through an accessor), so §2.24 is a normal diff later | none |
-| **RS-3b** — combat, the solver half | 13 cross-creature clauses, 2 global-cap cards, ~150 requirement cards; goad 83 (Part 4) | 4 uncovered under CR 508.1d, 509.1c and 701.15, ticket `T21d` | RS-3a first; item 7 landed 2026-09-06, so it is unblocked; the highest-risk RS phase (a bounded search, §4.2) | none |
-| **RS-4** — costs (CR 614.17b) | 16 printed clauses; Yasharn, Angel of Jubilation, Karn's Sylex, Platinum Emperion's cost half (Part 4) | `ATOM-614.17b-001` (§8) | RS-1 and the cost pipeline, both landed; §3.7's asks; two payment sites | none |
-| **CV-1b** — indefinite copies, one PR with main item 10 (CR 400.7) | 25 of 81 Tier C clauses; Dimir Doppelganger, Lazav, Likeness Looter (Part 5) | its slice of CR 707's 26 uncovered (`copy-effects-architecture.md` §8) is 707.2, 707.3 and 707.7, four of them partial since CV-1 | CV-2 first; ~500 for the rule and ~400 for the card, A/B'd as two arms; before RS-2 | none of the five — but the doc's LKI section (CR 603.10, 400.7e–f) decides against item 10's shape, the `Fixed`-set prune and `target_epochs`, whether or not it has landed: a trigger reading "that creature" after it died and returned must find a new object |
-| **CV-2** — enters as a copy (CR 707.5, 616.1c) | 69 cards; 139 of the 331 "as a copy" cards say "except"; Clone, Phantasmal Image, Sakashima, Spark Double (Part 5) | the 707.5, 707.6 and 707.9 atoms, thirteen with the two composites, all uncovered | RC-2 and RC-4, both landed — unblocked; no new pipeline machinery; first in the CV-2 → item 10 with CV-1b → RS-2 chain | none — it gives the phase CR 707.5's ETB-of-a-copy as a test (§3a's own note), the phase's and not the doc's |
-| **CV-3** — token copies | 306 cards / 318 clauses; Kiki-Jiki, Helm of the Host, Splinter Twin (Part 5) | no CR 707.1 atom in the corpus; the 707.2 exclusions are CV-1b's slice | CV-1, landed; nothing needs it | none |
-| **CV-4** — spell and cast copies | 306 + 47 cards, 542 + 73 clauses, 186 of them one shared CR 707.10c prompt (Part 5) | the nine 707.10–707.12 atoms, uncovered; `ATOM-707.10b-001` is item 6's | nothing — free to land at any point; one new SBA; the 39 CR 707.10b clauses go to item 6 | none — CR 707.10b's ability identity on the stack is A6's first PR's own, beside `cast_by` and CR 605.1b; CV-4's `StackEntry` copy is its twin and neither needs the other first. "Before Triggered abilities" item 8 already keys "create" off `TokenCreated`, so CV-4's CR 111.13 token needs nothing from the doc |
-| **CV-5** — faces (CR 712) | 496 cards, 486 Commander-legal, 120 of them commanders; flip cards' 25 ride (Part 5) | 34 CR 712 atoms plus 710's 3 (§8's table; the 712.4 meld atoms are CV-7's) | CV-1; a second card model, the phase most likely to split once `CardData`'s readers are counted; `SHIPPED_PHASES` gains nothing before it | none — CR 726's day/night reads the previous turn's spell count, which is P3's tracker (main item 42's summaries) and lands with the doc, not with this phase |
-| **CV-6** — face-down (CR 708) | 304 producers; morph, manifest, disguise and cloak (Part 5) | 10 CR 708 atoms (§8) | CV-5 first (§7.1); unsized on purpose — count `cast.rs`'s alternative-cost sites; "Before Layers" item 10's 1a/1b split (~30 lines); `replacement-architecture.md` §8a's turned-face-up event kind is its | none — "when this is turned face up" reads an event this phase emits; the doc names the kind, this phase produces it |
-| **CV-7** — merging and meld (CR 729, 712.4) | 34 + 21 cards; Brisela, the Apex cycle (Part 5) | 19 CR 729 atoms and the 712.4 three (§8) | CV-5; unsized, its own design pass; **back-stopped before Phase 8** (B6) | none first — but the doc is written before it, on the single-component `PermanentState`, so the doc says which of its reads key on the permanent and which on a component (CR 729.3d), or the phase re-threads the matcher |
-| **A4b** — the rulings ledger | no cards; 145 rulings over 92 registered cards, 87 on the pool, at the 2026-09-08 census (`engineering-practices.md` §3.4a); the registry is 159 now, so the reading re-counts first | none — rulings are not corpus atoms | nothing; the tool is ~250 lines of Python, a data file and a `--check`; the reading is a sitting, pool-first; it holds the slot already | none — the tool gates the phase's card registrations, the first large batch of triggered cards the rulings pass (§3.4) will read, so the tool precedes item 6's first card PR |
-| **A4c** — the trace sink | no cards; tooling | none | nothing — ordering-free, its four emit points are built; "what off costs" is its first decision; the check is `IDENTICAL` with the sink compiled in and off; main item 42's window and sink may ride, and if they do, `--dump-events` and the harness statistics move to the sink in the same PR | none — but P1 is its first customer: "why did this fire, or not" through a mid-resolution layer walk is the question the sink exists to answer, so it precedes item 6's first PR (its own row) and the dispatcher becomes its fifth emit point |
-| **§2.24** — "as though" (CR 609.4) | 287 cards (2026-09-09): the timing and zone 117, payment 62, attack and block ~50, value 41 (`backlog.md` §2.24) | 5 uncovered under CR 609.4, all `NEW`, Phase 8 | the permission half after B5 (`cant-effects-architecture.md` §3.7's seam), never before; the payment half with CP-1; the value half unsized; graduates to `as-though-architecture.md` (B8) | none |
-| **§2.9** — the information model | v1 itself (§4's last row); RE-8's customers — Nephalia Academy, Opt, Kenessos (`backlog.md` §2.9) | 4 filed there plus CR 400.2 (the entry's own count) | nothing — it depends on nothing above; a real phase; B4's back-stop before Phase 8's reveal cards and any Phase 10 work; owner none | **S1 names it and does not pull it forward**: the doc consumes `Zone::is_public()` (zero callers) and leaves the per-viewer query here |
-| **§2.20** — several target clauses | 228 instants and sorceries plus 165 permanents (2026-09-04); 36 bite spells, 48 divided (`backlog.md` §2.20) | the eight the entry names — `ATOM-601.2c-003`/`-004`, `ATOM-608.2b-002`/`-005`, `ATOM-601.2d-001`/`-002`, `ATOM-115.3-001`/`-002` | nothing; one PR in the band; **back-stopped before RS-2 and before A6's first PR** (§3a) | none of the five — **the doc's first PR needs it**: CR 603.3d chooses a trigger's targets as it goes on the stack, per instance, and would otherwise build on the one-recipient shape |
-| **§2.22** — the middleware census | no cards; full control ~200 lines after it | none (the entry's own field) | nothing; a doc sitting, then one small PR per middleware; sequenced ahead of full control by the owner | none — CR 603.3b's ordering prompt joins the census's residual the day triggers exist, so the doc classifies it (B, P or C) at birth against the table §2.22 already carries |
-| **Lever 1** — the ability list behind an `Arc` (main items 67 and 138) | no cards; 22.5% of a four-seat `stress` game's instructions (`layers-architecture.md` §12, 2026-09-15) | none | nothing; ~100–150 lines plus 13 call sites, answer-preserving; its own PR with an A/B and a callgrind re-read | none — and the matcher's per-event sweep is `get_effective_abilities` per object per event (the state-tracking doc's postscript), the exact path this turns from a `Vec` clone into a refcount, which is the engineering half of the owner's preference below |
-| **Lever 2** — an id hasher for the v4 `Uuid` keys (item 138) | no cards; 22.1% of instructions (§12) | none | nothing; ~30 lines plus a 20-declaration sweep, answer-preserving; its own PR with an A/B; the determinism caveat decided in the PR — `RandomState` stays on for the three-run check, or the check gains an order probe | none |
-| **Item 139** — the retry re-prompt's stale list, carrying item 41's fork test | no cards; every game reaches it (54–85 re-asks a game at four seats) | none | ~5 lines, its own PR with an A/B and a `fuzz-record.md` block, since it moves the random agent's stream; item 41's test ~250 lines and `#[derive(Clone)]` on the random provider | none — but the test is main item 40's check, and item 40 is "the one design constraint with a deadline": the pending trigger queue must be on `GameState`, so the test lands before item 6's first PR runs it |
-| **Item 140** — the round-resume entry point | no cards; 1,827 of 2,799 mid-round prompts unforkable at four seats on `stress` | none | ~80 lines, after item 139; with the first fork-based harness | none — Phase 10's |
-| **Item 138's two counters** | no cards; the ratchet's instrument | none | ~80 lines across four files, no A/B, no re-record | none — the readiness pass at item 6's close reads them, and every A/B before then reads per decision if they land first |
-| **Item 141's `subject()` and `describe()`** | no cards; the wire closure from 36 types to ids and a few enums | none (§2.21's own field) | ~150 lines with §2.21's test, any time | none — the phase's new `ChoiceKind`s (CR 603.3b's ordering, "may" triggers) decide their subject at birth if the exhaustive match exists first |
-| **Item 42** — the per-player turn summaries and the log window | no cards; the fork's fifteen-twentieths (item 143) | none | the summaries ~60 lines beside `last_turn_began`; the window plus sink ~100–150, with A4c or the first fork harness | **P2, P3 and P4 name the summaries' fields** — this-turn counters, each player's own previous turn, per-(source, ability) resolution counts — so the summaries wait for the doc; the window rides with A4c |
+**Two things the slot's order rests on, and both are engineering rather than
+rules.** The levers (A4f, A4g) go before item 139 (A4h) because an
+instruction count travels between machines only at identical games and 139
+moves the random agent's stream, so the levers' callgrind re-reads are the
+last that compare with the first profile. And the trace sink (A4c) goes last
+because P1 is its first customer and the dispatcher is its fifth emit point,
+so it is the row the doc is most likely to amend. Everything the doc must name
+before it can be built — the tracker fields P2–P4 imply, P5's state hash,
+S2's shape — is listed in A6's row as what waits.
 
-**What is not a row, and why.** The four open layers items `layers-architecture.md`
-§13c names — "Before Layers" item 4 (mana-pool persistence), item 7's
-grant-over-a-filter half, item 7d and item 10's 1a/1b split — each carry their
-own trigger and none is between now and the doc. CP-1 and §2.24's payment half
-are B1's, B2 and B3 are "beside A once A4 is in" by §3a's own words, and none
-of the three gates the doc. **The gather's zone leg** (`replacement-architecture.md`
-§11 item 4, critical-path 6a's remainder, Blightsteel Colossus its card) is
-spine work rather than slot work: it precedes the doc's first PR because it is
-the spine's own next step, and the doc can be written while it lands. And the
-doc's own rows are not rows here: "Before Triggered abilities" items 1, 2, 3, 6
-and 7, §2.28's mandatory half (P5), and item 122's shape (S2).
-
-**The between-phases slot — a proposed order, the owner decides.** A4b holds
-the slot (§3a, the owner, 2026-09-08). The owner's stated preference at pass
-3's review (2026-09-15) is the two callgrind levers first in it, before the
-triggers doc, as answer-preserving PRs that make the trigger phase's own A/Bs
-cleaner. Proposed, in this order:
-
-1. **Item 138's two counters** — first because they cost nothing and change
-   what every later A/B in the slot reads: CPU per decision, the ratchet's own
-   unit (`engineering-practices.md` §3.1).
-2. **Lever 1, the `Arc`** — an A/B `IDENTICAL` on both pools at two and four
-   seats, then a callgrind re-read against §12's reading.
-3. **Lever 2, the hasher** — the same, with the determinism caveat decided in
-   the PR. Both levers before item 139, because an instruction count travels
-   only at identical games and 139 moves the stream — so the levers' re-reads
-   are the last that compare with the first profile.
-4. **Item 139 with item 41's test** — after the levers for that reason; before
-   the doc's first PR because the test is the pending queue's check (item 40).
-5. **A4b, the tool then the reading** — beside 1–4 in any order, Python and
-   docs, no A/B; the tool before item 6's first card PR.
-6. **A4c, the trace sink** — last in the slot, immediately before the doc,
-   item 42's window and sink riding if the "off" cost decision allows; the
-   dispatcher becomes its fifth emit point in item 6.
-
-So the slot as proposed is five engine PRs and one Python PR plus a sitting;
-of the five, one moves a pool's numbers and carries a `fuzz-record.md` block
-(139), one may (A4c, if the window rides), and the other three are
-`IDENTICAL` by construction.
-
-**Beside the doc** — ordering-free against it, before A6's first PR: §2.20 (its
-back-stop), item 141's two methods, §2.22's census (a sitting), and the
-gather's zone leg (the spine's, above).
-
-**Waits for the doc**: item 42's summaries (P2–P4 name the fields), §2.28's
-mandatory half (P5), item 122's shape (S2), the LKI reader ("Before Triggered
-abilities" item 3), CR 800.4d's refusal (item 7), CR 603.6c's qualifier (item
-6), and CV-4's CR 707.10b half.
-
-**Pulled when a card family wants them, on neither side of the doc**: the CV-2
-→ item 10 with CV-1b → RS-2 chain (hexproof is the family); CV-3 and CV-4;
-RS-3a → RS-4 → RS-3b (B5's order); CV-5 → CV-6 → CV-7 (B6, CV-7's back-stop);
-§2.24's permission half after B5 (B8); §2.9 (B4); item 140 with the first fork
-harness; the layers items with their own triggers.
+**Counts.** Every card count is a doc's own dated count, cited to it. The
+atom counts in the B rows are `spec.sqlite` read by rule prefix on
+2026-09-15, with the prefixes named so the query re-runs; a doc's own dated
+count (`copy-effects-architecture.md` §8's 101, `backlog.md` §2.20's eight by
+id) is cited where one exists.
 
 ---
 
