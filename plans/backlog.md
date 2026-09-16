@@ -215,6 +215,16 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   the review overturned it on cost of delay — item 6's 1,045 discard-watchers
   would otherwise test against fixtures. "Another player chooses" (701.9b's
   third shape) stays here with its first card.
+- **`Shuffle` (CR 701.24a) — ✅ built 2026-09-16 (RF)**, on RD-1's precedent
+  again: `Primitive::ShuffleLibrary` and `GameAction::ShuffleLibrary` landed
+  inside a replacement PR because Darksteel Colossus's rider needed them
+  (`replacement-architecture.md` §9, Phase RF, decision 6). Whose library is
+  the recipient's: `Controller` is "shuffle your library", `Implicit` the
+  source's owner's, a target a player or an object standing for its owner.
+  **`ShuffleIntoLibrary` stays here** — a spell's "shuffle target card into
+  your library" must *move* the card first (CR 701.24c), which the rider must
+  not — and is now one `change_zone` plus one `ShuffleLibrary` proposal per
+  target; Lich's Mirror's three-zone recipient is the other half it waits on.
 - **Owner** — none yet.
 
 ### 2.6 CR 702 keyword abilities

@@ -37,6 +37,113 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-16 for RF** (the gather's zone leg —
+`replacement-architecture.md` §9, Phase RF; §3.3's source 2). `PERFORMANCE_POOL`
++1 — Darksteel Colossus, 89 → 90 — and the stress pool +2 (159 → 161: Nexus of
+Fate and the pooled one), so **both tables are a re-record and neither column
+is comparable to A4e's**.
+
+**Three arms, and the middle one is the engine's reading.** `main` (1fe9a14),
+the leg with both cards registered and unpooled, and the pool entry on top:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| engine vs `main`, `performance`, every counter | **IDENTICAL** | **IDENTICAL** |
+| engine vs `main`, `stress` | differ, by construction (registration moves the decks) | differ, by construction |
+| pooled vs `main`, both pools | differ, by construction | differ, by construction |
+| `µs / decision`, engine vs `main` | 65.3 → 65.6, **+0.6%** | 117.2 → 115.7, **−1.2%** |
+| `µs / decision`, pooled vs `main` | 65.3 → 67.8, +3.9% | 117.2 → 116.8, −0.3% |
+| `Layer walks`, `performance`, main → engine → pooled | 367 → 367 → 521 | 809 → 809 → 1,365 |
+| `Frames/walk`, `performance` | 12.61 → 12.61 → 8.93 | 20.29 → 20.29 → 11.65 |
+| `ms / 1,000 walks`, pooled vs `main` | −26.8% | −41.9% |
+| `Replacement gathers`, `performance` | 1081 → 1081 → 1097 | 2270 → 2270 → 2227 |
+
+**The engine half is inside §3.1's 2.5 points at both seat counts, and its
+counters are byte-identical**: a board that plays no zone-functioning card has
+an empty candidate set, and the leg costs it one `is_empty` per gather. **The
+pooled half is the card's price, and it is the shape the design predicted**:
+the walk row moves by one cheap frame per gather for every Colossus sitting in
+a hand or a library — a non-member walk of one frame, which is why
+`Frames/walk` falls and `ms / 1,000 walks` with it — and per decision it reads
+flat at four seats and +3.9% at two, inside the sitting's 2–6% spread both
+times. The cost scales with the number of such cards in play, not with the
+size of the libraries, which is what a candidate set buys over a zone walk.
+
+**Reachability** (`--require "Darksteel Colossus,Nexus of Fate"` on the pooled
+binary, `--pool stress` because Nexus is unpooled, 200 games, seed 12345,
+one copy of each forced into every deck):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Darksteel Colossus — cast / resolved / games with a cast / copies per deck | 45 / 45 / 38 (19%) / 1.25 | 68 / 68 / 60 (30%) / 2.46 |
+| Nexus of Fate — cast / resolved / games with a cast / copies per deck | 138 / 137 / 89 (44%) / 1.28 | 127 / 127 / 88 (44%) / 2.51 |
+
+One of the two-seat Nexuses was countered, which is the stack-side
+replacement reached in a random game; every resolved Nexus is CR 608.2n's
+move replaced. Errors, panics and turn-limit hits are 0 on every arm and
+every run but the one four-seat `stress` game A4e already recorded at the
+cap.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 20 (40.0%) / 30 (60.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 29.3 | 30.8 |
+| Spells cast | 22.2 | 22.5 |
+| Lands played | 17.7 | 18.0 |
+| Combat w/ atk | 10.0 | 9.0 |
+| Creatures died | 6.1 | 4.7 |
+| Damage events | 21.6 | 19.8 |
+| Total damage | 67.6 | 49.7 |
+| Life changes | 13.4 | 15.9 |
+| **Layer walks** | **518** | **666** |
+| **Board walks** | **237** | **316** |
+| **Memo hits** | **59,468** | **92,598** |
+| **Layer frames** | **4,369** | **6,721** |
+| **Frames/walk** | **8.44** | **10.10** |
+| **Dependency checks** | **6** | **11** |
+| **Replacement gathers** | **1063** | **1237** |
+| **Restriction queries** | **1066** | **1239** |
+| Mana productions | 83 | 134 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.34 | 1.16 |
+| Max batch depth | 5 | 5 |
+| Decisions | 233 | 386 |
+| Priority decisions | 91 | 165 |
+
+**And the four-player table** (50 games / seed 12345):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 22 (44.0%) / 15 (30.0%) / 11 (22.0%) / 2 (4.0%) | 18 (36.0%) / 20 (40.0%) / 9 (18.0%) / 3 (6.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 57.4 | 66.6 |
+| Spells cast | 42.4 | 47.3 |
+| Lands played | 34.5 | 38.6 |
+| Combat w/ atk | 23.9 | 25.5 |
+| Creatures died | 13.8 | 11.9 |
+| Damage events | 51.2 | 58.3 |
+| Total damage | 148.5 | 149.7 |
+| Life changes | 37.4 | 42.0 |
+| Turns after a departure | 18.6 | 21.2 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **1,327** | **1,897** |
+| **Board walks** | **496** | **705** |
+| **Memo hits** | **173,048** | **295,848** |
+| **Layer frames** | **15,059** | **24,526** |
+| **Frames/walk** | **11.35** | **12.93** |
+| **Dependency checks** | **144** | **96** |
+| **Replacement gathers** | **2150** | **2775** |
+| **Restriction queries** | **2155** | **2780** |
+| Mana productions | 151 | 279 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 1.22 | 3.40 |
+| Max batch depth | 5 | 5 |
+| Decisions | 437 | 821 |
+| Priority decisions | 175 | 341 |
+
 **Re-recorded 2026-09-16 for A4e** (item 138's two decision counters and item
 145's forced-prompt guard, PR #155). **The pool did not change** — 89 and 159,
 the same cards — and this is a re-record anyway, which is the unusual part and

@@ -4274,6 +4274,193 @@ have corrected and are **flagged here rather than edited**, for the reason
 §2.17 gives about the same file: the corpus is authored, and a correction to it
 is the corpus's own work rather than a side effect of the PR that noticed.
 
+#### RF — the gather's zone leg — ✅ landed 2026-09-16
+
+*Evicted 2026-09-16 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
+
+**One PR, `replacement/gather-zone-leg`, off `main` after #155.** Critical-path
+6a's remainder and `roadmap-v2.md` A5b: LK (2026-09-14) gave a static ability
+a way to *register* off the battlefield and left this sweep visiting
+`battlefield_ids_ordered` alone (§11 items 4 and 9's (c)). Lettered `RF` for
+the reason LK was not called `A5` — a roadmap row is not a phase code, and
+this is the replacement track's next letter after RE. Written at the close,
+as A5b's row allowed ("the doc can be written while it lands"), so the
+decisions below are recorded rather than proposed; the PR description carried
+them at review.
+
+##### The finding that sets the scope: the sweep is not a loop over zones
+
+§11 item 9 once called this "one loop over a zone list instead of
+`battlefield_ids_ordered`". LJ found that sentence wrong for the *affected*
+side, where the work was the working set; it is wrong for the *source* side
+for a different reason — **cost**. Four libraries are ~400 objects, a gather
+runs 2,273 times a four-seat game (`fuzz-record.md`, A4e's block), and the
+read is a `compute_characteristics` per object: an ungated zone walk is the
+10.3% RC-2 paid, several times over. So the question the PR was asked to
+decide — what the sweep visits for a zone that is not the battlefield — has
+the same answer the battlefield has: **a set of the objects worth a walk**,
+and the sweep visits the set.
+
+##### Decisions
+
+**1. A second candidate set beside `replacement_ability_sources`, not a
+widened one and not a per-zone index.** `GameState::zone_replacement_ability_sources`
+holds the objects off the battlefield whose *printed* static replacement
+ability functions in the zone they are in — `zone_function::functions_in`
+on printed types at the registration doors, which LK already built:
+`arrive_in_zone` for every move, `place_on_battlefield` for the entry, and
+a new `create_in_zone` for the one door LK did not have, a card created in a
+zone without moving — `Game::new`'s library, and the test helpers, which
+`put_in_graveyard` alone had been routing through the hook. Retired at
+`cleanup_zone_state` on leaving any zone, refiled on arrival.
+
+Why a second set: the two are read by different sweeps. The battlefield sweep
+probes its set by id inside a walk of `battlefield_ids_ordered`; the zone leg
+*iterates* its set, and on every board that plays no such card that set is
+empty — a structural zero, LJ's `reachable_zones` argument again. One widened
+set would cost the leg a store probe per battlefield source on every gather to
+tell the two apart. Why not a per-zone index: the leg wants "which objects",
+and an object's zone is one store read away; a second index over the same fact
+would be maintained at the same doors and could only disagree.
+
+The set is the gate's *printed* leg, and it over-approximates in the one
+direction the battlefield set does — a Layer 6 strip costs a walk and never an
+answer — because the sweep re-asks `functions_in` of the **effective** list
+with the effective types. That is what makes "Cards in hands lose all
+abilities" strip a Colossus in hand (the `hollow_hands` fixture): the gate
+says candidate, the frame says nothing, and the discard goes to the graveyard.
+
+**2. The granted and copied legs are `ZoneSet`s.** `RegistryScopeSummary::
+any_granted_replacement` and `any_copied_replacement` were bools meaning
+"some object on the battlefield may have one". They are now
+`granted_replacement_zones` and `copied_replacement_zones`, unioned over
+`zones_a_grant_can_reach` of each row's affected set: a `Filter` names its
+zones; `Fixed` and `Host` are the battlefield (CR 611.2c locks a resolution's
+targets to the battlefield, `collect_battlefield_targets` does, and CR 400.7
+ends the effect when one leaves); `SourceOnly` is `ALL`, because a static
+ability functioning off the battlefield could grant its own object one there
+and the summary is computed from the rows alone. `ALL` is sound and free —
+no registered card produces such a row — and self-correcting: the day one
+does, the cost is a walk of every zone per gather, which the A/B shows and a
+`source_zone` on the row narrows (`codebase-state.md` main item 146). The
+battlefield sweep reads `.contains(Battlefield)` where it read the bool; the
+zone leg walks `beyond_battlefield()` of the union, in each zone's own order,
+merged with the printed set and deduplicated. The restriction sweep's two
+bools stay bools: its zone leg is owed against Abrupt Decay (main item 147).
+
+**3. Order, and the entering object.** The leg runs after the battlefield
+sweep and before source 1a's splice, in **CR 613.7d timestamp order** — the
+battlefield's own key, so CR 616.1's list is one order rather than two, and
+process-independent for `CLAUDE.md`'s reason. It **skips the entering
+object**: source 1a reads that object off CR 614.12's frame with the
+parenthesis's narrower scope (`SourceOnly` rows only), and reading it again
+from its source zone with the sweeps' scope would offer a filter-scoped row
+to the entry it is about — "permanents enter tapped" tapping itself, which
+is the Orb of Dreams bug one zone over. `gather.rs`'s unit test is that
+board. So `EntryFrame` has exactly one thing to say off the battlefield, and
+it is *no*: `is_entering(id)`, answered off the proposal with no frame
+computed.
+
+`SelfScope::OnBattlefield` became `SelfScope::Existing`: an object in a zone
+is one of CR 614.12 clause (3)'s "continuous effects that already exist"
+whether or not that zone is the battlefield.
+
+**4. `functions_in` is asked of every ability, on the battlefield too.**
+`push_static_ability_replacements` takes the object's frame and the zone it
+is asked *as* in — its own for the two sweeps, the battlefield for the
+entering permanent (CR 113.6h) — and skips an ability that does not function
+there. The battlefield sweep's check is CR 113.6's default arm and always
+true for a permanent's replacement ability, so this costs it a few branches
+per ability; what it buys is one home for the rule rather than a leg-shaped
+exception, and the `timid_golem` fixture proves the negative from three
+zones.
+
+**5. The affected side, and the `debug_assert`.** `set_affects`'s `Filter`
+arm now asks the layer walk's `in_zones_or_entering` question ahead of the
+filter: the entering object counts as on the battlefield (CR 614.12 asks
+what it *would be* there), anything else must be in the row's zones. Three
+registered rows were hiding behind the assert, all written battlefield-scoped
+by LJ's mass rewrite and reaching everything by accident: **Rest in Peace**
+and **Leyline of the Void** say "from anywhere" and are `ZoneSet::ALL`;
+**Nephalia Academy** acts on a card in its controller's hand and is
+`ZoneSet::HAND`. Shown to fail first — with the check in and the rows
+unchanged, exactly those three cards' tests failed and nothing else — which
+is also the audit: every other `Filter` row in the card files is about a
+permanent, a player or an entering object. The `sealing_ward` fixture beside
+Rest in Peace on a milled creature card is the CR 109.2 distinction the check
+makes observable.
+
+**6. The card, and what it needed that the sizing did not name.** Darksteel
+Colossus rather than Blightsteel: the owner named Blightsteel, its clause is
+the same plus infect, and infect (CR 702.90) is not a keyword the engine has
+— a registered Blightsteel would be a card wearing a real name while
+behaving differently (`engineering-practices.md` §3). Nexus of Fate is the
+second shape §3.3 asks for: an instant, never a permanent, replaced from the
+stack when it resolves (CR 608.2n) and when it is countered; registered and
+not pooled, for Time Walk's reason. The clause is written the way Wonder
+writes its graveyard — `Condition::SourceInZone(ZoneSet::ALL)` is CR 113.6b's
+statement, read syntactically to file the card and again at each proposal —
+and its "shuffle it into its owner's library instead" is a substitute plus a
+rider. The rider needed a writer of a library's order the engine did not
+have in play: **`GameAction::ShuffleLibrary`** through the chokepoint (a
+library's order is game state and "whenever a player shuffles" is a trigger
+CR 701.24b, e, f name), `GameEvent::LibraryShuffled`, no `EventPattern` arm,
+and **`Primitive::ShuffleLibrary`** whose `Implicit` recipient is the
+source's *owner* — "its owner's". The rider moves nothing, which is
+CR 701.24c rather than a shortcut: a commander's CR 903.9b can send the
+substitute to the command zone instead, and its owner's library is shuffled
+all the same while the card stays there — the test that has CR 616.1 twice
+on one card. `Primitive::ShuffleIntoLibrary` (`backlog.md` §2.5) stays
+unbuilt for the same reason in reverse: a spell's "shuffle target card into
+your library" must move, and a rider must not.
+
+**What the PR refused.** `Board::seed` and `membership` are untouched — a
+source off the battlefield is read as a non-member, its own CDA walk plus
+whatever zone-reaching rows LJ admits, which is exactly right — so "the
+working set is the real one" (item 4) was true of the affected side and not
+of this one. No trace page: what changed is which sources are read, not how
+a read is answered (§7's test, RE-4's precedent).
+
+##### The pieces, measured
+
+| | Site | Shipped |
+|---|---|---:|
+| The shuffle — `GameAction::ShuffleLibrary`, its arm, `GameEvent::LibraryShuffled`, `Primitive::ShuffleLibrary`, the display and amount arms | `engine/actions.rs`, `events/event.rs`, `engine/resolve.rs`, `types/effects.rs`, `ui/display.rs`, `pipeline.rs`, `gather.rs` | +89 |
+| The leg — the second set and its three doors, the summary's two `ZoneSet`s, the sweep, `functions_in` on every ability, `is_entering`, the affected-side check, three rows corrected, `create_in_zone` in the test helpers | `state/{game_state,continuous_effects,game}.rs`, `engine/{zones,replacement/gather,replacement/lookahead}.rs`, `test_support.rs`, two card files, one test | +324 / −112 |
+| Darksteel Colossus, Nexus of Fate, three fixtures, the registrations | `cards/phase_rf_cards.rs`, `registry.rs`, `mod.rs` | +289 |
+| Tests — eleven integration, one unit | `tests/phase_rf_integration_test.rs`, `gather.rs` | +397 |
+| The pool entry | `registry.rs` | +11 |
+
+**+1,110 / −113 across 20 files** before docs — engine 436, cards 324, tests
+349 — inside `engineering-practices.md` §4's band. Commits in that order,
+each building on its own: the shuffle, the leg, the cards, the pool.
+
+##### Measure
+
+Three arms at two seats and four (`plans/fuzz_ab.py`, defaults; `--players
+4`), `main` at 1fe9a14: the leg with both cards registered and unpooled, and
+the pool entry on top. **The engine arm is `IDENTICAL` to `main` on every
+`performance` counter at both seat counts** — the candidate set is empty on a
+board with no such card, so the leg is one `is_empty` per gather — and reads
++0.6% and −1.2% per decision, inside §3.1's 2.5 points and the sitting's
+spread. The pooled arm is the card's price and the shape decision 1
+predicted: `Layer walks` 367 → 521 at two seats and 809 → 1,365 at four, one
+non-member frame per gather per Colossus in a hand or a library (so
+`Frames/walk` falls, 20.3 → 11.7, and `ms / 1,000 walks` with it), and per
+decision +3.9% at two seats and −0.3% at four — inside the spread both
+times, and scaling with the number of such cards in play rather than with
+the libraries. The block is in `plans/fuzz-record.md`; its reachability rows
+show both cards cast and resolved in a fifth to a half of the games, and one
+Nexus countered.
+
+**The lever left unpulled, and its argument.** The leg reads the Colossus's
+frame for events its printed clause cannot watch. A precheck on the
+*printed* pattern's kind would be exact rather than a shortcut: the
+effective list is a subset of the printed one whenever no granted or copied
+row reaches the object's zone, which is the same fact the gate's other two
+legs already stand on. Not built, on §8's rule — measure first — and the
+measurement is flat.
+
 #### RE-9 — mana (CR 106.6a, 106.12; RA's unnamed debt) — ✅ landed 2026-09-15
 
 *Evicted 2026-09-15 from `plans/replacement-architecture.md`, where the heading and a stub remain.*

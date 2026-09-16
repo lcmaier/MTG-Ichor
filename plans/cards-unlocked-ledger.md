@@ -89,7 +89,7 @@ These tickets add fields/flags but don't create new observable game behavior on 
 | T14 ✅ (+ T01) | Legendary creatures, planeswalkers | Isamaru, Hound of Konda ({W} 2/2 Legendary); test planeswalker (4 loyalty) | |
 | T15 (+ T04) | Auras (unattached → GY SBA); Equipment (unattach from non-creature SBA) | — (needs T15b for full attachment on cast) | |
 | T15b (+ T04) | **Full Aura lifecycle:** cast → attach → SBA if host dies | Holy Strength ({W} Aura, enchanted creature gets +1/+2); Pacifism ({1}{W} Aura, enchanted creature can't attack or block) | |
-| T16 (+ T01, T02) | Indestructible creatures; poison win condition | Darksteel Colossus (11/11 indestructible); test-only "Poison Fang" creature | |
+| T16 (+ T01, T02) | Indestructible creatures; poison win condition | Darksteel Colossus (11/11 indestructible); test-only "Poison Fang" creature | 🃏🧪 Darksteel Colossus (RF, 2026-09-16 — registered and pooled for its "from anywhere" clause, `replacement-architecture.md` §9; the indestructible half is RS-1's) |
 
 **Checkpoint A: After T13 + T14** (already done)
 
