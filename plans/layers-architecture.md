@@ -1155,6 +1155,59 @@ are mostly (1) and (2) in another place; their residual is re-measured after
 those land, and the window's real fix is `backlog.md` §2.18's solver — one
 enumeration per cast rather than one per prompt.
 
+### Re-read at four seats on `stress`, 2026-09-16 — the ability list behind an `Arc` (A4f, PR #157)
+
+**Both arms re-run, and why.** The same command, distro and settings as the
+table above, over two builds made the same day: `main` at fb3be8e and
+`perf/ability-list-arc` at 5eb1e35. PR #156 registered the RF cards between
+the table above and this PR, so the `stress` pool is 161 cards where the
+table's was 159, and an instruction count travels only at identical games
+(`engineering-practices.md` §3.1) — the table above is not this pool's
+"before". Every counter outside `=== Timing ===` is identical native and
+under valgrind on each arm, and identical between the arms (the A/B read
+`IDENTICAL` on every row, both pools, two seats and four).
+
+| | `main` fb3be8e | A4f | |
+|---|---:|---:|---|
+| instructions, 200 games | 181.36 G | 124.48 G | **−31.4%** |
+| a game | 906.8 M | 622.4 M | native CPU a game −30.6% at four seats, −33.6% at two |
+| `<AbilityDef as ConvertVec>::to_vec` | 38.39 G (21.2%) | — | the row is gone: 26,838 `AbilityDef::clone` calls in 200 games, 0.02% |
+| `seed_frame` | 15.46 G (8.5%) | 3.66 G (2.9%) | the per-frame half (item 67); what remains is the five `HashSet`s and the name |
+| `activatable_abilities` | 30.21 G (16.7%) | 11.11 G (8.9%) | the wrapper half, by caller |
+| `available_mana_sources` | 39.79 G (21.9%) | 22.33 G (17.9%) | |
+| `is_prohibited` | 11.98 G (6.6%) | 2.93 G (2.4%) | |
+| `replacement::gather` | 23.64 G (13.0%) | 20.34 G (16.3%) | already off the wrapper since RF |
+| `get_effective_abilities` | inlined | 2.83 G (2.3%) | now a row of its own: a memo probe and a refcount per call |
+| `malloc` + `free`, self | 34.37 G (19.0%) | 13.35 G (10.7%) | |
+| `memcpy`, self | 12.62 G (7.0%) | 3.45 G (2.8%) | |
+| `Effect::clone` | 17.59 G (9.7%) | 0.05 G | |
+| `hash_one::<&Uuid>` | 40.63 G (22.4%) | 40.63 G (32.6%) | **unchanged to the instruction** — lever 2, now the largest share |
+| `compute_characteristics` | 64.54 G (35.6%) | 49.32 G (39.6%) | |
+| `check_state_based_actions` | 56.58 G (31.2%) | 48.10 G (38.7%) | `is_creature` 27.43 G → 21.03 G: every walk seeds cheaper |
+| `candidate_priority_actions` | 50.53 G (27.9%) | 24.71 G (19.9%) | |
+| `run_mana_ability_window` | 26.90 G (14.8%) | 17.53 G (14.1%) | |
+| `battlefield_ordered` + `battlefield_ids_ordered` | 14.57 G (8.0%) | 14.31 G (11.5%) | lever 6, unchanged |
+| `LayerMemo::insert` | 6.59 G (3.6%) | 3.14 G (2.5%) | an evicted frame drops an `Arc`, not a tree |
+
+**Where the 22.5% went.** The whole `to_vec` row — 38.4 G on this pool — and
+18.5 G more: the total fell 56.9 G, and the difference is the *drop* side of
+the same clones, `free` and the tree's drop glue, which an inclusive `to_vec`
+row never counted. By caller, inclusive and so overlapping:
+`activatable_abilities` −19.1 G, `available_mana_sources` −17.5 G,
+`is_prohibited` −9.1 G, `gather` −3.3 G, and the per-frame seed −11.8 G. The
+wrapper itself now costs 2.8 G, a memo probe and a refcount per call.
+`hash_one` not moving by a single instruction is the check that these are
+the same games, and the reading that lever 2 is a third of the game.
+
+**What follows.** `codebase-state.md` item 138's ranking, re-read on this
+profile: lever 2, the id hasher, is 32.6% and the largest by a distance;
+lever 3, the SBA sweep's per-permanent question, is 16.9% and mostly lever 2;
+lever 4, the per-prompt enumeration, fell from 27.9% to 19.9% and lever 5,
+the mana window, from 14.8% to 14.1% — of a total a third smaller, so their
+residual is now measured; lever 6, the sorts, is 11.5%. Lever 7,
+worker-thread scaling, is to be re-measured against the three runs of
+2026-09-15 now that most of the allocation is gone. Item 67 is closed.
+
 ---
 
 ## 13. Work-Phase Plan

@@ -1160,33 +1160,20 @@ registered card returns an object.
     `GameState`; owner CV-2, the first phase with something to validate against
     it.
 
-67. **`CopiableValues::apply_to` deep-clones a `Vec<AbilityDef>` into every
-    frame of every copied object (C5).** The `String`, five `HashSet`s and the
-    ability tree are cloned twice per walk — once seeding the frame from
-    `CardData`, once overwriting it from the capture. Not a new lever:
-    `layers-architecture.md` §12 measured eliding the per-frame
-    `Vec<AbilityDef>` clone at ~30% before 7a and names the fix —
-    `Arc<Vec<AbilityDef>>` on `CardData`, `Arc::make_mut` in the Layer 4 and 6
-    arms — and `CopiableValues.abilities` takes the identical treatment.
+67. **~~`CopiableValues::apply_to` deep-clones a `Vec<AbilityDef>` into every
+    frame of every copied object (C5)~~ ✅ CLOSED 2026-09-16 (A4f, PR #157) —
+    the ability list is behind an `Arc`.** `CardData.abilities`,
+    `EffectiveCharacteristics.abilities` and `CopiableValues.abilities` are
+    `Arc<Vec<AbilityDef>>`, `get_effective_abilities` returns the memoized
+    frame's own `Arc`, and the seven writers copy on write, so a frame no
+    layer writes shares the card's allocation. Callgrind at four seats on
+    `stress`, both arms on the same pool: the `to_vec` row (21.2% of `main`)
+    is gone and the game fell 31.4% in instructions, 30.6% in native CPU
+    (`layers-architecture.md` §12, the 2026-09-16 re-read).
+    → `plans/archive/codebase-state-closed.md`.
 
-    **Reachability (2026-09-03):** reachable — not wrong; perf only, on every
-    walk of a copied permanent. Note that 7a landed since (walks per game
-    108,626 → 2,663), so the per-frame cost is paid forty times less often than
-    when §12 measured it; re-measure before paying.
-
-    **Sized:** ~100–150 lines across `CardData`, `CopiableValues`,
-    `compute.rs` and the two mutating arms; answer-preserving; lands when a wide
-    copied board (Mirrorform onto twenty permanents) measures it, or with §12's
-    next perf item.
-
-    **Re-measured 2026-09-15 (callgrind, the post-RE audit's pass 3; item
-    138's lever 1).** Cloning `Vec<AbilityDef>` is 22.5% of all instructions
-    in a four-seat `stress` game: 6.6% is this item's per-frame clone from
-    `CardData` on a walk, and ~15% is `get_effective_abilities` cloning the
-    list out of a memo hit for the enumeration wrappers and the two sweeps —
-    so the `Arc` this item names is the largest single lever the engine has,
-    the wrapper returns the `Arc` with it, and "re-measure before paying" is
-    paid.
+    **Reachability (2026-09-16):** closed — landed, answer-preserving; the
+    A/B read `IDENTICAL` on every counter, both pools, two seats and four.
 
 68. **A `ChoiceKind` is named for the question, never for the card (C3).** Asked
     whether the vocabulary should be swept and designed ahead; no — appending a
@@ -6543,6 +6530,11 @@ Commander-scale board closes item 69.
         `Arc::make_mut` in the Layer 4 and 6 arms — item 67's shape,
         ~100–150 lines plus 13 call sites, answer-preserving — and most of
         the 24% spent in `malloc` and `free` goes with it. **Rank 1.**
+        **Landed 2026-09-16 (A4f, PR #157):** the `to_vec` row is gone and
+        the game fell 31.4% in instructions on the same pool, 30.6% in
+        native CPU at four seats; `hash_one` did not move by an instruction
+        and is now 32.6%, so lever 2 is next. → `layers-architecture.md`
+        §12, the 2026-09-16 re-read.
      2. **Process-stable ids in place of the v4 `Uuid` keys** — 22.1% hashes
         16-byte keys with SipHash for every memo, object and battlefield
         lookup (13.5 M `is_creature` lookups in 200 games alone). First
