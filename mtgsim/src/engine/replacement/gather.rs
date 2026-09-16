@@ -8,7 +8,14 @@
 //!    That is not a shortcut: it is what makes Humility and Blood Moon strip a
 //!    replacement ability for free, and it asks CR 614.4's "must exist before
 //!    the event" at the one instant that matters.
-//! 2. **Static abilities functioning in other zones** — deferred past Phase RE.
+//! 2. **Static abilities functioning in other zones** (CR 113.6) — the same
+//!    read, off a set of the objects whose printed ability functions where
+//!    they are (`GameState::zone_replacement_ability_sources`) plus the zones
+//!    a Layer 6 grant or a copy can reach, because a library is not a list
+//!    the gather can afford to walk. Every ability is asked
+//!    `zone_function::functions_in` of the zone its object is in, which is
+//!    what keeps "if this would be put into a graveyard, exile it instead"
+//!    on a card in hand from applying to its own discard. RF, 2026-09-16.
 //! 3. **Continuous effects with a duration, from resolutions** — the registry.
 //! 4. **Shields from resolutions** (CR 615.7/615.8, 701.19a) — the registry.
 //! 5. **Counters** (CR 122.1c/d/h) — synthesized during the sweep, because they
@@ -21,11 +28,16 @@
 //! reason `ReplacementClass::SelfReplacement` currently has a step and no
 //! producer.
 
+use std::collections::HashSet;
+
 use crate::engine::actions::{ActionContext, GameAction};
+use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
-use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
+use crate::objects::card_data::AbilityType;
+use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
@@ -35,7 +47,7 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
-use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
+use crate::types::zones::{Zone, ZoneChangeCause};
 
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::types::restriction::ReplacementKindFilter;
@@ -225,17 +237,21 @@ pub(crate) fn gather(
         // decided, and CR 614.12 clause (3) is what lets Humility strip an entering
         // "enters with" before it applies. Computed once per iteration, shared with
         // `set_affects`.
+        // CR 113.6h: asked as on the battlefield, which is the zone the frame
+        // computes it in.
         if let Some(chars) = frame.frame_of(*object) {
             push_static_ability_replacements(
-                game, &mut entering, *object, *controller, &chars.abilities, action, subject,
-                cause, SelfScope::EnteringSelf, frame,
+                game, &mut entering, *object, *controller, chars, Zone::Battlefield, action,
+                subject, cause, SelfScope::EnteringSelf, frame,
             );
         }
     }
 
+    let summary = game.continuous_effects.summary();
+    let unattributed_zones = summary.granted_replacement_zones | summary.copied_replacement_zones;
     let has_static_source = !game.replacement_ability_sources.is_empty()
-        || game.continuous_effects.summary().any_granted_replacement
-        || game.continuous_effects.summary().any_copied_replacement;
+        || !game.zone_replacement_ability_sources.is_empty()
+        || !unattributed_zones.is_empty();
     if !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
@@ -249,19 +265,19 @@ pub(crate) fn gather(
     // sweep runs, this decides which permanents are worth a walk — the same
     // predicate one object at a time, exact with the same over-approximations.
     // No under-approximation: a copied replacement ability is on the effective
-    // list and in neither ETB set, so `any_copied_replacement` is its leg here
+    // list and in neither ETB set, so `copied_replacement_zones` is its leg here
     // too — registry-wide, not per object, since narrowing it would resolve a
     // filter per permanent per check.
-    let summary = game.continuous_effects.summary();
-    let any_unattributed = summary.any_granted_replacement || summary.any_copied_replacement;
+    let any_unattributed = unattributed_zones.contains(Zone::Battlefield);
     for id in game.battlefield_ids_ordered() {
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
-            let abilities = get_effective_abilities(game, id);
-            push_static_ability_replacements(
-                game, &mut candidates, id, controller, &abilities, action, subject,
-                cause, SelfScope::OnBattlefield, frame,
-            );
+            if let Some(chars) = compute_characteristics(game, id) {
+                push_static_ability_replacements(
+                    game, &mut candidates, id, controller, &chars, Zone::Battlefield, action,
+                    subject, cause, SelfScope::Existing, frame,
+                );
+            }
         }
 
         for (counter, kind, def) in counter_replacements(game, id) {
@@ -281,6 +297,48 @@ pub(crate) fn gather(
                 frame,
             );
         }
+    }
+
+    // --- Source 2: static abilities functioning off the battlefield --------
+    // (CR 113.6.) The same read as source 1 over a different candidate list:
+    // the objects whose *printed* ability functions where they are, kept by
+    // the registration doors, plus every object in a zone a Layer 6 grant or a
+    // copy row can put a replacement ability in — the granted and copied legs,
+    // which cost a walk of that zone and nothing on a board with no such row.
+    // In CR 613.7d timestamp order, the battlefield's own key, so the list
+    // CR 616.1 offers is one order rather than two. The entering object is
+    // source 1a's: it is read off CR 614.12's frame with that rule's narrower
+    // scope, and reading it again here off its source zone would offer its
+    // filter-scoped rows to its own entry, which 614.12's parenthesis forbids.
+    let mut elsewhere: Vec<(u64, ObjectId)> = game
+        .zone_replacement_ability_sources
+        .iter()
+        .map(|&id| (game.object_timestamp(id), id))
+        .collect();
+    let zone_sweep = unattributed_zones.beyond_battlefield();
+    if !zone_sweep.is_empty() {
+        let mut seen: HashSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        for zone in zone_sweep.iter() {
+            for id in game.zone_ids_ordered(zone) {
+                if seen.insert(id) {
+                    elsewhere.push((game.object_timestamp(id), id));
+                }
+            }
+        }
+    }
+    elsewhere.sort_unstable();
+    for (_, id) in elsewhere {
+        if frame.is_entering(id) {
+            continue;
+        }
+        let Some(obj) = game.objects.get(&id) else { continue };
+        let Some(chars) = compute_characteristics(game, id) else { continue };
+        // CR 108.4 — no controller off the battlefield, so its owner.
+        let controller = controller_or_owner(game, id).unwrap_or(obj.owner);
+        push_static_ability_replacements(
+            game, &mut candidates, id, controller, &chars, obj.zone, action, subject, cause,
+            SelfScope::Existing, frame,
+        );
     }
 
     candidates.extend(entering);
@@ -322,52 +380,66 @@ pub(crate) fn gather(
 /// this the entering Orb finds its own row through `set_affects`, which matches
 /// a `Filter` against any object in any zone, and taps itself.
 ///
-/// Nothing on the battlefield is excluded from anything — a permanent already
-/// there is one of the "existing" effects clause (3) means — so the sweep
-/// passes [`SelfScope::OnBattlefield`] and the check costs it one integer
-/// comparison it always wins.
+/// Nothing already in a zone is excluded from anything — an object there is
+/// one of the "existing" effects clause (3) means, on the battlefield or off
+/// it — so the two sweeps pass [`SelfScope::Existing`] and the check costs
+/// them one integer comparison they always win.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SelfScope {
-    /// The battlefield sweep. Every replacement ability the object has counts.
-    OnBattlefield,
+    /// The battlefield sweep and the zone leg. Every replacement ability the
+    /// object has counts.
+    Existing,
     /// Source 1a. Only `ObjectSet::SourceOnly` counts (CR 614.12).
     EnteringSelf,
 }
 
-/// Every static replacement ability on `id`, as candidate instances.
+/// Every static replacement ability on `id` that functions in `zone`, as
+/// candidate instances.
 ///
-/// **The battlefield sweep's loop body, lifted so the entering permanent can
-/// reuse it** — nothing more. It computes nothing: the caller decides which
-/// object to ask and hands over that object's ability list, read off the
-/// board for the sweep and off CR 614.12's frame for the entering permanent.
+/// **The sweeps' loop body, lifted so all three callers share it** — nothing
+/// more. It computes nothing: the caller decides which object to ask and
+/// hands over that object's frame, read off the board for the two sweeps and
+/// off CR 614.12's frame for the entering permanent.
 ///
-/// `abilities` is the **effective** list either way, which is source 1's whole
+/// `chars` is the **effective** frame either way, which is source 1's whole
 /// point: Humility and Blood Moon strip a replacement ability for free, and
 /// CR 614.4's "must exist before the event" is asked at the one instant that
-/// matters.
+/// matters. Its types are what CR 113.6 asks (`zone_function`).
 ///
-/// `controller` is a parameter because the two callers know it differently: on
-/// the battlefield it is `controller_or_owner`, and for an entering permanent it
-/// is CR 110.2b's default off the proposal — the same reason `chooser_for` takes
-/// the action.
+/// `zone` is where the object is asked *as*: its own zone for the sweeps, the
+/// battlefield for the entering permanent (CR 113.6h — "functions as that
+/// object is entering the battlefield"). Asked of every ability, on the
+/// battlefield too, so the rule has one home: a "from your graveyard" clause
+/// on a permanent is skipped here for the same reason it is skipped in a
+/// library.
 ///
-/// `scope` is CR 614.12's parenthesis, and it is the only thing the two callers
+/// `controller` is a parameter because the callers know it differently: on
+/// the battlefield it is `controller_or_owner`, off it CR 108.4's owner, and
+/// for an entering permanent CR 110.2b's default off the proposal — the same
+/// reason `chooser_for` takes the action.
+///
+/// `scope` is CR 614.12's parenthesis, and it is the only thing the callers
 /// ask differently about the *effects* rather than about the object — see
 /// [`SelfScope`].
+#[allow(clippy::too_many_arguments)]
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
     id: ObjectId,
     controller: PlayerId,
-    abilities: &[AbilityDef],
+    chars: &EffectiveCharacteristics,
+    zone: Zone,
     action: &GameAction,
     subject: EventSubject,
     cause: Option<PlayerId>,
     scope: SelfScope,
     frame: &EntryFrame<'_>,
 ) {
-    for ability in abilities {
+    for ability in &chars.abilities {
         if ability.ability_type != AbilityType::Static {
+            continue;
+        }
+        if !functions_in(ability, &chars.types, zone) {
             continue;
         }
         // CR 604.2 through the "as long as" wrapper: the effect exists while its
@@ -524,18 +596,20 @@ pub(crate) fn set_affects(
         // "other than the effect's `source`", which a selection has no source for —
         // Palisade Giant's "other permanents you control" (`codebase-state.md` item 103).
         ObjectSet::Filter { filter, zones } => {
-            // The zone half is not implemented on this side: this is asked about an
-            // object on the battlefield *or entering it*, and an entering object is
-            // still in its source zone, so a naive `zones.contains(obj.zone)` would
-            // reject exactly the entry CR 614.12 exists for. LK gave a static ability a
-            // way to *register* off the battlefield and left this sweep alone
-            // (`replacement-architecture.md` §11 item 9's (c), which has a card); the
-            // failing assert is how whoever builds that leg finds this site.
-            debug_assert_eq!(
-                *zones,
-                ZoneSet::BATTLEFIELD,
-                "zone-reaching replacement row needs the gather's own zone leg (§11 item 9's (c))"
-            );
+            // The zone half, ahead of the filter, as the layer walk's
+            // `in_zones_or_entering` asks it: the entering object counts as on the
+            // battlefield — CR 614.12 asks what it *would be* there, and its source
+            // zone is not the question — and anything else must be where the row
+            // reaches. Rest in Peace's "from anywhere" is `ZoneSet::ALL`; "if a
+            // creature would be put into a graveyard" is the battlefield, and a
+            // milled creature *card* is not a creature (CR 109.2).
+            let in_zone = match frame {
+                Some(f) if f.is_entering(id) => zones.contains(Zone::Battlefield),
+                _ => matches!(game.objects.get(&id), Some(obj) if zones.contains(obj.zone)),
+            };
+            if !in_zone {
+                return false;
+            }
             game.object_matches_filter_of_source(
                 id,
                 filter,

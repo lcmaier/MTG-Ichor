@@ -28,7 +28,7 @@ use crate::types::ids::new_ability_id;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use crate::types::zones::{Zone, ZoneChangeCause};
+use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 
 /// Kalitas, Traitor of Ghet — {2}{B}{B}
 /// Legendary Creature — Vampire Warrior, 3/4
@@ -192,6 +192,13 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
 /// hand→graveyard on the CR 514.1 cleanup discard. Milling would be the third
 /// and `Primitive::Mill` is unimplemented, so the library case is out of reach
 /// rather than out of scope.
+///
+/// **And "from anywhere" is the affected set's zones as well as the pattern's
+/// `from` (RF, 2026-09-16).** `set_affects` asks where the affected object
+/// *is* before it asks the filter — the check the LJ-era `debug_assert` stood
+/// in for — so a row that reaches a card in a library, a hand or on the stack
+/// says so with `ZoneSet::ALL`. Before RF the zone half was not asked and a
+/// battlefield-scoped row reached everything by accident.
 pub fn rest_in_peace() -> Arc<CardData> {
     CardDataBuilder::new("Rest in Peace")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
@@ -214,8 +221,9 @@ pub fn rest_in_peace() -> Arc<CardData> {
                     object: None,
                 },
                 // "a card or token" — no owner clause, no type clause, and
-                // no `Not(Token)`. Everything that would hit a graveyard.
-                ObjectSet::battlefield_filter(ObjectFilter::All),
+                // no `Not(Token)`. Everything that would hit a graveyard,
+                // "from anywhere".
+                ObjectSet::filter_in(ObjectFilter::All, ZoneSet::ALL),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,
@@ -261,7 +269,8 @@ pub fn rest_in_peace() -> Arc<CardData> {
 /// **"From anywhere" is literal here too, and for a sharper reason.** This card's
 /// filter is `Not(Token)` and `ByOwner`, which read `GameObject.is_token` and
 /// `GameObject.owner` — both present in every zone, neither a characteristic the
-/// layer system computes. So no part of it needs the object to be a permanent.
+/// layer system computes. So no part of it needs the object to be a permanent,
+/// and the affected set reaches `ZoneSet::ALL` for [`rest_in_peace`]'s reason.
 ///
 /// **Kalitas stays `from: Battlefield`, and that is not the same call.** CR
 /// 700.4 *defines* "dies" as "put into a graveyard from the battlefield", so the
@@ -290,13 +299,17 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     cause: None,
                     object: None,
                 },
-                ObjectSet::battlefield_filter(ObjectFilter::And(
+                ObjectSet::filter_in(
+                    ObjectFilter::And(
                         // "a card" — CR 111.1, a token is not one.
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                         // "an opponent's graveyard" — CR 400.3 sends it to the
                         // owner's, so this is ownership and not control.
                         Box::new(ObjectFilter::ByOwner(PlayerRef::Opponent)),
-                    )),
+                    ),
+                    // "from anywhere".
+                    ZoneSet::ALL,
+                ),
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
                     to: Zone::Exile,
                     cause: ZoneChangeCause::Exiled,

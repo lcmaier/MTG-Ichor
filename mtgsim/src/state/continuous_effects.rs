@@ -5,7 +5,7 @@
 
 use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Layer, Timestamp};
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
-use crate::types::effects::Duration;
+use crate::types::effects::{Duration, ObjectSet};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::ZoneSet;
 
@@ -93,17 +93,26 @@ pub struct RegistryScopeSummary {
     /// abilities is common — the gate would be permanently on, and the fast
     /// path would buy nothing on exactly the boards that are most expensive to
     /// walk.
-    pub any_granted_replacement: bool,
+    ///
+    /// **A `ZoneSet` rather than a bool since RF**, because the gather sweeps
+    /// every zone a static replacement ability can function in (CR 113.6) and
+    /// a grant into a hand — Aminatou, Veil Piercer's shape — puts one on an
+    /// object the battlefield sweep never visits. `EMPTY` is "no such row";
+    /// the battlefield bit is what the old bool said. The zones a row can put
+    /// a granted ability in are [`Self::zones_a_grant_can_reach`]'s.
+    pub granted_replacement_zones: ZoneSet,
 
     /// True iff some row grants an ability whose body is an
     /// `Effect::Restriction` — i.e. some object on the battlefield may have a
     /// restriction ability that it did not print.
     ///
     /// The other half of `engine::restriction::is_prohibited`'s gate, and a
-    /// separate flag rather than a widening of `any_granted_replacement` for
-    /// that flag's own stated reason: the two sweeps read different ability
+    /// separate flag rather than a widening of `granted_replacement_zones` for
+    /// that field's own stated reason: the two sweeps read different ability
     /// bodies, so a shared flag would turn each one's fast path on for the
-    /// other's cards.
+    /// other's cards. Still a bool: the restriction sweep visits the
+    /// battlefield alone, and its zone leg is owed against Abrupt Decay
+    /// (`layers-architecture.md` §13d decision 4, CR 113.6g).
     pub any_granted_restriction: bool,
 
     /// True iff some `EffectModification::CopyFrom` row's captured values carry
@@ -116,22 +125,25 @@ pub struct RegistryScopeSummary {
     /// neither of the other two legs. Without it a copied replacement effect is
     /// silently dead on every board the gate skips.
     ///
-    /// A summary flag rather than an insert into
+    /// A summary field rather than an insert into
     /// `GameState::replacement_ability_sources`, for that set's own reason: it
     /// is "a set rather than a count, so it cannot drift", cleared only at
     /// `cleanup_zone_state`, and a copy row can **expire** with no zone change.
     /// The summary is recomputed from the rows on every mutation, so it cannot
     /// drift at all.
-    pub any_copied_replacement: bool,
+    ///
+    /// A `ZoneSet` for [`Self::granted_replacement_zones`]'s reason, over the
+    /// same [`Self::zones_a_grant_can_reach`].
+    pub copied_replacement_zones: ZoneSet,
 
     /// True iff some `EffectModification::CopyFrom` row's captured values carry
     /// a static restriction ability.
     ///
     /// The same leg on the *other* gate (`engine::restriction::predicate`).
-    /// Split from `any_copied_replacement` for the reason
-    /// `any_granted_restriction` is split from `any_granted_replacement`: the two
-    /// sweeps read different ability bodies, so a shared flag would turn each
-    /// one's fast path on for the other's cards.
+    /// Split from `copied_replacement_zones` for the reason
+    /// `any_granted_restriction` is split from `granted_replacement_zones`: the
+    /// two sweeps read different ability bodies, so a shared flag would turn
+    /// each one's fast path on for the other's cards.
     pub any_copied_restriction: bool,
 
     /// True iff some row grants an ability whose body is an
@@ -191,11 +203,12 @@ impl RegistryScopeSummary {
                 summary.any_multi_row_group = true;
             }
             summary.reachable_zones |= effect.affected_objects.reachable_zones();
+            let grant_reach = Self::zones_a_grant_can_reach(&effect.affected_objects);
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
                     match def.effect {
-                        Effect::Replacement(_) => summary.any_granted_replacement = true,
+                        Effect::Replacement(_) => summary.granted_replacement_zones |= grant_reach,
                         Effect::Restriction(_) => summary.any_granted_restriction = true,
                         _ => {}
                     }
@@ -209,7 +222,7 @@ impl RegistryScopeSummary {
                 EffectModification::CopyFrom(values) => {
                     for ability in &values.abilities {
                         match ability.effect {
-                            Effect::Replacement(_) => summary.any_copied_replacement = true,
+                            Effect::Replacement(_) => summary.copied_replacement_zones |= grant_reach,
                             Effect::Restriction(_) => summary.any_copied_restriction = true,
                             _ => {}
                         }
@@ -222,6 +235,31 @@ impl RegistryScopeSummary {
             }
         }
         summary
+    }
+
+    /// The zones an object carrying an ability *this row* grants can be in —
+    /// the question `engine::replacement::gather`'s zone leg asks of the
+    /// granted and copied legs, and a different question from
+    /// [`ObjectSet::reachable_zones`], which is about which zones a row adds
+    /// to the layer walk's working set.
+    ///
+    /// A `Filter` names its zones. Everything else names permanents: a
+    /// resolution's `Fixed` set is locked to objects on the battlefield when it
+    /// resolves (CR 611.2c; `collect_battlefield_targets`) and ends when one
+    /// leaves (CR 400.7), and `Host` is an attachment's host. `SourceOnly` is
+    /// the one the CR leaves open — a static ability functioning off the
+    /// battlefield (CR 113.6b) could grant its own object a replacement ability
+    /// there — and it answers `ALL` rather than the source's zone because the
+    /// summary is computed from the rows alone. Sound, and free: no registered
+    /// card produces such a row, and the day one does the cost is one zone
+    /// walk per gather, which the A/B will show and a `source_zone` on the row
+    /// would narrow.
+    fn zones_a_grant_can_reach(affected: &ObjectSet) -> ZoneSet {
+        match affected {
+            ObjectSet::Filter { zones, .. } => *zones,
+            ObjectSet::SourceOnly => ZoneSet::ALL,
+            ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::BATTLEFIELD,
+        }
     }
 }
 

@@ -74,6 +74,14 @@ impl<'g> EntryFrame<'g> {
         }
     }
 
+    /// Is `id` the object this event is entering? Answered off the proposal,
+    /// with no frame computed — the zone question `set_affects` asks before
+    /// it asks the filter, where CR 614.12 counts the entering object as on
+    /// the battlefield and its source zone is not the question.
+    pub(crate) fn is_entering(&self, id: ObjectId) -> bool {
+        self.basis.as_ref().is_some_and(|basis| basis.object == id)
+    }
+
     /// The frame, if `id` is the object this event is about and the event has
     /// one. Computed on first use.
     pub(crate) fn frame_of(&self, id: ObjectId) -> Option<&EffectiveCharacteristics> {

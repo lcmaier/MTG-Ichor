@@ -308,14 +308,41 @@ pub struct GameState {
     /// at `cleanup_zone_state`, both idempotent. It over-approximates in one
     /// direction only — CR 305.7 or Humility can take the printed ability away
     /// without touching the set, which costs a walk and never an answer. The
-    /// gate's other legs are `RegistryScopeSummary::any_granted_replacement`
-    /// (Layer 6) and the copy leg (`copy-effects-architecture.md` §4.7); Layer 3
-    /// is the route still without one.
+    /// gate's other legs are `RegistryScopeSummary::granted_replacement_zones`
+    /// (Layer 6) and `copied_replacement_zones` (`copy-effects-architecture.md`
+    /// §4.7); Layer 3 is the route still without one.
     ///
     /// **Engine-maintained.** `place_on_battlefield` inserts and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
     pub replacement_ability_sources: HashSet<ObjectId>,
+
+    /// Objects **off the battlefield** that printed a static ability whose
+    /// body is an `Effect::Replacement` and that **functions in the zone the
+    /// object is in** (CR 113.6) — Darksteel Colossus in a library, Nexus of
+    /// Fate on the stack.
+    ///
+    /// The gather's zone leg (`replacement-architecture.md` §3.3 source 2)
+    /// sweeps this set instead of the zones themselves: four libraries are
+    /// ~400 objects and a gather runs ~2,300 times a game, so the equivalent
+    /// of the per-permanent gate for objects that are not permanents has to
+    /// be a set that is empty on every board that plays no such card. A
+    /// second set beside [`Self::replacement_ability_sources`] rather than
+    /// one widened set, because the two are read by different sweeps —
+    /// `battlefield_ids_ordered` probes the first by id, the zone leg
+    /// iterates the second — and a single set would cost the zone leg a
+    /// store probe per battlefield source on every gather to tell them apart.
+    /// Disjoint by construction: the registration doors know the zone.
+    ///
+    /// The zone half of membership is the *printed* statement
+    /// (`zone_function::functions_in` on printed types, `// PRE-LAYER ZONE:`);
+    /// the sweep re-asks it of the effective list, which is the exact check.
+    /// Over-approximates in the same one direction as the set above.
+    ///
+    /// **Engine-maintained.** `register_static_effects` inserts from
+    /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
+    /// leaving any zone but the battlefield.
+    pub zone_replacement_ability_sources: HashSet<ObjectId>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -678,6 +705,7 @@ impl GameState {
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: HashSet::new(),
+            zone_replacement_ability_sources: HashSet::new(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: HashSet::new(),
             cost_modification_ability_sources: HashSet::new(),
@@ -1452,12 +1480,17 @@ impl GameState {
                 Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
                 _ => false,
             };
-            // Battlefield only: these sets index a sweep over `battlefield_ids_ordered`,
-            // so an entry for a source in a graveyard would be inert. A gate leg per
-            // zone is `replacement-architecture.md` §11 item 9 (c), and it arrives
-            // with a card.
-            if is_replacement && zone == Zone::Battlefield {
-                self.replacement_ability_sources.insert(id);
+            // Filed by where the gather will look for it — the CR 113.6 gate above
+            // has already said the ability functions here. Off the battlefield the
+            // zone leg sweeps its own set (Darksteel Colossus in a library); the
+            // two sets below stay battlefield-only, since their sweeps still visit
+            // the battlefield alone.
+            if is_replacement {
+                if zone == Zone::Battlefield {
+                    self.replacement_ability_sources.insert(id);
+                } else {
+                    self.zone_replacement_ability_sources.insert(id);
+                }
             }
 
             // CR 101.2 — the same shape for the same reason. A static

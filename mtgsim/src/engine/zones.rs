@@ -10,6 +10,7 @@
 
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::events::event::GameEvent;
+use crate::objects::object::GameObject;
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -139,6 +140,40 @@ impl GameState {
         }
         self.add_to_zone_collection(id, zone)?;
         self.arrive_in_zone(id, zone)
+    }
+
+    /// File a newly created card in the zone its object names — a library at
+    /// `Game::new`, or a hand, graveyard, stack or exile a test builds — and
+    /// register what functions there (CR 113.6).
+    ///
+    /// The counterpart to [`Self::move_object`] for an object that has never
+    /// been anywhere: `add_object` stamps it (CR 613.7d's "enters a zone"
+    /// includes being created in one), the zone's collection takes it, and
+    /// the same registration `arrive_in_zone` runs on a move runs here. A
+    /// card that starts the game in a library with an ability that functions
+    /// there — Darksteel Colossus's — is otherwise invisible to the gather
+    /// until it first moves, and a mill from the opening library is exactly
+    /// the event it must be found for.
+    ///
+    /// Not the battlefield, which is an entry with a performer of its own
+    /// (`place_on_battlefield`); loud about it, like [`Self::put_token_into`].
+    /// A spell put on the stack this way still needs its `StackEntry`, which
+    /// is the caller's.
+    pub(crate) fn create_in_zone(&mut self, obj: GameObject) -> Result<ObjectId, String> {
+        let zone = obj.zone;
+        let owner = obj.owner;
+        if zone == Zone::Battlefield {
+            return Err(format!(
+                "creating {} on the battlefield is an entry, not an appearance",
+                obj.id
+            ));
+        }
+        let id = self.add_object(obj);
+        self.add_to_zone_collection(id, zone)?;
+        // CR 108.4 — a card off the battlefield has no controller, so "you" is
+        // its owner, as `arrive_in_zone` reads it.
+        self.register_static_effects(id, owner, zone);
+        Ok(id)
     }
 
     /// An object has arrived in `zone`: write the zone, stamp it, register
@@ -462,6 +497,9 @@ impl GameState {
             // `RegistryScopeSummary` does not keep reporting a reach the board no
             // longer has.
             self.continuous_effects.remove_static_by_source(id);
+            // The gather's zone-leg candidate set is per zone (CR 113.6): the object
+            // stops being one here, and `arrive_in_zone` decides again where it lands.
+            self.zone_replacement_ability_sources.remove(&id);
         }
     }
 }
