@@ -1182,8 +1182,10 @@ mechanic rather than a migration, which is why it is here and not in
   (2026-09-08): the census runs first so full control is scheduled against the
   whole stack rather than against the one decorator that happened to need it.
 - **The 24 asks, classified for the fork model** (pass 3 of
-  `plans/handoffs/post-re-audit.md`, 2026-09-15 — its §4 consequence 2 and
-  §6 decision 4). The owner's rule: an inner ask is either a *parameter of
+  the post-RE audit, 2026-09-15 — the handoff's §4 consequence 2 and §6
+  decision 4; the handoff is deleted, its last text `git show
+  341ebf9:plans/handoffs/post-re-audit.md`, its record `codebase-state.md`'s
+  "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15"). The owner's rule: an inner ask is either a *parameter of
   the action chosen at priority* or *answered by a policy the harness
   supplies*, never a separate observation. Read against `ui/ask.rs`'s 24
   functions — the whole decision surface, 27 engine call sites and none in
@@ -1536,7 +1538,7 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 | **Rules** | CR 103.5 (declarations in turn order from the starting player, then each mulligan taken, then N cards to the bottom); 103.5c (in a multiplayer game the first mulligan is free); 103.5b ("any time [that player] could mulligan"); 903.5a — Commander is the same rule |
 | **Verdict** | a stub whose configuration is already in place; the engine answers the game's first decision for the player |
 | **Size** | ~100 lines in `Game::setup`: two `ChoiceKind`s, the loop CR 103.5 states, 103.5c keyed on the player count, and the random provider's policy — keep, always, so no fuzz counter moves; the pool moves only if an agent ever mulligans |
-| **Blocks** | every game's opening: the RL harness's first decision (`handoffs/post-re-audit.md` §4) and `cli_play`'s human seat |
+| **Blocks** | every game's opening: the RL harness's first decision (the post-RE audit's fork model, `codebase-state.md` main item 41) and `cli_play`'s human seat |
 | **Atoms** | `ATOM-103.5-001` |
 | **Owner** | — |
 
@@ -1652,7 +1654,7 @@ disagrees with a disposition in this file (still open — confirm before
 annotating), and the **502.3/703.4c pair** got its entry, §2.14 (2026-08-31).
 
 **Applied 2026-09-15 to Phase 6, at the post-RE audit's close-out** (pass 1 of
-`plans/handoffs/post-re-audit.md`). The replacement track had closed against a
+the post-RE audit — `codebase-state.md`, "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15"). The replacement track had closed against a
 `SHIPPED_PHASES` that did not contain it, so this was the query's first run
 over the phase: **127 atoms, 50 uncovered, 21 of them ticketed `NEW`; `owed`
 21 → 0**, and Phase 6 joined the constant the same day. Four atoms were proven

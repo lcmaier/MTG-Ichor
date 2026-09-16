@@ -16,8 +16,8 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; the replacement and restriction sweeps still visit the battlefield alone, `replacement-architecture.md` §11 item 4). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
-- **What is next on the spine:** the gather's zone leg (`roadmap-v2.md` A5's third PR, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6; beside it RS-2, CV-2, A4b's rulings ledger and A4c's trace sink, in an order pass 4 of the audit proposes (`plans/handoffs/post-re-audit.md`).
-- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 186 items as of 2026-09-15, three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
+- **What is next on the spine:** the gather's zone leg (`replacement-architecture.md` §11 item 4, critical-path 6a's remainder), then the triggers architecture doc and critical-path item 6. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters, its two callgrind levers, item 139 with the fork test, A4b's rulings ledger and A4c's trace sink; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
+- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
 
@@ -4251,6 +4251,85 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
      first each-player draw producer**, wherever Phase 8 lands it; the
      rotation it will sort by exists now.
 
+### Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15
+
+Asked by the owner the day RE-9 merged (PR #140) and critical-path item 5
+closed with it: twenty-four replacement PRs had landed between 2026-08-25 and
+2026-09-15, interleaved with CM-0–CM-4, LH, LI, LJ, LK, CV-1 and RS-1, and the
+next spine item was a doc nobody had sized. Planned as
+`plans/handoffs/post-re-audit.md` (PR #141), run as five passes on
+2026-09-15, and closed by the pass that deleted the handoff — this heading is
+its record, pointers not prose. The handoff's last text is `git show
+341ebf9:plans/handoffs/post-re-audit.md`; the practice it became is
+`engineering-practices.md` §9, which names each pass's instrument and is
+where the next run, at item 6's close, starts.
+
+**Yes, with a "not yet" list, and the list is the CR 614–616 row's.** The
+close-out read "done" off five places and collected it in one; nothing it
+found was a wrong pipeline, and three things it found were wrong claims —
+the TL;DR's line and test counts, `replacement-architecture.md` §13's "✅
+through RB", and `owed` scoped to three older phases at every RE close.
+
+- **Pass 1, the close-out (PR #142):** the board's classifier — "reachable
+  but not wrong today" had been read as wrong, RD-1's prose list counted as
+  three items, three verdicts worded so the board could not read them; the
+  Phase 6 `owed` triage, `backlog.md` §3.3's second block, 21 `NEW` → 0 and
+  Phase 6 in `SHIPPED_PHASES`; item 118 fixed, shown to fail first, A/B
+  `IDENTICAL`; `replacement-architecture.md` §8a's four kinds dispositioned,
+  §11 items 3, 4 and 14, §12 re-read, §13 current, §14 written; this file's
+  "Found by the post-RE audit (2026-09-15)" — item 134 — and items 59, 60,
+  122 and 131 scheduled, 88 and 118 closed, 116 and 121 re-worded.
+- **Pass 1b, the eviction (PR #151):** `replacement-architecture.md` 6,725 →
+  3,401 lines, `plans/archive/replacement-architecture-landed.md` 4,933 →
+  8,647; every heading byte-identical, every §11 item still at its own
+  number.
+- **Pass 2, hygiene and CI (PRs #143, #144 re-landed by #145, then
+  #146–#149):** clippy counted at 114 sites and adopted at `-D warnings`
+  with five lints allowed; `check_glossary.py` in CI; the toolchain floor
+  measured at 1.88 (`rust-version`) with the pin kept at 1.98; `cargo fmt
+  --check` costed and left to the owner; `engineering-practices.md` §2.1's
+  two recorded applications, 17,278 → 15,806 comment lines; twelve `TODO`s
+  re-owned, `backlog.md` §2.32 filed for one.
+- **Pass 3, readiness (PR #153):** items 138–143 below — the target as a
+  ratchet with its first reading, the retry re-prompt's stale list, the
+  round-resume entry point, the serialization boundary and the payload rule,
+  the panic surface with `plans/panic_surface.py`, the clone at Commander
+  scale; `engineering-practices.md` §3.1's per-PR budget; `layers-architecture.md`
+  §12's callgrind subsection and the levers ranked by it; `backlog.md`
+  §2.22's ask table; item 41 promoted to a requirement and its RNG question
+  decided; item 69 closed.
+- **Pass 4, scheduling (PR #154):** `roadmap-v2.md` §3a's A table, the one
+  path-to-triggers table, extended in proposed order by the between-phases
+  rows (the `A4x` family) with what each owes the doc, and the B rows with
+  their atoms; §3b explains it; `engineering-practices.md` §9; the codebase map and the Rust notes
+  homed at `roadmap-v2.md` row A4d; this heading, and the handoff deleted.
+
+**The board at the close** (`state-of-play.md`, 2026-09-15): 193 items, three
+reachable and wrong today — 59, 60 and 122, each with an owner — and none
+with reachability unstated. The ratchet's first reading is item 138's table:
+10,000 decisions per core-second on the 60-card `performance` board at four
+seats and 7,950 at Commander scale, this machine, that day; the instruction
+count that travels is `layers-architecture.md` §12's.
+
+**What the audit changed in the rules, each where it lives:** §2.1's tighter
+grep tier and its history-word block list; §3.1's 2.5-point budget and the
+ratchet; §9 itself; clippy and the glossary gate in CI; `SHIPPED_PHASES`
+gaining Phase 6; the board reading "not wrong today" as its own row. Nothing
+changed in `CLAUDE.md`, by its own rule.
+
+**What it left open, each with an owner and a size:** the engine items pass 3
+sized — item 138's two levers and two counters, 139 with item 41's test, 140,
+141's two methods, 42's summaries and window — ordered in `roadmap-v2.md`
+§3b; the two after-the-passes artifacts at row A4d, neither started; the
+three wrong-today items.
+
+**Found on the PR's review (2026-09-16):** the UUID review, item 144 below —
+both `Uuid` ids replaced by process-stable ones, decided by the owner, sized,
+and `roadmap-v2.md` A4g's row.
+
+**Next:** at critical-path item 6's close, per `engineering-practices.md` §9,
+its first duty the ratchet's second reading against item 138's first.
+
 ### Deferred Migrations — is the list still working? Audited 2026-09-09
 
 Asked at the RD-3 review, on passing 100 numbered entries and having gained a
@@ -6224,7 +6303,7 @@ whoever next masks a dump and not a migration.
 ### Found by the post-RE audit (2026-09-15)
 
 **The close-out of critical-path item 5** — pass 1 of
-`plans/handoffs/post-re-audit.md`, the day after RE-9 merged. It read the
+the post-RE audit ("Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" above), the day after RE-9 merged. It read the
 done-checklist off the tree and gave every entry a disposition where the
 entry lives: `replacement-architecture.md` §8a (the four missing event
 kinds), §11 items 3, 4 and 14, §12 (re-read), §13 (brought current), §14 (the
@@ -6275,7 +6354,7 @@ as its own PR after this one merges.
 ### Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
 
 **Is the engine on track for the AI-harness use case?** Pass 3 of
-`plans/handoffs/post-re-audit.md` measured rather than argued: a throwaway
+the post-RE audit (its record: "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" above) measured rather than argued: a throwaway
 counting provider around `fuzz_games`' own decks and streams (draw for draw,
 so the games are the fixture tables'), a clone timer with a counting
 allocator, and item 41's fork test run as a probe — record every answer,
@@ -6371,14 +6450,17 @@ Commander-scale board closes item 69.
         `Arc::make_mut` in the Layer 4 and 6 arms — item 67's shape,
         ~100–150 lines plus 13 call sites, answer-preserving — and most of
         the 24% spent in `malloc` and `free` goes with it. **Rank 1.**
-     2. **An id hasher** — 22.1% hashes 16-byte `Uuid` keys with SipHash for
-        every memo, object and battlefield lookup (13.5 M `is_creature`
-        lookups in 200 games alone). Both ids are v4, so a `BuildHasher`
-        reading the low 64 bits is a load: ~30 lines plus a mechanical sweep
-        of 20 map declarations, answer-preserving. The one cost: iteration
-        order becomes process-independent, so the three-run determinism
-        check stops catching an order-dependent sweep unless `RandomState`
-        stays on for that check. **Rank 2.**
+     2. **Process-stable ids in place of the v4 `Uuid` keys** — 22.1% hashes
+        16-byte keys with SipHash for every memo, object and battlefield
+        lookup (13.5 M `is_creature` lookups in 200 games alone). First
+        sized as a `BuildHasher` over the v4 keys, ~30 lines plus a sweep of
+        the map declarations; **decided by the owner on 2026-09-16 (item 144)
+        as the larger change instead**: `ObjectId` a `u64` from the state's
+        counter, `AbilityId` derived from the card, the hasher a one-line mix
+        riding inside it, the `uuid` dependency gone — which also halves
+        every id and retires the log masks. The one cost, and the fix that
+        rides with it: iteration order becomes process-stable, so the CI
+        determinism step seeds the hasher per run. **Rank 2.**
      3. **The SBA sweep's per-permanent questions** — `is_creature` 65,000
         times a game, 14.7% inclusive, one per permanent per check; one
         frame read per permanent (§12's `has_subtype` finding, now sized),
@@ -6656,8 +6738,106 @@ What is *not* a ledger line: the 24 asks classified for the fork model are
 `backlog.md` §2.22's table, beside the middleware census that will consume
 them; item 69 is closed by the Commander-scale measurement and evicted; item
 40's table row and item 41's status are corrected in place; and the
-`samply` recipe for the owed profile is in the handoff's pass-3 block, not
-here, because it is a procedure and not a migration.
+profile's recipe is `layers-architecture.md` §12's instrument paragraph and
+`engineering-practices.md` §9's readiness pass, not here, because it is a
+procedure and not a migration.
+
+### Found by the post-RE audit's pass 4 review — the UUID review (2026-09-16)
+
+**Asked by the owner on PR #154's review: how does `Uuid` get used, why are
+v4 and v5 in one engine, and why do ids carry an outsized share of the
+profile?** Read off the tree at 6e016d0. The answer is one item, and the
+owner decided it the same day.
+
+144. **`ObjectId` and `AbilityId` are v4 UUIDs, and the decision (the owner,
+     2026-09-16) is to replace both with process-stable ids.** The census:
+
+     - **Two ids are `Uuid`; every other id is a counter.** `types/ids.rs`
+       aliases `ObjectId` and `AbilityId` to `Uuid`; `EffectId`, `RowId`,
+       `ReplacementEffectId`, `RestrictionId`, `BatchId`, the timestamps and
+       the epochs are `u64`s from counters, and `PlayerId` is a `usize`.
+     - **v4 is minted at one production site for objects** (`GameObject::new`)
+       and once per `AbilityDef` at card construction (`CardDataBuilder` and
+       the card files), from the operating system's randomness rather than
+       `GameState.rng` — ambient, and tolerated only because an id never
+       orders anything (`CLAUDE.md`, "never `ObjectId`";
+       `battlefield_ordered`'s own note says sorting by id is no fix because
+       the key is itself random).
+     - **v5 exists for one function.** `land_types.rs::intrinsic_ability_id`
+       (2026-08-20) derives the CR 305.6 intrinsic mana ability's id from the
+       object id and the land type, because the ability is synthesized inside
+       the layer walk on every read, has nowhere to store a minted id, and is
+       handed out as an activation handle that a recomputed list must match.
+       It is the one place the engine wanted a deterministic id, and it is the
+       shape the rest should have.
+     - **`AbilityId` is per `CardData`, not per object.** A plural token
+       creation shares one `Arc<CardData>` across equal defs
+       (`create_tokens`), and a copy keeps its source's `AbilityDef` ids
+       (`engine/layers/copy.rs`), so the engine already keys ability identity
+       as the pair `(ObjectId, AbilityId)` (13 sites) and finds an ability by
+       `a.id == ability_id` within one object's effective list (13 sites). The
+       122 random bits buy nothing a per-card index would not.
+     - **The cost is frequency times the default hasher, not the comparison.**
+       25 `HashMap` and `HashSet` declarations are keyed by an id or the pair —
+       `objects`, `battlefield`, `stack_entries`, `LayerMemo`, `Board`'s frames
+       and sub-cache, the three ability-source sets, the combat maps, the
+       random provider's mana maps — and every lookup runs SipHash-1-3 over 16
+       bytes, 32 for a pair: 13.5 M `is_creature`, 10.5 M
+       `object_matches_filter` and 7.0 M `has_type` lookups in 200 four-seat
+       `stress` games (`layers-architecture.md` §12), 22.1% of instructions.
+       SipHash defends against hostile keys, and no untrusted key ever reaches
+       these maps.
+
+     **The decision, and what it buys beyond the hash.** `ObjectId` becomes a
+     `u64` stamped in `GameState::add_object`, exactly where the CR 613.7d
+     timestamp is already stamped ("the only door into the store");
+     `AbilityId` becomes a `u64` too, a printed ability's derived from the card
+     name and the ability's index the way the v5 site already derives its own,
+     so it is stable across processes and threads with no counter. Then: every
+     id halves, across 88 `Vec<ObjectId>` sites, every `GameEvent` and every
+     map key, and the wire ids item 141 wants; the fuzz-dump masks and item
+     41's fork-test id mask go, because ids agree across runs and binaries;
+     the `uuid` dependency and the engine's one ambient-randomness call go
+     with it; and the hasher becomes a one-line multiplicative mix, since
+     sequential keys under an identity hash share hashbrown's 7-bit tag. Item
+     138's lever 2 is this item now, and the hasher rides inside it rather
+     than beside it.
+
+     **The one cost, and the fix that rides with it.** With process-stable ids
+     and a fixed hasher, `HashMap` iteration order becomes process-stable, so
+     the three-run determinism check stops catching an unordered sweep that
+     leaks order. Re-arm it in the same PR: the CI determinism step runs its
+     three runs with a hasher seed that differs per run (an environment
+     variable the `BuildHasher` reads, ~10 lines), which restores the property
+     the check had under `RandomState`. Two notes beside it: a fork shares the
+     counter, so two diverging branches mint the same next id for different
+     objects — harmless unless branches are merged, which nothing does — and
+     `tests/determinism_test.rs`'s doc comment, "two runs inside the same
+     process share one `RandomState`", is imprecise (each map draws its own
+     keys) and is rewritten when the test gains its fork rows.
+
+     **Open for the PR to decide, not decided here:** how a *granted* or
+     *synthesized* ability's id is minted — from the state's counter at the
+     grant, or derived from the granting object and a tag the way the
+     intrinsic site does — and whether `ObjectId` and `AbilityId` stay two
+     aliases of one integer type or become two newtypes, which is what would
+     let the compiler catch a swapped argument in the 13 pair sites.
+
+     **Reachability (2026-09-16):** reachable — not wrong; a cost (22.1% of
+     instructions), a mask at every log comparison, and one ambient-randomness
+     call per object.
+
+     **Sized:** the swap sites are few because both ids are type aliases — 1
+     production minting site for objects and about 30 test sites calling
+     `new_object_id()` (a test-local counter), 39 direct `Uuid::` uses outside
+     `ids.rs`, nearly all in test modules (`new_v4` in registry and store
+     tests, `nil()` twice, `from_u128` once, the v5 site), 6 id-formatting
+     sites (the eight-character prefix in `ui/display.rs`), the 25
+     declarations behind a type alias, and the CI seed; about 200–300 lines.
+     One PR in the band (`roadmap-v2.md` A4g), A/B'd as two arms the way the
+     Everywhere PR was: the type swap alone, expected `IDENTICAL` on every
+     counter at two and four seats on both pools, then the hasher, read as a
+     CPU delta and a callgrind re-read against §12's reading.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

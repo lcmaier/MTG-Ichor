@@ -1142,9 +1142,12 @@ whole 22.5% and most of the allocation. (2) An id hasher: both `ObjectId` and
 `AbilityId` are v4 UUIDs, whose low 64 bits are already uniform, so a
 `BuildHasher` that reads them is a load instead of SipHash (20 map
 declarations, ~30 lines plus a mechanical sweep), most of the 22.1% — with one
-cost to write down: a fixed hasher makes `HashMap` iteration order
-process-independent, so the three-run determinism check stops catching an
-order-dependent sweep unless `RandomState` stays on for that check. The
+caveat to write down, corrected 2026-09-16: a fixed hasher does *not* make
+`HashMap` iteration order process-stable while the keys are v4 UUIDs, because
+the keys are minted per process, so the three-run determinism check keeps
+catching an order-dependent sweep; the order becomes process-stable only if
+the ids do, and that change — a per-game counter id — is the one that must
+re-arm the check (decided 2026-09-16, `codebase-state.md` item 144). The
 findings above this subsection stand, now with sizes: the SBA sweep's
 per-permanent questions and `get_effective_abilities`' copy are exactly what
 this measured. The per-prompt enumeration (27.2%) and the mana window (15.0%)

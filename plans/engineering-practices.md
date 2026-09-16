@@ -1318,3 +1318,139 @@ could not reach its own rule — it had the creature's owner leave, which
 CR 800.4a's first clause forbids — and that is the same failure from the
 authoring side: a scenario written against one rule without the rule that
 overrides it. → `replacement-architecture.md` §11 items 70 and 73.
+
+---
+
+## 9. The spine-phase audit — a close is audited, not declared
+
+**When a critical-path item closes, audit it before the next one starts.**
+Decided by the owner at the post-RE audit (2026-09-15): the audit recurs at
+each spine-phase close — the next at critical-path item 6's — as a set of
+passes with named instruments, each pass its own PR, planned in a
+`plans/handoffs/` file that the last pass's PR deletes. Findings land where the
+project already records them: a numbered item under a dated `### Found by …`
+heading in `codebase-state.md`'s Deferred Migrations, a `backlog.md` §2 entry
+for a mechanic with no surface, a stale claim rewritten in place, a rule here.
+The run's own record is a `### … — audited YYYY-MM-DD` heading in
+`codebase-state.md`, pointers not prose, written when the handoff goes.
+
+**Why a practice and not a checklist in the closing PR.** The first run found
+that "done" was defined in five places and collected in none — the doc's
+findings list, its known-missing table, its out-of-scope list, the CR row and
+the `owed` query — and that `specdb owed` had never been run for the phase at
+its close, because `SHIPPED_PHASES` did not contain it. It found the §2.1
+sweep overdue by eighty PRs against a fifteen-to-twenty cadence, no throughput
+target stated anywhere in `plans/`, and the performance levers ranked by
+argument rather than by a profile. None of those is a bug a test catches;
+each is a claim about the tree that had gone stale without anything re-reading
+it, which is §8's failure shaped like progress. A closing PR is the wrong
+place to look for them, because the person closing the phase is the one who
+believes the claims. Reading, measuring and dispositioning is its own sitting
+with its own instruments, and it runs at the one moment the material is fresh
+and the registry is still small enough for the retroactive halves to be
+sittings rather than projects.
+
+**The passes, each with its instrument.** In this order: the close-out gates
+the rest, the eviction opens second, hygiene and readiness commute, scheduling
+needs the close-out and readiness.
+
+1. **The close-out.** The phase's done-checklist read off the tree and every
+   entry dispositioned — closed, scheduled with an owner, or deferred with a
+   dated reachability line and a size. Instruments: **the board**
+   (`check_state_of_play.py --write` then `--check`; its two bolded rows are
+   the work) and **`specdb owed --phase "<the phase>"`** once `SHIPPED_PHASES`
+   gains it — a gate, so the phase is not closed until it is clean (§5); the
+   doc's own findings list, its known-missing table and its out-of-scope list
+   re-read against what landed since; the summaries — `codebase-state.md`'s
+   TL;DR and the CR row — rewritten in place, never appended to. Produces the
+   retrospective in `replacement-architecture.md` §14's shape: pointers, under
+   150 lines, written once and not maintained. A fix found here is shown to
+   fail first; one that moves a pool is its own PR with a `fuzz-record.md`
+   block.
+2. **The eviction.** The phase doc's pre-build reasoning and closed findings
+   move to `plans/archive/<doc>-landed.md` under **the ≤40-line stub rule**,
+   planned section by section with line counts before anything moves: every
+   heading byte-identical so `grep` still lands, every closed item leaving its
+   `N. **title**` line so every outside citation resolves, every outside
+   citation of a moved section read against its stub, `check_glossary.py` on
+   the result. Opens second, after the close-out merges, so the stubs point at
+   a retrospective that exists on `main`.
+3. **Hygiene and CI.** **§2.1's two grep tiers** — the wide one is the count
+   to record, the tight one the list to read — plus the history-word block
+   list over every touched file (§2.1's second record, which is the
+   instrument that actually cut lines); every `TODO` given a live owner or
+   deleted; **clippy counted before it is decided** (`cargo clippy
+   --all-targets`, the count deciding which lints go to `-D` and which are
+   allowed with a reason each); the toolchain pin measured; the four checks
+   in `ci.yml`, each with a comment giving its reason.
+4. **Readiness.** Is the engine on track for the harness use case? **Its first
+   duty is the ratchet's re-reading** (§3.1): decisions per core-second on
+   both boards at four seats and one thread, recorded as a dated reading
+   beside the previous close's, and it may not read worse per decision without
+   a written reason. Instruments: **the census provider** (item 138's two
+   counters once they land; a throwaway counting provider around
+   `fuzz_games`' own decks and streams until then), **the clone timer** with a
+   counting allocator (item 143's table, extended at each close), **the fork
+   record-and-replay** (item 41's test — record every answer, clone at a
+   round start, replay, compare with ids masked), **`plans/panic_surface.py`**
+   (the engine's release-active surface, separated from the unit-test tails;
+   a surface growing faster than the engine is the finding), **the three-run
+   contention read** (`--threads 1`, 8 and 16 at 200 games, item 138's lever
+   7) and **callgrind under WSL** (`layers-architecture.md` §12's instrument
+   paragraph: `valgrind --tool=callgrind` over `fuzz_games` at a fixed seed,
+   `callgrind_annotate --inclusive=yes`; the instruction count is the reading
+   that travels between machines, the milliseconds stay in the A/B sitting).
+   Produces the lever list re-ranked by instruction share, each lever sized in
+   its item.
+5. **Scheduling.** **One table**: each open track phase and lattice entry, what
+   it unlocks in cards (the ledger and the docs' consumer lists — no Scryfall
+   count re-derived) and in atoms (`spec.sqlite` by rule prefix, the prefixes
+   named), what it needs, and which of the next spine phase's design questions
+   needs it landed first; then a proposed order for the between-phases slot.
+   The pass proposes; the owner decides. The first instance is `roadmap-v2.md` §3a's A table — the between-phases rows it gained on 2026-09-15, which §3b explains.
+
+**Binding rules across passes.** Docs and small fixes only — anything larger
+becomes a scheduled item with an owner. No count is re-derived that a doc
+already carries with a date, and a number in a heading is a number that will
+be wrong. A pass re-reads what it touches: every number in a pass's brief is
+a starting point, and two of the first run's were wrong (§11 held 99
+findings, not 108; clippy read 114 sites, not "hundreds"), which is the reason
+the brief says so about itself.
+
+**The first instance — the post-RE audit, 2026-09-15**, at critical-path item
+5's close, the day RE-9 merged. Planned as `plans/handoffs/post-re-audit.md`
+(PR #141), which pass 4's PR #154 deleted; its last text is `git show
+341ebf9:plans/handoffs/post-re-audit.md`, and the record is
+`codebase-state.md`, "Was critical-path item 5 done, and what sits before item
+6? — audited 2026-09-15". Where each pass's output lives:
+
+- **Close-out (PR #142):** the board's classifier corrected and Phase 6 armed
+  in `SHIPPED_PHASES`; the Phase 6 `owed` triage, `backlog.md` §3.3's second
+  block; `replacement-architecture.md` §8a, §11 items 3, 4 and 14, §12, §13
+  and §14; `codebase-state.md`'s TL;DR, its CR 614–616 row, and "Found by the
+  post-RE audit (2026-09-15)" — item 134, and items 59, 60, 122 and 131
+  scheduled; item 118 fixed in it.
+- **Eviction (PR #151):** `replacement-architecture.md` 6,725 → 3,401 lines,
+  the archive 4,933 → 8,647, planned section by section in the handoff and
+  re-counted against the tree in the same block.
+- **Hygiene and CI (PRs #143, #144 re-landed by #145, then #146–#149):**
+  clippy adopted at `-D warnings` with five lints allowed, `check_glossary.py`
+  in CI, the floor measured at 1.88 and recorded as `rust-version`; §2.1's
+  two recorded applications, the second over every non-card source file;
+  twelve `TODO`s re-owned, one new owner filed (`backlog.md` §2.32).
+- **Readiness (PR #153):** `codebase-state.md` items 138–143; §3.1's budget
+  and ratchet; `layers-architecture.md` §12's callgrind subsection;
+  `backlog.md` §2.22's ask table; `plans/panic_surface.py`; item 41 promoted
+  to a requirement and item 69 closed.
+- **Scheduling (PR #154):** `roadmap-v2.md` §3a's A table (the `A4x` rows) and §3b, this section, and the audited heading
+  above; the two after-the-passes artifacts — the codebase map (§7.1's tier 3)
+  and the Rust notes — homed at `roadmap-v2.md` row A4d.
+
+**What the next run adds, at critical-path item 6's close.** The ratchet's
+second reading against item 138's first, read through the counters rather
+than a probe; `plans/panic_surface.py` re-run; the trace-page decision
+recorded on the phase heading (§7); `check_glossary.py --suggest` triaged,
+which is the glossary's own obligation at a phase close; `roadmap-v2.md` §3b's
+table re-derived, since every count in it carries the date it was read; and
+A4d's two artifacts, if still open, because the trigger phase is the largest
+new subsystem the map would have to absorb.
