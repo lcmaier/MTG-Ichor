@@ -307,17 +307,24 @@ method takes `&GameState`.
 
 **The profile recipe, for whoever holds an administrator prompt.** `samply`
 (installed 2026-09-15; a Mozilla tool, and `cargo install --locked samply`
-is the hygienic spelling next time) over the symbolized build. The build,
-in `mtgsim/`, from Git Bash: `CARGO_PROFILE_RELEASE_DEBUG=2 cargo build
---release --bin fuzz_games --target-dir target-prof`; from PowerShell,
-which has no `VAR=value command` prefix:
-`$env:CARGO_PROFILE_RELEASE_DEBUG = "2"; cargo build --release --bin
-fuzz_games --target-dir target-prof`. The 2026-09-15 build is already in
-`mtgsim/target-prof/release/`, so today the elevated command alone
-suffices: from an Administrator PowerShell,
-`samply record --save-only --rate 4000 -o prof_stress4.json.gz
-.\target-prof\release\fuzz_games.exe --games 200 --seed 12345 --threads 1
---players 4 --pool stress`. The saved file is Firefox Profiler JSON, which
+is the hygienic spelling next time) over the symbolized build. **Each
+command is one line** — a wrapped paste runs `cargo build` alone, a dev
+build into the shared `target/`, and then fails on `--release`. The build,
+in `mtgsim/`, from Git Bash:
+
+    CARGO_PROFILE_RELEASE_DEBUG=2 cargo build --release --bin fuzz_games --target-dir target-prof
+
+From PowerShell, which has no `VAR=value command` prefix:
+
+    $env:CARGO_PROFILE_RELEASE_DEBUG = "2"; cargo build --release --bin fuzz_games --target-dir target-prof
+
+The 2026-09-15 build is already in `mtgsim/target-prof/release/`, so today
+the elevated command alone suffices, from an Administrator PowerShell in
+`mtgsim/`:
+
+    samply record --save-only --rate 4000 -o prof_stress4.json.gz .\target-prof\release\fuzz_games.exe --games 200 --seed 12345 --threads 1 --players 4 --pool stress
+
+The saved file is Firefox Profiler JSON, which
 a script reads for inclusive and self time by function; the reading goes to
 `layers-architecture.md` §12 and re-orders item 138's list. Docker and WSL
 were considered for callgrind and declined for the toolchain surface each
