@@ -353,16 +353,11 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        // Power(2) < lethal(3): defender bucket maxed at 0, blocker mins dropped to 0.
-        // DP freely divides 2 among blockers. Script: [2 to blocker, 0 to player]
+        // Power(2) < lethal(3): defender bucket maxed at 0, blocker mins dropped
+        // to 0 — so the blocker is the only bucket that can take the two, the
+        // split is forced (CR 102.2) and nothing is asked. The assertions below
+        // are the engine's own answer, not a scripted one.
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
-                attacker_id: trampler,
-                defending_target: DamageTarget::Player(1),
-            },
-            vec![2, 0],
-        );
         let assignments = assign_trample_damage(
             &game, &scripted, 0, trampler, &[blocker],
             &AttackTarget::Player(1), 2,

@@ -230,14 +230,23 @@ fn test_without_sigarda_the_same_edict_prompts_once_and_takes_a_creature() {
     // The control. Identical board minus Sigarda: one prompt, one sacrifice.
     // Without this the test above would pass just as well against a
     // `Primitive::Sacrifice` that did nothing at all.
+    //
+    // **Two creatures, so there is something to ask.** With one the choice is
+    // forced and CR 102.2 skips the prompt, which would make "asked exactly
+    // once" unprovable rather than true.
     let mut game = setup_two_player_game();
-    let bear = bear(&mut game, 0);
+    let first = bear(&mut game, 0);
+    let second = bear(&mut game, 0);
 
     let dp = CountingDp::new();
     resolve_edict(&mut game, 1, 0, &dp);
 
     assert_eq!(dp.count(), 1, "the victim is asked exactly once");
-    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+    let dead = [first, second]
+        .iter()
+        .filter(|id| game.get_object(**id).unwrap().zone == Zone::Graveyard)
+        .count();
+    assert_eq!(dead, 1, "one creature, chosen by the victim");
 }
 
 #[test]
@@ -248,12 +257,17 @@ fn test_sigarda_does_not_protect_a_player_whose_permanents_she_is_not_on() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
     let their_bear = bear(&mut game, 1);
+    let their_other_bear = bear(&mut game, 1);
 
     let dp = CountingDp::new();
     resolve_edict(&mut game, 0, 1, &dp);
 
-    assert_eq!(dp.count(), 1);
-    assert_eq!(game.get_object(their_bear).unwrap().zone, Zone::Graveyard);
+    assert_eq!(dp.count(), 1, "P1 is asked, and asked once");
+    let dead = [their_bear, their_other_bear]
+        .iter()
+        .filter(|id| game.get_object(**id).unwrap().zone == Zone::Graveyard)
+        .count();
+    assert_eq!(dead, 1);
 }
 
 #[test]
@@ -274,7 +288,9 @@ fn test_sigarda_does_not_stop_a_spell_her_own_controller_cast() {
     let dp = CountingDp::new();
     resolve_edict(&mut game, 0, 0, &dp);
 
-    assert_eq!(dp.count(), 1);
+    // Sigarda is the only candidate, so CR 102.2 asks nothing and the graveyard
+    // is the statement: the restriction did not stop the sacrifice.
+    assert_eq!(dp.count(), 0);
     assert_eq!(game.get_object(sigarda).unwrap().zone, Zone::Graveyard);
 }
 
@@ -359,7 +375,9 @@ fn test_sacrifice_is_not_destruction_so_indestructible_does_not_save_it() {
     let dp = CountingDp::new();
     resolve_edict(&mut game, 1, 0, &dp);
 
-    assert_eq!(dp.count(), 1);
+    // One legal candidate, so CR 102.2 asks nothing — the graveyard below is
+    // the whole assertion, and a prompt here would be the bug.
+    assert_eq!(dp.count(), 0);
     assert_eq!(game.get_object(tank).unwrap().zone, Zone::Graveyard);
 }
 
@@ -370,16 +388,24 @@ fn test_an_edict_for_two_takes_two_in_one_batch() {
     // `execute_actions` as one batch rather than a loop of `change_zone`. A loop
     // would be invisible here and wrong the moment CR 704.3 or a CR 615.7
     // shield allocation has to see the batch.
+    //
+    // **Three creatures, so two of them is a choice.** With exactly two the
+    // answer is forced, CR 102.2 skips the prompt, and the count this test
+    // exists to read would be zero either way.
     let mut game = setup_two_player_game();
     let a = bear(&mut game, 0);
     let b = bear(&mut game, 0);
+    let c = bear(&mut game, 0);
 
     let dp = CountingDp::new();
     resolve_edict_effect(&mut game, 1, 0, &edict_for(2), &dp);
 
     assert_eq!(dp.count(), 1, "one choice of two, not two choices of one");
-    assert_eq!(game.get_object(a).unwrap().zone, Zone::Graveyard);
-    assert_eq!(game.get_object(b).unwrap().zone, Zone::Graveyard);
+    let dead = [a, b, c]
+        .iter()
+        .filter(|id| game.get_object(**id).unwrap().zone == Zone::Graveyard)
+        .count();
+    assert_eq!(dead, 2, "both sacrifices happened, in one batch");
 }
 
 #[test]
@@ -395,7 +421,9 @@ fn test_an_edict_for_more_than_you_have_takes_only_what_you_have() {
     let dp = CountingDp::new();
     resolve_edict_effect(&mut game, 1, 0, &edict_for(13), &dp);
 
-    assert_eq!(dp.count(), 1);
+    // Thirteen clamped to two of two: nothing is left to choose, so CR 102.2
+    // asks nothing — and both creatures still go.
+    assert_eq!(dp.count(), 0);
     assert_eq!(game.get_object(a).unwrap().zone, Zone::Graveyard);
     assert_eq!(game.get_object(b).unwrap().zone, Zone::Graveyard);
 }
@@ -528,15 +556,24 @@ fn test_humility_strips_sigardas_restriction_for_free() {
     // asserted-about: Humility removes all abilities of all creatures (CR
     // 613.1f, Layer 6), Sigarda's restriction goes with them, and nothing in
     // this phase had to know Humility exists.
+    //
+    // **Two creatures under her, so the prompt is the tell.** With one the
+    // choice is forced either way and CR 102.2 asks nothing, which would leave
+    // the count reading zero whether the restriction held or not.
     let mut game = setup_two_player_game();
     let sigarda = put_on_battlefield(&mut game, sigarda_host_of_herons(), 0);
+    let bear = bear(&mut game, 0);
     put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
 
     let dp = CountingDp::new();
     resolve_edict(&mut game, 1, 0, &dp);
 
     assert_eq!(dp.count(), 1, "the prompt is back — the restriction is gone");
-    assert_eq!(game.get_object(sigarda).unwrap().zone, Zone::Graveyard);
+    let dead = [sigarda, bear]
+        .iter()
+        .filter(|id| game.get_object(**id).unwrap().zone == Zone::Graveyard)
+        .count();
+    assert_eq!(dead, 1, "and a creature was actually taken");
 }
 
 // ---------------------------------------------------------------------------

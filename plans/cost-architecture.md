@@ -464,6 +464,14 @@ Three things follow, and all three are used:
   cost with nothing spare. `OrderCostReductions` needs no such guard: by §3.4's
   own theorem every order gives the identical total.
 
+  **Note (A4e, 2026-09-16): the engine answers the forced split itself now**
+  (CR 102.2, `ui::ask::forced_allocation`), so `AutoPayer`'s 601.2h branch is
+  not reached from a game. The paragraph above is unchanged by that — what it
+  decided is the *scope*, that the payer may never take a split with surplus in
+  the pool, and that restraint is what keeps the `{2}{U}` board's `{U}{U}` up
+  for Counterspell whoever answers. Whether a decorator keeps an answer the
+  engine no longer asks for is the middleware census's, `backlog.md` §2.22.
+
   **Two decorators, not one with a scope, and clients compose.** The first
   design gave one payer a `PayerScope` enum so each client could take a subset.
   A scope enum is a closed, hand-rolled enumeration of the subsets of something

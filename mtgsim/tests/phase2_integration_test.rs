@@ -115,11 +115,7 @@ fn test_counterspell_counters_bolt() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     // Player 1 casts: CastSpell(cs_id) at index 1 in [Pass, CastSpell(cs_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target bolt at index 0 in [Object(bolt_id)] for Spell
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
-        spell_id: cs_id,
-    }, vec![0]);
+    // The bolt is the only spell on the stack — a forced target, not asked.
 
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
@@ -151,25 +147,16 @@ fn test_counterspell_counters_bolt() {
 fn test_volcanic_upheaval_destroys_land() {
     let mut game = setup_two_player_game();
     let target_land = put_land_on_battlefield(&mut game, basic_lands::forest, 1);
-    let upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
+    let _upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 4); // {3}{R}
 
     let decisions = ScriptedDecisionProvider::new();
     // CastSpell at index 1 in [Pass, CastSpell(upheaval_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target land at index 0 in [Object(target_land)] for Permanent(ByType(Land))
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
-            TargetCount::Exactly(1),
-        ),
-        spell_id: upheaval_id,
-    }, vec![0]);
-    // {3}{R}: 3 generic from Red pool → [3]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![3],
-    );
+    // The only legal target, so CR 102.2 makes the choice forced and
+    // `ask_select_recipients` does not prompt.
+    // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
+    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
     // Cast (returns ActionTaken immediately)
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
@@ -200,20 +187,14 @@ fn test_burst_of_energy_untaps_land() {
     game.battlefield.get_mut(&land_id).unwrap().tapped = true;
     assert!(game.battlefield.get(&land_id).unwrap().tapped);
 
-    let burst_id = put_in_hand(&mut game, alpha::burst_of_energy(), 0);
+    let _burst_id = put_in_hand(&mut game, alpha::burst_of_energy(), 0);
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let decisions = ScriptedDecisionProvider::new();
     // CastSpell at index 1 in [Pass, CastSpell(burst_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target land at index 0 in [Object(land_id)] for Permanent(All)
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::All),
-            TargetCount::Exactly(1),
-        ),
-        spell_id: burst_id,
-    }, vec![0]);
+    // The only legal target, so CR 102.2 makes the choice forced and
+    // `ask_select_recipients` does not prompt.
     // Cast (returns ActionTaken immediately)
     game.run_priority_round(&decisions).unwrap();
     // Resolve: both pass
@@ -236,41 +217,28 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
 
     // Player 0 has two Volcanic Upheavals
     let upheaval1_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
-    let upheaval2_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
+    let _upheaval2_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 8); // enough for both
 
     let decisions = ScriptedDecisionProvider::new();
 
-    let upheaval_recipient = EffectRecipient::Target(
+    let _upheaval_recipient = EffectRecipient::Target(
         SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
         TargetCount::Exactly(1),
     );
 
     // Cast first upheaval targeting the land
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: upheaval_recipient.clone(),
-        spell_id: upheaval1_id,
-    }, vec![0]);
-    // {3}{R}: 3 generic from Red pool → [3]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![3],
-    );
+    // The only legal target, so CR 102.2 makes the choice forced and
+    // `ask_select_recipients` does not prompt.
+    // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
+    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
     game.run_priority_round(&decisions).unwrap();
 
     // Cast second upheaval targeting the same land
     // After ActionTaken, priority returns to caster (player 0)
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: upheaval_recipient.clone(),
-        spell_id: upheaval2_id,
-    }, vec![0]);
-    // {3}{R}: 3 generic from Red pool → [3]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![3],
-    );
+    // Same forced target and forced split as the cast above.
     game.run_priority_round(&decisions).unwrap();
 
     // Stack: [upheaval1, upheaval2] — upheaval2 on top (LIFO)
@@ -306,7 +274,7 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     // Tap the land so Burst of Energy has a meaningful target
     game.battlefield.get_mut(&target_land).unwrap().tapped = true;
 
-    let upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 1);
+    let _upheaval_id = put_in_hand(&mut game, alpha::volcanic_upheaval(), 1);
     let burst_id = put_in_hand(&mut game, alpha::burst_of_energy(), 0);
     game.players[1].mana_pool.add(ManaType::Red, 4); // {3}{R} for Upheaval
     game.players[0].mana_pool.add(ManaType::White, 1); // {W} for Burst
@@ -315,13 +283,8 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
 
     // Player 0 casts Burst of Energy targeting their own tapped land
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::All),
-            TargetCount::Exactly(1),
-        ),
-        spell_id: burst_id,
-    }, vec![0]);
+    // The only legal target, so CR 102.2 makes the choice forced and
+    // `ask_select_recipients` does not prompt.
     game.run_priority_round(&decisions).unwrap();
 
     // Player 1 responds with Volcanic Upheaval targeting the same land
@@ -329,18 +292,10 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     // Player 1 casts: CastSpell(upheaval_id) at idx 1 in [Pass, CastSpell(upheaval_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::ByType(mtgsim::types::card_types::CardType::Land)),
-            TargetCount::Exactly(1),
-        ),
-        spell_id: upheaval_id,
-    }, vec![0]);
-    // {3}{R}: 3 generic from Red pool → [3]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![3],
-    );
+    // The only legal target, so CR 102.2 makes the choice forced and
+    // `ask_select_recipients` does not prompt.
+    // {3}{R} out of a Red-only pool: one bucket can take the generic mana, so
+    // the split is forced and nothing is asked (`ui::ask::forced_allocation`).
     game.run_priority_round(&decisions).unwrap();
 
     // Stack: [Burst of Energy, Volcanic Upheaval] — Upheaval on top (LIFO)

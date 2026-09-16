@@ -240,15 +240,9 @@ fn holy_strength_in_hand(game: &mut GameState, player: PlayerId) -> ObjectId {
 /// unambiguous by leaving exactly one creature on the battlefield.
 fn cast_at_the_only_creature(game: &mut GameState, player: PlayerId, aura: ObjectId) {
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            spell_id: aura,
-        },
-        vec![0],
-    );
+    // One creature, so CR 601.2c's target is forced and nothing is asked.
     game.cast_spell(player, aura, &decisions).expect("it is castable");
-    assert!(decisions.is_empty(), "CR 601.2c asked for the target");
+    assert!(decisions.is_empty(), "no question was asked, and none was scripted");
     game.resolve_top_of_stack(&decisions).expect("it resolves");
 }
 
@@ -340,22 +334,28 @@ fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
 }
 
 /// Activate `equipment`'s equip with its {1} floating, pick the `pick`th legal
-/// target, and resolve. The error is the activation's — a resolution failure
+/// target when there is a choice, and resolve. The error is the activation's — a resolution failure
 /// is a test bug.
-fn equip(game: &mut GameState, player: PlayerId, equipment: ObjectId, pick: usize) -> Result<(), String> {
+fn equip(
+    game: &mut GameState,
+    player: PlayerId,
+    equipment: ObjectId,
+    pick: Option<usize>,
+) -> Result<(), String> {
     game.players[player].mana_pool.add(ManaType::White, 1);
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            spell_id: equipment,
-        },
-        vec![pick],
-    );
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![1],
-    );
+    // `None` is a board with one legal creature: CR 102.2 makes the target
+    // forced and nothing is asked. The {1} is never a question either — the
+    // White is the only mana in the pool, so the split is forced too.
+    if let Some(pick) = pick {
+        decisions.expect_pick_n(
+            ChoiceKind::SelectRecipients {
+                recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                spell_id: equipment,
+            },
+            vec![pick],
+        );
+    }
     let idx = equip_ability_index(game, equipment);
     if let Err(e) = game.activate_ability(player, equipment, idx, &decisions) {
         // Refused before any question was asked; the provider asserts on drop
@@ -399,19 +399,19 @@ fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
     // Not a main phase.
     game.set_turn_position(Phase::new(PhaseType::Combat));
     assert!(!offered_to(&game, 0, splitter));
-    assert!(equip(&mut game, 0, splitter, 0).is_err());
+    assert!(equip(&mut game, 0, splitter, None).is_err());
 
     // A main phase, but not the active player's.
     game.set_turn_position(Phase::new(PhaseType::Precombat));
     game.active_player = 1;
     assert!(!offered_to(&game, 0, splitter));
-    assert!(equip(&mut game, 0, splitter, 0).is_err());
+    assert!(equip(&mut game, 0, splitter, None).is_err());
 
     // Active player, main phase, but the stack is not empty.
     game.active_player = 0;
     let on_stack = aura_on_stack_targeting(&mut game, 1, bears);
     assert!(!offered_to(&game, 0, splitter));
-    assert!(equip(&mut game, 0, splitter, 0).is_err());
+    assert!(equip(&mut game, 0, splitter, None).is_err());
     assert_eq!(game.battlefield[&splitter].attached_to, None, "nothing attached on the way");
     let decisions = ScriptedDecisionProvider::new();
     game.resolve_top_of_stack(&decisions).expect("the Aura resolves");
@@ -419,7 +419,7 @@ fn test_equip_is_offered_and_legal_only_at_sorcery_speed_and_then_attaches() {
 
     // Sorcery speed.
     assert!(offered_to(&game, 0, splitter));
-    equip(&mut game, 0, splitter, 0).expect("legal at sorcery speed");
+    equip(&mut game, 0, splitter, None).expect("legal at sorcery speed");
 
     assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
     assert!(game.battlefield[&bears].attached_by.contains(&splitter));
@@ -439,12 +439,12 @@ fn test_equip_targets_only_creatures_you_control() {
     let theirs = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
 
-    assert!(equip(&mut game, 0, splitter, 0).is_err(), "no legal target");
+    assert!(equip(&mut game, 0, splitter, None).is_err(), "no legal target");
     assert_eq!(game.battlefield[&splitter].attached_to, None);
     assert!(game.stack.is_empty(), "the activation rolled back");
 
     let mine = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
-    equip(&mut game, 0, splitter, 0).expect("your creature is a legal target");
+    equip(&mut game, 0, splitter, None).expect("your creature is a legal target");
     assert_eq!(game.battlefield[&splitter].attached_to, Some(mine));
     assert!(!game.battlefield[&theirs].attached_by.contains(&splitter));
 }
@@ -459,10 +459,11 @@ fn test_re_equipping_moves_the_equipment_and_cleans_the_old_host() {
     let second = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 0);
     let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
 
-    equip(&mut game, 0, splitter, 0).unwrap();
+    // Two creatures, so this one is a real choice and is scripted.
+    equip(&mut game, 0, splitter, Some(0)).unwrap();
     assert_eq!(pt(&game, first), (4, 2));
 
-    equip(&mut game, 0, splitter, 1).unwrap();
+    equip(&mut game, 0, splitter, Some(1)).unwrap();
     assert_eq!(game.battlefield[&splitter].attached_to, Some(second));
     assert!(game.battlefield[&second].attached_by.contains(&splitter));
     assert!(!game.battlefield[&first].attached_by.contains(&splitter));
@@ -480,9 +481,9 @@ fn test_equipping_the_host_it_is_already_on_does_nothing() {
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let splitter = put_on_battlefield(&mut game, bonesplitter(), 0);
 
-    equip(&mut game, 0, splitter, 0).unwrap();
+    equip(&mut game, 0, splitter, None).unwrap();
     let stamped = game.object_timestamp(splitter);
-    equip(&mut game, 0, splitter, 0).unwrap();
+    equip(&mut game, 0, splitter, None).unwrap();
 
     assert_eq!(game.battlefield[&splitter].attached_to, Some(bears));
     assert_eq!(game.battlefield[&bears].attached_by, vec![splitter]);
@@ -510,7 +511,7 @@ fn test_a_reattached_equipment_gets_a_timestamp_later_than_humility() {
     assert!(!has_keyword(&game, bears, KeywordFlag::Flying));
     assert_eq!(game.battlefield_ids_ordered(), vec![wings, humility_id, bears]);
 
-    equip(&mut game, 0, wings, 0).unwrap();
+    equip(&mut game, 0, wings, None).unwrap();
 
     assert!(
         game.object_timestamp(wings) > game.object_timestamp(humility_id),
@@ -610,10 +611,7 @@ fn test_an_equipment_spell_enters_unattached() {
     game.players[0].mana_pool.add(ManaType::White, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![1],
-    );
+    // White is the only mana in the pool, so the {1} split is forced.
     game.cast_spell(0, splitter, &decisions).expect("castable");
     game.resolve_top_of_stack(&decisions).expect("resolves");
 

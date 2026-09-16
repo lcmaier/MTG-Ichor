@@ -1136,7 +1136,7 @@ mechanic rather than a migration, which is why it is here and not in
   | Middleware | Answers | Status |
   |---|---|---|
   | `ManaWindowStop` | `ManaAbilityWindow` (decline when covered) | built, CM-4 |
-  | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4 |
+  | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4; the second half is not reached from a game since A4e — a row the census settles, below |
   | tap solver | `ManaAbilityWindow` (*picks*) | §2.18's oracle half; the Arena problem lives here |
   | auto-yield | `PriorityAction` in known-pass spots | unsized; **creates the tell full control answers** |
   | full control | everything — bypasses the stack | sized below |
@@ -1145,6 +1145,31 @@ mechanic rather than a migration, which is why it is here and not in
   | auto-sacrifice | `ChooseSacrificeForCost` | the AI harness's, deliberately not the payer's |
   | reversal policy | CR 732.1's offer (`codebase-state.md` item 72) | the census must decide whether a middleware may answer it |
   | staged payment | buffers answers so a client can revise them | §2.18; GUI-side, needs no engine facility |
+
+- **One row to settle first: what is left of the payer's CR 601.2h half
+  (A4e, 2026-09-16).** `ui::ask::forced_allocation` answers a generic split with
+  one legal allocation and the engine never prompts for it, so
+  `AutoPayer::allocate`'s forced branch — and `auto_payer::split_is_forced`,
+  whose predicate it duplicates one layer up — is unreachable from a game.
+  **This is one job of three, and the smallest.** The payer still answers
+  `OrderCostReductions` on every cast that has two reductions, which is the half
+  the CR mandates and §3.4's theorem says cannot matter; and its *scope* —
+  never taking a split while the pool has surplus — is the decision
+  `cost-architecture.md` §3.4 exists for and the reason a `{2}{U}` cast off
+  three blue sources leaves `{U}{U}` up for Counterspell. That restraint is not
+  something a payer can lose to the engine: it is the absence of an answer, and
+  the engine now declines in the same place for the same rule.
+
+  So the census decides one narrow thing: **whether a decorator may keep an
+  answer the engine has stopped asking for.** Keeping it costs ~15 lines and a
+  unit test and covers a client that drives the `DecisionProvider` by another
+  route — the raw-action-space harness below is exactly such a client; retiring
+  it leaves `AutoPayer` a one-prompt decorator and puts CR 601.2h wholly in
+  `ui::ask`. Either way the line worth carrying out of it is that **a prompt
+  with one legal answer belongs to the engine, not to a middleware**: a
+  decorator can only spare a round trip the engine had already decided to
+  spend, which is also the ceiling on what the auto-yield and tap-solver rows
+  can save.
 
 - **Full control mode, sized (2026-09-08)** — **~200 lines plus ~90 of tests**,
   and the reason it is that small is worth recording because it is not obvious:
@@ -1225,6 +1250,18 @@ mechanic rather than a migration, which is why it is here and not in
   | `choose_copy_source` | `ChooseCopySource` | the controller (CR 707.4) | **C** or the agent's | 0.49 / 0.22 / 0.32 |
   | `choose_damage_source` | `ChooseDamageSource` | the controller (CR 609.7a) | **C** or the agent's | 0 / 16 / 37 |
   | `choose_legend_to_keep` | `LegendRule` | the controller of the duplicates | **C**, **residual** when the duplicates are an opponent's — an SBA's question, mid-batch | 0.09 / 0.13 / 0.06 |
+
+  **Every number in the last column is the stream as it was on 2026-09-15, and
+  A4e moved it** (`codebase-state.md` items 138 and 145, 2026-09-16). The
+  counters reproduced this table exactly on the commit before the guard, which
+  is what says the census counted the right sites; then the guard stopped three
+  asks prompting when the answer is forced — `select_recipients`,
+  `choose_generic_mana_allocation` and the trample split — and a skipped prompt
+  is a skipped RNG draw, so *all* of these counts are now lower and the games
+  behind them are different games. The classification is unaffected: a forced
+  prompt was never a decision for the fork model either. The Commander column's
+  board was a source patch when this was taken and is `--deck-size 100 --life
+  40` now.
 
   **Three things to read off it.** (1) **Six of the 24 are never reached by
   the fuzz harness** — X, the two cost prompts, the entering controller, the

@@ -12,7 +12,6 @@ use mtgsim::engine::priority::PriorityResult;
 use mtgsim::objects::card_data::CardDataBuilder;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -53,11 +52,8 @@ fn test_nights_whisper_draw_and_life_loss() {
     let decisions = ScriptedDecisionProvider::new();
     // [Pass, CastSpell(whisper_id)] → idx 1
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // {1}{B}: pool has [Black(1), Colorless(1)], allocate 1 generic → [0, 1]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![0, 1],
-    );
+    // The colorless is the only mana the pips do not claim, so the split is
+    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
@@ -108,11 +104,8 @@ fn test_angels_mercy_gains_life() {
 
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // {2}{W}{W}: pool has [White(2), Colorless(2)], allocate 2 generic → [0, 2]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![0, 2],
-    );
+    // The colorless is the only mana the pips do not claim, so the split is
+    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
@@ -190,24 +183,9 @@ fn test_doom_blade_destroys_nonblack_creature() {
     let decisions = ScriptedDecisionProvider::new();
     // [Pass, CastSpell(blade_id)] → idx 1
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    // Target: legal selections = [Object(target_id)] (only nonblack creature) → idx 0
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::And(
-                Box::new(ObjectFilter::ByType(CardType::Creature)),
-                Box::new(ObjectFilter::Not(Box::new(ObjectFilter::ByColor(
-                    mtgsim::types::colors::Color::Black,
-                )))),
-            )),
-            TargetCount::Exactly(1),
-        ),
-        spell_id: blade_id,
-    }, vec![0]);
-    // {1}{B}: pool has [Black(1), Colorless(1)], allocate 1 generic → [0, 1]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![0, 1],
-    );
+    // The only nonblack creature, so the target is forced and not asked.
+    // The colorless is the only mana the pips do not claim, so the split is
+    // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);

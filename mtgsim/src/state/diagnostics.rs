@@ -51,6 +51,8 @@ pub struct EngineCounters {
     replacement_prompts: Cell<u64>,
     max_batch_depth: Cell<u64>,
     mana_productions: Cell<u64>,
+    decisions: Cell<u64>,
+    priority_decisions: Cell<u64>,
 }
 
 impl EngineCounters {
@@ -176,6 +178,31 @@ impl EngineCounters {
         self.mana_productions.set(self.mana_productions.get() + 1);
     }
 
+    /// One `DecisionProvider` prompt that had **two or more legal answers** —
+    /// the unit `engineering-practices.md` §3.1's ratchet is read in
+    /// (`codebase-state.md` item 138).
+    ///
+    /// **Not the prompt count, and the gap is the point.** The engine asks at
+    /// every priority point, and most of those offer only `Pass`; a prompt
+    /// count measures the pass loop, where this measures what an agent is
+    /// handed. Counted in `ui::ask`'s four `validate_*` helpers, which are the
+    /// one place every prompt's candidate list and its bounds are both in
+    /// scope — so "two or more answers" is decided per primitive there, and CR
+    /// 102.2's forced choices do not count however the caller spelled them.
+    pub fn record_decision(&self) {
+        self.decisions.set(self.decisions.get() + 1);
+    }
+
+    /// The subset of [`Self::record_decision`] asked at priority — a seat
+    /// offered something other than passing.
+    ///
+    /// Read as a share of the whole: it is the boundary of `backlog.md`
+    /// §2.22's **B** class, and the rest is the inner asks a harness answers
+    /// as parameters of the action it already chose.
+    pub fn record_priority_decision(&self) {
+        self.priority_decisions.set(self.priority_decisions.get() + 1);
+    }
+
     pub fn layer_walks(&self) -> u64 {
         self.layer_walks.get()
     }
@@ -230,5 +257,13 @@ impl EngineCounters {
 
     pub fn mana_productions(&self) -> u64 {
         self.mana_productions.get()
+    }
+
+    pub fn decisions(&self) -> u64 {
+        self.decisions.get()
+    }
+
+    pub fn priority_decisions(&self) -> u64 {
+        self.priority_decisions.get()
     }
 }

@@ -37,7 +37,9 @@ construction.
 Reads the counters, not the milliseconds: the timing table prints ms per
 1,000 walks and per 1,000 queries (walks plus memo hits) beside the median,
 because "the game got longer", "the walk got slower" and "fewer questions
-walked" are three different findings.
+walked" are three different findings. It prints us per decision for a fourth:
+the ratchet's own unit (`engineering-practices.md` 3.1), which is what says
+whether a change cost the agent anything rather than the machine.
 """
 
 import argparse
@@ -85,6 +87,11 @@ ROWS = [
     ("Prevention allocations", r"^\s+Prevention allocations:\s+([\d.]+)"),
     ("Replacement prompts", r"^\s+Replacement prompts:\s+([\d.]+)"),
     ("Max batch depth", r"^\s+Max batch depth:\s+(\d+)"),
+    # Item 138's two: prompts with two or more legal answers, and their
+    # priority share. A fixture row like the rest, and the denominator the
+    # timing table's `µs / decision` divides CPU/game by.
+    ("Decisions", r"^\s+Decisions:\s+(\d+)"),
+    ("Priority decisions", r"^\s+Priority decisions:\s+(\d+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can
@@ -219,6 +226,11 @@ def main():
     ap.add_argument("--players", type=int, default=None,
                     help="seats at the table, passed to every run (default: the binary's, two). "
                          "The four-player run is its own table in §3, diffed RE-7 against RE-6, never against a two-player arm")
+    ap.add_argument("--deck-size", type=int, default=None,
+                    help="cards per deck, passed to every run (default: the binary's, 60). "
+                         "100 with --life 40 --players 4 is the Commander-scale board")
+    ap.add_argument("--life", type=int, default=None,
+                    help="starting life, passed to every run (default: the binary's, 20)")
     ap.add_argument("--out", default=None, help="directory for the raw outputs (default: a temp dir)")
     args = ap.parse_args()
 
@@ -234,6 +246,10 @@ def main():
     common = ["--seed", str(args.seed)]
     if args.players is not None:
         common += ["--players", str(args.players)]
+    if args.deck_size is not None:
+        common += ["--deck-size", str(args.deck_size)]
+    if args.life is not None:
+        common += ["--life", str(args.life)]
     t0 = time.time()
     print(f"outputs: {out}")
 
@@ -316,6 +332,13 @@ def main():
         med = {a: statistics.median(cpu[a]) for a in labels}
         per_walk = {a: med[a] / walks[a] * 1000 for a in labels}
         per_query = {a: med[a] / queries[a] * 1000 for a in labels}
+        # Item 138's unit. A binary from before the two counters prints no such
+        # row, so its cell is `?` rather than a number divided by a zero.
+        dec = {a: counted[(a, "performance")][0]["Decisions"] for a in labels}
+        per_dec = {
+            a: (med[a] / float(dec[a]) * 1000 if dec[a].isdigit() and float(dec[a]) > 0 else None)
+            for a in labels
+        }
         base = labels[0]
         print(f"\n{'':<22}" + "".join(f"{a:>18}" for a in labels))
         print(f"{'CPU/game median':<22}" + "".join(f"{med[a]:>18.2f}" for a in labels))
@@ -324,6 +347,12 @@ def main():
         print(f"{'  vs ' + base:<22}" + "".join(f"{(per_walk[a] / per_walk[base] - 1) * 100:>+17.1f}%" for a in labels))
         print(f"{'ms / 1,000 queries':<22}" + "".join(f"{per_query[a]:>18.3f}" for a in labels))
         print(f"{'  vs ' + base:<22}" + "".join(f"{(per_query[a] / per_query[base] - 1) * 100:>+17.1f}%" for a in labels))
+        print(f"{'µs / decision':<22}" + "".join(
+            f"{per_dec[a]:>18.1f}" if per_dec[a] is not None else f"{'?':>18}" for a in labels))
+        if per_dec[base] is not None:
+            print(f"{'  vs ' + base:<22}" + "".join(
+                f"{(per_dec[a] / per_dec[base] - 1) * 100:>+17.1f}%" if per_dec[a] is not None else f"{'?':>18}"
+                for a in labels))
         print(f"{'CPU/game p50 median':<22}" + "".join(f"{statistics.median(p50[a]):>18.2f}" for a in labels))
         print(f"{'CPU/game p99 median':<22}" + "".join(f"{statistics.median(p99[a]):>18.2f}" for a in labels))
         print(f"{'CPU/turn p50 median':<22}" + "".join(f"{statistics.median(turn_p50[a]):>18.3f}" for a in labels))

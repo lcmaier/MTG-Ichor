@@ -9,12 +9,30 @@
 //! 5. Unpacks indices back into typed results
 //!
 //! Engine call sites and tests use these exclusively — never raw DP methods.
+//!
+//! **A prompt with one legal answer is not asked** (CR 102.2): `ask_discard`
+//! returns the hand when the count takes all of it, `order_scry_group` returns
+//! below two cards, `ask_select_recipients` returns a fixed count that takes
+//! none or all, `forced_allocation` answers a split with one place to put the
+//! remainder, and five asks assert two or more candidates and leave the single
+//! case to the caller. Out of process each of those would be a round trip for
+//! an answer the engine already has — and it would spend CPU against the
+//! ratchet's numerator without producing a decision to count
+//! (`codebase-state.md` item 145).
+//!
+//! The four `validate_*` helpers also carry `codebase-state.md` item 138's
+//! **decision** count — a prompt with two or more legal answers, the unit
+//! `engineering-practices.md` §3.1's ratchet reads CPU in. They are where it
+//! belongs rather than in the 25 bodies: each runs exactly once per prompt,
+//! with the candidate list and the bounds both in scope, so "two or more
+//! answers" is decided once per primitive rather than once per caller.
 
 use std::collections::HashMap;
 
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
+use crate::state::diagnostics::EngineCounters;
 use crate::state::game_state::GameState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
@@ -23,6 +41,72 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use super::decision::{DecisionProvider, PriorityAction};
+
+/// CR 102.2 — the one allocation a forced split admits, or `None` when the
+/// player has something to decide.
+///
+/// A split is forced in exactly three shapes: nothing left once every bucket
+/// holds its minimum, nothing spare once every bucket holds its maximum, and
+/// one bucket free to take whatever is left. Everything else admits two
+/// allocations that differ by one unit moved between two free buckets.
+///
+/// **Both a guard and a counter.** The `ask_*` bodies call it to answer
+/// without a prompt — a round trip for an answer the engine already has costs
+/// the ratchet its numerator (`codebase-state.md` item 145) — and
+/// [`validate_allocation`] calls it so the decision count cannot drift from
+/// what the callers skip.
+///
+/// **`None` is also every answer that is not well formed**, and that is load
+/// bearing rather than defensive: an allocation this returns is used *without*
+/// [`validate_allocation`] ever running, so anything it answers wrongly is
+/// silent. A `None` falls through to the prompt and the validator, which is
+/// where the loud message has always been — a caller whose minimums exceed the
+/// total, whose one free bucket cannot hold the remainder, or whose bounds
+/// disagree with each other gets the panic it used to get. The generic split's
+/// `can_pay` precondition is a `debug_assert`, so in a release fuzz run this is
+/// the only thing standing between a caller bug and an unpayable split that
+/// `ManaPool::pay` refuses and CR 601.2 rewinds — `codebase-state.md` 16c's
+/// failure, which this guard must not reintroduce.
+fn forced_allocation(
+    total: u64,
+    per_bucket_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
+) -> Option<Vec<u64>> {
+    if let Some(maxs) = per_bucket_maxs
+        && (maxs.len() != per_bucket_mins.len()
+            || per_bucket_mins.iter().zip(maxs).any(|(lo, hi)| lo > hi))
+    {
+        return None;
+    }
+    // More owed to the minimums than there is to give: infeasible, and the sum
+    // assertion names it.
+    let slack = total.checked_sub(per_bucket_mins.iter().sum())?;
+    if slack == 0 {
+        return Some(per_bucket_mins.to_vec());
+    }
+    let headroom = |i: usize| {
+        per_bucket_maxs.map_or(u64::MAX, |maxs| maxs[i].saturating_sub(per_bucket_mins[i]))
+    };
+    let free: Vec<usize> = (0..per_bucket_mins.len()).filter(|&i| headroom(i) > 0).collect();
+    if free.len() == 1 {
+        // Only when it actually fits; a bucket asked for more than its maximum
+        // is the caller's bug and belongs in the validator's message.
+        if headroom(free[0]) < slack {
+            return None;
+        }
+        let mut alloc = per_bucket_mins.to_vec();
+        alloc[free[0]] += slack;
+        return Some(alloc);
+    }
+    // Saturating: the trample split's unbounded buckets are `u64::MAX`, and a
+    // plain sum of two of them overflows before it can fail the comparison.
+    if let Some(maxs) = per_bucket_maxs
+        && free.iter().map(|&i| headroom(i)).fold(0u64, u64::saturating_add) == slack
+    {
+        return Some(maxs.to_vec());
+    }
+    None
+}
 
 // ===========================================================================
 // Validation helpers
@@ -34,6 +118,7 @@ fn validate_pick_n(
     options_len: usize,
     bounds: (usize, usize),
     context_desc: &str,
+    counters: &EngineCounters,
 ) {
     assert!(
         indices.len() >= bounds.0 && indices.len() <= bounds.1,
@@ -64,6 +149,14 @@ fn validate_pick_n(
             idx,
         );
     }
+
+    // Item 138's decision count. A `pick_n` has one legal answer only when the
+    // count is fixed and that count admits one combination — take none, or
+    // take every option — so a lone candidate offered as "take it or not" is a
+    // decision and a forced list is not, whichever way the caller spelled it.
+    if !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len)) {
+        counters.record_decision();
+    }
 }
 
 /// Validate pick_number response: value in range.
@@ -71,7 +164,13 @@ fn validate_pick_n(
 /// When `GameNumber` replaces `u64` for symbolic values (`backlog.md` §2.28,
 /// the loop-shortcut capture), this becomes `GameNumber::gte`/`lte` rather
 /// than an integer comparison.
-fn validate_pick_number(value: u64, min: u64, max: u64, context_desc: &str) {
+fn validate_pick_number(
+    value: u64,
+    min: u64,
+    max: u64,
+    context_desc: &str,
+    counters: &EngineCounters,
+) {
     assert!(
         value >= min && value <= max,
         "ask_{}: DP returned {} but range is [{}, {}]",
@@ -80,6 +179,11 @@ fn validate_pick_number(value: u64, min: u64, max: u64, context_desc: &str) {
         min,
         max,
     );
+
+    // Item 138's decision count: one number to name is no decision.
+    if max > min {
+        counters.record_decision();
+    }
 }
 
 /// Validate allocate response: length matches buckets, sum equals total,
@@ -91,6 +195,7 @@ fn validate_allocation(
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
     context_desc: &str,
+    counters: &EngineCounters,
 ) {
     assert_eq!(
         alloc.len(),
@@ -148,6 +253,12 @@ fn validate_allocation(
             );
         }
     }
+
+    // Item 138's decision count, off the same predicate the callers skip on —
+    // a prompt that reached here at all had two or more legal allocations.
+    if forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none() {
+        counters.record_decision();
+    }
 }
 
 /// Validate choose_ordering response: valid permutation of 0..items_len.
@@ -155,7 +266,12 @@ fn validate_allocation(
 /// Checks length, index range, and uniqueness. By the pigeonhole principle,
 /// N unique values each in [0, N) IS a permutation of 0..N, so no explicit
 /// "sequential" check is needed.
-fn validate_ordering(order: &[usize], items_len: usize, context_desc: &str) {
+fn validate_ordering(
+    order: &[usize],
+    items_len: usize,
+    context_desc: &str,
+    counters: &EngineCounters,
+) {
     assert_eq!(
         order.len(),
         items_len,
@@ -182,6 +298,11 @@ fn validate_ordering(order: &[usize], items_len: usize, context_desc: &str) {
         );
         seen[idx] = true;
     }
+
+    // Item 138's decision count: one item has one order.
+    if items_len >= 2 {
+        counters.record_decision();
+    }
 }
 
 // ===========================================================================
@@ -206,7 +327,14 @@ pub fn ask_choose_priority_action(
         kind: ChoiceKind::PriorityAction,
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_priority_action");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_priority_action", &game.counters);
+    // Item 138's split of the count above. `Pass` is always offered
+    // (`engine::priority`), so a longer list is a seat with something else to
+    // do — and the priority prompts that are `[Pass]` alone, 91.5% of them at
+    // four seats, are what a prompt count would have measured instead.
+    if legal_actions.len() > 1 {
+        game.counters.record_priority_decision();
+    }
     legal_actions[index[0]].clone()
 }
 
@@ -233,7 +361,7 @@ pub fn ask_choose_attackers(
         kind: ChoiceKind::DeclareAttackers,
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
-    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_attackers");
+    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_attackers", &game.counters);
     indices.iter().map(|&i| (legal[i].0, legal[i].1.clone())).collect()
 }
 
@@ -256,7 +384,7 @@ pub fn ask_choose_blockers(
         kind: ChoiceKind::DeclareBlockers,
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
-    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_blockers");
+    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_blockers", &game.counters);
     indices.iter().map(|&i| legal[i]).collect()
 }
 
@@ -280,8 +408,11 @@ pub fn ask_choose_attacker_damage_assignment(
         kind: ChoiceKind::AssignCombatDamage { attacker_id },
     };
     let mins = vec![0u64; buckets.len()];
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
-    validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment");
+    let alloc = forced_allocation(power, &mins, None).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
+        validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment", &game.counters);
+        alloc
+    });
     blockers
         .iter()
         .zip(alloc.iter())
@@ -329,8 +460,11 @@ pub fn ask_choose_trample_damage_assignment(
             defending_target,
         },
     };
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
-    validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment");
+    let alloc = forced_allocation(power, &mins, per_bucket_maxs).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
+        validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", &game.counters);
+        alloc
+    });
 
     let blocker_assignments: Vec<(ObjectId, u64)> = blockers
         .iter()
@@ -367,7 +501,7 @@ pub fn ask_choose_x_value(
     // Contract check: value must be in [0, u64::MAX] — tautological for u64, but
     // keeps the validate_* pattern wired in so fuzz harness exercises it. Affordability
     // is enforced by the casting pipeline rollback (601.2h), not here.
-    validate_pick_number(value, 0, u64::MAX, "choose_x_value");
+    validate_pick_number(value, 0, u64::MAX, "choose_x_value", &game.counters);
     value
 }
 
@@ -391,7 +525,7 @@ pub fn ask_choose_alternative_cost(
         kind: ChoiceKind::ChooseAlternativeCost,
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_alternative_cost");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_alternative_cost", &game.counters);
     let chosen = index[0];
     if chosen == 0 {
         None
@@ -424,6 +558,7 @@ pub fn ask_choose_additional_costs(
         options.len(),
         (0, available.len()),
         "choose_additional_costs",
+        &game.counters,
     );
     indices
 }
@@ -445,6 +580,19 @@ pub fn ask_select_recipients(
     if legal_selections.is_empty() {
         return Vec::new();
     }
+    // CR 102.2 — a fixed count that takes none of the legal recipients or all
+    // of them is not a choice, and one legal target for "target creature" is
+    // the common shape of it. Returned in `legal_selections` order for
+    // `ask_discard`'s reason: no rule gives the player that order, and the
+    // choosers agreeing is worth more than an order nobody named.
+    if min_selections == max_selections {
+        if min_selections == 0 {
+            return Vec::new();
+        }
+        if min_selections == legal_selections.len() {
+            return legal_selections.to_vec();
+        }
+    }
     let options: Vec<ChoiceOption> = legal_selections
         .iter()
         .map(|t| match t {
@@ -464,6 +612,7 @@ pub fn ask_select_recipients(
         options.len(),
         (min_selections, max_selections),
         "select_recipients",
+        &game.counters,
     );
     indices.iter().map(|&i| legal_selections[i]).collect()
 }
@@ -507,7 +656,7 @@ pub fn ask_activate_mana_ability(
     };
     // (0, 1): 0 = decline / stop, 1 = activate one ability
     let indices = dp.pick_n(game, player, &ctx, &options, (0, 1));
-    validate_pick_n(&indices, options.len(), (0, 1), "activate_mana_ability");
+    validate_pick_n(&indices, options.len(), (0, 1), "activate_mana_ability", &game.counters);
     if indices.is_empty() {
         None
     } else {
@@ -533,7 +682,7 @@ pub fn ask_order_cost_reductions(
         kind: ChoiceKind::OrderCostReductions { spell_id },
     };
     let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, options.len(), "order_cost_reductions");
+    validate_ordering(&order, options.len(), "order_cost_reductions", &game.counters);
     order
 }
 
@@ -607,15 +756,19 @@ pub fn ask_choose_generic_mana_allocation(
         maxs,
         generic_count,
     );
-    let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
-    validate_allocation(
-        &alloc,
-        buckets.len(),
-        generic_count,
-        &mins,
-        Some(&maxs),
-        "choose_generic_mana_allocation",
-    );
+    let alloc = forced_allocation(generic_count, &mins, Some(&maxs)).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
+        validate_allocation(
+            &alloc,
+            buckets.len(),
+            generic_count,
+            &mins,
+            Some(&maxs),
+            "choose_generic_mana_allocation",
+            &game.counters,
+        );
+        alloc
+    });
 
     // per_bucket_maxs already enforces that each allocation leaves every pip
     // its own mana — no post-hoc check needed.
@@ -648,7 +801,7 @@ pub fn ask_commander_to_command_zone(
         kind: ChoiceKind::CommanderToCommandZoneSba { commander },
     };
     let picked = dp.pick_n(game, owner, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, options.len(), (0, 1), "commander_to_command_zone");
+    validate_pick_n(&picked, options.len(), (0, 1), "commander_to_command_zone", &game.counters);
     !picked.is_empty()
 }
 
@@ -691,7 +844,7 @@ pub fn ask_discard(
     let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext { kind: ChoiceKind::Discard { source } };
     let mut picked = dp.pick_n(game, player, &ctx, &options, (count, count));
-    validate_pick_n(&picked, options.len(), (count, count), "discard");
+    validate_pick_n(&picked, options.len(), (count, count), "discard", &game.counters);
     picked.sort();
     picked.into_iter().map(|i| hand[i]).collect()
 }
@@ -738,7 +891,7 @@ pub fn ask_scry(
     let bounds = (0, looked_at.len());
     let ctx = ChoiceContext { kind: ChoiceKind::Scry { source, n } };
     let to_bottom = dp.pick_n(game, player, &ctx, &options, bounds);
-    validate_pick_n(&to_bottom, options.len(), bounds, "scry");
+    validate_pick_n(&to_bottom, options.len(), bounds, "scry", &game.counters);
 
     let mut bottom: Vec<ObjectId> = Vec::with_capacity(to_bottom.len());
     let mut top: Vec<ObjectId> = Vec::with_capacity(looked_at.len() - to_bottom.len());
@@ -768,7 +921,7 @@ fn order_scry_group(
     let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext { kind: ChoiceKind::ScryOrder { source, bottom } };
     let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, options.len(), "scry_order");
+    validate_ordering(&order, options.len(), "scry_order", &game.counters);
     order.into_iter().map(|i| group[i]).collect()
 }
 
@@ -810,7 +963,7 @@ pub fn ask_choose_replacement(
         kind: ChoiceKind::ChooseReplacementEffect { affected_object },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_replacement");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_replacement", &game.counters);
     index[0]
 }
 
@@ -844,9 +997,11 @@ pub fn ask_allocate_next_damage(
     let ctx = ChoiceContext {
         kind: ChoiceKind::AllocateNextDamage { source, remaining },
     };
-    let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
-    validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage");
-    alloc
+    forced_allocation(total, &mins, Some(&maxs)).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
+        validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage", &game.counters);
+        alloc
+    })
 }
 
 /// Ask whether to apply a "you **may** ... instead" replacement effect
@@ -871,7 +1026,7 @@ pub fn ask_apply_optional_replacement(
         },
     };
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, options.len(), (0, 1), "apply_optional_replacement");
+    validate_pick_n(&picked, options.len(), (0, 1), "apply_optional_replacement", &game.counters);
     !picked.is_empty()
 }
 
@@ -900,7 +1055,7 @@ pub fn ask_choose_entering_controller(
         kind: ChoiceKind::ChooseEnteringController { object },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_entering_controller");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_entering_controller", &game.counters);
     candidates[index[0]]
 }
 
@@ -948,7 +1103,7 @@ pub fn ask_choose_auxiliary_zone_change(
         kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to },
     };
     let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
-    validate_pick_n(&indices, options.len(), (0, max), "choose_auxiliary_zone_change");
+    validate_pick_n(&indices, options.len(), (0, max), "choose_auxiliary_zone_change", &game.counters);
     // Sorted, so the batch is built in candidate order however the provider
     // returned its picks — the order the moves are performed in is observable
     // (a graveyard is ordered), and it must not depend on a DP's whim.
@@ -975,7 +1130,7 @@ pub fn ask_choose_copy_source(
         kind: ChoiceKind::ChooseCopySource { spell_id },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_copy_source");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_copy_source", &game.counters);
     candidates[index[0]]
 }
 
@@ -1007,7 +1162,7 @@ pub fn ask_choose_damage_source(
         kind: ChoiceKind::ChooseDamageSource { source },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_damage_source");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_damage_source", &game.counters);
     candidates[index[0]]
 }
 
@@ -1041,7 +1196,7 @@ pub fn ask_choose_sacrifice_for_cost(
         kind: ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count },
     };
     let picks = dp.pick_n(game, player, &ctx, &options, (n, n));
-    validate_pick_n(&picks, options.len(), (n, n), "choose_sacrifice_for_cost");
+    validate_pick_n(&picks, options.len(), (n, n), "choose_sacrifice_for_cost", &game.counters);
     picks.into_iter().map(|i| candidates[i]).collect()
 }
 
@@ -1067,7 +1222,7 @@ pub fn ask_choose_legend_to_keep(
         },
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_legend_to_keep");
+    validate_pick_n(&index, options.len(), (1, 1), "choose_legend_to_keep", &game.counters);
     legendaries[index[0]]
 }
 
@@ -1201,19 +1356,21 @@ mod tests {
     /// menu. The old prompt offered the pool's amounts — [1, 1, 1] — which is
     /// exactly how a DP named a split `ManaPool::pay` refused and CR 601.2
     /// rewound the cast for (`codebase-state.md` 16c).
+    ///
+    /// With both pips clamped to zero the Red is the only bucket left, so the
+    /// engine answers without asking and the scripted provider is never
+    /// touched.
     #[test]
-    #[should_panic(expected = "DP allocated 1 to bucket 2 but maximum is 0")]
     fn test_generic_split_refuses_a_color_its_own_pips_need() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
         // Buckets are `ManaType`-ordered: Blue, Red, Green. Bucket 2 is the Green.
         let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 0, 1],
-        );
-        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
 
     /// The same cost from `{G}{G}{U}`: the second Green is surplus, so it is
@@ -1225,10 +1382,8 @@ mod tests {
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
         let available = [(ManaType::Blue, 1), (ManaType::Green, 2)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 1],
-        );
+        // The surplus Green is the only bucket with room, so this is the forced
+        // answer rather than a scripted one.
 
         let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
 
@@ -1238,36 +1393,52 @@ mod tests {
     /// A `{C}` pip is clamped the same way a colored one is — `ManaPool::pay`
     /// makes no distinction, and `ManaCost::build` writes it as
     /// `ManaSymbol::Colorless` rather than `Colored(ManaType::Colorless)`.
+    ///
+    /// The clamp leaves one bucket able to take the generic mana, so the answer
+    /// is forced and no provider sees it: a `ScriptedDecisionProvider` with
+    /// nothing scripted would panic on any call, which is what says the prompt
+    /// is gone as well as that the clamp held.
     #[test]
-    #[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
     fn test_generic_split_clamps_a_colorless_pip() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Colorless], 1);
         // Red, then Colorless. Bucket 1 is the Colorless, and the {C} pip has it.
         let available = [(ManaType::Red, 1), (ManaType::Colorless, 1)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 1],
-        );
-        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
 
     /// The random agent does not clamp for itself, so this is the statement
-    /// that the engine's maxima
-    /// are what keeps every split payable: over 50 seeds against a board where
-    /// exactly one type has surplus, the generic mana is always that type.
+    /// that the engine's maxima are what keeps every split payable.
+    ///
+    /// **The board gives it a real choice**, which is what makes this a test of
+    /// the agent rather than of `forced_allocation`: `{1}{G}{U}` against two
+    /// Blue, one Red and two Green leaves every bucket a surplus of one, so the
+    /// provider is asked. Over 50 seeds no answer ever spends mana a pip is
+    /// owed — one unit, and never more than the surplus of the type it
+    /// lands on.
     #[test]
     fn test_random_dp_generic_split_spends_only_the_surplus() {
         use crate::ui::random::RandomDecisionProvider;
 
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
-        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+        let available = [(ManaType::Blue, 2), (ManaType::Red, 1), (ManaType::Green, 2)];
+        let surplus = HashMap::from([
+            (ManaType::Blue, 1u64),
+            (ManaType::Red, 1),
+            (ManaType::Green, 1),
+        ]);
         for seed in 0..50u64 {
             let dp = RandomDecisionProvider::seeded(seed);
             let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
-            assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]), "seed {seed}");
+            assert_eq!(alloc.values().sum::<u64>(), 1, "seed {seed}");
+            for (mana_type, amount) in &alloc {
+                assert!(amount <= &surplus[mana_type], "seed {seed}: {mana_type:?} over surplus");
+            }
         }
     }
 
@@ -1555,7 +1726,7 @@ mod tests {
     fn test_validation_rejects_wrong_bucket_count() {
         let alloc = vec![1u64, 2];
         let mins = vec![0u64; 3];
-        validate_allocation(&alloc, 3, 3, &mins, None, "test");
+        validate_allocation(&alloc, 3, 3, &mins, None, "test", &EngineCounters::default());
     }
 
     #[test]
@@ -1563,7 +1734,7 @@ mod tests {
     fn test_validation_rejects_mismatched_mins_length() {
         let alloc = vec![1u64, 1, 1];
         let mins = vec![0u64; 2]; // wrong length
-        validate_allocation(&alloc, 3, 3, &mins, None, "test");
+        validate_allocation(&alloc, 3, 3, &mins, None, "test", &EngineCounters::default());
     }
 
     #[test]
@@ -1572,7 +1743,7 @@ mod tests {
         let alloc = vec![1u64, 1, 1];
         let mins = vec![0u64; 3];
         let maxs = vec![3u64; 2]; // wrong length
-        validate_allocation(&alloc, 3, 3, &mins, Some(&maxs), "test");
+        validate_allocation(&alloc, 3, 3, &mins, Some(&maxs), "test", &EngineCounters::default());
     }
 
     #[test]
@@ -1581,49 +1752,76 @@ mod tests {
         let alloc = vec![0u64, 5];
         let mins = vec![0u64, 0];
         let maxs = vec![10u64, 3];
-        validate_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test");
+        validate_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test", &EngineCounters::default());
+    }
+
+    /// The three shapes `forced_allocation` answers, and the four it refuses.
+    ///
+    /// The refusals are the half that matters: an answer it gives is used
+    /// without `validate_allocation` running at all, so an infeasible input it
+    /// answered would be a silent wrong split — `codebase-state.md` 16c's
+    /// failure, reached from the other side.
+    #[test]
+    fn test_forced_allocation_answers_only_a_feasible_unique_split() {
+        // Nothing left over the minimums.
+        assert_eq!(forced_allocation(3, &[1, 2], None), Some(vec![1, 2]));
+        // One bucket free to take the remainder.
+        assert_eq!(forced_allocation(3, &[0, 0], Some(&[0, 5])), Some(vec![0, 3]));
+        // Nothing spare under the maxima.
+        assert_eq!(forced_allocation(5, &[0, 0], Some(&[2, 3])), Some(vec![2, 3]));
+
+        // A real choice: two free buckets with room to spare.
+        assert_eq!(forced_allocation(1, &[0, 0], Some(&[1, 1])), None);
+        assert_eq!(forced_allocation(2, &[0, 0], None), None);
+        // The minimums already exceed the total.
+        assert_eq!(forced_allocation(1, &[1, 1], None), None);
+        // The one free bucket cannot hold the remainder.
+        assert_eq!(forced_allocation(5, &[0, 0], Some(&[0, 2])), None);
+        // Bounds that disagree, and bounds that do not line up with the buckets.
+        assert_eq!(forced_allocation(1, &[2, 0], Some(&[1, 4])), None);
+        assert_eq!(forced_allocation(1, &[0, 0], Some(&[1])), None);
     }
 
     #[test]
     #[should_panic(expected = "DP returned duplicate index 1")]
     fn test_validation_rejects_duplicate_pick_n_index() {
-        validate_pick_n(&[1, 1], 3, (2, 2), "test");
+        validate_pick_n(&[1, 1], 3, (2, 2), "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 0 selections, expected 1-2")]
     fn test_validation_rejects_count_below_min() {
-        validate_pick_n(&[], 5, (1, 2), "test");
+        validate_pick_n(&[], 5, (1, 2), "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 5 but range is [0, 3]")]
     fn test_validation_pick_number_above_max() {
-        validate_pick_number(5, 0, 3, "test");
+        validate_pick_number(5, 0, 3, "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 1 but range is [3, 10]")]
     fn test_validation_pick_number_below_min() {
-        validate_pick_number(1, 3, 10, "test");
+        validate_pick_number(1, 3, 10, "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 2 indices but 3 items to order")]
     fn test_validation_ordering_wrong_length() {
-        validate_ordering(&[0, 1], 3, "test");
+        validate_ordering(&[0, 1], 3, "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned duplicate index 1 in ordering")]
     fn test_validation_ordering_duplicate() {
-        validate_ordering(&[0, 1, 1], 3, "test");
+        validate_ordering(&[0, 1, 1], 3, "test", &EngineCounters::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned index 3 but only 3 items")]
     fn test_validation_ordering_index_oob() {
-        validate_ordering(&[0, 1, 3], 3, "test");
+        validate_ordering(&[0, 1, 3], 3, "test", &EngineCounters::default());
     }
 
     // ===========================================================================

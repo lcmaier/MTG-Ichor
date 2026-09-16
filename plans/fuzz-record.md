@@ -37,6 +37,102 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-16 for A4e** (item 138's two decision counters and item
+145's forced-prompt guard, PR #155). **The pool did not change** — 89 and 159,
+the same cards — and this is a re-record anyway, which is the unusual part and
+the reason it is here: the guard stops the engine asking a question with one
+legal answer, a skipped prompt is a skipped RNG draw for
+`RandomDecisionProvider::allocate`, and every seed-deterministic row moves
+because the games that follow are different games.
+
+**Three arms, and the middle one is the proof.** `main` (be65deb), the
+counters-only commit, and the guard on top:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| counters vs `main`, both pools, every row | **IDENTICAL** | **IDENTICAL** |
+| guard vs `main`, both pools | differ, by construction | differ, by construction |
+| `Decisions`, `performance` | ? → 266 → 236 | ? → 483 → 464 |
+| `Priority decisions`, `performance` | ? → 103 → 96 | ? → 188 → 188 |
+| `Layer walks`, `performance` | 394 → 394 → 367 | 793 → 793 → 809 |
+| `Avg turns`, `performance` | 32.1 → 32.1 → 30.0 | 61.0 → 61.0 → 60.9 |
+
+The walk row moves *up* at four seats and down at two, which is what a moved
+stream looks like: nothing here measures a cost change, and the guard's own
+saving is 30 provider round trips a game — about 15 µs in process, and out of
+process the difference between shipping 2,544 prompts and 2,514.
+
+**One four-seat `stress` game reaches the 200-turn cap**, where none did on
+`main`. At `--max-turns 600` that run's longest game is 234 turns and the cap
+is never reached, so it is a long game rather than a hang — RE-9 recorded the
+same shape for its pooled arm.
+
+**The six-board decision reading** this record's instrument exists for is
+`codebase-state.md` item 138's table, not repeated here; the headline is
+**8,790 decisions per core-second** on the 60-card `performance` board at four
+seats and **6,420** at Commander scale (`--deck-size 100 --life 40 --players
+4`, new flags in this PR).
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 29 (58.0%) / 21 (42.0%) | 24 (48.0%) / 25 (50.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.9 | 30.5 |
+| Spells cast | 23.4 | 23.3 |
+| Lands played | 18.1 | 17.7 |
+| Combat w/ atk | 10.5 | 10.1 |
+| Creatures died | 6.9 | 5.2 |
+| Damage events | 21.7 | 23.2 |
+| Total damage | 60.7 | 54.0 |
+| Life changes | 14.3 | 15.6 |
+| **Layer walks** | **367** | **451** |
+| **Board walks** | **248** | **289** |
+| **Memo hits** | **59,089** | **79,362** |
+| **Layer frames** | **4,448** | **5,658** |
+| **Frames/walk** | **12.12** | **12.55** |
+| **Dependency checks** | **21** | **25** |
+| **Replacement gathers** | **1071** | **1187** |
+| **Restriction queries** | **1073** | **1190** |
+| Mana productions | 80 | 120 |
+| Prevention allocations | 0.00 | 0.08 |
+| Replacement prompts | 0.12 | 1.18 |
+| Max batch depth | 5 | 5 |
+| Decisions | 238 | 333 |
+| Priority decisions | 96 | 138 |
+
+**And the four-player table** (50 games / seed 12345), which RE-7 established
+is diffed against its own predecessor and never against a two-player arm:
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 17 (34.0%) / 22 (44.0%) / 8 (16.0%) / 3 (6.0%) | 18 (36.0%) / 22 (44.0%) / 8 (16.0%) / 2 (4.0%) |
+| Avg turns | 59.9 | 67.7 |
+| Spells cast | 45.2 | 48.0 |
+| Lands played | 36.1 | 38.9 |
+| Combat w/ atk | 25.5 | 26.0 |
+| Creatures died | 14.9 | 13.5 |
+| Damage events | 54.4 | 59.9 |
+| Total damage | 159.5 | 151.5 |
+| Life changes | 37.1 | 41.9 |
+| Turns after a departure | 22.2 | 19.9 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **814** | **1,275** |
+| **Board walks** | **529** | **702** |
+| **Memo hits** | **188,573** | **287,180** |
+| **Layer frames** | **16,046** | **23,833** |
+| **Frames/walk** | **19.71** | **18.70** |
+| **Dependency checks** | **116** | **122** |
+| **Replacement gathers** | **2273** | **2763** |
+| **Restriction queries** | **2278** | **2770** |
+| Mana productions | 156 | 262 |
+| Prevention allocations | 0.00 | 0.08 |
+| Replacement prompts | 2.52 | 3.62 |
+| Max batch depth | 5 | 6 |
+| Decisions | 467 | 793 |
+| Priority decisions | 186 | 331 |
+
 **Re-recorded 2026-09-15 for RE-9** (CR 106.6a's mana production event and
 CR 106.12's "tapped for mana"; `replacement-architecture.md` §9, the last of
 RE's ten PRs). `PERFORMANCE_POOL` +1 — Mana Reflection, 88 → 89 — and the

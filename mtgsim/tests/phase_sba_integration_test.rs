@@ -24,14 +24,10 @@ use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_graveyard, put_in_hand, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::card_types::CardType;
-use mtgsim::types::effects::{
-    CounterType, EffectRecipient, ObjectFilter, SelectionFilter, TargetCount,
-};
+use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use std::sync::Arc;
 
@@ -53,25 +49,17 @@ fn reanimate(game: &mut GameState, card: Arc<CardData>, player: usize) -> Object
 
 /// Cast [`battlegrowth`] from `player`'s hand at the only legal target.
 ///
-/// Index 0 is unambiguous *because* each caller leaves exactly one creature on
-/// the battlefield — `enumerate_legal_selections` returns an ordered list and a
-/// test that picked out of several would be asserting on that order instead of
-/// on CR 704.5q.
+/// The target is unambiguous *because* each caller leaves exactly one creature
+/// on the battlefield — so the engine takes it without asking, and a test that
+/// picked out of several would be asserting on `enumerate_legal_selections`'
+/// order instead of on CR 704.5q.
 fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -> ObjectId {
     let id = put_in_hand(game, battlegrowth(), player);
     game.players[player].mana_pool.add(ManaType::Green, 1);
 
+    // Nothing to script: exactly one creature, so CR 102.2 makes the target
+    // forced and no prompt is made.
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(
-                SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Creature)),
-                TargetCount::Exactly(1),
-            ),
-            spell_id: id,
-        },
-        vec![0],
-    );
 
     game.cast_spell(player, id, &decisions).expect("it is castable");
     game.resolve_top_of_stack(&decisions).expect("it resolves");

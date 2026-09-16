@@ -332,17 +332,17 @@ fn test_counterspell_cleans_up_stack_entries() {
     game.players[0].mana_pool.add(ManaType::Red, 1);
 
     let decisions = ScriptedDecisionProvider::new();
-    // Bolt target: Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
-        spell_id: bolt_id,
-    }, vec![1]);
-    // Counterspell target: Object(bolt_id) at index 0 in [Object(bolt_id)] for SelectionFilter::Spell
+    // The bolt's target is a real choice — either player — so it is scripted.
+    decisions.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
+            spell_id: bolt_id,
+        },
+        vec![1],
+    );
+    // The Counterspell's is not: the bolt is the only spell on the stack, so
+    // CR 102.2 makes it forced and no prompt is made.
     let cs_id = put_in_hand(&mut game, alpha::counterspell(), 1);
-    decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-        recipient: EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
-        spell_id: cs_id,
-    }, vec![0]);
     game.cast_spell(0, bolt_id, &decisions).unwrap();
     assert!(game.stack_entries.contains_key(&bolt_id));
 

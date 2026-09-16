@@ -24,7 +24,6 @@ use mtgsim::oracle::characteristics::{
 };
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype, Supertype};
-use mtgsim::types::effects::{EffectRecipient, ObjectFilter, SelectionFilter, TargetCount};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -42,23 +41,12 @@ use mtgsim::test_support::{
 fn cast_and_resolve_targeted_perm_spell(
     game: &mut mtgsim::state::game_state::GameState,
     decisions: &ScriptedDecisionProvider,
-    spell_id: mtgsim::types::ids::ObjectId,
     cast_index: usize,
-    target_index: usize,
-    filter: ObjectFilter,
     generic_allocation: Option<Vec<u64>>,
 ) {
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![cast_index]);
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(
-                SelectionFilter::Permanent(filter),
-                TargetCount::Exactly(1),
-            ),
-            spell_id,
-        },
-        vec![target_index],
-    );
+    // No target to script: one legal target on these boards, so the choice
+    // is forced (CR 102.2) and no prompt is made.
     if let Some(alloc) = generic_allocation {
         decisions.expect_allocation(
             ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
@@ -83,7 +71,7 @@ fn cast_and_resolve_targeted_perm_spell(
 fn test_liquimetal_adds_artifact_type() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let spell_id = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
+    let _spell = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     // Verify base: Creature, not Artifact
@@ -93,14 +81,8 @@ fn test_liquimetal_adds_artifact_type() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {2}: pool has [Colorless(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(
-        &mut game,
-        &decisions,
-        spell_id,
-        1,
-        0,
-        ObjectFilter::All,
-        Some(vec![1]),
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+        None,
     );
 
     // Creature should now also be an Artifact
@@ -109,7 +91,7 @@ fn test_liquimetal_adds_artifact_type() {
     assert!(types.contains(&CardType::Artifact));
 
     // Spell is in graveyard
-    assert_eq!(game.get_object(spell_id).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.get_object(_spell).unwrap().zone, Zone::Graveyard);
 }
 
 // ===========================================================================
@@ -120,7 +102,7 @@ fn test_liquimetal_adds_artifact_type() {
 fn test_call_to_serve_adds_angel_subtype() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let spell_id = put_in_hand(&mut game, phase_ld_cards::call_to_serve_spell(), 0);
+    let _spell = put_in_hand(&mut game, phase_ld_cards::call_to_serve_spell(), 0);
     game.players[0].mana_pool.add(ManaType::White, 2);
 
     // Base: no subtypes (Grizzly Bears has no subtype in card data)
@@ -129,14 +111,9 @@ fn test_call_to_serve_adds_angel_subtype() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {1}{W}: pool has [White(2)], allocate 1 generic → [1]
-    cast_and_resolve_targeted_perm_spell(
-        &mut game,
-        &decisions,
-        spell_id,
-        1,
-        0,
-        ObjectFilter::All, // helper uses SelectionFilter::Creature via card, but DP sees All here
-        Some(vec![1]),
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1, // helper uses SelectionFilter::Creature via card, but DP sees All here
+        // Forced split: one bucket, so no prompt (CR 102.2).
+        None,
     );
 
     // Should now have Angel subtype
@@ -156,7 +133,7 @@ fn test_call_to_serve_adds_angel_subtype() {
 fn test_on_serras_wings_adds_legendary() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let spell_id = put_in_hand(&mut game, phase_ld_cards::on_serras_wings_spell(), 0);
+    let _spell = put_in_hand(&mut game, phase_ld_cards::on_serras_wings_spell(), 0);
     game.players[0].mana_pool.add(ManaType::White, 4);
 
     // Base: no supertypes
@@ -165,14 +142,8 @@ fn test_on_serras_wings_adds_legendary() {
 
     let decisions = ScriptedDecisionProvider::new();
     // {3}{W}: pool has [White(4)], allocate 3 generic → [3]
-    cast_and_resolve_targeted_perm_spell(
-        &mut game,
-        &decisions,
-        spell_id,
-        1,
-        0,
-        ObjectFilter::All,
-        Some(vec![3]),
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+        None,
     );
 
     // Now Legendary
@@ -201,7 +172,7 @@ fn test_ensoul_artifact_makes_artifact_creature() {
         .build();
     let artifact_id = put_on_battlefield(&mut game, artifact_data, 0);
 
-    let spell_id = put_in_hand(&mut game, phase_ld_cards::ensoul_artifact_spell(), 0);
+    let _spell = put_in_hand(&mut game, phase_ld_cards::ensoul_artifact_spell(), 0);
     game.players[0].mana_pool.add(ManaType::Blue, 2);
 
     // Verify: not a creature yet
@@ -209,21 +180,8 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(
-                SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
-                TargetCount::Exactly(1),
-            ),
-            spell_id,
-        },
-        vec![0],
-    );
-    // {1}{U}: pool has [Blue(2)], allocate 1 generic → [1]
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
-        vec![1],
-    );
+    // Nothing to script: one bucket can take the generic mana, so the split
+    // is forced (CR 102.2) and no prompt is made.
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
@@ -251,20 +209,14 @@ fn test_ensoul_artifact_makes_artifact_creature() {
 fn test_type_change_expires_at_cleanup() {
     let mut game = setup_two_player_game();
     let bears_id = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let spell_id = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
+    let _spell = put_in_hand(&mut game, phase_ld_cards::liquimetal_coating_spell(), 0);
     fill_library(&mut game, 0, 5);
     fill_library(&mut game, 1, 5);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
 
     let decisions = ScriptedDecisionProvider::new();
-    cast_and_resolve_targeted_perm_spell(
-        &mut game,
-        &decisions,
-        spell_id,
-        1,
-        0,
-        ObjectFilter::All,
-        Some(vec![1]),
+    cast_and_resolve_targeted_perm_spell(&mut game, &decisions, 1,        // Forced split: one bucket, so no prompt (CR 102.2).
+        None,
     );
 
     // Verify effect is active
