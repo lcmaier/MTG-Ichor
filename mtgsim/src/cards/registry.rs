@@ -49,7 +49,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 89] = [
+const PERFORMANCE_POOL: [&str; 90] = [
     "Plains",
     "Island",
     "Swamp",
@@ -404,6 +404,15 @@ const PERFORMANCE_POOL: [&str; 89] = [
     // `{U}` the random agent would spend on nothing, so its reachability is a
     // `--require` row.
     "Mana Reflection",
+    // The pool's source **off the battlefield** for the replacement sweep —
+    // the gather's zone leg (RF, `replacement-architecture.md` §3.3 source
+    // 2). At eleven mana it is almost never cast, and that is the point: what
+    // it puts in front of every measured game is a card in a library or a
+    // hand whose printed clause functions there, so the zone leg reads its
+    // frame on every gather from the first turn — the cost shape this phase
+    // opens, which no permanent can measure. Nexus of Fate stays out for
+    // Time Walk's reason: an extra turn moves `Avg turns/game` by design.
+    "Darksteel Colossus",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
