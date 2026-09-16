@@ -570,15 +570,9 @@ mod tests {
         set_blocked_by(&mut game, trampler, vec![blocker]);
         set_blocking(&mut game, blocker, vec![trampler]);
 
-        // Power(2) < lethal(3), clamped mins=[2,0]. Script: [2 to blocker, 0 to player]
+        // Power(2) < lethal(3), clamped mins=[2,0] — nothing is left over the
+        // minimums, so the split is forced (CR 102.2) and nothing is asked.
         let scripted = ScriptedDecisionProvider::new();
-        scripted.expect_allocation(
-            ChoiceKind::AssignTrampleDamage {
-                attacker_id: trampler,
-                defending_target: DamageTarget::Player(1),
-            },
-            vec![2, 0],
-        );
         let assignments = assign_combat_damage(&game, &scripted, 0, false);
 
         // Trampler (2 power) vs blocker (3 toughness): all 2 to blocker, 0 overflow

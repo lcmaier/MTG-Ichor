@@ -293,31 +293,32 @@ fn test_a_failed_cast_announces_nothing() {
 }
 
 /// Grizzly Bears {1}{G} against a pool of {R}{G} is payable exactly one way,
-/// and the prompt now offers only that way — this board is
-/// `codebase-state.md` 16c's reproducer, and it used to rewind the cast.
+/// and **no prompt is made at all** — this board is `codebase-state.md` 16c's
+/// reproducer, and it used to rewind the cast.
 ///
-/// The prompt lists the pool's types in `ManaType` order, Red then Green, and
-/// each bucket's maximum is what its own pips leave over: Red 1, Green 0. So
-/// the generic {1} goes on the Red, the {G} pip keeps its Green, and the cast
-/// completes. See its sibling below for the answer that is no longer offered.
+/// Each bucket's maximum is what its own pips leave over: Red 1, Green 0. That
+/// leaves one bucket able to take the generic {1}, so CR 102.2 makes the split
+/// forced and `forced_allocation` answers it: the {1} goes on the Red, the {G}
+/// pip keeps its Green, and the cast completes without a question. The clamp is
+/// what makes the answer unique; see its sibling below for the answer the clamp
+/// still refuses when there *is* a choice.
 ///
 /// The rewind is still there and still right — `phase_rc4b`'s two rewind tests
 /// pin it, and `fuzz_games` fails any run in which a spell resolves without a
 /// `SpellCast` — it is just no longer reachable this way.
 #[test]
-fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
+fn test_the_only_payable_split_is_taken_and_never_offered() {
     let mut game = setup_two_player_game();
     let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
+    // Nothing scripted, and nothing asked: `ScriptedDecisionProvider` panics on
+    // any call it has no response for, so reaching the assertions below is
+    // itself the statement that the prompt is gone.
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-        vec![1, 0], // [Red, Green]: the generic {1} on the Red
-    );
     game.cast_spell(0, bear, &decisions).expect("the only legal split pays");
-    assert!(decisions.is_empty(), "the split prompt was asked");
+    assert!(decisions.is_empty(), "no question was asked, and none was scripted");
 
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Stack);
     assert!(game.stack.contains(&bear));
@@ -331,23 +332,30 @@ fn test_the_generic_split_is_offered_clamped_and_the_only_answer_pays() {
     );
 }
 
-/// The same board, and the split that used to cost the whole cast: the generic
-/// {1} on the Green the {G} pip still needs. Before the clamp it passed the
-/// prompt's own validation, `ManaPool::pay` refused it, and CR 601.2 rewound
-/// everything — for a choice the engine should never have offered. The Green
-/// bucket's maximum is 0 now, and the panic names it.
+/// The split that used to cost the whole cast: the generic {1} on the Green the
+/// {G} pip still needs. Before the clamp it passed the prompt's own validation,
+/// `ManaPool::pay` refused it, and CR 601.2 rewound everything — for a choice
+/// the engine should never have offered. The Green bucket's maximum is 0 now,
+/// and the panic names it.
+///
+/// **A third mana, so there is still a prompt**: with only {R}{G} the answer is
+/// forced and no provider is asked (the test above), which would make this
+/// statement unreachable rather than true. The Blue gives the split two places
+/// to go, and the Green is still not one of them.
 #[test]
-#[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
+#[should_panic(expected = "DP allocated 1 to bucket 2 but maximum is 0")]
 fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
     let mut game = setup_two_player_game();
     let bear = put_in_hand(&mut game, creatures::grizzly_bears(), 0);
+    game.players[0].mana_pool.add(ManaType::Blue, 1);
     game.players[0].mana_pool.add(ManaType::Red, 1);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_allocation(
         ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-        vec![0, 1], // [Red, Green]: bucket 1 is the Green, and the {G} pip has it
+        // [Blue, Red, Green]: bucket 2 is the Green, and the {G} pip has it
+        vec![0, 0, 1],
     );
     let _ = game.cast_spell(0, bear, &decisions);
 }
@@ -691,13 +699,8 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
     game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
 
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-            spell_id: thaum,
-        },
-        vec![0],
-    );
+    // Nothing to script: the only legal target, so the choice is forced
+    // (CR 102.2) and no prompt is made.
     let abilities = mtgsim::oracle::characteristics::get_effective_abilities(&game, thaum);
     let idx = abilities
         .iter()

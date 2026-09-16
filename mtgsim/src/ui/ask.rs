@@ -10,6 +10,16 @@
 //!
 //! Engine call sites and tests use these exclusively — never raw DP methods.
 //!
+//! **A prompt with one legal answer is not asked** (CR 102.2): `ask_discard`
+//! returns the hand when the count takes all of it, `order_scry_group` returns
+//! below two cards, `ask_select_recipients` returns a fixed count that takes
+//! none or all, `forced_allocation` answers a split with one place to put the
+//! remainder, and five asks assert two or more candidates and leave the single
+//! case to the caller. Out of process each of those would be a round trip for
+//! an answer the engine already has — and it would spend CPU against the
+//! ratchet's numerator without producing a decision to count
+//! (`codebase-state.md` item 145).
+//!
 //! The four `validate_*` helpers also carry `codebase-state.md` item 138's
 //! **decision** count — a prompt with two or more legal answers, the unit
 //! `engineering-practices.md` §3.1's ratchet reads CPU in. They are where it
@@ -31,6 +41,51 @@ use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use super::decision::{DecisionProvider, PriorityAction};
+
+/// CR 102.2 — the one allocation a forced split admits, or `None` when the
+/// player has something to decide.
+///
+/// A split is forced in exactly three shapes: nothing left once every bucket
+/// holds its minimum, nothing spare once every bucket holds its maximum, and
+/// one bucket free to take whatever is left. Everything else admits two
+/// allocations that differ by one unit moved between two free buckets.
+///
+/// **Both a guard and a counter.** The `ask_*` bodies call it to answer
+/// without a prompt — a round trip for an answer the engine already has costs
+/// the ratchet its numerator (`codebase-state.md` item 145) — and
+/// [`validate_allocation`] calls it so the decision count cannot drift from
+/// what the callers skip.
+///
+/// Infeasible input — slack with no bucket able to take it — returns `None`
+/// rather than an under-filled answer, so it still reaches
+/// [`validate_allocation`]'s sum assertion the way it did before this guard.
+fn forced_allocation(
+    total: u64,
+    per_bucket_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
+) -> Option<Vec<u64>> {
+    let slack = total.saturating_sub(per_bucket_mins.iter().sum());
+    if slack == 0 {
+        return Some(per_bucket_mins.to_vec());
+    }
+    let headroom = |i: usize| {
+        per_bucket_maxs.map_or(u64::MAX, |maxs| maxs[i].saturating_sub(per_bucket_mins[i]))
+    };
+    let free: Vec<usize> = (0..per_bucket_mins.len()).filter(|&i| headroom(i) > 0).collect();
+    if free.len() == 1 {
+        let mut alloc = per_bucket_mins.to_vec();
+        alloc[free[0]] += slack;
+        return Some(alloc);
+    }
+    // Saturating: the trample split's unbounded buckets are `u64::MAX`, and a
+    // plain sum of two of them overflows before it can fail the comparison.
+    if let Some(maxs) = per_bucket_maxs
+        && free.iter().map(|&i| headroom(i)).fold(0u64, u64::saturating_add) == slack
+    {
+        return Some(maxs.to_vec());
+    }
+    None
+}
 
 // ===========================================================================
 // Validation helpers
@@ -178,14 +233,9 @@ fn validate_allocation(
         }
     }
 
-    // Item 138's decision count. Two or more legal allocations means something
-    // is left to place once every bucket has its minimum *and* two or more
-    // buckets can take it; with one such bucket the remainder lands there by
-    // subtraction, which is `validate_pick_n`'s forced answer in another shape.
-    let free_buckets = per_bucket_maxs.map_or(buckets_len, |maxs| {
-        (0..buckets_len).filter(|&i| maxs[i] > per_bucket_mins[i]).count()
-    });
-    if per_bucket_mins.iter().sum::<u64>() < total && free_buckets >= 2 {
+    // Item 138's decision count, off the same predicate the callers skip on —
+    // a prompt that reached here at all had two or more legal allocations.
+    if forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none() {
         counters.record_decision();
     }
 }
@@ -337,8 +387,11 @@ pub fn ask_choose_attacker_damage_assignment(
         kind: ChoiceKind::AssignCombatDamage { attacker_id },
     };
     let mins = vec![0u64; buckets.len()];
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
-    validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment", &game.counters);
+    let alloc = forced_allocation(power, &mins, None).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
+        validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment", &game.counters);
+        alloc
+    });
     blockers
         .iter()
         .zip(alloc.iter())
@@ -386,8 +439,11 @@ pub fn ask_choose_trample_damage_assignment(
             defending_target,
         },
     };
-    let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
-    validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", &game.counters);
+    let alloc = forced_allocation(power, &mins, per_bucket_maxs).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
+        validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", &game.counters);
+        alloc
+    });
 
     let blocker_assignments: Vec<(ObjectId, u64)> = blockers
         .iter()
@@ -502,6 +558,19 @@ pub fn ask_select_recipients(
 ) -> Vec<ResolvedTarget> {
     if legal_selections.is_empty() {
         return Vec::new();
+    }
+    // CR 102.2 — a fixed count that takes none of the legal recipients or all
+    // of them is not a choice, and one legal target for "target creature" is
+    // the common shape of it. Returned in `legal_selections` order for
+    // `ask_discard`'s reason: no rule gives the player that order, and the
+    // choosers agreeing is worth more than an order nobody named.
+    if min_selections == max_selections {
+        if min_selections == 0 {
+            return Vec::new();
+        }
+        if min_selections == legal_selections.len() {
+            return legal_selections.to_vec();
+        }
     }
     let options: Vec<ChoiceOption> = legal_selections
         .iter()
@@ -666,16 +735,19 @@ pub fn ask_choose_generic_mana_allocation(
         maxs,
         generic_count,
     );
-    let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
-    validate_allocation(
-        &alloc,
-        buckets.len(),
-        generic_count,
-        &mins,
-        Some(&maxs),
-        "choose_generic_mana_allocation",
-        &game.counters,
-    );
+    let alloc = forced_allocation(generic_count, &mins, Some(&maxs)).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
+        validate_allocation(
+            &alloc,
+            buckets.len(),
+            generic_count,
+            &mins,
+            Some(&maxs),
+            "choose_generic_mana_allocation",
+            &game.counters,
+        );
+        alloc
+    });
 
     // per_bucket_maxs already enforces that each allocation leaves every pip
     // its own mana — no post-hoc check needed.
@@ -904,9 +976,11 @@ pub fn ask_allocate_next_damage(
     let ctx = ChoiceContext {
         kind: ChoiceKind::AllocateNextDamage { source, remaining },
     };
-    let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
-    validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage", &game.counters);
-    alloc
+    forced_allocation(total, &mins, Some(&maxs)).unwrap_or_else(|| {
+        let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
+        validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage", &game.counters);
+        alloc
+    })
 }
 
 /// Ask whether to apply a "you **may** ... instead" replacement effect
@@ -1261,19 +1335,21 @@ mod tests {
     /// menu. The old prompt offered the pool's amounts — [1, 1, 1] — which is
     /// exactly how a DP named a split `ManaPool::pay` refused and CR 601.2
     /// rewound the cast for (`codebase-state.md` 16c).
+    ///
+    /// With both pips clamped to zero the Red is the only bucket left, so the
+    /// engine answers without asking and the scripted provider is never
+    /// touched.
     #[test]
-    #[should_panic(expected = "DP allocated 1 to bucket 2 but maximum is 0")]
     fn test_generic_split_refuses_a_color_its_own_pips_need() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
         // Buckets are `ManaType`-ordered: Blue, Red, Green. Bucket 2 is the Green.
         let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 0, 1],
-        );
-        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
 
     /// The same cost from `{G}{G}{U}`: the second Green is surplus, so it is
@@ -1285,10 +1361,8 @@ mod tests {
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
         let available = [(ManaType::Blue, 1), (ManaType::Green, 2)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 1],
-        );
+        // The surplus Green is the only bucket with room, so this is the forced
+        // answer rather than a scripted one.
 
         let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
 
@@ -1298,36 +1372,52 @@ mod tests {
     /// A `{C}` pip is clamped the same way a colored one is — `ManaPool::pay`
     /// makes no distinction, and `ManaCost::build` writes it as
     /// `ManaSymbol::Colorless` rather than `Colored(ManaType::Colorless)`.
+    ///
+    /// The clamp leaves one bucket able to take the generic mana, so the answer
+    /// is forced and no provider sees it: a `ScriptedDecisionProvider` with
+    /// nothing scripted would panic on any call, which is what says the prompt
+    /// is gone as well as that the clamp held.
     #[test]
-    #[should_panic(expected = "DP allocated 1 to bucket 1 but maximum is 0")]
     fn test_generic_split_clamps_a_colorless_pip() {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Colorless], 1);
         // Red, then Colorless. Bucket 1 is the Colorless, and the {C} pip has it.
         let available = [(ManaType::Red, 1), (ManaType::Colorless, 1)];
-        dp.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![0, 1],
-        );
-        let _ = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+
+        assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
 
     /// The random agent does not clamp for itself, so this is the statement
-    /// that the engine's maxima
-    /// are what keeps every split payable: over 50 seeds against a board where
-    /// exactly one type has surplus, the generic mana is always that type.
+    /// that the engine's maxima are what keeps every split payable.
+    ///
+    /// **The board gives it a real choice**, which is what makes this a test of
+    /// the agent rather than of `forced_allocation`: `{1}{G}{U}` against two
+    /// Blue, one Red and two Green leaves every bucket a surplus of one, so the
+    /// provider is asked. Over 50 seeds no answer ever spends mana a pip is
+    /// owed — one unit, and never more than the surplus of the type it
+    /// lands on.
     #[test]
     fn test_random_dp_generic_split_spends_only_the_surplus() {
         use crate::ui::random::RandomDecisionProvider;
 
         let game = test_game_state();
         let cost = ManaCost::build(&[ManaType::Green, ManaType::Blue], 1);
-        let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
+        let available = [(ManaType::Blue, 2), (ManaType::Red, 1), (ManaType::Green, 2)];
+        let surplus = HashMap::from([
+            (ManaType::Blue, 1u64),
+            (ManaType::Red, 1),
+            (ManaType::Green, 1),
+        ]);
         for seed in 0..50u64 {
             let dp = RandomDecisionProvider::seeded(seed);
             let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
-            assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]), "seed {seed}");
+            assert_eq!(alloc.values().sum::<u64>(), 1, "seed {seed}");
+            for (mana_type, amount) in &alloc {
+                assert!(amount <= &surplus[mana_type], "seed {seed}: {mana_type:?} over surplus");
+            }
         }
     }
 

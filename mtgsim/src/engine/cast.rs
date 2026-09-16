@@ -697,13 +697,9 @@ mod tests {
         game.battlefield.get_mut(&thaum).unwrap().controller_since_turn = 0;
 
         let decisions = ScriptedDecisionProvider::new();
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(
-                SelectionFilter::Creature,
-                TargetCount::Exactly(1),
-            ),
-            spell_id: thaum,
-        }, vec![0]);
+        // No target to script: the Thaumaturgist is the only creature on the
+        // board and the ability takes exactly one, so CR 102.2 makes the
+        // choice forced and `ask_select_recipients` does not prompt.
 
         let abilities = crate::oracle::characteristics::get_effective_abilities(&game, thaum);
         let idx = abilities.iter()
@@ -761,13 +757,7 @@ mod tests {
             .find(|a| a.ability_type == AbilityType::Activated)
             .expect("Merfolk Thaumaturgist has an activated ability")
             .id;
-        decisions.expect_pick_n(ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Target(
-                SelectionFilter::Creature,
-                TargetCount::Exactly(1),
-            ),
-            spell_id: thaum,
-        }, vec![0]);
+        // Forced target, so nothing to script — see the test above.
 
         let idx = crate::oracle::characteristics::get_effective_abilities(&game, thaum)
             .iter()
@@ -917,11 +907,9 @@ mod tests {
             recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
             spell_id: card_id,
         }, vec![1]);
-        // 3 generic from Red pool → [3]
-        decisions.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![3],
-        );
+        // No split to script: one type in the pool can take the generic mana,
+        // so CR 102.2 makes the answer forced and `ask_choose_generic_mana_
+        // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -1069,11 +1057,9 @@ mod tests {
         let decisions = ScriptedDecisionProvider::new();
         // Options: [AdditionalCost::Kicker(...)] — index 0 = first (only) additional cost
         decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts, vec![0]);
-        // 1 generic from Red pool → [1]
-        decisions.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
-            vec![1],
-        );
+        // No split to script: one type in the pool can take the generic mana,
+        // so CR 102.2 makes the answer forced and `ask_choose_generic_mana_
+        // allocation` gives it without a prompt (`ui::ask::forced_allocation`).
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
