@@ -56,15 +56,31 @@ use super::decision::{DecisionProvider, PriorityAction};
 /// [`validate_allocation`] calls it so the decision count cannot drift from
 /// what the callers skip.
 ///
-/// Infeasible input — slack with no bucket able to take it — returns `None`
-/// rather than an under-filled answer, so it still reaches
-/// [`validate_allocation`]'s sum assertion the way it did before this guard.
+/// **`None` is also every answer that is not well formed**, and that is load
+/// bearing rather than defensive: an allocation this returns is used *without*
+/// [`validate_allocation`] ever running, so anything it answers wrongly is
+/// silent. A `None` falls through to the prompt and the validator, which is
+/// where the loud message has always been — a caller whose minimums exceed the
+/// total, whose one free bucket cannot hold the remainder, or whose bounds
+/// disagree with each other gets the panic it used to get. The generic split's
+/// `can_pay` precondition is a `debug_assert`, so in a release fuzz run this is
+/// the only thing standing between a caller bug and an unpayable split that
+/// `ManaPool::pay` refuses and CR 601.2 rewinds — `codebase-state.md` 16c's
+/// failure, which this guard must not reintroduce.
 fn forced_allocation(
     total: u64,
     per_bucket_mins: &[u64],
     per_bucket_maxs: Option<&[u64]>,
 ) -> Option<Vec<u64>> {
-    let slack = total.saturating_sub(per_bucket_mins.iter().sum());
+    if let Some(maxs) = per_bucket_maxs
+        && (maxs.len() != per_bucket_mins.len()
+            || per_bucket_mins.iter().zip(maxs).any(|(lo, hi)| lo > hi))
+    {
+        return None;
+    }
+    // More owed to the minimums than there is to give: infeasible, and the sum
+    // assertion names it.
+    let slack = total.checked_sub(per_bucket_mins.iter().sum())?;
     if slack == 0 {
         return Some(per_bucket_mins.to_vec());
     }
@@ -73,6 +89,11 @@ fn forced_allocation(
     };
     let free: Vec<usize> = (0..per_bucket_mins.len()).filter(|&i| headroom(i) > 0).collect();
     if free.len() == 1 {
+        // Only when it actually fits; a bucket asked for more than its maximum
+        // is the caller's bug and belongs in the validator's message.
+        if headroom(free[0]) < slack {
+            return None;
+        }
         let mut alloc = per_bucket_mins.to_vec();
         alloc[free[0]] += slack;
         return Some(alloc);
@@ -1732,6 +1753,33 @@ mod tests {
         let mins = vec![0u64, 0];
         let maxs = vec![10u64, 3];
         validate_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test", &EngineCounters::default());
+    }
+
+    /// The three shapes `forced_allocation` answers, and the four it refuses.
+    ///
+    /// The refusals are the half that matters: an answer it gives is used
+    /// without `validate_allocation` running at all, so an infeasible input it
+    /// answered would be a silent wrong split — `codebase-state.md` 16c's
+    /// failure, reached from the other side.
+    #[test]
+    fn test_forced_allocation_answers_only_a_feasible_unique_split() {
+        // Nothing left over the minimums.
+        assert_eq!(forced_allocation(3, &[1, 2], None), Some(vec![1, 2]));
+        // One bucket free to take the remainder.
+        assert_eq!(forced_allocation(3, &[0, 0], Some(&[0, 5])), Some(vec![0, 3]));
+        // Nothing spare under the maxima.
+        assert_eq!(forced_allocation(5, &[0, 0], Some(&[2, 3])), Some(vec![2, 3]));
+
+        // A real choice: two free buckets with room to spare.
+        assert_eq!(forced_allocation(1, &[0, 0], Some(&[1, 1])), None);
+        assert_eq!(forced_allocation(2, &[0, 0], None), None);
+        // The minimums already exceed the total.
+        assert_eq!(forced_allocation(1, &[1, 1], None), None);
+        // The one free bucket cannot hold the remainder.
+        assert_eq!(forced_allocation(5, &[0, 0], Some(&[0, 2])), None);
+        // Bounds that disagree, and bounds that do not line up with the buckets.
+        assert_eq!(forced_allocation(1, &[2, 0], Some(&[1, 4])), None);
+        assert_eq!(forced_allocation(1, &[0, 0], Some(&[1])), None);
     }
 
     #[test]

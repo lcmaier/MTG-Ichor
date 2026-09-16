@@ -464,6 +464,21 @@ Three things follow, and all three are used:
   cost with nothing spare. `OrderCostReductions` needs no such guard: by §3.4's
   own theorem every order gives the identical total.
 
+  **And that half is now unreachable in play (A4e, 2026-09-16).** CR 102.2 is
+  the engine's rule before it is a payer's: `ui::ask::forced_allocation` answers
+  a split with one legal allocation and `ask_choose_generic_mana_allocation`
+  never prompts for it, so `AutoPayer::allocate`'s forced branch — and
+  `split_is_forced`, whose predicate it duplicates — can no longer fire from a
+  game. **Nothing is wrong with it and nothing was deleted**: it is still the
+  right answer for a client that drives the DP by another route, and its unit
+  tests still pin the predicate. What the census (`backlog.md` §2.22) has to
+  decide is whether a decorator may keep an answer the engine has stopped
+  asking for, or whether the payer's CR 601.2h half retires and leaves it
+  `OrderCostReductions` alone. The rule that made both true at once is worth
+  keeping either way: **a prompt with one legal answer belongs to the engine,
+  not to a middleware** — a decorator can only remove a round trip the engine
+  had already decided to spend.
+
   **Two decorators, not one with a scope, and clients compose.** The first
   design gave one payer a `PayerScope` enum so each client could take a subset.
   A scope enum is a closed, hand-rolled enumeration of the subsets of something

@@ -1136,7 +1136,7 @@ mechanic rather than a migration, which is why it is here and not in
   | Middleware | Answers | Status |
   |---|---|---|
   | `ManaWindowStop` | `ManaAbilityWindow` (decline when covered) | built, CM-4 |
-  | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4 |
+  | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4 — but the second half stopped being reachable when A4e made the engine answer a forced split itself (`cost-architecture.md` §3.4); the census decides whether it retires |
   | tap solver | `ManaAbilityWindow` (*picks*) | §2.18's oracle half; the Arena problem lives here |
   | auto-yield | `PriorityAction` in known-pass spots | unsized; **creates the tell full control answers** |
   | full control | everything — bypasses the stack | sized below |

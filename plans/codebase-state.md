@@ -6979,6 +6979,16 @@ owner decided it the same day.
      to refuse. **A fixture that scripts an answer is a record of what the engine
      asks**, which is why 40 of them moved and why none was deleted.
 
+     **One middleware lost a job to it, and that is the census's to settle.**
+     `AutoPayer::allocate` answers `GenericManaAllocation` "when forced" and
+     `auto_payer::split_is_forced` is the same predicate `forced_allocation`
+     now applies one layer down, so the payer's CR 601.2h half cannot fire from
+     a game any more. Nothing was deleted and nothing is wrong
+     (`cost-architecture.md` §3.4, `backlog.md` §2.22's row). The line worth
+     keeping: **a prompt with one legal answer belongs to the engine, not to a
+     middleware** — a decorator can only spare a round trip the engine had
+     already decided to spend.
+
      **Reachability (2026-09-16):** closed — fixed.
 
      **Sized:** ~~~30 lines plus the A/B and the re-read~~ — built: ~60 lines of
