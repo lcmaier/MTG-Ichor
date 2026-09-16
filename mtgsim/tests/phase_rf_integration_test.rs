@@ -18,13 +18,14 @@ use mtgsim::cards::phase_rf_cards::{
     darksteel_colossus, hollow_hands, nexus_of_fate, sealing_ward, timid_golem,
 };
 use mtgsim::engine::actions::{ActionContext, ZoneChangeCause};
+use mtgsim::engine::resolve::ResolutionContext;
 use mtgsim::events::event::GameEvent;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_hand, put_in_library, put_on_battlefield, put_spell_on_stack, setup_two_player_game,
-    test_ctx, test_dp, vanilla_creature,
+    put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, put_spell_on_stack,
+    setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::effects::{Effect, EffectRecipient, Primitive};
+use mtgsim::types::effects::{AmountExpr, Effect, EffectRecipient, Primitive};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -104,6 +105,62 @@ fn test_a_colossus_milled_from_a_library_stays_in_it_and_the_library_is_shuffled
             .iter()
             .any(|r| matches!(r.event, GameEvent::ZoneChange { .. })),
         "a card put into the zone it is in changes no zone, so no ZoneChange is announced"
+    );
+}
+
+/// One mill is one event: `Primitive::Mill` proposes its N zone changes as
+/// one batch (CR 701.17a's "put the top N cards"), and CR 616.1 decides each
+/// member against the same board. So a Colossus second from the top does not
+/// stop the mill — the card above it and the card below it reach the
+/// graveyard in mill order, its own member is the one replaced — and the
+/// rider runs after the whole batch (§4.1a), so the shuffle finds the library
+/// the mill left rather than the one it started from.
+#[test]
+fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
+    let mut game = setup_two_player_game();
+    let below = put_in_library(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let colossus = put_in_library(&mut game, darksteel_colossus(), 0);
+    let above = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
+    // Where the milling spell would be as it resolves.
+    let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let before = game.events.len();
+
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: Vec::new(),
+        replaced_amount: None,
+        damage_prevented: None,
+    };
+    game.resolve_effect(
+        &Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller),
+        &ctx,
+        &test_dp(),
+    )
+    .unwrap();
+
+    assert_eq!(
+        game.players[0].graveyard,
+        vec![source, above, below],
+        "the cards above and below the Colossus were milled, top first"
+    );
+    assert_eq!(game.players[0].library, vec![colossus], "its own member was replaced");
+    assert_eq!(shuffles(&game, 0), 1);
+    let order: Vec<&str> = game
+        .events
+        .records_from(before)
+        .iter()
+        .filter_map(|r| match &r.event {
+            GameEvent::ZoneChange { cause: ZoneChangeCause::Milled, .. } => Some("mill"),
+            GameEvent::LibraryShuffled { .. } => Some("shuffle"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        order,
+        vec!["mill", "mill", "shuffle"],
+        "the whole mill first, then the rider — nothing stops in the middle of one event"
     );
 }
 
@@ -247,13 +304,13 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     let mut game = setup_two_player_game();
     stock(&mut game, 0);
     let colossus = put_in_hand(&mut game, darksteel_colossus(), 0);
-    assert!(game.zone_replacement_ability_sources.contains(&colossus));
+    assert!(game.zone_replacement_ability_sources.contains_key(&colossus));
     assert!(!game.replacement_ability_sources.contains(&colossus));
 
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx())
         .unwrap();
     assert_eq!(zone_of(&game, colossus), Zone::Library);
-    assert!(game.zone_replacement_ability_sources.contains(&colossus), "refiled in the library");
+    assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in the library");
 
     // From the library, a second time, through the mill door.
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
@@ -264,7 +321,7 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     // And onto the battlefield, where the other set takes over.
     let on_bf = put_on_battlefield(&mut game, darksteel_colossus(), 0);
     assert!(game.replacement_ability_sources.contains(&on_bf));
-    assert!(!game.zone_replacement_ability_sources.contains(&on_bf));
+    assert!(!game.zone_replacement_ability_sources.contains_key(&on_bf));
 }
 
 // ---------------------------------------------------------------------------

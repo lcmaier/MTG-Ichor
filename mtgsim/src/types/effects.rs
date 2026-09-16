@@ -1465,4 +1465,22 @@ impl Effect {
             _ => None,
         }
     }
+
+    /// The replacement effect a static body is, through an "as long as"
+    /// clause if there is one — the same peel as [`Self::as_cost_modification`],
+    /// for the gate legs that ask "does this ability carry a replacement at
+    /// all" (`register_static_effects`, `RegistryScopeSummary::of`, the
+    /// gather's named leg). The condition is the gather's to evaluate, at the
+    /// proposal; a gate that read it here would decide existence outside the
+    /// walk (`CLAUDE.md`, "Registry membership is not effect existence").
+    pub fn replacement_body(&self) -> Option<&crate::types::replacement::ReplacementDef> {
+        match self {
+            Effect::Replacement(def) => Some(def),
+            Effect::Conditional(_, inner) => match inner.as_ref() {
+                Effect::Replacement(def) => Some(def),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }

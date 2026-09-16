@@ -19,7 +19,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::zones::Zone;
-use crate::types::replacement::EnterMods;
+use crate::types::replacement::{EnterMods, ReplacementDef};
 
 /// The outcome of a game that has ended (CR 104).
 ///
@@ -339,10 +339,21 @@ pub struct GameState {
     /// the sweep re-asks it of the effective list, which is the exact check.
     /// Over-approximates in the same one direction as the set above.
     ///
+    /// **The value is the printed replacement defs**, kept so the leg can ask
+    /// whether any of them could apply to the proposal *before* it reads the
+    /// object's frame — which is nearly never, since a Colossus's clause
+    /// watches one kind of event and a gather is proposed for every kind.
+    /// Exact rather than a shortcut: an object's effective replacement defs
+    /// are its printed ones or fewer, because the two other ways onto the
+    /// effective list, a grant and a copy, are the gate's other two legs
+    /// (`RegistryScopeSummary`) and a strip only removes. Kept here, at the
+    /// one site that already reads printed abilities, so the leg never reads
+    /// `card_data` itself (`CLAUDE.md`'s layer-system invariant).
+    ///
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub zone_replacement_ability_sources: HashSet<ObjectId>,
+    pub zone_replacement_ability_sources: HashMap<ObjectId, Vec<ReplacementDef>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -705,7 +716,7 @@ impl GameState {
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
             replacement_ability_sources: HashSet::new(),
-            zone_replacement_ability_sources: HashSet::new(),
+            zone_replacement_ability_sources: HashMap::new(),
             restrictions: RestrictionRegistry::new(),
             restriction_ability_sources: HashSet::new(),
             cost_modification_ability_sources: HashSet::new(),
@@ -1475,21 +1486,20 @@ impl GameState {
             // permanent is worth asking about. Through the "as long as" wrapper too:
             // the gather evaluates the condition at each proposal, and a conditional
             // source never recorded would be a card that silently does nothing.
-            let is_replacement = match &ability.effect {
-                Effect::Replacement(_) => true,
-                Effect::Conditional(_, inner) => matches!(**inner, Effect::Replacement(_)),
-                _ => false,
-            };
             // Filed by where the gather will look for it — the CR 113.6 gate above
             // has already said the ability functions here. Off the battlefield the
-            // zone leg sweeps its own set (Darksteel Colossus in a library); the
-            // two sets below stay battlefield-only, since their sweeps still visit
-            // the battlefield alone.
-            if is_replacement {
+            // zone leg sweeps its own map (Darksteel Colossus in a library), whose
+            // value is the printed def, so the leg can ask whether it could apply
+            // before reading a frame; the two sets below stay battlefield-only,
+            // since their sweeps still visit the battlefield alone.
+            if let Some(def) = ability.effect.replacement_body() {
                 if zone == Zone::Battlefield {
                     self.replacement_ability_sources.insert(id);
                 } else {
-                    self.zone_replacement_ability_sources.insert(id);
+                    self.zone_replacement_ability_sources
+                        .entry(id)
+                        .or_default()
+                        .push(def.clone());
                 }
             }
 

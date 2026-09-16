@@ -165,6 +165,11 @@ pub fn darksteel_colossus() -> Arc<CardData> {
 /// **Registered, not pooled**, for the reason Time Walk is not: an extra
 /// turn moves `Avg turns/game` by design, which is a worse baseline rather
 /// than a wider one. `Primitive::ExtraTurn` is that card's, unchanged.
+///
+/// "Reveal Nexus of Fate" is not modeled: the engine has no per-viewer
+/// visibility to reveal against (`backlog.md` §2.9), so the reveal is the
+/// same no-op it is on Darksteel Colossus and Nephalia Academy, and this
+/// card is one of §2.9's tests when it lands.
 pub fn nexus_of_fate() -> Arc<CardData> {
     CardDataBuilder::new("Nexus of Fate")
         .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Blue], 5))
@@ -230,6 +235,13 @@ pub fn timid_golem() -> Arc<CardData> {
 /// A hidden-zone reach, and the constraint `layers-architecture.md` §13c
 /// decision 4 filed against `backlog.md` §2.9 is why this is a fixture: an
 /// anthem into hands is exactly the shape information hides.
+///
+/// **It owes tests it cannot have yet.** The abilities that function from a
+/// hand are the ones this strip must turn off: cycling and channel
+/// (CR 113.6j, activated from hand), and the evoke and madness families
+/// once `backlog.md` §2.3 lets a card be cast from anywhere but a hand's
+/// ordinary door. Each lands with its keyword and this fixture is its
+/// negative — `codebase-state.md` main item 147.
 pub fn hollow_hands() -> Arc<CardData> {
     CardDataBuilder::new("Hollow Hands")
         .mana_cost(ManaCost::build(&[ManaType::Black], 2))

@@ -38,6 +38,7 @@ use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::controller_or_owner;
+use crate::state::continuous_effects::puts_a_replacement_ability;
 use crate::state::game_state::GameState;
 use crate::types::effects::{
     ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
@@ -210,6 +211,7 @@ pub(crate) fn gather(
     // one (the registry summary); both over-approximate, which costs a walk and
     // never an answer.
     let subject = subject_of(action);
+    let proposal = Proposal { action, subject, cause, frame: Some(frame) };
     let mut candidates = Vec::new();
 
     // --- Game rules that behave as replacement effects (CR 903.9b) ---------
@@ -217,7 +219,7 @@ pub(crate) fn gather(
     // one `HashMap` lookup, and exact — 903.9b applies only to the object the
     // event is already about.
     if let Some(instance) = commander_zone_replacement(game, action) {
-        push_if_applicable(game, &mut candidates, instance, action, subject, cause, frame);
+        push_if_applicable(game, &mut candidates, instance, &proposal);
     }
 
     // --- Source 1a: the permanent that is entering (CR 614.12) -------------
@@ -240,18 +242,29 @@ pub(crate) fn gather(
         // CR 113.6h: asked as on the battlefield, which is the zone the frame
         // computes it in.
         if let Some(chars) = frame.frame_of(*object) {
-            push_static_ability_replacements(
-                game, &mut entering, *object, *controller, chars, Zone::Battlefield, action,
-                subject, cause, SelfScope::EnteringSelf, frame,
-            );
+            let asked = Asked {
+                id: *object,
+                controller: *controller,
+                chars,
+                zone: Zone::Battlefield,
+                scope: SelfScope::EnteringSelf,
+            };
+            push_static_ability_replacements(game, &mut entering, &asked, &proposal);
         }
     }
 
+    // "Unattributed": a static replacement ability an object has without
+    // having printed it — a Layer 6 grant or a copy row put it there, so
+    // neither printed set can name the object. The summary says where such an
+    // object can be: a `Filter` row names zones, a named row names objects,
+    // and each sweep reads the shape it is given.
     let summary = game.continuous_effects.summary();
-    let unattributed_zones = summary.granted_replacement_zones | summary.copied_replacement_zones;
+    let unattributed_zones = summary.unattributed_replacement_zones;
+    let any_named_unattributed = summary.any_named_unattributed_replacement;
     let has_static_source = !game.replacement_ability_sources.is_empty()
         || !game.zone_replacement_ability_sources.is_empty()
-        || !unattributed_zones.is_empty();
+        || !unattributed_zones.is_empty()
+        || any_named_unattributed;
     if !has_static_source
         && game.replacement_effects.is_empty()
         && !any_replacement_counter(game)
@@ -264,19 +277,23 @@ pub(crate) fn gather(
     // The fast path per *permanent*: `has_static_source` decides whether the
     // sweep runs, this decides which permanents are worth a walk — the same
     // predicate one object at a time, exact with the same over-approximations.
-    // No under-approximation: a copied replacement ability is on the effective
-    // list and in neither ETB set, so `copied_replacement_zones` is its leg here
-    // too — registry-wide, not per object, since narrowing it would resolve a
-    // filter per permanent per check.
-    let any_unattributed = unattributed_zones.contains(Zone::Battlefield);
+    // No under-approximation: an unattributed ability is on the effective list
+    // and in neither ETB set, so a row reaching the battlefield by zone or by
+    // name opens every permanent to a walk — registry-wide, not per object,
+    // since narrowing it would resolve a filter per permanent per check.
+    let any_unattributed = unattributed_zones.contains(Zone::Battlefield) || any_named_unattributed;
     for id in game.battlefield_ids_ordered() {
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
-                push_static_ability_replacements(
-                    game, &mut candidates, id, controller, &chars, Zone::Battlefield, action,
-                    subject, cause, SelfScope::Existing, frame,
-                );
+                let asked = Asked {
+                    id,
+                    controller,
+                    chars: &chars,
+                    zone: Zone::Battlefield,
+                    scope: SelfScope::Existing,
+                };
+                push_static_ability_replacements(game, &mut candidates, &asked, &proposal);
             }
         }
 
@@ -291,54 +308,86 @@ pub(crate) fn gather(
                     controller,
                     def,
                 },
-                action,
-                subject,
-                cause,
-                frame,
+                &proposal,
             );
         }
     }
 
     // --- Source 2: static abilities functioning off the battlefield --------
-    // (CR 113.6.) The same read as source 1 over a different candidate list:
-    // the objects whose *printed* ability functions where they are, kept by
-    // the registration doors, plus every object in a zone a Layer 6 grant or a
-    // copy row can put a replacement ability in — the granted and copied legs,
-    // which cost a walk of that zone and nothing on a board with no such row.
+    // (CR 113.6.) The same read as source 1 over a candidate list that is
+    // never a zone — a library is ~60 objects a seat and a gather runs ~2,300
+    // times a game. Three ways onto the list, one per gate leg:
+    //
+    // - printed: `zone_replacement_ability_sources`, kept by the registration
+    //   doors, holds each object's printed defs, and the frame is read only
+    //   when one of them could apply to *this* proposal (`printed_could_apply`)
+    //   — so a Colossus in a library costs a frame on the events that would
+    //   put it into a graveyard and a def check on every other;
+    // - named: a grant or copy row over `SourceOnly` or `Fixed` names the
+    //   objects it reaches, and they are read by name wherever they are;
+    // - zoned: a grant or copy row over a `Filter` names zones, and those are
+    //   walked whole — the one walk of a zone this leg makes, only while such
+    //   a row exists, and no registered card makes one.
+    //
     // In CR 613.7d timestamp order, the battlefield's own key, so the list
     // CR 616.1 offers is one order rather than two. The entering object is
     // source 1a's: it is read off CR 614.12's frame with that rule's narrower
     // scope, and reading it again here off its source zone would offer its
     // filter-scoped rows to its own entry, which 614.12's parenthesis forbids.
-    let mut elsewhere: Vec<(u64, ObjectId)> = game
-        .zone_replacement_ability_sources
-        .iter()
-        .map(|&id| (game.object_timestamp(id), id))
-        .collect();
+    let mut elsewhere: Vec<(u64, ObjectId)> = Vec::new();
+    for (&id, printed) in game.zone_replacement_ability_sources.iter() {
+        if printed.iter().any(|def| printed_could_apply(game, id, def, &proposal)) {
+            elsewhere.push((game.object_timestamp(id), id));
+        }
+    }
     let zone_sweep = unattributed_zones.beyond_battlefield();
-    if !zone_sweep.is_empty() {
-        let mut seen: HashSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
-        for zone in zone_sweep.iter() {
-            for id in game.zone_ids_ordered(zone) {
-                if seen.insert(id) {
-                    elsewhere.push((game.object_timestamp(id), id));
+    if any_named_unattributed || !zone_sweep.is_empty() {
+        let mut named: Vec<ObjectId> = Vec::new();
+        if any_named_unattributed {
+            for row in game.continuous_effects.iter().filter(|r| puts_a_replacement_ability(r)) {
+                match &row.affected_objects {
+                    ObjectSet::SourceOnly => named.push(row.source),
+                    ObjectSet::Fixed(ids) => named.extend(ids.iter().copied()),
+                    // A host is a permanent (CR 301.5, 303.4): the battlefield sweep's.
+                    ObjectSet::Host | ObjectSet::Filter { .. } => {}
                 }
             }
         }
+        for zone in zone_sweep.iter() {
+            named.extend(game.zone_ids_ordered(zone));
+        }
+        let mut seen: HashSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        for id in named {
+            let off_battlefield =
+                matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);
+            if off_battlefield && seen.insert(id) {
+                elsewhere.push((game.object_timestamp(id), id));
+            }
+        }
     }
-    elsewhere.sort_unstable();
+    // Every arrival is stamped from one counter (CR 613.7d), so the keys are
+    // distinct and the order is process-independent; the map's own order
+    // never reaches CR 616.1's list. A tie would be that order leaking.
+    elsewhere.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+    debug_assert!(
+        elsewhere.windows(2).all(|pair| pair[0].0 < pair[1].0),
+        "two zone-leg candidates share a CR 613.7d timestamp"
+    );
     for (_, id) in elsewhere {
         if frame.is_entering(id) {
             continue;
         }
         let Some(obj) = game.objects.get(&id) else { continue };
         let Some(chars) = compute_characteristics(game, id) else { continue };
-        // CR 108.4 — no controller off the battlefield, so its owner.
-        let controller = controller_or_owner(game, id).unwrap_or(obj.owner);
-        push_static_ability_replacements(
-            game, &mut candidates, id, controller, &chars, obj.zone, action, subject, cause,
-            SelfScope::Existing, frame,
-        );
+        let asked = Asked {
+            id,
+            // CR 108.4 — no controller off the battlefield, so its owner.
+            controller: controller_or_owner(game, id).unwrap_or(obj.owner),
+            chars: &chars,
+            zone: obj.zone,
+            scope: SelfScope::Existing,
+        };
+        push_static_ability_replacements(game, &mut candidates, &asked, &proposal);
     }
 
     candidates.extend(entering);
@@ -354,14 +403,58 @@ pub(crate) fn gather(
                 controller: row.controller,
                 def: row.def.clone(),
             },
-            action,
-            subject,
-            cause,
-            frame,
+            &proposal,
         );
     }
 
     candidates
+}
+
+/// The proposed event as every leg asks about it — one value carried through
+/// the sweeps rather than four parameters, so no leg can hand a candidate a
+/// different event from its neighbour's.
+struct Proposal<'a, 'g> {
+    action: &'a GameAction,
+    subject: EventSubject,
+    /// Who caused it, for [`ReplacementDef::by`].
+    cause: Option<PlayerId>,
+    /// CR 614.12's look-ahead for the subject, when the caller holds one; the
+    /// CR 616.1f re-ask of a later batch member does not.
+    frame: Option<&'a EntryFrame<'g>>,
+}
+
+/// An object a sweep is asking for its replacement abilities.
+struct Asked<'a> {
+    id: ObjectId,
+    controller: PlayerId,
+    /// Its **effective** frame.
+    chars: &'a EffectiveCharacteristics,
+    /// The zone it is asked *as* in (CR 113.6).
+    zone: Zone,
+    scope: SelfScope,
+}
+
+/// Could `def`, as printed on `id`, apply to this proposal?
+///
+/// The zone leg's gate on the frame read, and exact rather than a shortcut:
+/// an object's effective replacement defs are its printed ones or fewer.
+/// Layer 6 can strip one (Hollow Hands) or grant one, and a granted or copied
+/// def reaches the leg through the named or zoned list, never through this
+/// map; nothing rewrites a printed def in place — Layer 3, text, is the route
+/// every gate leg leaves open (`CLAUDE.md`). So a printed def that does not
+/// apply has no effective def that could, and the question is asked of it
+/// before a frame is computed. Through [`def_applies`], the same function the
+/// effective def is asked through, so the pairing of patterns and events
+/// lives once. What it cannot see is the "as long as" clause, which the frame
+/// read then asks.
+fn printed_could_apply(
+    game: &GameState,
+    id: ObjectId,
+    def: &ReplacementDef,
+    p: &Proposal<'_, '_>,
+) -> bool {
+    let controller = controller_or_owner(game, id).unwrap_or(0);
+    def_applies(game, def, id, controller, p)
 }
 
 /// Whether the object being asked for replacement abilities is already on the
@@ -421,20 +514,13 @@ enum SelfScope {
 /// `scope` is CR 614.12's parenthesis, and it is the only thing the callers
 /// ask differently about the *effects* rather than about the object — see
 /// [`SelfScope`].
-#[allow(clippy::too_many_arguments)]
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
-    id: ObjectId,
-    controller: PlayerId,
-    chars: &EffectiveCharacteristics,
-    zone: Zone,
-    action: &GameAction,
-    subject: EventSubject,
-    cause: Option<PlayerId>,
-    scope: SelfScope,
-    frame: &EntryFrame<'_>,
+    asked: &Asked<'_>,
+    p: &Proposal<'_, '_>,
 ) {
+    let Asked { id, controller, chars, zone, scope } = *asked;
     for ability in &chars.abilities {
         if ability.ability_type != AbilityType::Static {
             continue;
@@ -470,10 +556,7 @@ fn push_static_ability_replacements(
                 controller,
                 def: (**def).clone(),
             },
-            action,
-            subject,
-            cause,
-            frame,
+            p,
         );
     }
 }
@@ -482,10 +565,7 @@ fn push_if_applicable(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
     instance: ReplacementInstance,
-    action: &GameAction,
-    subject: EventSubject,
-    cause: Option<PlayerId>,
-    frame: &EntryFrame<'_>,
+    p: &Proposal<'_, '_>,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied":
     // withheld at the door, not spent, so the shield stays for a later
@@ -498,13 +578,13 @@ fn push_if_applicable(
             game,
             &Query::ApplyReplacement {
                 kind: ReplacementKindFilter::Regeneration,
-                subject,
+                subject: p.subject,
             },
         )
     {
         return;
     }
-    if applies_to(game, &instance, action, subject, cause, Some(frame)) {
+    if def_applies(game, &instance.def, instance.source, instance.controller, p) {
         out.push(instance);
     }
 }
@@ -527,23 +607,34 @@ pub(super) fn applies_to(
     cause: Option<PlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
+    let p = Proposal { action, subject, cause, frame };
+    def_applies(game, &instance.def, instance.source, instance.controller, &p)
+}
+
+/// [`applies_to`] of a def that has no instance yet — the zone leg's
+/// `printed_could_apply` asks it of a printed def before deciding whether the
+/// frame is worth reading, and every instance asks it through the same
+/// function, so a printed def and its effective twin are judged alike.
+fn def_applies(
+    game: &GameState,
+    def: &ReplacementDef,
+    source: ObjectId,
+    controller: PlayerId,
+    p: &Proposal<'_, '_>,
+) -> bool {
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's
     // `None` is `false`, so Nephalia Academy leaves the cleanup discard alone.
-    instance
-        .def
-        .by
-        .as_ref()
-        .is_none_or(|by| by.matches(cause, instance.controller))
-        && pattern_watches(game, &instance.def.pattern, action, instance.controller)
+    def.by.as_ref().is_none_or(|by| by.matches(p.cause, controller))
+        && pattern_watches(game, &def.pattern, p.action, controller)
         && set_affects(
             game,
-            &instance.def.affected_objects,
-            &instance.def.affected_players,
-            instance.source,
-            instance.controller,
-            subject,
-            frame,
+            &def.affected_objects,
+            &def.affected_players,
+            source,
+            controller,
+            p.subject,
+            p.frame,
         )
 }
 
@@ -1099,7 +1190,7 @@ mod tests {
             .build();
         let orb = put_spell_on_stack(&mut game, card, 0);
         assert!(
-            game.zone_replacement_ability_sources.contains(&orb),
+            game.zone_replacement_ability_sources.contains_key(&orb),
             "filed on the stack, where the ability functions"
         );
 

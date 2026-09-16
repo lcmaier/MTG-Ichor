@@ -158,7 +158,8 @@ impl GameState {
     /// Not the battlefield, which is an entry with a performer of its own
     /// (`place_on_battlefield`); loud about it, like [`Self::put_token_into`].
     /// A spell put on the stack this way still needs its `StackEntry`, which
-    /// is the caller's.
+    /// is the caller's. The command zone at setup — a commander before the
+    /// first turn (CR 903.6) — is this door's next production caller.
     pub(crate) fn create_in_zone(&mut self, obj: GameObject) -> Result<ObjectId, String> {
         let zone = obj.zone;
         let owner = obj.owner;

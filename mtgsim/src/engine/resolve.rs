@@ -1324,8 +1324,16 @@ impl GameState {
                         ));
                     }
                 };
-                for player in players {
-                    self.execute_action(GameAction::ShuffleLibrary { player }, &actx)?;
+                // One batch, not a loop: "each player shuffles" (Timetwister) is N
+                // libraries shuffled at once, which CR 704.3's batching and CR 101.4's
+                // APNAP order want as one event of N members, one per library — a
+                // shuffle stays a fact about one player's library (CR 701.24a).
+                let batch: Vec<GameAction> = players
+                    .into_iter()
+                    .map(|player| GameAction::ShuffleLibrary { player })
+                    .collect();
+                if !batch.is_empty() {
+                    self.execute_actions(batch, &actx)?;
                 }
                 Ok(())
             }

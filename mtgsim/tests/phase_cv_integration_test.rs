@@ -44,7 +44,7 @@ use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::EventPattern;
 use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
-use mtgsim::types::zones::{Zone, ZoneChangeCause, ZoneSet};
+use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -431,8 +431,9 @@ fn test_a_superseded_copy_stops_its_derived_row_applying() {
 }
 
 /// `copy-effects-architecture.md` §4.7 **leg 1**, replacement half — a copied
-/// replacement ability lights `RegistryScopeSummary::copied_replacement_zones`
-/// for the battlefield, which is what lets `gather`'s fast-path gate see it.
+/// replacement ability lights `RegistryScopeSummary::any_named_unattributed_replacement`,
+/// which is what lets `gather`'s fast-path gate see it: the copy row names
+/// its copyist, so the gather reads that object by name rather than a zone.
 #[test]
 fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let mut game = setup_two_player_game();
@@ -440,15 +441,17 @@ fn test_a_copied_replacement_ability_lights_the_gather_gate() {
     let copyist = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
 
     assert!(
-        game.continuous_effects.summary().copied_replacement_zones.is_empty(),
+        !game.continuous_effects.summary().any_named_unattributed_replacement,
         "no copy row yet"
     );
     copy_onto(&mut game, copyist, donor);
-    assert_eq!(
-        game.continuous_effects.summary().copied_replacement_zones,
-        ZoneSet::BATTLEFIELD,
-        "§4.7 leg 1 — the gate's third leg, and only the battlefield: the copy row \
-         names a permanent"
+    assert!(
+        game.continuous_effects.summary().any_named_unattributed_replacement,
+        "§4.7 leg 1 — the gate's third leg"
+    );
+    assert!(
+        game.continuous_effects.summary().unattributed_replacement_zones.is_empty(),
+        "a named row adds no zone to walk: the copyist is read by name"
     );
     assert!(
         !game.continuous_effects.summary().any_copied_restriction,
@@ -470,7 +473,7 @@ fn test_a_copied_restriction_ability_lights_the_restriction_gate() {
         game.continuous_effects.summary().any_copied_restriction,
         "the second gate's third leg"
     );
-    assert!(game.continuous_effects.summary().copied_replacement_zones.is_empty());
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
 }
 
 /// A copy of a vanilla creature must turn **neither** gate on. The flags are a
@@ -484,7 +487,7 @@ fn test_a_copy_of_a_vanilla_creature_lights_neither_gate() {
 
     copy_onto(&mut game, copyist, donor);
     let summary = game.continuous_effects.summary();
-    assert!(summary.copied_replacement_zones.is_empty());
+    assert!(!summary.any_named_unattributed_replacement);
     assert!(!summary.any_copied_restriction);
 }
 
@@ -651,7 +654,7 @@ fn test_a_turn_bounded_copy_and_its_derived_rows_expire_together() {
         Some(3),
         "the derived row carried the copy row's duration"
     );
-    assert!(game.continuous_effects.summary().copied_replacement_zones.is_empty());
+    assert!(!game.continuous_effects.summary().any_named_unattributed_replacement);
 }
 
 // ---------------------------------------------------------------------------
