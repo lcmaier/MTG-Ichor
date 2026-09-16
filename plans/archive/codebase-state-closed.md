@@ -1658,3 +1658,149 @@ wrapper returning the `Arc`, the 2026-09-15 re-measure had already made.
     so the `Arc` this item names is the largest single lever the engine has,
     the wrapper returns the `Arc` with it, and "re-measure before paying" is
     paid.
+
+### Item 144 — closed 2026-09-16 by A4g (PR #158)
+
+**What closed it.** The shape the item decided, built as decided, in the two
+arms its "Sized" line asked for. `ObjectId` and `AbilityId` are newtypes over
+a `u64` (the second open question, answered: the thirteen pair sites can no
+longer swap their halves silently). An `ObjectId` is stamped in
+`GameState::add_object` from `next_object_id`, beside CR 613.7d's timestamp —
+the one door into the store — and `GameObject::new` hands out
+`ObjectId::UNASSIGNED` until then, so every caller reads the id off the
+return value; a fork clones the counter. A printed `AbilityId` is
+`AbilityId::printed(card_name, ordinal)`, derived in `CardDataBuilder::build`
+over every def reachable from the card — the printed list, then each def's
+nested defs (a granted ability, a token's abilities) through
+`Effect::for_each_ability_def_mut` — and a def that already carries an id
+keeps it, which is what the CR 113.10b test needs. That settles the first
+open question the other way from the intrinsic site: a granted ability keeps
+the id its def carries rather than deriving one from the granting object,
+because "printed + granted the same def" must read as two instances of one
+ability. The intrinsic site is `AbilityId::derived_on(object, land_type)` over
+the integer, same inputs, same stability, and the top two bits of an
+`AbilityId` say which derivation made it so the three ranges cannot meet.
+`new_object_id` and `new_ability_id` are test-only process counters. The
+`uuid` crate left with its whole tail — thirty crates out of the lockfile.
+
+The hasher, `types::ids::IdHash`, sits on all 27 id-keyed declarations
+(the item counted 25): one multiply and a fold per word, seeded once per
+process from `MTGSIM_HASH_SEED`; CI's determinism step runs its three runs
+under three seeds and `fuzz_ab.py` gives each timing round its own, which
+is the re-arm the item asked for. `tests/determinism_test.rs` compares its
+two logs verbatim, `strip()` and the "share one `RandomState`" sentence gone;
+the three display prefixes are gone with the UUID they sliced.
+
+**Measured.** Callgrind at four seats on `stress`, 200 games, both arms on
+A4f's 161-card pool: 622.4 M instructions a game → 568.8 M for the swap alone
+(−8.6%: SipHash over eight bytes instead of sixteen) → 380.7 M with the hasher
+(**−38.8%**). The `hash_one` row (32.6%) has no successor; `sip.rs`' self cost
+fell from 14.1% to 5.0%, and what is left of it is the frame's
+`HashSet<CardType>` and `HashSet<Subtype>`; `LayerMemo::get` fell 72%. Native,
+`µs / decision`: 76.9 → 68.9 → 48.2 at four seats (−37.3%), 43.9 → 41.1 →
+29.0 at two (−34.0%). The hasher arm reads identical to the swap arm on
+every counter at both seat counts on both pools under a different seed per
+round — no sweep leaks iteration order. **What the item did not foresee:** the
+swap is not `IDENTICAL` to `main` on every board. Six games in 800 diverge,
+every one through two Citanul Hierophants under one controller: their two
+grants of `{T}: Add {G}` now share an id, the mana window's pair-keyed dedupe
+offers one candidate where `main` offered two, and the random agent's pick
+moves. Attributed by a probe build that restored per-copy uniqueness and read
+`main` to the digit. That is the per-definition id the item chose ("the 122
+random bits buy nothing a per-card index would not") meeting CR 113.10b's
+"instances", and it is item 149 now, with what it leaves for the triggers doc.
+**What the item had right:** the census, the door, the derivation and the
+re-arm were the design; the two counts it guessed at (25 declarations, six
+prefix sites) were 27 and three.
+
+*Original entry:*
+
+144. **`ObjectId` and `AbilityId` are v4 UUIDs, and the decision (the owner,
+     2026-09-16) is to replace both with process-stable ids.** The census:
+
+     - **Two ids are `Uuid`; every other id is a counter.** `types/ids.rs`
+       aliases `ObjectId` and `AbilityId` to `Uuid`; `EffectId`, `RowId`,
+       `ReplacementEffectId`, `RestrictionId`, `BatchId`, the timestamps and
+       the epochs are `u64`s from counters, and `PlayerId` is a `usize`.
+     - **v4 is minted at one production site for objects** (`GameObject::new`)
+       and once per `AbilityDef` at card construction (`CardDataBuilder` and
+       the card files), from the operating system's randomness rather than
+       `GameState.rng` — ambient, and tolerated only because an id never
+       orders anything (`CLAUDE.md`, "never `ObjectId`";
+       `battlefield_ordered`'s own note says sorting by id is no fix because
+       the key is itself random).
+     - **v5 exists for one function.** `land_types.rs::intrinsic_ability_id`
+       (2026-08-20) derives the CR 305.6 intrinsic mana ability's id from the
+       object id and the land type, because the ability is synthesized inside
+       the layer walk on every read, has nowhere to store a minted id, and is
+       handed out as an activation handle that a recomputed list must match.
+       It is the one place the engine wanted a deterministic id, and it is the
+       shape the rest should have.
+     - **`AbilityId` is per `CardData`, not per object.** A plural token
+       creation shares one `Arc<CardData>` across equal defs
+       (`create_tokens`), and a copy keeps its source's `AbilityDef` ids
+       (`engine/layers/copy.rs`), so the engine already keys ability identity
+       as the pair `(ObjectId, AbilityId)` (13 sites) and finds an ability by
+       `a.id == ability_id` within one object's effective list (13 sites). The
+       122 random bits buy nothing a per-card index would not.
+     - **The cost is frequency times the default hasher, not the comparison.**
+       25 `HashMap` and `HashSet` declarations are keyed by an id or the pair —
+       `objects`, `battlefield`, `stack_entries`, `LayerMemo`, `Board`'s frames
+       and sub-cache, the three ability-source sets, the combat maps, the
+       random provider's mana maps — and every lookup runs SipHash-1-3 over 16
+       bytes, 32 for a pair: 13.5 M `is_creature`, 10.5 M
+       `object_matches_filter` and 7.0 M `has_type` lookups in 200 four-seat
+       `stress` games (`layers-architecture.md` §12), 22.1% of instructions.
+       SipHash defends against hostile keys, and no untrusted key ever reaches
+       these maps.
+
+     **The decision, and what it buys beyond the hash.** `ObjectId` becomes a
+     `u64` stamped in `GameState::add_object`, exactly where the CR 613.7d
+     timestamp is already stamped ("the only door into the store");
+     `AbilityId` becomes a `u64` too, a printed ability's derived from the card
+     name and the ability's index the way the v5 site already derives its own,
+     so it is stable across processes and threads with no counter. Then: every
+     id halves, across 88 `Vec<ObjectId>` sites, every `GameEvent` and every
+     map key, and the wire ids item 141 wants; the fuzz-dump masks and item
+     41's fork-test id mask go, because ids agree across runs and binaries;
+     the `uuid` dependency and the engine's one ambient-randomness call go
+     with it; and the hasher becomes a one-line multiplicative mix, since
+     sequential keys under an identity hash share hashbrown's 7-bit tag. Item
+     138's lever 2 is this item now, and the hasher rides inside it rather
+     than beside it.
+
+     **The one cost, and the fix that rides with it.** With process-stable ids
+     and a fixed hasher, `HashMap` iteration order becomes process-stable, so
+     the three-run determinism check stops catching an unordered sweep that
+     leaks order. Re-arm it in the same PR: the CI determinism step runs its
+     three runs with a hasher seed that differs per run (an environment
+     variable the `BuildHasher` reads, ~10 lines), which restores the property
+     the check had under `RandomState`. Two notes beside it: a fork shares the
+     counter, so two diverging branches mint the same next id for different
+     objects — harmless unless branches are merged, which nothing does — and
+     `tests/determinism_test.rs`'s doc comment, "two runs inside the same
+     process share one `RandomState`", is imprecise (each map draws its own
+     keys) and is rewritten when the test gains its fork rows.
+
+     **Open for the PR to decide, not decided here:** how a *granted* or
+     *synthesized* ability's id is minted — from the state's counter at the
+     grant, or derived from the granting object and a tag the way the
+     intrinsic site does — and whether `ObjectId` and `AbilityId` stay two
+     aliases of one integer type or become two newtypes, which is what would
+     let the compiler catch a swapped argument in the 13 pair sites.
+
+     **Reachability (2026-09-16):** reachable — not wrong; a cost (22.1% of
+     instructions), a mask at every log comparison, and one ambient-randomness
+     call per object.
+
+     **Sized:** the swap sites are few because both ids are type aliases — 1
+     production minting site for objects and about 30 test sites calling
+     `new_object_id()` (a test-local counter), 39 direct `Uuid::` uses outside
+     `ids.rs`, nearly all in test modules (`new_v4` in registry and store
+     tests, `nil()` twice, `from_u128` once, the v5 site), 6 id-formatting
+     sites (the eight-character prefix in `ui/display.rs`), the 25
+     declarations behind a type alias, and the CI seed; about 200–300 lines.
+     One PR in the band (`roadmap-v2.md` A4g), A/B'd as two arms the way the
+     Everywhere PR was: the type swap alone, expected `IDENTICAL` on every
+     counter at two and four seats on both pools, then the hasher, read as a
+     CPU delta and a callgrind re-read against §12's reading.

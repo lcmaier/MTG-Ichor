@@ -1406,7 +1406,8 @@ needs the close-out and readiness.
    `fuzz_games`' own decks and streams until then), **the clone timer** with a
    counting allocator (item 143's table, extended at each close), **the fork
    record-and-replay** (item 41's test — record every answer, clone at a
-   round start, replay, compare with ids masked), **`plans/panic_surface.py`**
+   round start, replay, compare the logs verbatim; the id mask retired with
+   A4g on 2026-09-16, since a fork's ids are its parent's), **`plans/panic_surface.py`**
    (the engine's release-active surface, separated from the unit-test tails;
    a surface growing faster than the engine is the finding), **the three-run
    contention read** (`--threads 1`, 8 and 16 at 200 games, item 138's lever

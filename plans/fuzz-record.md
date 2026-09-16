@@ -37,6 +37,67 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-16 for A4g** (process-stable ids —
+`codebase-state.md` item 144, closed; `layers-architecture.md` §12, the
+second 2026-09-16 re-read). **No pool change**: `performance` 90 and `stress`
+161, as RF left them, so every column below is comparable to RF's. Recorded
+because a counter moved, and the block says which, where, and why.
+
+**Three arms, one per commit.** `main` (a41fcc2); **swap** (a8931ea) — the
+type swap alone, `ObjectId` from the state's counter and `AbilityId` derived
+from the card, every id-keyed map still on `RandomState`; **hash** (87bee60)
+— `types::ids::IdHash` on all 27 id-keyed declarations, seeded per process,
+with `fuzz_ab.py` giving each timing round its own seed from this PR on.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| hash vs swap, every counter, both pools | **IDENTICAL** | **IDENTICAL** |
+| swap vs main, `performance` | **IDENTICAL** at 200 games and in the 50-game §3 run | differ: **5 games of 200** (10, 34, 116, 123, 179); nine rows move by a digit — `Memo hits` 179,038 → 179,113, `Layer frames` 15,314 → 15,316, `Dependency checks` 117 → 118, gathers 2227 → 2228, restriction queries 2231 → 2232, and four gameplay averages by 0.1 |
+| swap vs main, `stress` | differ: **1 game of 200** (36); `Memo hits` 80,380 → 80,330, `Layer frames` 5,772 → 5,769, `Frames/walk` 12.50 → 12.49 | differ: **2 games of 200** (36, 179); `Memo hits` 273,206 → 273,265, `Layer frames` 21,435 → 21,437, `Dependency checks` 171 → 170, gathers 2597 → 2598, restriction queries 2602 → 2604, total damage 149.4 → 149.5 |
+| `µs / decision`, main → swap → hash | 43.9 → 41.1 → **29.0** (−6.6% / **−34.0%**) | 76.9 → 68.9 → **48.2** (−10.4% / **−37.3%**) |
+| CPU/game median, main → swap → hash | 10.37 → 9.69 → 6.84 ms | 35.07 → 31.44 → 22.00 ms |
+| CPU/game p99 median | 36.34 → 33.97 → 22.98 ms | 87.22 → 81.27 → 57.36 ms |
+| deterministic across rounds, three hasher seeds | yes / yes / yes | yes / yes / yes |
+
+**The moved games are one board, and it is not an order leak.** The hasher
+arm reads identical to the swap arm on every counter at every seat count on
+both pools, with a different `MTGSIM_HASH_SEED` per timing round — so no
+sweep leaks iteration order, which was the difference the two-arm design was
+built to catch. What moves is the swap itself, and it is the decision item
+144 made: a printed `AbilityId` is derived from the card name and the def's
+ordinal, so two copies of one card share their ids where two runs of the
+factory used to mint two sets. On every one of the six diverging games the
+acting player controls **two Citanul Hierophants** at the divergence ("creatures
+you control have '{T}: Add {G}'"): each creature carries two grants of one
+ability under one id, `enumerate_activatable_mana_abilities` dedupes by
+`(ObjectId, AbilityId)` and offers one candidate where `main` offered two, and
+the random agent's uniform pick over a shorter list lands on a different
+option — a different color off an Everywhere, or a Forest for an Everywhere.
+Attributed, not guessed: a probe build that appended a per-build nonce to the
+card name (restoring per-copy uniqueness and nothing else) read `main` to the
+digit on both boards. CR 113.10b calls the two grants two instances of one
+ability and `LoseAbility` already removes both (phase LF's test), so the
+shorter list is the reading the ids now carry; activating either instance
+taps the same creature for the same mana. `codebase-state.md` item 149 holds
+what it leaves open (per-instance counting, CR 603.7h) — a note for the
+triggers doc, nothing owed here.
+
+**The §3 fixture rows (50 games, two seats).** `performance` is byte-identical
+to RF's run. `stress` moves because game 36 is inside the first fifty:
+`Layer walks` 487 → 486, `Memo hits` 91,715 → 91,515, `Layer frames`
+6,542 → 6,529, `Frames/walk` 13.44 → 13.43, `Dependency checks` 11 → 10,
+gathers 1237 → 1236, restriction queries 1239 → 1238, mana productions
+134 → 133, `Decisions` 386 → 385, priority decisions 165 → 164, total damage
+49.7 → 49.6; every other row as RF recorded it.
+
+**Where the milliseconds went, and the ratchet.** The swap alone is the
+16-byte key becoming 8 bytes under the same SipHash: −6.6% per decision at two
+seats, −10.4% at four. The hasher is the rest: −34.0% and −37.3%, the largest
+per-decision drop the record holds after A4f's, on a board whose decisions
+per game are unchanged to the digit on `performance` at two seats. Both arms
+are inside §3.1's 2.5 points by a wide margin, in the right direction. The
+instruction reading that travels is §12's.
+
 **Re-recorded 2026-09-16 for RF** (the gather's zone leg —
 `replacement-architecture.md` §9, Phase RF; §3.3's source 2). `PERFORMANCE_POOL`
 +1 — Darksteel Colossus, 89 → 90 — and the stress pool +2 (159 → 161: Nexus of

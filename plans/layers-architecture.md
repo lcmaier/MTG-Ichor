@@ -1208,6 +1208,70 @@ residual is now measured; lever 6, the sorts, is 11.5%. Lever 7,
 worker-thread scaling, is to be re-measured against the three runs of
 2026-09-15 now that most of the allocation is gone. Item 67 is closed.
 
+### Re-read at four seats on `stress`, 2026-09-16 — process-stable ids (A4g, PR #158)
+
+**Two arms on top of A4f's column, and why that column is the "before".**
+The same command, distro and settings, over the two commits of PR #158:
+**swap** (a8931ea) — `ObjectId` and `AbilityId` as `u64` newtypes, the object
+id stamped in `add_object`, the printed ability id derived from the card,
+every id-keyed map still on `RandomState`; **hash** (87bee60) —
+`types::ids::IdHash` on all 27 id-keyed declarations. No card landed between
+A4f and this PR, so the `stress` pool is the same 161 cards and A4f's column
+above is comparable to the instruction (`engineering-practices.md` §3.1) —
+which the arms confirm: `hash_one::<&CardType>`, the frame's type-set
+lookups that neither arm touched, reads 6.76 G in all three. The counters
+outside `=== Timing ===` are identical native and under valgrind on each
+arm, and identical between the two arms at every board; against `main` they
+move in six games of 800 through one board that item 149 names (two Citanul
+Hierophants under one controller — the per-definition id, not an order
+leak), so the swap's and hash's games are the same games as each other, and
+`main`'s to within those six.
+
+| | A4f (a41fcc2) | swap | hash | |
+|---|---:|---:|---:|---|
+| instructions, 200 games | 124.48 G | 113.76 G | **76.14 G** | **−38.8%** on A4f, −33.1% on the swap |
+| a game | 622.4 M | 568.8 M | 380.7 M | native CPU per decision −37.3% at four seats, −34.0% at two |
+| `hash_one` over an id key | 40.63 G (32.6%) | 36.37 G (32.0%) | — | the swap's row is the same SipHash over eight bytes instead of sixteen, 4.3 G cheaper; the hash arm has no row: one multiply and a fold, inlined into every probe |
+| `sip.rs`, self | 17.53 G (14.1%) | 18.53 G (16.3%) | 3.82 G (5.0%) | what is left is `HashSet<CardType>` and `HashSet<Subtype>` in the frame — `hash_one::<&CardType>` 6.76 G, `<&Subtype>` 1.82 G, unchanged across all three arms |
+| `LayerMemo::get` | (inlined) | 11.20 G (9.8%) | 3.13 G (4.1%) | the memo probe itself, the most direct reading of lever 2 |
+| `is_creature` | 21.03 G (16.9%) | 19.27 G (16.9%) | 12.79 G (16.8%) | the share holds because the SBA sweep is probes: 65,000 lookups a game, each now a mix instead of a SipHash |
+| `compute_characteristics` | 49.32 G (39.6%) | 44.71 G (39.3%) | 26.06 G (34.2%) | |
+| `check_state_based_actions` | 48.10 G (38.7%) | 43.45 G (38.2%) | 29.66 G (39.0%) | |
+| `candidate_priority_actions` | 24.71 G (19.9%) | 22.76 G (20.0%) | 14.62 G (19.2%) | |
+| `available_mana_sources` | 22.33 G (17.9%) | 20.51 G (18.0%) | 13.22 G (17.4%) | |
+| `replacement::gather` | 20.34 G (16.3%) | 18.53 G (16.3%) | 11.21 G (14.7%) | |
+| `run_mana_ability_window` | 17.53 G (14.1%) | 16.01 G (14.1%) | 10.27 G (13.5%) | |
+| `activatable_abilities` | 11.11 G (8.9%) | 10.17 G (8.9%) | 5.96 G (7.8%) | |
+| `battlefield_ordered` + `battlefield_ids_ordered` | 14.31 G (11.5%) | 12.77 G (11.2%) | 12.78 G (16.8%) | lever 6, unchanged in instructions, now the largest single lever left |
+| `malloc` + `free`, self | 13.35 G (10.7%) | 13.89 G (12.2%) | 13.88 G (18.2%) | unchanged; lever 7's allocator question, sharper now |
+| `seed_frame` | 3.66 G (2.9%) | 3.68 G (3.2%) | 3.68 G (4.8%) | the five `HashSet`s and the name, untouched |
+| `memcpy`, self | 3.45 G (2.8%) | 3.13 G (2.8%) | 3.15 G (4.1%) | |
+
+**Where the 32.6% went.** The swap alone buys a tenth of it: SipHash's
+cost is mostly per call, so halving the key takes the `hash_one` row from
+40.6 G to 36.4 G and the game from 622 M to 569 M instructions (−8.6%). The
+hasher takes the rest of the row and then some: 37.6 G off the swap, of
+which the `hash_one` row is 36.4 G, `sip.rs`' self cost 14.7 G of that, and
+the difference is what the mix costs inlined at the probe sites, small
+enough that no row of its own surfaces. Every probe-shaped function fell by
+a third to a half — the memo probe by 72%, `is_creature` by a third, the
+mana-source enumeration and the gather by a third — and the functions the
+hasher does not reach did not move by an instruction: the sorts, the
+allocator, the frame seed, and the frame's own type-set lookups, which are
+SipHash still and now the whole of what `sip.rs` does here.
+
+**What follows.** `codebase-state.md` item 138's ranking, re-read on this
+profile: lever 6, the timestamp sorts, is 16.8% and the largest by a
+distance — an order cached per epoch, ~30 lines, 42 call sites untouched;
+lever 3, the SBA sweep's per-permanent questions, is `is_creature` at 16.8%
+and `has_subtype` at 4.7%, now a question of *how many* probes rather than
+what one costs; the allocator (lever 7) is 18.2% self and was 10.7% before
+the two levers made everything else cheaper. One row is new to the table
+and is not a lever item 138 has: the frame's `HashSet<CardType>` and
+`HashSet<Subtype>` are the last SipHash in the game, 8.6 G inclusive, and a
+`CardType` has fifteen variants — a bitset, or at least the id hasher, is
+the shape. Lever 2 is landed; item 144 is closed.
+
 ---
 
 ## 13. Work-Phase Plan
