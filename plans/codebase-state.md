@@ -6416,19 +6416,84 @@ Commander-scale board closes item 69.
      batching a thousand games per GPU-millisecond needs about a hundred
      cores per GPU (§4's arithmetic).
 
-     **The instrument, sized and not built** (this pass is measurement and
-     docs): two cells on `EngineCounters` — `decisions` (prompts with two or
-     more options) and `priority_decisions` (the same, at priority) —
-     incremented in the 24 `ask_*` bodies after the provider answers (~30
-     lines; or in the four `validate_*` helpers with an `&EngineCounters`
-     parameter, ~30); two `=== Engine Work ===` rows in `fuzz_games` (~8),
-     the two `ROWS` entries in `plans/fuzz_ab.py` (~4), and `µs per decision`
-     beside `ms per 1,000 walks` in its timing table (~6). A `Cell` increment
-     is below the noise the other eleven were A/B'd at, so no A/B; the rows
-     are new, so no re-record — the next phase's block records their first
-     values. The reading that watches the target is `CPU/game ÷ decisions`
-     in an A/B sitting, never a stored millisecond
+     **The instrument, built 2026-09-16 (A4e).** Two cells on
+     `EngineCounters`, `decisions` and `priority_decisions`, recorded in
+     `ui::ask`'s four `validate_*` helpers rather than in the 24 bodies: each
+     helper runs exactly once per prompt with the candidate list *and* the
+     bounds in scope, so what counts is decided once per primitive instead of
+     once per caller, at four sites instead of twenty-four. Two
+     `=== Engine Work ===` rows, their `ROWS` entries in `plans/fuzz_ab.py`,
+     and `µs / decision` beside `ms / 1,000 walks` in its timing table. No
+     A/B: both pools at two and four seats read `IDENTICAL` to `main` on
+     every other row, which is the proof a `Cell` increment changed no game.
+     The rows are new, so no re-record — the fixture tables gain them at the
+     next re-record. The reading that watches the target is
+     `CPU/game ÷ decisions` in a sitting, never a stored millisecond
      (`engineering-practices.md` §3).
+
+     **The definition the table above was measured with is not the one it
+     states, and the instrument ships the stated one.** "The engine already
+     asks no inner question with fewer" is false in this tree, so the probe's
+     count — every prompt but a priority prompt offering only `Pass` — counted
+     forced prompts as decisions. Measured at `performance`, four seats, 200
+     games: `choose_generic_mana_allocation` is forced 4,738 times of 8,255
+     (one bucket can take what is left), `select_recipients` 1,319 of 6,084
+     (one legal recipient with `min == max == 1`), a trample split 11 of 34.
+     **Thirty forced inner prompts a game, and nothing else** — item 145. The
+     cell counts a prompt with **two or more legal answers**, per primitive:
+     `pick_n` unless the count is fixed at none of the options or at all of
+     them, `pick_number` when `max > min`, `allocate` when something is left
+     over every bucket's minimum and two or more buckets can take it,
+     `choose_ordering` at two items. That keeps the take-it-or-decline prompts
+     a *candidate* count would drop — a mana window with one untapped source,
+     13 a game — and drops the 30.
+
+     **The six boards, re-read with the instrument** (seed 12345, one thread,
+     200 games at 60 cards and 100 at Commander scale). `priority_decisions`
+     reproduces the table above exactly on all four 60-card boards, and the
+     prompt counts reproduce `backlog.md` §2.22's — which is what says these
+     are the census's prompt sites and the only thing that moved is the
+     rule:
+
+     | | decisions / game (priority + inner) | CPU / game | per core-second | µs / decision |
+     |---|---:|---:|---:|---:|
+     | `performance`, 2 seats | 266 (103 + 163) | 18.4 ms | 14,400 | 69 |
+     | `stress`, 2 seats | 407 (167 + 240) | 25.5 ms | 15,900 | 63 |
+     | **`performance`, 4 seats** | **483** (188 + 295) | **52.8 ms** | **9,140** | 109 |
+     | `stress`, 4 seats | 764 (314 + 450) | 76.3 ms | 10,000 | 100 |
+     | `performance`, 4 seats, Commander scale | 716 (271 + 445) | 107.5 ms | 6,660 | 150 |
+     | `stress`, 4 seats, Commander scale | 1,162 (472 + 690) | 144.4 ms | 8,050 | 124 |
+
+     **So the ratchet's first reading is restated in the unit the instrument
+     counts: 9,140 on the 60-card `performance` board at four seats and 6,660
+     at Commander scale, 2026-09-16, this machine.** Same engine — a
+     denominator about 6% smaller and a CPU column that drifted upward about
+     3%. The 2026-09-15 rows keep their date and their numbers; what they may
+     no longer be read as is a decision count.
+
+     **What the count is mostly made of, and why it will fall.**
+     `activate_mana_ability` is 194 of the 325 inner prompts a game at four
+     seats — 60% of them, none forced under any rule — because CR 601.2g
+     re-enters the window once per tap. `backlog.md` §2.18's tap solver, or an
+     auto-payer answering the window, deletes most of them: the decision count
+     drops sharply the day one lands, with the engine no slower and `CPU /
+     decision` up by construction. **Read a fall in `Decisions` as a
+     middleware landing until that is ruled out**, and read the two rows
+     together — `priority_decisions` is the half no middleware may remove.
+
+     **The Commander-scale board is a run now, not a source patch.**
+     `--deck-size` and `--life` landed with the cells, so
+     `--deck-size 100 --life 40 --players 4` is that board and
+     `plans/fuzz_ab.py` passes both through. It had to be built because the
+     two Commander rows above **could not be reproduced**: the probe's deck
+     recipe is written down nowhere, and two plausible ones bracket them —
+     76 nonlands of 100 reads 249 priority decisions on `performance` against
+     the recorded 248 but 384 on `stress` against 476; 60 of 100 reads 472 and
+     83.7 turns (item 69's "83-turn games") but 271 on `performance`. The flag
+     scales the 36-of-60 nonland ratio, so **60 is the identity** — every
+     recorded table's deck, card for card, RNG draw for RNG draw — and 100 is
+     60 nonlands and 40 lands. The rows above are that board's, and they are
+     the ones a later reading can be compared against.
 
      **The profile, taken** — after the review, callgrind under WSL over 200
      four-seat `stress` games (`layers-architecture.md` §12, "Measured at
@@ -6508,13 +6573,16 @@ Commander-scale board closes item 69.
         shuffles a one-element list), so the skip is stream-neutral and an
         engine-side version would be A/B-identical by construction.
 
-     **Reachability (2026-09-15):** reachable — not wrong today; a ratchet
-     whose first reading is recorded and whose instrument does not exist, so
-     the next reading is a probe's until the two cells land.
+     **Reachability (2026-09-16):** reachable — not wrong; a ratchet whose
+     instrument now exists, so the next reading is the harness's rather than a
+     probe's. What is still owed is the *target* half: a reading at each spine
+     close, beside the one restated above.
 
-     **Sized:** the instrument, ~80 lines across `state/diagnostics.rs`,
-     `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`, its own small
-     PR, no A/B; the next reading is the next spine close's.
+     **Sized:** ~~the instrument, ~80 lines across `state/diagnostics.rs`,
+     `ui/ask.rs`, `bin/fuzz_games.rs` and `plans/fuzz_ab.py`~~ — **built
+     2026-09-16** (A4e), and wider than the size by the two harness flags the
+     Commander board turned out to need; the next reading is the next spine
+     close's.
 
 139. **A retry re-prompt offers a list computed before the rejected action
      changed the board — the one thing the fork test found on the stack.**
@@ -6838,6 +6906,44 @@ owner decided it the same day.
      Everywhere PR was: the type swap alone, expected `IDENTICAL` on every
      counter at two and four seats on both pools, then the hasher, read as a
      CPU delta and a callgrind re-read against §12's reading.
+
+### Found by A4e — the decision counters (2026-09-16)
+
+145. **Three asks still prompt when the answer is forced, and CR 102.2 says
+     a forced choice is not made.** Found by building item 138's counter,
+     which had to decide per primitive what "two or more" means and so
+     counted what the engine asks with one legal answer. At `performance`,
+     four seats, 200 games: `choose_generic_mana_allocation` 4,738 forced
+     prompts of 8,255 — the pool holds one type that can take what the pips
+     leave, so the split is arithmetic, not a choice; `ask_select_recipients`
+     1,319 of 6,084 — one legal recipient and `min == max == 1`;
+     `ask_choose_trample_damage_assignment` 11 of 34. **Thirty a game**, and
+     the measurement found no fourth.
+
+     **The shape of the fix is already in the file.** `ask_discard` returns
+     the hand unasked when the count takes all of it, `order_scry_group`
+     returns below two cards, and five asks assert two or more candidates and
+     leave the single case to the caller. These three want the same guard,
+     either at the caller or at the top of the ask — about 30 lines.
+
+     **What makes it its own PR rather than an inline fix: it moves the RNG
+     stream.** Item 138's lever 10 is right about `pick_n` — a one-option
+     shuffle draws nothing, so dropping the forced `select_recipients`
+     prompts is stream-neutral — but not about `allocate`:
+     `RandomDecisionProvider::allocate` walks the remainder bucket by bucket
+     drawing as it goes, so a forced allocation *does* consume draws and
+     skipping it changes every later game. So: an A/B, a `fuzz-record.md`
+     block, and the two prompt-count rows in `backlog.md` §2.22 re-read.
+
+     **And it moves no counter this PR shipped**, which is the point of
+     separating them — `decisions` already declines to count these, so the fix
+     shows up as a fall in *prompts* and nothing else.
+
+     **Reachability (2026-09-16):** reachable — not wrong; the engine asks a
+     question with one answer, which costs a round trip out of process and
+     nothing in it.
+
+     **Sized:** ~30 lines plus the A/B and the re-read; its own PR, any time.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

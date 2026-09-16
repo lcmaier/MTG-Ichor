@@ -525,7 +525,10 @@ three-arm sitting is about four minutes where the hand-run version had grown
 past twenty. `--require NAMES` adds the reachability rows; `--arm` is
 repeatable, and the first arm is the baseline every other is diffed against —
 which is how "registered but not pooled reproduces `main`" is checked by
-construction. By hand, the two runs it replaces are:
+construction. `--deck-size 100 --life 40 --players 4` is the Commander-scale
+board `codebase-state.md` item 138 reads the ratchet on; both flags pass
+through to `fuzz_games`, and at their defaults — 60 and 20 — they change no RNG
+draw, so every number recorded before they existed is the same run. By hand, the two runs it replaces are:
 
 ```bash
 cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1
@@ -546,10 +549,10 @@ is pass/fail against a ceiling; only the performance pool measures a delta.
 
 **The budget (adopted 2026-09-15, on the review of the post-RE audit's pass 3).**
 A phase's `performance` delta at four seats may cost at most **2.5 points of
-CPU per game at identical counters** — CPU per *decision* once
-`codebase-state.md` item 138's counters land, a decision count being a fixture
-row like the rest — or the PR says why in its `fuzz-record.md` block and the
-reviewer decides. RE-9 used the number as its gate
+CPU per game at identical counters** — CPU per *decision* since item 138's
+counters landed (A4e, 2026-09-16), a decision count being a fixture row like
+the rest — or the PR says why in its `fuzz-record.md` block and the reviewer
+decides. RE-9 used the number as its gate
 (`replacement-architecture.md` §11 item 54); this makes it the rule. It is the
 per-PR half of a ratchet: the other half is the readiness pass of each
 spine-phase audit, which records decisions per core-second on both boards as a

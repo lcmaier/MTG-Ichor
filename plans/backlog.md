@@ -1226,6 +1226,13 @@ mechanic rather than a migration, which is why it is here and not in
   | `choose_damage_source` | `ChooseDamageSource` | the controller (CR 609.7a) | **C** or the agent's | 0 / 16 / 37 |
   | `choose_legend_to_keep` | `LegendRule` | the controller of the duplicates | **C**, **residual** when the duplicates are an opponent's — an SBA's question, mid-batch | 0.09 / 0.13 / 0.06 |
 
+  **The two 60-card columns are reproduced by the harness's own counters as
+  of 2026-09-16** (`codebase-state.md` item 138, which also says what the
+  decision count there does *not* include). The Commander column's board was a
+  source patch when this census was taken and is `--deck-size 100 --life 40`
+  now; it re-reads 472 priority decisions rather than 476, and nothing in the
+  classification below turns on the difference.
+
   **Three things to read off it.** (1) **Six of the 24 are never reached by
   the fuzz harness** — X, the two cost prompts, the entering controller, the
   commander SBA and the scry ordering — because no pooled card produces
