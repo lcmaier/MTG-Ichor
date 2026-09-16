@@ -998,6 +998,13 @@ pub enum Primitive {
     PutOnBottomOfLibrary,
     /// Shuffle into owner's library
     ShuffleIntoLibrary,
+    /// Shuffle a library (CR 701.24a). Whose is the recipient's: `Controller`
+    /// is "shuffle your library", `Implicit` the source's **owner's** — the
+    /// rider of "shuffle it into its owner's library" once the substitute
+    /// has made the move (Darksteel Colossus), where "it" is the source — and
+    /// a target is a player or an object standing for its owner. Proposes
+    /// `GameAction::ShuffleLibrary`.
+    ShuffleLibrary,
     /// Mill N cards (rule 701.17)
     Mill(AmountExpr),
     /// Discard N cards (rule 701.9), chosen as [`DiscardChooser`] says.

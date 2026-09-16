@@ -118,6 +118,8 @@ pub(crate) fn subject_of(action: &GameAction) -> EventSubject {
         // CR 106.6a's mana enters a *player's* pool, and CR 616.1's chooser
         // is that player; a spell's production has no permanent to be about.
         GameAction::ProduceMana { player, .. } => EventSubject::Player(*player),
+        // CR 701.24a — "a player shuffles their library".
+        GameAction::ShuffleLibrary { player } => EventSubject::Player(*player),
     }
 }
 

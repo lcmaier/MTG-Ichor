@@ -465,6 +465,25 @@ pub enum GameAction {
         n: u64,
     },
 
+    /// CR 701.24a — a player shuffles their library. The event's subject is
+    /// the player.
+    ///
+    /// **An event because abilities trigger on it** (CR 701.24b, e, f —
+    /// Psychic Surgery's "whenever an opponent shuffles their library"), and
+    /// because the chokepoint invariant admits no other writer of a library's
+    /// order in play: `GameState::shuffle_library` is the performer, and the
+    /// pre-game shuffle in `Game::setup` is the one direct call, before any
+    /// event can be watched. No `EventPattern` arm, like `Attach` and
+    /// `CreateTokenIn`: nothing printed says "would shuffle … instead".
+    ///
+    /// Proposed by `Primitive::ShuffleLibrary`; a "shuffle it into its owner's
+    /// library" is a `ZoneChange` of its own ahead of this (CR 701.24c).
+    /// Announced as
+    /// [`GameEvent::LibraryShuffled`](crate::events::event::GameEvent::LibraryShuffled).
+    ShuffleLibrary {
+        player: PlayerId,
+    },
+
     /// CR 104.2b — this player would win the game. The event's subject is the
     /// player.
     ///
@@ -1496,6 +1515,16 @@ impl GameState {
                     n,
                     looked_at: k as u64,
                 });
+                Ok(())
+            }
+
+            // CR 701.24a — the one in-game writer of a library's order. Announced
+            // even for a library of zero or one cards, which is CR 701.24e's
+            // "abilities that trigger when a library is shuffled will still trigger".
+            GameAction::ShuffleLibrary { player } => {
+                self.get_player(player)?;
+                self.shuffle_library(player);
+                self.events.emit(GameEvent::LibraryShuffled { player_id: player });
                 Ok(())
             }
 

@@ -183,6 +183,8 @@ fn event_amount(action: &GameAction) -> Option<u64> {
         | GameAction::Attach { .. }
         | GameAction::Destroy { .. }
         | GameAction::EnterBattlefield { .. }
+        // A shuffle has no amount: CR 701.24a randomizes a whole library.
+        | GameAction::ShuffleLibrary { .. }
         // A turn's number is not an amount: no rider says "that many" about a
         // turn, a phase or a step, and 614.10b — the one rule that makes a
         // skip do something afterwards — has zero printed cards.
