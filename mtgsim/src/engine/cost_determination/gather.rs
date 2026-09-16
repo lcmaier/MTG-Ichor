@@ -93,8 +93,8 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
         };
         for id in candidates {
             let controller = controller_or_owner(game, id).unwrap_or(0);
-            for ability in get_effective_abilities(game, id) {
-                push_if_applies(game, &ability, id, controller, spell, &frame, &mut out);
+            for ability in get_effective_abilities(game, id).iter() {
+                push_if_applies(game, ability, id, controller, spell, &frame, &mut out);
             }
         }
     }

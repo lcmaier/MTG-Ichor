@@ -4,6 +4,7 @@
 // This module is the single-point interface that the rest of the engine calls.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::objects::card_data::AbilityDef;
@@ -213,9 +214,16 @@ pub fn get_effective_supertypes(game: &GameState, id: ObjectId) -> HashSet<Super
 ///
 /// The returned `AbilityDef`s carry stable ids, so `ability.id` remains a valid
 /// activation handle across calls — including for synthesized intrinsics.
-pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Vec<AbilityDef> {
+///
+/// Shared, not copied: the `Arc` is the memoized frame's own list — the
+/// card's, when no layer wrote it — so a call is a refcount bump. Three
+/// callers index it (`activatable_abilities`, `priority.rs`'s re-derivation
+/// by id, `cast.rs::activate_ability`) and the rest iterate it; every one
+/// reads it here, which is what makes an index into one the same index into
+/// the other two (`CLAUDE.md`).
+pub fn get_effective_abilities(game: &GameState, id: ObjectId) -> Arc<Vec<AbilityDef>> {
     compute_characteristics(game, id)
-        .map(|chars| chars.abilities.clone())
+        .map(|chars| Arc::clone(&chars.abilities))
         .unwrap_or_default()
 }
 

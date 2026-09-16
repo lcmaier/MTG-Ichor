@@ -232,7 +232,7 @@ impl RegistryScopeSummary {
                 // because both gates ask about a *body*, not about a copy. A
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
-                    for ability in &values.abilities {
+                    for ability in values.abilities.iter() {
                         if matches!(ability.effect, Effect::Restriction(_)) {
                             summary.any_copied_restriction = true;
                         }

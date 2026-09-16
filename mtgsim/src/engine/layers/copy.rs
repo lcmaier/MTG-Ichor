@@ -22,6 +22,7 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 /// The layer ceiling CR 613.2c names: every layer-1 sublayer applied and
 /// nothing after it.
@@ -81,7 +82,11 @@ pub struct CopiableValues {
     /// Layer 6 grant, which must clear it. CR 707.9d's drop for "except"
     /// clauses is the one case that has to remove a flag, and it arrives with
     /// the exception applier in CV-2.
-    pub abilities: Vec<AbilityDef>,
+    ///
+    /// Shared by allocation and still a value: every writer to a frame's list
+    /// goes through `Arc::make_mut`, which copies before it writes while this
+    /// capture holds the list, so what the capture read is what it keeps.
+    pub abilities: Arc<Vec<AbilityDef>>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
 }
@@ -89,8 +94,8 @@ pub struct CopiableValues {
 impl CopiableValues {
     /// Take the copiable half of a ceiling-1 frame.
     ///
-    /// Consumes the frame so the capture is a move rather than a second deep
-    /// clone of a `Vec<AbilityDef>`; the frame has no other reader.
+    /// Consumes the frame so the capture is a move rather than a clone; the
+    /// frame has no other reader.
     fn from_frame(frame: EffectiveCharacteristics) -> Self {
         // Destructured rather than field-by-field, so that adding a field to
         // `EffectiveCharacteristics` is a compile error here. Whether a new
@@ -138,7 +143,7 @@ impl CopiableValues {
         chars.subtypes = self.subtypes.clone();
         chars.supertypes = self.supertypes.clone();
         chars.keyword_flags = self.keyword_flags.clone();
-        chars.abilities = self.abilities.clone();
+        chars.abilities = Arc::clone(&self.abilities);
         chars.power = self.power;
         chars.toughness = self.toughness;
     }

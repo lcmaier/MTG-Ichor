@@ -102,7 +102,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     if has_static_source {
         for id in game.battlefield_ids_ordered() {
             let controller = controller_or_owner(game, id).unwrap_or(0);
-            for ability in get_effective_abilities(game, id) {
+            for ability in get_effective_abilities(game, id).iter() {
                 if ability.ability_type != AbilityType::Static {
                     continue;
                 }

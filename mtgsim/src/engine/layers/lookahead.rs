@@ -101,7 +101,7 @@ fn would_be_rows(
     let card = &obj.card_data;
     let mut rows = Vec::new();
 
-    for ability in &card.abilities {
+    for ability in card.abilities.iter() {
         if ability.ability_type != AbilityType::Static {
             continue;
         }
