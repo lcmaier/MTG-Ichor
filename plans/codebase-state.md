@@ -4323,6 +4323,10 @@ sized — item 138's two levers and two counters, 139 with item 41's test, 140,
 §3b; the two after-the-passes artifacts at row A4d, neither started; the
 three wrong-today items.
 
+**Found on the PR's review (2026-09-16):** the UUID review, item 144 below —
+both `Uuid` ids replaced by process-stable ones, decided by the owner, sized,
+and `roadmap-v2.md` A4g's row.
+
 **Next:** at critical-path item 6's close, per `engineering-practices.md` §9,
 its first duty the ratchet's second reading against item 138's first.
 
@@ -6446,20 +6450,17 @@ Commander-scale board closes item 69.
         `Arc::make_mut` in the Layer 4 and 6 arms — item 67's shape,
         ~100–150 lines plus 13 call sites, answer-preserving — and most of
         the 24% spent in `malloc` and `free` goes with it. **Rank 1.**
-     2. **An id hasher** — 22.1% hashes 16-byte `Uuid` keys with SipHash for
-        every memo, object and battlefield lookup (13.5 M `is_creature`
-        lookups in 200 games alone). Both ids are v4, so a `BuildHasher`
-        reading the low 64 bits is a load: ~30 lines plus a mechanical sweep
-        of 20 map declarations, answer-preserving. The caveat this lever first carried — that a fixed hasher makes
-        `HashMap` iteration order process-independent — is **wrong while the
-        keys are v4 UUIDs** (corrected 2026-09-16, pass 4's review): the keys
-        themselves are minted from the OS per process, so the order stays
-        per-process random under any hasher (`game_state.rs`'s own note under
-        `battlefield_ordered`) and the three-run determinism check keeps
-        catching an order-dependent sweep. The order becomes process-stable
-        only if the ids do — a per-game counter in place of v4, the same change
-        that would retire the log masks — and *that* change re-arms the check.
-        Which key the lever hashes is `roadmap-v2.md` A4g's question. **Rank 2.**
+     2. **Process-stable ids in place of the v4 `Uuid` keys** — 22.1% hashes
+        16-byte keys with SipHash for every memo, object and battlefield
+        lookup (13.5 M `is_creature` lookups in 200 games alone). First
+        sized as a `BuildHasher` over the v4 keys, ~30 lines plus a sweep of
+        the map declarations; **decided by the owner on 2026-09-16 (item 144)
+        as the larger change instead**: `ObjectId` a `u64` from the state's
+        counter, `AbilityId` derived from the card, the hasher a one-line mix
+        riding inside it, the `uuid` dependency gone — which also halves
+        every id and retires the log masks. The one cost, and the fix that
+        rides with it: iteration order becomes process-stable, so the CI
+        determinism step seeds the hasher per run. **Rank 2.**
      3. **The SBA sweep's per-permanent questions** — `is_creature` 65,000
         times a game, 14.7% inclusive, one per permanent per check; one
         frame read per permanent (§12's `has_subtype` finding, now sized),
@@ -6740,6 +6741,103 @@ them; item 69 is closed by the Commander-scale measurement and evicted; item
 profile's recipe is `layers-architecture.md` §12's instrument paragraph and
 `engineering-practices.md` §9's readiness pass, not here, because it is a
 procedure and not a migration.
+
+### Found by the post-RE audit's pass 4 review — the UUID review (2026-09-16)
+
+**Asked by the owner on PR #154's review: how does `Uuid` get used, why are
+v4 and v5 in one engine, and why do ids carry an outsized share of the
+profile?** Read off the tree at 6e016d0. The answer is one item, and the
+owner decided it the same day.
+
+144. **`ObjectId` and `AbilityId` are v4 UUIDs, and the decision (the owner,
+     2026-09-16) is to replace both with process-stable ids.** The census:
+
+     - **Two ids are `Uuid`; every other id is a counter.** `types/ids.rs`
+       aliases `ObjectId` and `AbilityId` to `Uuid`; `EffectId`, `RowId`,
+       `ReplacementEffectId`, `RestrictionId`, `BatchId`, the timestamps and
+       the epochs are `u64`s from counters, and `PlayerId` is a `usize`.
+     - **v4 is minted at one production site for objects** (`GameObject::new`)
+       and once per `AbilityDef` at card construction (`CardDataBuilder` and
+       the card files), from the operating system's randomness rather than
+       `GameState.rng` — ambient, and tolerated only because an id never
+       orders anything (`CLAUDE.md`, "never `ObjectId`";
+       `battlefield_ordered`'s own note says sorting by id is no fix because
+       the key is itself random).
+     - **v5 exists for one function.** `land_types.rs::intrinsic_ability_id`
+       (2026-08-20) derives the CR 305.6 intrinsic mana ability's id from the
+       object id and the land type, because the ability is synthesized inside
+       the layer walk on every read, has nowhere to store a minted id, and is
+       handed out as an activation handle that a recomputed list must match.
+       It is the one place the engine wanted a deterministic id, and it is the
+       shape the rest should have.
+     - **`AbilityId` is per `CardData`, not per object.** A plural token
+       creation shares one `Arc<CardData>` across equal defs
+       (`create_tokens`), and a copy keeps its source's `AbilityDef` ids
+       (`engine/layers/copy.rs`), so the engine already keys ability identity
+       as the pair `(ObjectId, AbilityId)` (13 sites) and finds an ability by
+       `a.id == ability_id` within one object's effective list (13 sites). The
+       122 random bits buy nothing a per-card index would not.
+     - **The cost is frequency times the default hasher, not the comparison.**
+       25 `HashMap` and `HashSet` declarations are keyed by an id or the pair —
+       `objects`, `battlefield`, `stack_entries`, `LayerMemo`, `Board`'s frames
+       and sub-cache, the three ability-source sets, the combat maps, the
+       random provider's mana maps — and every lookup runs SipHash-1-3 over 16
+       bytes, 32 for a pair: 13.5 M `is_creature`, 10.5 M
+       `object_matches_filter` and 7.0 M `has_type` lookups in 200 four-seat
+       `stress` games (`layers-architecture.md` §12), 22.1% of instructions.
+       SipHash defends against hostile keys, and no untrusted key ever reaches
+       these maps.
+
+     **The decision, and what it buys beyond the hash.** `ObjectId` becomes a
+     `u64` stamped in `GameState::add_object`, exactly where the CR 613.7d
+     timestamp is already stamped ("the only door into the store");
+     `AbilityId` becomes a `u64` too, a printed ability's derived from the card
+     name and the ability's index the way the v5 site already derives its own,
+     so it is stable across processes and threads with no counter. Then: every
+     id halves, across 88 `Vec<ObjectId>` sites, every `GameEvent` and every
+     map key, and the wire ids item 141 wants; the fuzz-dump masks and item
+     41's fork-test id mask go, because ids agree across runs and binaries;
+     the `uuid` dependency and the engine's one ambient-randomness call go
+     with it; and the hasher becomes a one-line multiplicative mix, since
+     sequential keys under an identity hash share hashbrown's 7-bit tag. Item
+     138's lever 2 is this item now, and the hasher rides inside it rather
+     than beside it.
+
+     **The one cost, and the fix that rides with it.** With process-stable ids
+     and a fixed hasher, `HashMap` iteration order becomes process-stable, so
+     the three-run determinism check stops catching an unordered sweep that
+     leaks order. Re-arm it in the same PR: the CI determinism step runs its
+     three runs with a hasher seed that differs per run (an environment
+     variable the `BuildHasher` reads, ~10 lines), which restores the property
+     the check had under `RandomState`. Two notes beside it: a fork shares the
+     counter, so two diverging branches mint the same next id for different
+     objects — harmless unless branches are merged, which nothing does — and
+     `tests/determinism_test.rs`'s doc comment, "two runs inside the same
+     process share one `RandomState`", is imprecise (each map draws its own
+     keys) and is rewritten when the test gains its fork rows.
+
+     **Open for the PR to decide, not decided here:** how a *granted* or
+     *synthesized* ability's id is minted — from the state's counter at the
+     grant, or derived from the granting object and a tag the way the
+     intrinsic site does — and whether `ObjectId` and `AbilityId` stay two
+     aliases of one integer type or become two newtypes, which is what would
+     let the compiler catch a swapped argument in the 13 pair sites.
+
+     **Reachability (2026-09-16):** reachable — not wrong; a cost (22.1% of
+     instructions), a mask at every log comparison, and one ambient-randomness
+     call per object.
+
+     **Sized:** the swap sites are few because both ids are type aliases — 1
+     production minting site for objects and about 30 test sites calling
+     `new_object_id()` (a test-local counter), 39 direct `Uuid::` uses outside
+     `ids.rs`, nearly all in test modules (`new_v4` in registry and store
+     tests, `nil()` twice, `from_u128` once, the v5 site), 6 id-formatting
+     sites (the eight-character prefix in `ui/display.rs`), the 25
+     declarations behind a type alias, and the CI seed; about 200–300 lines.
+     One PR in the band (`roadmap-v2.md` A4g), A/B'd as two arms the way the
+     Everywhere PR was: the type swap alone, expected `IDENTICAL` on every
+     counter at two and four seats on both pools, then the hasher, read as a
+     CPU delta and a callgrind re-read against §12's reading.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
