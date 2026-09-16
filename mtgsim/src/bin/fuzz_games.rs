@@ -140,7 +140,7 @@ struct Args {
     /// recorded table's board and leaves `random_deck`'s RNG stream exactly
     /// where it was.
     ///
-    /// **The mana ratio rides along** (`NONLANDS_PER_60`): a hundred is sixty
+    /// **The mana ratio rides along** (`NONLAND_PERCENT`): a hundred is sixty
     /// nonlands and forty lands, so what a bigger deck changes is the game's
     /// length, not what it can cast. With `--life 40` and `--players 4` it is
     /// the Commander-scale board `codebase-state.md` items 69, 138 and 143
@@ -342,10 +342,22 @@ fn mana_type_to_color(mt: mtgsim::types::mana::ManaType) -> Option<Color> {
 /// anything but red. Every other land slot is nonbasic, below.
 const BASIC_LANDS_PER_DECK: usize = 5;
 
-/// Nonland slots in a 60-card deck. **A ratio, not a count**: `--deck-size`
-/// scales it, so a 100-card deck is 60 nonlands and 40 lands and a bigger
-/// board is a longer game rather than a different curve.
-const NONLANDS_PER_60: usize = 36;
+/// The share of a deck that is not a land, in percent — **a proportion, not a
+/// count**, so `--deck-size` scales it: 60 cards is 36 nonlands and 24 lands,
+/// 100 is 60 and 40, and a bigger board is a longer game rather than a
+/// different curve.
+///
+/// Percent rather than a fraction of the deck size, because the arithmetic has
+/// to be exact: a float share would round, and a deck that came out one card
+/// short of its own size would move every draw after it.
+///
+/// **The two land tiers below stay counts, and that is deliberate.**
+/// `BASIC_LANDS_PER_DECK` is a guarantee — one of each of the five basic types,
+/// which is what `every_deck_can_make_every_color_and_keeps_a_basic_of_each_type`
+/// asserts — and `NONBASIC_LANDS_PER_DECK` is a flat placeholder over a static
+/// pool by its own admission. The any-color fill tier absorbs the difference,
+/// so a 100-card deck's mana base is proportionally more of it.
+const NONLAND_PERCENT: usize = 60;
 
 /// How many of a deck's land slots are drawn from the registry's nonbasic
 /// lands — the ten original duals and Everywhere, uniformly.
@@ -357,7 +369,7 @@ const NONBASIC_LANDS_PER_DECK: usize = 5;
 /// Build one deck of `deck_size` cards — sixty unless `--deck-size` says
 /// otherwise.
 ///
-/// 1. `NONLANDS_PER_60` of every sixty slots are nonlands, drawn uniformly with
+/// 1. `NONLAND_PERCENT` of the slots are nonlands, drawn uniformly with
 ///    repeats from **every** nonland the registry holds. No color filter: the
 ///    mana base below can pay for anything, so a filter would only decide which
 ///    slice of the pool a card gets to meet.
@@ -394,7 +406,7 @@ fn random_deck(
 
     let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(deck_size);
 
-    for _ in 0..(deck_size * NONLANDS_PER_60 / 60) {
+    for _ in 0..(deck_size * NONLAND_PERCENT / 100) {
         if nonland_names.is_empty() {
             break;
         }
