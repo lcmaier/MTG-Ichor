@@ -332,6 +332,13 @@ def main():
         med = {a: statistics.median(cpu[a]) for a in labels}
         per_walk = {a: med[a] / walks[a] * 1000 for a in labels}
         per_query = {a: med[a] / queries[a] * 1000 for a in labels}
+        # Item 138's unit. A binary from before the two counters prints no such
+        # row, so its cell is `?` rather than a number divided by a zero.
+        dec = {a: counted[(a, "performance")][0]["Decisions"] for a in labels}
+        per_dec = {
+            a: (med[a] / float(dec[a]) * 1000 if dec[a].isdigit() and float(dec[a]) > 0 else None)
+            for a in labels
+        }
         base = labels[0]
         print(f"\n{'':<22}" + "".join(f"{a:>18}" for a in labels))
         print(f"{'CPU/game median':<22}" + "".join(f"{med[a]:>18.2f}" for a in labels))
@@ -340,6 +347,12 @@ def main():
         print(f"{'  vs ' + base:<22}" + "".join(f"{(per_walk[a] / per_walk[base] - 1) * 100:>+17.1f}%" for a in labels))
         print(f"{'ms / 1,000 queries':<22}" + "".join(f"{per_query[a]:>18.3f}" for a in labels))
         print(f"{'  vs ' + base:<22}" + "".join(f"{(per_query[a] / per_query[base] - 1) * 100:>+17.1f}%" for a in labels))
+        print(f"{'µs / decision':<22}" + "".join(
+            f"{per_dec[a]:>18.1f}" if per_dec[a] is not None else f"{'?':>18}" for a in labels))
+        if per_dec[base] is not None:
+            print(f"{'  vs ' + base:<22}" + "".join(
+                f"{(per_dec[a] / per_dec[base] - 1) * 100:>+17.1f}%" if per_dec[a] is not None else f"{'?':>18}"
+                for a in labels))
         print(f"{'CPU/game p50 median':<22}" + "".join(f"{statistics.median(p50[a]):>18.2f}" for a in labels))
         print(f"{'CPU/game p99 median':<22}" + "".join(f"{statistics.median(p99[a]):>18.2f}" for a in labels))
         print(f"{'CPU/turn p50 median':<22}" + "".join(f"{statistics.median(turn_p50[a]):>18.3f}" for a in labels))

@@ -136,6 +136,20 @@ struct Args {
     /// while it continues (CR 800.4), and nothing about that board is reachable
     /// at two.
     players: usize,
+    /// Cards per deck, `--deck-size`. Sixty by default, which is every
+    /// recorded table's board and leaves `random_deck`'s RNG stream exactly
+    /// where it was.
+    ///
+    /// **The mana ratio rides along** (`NONLANDS_PER_60`): a hundred is sixty
+    /// nonlands and forty lands, so what a bigger deck changes is the game's
+    /// length, not what it can cast. With `--life 40` and `--players 4` it is
+    /// the Commander-scale board `codebase-state.md` items 69, 138 and 143
+    /// measure — four 100-card decks at 40 life — which until this flag was a
+    /// source patch nobody could re-run.
+    deck_size: usize,
+    /// Starting life, `--life`. Twenty by default; forty is Commander's
+    /// (CR 903.7), and it changes no RNG draw, only how long a game runs.
+    life: i64,
 }
 
 /// The two pools, and the reason there are two.
@@ -179,6 +193,8 @@ fn parse_args() -> Args {
         require: Vec::new(),
         auto_pay: true,
         players: 2,
+        deck_size: 60,
+        life: 20,
     };
 
     let mut i = 1;
@@ -261,6 +277,32 @@ fn parse_args() -> Args {
                     };
                 }
             }
+            "--deck-size" => {
+                i += 1;
+                if i < args.len() {
+                    // A deck shorter than its own land tiers is not a board,
+                    // it is a crash in `random_deck`'s arithmetic.
+                    result.deck_size = match args[i].parse::<usize>() {
+                        Ok(n) if n >= 20 => n,
+                        _ => {
+                            eprintln!("--deck-size wants a number of at least 20, not {:?}", args[i]);
+                            std::process::exit(2);
+                        }
+                    };
+                }
+            }
+            "--life" => {
+                i += 1;
+                if i < args.len() {
+                    result.life = match args[i].parse::<i64>() {
+                        Ok(n) if n > 0 => n,
+                        _ => {
+                            eprintln!("--life wants a positive number, not {:?}", args[i]);
+                            std::process::exit(2);
+                        }
+                    };
+                }
+            }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
             }
@@ -300,6 +342,11 @@ fn mana_type_to_color(mt: mtgsim::types::mana::ManaType) -> Option<Color> {
 /// anything but red. Every other land slot is nonbasic, below.
 const BASIC_LANDS_PER_DECK: usize = 5;
 
+/// Nonland slots in a 60-card deck. **A ratio, not a count**: `--deck-size`
+/// scales it, so a 100-card deck is 60 nonlands and 40 lands and a bigger
+/// board is a longer game rather than a different curve.
+const NONLANDS_PER_60: usize = 36;
+
 /// How many of a deck's land slots are drawn from the registry's nonbasic
 /// lands — the ten original duals and Everywhere, uniformly.
 ///
@@ -307,19 +354,23 @@ const BASIC_LANDS_PER_DECK: usize = 5;
 /// real picker when card breadth (Phase 8) gives it something to choose between.
 const NONBASIC_LANDS_PER_DECK: usize = 5;
 
-/// Build one 60-card deck.
+/// Build one deck of `deck_size` cards — sixty unless `--deck-size` says
+/// otherwise.
 ///
-/// 1. 36 nonland slots, drawn uniformly with repeats from **every** nonland the
-///    registry holds. No color filter: the mana base below can pay for
-///    anything, so a filter would only decide which slice of the pool a card
-///    gets to meet.
+/// 1. `NONLANDS_PER_60` of every sixty slots are nonlands, drawn uniformly with
+///    repeats from **every** nonland the registry holds. No color filter: the
+///    mana base below can pay for anything, so a filter would only decide which
+///    slice of the pool a card gets to meet.
 /// 2. `NONBASIC_LANDS_PER_DECK` slots from the registry's nonbasic lands.
 /// 3. `BASIC_LANDS_PER_DECK` basics, one of each type.
 /// 4. Every remaining land slot is a land that taps for all five colors —
 ///    Everywhere, today. A pool with no such land falls back to basics.
 ///
 /// Deliberately crude — a fuzz harness, not a deckbuilder. It exists to
-/// produce a legal 60 that casts spells and attacks.
+/// produce a legal deck that casts spells and attacks. **Not singleton**, at
+/// any size: Commander's one-of rule (CR 903.5b) would need a pool larger than
+/// the `performance` one, and what the 100-card board is here for is the length
+/// and the object count, not the deck-building law.
 ///
 /// `required` is `--require`'s list, and **an empty list must leave this
 /// function exactly as it was**: every RNG draw below is guarded so that the
@@ -330,6 +381,7 @@ fn random_deck(
     registry: &CardRegistry,
     rng: &mut StdRng,
     required: &[Arc<CardData>],
+    deck_size: usize,
 ) -> Vec<Arc<CardData>> {
     let build = |name: &str| registry.create(name).ok();
     let is_land = |card: &CardData| card.types.contains(&CardType::Land);
@@ -340,9 +392,9 @@ fn random_deck(
         .filter(|name| build(name).is_some_and(|card| !is_land(&card)))
         .collect();
 
-    let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(60);
+    let mut deck: Vec<Arc<CardData>> = Vec::with_capacity(deck_size);
 
-    for _ in 0..36 {
+    for _ in 0..(deck_size * NONLANDS_PER_60 / 60) {
         if nonland_names.is_empty() {
             break;
         }
@@ -353,8 +405,8 @@ fn random_deck(
     }
 
     // One copy of each required **nonland** card, replacing a nonland slot so
-    // 60 stays 60 and mana density and the draw curve are untouched. The first
-    // slots, no RNG draw: the library is shuffled in-game anyway, and a draw here
+    // the deck size holds and mana density and the draw curve are untouched.
+    // The first slots, no RNG draw: the library is shuffled in-game anyway, and a draw here
     // would move the stream for every later card. A required *land* is held
     // back to the land section below for the same reason: a nonland slot spent
     // on it would quietly make the deck 35/25.
@@ -375,7 +427,7 @@ fn random_deck(
 
     // Pad remaining nonland slots with lands if card pool is too small
     let nonland_count = deck.len();
-    let land_count = 60 - nonland_count;
+    let land_count = deck_size.saturating_sub(nonland_count);
 
     let nonbasic_names: Vec<&str> = registry
         .card_names()
@@ -894,6 +946,18 @@ fn build_stack(dp_seed: u64, cfg: MiddlewareConfig) -> Box<dyn DecisionProvider>
     }
 }
 
+/// The board every game is dealt onto — seats, deck size and starting life.
+///
+/// One value rather than three parameters: they are set together by three
+/// flags, read together by `run_one_game`, and each new one would otherwise
+/// thread through two signatures and three call sites.
+#[derive(Clone, Copy)]
+struct TableConfig {
+    players: usize,
+    deck_size: usize,
+    life: i64,
+}
+
 /// Run game `game_num`, catching a panic as a result rather than unwinding out.
 ///
 /// Depends on nothing but its arguments — that is what lets the pool hand games
@@ -907,7 +971,7 @@ fn run_one_game(
     required: &[Arc<CardData>],
     require_names: &[String],
     middleware: MiddlewareConfig,
-    players: usize,
+    table: TableConfig,
 ) -> (GameOutcome, std::time::Duration) {
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
@@ -922,7 +986,9 @@ fn run_one_game(
     // One deck per seat, drawn from the one stream in seat order — so a
     // two-player run draws exactly the two decks it always drew.
     let decks: Vec<Vec<Arc<CardData>>> =
-        (0..players).map(|_| random_deck(registry, &mut deck_rng, required)).collect();
+        (0..table.players)
+            .map(|_| random_deck(registry, &mut deck_rng, required, table.deck_size))
+            .collect();
     let copies: Vec<u32> = require_names
         .iter()
         .map(|name| {
@@ -936,7 +1002,8 @@ fn run_one_game(
 
     let started = Instant::now();
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        let config = GameConfig::test();
+        let mut config = GameConfig::test();
+        config.starting_life = table.life;
         let mut game = Game::new(config, decks).expect("Failed to create game");
         game.reseed(shuffle_seed);
         let dp = build_stack(dp_seed, middleware);
@@ -1030,14 +1097,14 @@ fn run_games(
     required: &[Arc<CardData>],
     require_names: &[String],
     middleware: MiddlewareConfig,
-    players: usize,
+    table: TableConfig,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    middleware, players,
+                    middleware, table,
                 )
             })
             .collect();
@@ -1067,7 +1134,7 @@ fn run_games(
                                     required,
                                     require_names,
                                     middleware,
-                                    players,
+                                    table,
                                 ),
                             ));
                         }
@@ -1110,6 +1177,13 @@ fn main() {
     }
     if args.threads > 1 {
         println!("Threads: {}", args.threads);
+    }
+    // Both printed only off their defaults, for the payer line's reason.
+    if args.deck_size != 60 {
+        println!("Deck size: {}", args.deck_size);
+    }
+    if args.life != 20 {
+        println!("Life: {}", args.life);
     }
 
     // Named in the header and again in the results, because the stats below
@@ -1203,7 +1277,11 @@ fn main() {
         &required,
         &args.require,
         MiddlewareConfig { auto_pay: args.auto_pay },
-        args.players,
+        TableConfig {
+            players: args.players,
+            deck_size: args.deck_size,
+            life: args.life,
+        },
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
@@ -1569,8 +1647,8 @@ mod tests {
             // Two decks per game, so the check has to survive the second draw:
             // a stray RNG call in the first deck moves the second one too.
             for _ in 0..2 {
-                let deck = random_deck(&registry, &mut a, &[]);
-                let same = random_deck(&registry, &mut b, &[]);
+                let deck = random_deck(&registry, &mut a, &[], 60);
+                let same = random_deck(&registry, &mut b, &[], 60);
                 let names: Vec<&str> = deck.iter().map(|c| c.name.as_str()).collect();
                 let same_names: Vec<&str> = same.iter().map(|c| c.name.as_str()).collect();
                 assert_eq!(names, same_names, "seed {seed}");
@@ -1590,8 +1668,8 @@ mod tests {
         let mut with = StdRng::seed_from_u64(3);
         let mut without = StdRng::seed_from_u64(3);
         for _ in 0..10 {
-            let a = random_deck(&registry, &mut with, std::slice::from_ref(&tundra));
-            let b = random_deck(&registry, &mut without, &[]);
+            let a = random_deck(&registry, &mut with, std::slice::from_ref(&tundra), 60);
+            let b = random_deck(&registry, &mut without, &[], 60);
             let lands = |d: &[std::sync::Arc<mtgsim::objects::card_data::CardData>]| {
                 d.iter().filter(|c| c.types.contains(&CardType::Land)).count()
             };
@@ -1611,7 +1689,7 @@ mod tests {
         let cytoshape = registry.create("Cytoshape").expect("in the performance pool");
         let mut rng = StdRng::seed_from_u64(7);
         for _ in 0..25 {
-            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&cytoshape));
+            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&cytoshape), 60);
             assert_eq!(deck.len(), 60);
             assert!(
                 deck.iter().any(|c| c.name == "Cytoshape"),
@@ -1629,7 +1707,7 @@ mod tests {
         for registry in [CardRegistry::performance_pool(), CardRegistry::default_registry()] {
             let mut rng = StdRng::seed_from_u64(11);
             for _ in 0..10 {
-                let deck = random_deck(&registry, &mut rng, &[]);
+                let deck = random_deck(&registry, &mut rng, &[], 60);
                 let lands: Vec<&CardData> =
                     deck.iter().map(|c| c.as_ref()).filter(|c| is_land(c)).collect();
                 assert_eq!(lands.len(), 24, "36 nonlands, 24 lands");
@@ -1660,13 +1738,50 @@ mod tests {
         let registry = CardRegistry::performance_pool();
         let mut rng = StdRng::seed_from_u64(5);
         for _ in 0..10 {
-            let deck = random_deck(&registry, &mut rng, &[]);
+            let deck = random_deck(&registry, &mut rng, &[], 60);
             let colors: std::collections::HashSet<_> = deck
                 .iter()
                 .filter(|c| !is_land(c))
                 .flat_map(|c| c.colors.iter().copied())
                 .collect();
             assert!(colors.len() >= 3, "36 draws from the whole pool span colors; got {colors:?}");
+        }
+    }
+
+    /// `--deck-size` scales the nonland ratio and nothing else, and 60 is the
+    /// identity — the same deck, card for card, that every recorded table was
+    /// measured on. The Commander-scale board is 100: 60 nonlands, 40 lands,
+    /// the mana base's two fixed tiers untouched and the fill tier absorbing
+    /// the rest.
+    #[test]
+    fn deck_size_scales_the_nonland_ratio_and_sixty_is_the_identity() {
+        let registry = CardRegistry::performance_pool();
+        let mut a = StdRng::seed_from_u64(7);
+        let mut b = StdRng::seed_from_u64(7);
+        assert_eq!(
+            random_deck(&registry, &mut a, &[], 60)
+                .iter()
+                .map(|c| c.name.clone())
+                .collect::<Vec<_>>(),
+            random_deck(&registry, &mut b, &[], 60)
+                .iter()
+                .map(|c| c.name.clone())
+                .collect::<Vec<_>>(),
+        );
+
+        let mut rng = StdRng::seed_from_u64(7);
+        for (size, nonlands) in [(60usize, 36usize), (100, 60)] {
+            let deck = random_deck(&registry, &mut rng, &[], size);
+            assert_eq!(deck.len(), size);
+            assert_eq!(deck.iter().filter(|c| !is_land(c)).count(), nonlands);
+            let lands: Vec<&CardData> =
+                deck.iter().map(|c| c.as_ref()).filter(|c| is_land(c)).collect();
+            assert_eq!(lands.len(), size - nonlands);
+            assert_eq!(
+                lands.iter().filter(|c| c.supertypes.contains(&Supertype::Basic)).count(),
+                BASIC_LANDS_PER_DECK,
+                "the basics tier is a count, not a share"
+            );
         }
     }
 
