@@ -6070,6 +6070,21 @@ named:**
      can tell it is wrong. **Where a stamp fits, it is the pattern to copy** —
      it answered the harness's question exactly and needs no field at all.
 
+     **A third instance, sharper than both (RF's review, 2026-09-16).** Under
+     Darksteel Colossus's clause a milled member's substitute is a zone
+     change from the library *to the library*, and `perform_zone_change`
+     performs and announces nothing for a same-zone move — so there is no
+     record at all on which a kept cause could ride. The owner's wrinkle:
+     "whenever an opponent mills one or more cards, you gain life equal to
+     the number milled", on a mill of three with a Colossus in it. The
+     performed stream shows two `Milled` records (and none under Rest in
+     Peace, whose substitute writes `Exiled`); CR 701.17c's framing — "the
+     zone it moved to from the library" — treats a milled card that went
+     elsewhere as milled all the same, which reads 3, while the owner's first
+     reading was 2. Which is right is item 6's to settle with 701.17c open;
+     what RF adds is that a *stamp* is the only shape that can carry the
+     fact, because a stamp can exist where no record does.
+
      **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
      zone-change matcher, as sized above; `replacement-architecture.md` §14
      lists it among what item 6 inherits. The board had counted this item as
@@ -7045,6 +7060,21 @@ owner decided it the same day.
      **Sized:** one test per keyword, ~30 lines each, in that keyword's own
      phase file, with this fixture as the negative: the ability is usable
      without Hollow Hands and not with it.
+
+148. **Exile is the one zone the Colossus family's tests do not move
+     *from*, and the reason is a missing cause.** The clause functions in
+     exile (`ZoneSet::ALL`; `create_in_zone` and `arrive_in_zone` register
+     there, and `test_the_candidate_set_follows_the_card_from_zone_to_zone`
+     asserts the map holds an exiled Colossus), but no registered card moves
+     a card from exile into a graveyard and no `ZoneChangeCause` names that
+     move. Pull from Eternity — "put target face-up exiled card into its
+     owner's graveyard" — is the card, and the no-catchall rule makes it
+     bring its cause. Raised at RF's review (2026-09-16).
+
+     **Reachability (2026-09-16):** unreachable — no producer.
+
+     **Sized:** the card, its cause, and one test: a Colossus in exile under
+     Pull from Eternity is shuffled into its owner's library instead. Phase 8.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

@@ -1466,13 +1466,20 @@ impl Effect {
         }
     }
 
-    /// The replacement effect a static body is, through an "as long as"
-    /// clause if there is one — the same peel as [`Self::as_cost_modification`],
-    /// for the gate legs that ask "does this ability carry a replacement at
-    /// all" (`register_static_effects`, `RegistryScopeSummary::of`, the
-    /// gather's named leg). The condition is the gather's to evaluate, at the
-    /// proposal; a gate that read it here would decide existence outside the
-    /// walk (`CLAUDE.md`, "Registry membership is not effect existence").
+    /// The replacement effect this static ability is, if it is one — looking
+    /// through an "as long as" clause if there is one, since "as long as you
+    /// control an Island, if X would happen, Y happens instead" is still a
+    /// replacement effect.
+    ///
+    /// Three callers ask only *whether* an ability carries a replacement
+    /// effect, to decide if its object is worth the gather's attention:
+    /// `register_static_effects` filing the object as a source,
+    /// `RegistryScopeSummary::of` noting that a grant or copy row carries
+    /// one, and the gather's named leg reading such rows. None of them cares
+    /// whether the "as long as" clause is true right now — that is asked at
+    /// each proposal, against the board as it is then, by the gather itself.
+    /// So this function never evaluates the condition; it only looks past
+    /// it. The same peel as [`Self::as_cost_modification`].
     pub fn replacement_body(&self) -> Option<&crate::types::replacement::ReplacementDef> {
         match self {
             Effect::Replacement(def) => Some(def),

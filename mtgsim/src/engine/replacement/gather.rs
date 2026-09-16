@@ -211,7 +211,7 @@ pub(crate) fn gather(
     // one (the registry summary); both over-approximate, which costs a walk and
     // never an answer.
     let subject = subject_of(action);
-    let proposal = Proposal { action, subject, cause, frame: Some(frame) };
+    let proposal = EventProposal { action, subject, cause, frame: Some(frame) };
     let mut candidates = Vec::new();
 
     // --- Game rules that behave as replacement effects (CR 903.9b) ---------
@@ -242,7 +242,7 @@ pub(crate) fn gather(
         // CR 113.6h: asked as on the battlefield, which is the zone the frame
         // computes it in.
         if let Some(chars) = frame.frame_of(*object) {
-            let asked = Asked {
+            let asked = AskedForReplacements {
                 id: *object,
                 controller: *controller,
                 chars,
@@ -286,7 +286,7 @@ pub(crate) fn gather(
         if any_unattributed || game.replacement_ability_sources.contains(&id) {
             let controller = controller_or_owner(game, id).unwrap_or(0);
             if let Some(chars) = compute_characteristics(game, id) {
-                let asked = Asked {
+                let asked = AskedForReplacements {
                     id,
                     controller,
                     chars: &chars,
@@ -379,7 +379,7 @@ pub(crate) fn gather(
         }
         let Some(obj) = game.objects.get(&id) else { continue };
         let Some(chars) = compute_characteristics(game, id) else { continue };
-        let asked = Asked {
+        let asked = AskedForReplacements {
             id,
             // CR 108.4 — no controller off the battlefield, so its owner.
             controller: controller_or_owner(game, id).unwrap_or(obj.owner),
@@ -413,7 +413,7 @@ pub(crate) fn gather(
 /// The proposed event as every leg asks about it — one value carried through
 /// the sweeps rather than four parameters, so no leg can hand a candidate a
 /// different event from its neighbor's.
-struct Proposal<'a, 'g> {
+struct EventProposal<'a, 'g> {
     action: &'a GameAction,
     subject: EventSubject,
     /// Who caused it, for [`ReplacementDef::by`].
@@ -424,7 +424,7 @@ struct Proposal<'a, 'g> {
 }
 
 /// An object a sweep is asking for its replacement abilities.
-struct Asked<'a> {
+struct AskedForReplacements<'a> {
     id: ObjectId,
     controller: PlayerId,
     /// Its **effective** frame.
@@ -434,24 +434,33 @@ struct Asked<'a> {
     scope: SelfScope,
 }
 
-/// Could `def`, as printed on `id`, apply to this proposal?
+/// A gate on the frame read, never an answer: could the def `id` *printed*
+/// apply to this proposal at all?
 ///
-/// The zone leg's gate on the frame read, and exact rather than a shortcut:
-/// an object's effective replacement defs are its printed ones or fewer.
-/// Layer 6 can strip one (Hollow Hands) or grant one, and a granted or copied
-/// def reaches the leg through the named or zoned list, never through this
-/// map; nothing rewrites a printed def in place — Layer 3, text, is the route
-/// every gate leg leaves open (`CLAUDE.md`). So a printed def that does not
-/// apply has no effective def that could, and the question is asked of it
-/// before a frame is computed. Through [`def_applies`], the same function the
-/// effective def is asked through, so the pairing of patterns and events
-/// lives once. What it cannot see is the "as long as" clause, which the frame
-/// read then asks.
+/// The engine's answers come from effective characteristics, always
+/// (`CLAUDE.md`'s layer-system invariant), and this function decides
+/// nothing — it decides whether computing them is worth it. Computing a
+/// frame is a layer walk, and the zone leg would otherwise do one per gather
+/// for every Colossus in a library, on damage events, taps and draws its
+/// clause cannot touch. So the leg first asks the cheaper question of the
+/// printed def, and only a "yes" reads the frame, where the effective def
+/// decides.
+///
+/// Why a "no" here is safe: an object's effective replacement defs are its
+/// printed ones or fewer. Layer 6 can strip one (Hollow Hands) or grant one,
+/// and a granted or copied def reaches this leg by name or by zone through
+/// the other two legs, never through this map; nothing rewrites a printed def
+/// in place — Layer 3, text, is the route every gate leg leaves open. So a
+/// printed def that does not apply has no effective def that could, and
+/// skipping the frame changes no answer. What the printed def cannot say is
+/// whether its "as long as" clause holds, which the frame read asks. Asked
+/// through [`def_applies`], the same function the effective def is asked
+/// through, so the pairing of patterns and events lives once.
 fn printed_could_apply(
     game: &GameState,
     id: ObjectId,
     def: &ReplacementDef,
-    p: &Proposal<'_, '_>,
+    p: &EventProposal<'_, '_>,
 ) -> bool {
     let controller = controller_or_owner(game, id).unwrap_or(0);
     def_applies(game, def, id, controller, p)
@@ -501,7 +510,7 @@ enum SelfScope {
 ///
 /// `zone` is where the object is asked *as*: its own zone for the sweeps, the
 /// battlefield for the entering permanent (CR 113.6h — "functions as that
-/// object is entering the battlefield"). Asked of every ability, on the
+/// object is entering the battlefield"). AskedForReplacements of every ability, on the
 /// battlefield too, so the rule has one home: a "from your graveyard" clause
 /// on a permanent is skipped here for the same reason it is skipped in a
 /// library.
@@ -517,10 +526,10 @@ enum SelfScope {
 fn push_static_ability_replacements(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
-    asked: &Asked<'_>,
-    p: &Proposal<'_, '_>,
+    asked: &AskedForReplacements<'_>,
+    p: &EventProposal<'_, '_>,
 ) {
-    let Asked { id, controller, chars, zone, scope } = *asked;
+    let AskedForReplacements { id, controller, chars, zone, scope } = *asked;
     for ability in &chars.abilities {
         if ability.ability_type != AbilityType::Static {
             continue;
@@ -565,7 +574,7 @@ fn push_if_applicable(
     game: &GameState,
     out: &mut Vec<ReplacementInstance>,
     instance: ReplacementInstance,
-    p: &Proposal<'_, '_>,
+    p: &EventProposal<'_, '_>,
 ) {
     // CR 701.19c — "can't be regenerated" causes shields "to not be applied":
     // withheld at the door, not spent, so the shield stays for a later
@@ -607,7 +616,7 @@ pub(super) fn applies_to(
     cause: Option<PlayerId>,
     frame: Option<&EntryFrame<'_>>,
 ) -> bool {
-    let p = Proposal { action, subject, cause, frame };
+    let p = EventProposal { action, subject, cause, frame };
     def_applies(game, &instance.def, instance.source, instance.controller, &p)
 }
 
@@ -620,7 +629,7 @@ fn def_applies(
     def: &ReplacementDef,
     source: ObjectId,
     controller: PlayerId,
-    p: &Proposal<'_, '_>,
+    p: &EventProposal<'_, '_>,
 ) -> bool {
     // The cause, asked of the *effect* (`def.by`), not the pattern. `None` is
     // "however caused"; a `Some` against a turn-based or state-based action's

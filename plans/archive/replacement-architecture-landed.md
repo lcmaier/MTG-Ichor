@@ -4469,7 +4469,7 @@ a question the diff could not answer. `plans/traces/rf-a-source-off-the-battlefi
 | Darksteel Colossus, Nexus of Fate, three fixtures, the registrations | `cards/phase_rf_cards.rs`, `registry.rs`, `mod.rs` | +289 |
 | Tests — eleven integration, one unit | `tests/phase_rf_integration_test.rs`, `gather.rs` | +397 |
 | The pool entry | `registry.rs` | +11 |
-| The review — the printed-def precheck and its map, named rows by name, `Proposal` and `Asked`, the timestamp sort, the shuffle batch, `Effect::replacement_body`, the one-event mill test | `gather.rs`, `continuous_effects.rs`, `game_state.rs`, `resolve.rs`, `types/effects.rs`, two tests | +262 / −126 |
+| The review — the printed-def precheck and its map, named rows by name, `EventProposal` and `AskedForReplacements`, the timestamp sort, the shuffle batch, `Effect::replacement_body`, the one-event mill test | `gather.rs`, `continuous_effects.rs`, `game_state.rs`, `resolve.rs`, `types/effects.rs`, two tests | +262 / −126 |
 
 **+1,110 / −113 across 20 files** before docs and the review — engine 436,
 cards 324, tests 349 — inside `engineering-practices.md` §4's band. Commits

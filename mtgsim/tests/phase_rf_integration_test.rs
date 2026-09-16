@@ -318,6 +318,15 @@ fn test_the_candidate_set_follows_the_card_from_zone_to_zone() {
     assert_eq!(zone_of(&game, colossus), Zone::Library);
     assert_eq!(shuffles(&game, 0), 2);
 
+    // Into exile, where the clause functions too (`ZoneSet::ALL`) and the map
+    // follows it. The move *out* of exile into a graveyard is the one board
+    // this file does not have: no registered card makes it and no
+    // `ZoneChangeCause` names it — Pull from Eternity brings both
+    // (`codebase-state.md` main item 148).
+    game.change_zone(colossus, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
+    assert_eq!(zone_of(&game, colossus), Zone::Exile);
+    assert!(game.zone_replacement_ability_sources.contains_key(&colossus), "refiled in exile");
+
     // And onto the battlefield, where the other set takes over.
     let on_bf = put_on_battlefield(&mut game, darksteel_colossus(), 0);
     assert!(game.replacement_ability_sources.contains(&on_bf));
