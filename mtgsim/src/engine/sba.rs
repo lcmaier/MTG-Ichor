@@ -73,8 +73,8 @@ const MANDATORY_LOOP_CHECKS: usize = 500;
 /// **The `since` filter is inside this function because it is what makes that
 /// true.** Every pregame object carries epoch 0, so a sort over *all* objects
 /// has as many ties as the game has cards, and the only key available to break
-/// them is `ObjectId` — a v4 UUID, whose order differs per process, which is
-/// the one key the determinism rule names. `last_sba_check_epoch` starts at 1,
+/// them is `ObjectId`, the one key the determinism rule forbids (it is a
+/// counter now, but it is still not an order). `last_sba_check_epoch` starts at 1,
 /// so the filter discards every epoch-0 object and no tie survives it.
 fn moved_since(
     game: &GameState,
@@ -498,7 +498,7 @@ impl GameState {
         // battlefield, because `self.objects` is a `HashMap` and this sweep
         // announces: two Zombies dying in one combat would otherwise log in
         // per-process order. `move_object` stamps the epoch, monotone and one per
-        // move — the key `moved_since` uses, and not a v4 `ObjectId`. A token
+        // move — the key `moved_since` uses, and not an `ObjectId`. A token
         // created off the battlefield by `put_token_into` carries the same stamp.
         let mut tokens_to_remove: Vec<(ObjectId, Zone, u64)> = self.objects.iter()
             .filter(|(_, obj)| obj.is_token && obj.zone != Zone::Battlefield)
@@ -576,8 +576,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let bears_id = obj.id;
-        game.add_object(obj);
+        let bears_id = game.add_object(obj);
         game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 2; // lethal for a 2/2
 
         // SBA should destroy the creature
@@ -598,8 +597,7 @@ mod tests {
             .power_toughness(4, 5)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let bf = game.place_on_battlefield(id, 0, &EnterMods::NONE);
         bf.damage_marked = 1; // only 1 damage
         bf.damaged_by_deathtouch = true; // but from deathtouch
@@ -621,8 +619,7 @@ mod tests {
             .power_toughness(4, 5)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let bf = game.place_on_battlefield(id, 0, &EnterMods::NONE);
         bf.damage_marked = 0;
         bf.damaged_by_deathtouch = true;
@@ -649,8 +646,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
         game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 3);
         game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 2);
@@ -674,8 +670,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
         game.add_counters(id, crate::types::effects::CounterType::PlusOnePlusOne, 4);
         game.add_counters(id, crate::types::effects::CounterType::MinusOneMinusOne, 4);
@@ -699,8 +694,7 @@ mod tests {
             .build();
         let mut obj = GameObject::new(data, 0, Zone::Graveyard);
         obj.is_token = true;
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.players[0].graveyard.push(id);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -781,8 +775,7 @@ mod tests {
             .build();
         let mut obj = GameObject::new(data, 0, Zone::Battlefield);
         obj.is_token = true;
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -804,8 +797,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let bears_id = obj.id;
-        game.add_object(obj);
+        let bears_id = game.add_object(obj);
         game.place_on_battlefield(bears_id, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -821,22 +813,18 @@ mod tests {
     fn two_isamarus(
         game: &mut GameState,
     ) -> (crate::types::ids::ObjectId, crate::types::ids::ObjectId) {
-        let place = || {
+        let place = |game: &mut GameState| {
             let data = CardDataBuilder::new("Isamaru, Hound of Konda")
                 .card_type(CardType::Creature)
                 .supertype(Supertype::Legendary)
                 .power_toughness(2, 2)
                 .build();
-            let obj = GameObject::new(data, 0, Zone::Battlefield);
-            let id = obj.id;
-            (obj, id)
+            let id = game.add_object(GameObject::new(data, 0, Zone::Battlefield));
+            game.place_on_battlefield(id, 0, &EnterMods::NONE);
+            id
         };
-        let (o1, id1) = place();
-        game.add_object(o1);
-        game.place_on_battlefield(id1, 0, &EnterMods::NONE);
-        let (o2, id2) = place();
-        game.add_object(o2);
-        game.place_on_battlefield(id2, 0, &EnterMods::NONE);
+        let id1 = place(game);
+        let id2 = place(game);
         (id1, id2)
     }
 
@@ -1000,13 +988,11 @@ mod tests {
             .build();
 
         let obj1 = GameObject::new(legend1_data, 0, Zone::Battlefield);
-        let id1 = obj1.id;
-        game.add_object(obj1);
+        let id1 = game.add_object(obj1);
         game.place_on_battlefield(id1, 0, &EnterMods::NONE);
 
         let obj2 = GameObject::new(legend2_data, 0, Zone::Battlefield);
-        let id2 = obj2.id;
-        game.add_object(obj2);
+        let id2 = game.add_object(obj2);
         game.place_on_battlefield(id2, 0, &EnterMods::NONE);
 
         // Both on the battlefield
@@ -1048,8 +1034,7 @@ mod tests {
                 .power_toughness(2, 2)
                 .build();
             let obj = GameObject::new(data, controller, Zone::Battlefield);
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.place_on_battlefield(id, controller, &EnterMods::NONE);
             id
         };
@@ -1100,13 +1085,11 @@ mod tests {
             .build();
 
         let obj1 = GameObject::new(legend1, 0, Zone::Battlefield);
-        let id1 = obj1.id;
-        game.add_object(obj1);
+        let id1 = game.add_object(obj1);
         game.place_on_battlefield(id1, 0, &EnterMods::NONE);
 
         let obj2 = GameObject::new(legend2, 0, Zone::Battlefield);
-        let id2 = obj2.id;
-        game.add_object(obj2);
+        let id2 = game.add_object(obj2);
         game.place_on_battlefield(id2, 0, &EnterMods::NONE);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1132,13 +1115,11 @@ mod tests {
             .build();
 
         let obj1 = GameObject::new(data1, 0, Zone::Battlefield);
-        let id1 = obj1.id;
-        game.add_object(obj1);
+        let id1 = game.add_object(obj1);
         game.place_on_battlefield(id1, 0, &EnterMods::NONE); // controller = player 0
 
         let obj2 = GameObject::new(data2, 1, Zone::Battlefield);
-        let id2 = obj2.id;
-        game.add_object(obj2);
+        let id2 = game.add_object(obj2);
         game.place_on_battlefield(id2, 1, &EnterMods::NONE); // controller = player 1
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1162,8 +1143,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
-        let pw_id = obj.id;
-        game.add_object(obj);
+        let pw_id = game.add_object(obj);
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
@@ -1203,8 +1183,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
-        let pw_id = obj.id;
-        game.add_object(obj);
+        let pw_id = game.add_object(obj);
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
@@ -1233,8 +1212,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
-        let pw_id = obj.id;
-        game.add_object(obj);
+        let pw_id = game.add_object(obj);
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
@@ -1257,8 +1235,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
-        let pw_id = obj.id;
-        game.add_object(obj);
+        let pw_id = game.add_object(obj);
         // CR 306.5b's loyalty counters ride in on the entry proposal now, which
         // is what makes them replaceable (CR 614.16). `default_enter_mods` is
         // the rule; the performer only applies what it is handed.
@@ -1292,8 +1269,7 @@ mod tests {
             .subtype(Subtype::Enchantment(EnchantmentType::Aura))
             .build();
         let obj = GameObject::new(aura_data, 0, Zone::Battlefield);
-        let aura_id = obj.id;
-        game.add_object(obj);
+        let aura_id = game.add_object(obj);
         // Place on battlefield with no attached_to (simulates losing its host)
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
         assert_eq!(game.battlefield.get(&aura_id).unwrap().attached_to, None);
@@ -1328,8 +1304,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
-        let host_id = host_obj.id;
-        game.add_object(host_obj);
+        let host_id = game.add_object(host_obj);
         game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
 
         // Create an aura attached to the host
@@ -1338,8 +1313,7 @@ mod tests {
             .subtype(Subtype::Enchantment(EnchantmentType::Aura))
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
-        let aura_id = aura_obj.id;
-        game.add_object(aura_obj);
+        let aura_id = game.add_object(aura_obj);
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up attachment
@@ -1375,8 +1349,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
-        let land_id = land_obj.id;
-        game.add_object(land_obj);
+        let land_id = game.add_object(land_obj);
         game.place_on_battlefield(land_id, 0, &EnterMods::NONE);
 
         // Create an equipment
@@ -1385,8 +1358,7 @@ mod tests {
             .subtype(Subtype::Artifact(ArtifactType::Equipment))
             .build();
         let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
-        let equip_id = equip_obj.id;
-        game.add_object(equip_obj);
+        let equip_id = game.add_object(equip_obj);
         game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Illegally attach equipment to the land
@@ -1420,8 +1392,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let creature_obj = GameObject::new(creature_data, 0, Zone::Battlefield);
-        let creature_id = creature_obj.id;
-        game.add_object(creature_obj);
+        let creature_id = game.add_object(creature_obj);
         game.place_on_battlefield(creature_id, 0, &EnterMods::NONE);
 
         let equip_data = CardDataBuilder::new("Bonesplitter")
@@ -1429,8 +1400,7 @@ mod tests {
             .subtype(Subtype::Artifact(ArtifactType::Equipment))
             .build();
         let equip_obj = GameObject::new(equip_data, 0, Zone::Battlefield);
-        let equip_id = equip_obj.id;
-        game.add_object(equip_obj);
+        let equip_id = game.add_object(equip_obj);
         game.place_on_battlefield(equip_id, 0, &EnterMods::NONE);
 
         // Legally attach
@@ -1453,8 +1423,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
-        let host_id = host_obj.id;
-        game.add_object(host_obj);
+        let host_id = game.add_object(host_obj);
         game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
 
         // A plain creature illegally attached to the host
@@ -1463,8 +1432,7 @@ mod tests {
             .power_toughness(3, 3)
             .build();
         let att_obj = GameObject::new(att_data, 0, Zone::Battlefield);
-        let att_id = att_obj.id;
-        game.add_object(att_obj);
+        let att_id = game.add_object(att_obj);
         game.place_on_battlefield(att_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment
@@ -1490,8 +1458,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let host_obj = GameObject::new(host_data, 0, Zone::Battlefield);
-        let host_id = host_obj.id;
-        game.add_object(host_obj);
+        let host_id = game.add_object(host_obj);
         game.place_on_battlefield(host_id, 0, &EnterMods::NONE);
 
         let aura_data = CardDataBuilder::new("Pacifism")
@@ -1499,8 +1466,7 @@ mod tests {
             .subtype(Subtype::Enchantment(EnchantmentType::Aura))
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
-        let aura_id = aura_obj.id;
-        game.add_object(aura_obj);
+        let aura_id = game.add_object(aura_obj);
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Attach
@@ -1524,8 +1490,7 @@ mod tests {
             .enchant_filter(crate::types::effects::SelectionFilter::Creature)
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
-        let aura_id = aura_obj.id;
-        game.add_object(aura_obj);
+        let aura_id = game.add_object(aura_obj);
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Aura is on the battlefield but not attached to anything
@@ -1609,8 +1574,7 @@ mod tests {
             .keyword_flag(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE).damage_marked = 11; // lethal for an 11/11
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1630,8 +1594,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let land_obj = GameObject::new(land_data, 0, Zone::Battlefield);
-        let land_id = land_obj.id;
-        game.add_object(land_obj);
+        let land_id = game.add_object(land_obj);
         game.place_on_battlefield(land_id, 0, &EnterMods::NONE);
 
         // Create an Aura with "Enchant creature" attached to the land
@@ -1641,8 +1604,7 @@ mod tests {
             .enchant_filter(crate::types::effects::SelectionFilter::Creature)
             .build();
         let aura_obj = GameObject::new(aura_data, 0, Zone::Battlefield);
-        let aura_id = aura_obj.id;
-        game.add_object(aura_obj);
+        let aura_id = game.add_object(aura_obj);
         game.place_on_battlefield(aura_id, 0, &EnterMods::NONE);
 
         // Wire up illegal attachment (Aura enchanting a land with "Enchant creature")

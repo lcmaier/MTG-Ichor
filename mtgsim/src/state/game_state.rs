@@ -259,6 +259,12 @@ pub struct GameState {
     /// battlefield gets the current value, then the counter increments.
     pub next_timestamp: u64,
 
+    /// The next `ObjectId`, stamped by `add_object` beside the timestamp —
+    /// the one door into the store. Starts at one so that
+    /// `ObjectId::UNASSIGNED` is never a stored object's id. Cloned with the
+    /// state, so a fork mints where its parent left off.
+    next_object_id: u64,
+
     // --- The game's end (CR 104) ---
     /// Per-player loss flags, written by the `GameAction::PlayerLoses`
     /// performer and by nothing else. CR 104.5 makes a player who has lost a
@@ -709,6 +715,7 @@ impl GameState {
             blocker_damage_divisions: HashMap::new(),
             dealt_first_strike_damage: HashSet::new(),
             next_timestamp: 0,
+            next_object_id: 1,
             player_lost: vec![false; num_players],
             result: None,
             starting_life,
@@ -1950,9 +1957,15 @@ impl GameState {
 
     // --- Object management ---
 
-    /// Register a game object in the central store
+    /// Register a game object in the central store, and give it its id.
+    ///
+    /// The id comes from the state's counter here and nowhere else, so it is
+    /// the same in every process that plays the same game; whatever the
+    /// object carried before is discarded. Callers read the id off the
+    /// return value.
     pub fn add_object(&mut self, mut obj: GameObject) -> ObjectId {
-        let id = obj.id;
+        let id = ObjectId::from_counter(&mut self.next_object_id);
+        obj.id = id;
         // CR 613.7d — an object created in a zone has entered it. The other
         // stamping site is `move_object`; between them every object carries a
         // real timestamp, which `battlefield_ordered` and `static_effect_timestamp`
@@ -2195,8 +2208,7 @@ mod tests {
 
             let mut game = GameState::new(2, 20);
             let obj = GameObject::new(card, 0, Zone::Battlefield);
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.place_on_battlefield(id, 0, &EnterMods::NONE);
         }
     }

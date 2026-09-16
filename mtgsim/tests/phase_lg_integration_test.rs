@@ -45,8 +45,7 @@ use mtgsim::types::zones::Zone;
 fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
     let card = phase_lg_cards::act_of_treason();
     let source = GameObject::new(card.clone(), thief, Zone::Stack);
-    let source_id = source.id;
-    game.add_object(source);
+    let source_id = game.add_object(source);
 
     let ctx = ResolutionContext {
         source: source_id,
@@ -69,8 +68,7 @@ fn gain_control(
     duration: Duration,
 ) -> ObjectId {
     let source = GameObject::new(vanilla_creature(1, 1, &[]), thief, Zone::Stack);
-    let source_id = source.id;
-    game.add_object(source);
+    let source_id = game.add_object(source);
 
     let effect = Effect::Atom(
         Primitive::GainControl(duration),
@@ -211,8 +209,7 @@ fn test_a_spell_reports_its_caster_not_its_owner() {
 
     // P0 owns the card; P1 is casting it.
     let spell = GameObject::new(vanilla_creature(2, 2, &[]), 0, Zone::Stack);
-    let spell_id = spell.id;
-    game.add_object(spell);
+    let spell_id = game.add_object(spell);
     game.stack.push(spell_id);
     game.stack_entries.insert(spell_id, stack_entry(spell_id, 1, Effect::Sequence(Vec::new())));
 
@@ -246,8 +243,7 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
 
     // P0 casts a creature: object on the stack with a StackEntry naming P0.
     let spell = GameObject::new(vanilla_creature(2, 2, &[]), 0, Zone::Stack);
-    let spell_id = spell.id;
-    game.add_object(spell);
+    let spell_id = game.add_object(spell);
     game.stack.push(spell_id);
     game.stack_entries.insert(spell_id, stack_entry(spell_id, 0, Effect::Sequence(Vec::new())));
 
@@ -316,8 +312,7 @@ fn test_gaining_control_of_an_instant_does_not_move_its_graveyard() {
 
     // P0 owns and casts a "draw a card" instant.
     let spell = GameObject::new(card_of_type("Test Instant", CardType::Instant), 0, Zone::Stack);
-    let spell_id = spell.id;
-    game.add_object(spell);
+    let spell_id = game.add_object(spell);
     game.stack.push(spell_id);
     game.stack_entries.insert(
         spell_id,
@@ -755,8 +750,7 @@ fn test_controller_off_the_battlefield_falls_back_to_the_owner() {
     let mut game = setup_two_player_game();
     let onboard = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let in_hand = GameObject::new(vanilla_creature(2, 2, &[]), 1, Zone::Hand);
-    let in_hand_id = in_hand.id;
-    game.add_object(in_hand);
+    let in_hand_id = game.add_object(in_hand);
 
     assert_eq!(get_effective_controller(&game, onboard), Some(1));
     assert_eq!(get_effective_controller(&game, in_hand_id), Some(1));
@@ -776,8 +770,7 @@ fn test_the_gate_never_changes_an_answer() {
     let onboard = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let bystander = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let in_hand = GameObject::new(vanilla_creature(2, 2, &[]), 1, Zone::Hand);
-    let in_hand_id = in_hand.id;
-    game.add_object(in_hand);
+    let in_hand_id = game.add_object(in_hand);
 
     assert!(!game.continuous_effects.summary().any_control_changing);
     let gated = [

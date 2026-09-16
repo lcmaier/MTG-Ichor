@@ -15,7 +15,7 @@ use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, ColorChange, Duration, Effect, EffectRecipient, Primitive, Selector,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Tarmogoyf — {1}{G}
@@ -59,7 +59,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
              graveyards and its toughness is equal to that number plus 1.",
         )
         .ability(AbilityDef {
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -99,7 +99,7 @@ pub fn culling_drone() -> Arc<CardData> {
         .power_toughness(2, 2)
         .rules_text("Devoid (This card has no color.)")
         .ability(AbilityDef {
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

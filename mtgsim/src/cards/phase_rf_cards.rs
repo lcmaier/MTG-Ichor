@@ -32,7 +32,7 @@ use crate::types::colors::Color;
 use crate::types::effects::{
     Condition, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Primitive,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
@@ -41,7 +41,7 @@ use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 /// `codebase-state.md` item 120's constructor, the copy this file owes it.
 fn static_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect,
@@ -52,7 +52,7 @@ fn static_ability(effect: Effect) -> AbilityDef {
 
 fn spell_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Spell,
         costs: Vec::new(),
         effect,

@@ -13,7 +13,7 @@ use crate::types::costs::Cost;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Merfolk Thaumaturgist — {2}{U}
@@ -42,7 +42,7 @@ pub fn merfolk_thaumaturgist() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(

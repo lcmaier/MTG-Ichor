@@ -622,8 +622,7 @@ fn test_direct_enter_battlefield_action_still_performs() {
     // `propose_entry`.
     let data = enters_with("Token-ish", 2, 2, EnterModsTemplate::tapped());
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
 
     game.execute_action(
         GameAction::EnterBattlefield {

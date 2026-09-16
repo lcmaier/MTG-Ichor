@@ -610,8 +610,7 @@ mod tests {
             .subtype(Subtype::Land(LandType::Forest))
             .build();
         let obj = GameObject::new(land_data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.insert_battlefield_entity(id, PermanentState::new(id, 0, 1));
         (game, id)
     }

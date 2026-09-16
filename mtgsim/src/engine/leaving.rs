@@ -275,8 +275,7 @@ mod tests {
         let mut game = setup_game(4);
         game.player_lost[1] = true;
         let card = GameObject::new(vanilla_creature(2, 2, &[]), 2, Zone::Hand);
-        let id = card.id;
-        game.add_object(card);
+        let id = game.add_object(card);
         game.players[2].hand.push(id);
 
         let entered = game
@@ -295,8 +294,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.player_lost[1] = true;
         let card = GameObject::new(CardDataBuilder::new("Fixture").build(), 0, Zone::Hand);
-        let id = card.id;
-        game.add_object(card);
+        let id = game.add_object(card);
         game.players[0].hand.push(id);
 
         let entered = game

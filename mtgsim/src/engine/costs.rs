@@ -495,8 +495,7 @@ mod tests {
             .mana_ability_single(ManaType::Green)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
         (game, id)
@@ -596,8 +595,7 @@ mod tests {
         }
         let data = builder.build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, turn);
         // Start tapped so {Q} (untap) is payable resource-wise
         entry.tapped = true;
@@ -631,8 +629,7 @@ mod tests {
             .card_type(CardType::Artifact)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 1);
         entry.tapped = true;
         game.insert_battlefield_entity(id, entry);
@@ -679,8 +676,7 @@ mod tests {
             .power_toughness(1, 1)
             .build();
         let obj = GameObject::new(data, player, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.insert_battlefield_entity(id, PermanentState::new(id, player, 0));
         id
     }

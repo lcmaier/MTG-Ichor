@@ -2024,8 +2024,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 1);
         game.insert_battlefield_entity(id, entry);
 
@@ -2083,8 +2082,7 @@ mod tests {
                 .card_type(CardType::Land)
                 .build();
             let obj = GameObject::in_library(card, 0);
-            let oid = obj.id;
-            game.add_object(obj);
+            let oid = game.add_object(obj);
             game.players[0].library.push(oid);
         }
 
@@ -2123,8 +2121,7 @@ mod tests {
                 .card_type(CardType::Land)
                 .build();
             let obj = GameObject::in_library(card, 0);
-            let oid = obj.id;
-            game.add_object(obj);
+            let oid = game.add_object(obj);
             game.players[0].library.push(oid);
         }
 
@@ -2160,8 +2157,7 @@ mod tests {
             .keyword_flag(crate::types::keywords::KeywordFlag::Indestructible)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let target_id = obj.id;
-        game.add_object(obj);
+        let target_id = game.add_object(obj);
         let entry = PermanentState::new(target_id, 0, 1);
         game.insert_battlefield_entity(target_id, entry);
 
@@ -2170,8 +2166,7 @@ mod tests {
             .card_type(CardType::Instant)
             .build();
         let bolt_obj = GameObject::new(bolt_data, 0, Zone::Hand);
-        let source_id = bolt_obj.id;
-        game.add_object(bolt_obj);
+        let source_id = game.add_object(bolt_obj);
 
         let destroy = Effect::Atom(
             Primitive::Destroy,

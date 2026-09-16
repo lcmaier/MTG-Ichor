@@ -1615,8 +1615,7 @@ fn place_commander(game: &mut GameState, owner: PlayerId, zone: Zone) -> ObjectI
         owner,
         zone,
     );
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     match zone {
         Zone::Battlefield => {
             game.place_on_battlefield(id, owner, &EnterMods::NONE);

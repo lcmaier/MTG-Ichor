@@ -66,8 +66,7 @@ fn resolve_spell(
     // establishes and what keeps `remove_by_source` out of a copy row's
     // teardown.
     let source = GameObject::new(card.clone(), controller, Zone::Stack);
-    let source_id = source.id;
-    game.add_object(source);
+    let source_id = game.add_object(source);
     let effect = card.abilities[0].effect.clone();
     let ctx = ResolutionContext {
         source: source_id,

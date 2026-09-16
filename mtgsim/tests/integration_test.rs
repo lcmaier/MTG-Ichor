@@ -206,8 +206,7 @@ fn test_sba_integration_with_turn_structure() {
         .build();
 
     let bears = GameObject::new(bears_data.clone(), 0, Zone::Battlefield);
-    let bears_id = bears.id;
-    game.add_object(bears);
+    let bears_id = game.add_object(bears);
     game.place_on_battlefield(bears_id, 0, &EnterMods::NONE).damage_marked = 3;
 
     game.check_state_based_actions_loop(&mtgsim::ui::decision::ScriptedDecisionProvider::new()).unwrap();

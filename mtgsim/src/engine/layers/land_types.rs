@@ -44,8 +44,6 @@
 
 use std::sync::Arc;
 
-use uuid::Uuid;
-
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::card_types::{CardType, LandType, Subtype};
@@ -70,26 +68,22 @@ fn intrinsic_mana_type(land_type: LandType) -> Option<ManaType> {
 /// Stable `AbilityId` for the intrinsic mana ability that `object_id` gets from
 /// `land_type`.
 ///
-/// Derived (UUID v5) rather than random (v4) because intrinsic abilities are
-/// synthesized inside `compute_characteristics`, which is a read-only query run
-/// many times per turn and has nowhere to store anything. A `new_ability_id()`
-/// here would mint a fresh id on every call, and ids are used as activation
+/// Derived rather than minted because intrinsic abilities are synthesized
+/// inside `compute_characteristics`, which is a read-only query run many times
+/// per turn and has nowhere to store anything, and ids are used as activation
 /// handles: `available_mana_sources` hands one out in `ManaSource`, then
-/// `activate_mana_ability` recomputes and looks it up. Random ids would never
-/// match and every intrinsic mana ability would be unactivatable.
+/// `activate_mana_ability` recomputes and looks it up. A fresh id per call
+/// would never match and every intrinsic mana ability would be unactivatable.
 ///
 /// Keying on the object id also makes intrinsics unique per *object*, which
-/// printed ability ids are not: `AbilityId` is minted once per `CardData`, and
-/// `GameObject` holds an `Arc<CardData>`, so two objects sharing a card share
-/// its ability ids. Nothing collides today only because `CardRegistry::create`
-/// re-runs the factory for every copy; tokens and copy effects will not. Code
-/// that needs to identify an ability *on an object* uses the pair — see
+/// printed ability ids are not: a printed id is derived from the card, and
+/// every object built from that card shares it. Code that needs to identify an
+/// ability *on an object* uses the pair — see
 /// `mana_helpers::enumerate_activatable_mana_abilities` and `EffectOrigin::StaticAbility`.
 fn intrinsic_ability_id(object_id: ObjectId, land_type: LandType) -> AbilityId {
-    // Discriminant byte is enough: only the five basic types reach here, and
-    // the object id supplies the uniqueness.
-    let tag = [land_type as u8];
-    Uuid::new_v5(&object_id, &tag)
+    // The discriminant is tag enough: only the five basic types reach here,
+    // and the object id supplies the uniqueness.
+    AbilityId::derived_on(object_id, land_type as u8)
 }
 
 /// Build the intrinsic `{T}: Add X` mana ability a land gets from `land_type`

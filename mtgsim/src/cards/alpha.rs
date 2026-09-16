@@ -15,7 +15,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::CardType;
 use crate::types::colors::Color;
 use crate::types::effects::*;
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Lightning Bolt — {R}
@@ -29,7 +29,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -51,7 +51,7 @@ pub fn ancestral_recall() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -73,7 +73,7 @@ pub fn counterspell() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -95,7 +95,7 @@ pub fn burst_of_energy() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -117,7 +117,7 @@ pub fn giant_growth() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -143,7 +143,7 @@ pub fn volcanic_upheaval() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(

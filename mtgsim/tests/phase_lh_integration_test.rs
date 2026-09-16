@@ -47,8 +47,7 @@ fn pt(game: &GameState, id: ObjectId) -> (i32, i32) {
 /// `Sequence`, and the Aura's target lives in `chosen_targets`.
 fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let obj = GameObject::new(holy_strength(), controller, Zone::Stack);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.stack.push(id);
     game.set_stack_entry(StackEntry {
         object_id: id,

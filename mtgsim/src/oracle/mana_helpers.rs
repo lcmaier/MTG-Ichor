@@ -456,8 +456,7 @@ mod tests {
             .build();
         let ability_id = mountain.abilities[0].id;
         let obj = GameObject::new(mountain, player_id, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, player_id, 0);
         game.insert_battlefield_entity(id, entry);
         (id, ability_id)
@@ -556,8 +555,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
 
         let castable = castable_spells(&game, 0);
@@ -589,8 +587,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
 
         let castable = castable_spells(&game, 0);
@@ -628,8 +625,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(card, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true; // tapped — but ability doesn't require tap
         game.insert_battlefield_entity(id, entry);
@@ -705,8 +701,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(spell, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
 
         let castable = castable_spells(&game, 0);
@@ -738,8 +733,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(sorcery, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
 
         let castable = castable_spells(&game, 0);

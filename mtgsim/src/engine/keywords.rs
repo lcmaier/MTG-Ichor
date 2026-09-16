@@ -93,8 +93,7 @@ mod tests {
         }
         let data = builder.build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 1);
         game.insert_battlefield_entity(id, entry);
         id

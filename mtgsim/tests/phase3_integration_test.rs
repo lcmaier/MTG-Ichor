@@ -377,8 +377,7 @@ fn test_summoning_sick_cannot_attack() {
     // Place creature that IS summoning sick
     let data = creatures::grizzly_bears();
     let obj = mtgsim::objects::object::GameObject::new(data, 0, Zone::Battlefield);
-    let bears_id = obj.id;
-    game.state.add_object(obj);
+    let bears_id = game.state.add_object(obj);
     game.state.place_on_battlefield(bears_id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
     advance_to_step(&mut game, PhaseType::Combat, Some(StepType::DeclareAttackers));

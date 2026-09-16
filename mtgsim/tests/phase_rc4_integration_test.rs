@@ -503,8 +503,7 @@ fn test_containment_priest_ignores_tokens() {
 
     let mut token = GameObject::new(vanilla_creature(1, 1, &[]), 0, Zone::Battlefield);
     token.is_token = true;
-    let id = token.id;
-    game.add_object(token);
+    let id = game.add_object(token);
     game.execute_action(
         GameAction::EnterBattlefield {
             object: id,

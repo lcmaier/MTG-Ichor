@@ -420,8 +420,7 @@ pub fn put_on_battlefield(
     player: PlayerId,
 ) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     let mods = game.default_enter_mods(id, player);
     let entry = game.place_on_battlefield(id, player, &mods);
     entry.entered_battlefield_turn = 0;
@@ -443,8 +442,7 @@ pub fn put_on_battlefield_under(
     controller: PlayerId,
 ) -> ObjectId {
     let obj = GameObject::new(card_data, owner, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     let mods = game.default_enter_mods(id, controller);
     let entry = game.place_on_battlefield(id, controller, &mods);
     entry.entered_battlefield_turn = 0;
@@ -469,8 +467,7 @@ pub fn put_land_on_battlefield(
 /// See the module docs: this is not interchangeable with [`put_on_battlefield`].
 pub fn place_bare(game: &mut GameState, card_data: Arc<CardData>, owner: PlayerId) -> ObjectId {
     let obj = GameObject::new(card_data, owner, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     let entry = PermanentState::new(id, owner, 0);
     game.insert_battlefield_entity(id, entry);
     id
@@ -505,8 +502,7 @@ pub fn fill_library(game: &mut GameState, player: PlayerId, count: usize) {
     for _ in 0..count {
         let card = CardDataBuilder::new("Dummy Card").build();
         let obj = GameObject::new(card, player, Zone::Library);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.players[player].library.push(id);
     }
 }
@@ -690,8 +686,7 @@ pub fn put_on_battlefield_this_turn(
     player: PlayerId,
 ) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     let mods = game.default_enter_mods(id, player);
     game.place_on_battlefield(id, player, &mods);
     id

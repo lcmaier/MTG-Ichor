@@ -49,7 +49,7 @@ use crate::types::costs::Cost;
 use crate::types::effects::{
     Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// "creatures you control" — CR 109.5's "you" is the source's controller.
@@ -118,7 +118,7 @@ pub fn aggravated_assault() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::OnlyAsSorcery,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Mana(ManaCost::build(
                 &[ManaType::Red, ManaType::Red],

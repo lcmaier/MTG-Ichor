@@ -325,8 +325,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(bolt_data, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         game.players[0].mana_pool.add(ManaType::Red, 1);
 

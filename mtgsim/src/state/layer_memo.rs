@@ -231,8 +231,7 @@ mod tests {
         assert!(frame.is_none() && !hit, "gone from the store, and the memo did not say otherwise");
 
         let obj = GameObject::new(vanilla_creature(1, 1, &[]), 0, Zone::Hand);
-        let other = obj.id;
-        game.add_object(obj);
+        let other = game.add_object(obj);
         assert_eq!(power(&game, other), (Some(1), false));
     }
 

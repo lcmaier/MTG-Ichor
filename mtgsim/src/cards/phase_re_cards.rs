@@ -321,7 +321,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::keywords::KeywordFlag;
 use crate::types::replacement::{
@@ -336,7 +336,7 @@ use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
 /// ability list on every gather.
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -350,7 +350,7 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
 /// proposal, the way the layer pass asks it of a Kird Ape.
 fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
@@ -363,7 +363,7 @@ fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> 
 /// ability list by `engine::restriction::is_prohibited` at each proposal.
 fn static_restriction(what: Restriction) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Restriction(Box::new(RestrictionDef::new(what))),
@@ -375,7 +375,7 @@ fn static_restriction(what: Restriction) -> AbilityDef {
 /// One ability with no costs beyond the ones given.
 fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type,
         costs,
         effect,
@@ -2311,7 +2311,7 @@ pub fn live_fast() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("You draw two cards, lose 2 life, and get {E}{E} (two energy counters).")
         .ability(AbilityDef {
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![

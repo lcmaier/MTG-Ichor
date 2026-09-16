@@ -166,7 +166,7 @@ impl GameState {
         if zone == Zone::Battlefield {
             return Err(format!(
                 "creating {} on the battlefield is an entry, not an appearance",
-                obj.id
+                obj.card_data.name
             ));
         }
         let id = self.add_object(obj);

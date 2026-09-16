@@ -73,7 +73,7 @@ use crate::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet,
     PatternFill, PlayerRef, PlayerSet, Primitive,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{
@@ -85,7 +85,7 @@ use crate::types::replacement::{
 /// ability list on every gather.
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -242,7 +242,7 @@ pub fn deep_water() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
             effect: Effect::Atom(
@@ -301,7 +301,7 @@ pub fn pale_moon() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -380,7 +380,7 @@ pub fn doubling_cube() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
             effect: Effect::Atom(

@@ -107,8 +107,7 @@ fn stage_spell_with(
 ) -> ObjectId {
     let effect = card.abilities[0].effect.clone();
     let obj = GameObject::new(card, controller, Zone::Stack);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.stack.push(id);
     game.set_stack_entry(StackEntry {
         object_id: id,

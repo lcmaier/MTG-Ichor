@@ -139,8 +139,7 @@ fn mind_control() -> Arc<CardData> {
 /// Put a card straight into the exile zone.
 fn put_in_exile(game: &mut GameState, card: Arc<CardData>, owner: PlayerId) -> ObjectId {
     let obj = GameObject::new(card, owner, Zone::Exile);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.exile.push(id);
     id
 }
@@ -148,8 +147,7 @@ fn put_in_exile(game: &mut GameState, card: Arc<CardData>, owner: PlayerId) -> O
 /// Put a card straight into the command zone.
 fn put_in_command(game: &mut GameState, card: Arc<CardData>, owner: PlayerId) -> ObjectId {
     let obj = GameObject::new(card, owner, Zone::Command);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.command.push(id);
     id
 }
@@ -186,8 +184,7 @@ fn stack_object_with(
         EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1))
     };
     let obj = GameObject::new(CardDataBuilder::new("Fixture Stack Object").build(), owner, Zone::Stack);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.stack.push(id);
     game.set_stack_entry(StackEntry {
         object_id: id,

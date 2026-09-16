@@ -24,7 +24,7 @@
 
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::types::effects::{AmountExpr, Condition, Effect, ObjectFilter};
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::ManaCost;
 
 /// One cost-modifying effect: what it applies to, and what it does.
@@ -67,7 +67,7 @@ impl CostModificationDef {
     fn into_ability_body(self, condition: Option<Condition>) -> AbilityDef {
         let body = Effect::CostModification(Box::new(self));
         AbilityDef {
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: match condition {

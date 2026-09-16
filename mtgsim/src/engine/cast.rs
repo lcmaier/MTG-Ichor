@@ -343,8 +343,7 @@ impl GameState {
         // Abilities on the stack are not cards — they have no CardData.
         // We create a minimal GameObject to track it.
         let ability_obj = GameObject::new(card_data.clone(), player_id, Zone::Stack);
-        let ability_obj_id = ability_obj.id;
-        self.add_object(ability_obj);
+        let ability_obj_id = self.add_object(ability_obj);
         self.stack.push(ability_obj_id);
 
         // From here on, any Err path must call `rollback_ability_activation`
@@ -653,8 +652,7 @@ mod tests {
         // Give player 0 a bolt in hand and red mana
         let bolt = make_bolt();
         let obj = GameObject::new(bolt, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         game.players[0].mana_pool.add(ManaType::Red, 1);
         // Set to precombat main phase so sorcery-speed works too
@@ -808,8 +806,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let bolt = make_bolt();
         let obj = GameObject::new(bolt, 0, Zone::Graveyard);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].graveyard.push(card_id);
 
         let decisions = ScriptedDecisionProvider::new();
@@ -845,8 +842,7 @@ mod tests {
             })
             .build();
         let obj = GameObject::new(sorcery_data, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Set to combat phase — sorceries can't be cast here
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Combat));
@@ -892,8 +888,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let blaze = make_x_spell();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Need {R} + 3 generic = 4 total mana
         game.players[0].mana_pool.add(ManaType::Red, 4);
@@ -927,8 +922,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let blaze = make_x_spell();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Only need {R} for X=0
         game.players[0].mana_pool.add(ManaType::Red, 1);
@@ -955,8 +949,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let blaze = make_x_spell();
         let obj = GameObject::new(blaze, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Only 2 Red, but X=3 needs 4 total
         game.players[0].mana_pool.add(ManaType::Red, 2);
@@ -1008,8 +1001,7 @@ mod tests {
 
         let mut game = GameState::new(2, 20);
         let obj = GameObject::new(card, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // No mana needed — paying life instead
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
@@ -1046,8 +1038,7 @@ mod tests {
 
         let mut game = GameState::new(2, 20);
         let obj = GameObject::new(card, 0, Zone::Hand);
-        let card_id = obj.id;
-        game.add_object(obj);
+        let card_id = game.add_object(obj);
         game.players[0].hand.push(card_id);
         // Need {1}{R} (base) + {R} (kicker) = 3 red total
         game.players[0].mana_pool.add(ManaType::Red, 3);

@@ -199,10 +199,10 @@ impl PermanentState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
+    use crate::types::ids::new_object_id;
 
     fn make_permanent_state() -> PermanentState {
-        PermanentState::new(Uuid::new_v4(), 0, 1)
+        PermanentState::new(new_object_id(), 0, 1)
     }
 
     #[test]

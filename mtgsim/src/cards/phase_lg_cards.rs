@@ -8,7 +8,7 @@ use crate::types::colors::Color;
 use crate::types::effects::{
     Duration, Effect, EffectRecipient, Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 
@@ -46,7 +46,7 @@ pub fn act_of_treason() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![

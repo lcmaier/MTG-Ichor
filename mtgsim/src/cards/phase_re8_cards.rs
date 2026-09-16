@@ -48,7 +48,7 @@ use std::sync::Arc;
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::effects::{
     ObjectSet, AmountExpr, DiscardChooser, Effect, EffectRecipient, ObjectFilter, PlayerRef,
@@ -67,7 +67,7 @@ fn target_player_discards(n: u64, chooser: DiscardChooser) -> AbilityDef {
     AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Spell,
         costs: Vec::new(),
         effect: Effect::Atom(
@@ -181,7 +181,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(
@@ -245,7 +245,7 @@ pub fn opt() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -311,7 +311,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(

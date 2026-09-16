@@ -1445,6 +1445,56 @@ pub enum Effect {
 }
 
 impl Effect {
+    /// Visit every `AbilityDef` nested in this effect, depth first, each def
+    /// before the defs nested in its own effect: a granted ability
+    /// (`Primitive::GrantAbility`), a created token's abilities
+    /// (`Primitive::CreateToken`, and the token a replacement creates
+    /// instead), and whatever a replacement's rider nests in turn.
+    ///
+    /// `CardDataBuilder::build` is the caller: this is how a def that never
+    /// sits in a card's printed list still gets an id derived from the card.
+    pub fn for_each_ability_def_mut(
+        &mut self,
+        f: &mut impl FnMut(&mut crate::objects::card_data::AbilityDef),
+    ) {
+        use crate::types::replacement::{GameActionTemplate, Rewrite};
+        match self {
+            Effect::Atom(Primitive::GrantAbility(def, _), _) => {
+                f(def);
+                def.effect.for_each_ability_def_mut(f);
+            }
+            Effect::Atom(Primitive::CreateToken(token, _), _) => {
+                for def in &mut token.abilities {
+                    f(def);
+                    def.effect.for_each_ability_def_mut(f);
+                }
+            }
+            Effect::Atom(..) | Effect::Restriction(_) | Effect::CostModification(_) => {}
+            Effect::Sequence(effects) | Effect::Modal { modes: effects, .. } => {
+                for effect in effects {
+                    effect.for_each_ability_def_mut(f);
+                }
+            }
+            Effect::Conditional(_, effect)
+            | Effect::Optional(effect)
+            | Effect::ForEach(_, effect)
+            | Effect::Repeat(_, effect) => effect.for_each_ability_def_mut(f),
+            Effect::Replacement(def) => {
+                if let Rewrite::Instead(GameActionTemplate::CreateTokens { def: token, .. }) =
+                    &mut def.rewrite
+                {
+                    for def in &mut token.abilities {
+                        f(def);
+                        def.effect.for_each_ability_def_mut(f);
+                    }
+                }
+                if let Some(then) = &mut def.then {
+                    then.for_each_ability_def_mut(f);
+                }
+            }
+        }
+    }
+
     /// The cost modification a static body is, with the "as long as" clause
     /// wrapped around it if there is one.
     ///

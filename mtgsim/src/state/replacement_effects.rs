@@ -282,7 +282,7 @@ mod tests {
     use super::*;
     use crate::types::effects::ObjectSet;
     use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
-    use uuid::Uuid;
+    use crate::types::ids::new_object_id;
 
     fn row(source: ObjectId, duration: Duration) -> RegisteredReplacementEffect {
         RegisteredReplacementEffect {
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn spending_a_next_damage_count_keeps_the_row_until_it_reaches_zero() {
         let mut reg = ReplacementEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let id = reg.add(next_damage_row(src, 4));
 
         assert_eq!(reg.spend_next_damage(id, 3), Some(1));
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn spending_is_only_for_next_damage_rows() {
         let mut reg = ReplacementEffectRegistry::new();
-        let id = reg.add(row(Uuid::new_v4(), Duration::UntilEndOfTurn));
+        let id = reg.add(row(new_object_id(), Duration::UntilEndOfTurn));
         assert_eq!(reg.spend_next_damage(id, 2), None);
         assert_eq!(reg.len(), 1);
     }
@@ -355,7 +355,7 @@ mod tests {
         // The id is part of the CR 614.5 applied-set key: a reused one would
         // let a fresh effect inherit an earlier one's "already applied" mark.
         let mut reg = ReplacementEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let a = reg.add(row(src, Duration::UntilEndOfTurn));
         reg.remove(a);
         let b = reg.add(row(src, Duration::UntilEndOfTurn));
@@ -365,8 +365,8 @@ mod tests {
     #[test]
     fn test_remove_by_source() {
         let mut reg = ReplacementEffectRegistry::new();
-        let a = Uuid::new_v4();
-        let b = Uuid::new_v4();
+        let a = new_object_id();
+        let b = new_object_id();
         reg.add(row(a, Duration::UntilEndOfTurn));
         reg.add(row(a, Duration::Indefinite));
         reg.add(row(b, Duration::UntilEndOfTurn));
@@ -381,7 +381,7 @@ mod tests {
         // Order is decision order: a `DecisionProvider` picks a CR 616.1
         // candidate by index.
         let mut reg = ReplacementEffectRegistry::new();
-        let sources: Vec<ObjectId> = (0..4).map(|_| Uuid::new_v4()).collect();
+        let sources: Vec<ObjectId> = (0..4).map(|_| new_object_id()).collect();
         for s in &sources {
             reg.add(row(*s, Duration::UntilEndOfTurn));
         }
@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn test_until_end_of_turn_expires_at_cleanup() {
         let mut reg = ReplacementEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(row(src, Duration::UntilEndOfTurn));
         reg.add(row(src, Duration::WhileSourceOnBattlefield));
 
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn test_until_your_next_turn_does_not_expire_on_the_turn_it_was_made() {
         let mut reg = ReplacementEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(row(src, Duration::UntilYourNextTurn));
 
         assert_eq!(reg.remove_expired_at_turn_start(0, 1).len(), 0, "same turn");

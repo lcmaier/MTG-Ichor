@@ -59,7 +59,7 @@ const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affec
 /// CR 616.1's "you may … instead" prompt.
 const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
     affected_object: None,
-    source: uuid::Uuid::nil(),
+    source: ObjectId::UNASSIGNED,
 };
 
 // ---------------------------------------------------------------------------
