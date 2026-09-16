@@ -316,12 +316,26 @@ measurement this row does not own.** Until RE-7 every number the project had
 was two-player, because `fuzz_games` built a literal pair of decks; since
 2026-09-13 the harness takes `--players`, every `fuzz-record.md` block
 carries two- and four-seat columns (RE-9's: 13.98 ms and 44.83 ms CPU per
-game), and what is still missing is the *Commander-scale* board — four
-100-card decks, ~40 permanents — which is main item 69's remaining half and
-pass 3 of `plans/handoffs/post-re-audit.md`'s to measure, in the metric that
-handoff settles (decisions per core-second at four seats). So the order is:
-that measurement, then pick a lever against it. Choosing one now would be
-tuning the wrong board. Network play is a stretch goal. Milestone:
+game), and the *Commander-scale* board — four 100-card decks at 40 life —
+was measured by pass 3 of `plans/handoffs/post-re-audit.md` (2026-09-15,
+`codebase-state.md` items 138 and 143): 83-turn games holding ~30 permanents
+at a priority prompt (max 78–81), 1.7–1.8× the CPU of a 60-card game, and
+a clone of 5–6 µs without the event log, 125 µs with it — the ratios
+travel; the milliseconds behind them (87 and 137 against 51 and 76) are
+one machine on 2026-09-15 and are stored nowhere as a fixture
+(`engineering-practices.md` §3). In the metric that handoff settles —
+decisions per core-second at four seats, a decision being a prompt with two
+or more options — the engine read **10,000** on the 60-card `performance`
+board and **7,950** at Commander scale that day, and the rate is read in an
+A/B sitting against seed-deterministic decision counts, never compared
+across machines; item 138 sets the
+target as a ratchet — a 2.5-point budget per PR, a dated reading at each
+spine close that may not get worse per decision, cores per GPU as the
+use-case check — and ranks the levers by what each returns per decision,
+item 141 answers the serialization question, and the fork test (main
+item 41, promoted to a requirement) found the one thing on the stack that
+should not be, main item 139. So the order is: the owner sets the number,
+then pick a lever against it. Network play is a stretch goal. Milestone:
 **user-ready**, which is v1.
 
 **Sizing, with §8's caveat.** Rows A and B sum to roughly the ~35–40 PRs §8

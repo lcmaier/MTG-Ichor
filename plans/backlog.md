@@ -1181,6 +1181,85 @@ mechanic rather than a migration, which is why it is here and not in
 - **Owner** — none yet. **Sequenced ahead of full control** by the owner
   (2026-09-08): the census runs first so full control is scheduled against the
   whole stack rather than against the one decorator that happened to need it.
+- **The 24 asks, classified for the fork model** (pass 3 of
+  `plans/handoffs/post-re-audit.md`, 2026-09-15 — its §4 consequence 2 and
+  §6 decision 4). The owner's rule: an inner ask is either a *parameter of
+  the action chosen at priority* or *answered by a policy the harness
+  supplies*, never a separate observation. Read against `ui/ask.rs`'s 24
+  functions — the whole decision surface, 27 engine call sites and none in
+  `tests/` — three classes come out, **B** (a boundary of its own: the seat
+  is asked to act), **P** (a parameter of the action chosen at priority) and
+  **C** (answered as an effect resolves, by a policy or the agent), plus the
+  residual §4 flags. The last column is prompts per game at four seats,
+  `performance` / `stress` / Commander-scale `stress` (four 100-card decks,
+  40 life), 200 / 200 / 100 games at seed 12345, from a throwaway counting
+  provider — a pure function of the seed, like every fixture row:
+
+  | `ask_*` | `ChoiceKind` | asked of | class | per game |
+  |---|---|---|---|---|
+  | `choose_priority_action` | `PriorityAction` | the seat with priority | **B**, the boundary — but **188 / 314 / 476** of these offer more than `Pass`; the rest are forced and a harness skips them unobserved | 2,219 / 2,505 / 3,502 |
+  | `choose_attackers` | `DeclareAttackers` | the active player | **B** — CR 508.1's turn-based action, a decision of its own and never a parameter | 34 / 32 / 45 |
+  | `choose_blockers` | `DeclareBlockers` | the defending player | **B** — and it lands on a seat other than the active player by construction | 15 / 14 / 19 |
+  | `choose_attacker_damage_assignment` | `AssignCombatDamage` | the attacker's controller | **B** or **C** — strategy at the margin; `default_damage_assignment` is the policy | 2.1 / 2.3 / 3.7 |
+  | `choose_trample_damage_assignment` | `AssignTrampleDamage` | same | **B** or **C** — `default_trample_assignment` | 0.17 / 0.28 / 0.40 |
+  | `choose_x_value` | `ChooseXValue` | the caster | **P** | 0 / 0 / 0 — no pooled X spell |
+  | `choose_alternative_cost` | `ChooseAlternativeCost` | the caster | **P** | 0 / 0 / 0 — none registered |
+  | `choose_additional_costs` | `ChooseAdditionalCosts` | the caster | **P** | 0 / 0 / 0 — none registered |
+  | `select_recipients`, at CR 601.2c | `SelectRecipients` | the caster | **P** — the one parameter that must reach the agent: targets are strategy | 30 / 26 / 36, both sites |
+  | `select_recipients`, at resolution | `SelectRecipients` | the controller | **C** or the agent's — a non-targeting "choose" as the spell resolves | in the row above |
+  | `activate_mana_ability` | `ManaAbilityWindow` | the payer | **P** by policy — the tap solver §2.18 still owes; `ManaWindowStop` is the half built | 194 / 332 / 476 |
+  | `choose_generic_mana_allocation` | `GenericManaAllocation` | the payer | **P** by policy — `AutoPayer` when forced; otherwise a policy, or the agent | 41 / 88 / 136 |
+  | `order_cost_reductions` | `OrderCostReductions` | the payer | **P** by policy — `AutoPayer`, always (`cost-architecture.md` §3.4) | 0 / 0.07 / 0.02 |
+  | `choose_sacrifice_for_cost` | `ChooseSacrificeForCost` | the payer | **P** — strategy; the agent's, or the auto-sacrifice row above | 0.22 / 0.38 / 0.62 |
+  | `commander_to_command_zone` | `CommanderToCommandZoneSba` | the commander's owner | **C**, and **residual** — an SBA's question to whichever seat owns the commander, mid-batch | 0 / 0 / 0 — `fuzz_games` seats no commander |
+  | `discard` | `Discard` | the affected player | **C** for CR 514.1's cleanup (the active player); **residual** for "target player discards" — Mind Rot's target chooses | 3.6 / 4.0 / 8.6 |
+  | `scry` | `Scry` | the controller | **C** or the agent's | 0.84 / 0.44 / 0.36 |
+  | `scry`, the ordering | `ScryOrder` | the controller | **C** | 0 / 0 / 0 — every registered scry is scry 1 |
+  | `choose_replacement` | `ChooseReplacementEffect` | the affected object's controller, or the affected player (CR 616.1) | **C**, and the **residual** §4 names — it lands on whoever is affected, mid-resolution, and often not on the actor | 1.8 / 4.0 / 12.0 |
+  | `apply_optional_replacement` | `ApplyOptionalReplacement` | same (CR 614.1a's "you may") | **C**, residual | 0 / 0.01 / 0.09 |
+  | `allocate_next_damage` | `AllocateNextDamage` | the affected player (CR 615.7) | **C**, residual | 0.01 / 0.04 / 0.04 |
+  | `choose_entering_controller` | `ChooseEnteringController` | the caster (CR 616.1b) | **P**-shaped but asked at entry, after the action — a policy, or the agent | 0 / 0 / 0 — Xantcha unpooled |
+  | `choose_auxiliary_zone_change` | `ChooseAuxiliaryZoneChange` | the entering permanent's controller (CR 614.13a) | **C** or the agent's — devour's count is strategy | 0.49 / 0.33 / 0.48 |
+  | `choose_copy_source` | `ChooseCopySource` | the controller (CR 707.4) | **C** or the agent's | 0.49 / 0.22 / 0.32 |
+  | `choose_damage_source` | `ChooseDamageSource` | the controller (CR 609.7a) | **C** or the agent's | 0 / 16 / 37 |
+  | `choose_legend_to_keep` | `LegendRule` | the controller of the duplicates | **C**, **residual** when the duplicates are an opponent's — an SBA's question, mid-batch | 0.09 / 0.13 / 0.06 |
+
+  **Three things to read off it.** (1) **Six of the 24 are never reached by
+  the fuzz harness** — X, the two cost prompts, the entering controller, the
+  commander SBA and the scry ordering — because no pooled card produces
+  them; their rows come from the rules, not the census. (2) **The action
+  space is not "complete legal actions, sub-choices resolved" today**:
+  `PriorityAction` is four variants with no sub-choice, and every **P** row
+  is a separate ask made *after* the action is chosen, inside `cast_spell`
+  (CR 601.2b–h), where a rejected choice rewinds the cast
+  (`codebase-state.md` item 40's second violator). A harness that wants the
+  sub-choices in the action either enumerates the product — cast ×
+  alternative × additional × X × targets × payment, which only the tap
+  solver bounds — or presents the P rows as a hierarchical action, one
+  prompt at a time from the same fork; the second is what the record-and-
+  replay shape of the fork test (main item 41) gives for free, and it is
+  what every published Magic agent does. (3) **The residual is small and it
+  is named**: the rows marked *residual* land on a seat other than the actor
+  mid-resolution or mid-SBA — CR 616.1's affected player, CR 615.7's, a
+  targeted discard, a legend rule or a commander SBA on somebody else's
+  permanent — and the census counts them at **about 2 / 3 / 7 per game** at
+  four seats, under 1% of the prompts with a choice. What each way costs: as
+  a *policy*, the other seat's provider answers inside the acting seat's
+  engine step, which `DispatchDecisionProvider` already does in-process and
+  which an out-of-process harness pays as a second round trip mid-step; as an
+  *observation*, the batched boundary's return type becomes "the next prompt
+  with a choice, whichever seat it is for" — which subsumes the **B** rows
+  too, and is the shape Phase 10's harness doc starts from. CR 603.3b's
+  ordering joins the residual the day triggers exist, asked of each trigger's
+  controller in APNAP order.
+
+  **Per class, the cost of each way.** A **B** row is an observation and
+  costs one prompt's encoding. A **P** row answered by policy costs nothing
+  outside the engine — two of the decorators exist — and a **P** row
+  surfaced to the agent costs one more observation per parameter, from the
+  same fork. A **C** row answered by policy is free in-process and a
+  mid-step round trip out of it; surfaced, it is an observation for a seat
+  that did not act.
 
 ### 2.27 The token vocabulary — a token cannot have an ability — type half ✅ landed 2026-09-13 (RE-4)
 
