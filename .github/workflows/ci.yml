@@ -97,10 +97,17 @@ jobs:
       # seed. Three runs rather than two: two agreeing can still both be wrong
       # in the same way, and the harness has a documented reproducibility
       # contract to hold up.
-      - name: Determinism — three runs at one seed
+      #
+      # A different hasher seed per run, on purpose. Ids are process-stable
+      # (A4g, 2026-09-16) and the id-keyed maps hash with `types::ids::IdHash`,
+      # so under one seed every map iterates in the same order in every
+      # process and a sweep that leaks that order into a decision would agree
+      # with itself three times. Three seeds give the check back the property
+      # it had under `RandomState`: an unordered sweep shows up as a diff.
+      - name: Determinism — three runs at one seed, three hasher seeds
         run: |
           for i in 1 2 3; do
-            cargo run --release --bin fuzz_games -- --games 50 --seed 12345 \
+            MTGSIM_HASH_SEED="$i" cargo run --release --bin fuzz_games -- --games 50 --seed 12345 \
               | sed '/^=== Timing ===$/,/^$/d' > "run$i.txt"
           done
           diff run1.txt run2.txt

@@ -310,6 +310,16 @@ mod tests {
         assert!(tags.len() > 16, "{} distinct tags over 64 sequential ids", tags.len());
     }
 
+    /// The seed is what CI's three-run step varies: a seed that did not
+    /// reach the hash would leave every map in one order in every process.
+    #[test]
+    fn two_seeds_hash_one_key_differently() {
+        let one = IdHash { seed: 1 };
+        let two = IdHash { seed: 2 };
+        assert_ne!(one.hash_one(ObjectId(17)), two.hash_one(ObjectId(17)));
+        assert_eq!(one.hash_one(ObjectId(17)), IdHash { seed: 1 }.hash_one(ObjectId(17)));
+    }
+
     #[test]
     fn a_pair_hashes_both_halves() {
         let build = IdHash { seed: 7 };

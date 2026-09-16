@@ -8,7 +8,7 @@ use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, 
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
@@ -1816,7 +1816,7 @@ impl GameState {
             }
         }
         let performed = self.execute_actions(entries, ctx)?;
-        let created: HashSet<ObjectId> = performed
+        let created: IdSet<ObjectId> = performed
             .iter()
             .filter_map(|a| match a {
                 GameAction::EnterBattlefield { object, .. }

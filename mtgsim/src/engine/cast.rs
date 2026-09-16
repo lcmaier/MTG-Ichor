@@ -488,8 +488,8 @@ impl GameState {
             return;
         }
 
-        let mut failed: std::collections::HashSet<(ObjectId, AbilityId)> =
-            std::collections::HashSet::new();
+        let mut failed: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
+            Default::default();
 
         loop {
             let legal: Vec<(ObjectId, AbilityId)> =

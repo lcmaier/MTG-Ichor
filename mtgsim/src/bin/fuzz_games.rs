@@ -96,7 +96,7 @@ use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{IdMap, ObjectId};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -735,7 +735,7 @@ fn uncast_resolutions<'a>(
     events: impl Iterator<Item = &'a GameEvent>,
     game: &mtgsim::state::game_state::GameState,
 ) -> Vec<String> {
-    let mut casts: HashMap<ObjectId, u32> = HashMap::new();
+    let mut casts: IdMap<ObjectId, u32> = IdMap::default();
     let mut violations = Vec::new();
     for (index, event) in events.enumerate() {
         match event {

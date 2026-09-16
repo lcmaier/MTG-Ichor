@@ -126,9 +126,9 @@ reassigns from the same process-independent counter — never `ObjectId`; same f
 draw from `GameState.rng` or the provider's own `StdRng`. `::new()` and `reseed_from_entropy`
 are the deliberate opt-outs, for interactive play.
 
-The regression is `tests/determinism_test.rs`, but two runs in one process share one
-`RandomState`, so the end-to-end check is three shell `fuzz_games` runs at one seed, matching
-line for line but the timing lines. → `codebase-state.md`.
+The regression is `tests/determinism_test.rs`, but the id hasher (`types::ids::IdHash`) is seeded once
+per process, so the end-to-end check is three shell `fuzz_games` runs at one seed under three
+`MTGSIM_HASH_SEED`s, matching line for line but the timing lines. → `codebase-state.md`.
 
 ## Critical path to v1
 

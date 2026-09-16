@@ -575,10 +575,16 @@ gets the three-run check in `CLAUDE.md` for free — every timing round must
 reproduce the threaded counter run outside that block, and it prints `NO` under
 `deterministic` when one does not. By hand it is a diff of two regions rather
 than a hunt for scattered lines. Strip the block and the runs must match
-exactly:
+exactly. **Under three hasher seeds, since A4g (2026-09-16):** ids are
+process-stable and the id-keyed maps hash with `types::ids::IdHash`, seeded
+once per process from `MTGSIM_HASH_SEED`, so three runs under one seed would
+iterate every map in the same order and agree with each other whether or not a
+sweep is ordered. A different seed per run restores the property the check had
+under `RandomState`; `fuzz_ab.py` sets one per timing round and CI's step sets
+one per run.
 
 ```bash
-cd mtgsim && for i in 1 2 3; do cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt
+cd mtgsim && for i in 1 2 3; do MTGSIM_HASH_SEED=$i cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt
 ```
 
 ### 3.2 Reading the tail, and why the mean cannot do this job

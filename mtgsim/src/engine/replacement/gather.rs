@@ -28,8 +28,6 @@
 //! reason `ReplacementClass::SelfReplacement` currently has a step and no
 //! producer.
 
-use std::collections::HashSet;
-
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
@@ -44,7 +42,7 @@ use crate::types::effects::{
     ObjectSet, AmountExpr, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerSet,
     Primitive, SelectionFilter, TargetCount,
 };
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::replacement::{
     EventPattern, GameActionTemplate, ReplacementDef, Rewrite,
 };
@@ -356,7 +354,7 @@ pub(crate) fn gather(
         for zone in zone_sweep.iter() {
             named.extend(game.zone_ids_ordered(zone));
         }
-        let mut seen: HashSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
+        let mut seen: IdSet<ObjectId> = elsewhere.iter().map(|&(_, id)| id).collect();
         for id in named {
             let off_battlefield =
                 matches!(game.objects.get(&id), Some(obj) if obj.zone != Zone::Battlefield);

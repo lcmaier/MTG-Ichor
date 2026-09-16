@@ -17,11 +17,10 @@
 //! determinism hole (CLAUDE.md, "Determinism at the decision boundary").
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::types::ids::ObjectId;
+use crate::types::ids::{IdMap, ObjectId};
 
 /// Per-object frames, each stamped with the epoch it was computed at.
 ///
@@ -36,7 +35,7 @@ use crate::types::ids::ObjectId;
 /// objects ever queried — a few hundred per game.
 #[derive(Debug, Clone, Default)]
 pub struct LayerMemo {
-    frames: RefCell<HashMap<ObjectId, (u64, Arc<EffectiveCharacteristics>)>>,
+    frames: RefCell<IdMap<ObjectId, (u64, Arc<EffectiveCharacteristics>)>>,
 }
 
 impl LayerMemo {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use rand::rngs::StdRng;
@@ -17,7 +17,7 @@ use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
 
@@ -141,7 +141,7 @@ pub struct AbilityIdentity {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: HashMap<ObjectId, GameObject>,
+    pub objects: IdMap<ObjectId, GameObject>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
@@ -150,7 +150,7 @@ pub struct GameState {
     /// The stack — LIFO order (last element = top of stack)
     pub stack: Vec<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: HashMap<ObjectId, StackEntry>,
+    pub stack_entries: IdMap<ObjectId, StackEntry>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -164,7 +164,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: HashMap<ObjectId, PermanentState>,
+    pub battlefield: IdMap<ObjectId, PermanentState>,
 
     /// How much work the engine has done this game — see
     /// [`EngineCounters`](crate::state::diagnostics::EngineCounters).
@@ -244,7 +244,7 @@ pub struct GameState {
     /// Maps blocker ObjectId → Vec<(attacker ObjectId, damage amount)>.
     /// Populated by `choose_blocker_damage_division` at declare blockers and
     /// read by nothing yet — `codebase-state.md`, "Before card breadth" item 6.
-    pub blocker_damage_divisions: HashMap<ObjectId, Vec<(ObjectId, u64)>>,
+    pub blocker_damage_divisions: IdMap<ObjectId, Vec<(ObjectId, u64)>>,
     /// Tracks creatures that dealt damage during the first-strike combat damage step.
     /// Used to determine which creatures deal damage in the normal combat damage step:
     /// - First strikers: dealt first-strike damage, skip normal step.
@@ -252,7 +252,7 @@ pub struct GameState {
     /// - Normal creatures: skip first-strike step, deal in normal step.
     ///
     /// Cleared with other combat state in on_phase_end(Combat).
-    pub dealt_first_strike_damage: HashSet<ObjectId>,
+    pub dealt_first_strike_damage: IdSet<ObjectId>,
 
     // --- Timestamp counter for layer system (rule 613.7) ---
     /// Monotonically increasing counter. Each permanent that enters the
@@ -321,7 +321,7 @@ pub struct GameState {
     /// **Engine-maintained.** `place_on_battlefield` inserts and
     /// `cleanup_zone_state` removes; a hand-written removal is a card that
     /// silently stops working.
-    pub replacement_ability_sources: HashSet<ObjectId>,
+    pub replacement_ability_sources: IdSet<ObjectId>,
 
     /// Objects **off the battlefield** that printed a static ability whose
     /// body is an `Effect::Replacement` and that **functions in the zone the
@@ -359,7 +359,7 @@ pub struct GameState {
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub zone_replacement_ability_sources: HashMap<ObjectId, Vec<ReplacementDef>>,
+    pub zone_replacement_ability_sources: IdMap<ObjectId, Vec<ReplacementDef>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -383,7 +383,7 @@ pub struct GameState {
     ///
     /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
     /// inserts and `cleanup_zone_state` removes.
-    pub restriction_ability_sources: HashSet<ObjectId>,
+    pub restriction_ability_sources: IdSet<ObjectId>,
 
     /// Objects that entered the battlefield printing a static ability whose
     /// body is an `Effect::CostModification`, through an "as long as"
@@ -398,7 +398,7 @@ pub struct GameState {
     ///
     /// **Engine-maintained. Read it; do not write it.** `place_on_battlefield`
     /// inserts and `cleanup_zone_state` removes.
-    pub cost_modification_ability_sources: HashSet<ObjectId>,
+    pub cost_modification_ability_sources: IdSet<ObjectId>,
 
     /// CR 614.13a/b — the two sets an auxiliary zone change is chosen against,
     /// scoped to the batch whose entries are being decided.
@@ -679,12 +679,12 @@ impl GameState {
             .collect();
 
         GameState {
-            objects: HashMap::new(),
+            objects: Default::default(),
             players,
             stack: Vec::new(),
-            stack_entries: HashMap::new(),
+            stack_entries: Default::default(),
             resolving: None,
-            battlefield: HashMap::new(),
+            battlefield: Default::default(),
             counters: Default::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
@@ -712,8 +712,8 @@ impl GameState {
             turn_rotation: 0,
             attacks_declared: false,
             blockers_declared: false,
-            blocker_damage_divisions: HashMap::new(),
-            dealt_first_strike_damage: HashSet::new(),
+            blocker_damage_divisions: Default::default(),
+            dealt_first_strike_damage: Default::default(),
             next_timestamp: 0,
             next_object_id: 1,
             player_lost: vec![false; num_players],
@@ -722,11 +722,11 @@ impl GameState {
             skip_first_draw: false,
             continuous_effects: ContinuousEffectRegistry::new(),
             replacement_effects: ReplacementEffectRegistry::new(),
-            replacement_ability_sources: HashSet::new(),
-            zone_replacement_ability_sources: HashMap::new(),
+            replacement_ability_sources: Default::default(),
+            zone_replacement_ability_sources: Default::default(),
             restrictions: RestrictionRegistry::new(),
-            restriction_ability_sources: HashSet::new(),
-            cost_modification_ability_sources: HashSet::new(),
+            restriction_ability_sources: Default::default(),
+            cost_modification_ability_sources: Default::default(),
             entry_selection: EntrySelectionScope::default(),
             decomposition_depth: 0,
             batch_depth: 0,
@@ -919,12 +919,13 @@ impl GameState {
     /// The battlefield, oldest permanent first.
     ///
     /// **Every sweep whose order can be observed goes through this, not
-    /// `battlefield.iter()`.** `battlefield` is a `HashMap`, and `RandomState`
-    /// reseeds itself per *process*, so a direct iteration hands the legal
-    /// action list, the mana sources and the SBA sweeps to the caller in a
-    /// different order on every run — which is how `fuzz_games --seed N` came
-    /// to be irreproducible. Sorting by `ObjectId` is not a fix: ids are v4
-    /// UUIDs, so the key is itself random.
+    /// `battlefield.iter()`.** `battlefield` is a `HashMap`, and its hasher
+    /// (`types::ids::IdHash`) is seeded per *process*, so a direct iteration
+    /// hands the legal action list, the mana sources and the SBA sweeps to
+    /// the caller in a different order on every run — which is how
+    /// `fuzz_games --seed N` came to be irreproducible. Sorting by `ObjectId`
+    /// is not a fix either: an id is a counter now, but it is not an order
+    /// any rule names.
     ///
     /// The CR 613.7 timestamp is the deterministic key — read off the entry,
     /// which carries a copy of the object's for exactly this sweep's sake

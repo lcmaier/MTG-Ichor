@@ -35,7 +35,7 @@
 //! the memo otherwise (`compute::compute_non_member`).
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::{BitOr, BitOrAssign, Deref};
 use std::sync::Arc;
 
@@ -53,7 +53,7 @@ use crate::types::card_types::Subtype;
 use crate::types::effects::{
     AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerRef, Selector,
 };
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::zones::{Zone, ZoneSet};
 
@@ -80,7 +80,7 @@ pub(super) struct Board<'l> {
     /// graveyard card. `entities` and not `objects`: CR 109.1's "object"
     /// spans every zone, which is exactly what this excludes.
     battlefield_entities: usize,
-    frames: HashMap<ObjectId, EffectiveCharacteristics>,
+    frames: IdMap<ObjectId, EffectiveCharacteristics>,
     live: bool,
     /// CR 613.6 — the set of members a CR-level effect first applied to,
     /// which its later-layer rows apply to without re-running the filter or
@@ -97,7 +97,7 @@ pub(super) struct Board<'l> {
     /// working set — Tarmogoyf counting graveyard cards. Keyed the way the
     /// old per-call frame cache was, and bounded the way it was: a read at
     /// ceiling `c` only ever requests ceilings below `c`.
-    sub: RefCell<HashMap<(ObjectId, usize), Arc<EffectiveCharacteristics>>>,
+    sub: RefCell<IdMap<(ObjectId, usize), Arc<EffectiveCharacteristics>>>,
 }
 
 /// A frame handed out by [`Board::frame_of`]: borrowed from the live map, or
@@ -124,12 +124,12 @@ impl<'l> Board<'l> {
         Board {
             members: Vec::new(),
             battlefield_entities: 0,
-            frames: HashMap::new(),
+            frames: Default::default(),
             live: false,
             started: HashMap::new(),
             track_started: false,
             lookahead: None,
-            sub: RefCell::new(HashMap::new()),
+            sub: RefCell::new(Default::default()),
         }
     }
 
@@ -146,7 +146,7 @@ impl<'l> Board<'l> {
     fn seed(game: &GameState, lookahead: Option<&'l Lookahead>, asked: Option<ObjectId>) -> Self {
         let mut members = game.battlefield_ids_ordered();
         let battlefield_entities = members.len();
-        let mut seen: HashSet<ObjectId> = members.iter().copied().collect();
+        let mut seen: IdSet<ObjectId> = members.iter().copied().collect();
         if let Some(l) = lookahead
             && seen.insert(l.object) {
             members.push(l.object);
@@ -186,12 +186,12 @@ impl<'l> Board<'l> {
         let mut board = Board {
             members,
             battlefield_entities,
-            frames: HashMap::new(),
+            frames: Default::default(),
             live: true,
             started: HashMap::new(),
             track_started,
             lookahead,
-            sub: RefCell::new(HashMap::new()),
+            sub: RefCell::new(Default::default()),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
@@ -310,7 +310,7 @@ impl<'l> Board<'l> {
 
     /// Hand the frames over, for the memo. Order is a `HashMap`'s and is
     /// unobservable: the memo is keyed, never iterated.
-    pub(super) fn into_frames(self) -> HashMap<ObjectId, EffectiveCharacteristics> {
+    pub(super) fn into_frames(self) -> IdMap<ObjectId, EffectiveCharacteristics> {
         self.frames
     }
 
@@ -1439,16 +1439,16 @@ mod tests {
         let sources: Vec<ObjectId> = order.iter().map(|a| a.source).collect();
         assert_eq!(sources, vec![opalescence, ashaya, moon, urborg]);
 
-        let reached = |i: usize| -> HashSet<ObjectId> { order[i].affected.iter().copied().collect() };
-        assert_eq!(reached(0), HashSet::from([moon]), "Opalescence makes Blood Moon a creature");
+        let reached = |i: usize| -> IdSet<ObjectId> { order[i].affected.iter().copied().collect() };
+        assert_eq!(reached(0), IdSet::from_iter([moon]), "Opalescence makes Blood Moon a creature");
         assert_eq!(
             reached(1),
-            HashSet::from([ashaya, moon, bears]),
+            IdSet::from_iter([ashaya, moon, bears]),
             "Ashaya adds Forest Land to herself, Blood Moon and any other nontoken creatures"
         );
         assert_eq!(
             reached(2),
-            HashSet::from([urborg, ashaya, moon, bears]),
+            IdSet::from_iter([urborg, ashaya, moon, bears]),
             "Blood Moon changes all nonbasic lands to type Mountain, affecting Ashaya and Urborg and any other nontoken creatures"
         );
         assert!(reached(3).is_empty(), "Urborg no longer has an effect so we're done in layer 4");
@@ -1525,9 +1525,9 @@ mod tests {
     #[test]
     fn set_subtypes_to_a_basic_land_type_writes_abilities() {
         use crate::types::card_types::{CreatureType, LandType};
-        let mountain = EffectModification::SetSubtypes(HashSet::from([Subtype::Land(LandType::Mountain)]));
+        let mountain = EffectModification::SetSubtypes(std::collections::HashSet::from([Subtype::Land(LandType::Mountain)]));
         assert!(writes_of(&mountain).intersects(Channels::ABILITIES));
-        let goblin = EffectModification::SetSubtypes(HashSet::from([Subtype::Creature(CreatureType::Goblin)]));
+        let goblin = EffectModification::SetSubtypes(std::collections::HashSet::from([Subtype::Creature(CreatureType::Goblin)]));
         assert!(!writes_of(&goblin).intersects(Channels::ABILITIES));
         assert!(writes_of(&goblin).intersects(Channels::SUBTYPES));
         assert!(!writes_of(&EffectModification::ModifyPowerToughness {

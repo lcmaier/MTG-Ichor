@@ -1,13 +1,11 @@
 // Combat validation — attacker and blocker legality checks.
 // See rules 508.1 (attackers) and 509.1 (blockers).
 
-use std::collections::HashMap;
-
 use crate::oracle::characteristics::{controls, has_keyword, is_creature};
 use crate::oracle::legality::can_attack;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
@@ -107,7 +105,7 @@ pub struct BlockConstraints {
     pub restrictions: Vec<BlockRestriction>,
     pub requirements: Vec<BlockRequirement>,
     /// Per-creature maximum number of attackers it can block. Default: 1.
-    pub blocking_limits: HashMap<ObjectId, usize>,
+    pub blocking_limits: IdMap<ObjectId, usize>,
 }
 
 /// An effect that prevents a creature from blocking.
@@ -132,7 +130,7 @@ impl BlockConstraints {
         BlockConstraints {
             restrictions: Vec::new(),
             requirements: Vec::new(),
-            blocking_limits: HashMap::new(),
+            blocking_limits: Default::default(),
         }
     }
 
@@ -335,7 +333,7 @@ pub fn validate_blockers(
     constraints: &BlockConstraints,
 ) -> Result<(), CombatError> {
     // Count how many times each blocker is used
-    let mut block_counts: HashMap<ObjectId, usize> = HashMap::new();
+    let mut block_counts: IdMap<ObjectId, usize> = Default::default();
 
     for (blocker_id, attacker_id) in proposed {
         // Per-pair hard legality (shared with the pre-filter in
