@@ -530,7 +530,7 @@ fn push_static_ability_replacements(
     p: &EventProposal<'_, '_>,
 ) {
     let CheckedForReplacements { id, controller, chars, zone, scope } = *asked;
-    for ability in &chars.abilities {
+    for ability in chars.abilities.iter() {
         if ability.ability_type != AbilityType::Static {
             continue;
         }

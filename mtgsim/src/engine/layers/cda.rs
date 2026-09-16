@@ -74,7 +74,7 @@ pub(super) fn cda_modifications(
 ) -> Vec<(AbilityId, EffectModification)> {
     let mut out = Vec::new();
 
-    for ability in &chars.abilities {
+    for ability in chars.abilities.iter() {
         if !ability.is_characteristic_defining {
             continue;
         }

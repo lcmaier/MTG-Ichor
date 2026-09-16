@@ -57,7 +57,7 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
         subtypes: card.subtypes.clone(),
         supertypes: card.supertypes.clone(),
         keyword_flags: card.keyword_flags.clone(),
-        abilities: card.abilities.clone(),
+        abilities: Arc::clone(&card.abilities),
         power: card.power,
         toughness: card.toughness,
         controller,
@@ -929,18 +929,18 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
             // flag, the *other* half of 604.3a(2).
             let mut granted = (**def).clone();
             granted.is_characteristic_defining = false;
-            chars.abilities.push(granted);
+            Arc::make_mut(&mut chars.abilities).push(granted);
         }
         // CR 113.10b again, and here it is *not* structural: `abilities` is a
         // `Vec` and the same ability can genuinely appear twice — printed on
         // the card and granted on top of it. `retain`, never "remove the first
         // match".
         EffectModification::LoseAbility(ability_id) => {
-            chars.abilities.retain(|a| a.id != *ability_id);
+            Arc::make_mut(&mut chars.abilities).retain(|a| a.id != *ability_id);
         }
         EffectModification::LoseAllAbilities => {
             chars.keyword_flags.clear();
-            chars.abilities.clear();
+            chars.clear_abilities();
         }
 
         // Layer 7d
@@ -986,6 +986,69 @@ mod tests {
         assert!(chars.types.contains(&CardType::Creature));
         assert!(chars.colors.contains(&Color::Green));
         assert_eq!(chars.controller, 0);
+    }
+
+    /// The `Arc` on `CardData.abilities` and on the frame is one allocation
+    /// until a layer writes it, which is what makes seeding a frame a refcount
+    /// bump instead of a clone of the ability tree (`layers-architecture.md`
+    /// §12; `codebase-state.md` item 67).
+    #[test]
+    fn untouched_frame_shares_the_cards_ability_list() {
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Llanowar Elves")
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .mana_ability_single(ManaType::Green)
+            .build();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        let card = &game.get_object(id).unwrap().card_data;
+        assert_eq!(chars.abilities.len(), 1);
+        assert!(
+            Arc::ptr_eq(&chars.abilities, &card.abilities),
+            "no layer wrote the list, so the frame holds the card's own allocation"
+        );
+    }
+
+    /// A Layer 6 grant writes the frame's list and never the card's: the write
+    /// goes through `Arc::make_mut`, which copies first while the card still
+    /// holds the list.
+    #[test]
+    fn a_layer_6_grant_does_not_write_through_to_the_card() {
+        let mut game = GameState::new(2, 20);
+        let data = CardDataBuilder::new("Llanowar Elves")
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .mana_ability_single(ManaType::Green)
+            .build();
+        let granted = CardDataBuilder::new("Donor")
+            .mana_ability_single(ManaType::Red)
+            .build()
+            .abilities[0]
+            .clone();
+        let obj = GameObject::new(data, 0, Zone::Battlefield);
+        let id = obj.id;
+        game.add_object(obj);
+        game.place_on_battlefield(id, 0, &EnterMods::NONE);
+        game.continuous_effects.add(registered(
+            id,
+            Layer::Layer6Ability,
+            1,
+            EffectModification::GrantAbility(Box::new(granted)),
+        ));
+
+        let chars = compute_characteristics(&game, id).unwrap();
+        let card = &game.get_object(id).unwrap().card_data;
+        assert_eq!(chars.abilities.len(), 2, "printed plus granted");
+        assert_eq!(card.abilities.len(), 1, "the card still has only what is printed");
+        assert!(
+            !Arc::ptr_eq(&chars.abilities, &card.abilities),
+            "the grant copied the list before writing it"
+        );
     }
 
     // COVERS-PARTIAL: ATOM-613.4c-001

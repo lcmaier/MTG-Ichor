@@ -513,7 +513,7 @@ fn land_mana_colors(card: &CardData) -> Vec<Color> {
     use mtgsim::types::effects::{Effect, Primitive};
 
     let mut colors = Vec::new();
-    for ability in &card.abilities {
+    for ability in card.abilities.iter() {
         let Effect::Atom(Primitive::ProduceMana(output), _) = &ability.effect else {
             continue;
         };

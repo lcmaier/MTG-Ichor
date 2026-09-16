@@ -100,7 +100,7 @@ pub fn available_mana_sources(game: &GameState, player_id: PlayerId) -> Vec<Mana
 
         // Effective abilities, not printed: a Blood-Mooned land's intrinsic
         // {T}: Add {R} exists nowhere in its CardData (CR 305.7).
-        for ability in &crate::oracle::characteristics::get_effective_abilities(game, id) {
+        for ability in crate::oracle::characteristics::get_effective_abilities(game, id).iter() {
             if ability.ability_type != AbilityType::Mana {
                 continue;
             }

@@ -28,7 +28,10 @@ pub struct CardData {
     pub toughness: Option<i32>,
     pub loyalty: Option<i32>,
     pub defense: Option<i32>,
-    pub abilities: Vec<AbilityDef>,
+    /// Shared with every frame the layer walk seeds from this card, and
+    /// written only through `Arc::make_mut`, so a walk is a refcount bump
+    /// rather than a clone of the ability tree (`layers-architecture.md` §12).
+    pub abilities: Arc<Vec<AbilityDef>>,
     pub keyword_flags: HashSet<KeywordFlag>,
     /// Color indicator (rule 204) — used for cards with no mana cost that have
     /// an intrinsic color (e.g., back faces of DFCs, Ancestral Vision suspend).
@@ -162,7 +165,7 @@ impl CardDataBuilder {
                 toughness: None,
                 loyalty: None,
                 defense: None,
-                abilities: Vec::new(),
+                abilities: Arc::new(Vec::new()),
                 keyword_flags: HashSet::new(),
                 color_indicator: None,
                 enchant_filter: None,
@@ -254,14 +257,14 @@ impl CardDataBuilder {
     }
 
     pub fn ability(mut self, ability: AbilityDef) -> Self {
-        self.data.abilities.push(ability);
+        Arc::make_mut(&mut self.data.abilities).push(ability);
         self
     }
 
     /// Shorthand: add a mana ability that taps to produce one mana of the given type.
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
-        self.data.abilities.push(AbilityDef {
+        Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: crate::types::ids::new_ability_id(),

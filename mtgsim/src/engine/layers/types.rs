@@ -6,6 +6,7 @@
 //! layer + timestamp order.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::{CardType, Subtype, Supertype};
@@ -283,7 +284,10 @@ pub struct EffectiveCharacteristics {
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,
-    pub abilities: Vec<AbilityDef>,
+    /// Seeded as the card's own `Arc` and written only through
+    /// `Arc::make_mut`, so a frame no layer writes shares the card's list
+    /// and a Layer 6 grant copies before it writes; the card is never touched.
+    pub abilities: Arc<Vec<AbilityDef>>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
     pub controller: PlayerId,
@@ -297,4 +301,13 @@ pub struct EffectiveCharacteristics {
     /// overwrites it only when the controller actually changes — gaining control
     /// of your own permanent must not restart the clock.
     pub control_since_turn: u32,
+}
+
+impl EffectiveCharacteristics {
+    /// Empty the ability list. Replaced rather than `Arc::make_mut` then
+    /// `clear`: a list still shared with the card would be deep-cloned only
+    /// to be emptied.
+    pub(crate) fn clear_abilities(&mut self) {
+        self.abilities = Arc::new(Vec::new());
+    }
 }

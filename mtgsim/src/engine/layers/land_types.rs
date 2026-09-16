@@ -42,6 +42,8 @@
 //! from the registry the strip simply stops running, and the printed abilities
 //! are back on the next call.
 
+use std::sync::Arc;
+
 use uuid::Uuid;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
@@ -176,13 +178,13 @@ pub(crate) fn apply_set_subtypes(
 
     // CR 305.7 — lose abilities from rules text, old land types, and copiable
     // effects. See the module docs for why this is an unconditional clear.
-    chars.abilities.clear();
+    chars.clear_abilities();
     chars.keyword_flags.clear();
 
     // ... and gain the appropriate mana ability for each new basic land type.
     for land_type in new_basics {
         if let Some(ability) = intrinsic_mana_ability(object_id, land_type) {
-            chars.abilities.push(ability);
+            Arc::make_mut(&mut chars.abilities).push(ability);
         }
     }
 }
@@ -208,7 +210,7 @@ pub(crate) fn apply_add_subtype(
 
     if let Subtype::Land(land_type) = subtype
         && let Some(ability) = intrinsic_mana_ability(object_id, *land_type) {
-        chars.abilities.push(ability);
+        Arc::make_mut(&mut chars.abilities).push(ability);
     }
 }
 
@@ -235,7 +237,7 @@ mod tests {
             subtypes,
             supertypes: HashSet::new(),
             keyword_flags: HashSet::new(),
-            abilities: vec![AbilityDef {
+            abilities: Arc::new(vec![AbilityDef {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
@@ -248,7 +250,7 @@ mod tests {
                     }),
                     EffectRecipient::Implicit,
                 ),
-            }],
+            }]),
             power: None,
             toughness: None,
             controller: 0,
