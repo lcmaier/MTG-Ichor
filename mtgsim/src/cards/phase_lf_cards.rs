@@ -95,7 +95,7 @@ pub fn humility() -> Arc<CardData> {
 ///
 /// It also crosses the layer system into mana enumeration, which is the part
 /// that broke last time: `oracle::mana_helpers::activatable_abilities`,
-/// `engine::priority`'s id→index re-derivation, and `engine::cast::
+/// `engine::priority`'s id→index re-derivation, and `engine::put_on_stack::
 /// activate_ability` must all index the *effective* ability list, or a creature
 /// under this card taps for the wrong thing. That coupling is called out in
 /// CLAUDE.md and had no card able to test it end to end until now.

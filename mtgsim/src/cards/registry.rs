@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_a4i_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -49,7 +50,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 90] = [
+const PERFORMANCE_POOL: [&str; 91] = [
     "Plains",
     "Island",
     "Swamp",
@@ -413,6 +414,17 @@ const PERFORMANCE_POOL: [&str; 90] = [
     // opens, which no permanent can measure. Nexus of Fate stays out for
     // Time Walk's reason: an extra turn moves `Avg turns/game` by design.
     "Darksteel Colossus",
+    // The pool's spell with **several instances of the word "target"**
+    // (CR 601.2c, A4i) — the announcement loop, the CR 608.2b re-check per
+    // instance, and the per-instance castability gate, in a measured game
+    // rather than only in a fixture. Three clauses, identical criteria, so a
+    // random agent that can reach one creature reaches all three of them and a
+    // board with several makes each announcement a real prompt. Two mana and
+    // two colors the pool's duals cover, so a random deck can cast it;
+    // Incremental Growth, Jagged Lightning and Plague Spores stay out — the
+    // first two walk this same loop and the third wants a board a random game
+    // does not assemble.
+    "Seeds of Strength",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -867,6 +879,16 @@ impl CardRegistry {
         registry.register("Darksteel Colossus", phase_rf_cards::darksteel_colossus);
         registry.register("Nexus of Fate", phase_rf_cards::nexus_of_fate);
 
+        // A4i — CR 601.2c's three shapes of "several instances of target". The
+        // module doc says which card presses on which; Seat of the Synod is
+        // here because the CR's own example of one object satisfying two
+        // clauses is an artifact land.
+        registry.register("Seeds of Strength", phase_a4i_cards::seeds_of_strength);
+        registry.register("Incremental Growth", phase_a4i_cards::incremental_growth);
+        registry.register("Jagged Lightning", phase_a4i_cards::jagged_lightning);
+        registry.register("Plague Spores", phase_a4i_cards::plague_spores);
+        registry.register("Seat of the Synod", phase_a4i_cards::seat_of_the_synod);
+
         registry
     }
 
@@ -944,3 +966,56 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod instance_references {
+    use super::*;
+    use crate::types::effects::{Effect, EffectRecipient};
+
+    /// Every `EffectRecipient::SameInstanceAs(ix)` a registered card writes names an
+    /// instance of "target" that the same effect declares (CR 115.3).
+    ///
+    /// **An authoring check, not a rules one.** A card that writes
+    /// `Instance(1)` where its effect declares one clause resolves to an error
+    /// deep inside `resolve_effect` — at the moment the spell is already on the
+    /// stack and paid for. Caught here it is a typo; caught there it is a game
+    /// that cannot finish. The walk is `effect_instances`' own, so the two
+    /// cannot disagree about what counts as a declaration.
+    #[test]
+    fn every_instance_back_reference_names_a_declared_clause() {
+        fn check(what: &str, effect: &Effect) {
+            let declared = crate::engine::targeting::effect_instances(effect).len();
+            let mut stack = vec![effect];
+            while let Some(e) = stack.pop() {
+                match e {
+                    Effect::Atom(_, EffectRecipient::SameInstanceAs(ix)) => assert!(
+                        *ix < declared,
+                        "{what} refers to instance {ix} of \"target\" but declares {declared}"
+                    ),
+                    Effect::Atom(..) => {}
+                    Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => {
+                        stack.extend(subs.iter())
+                    }
+                    Effect::Conditional(_, inner)
+                    | Effect::Optional(inner)
+                    | Effect::ForEach(_, inner)
+                    | Effect::Repeat(_, inner) => stack.push(inner),
+                    Effect::Replacement(_)
+                    | Effect::Restriction(_)
+                    | Effect::CostModification(_) => {}
+                }
+            }
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                check(&format!("{name} ability #{i}"), &ability.effect);
+            }
+        }
+    }
+}
+

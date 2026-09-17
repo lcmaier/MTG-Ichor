@@ -34,6 +34,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -254,7 +255,7 @@ fn test_an_ability_strip_removes_a_flying_counters_keyword_when_it_is_later() {
 
     assert!(
         !has_keyword(&game, id, KeywordFlag::Flying),
-        "CR 613.7: the strip has the later timestamp, so it applies after the          counter granted the keyword"
+        "CR 613.7: the strip has the later timestamp, so it applies after the counter granted the keyword"
     );
 }
 
@@ -302,7 +303,7 @@ fn test_adding_a_counter_of_the_same_kind_retimestamps_the_whole_stack() {
     );
     assert!(
         has_keyword(&game, id, KeywordFlag::Flying),
-        "CR 613.7c: the new counter re-timestamps every counter of its kind, so          the pair now applies after the strip"
+        "CR 613.7c: the new counter re-timestamps every counter of its kind, so the pair now applies after the strip"
     );
 }
 
@@ -364,7 +365,7 @@ fn test_humility_does_not_strip_itself() {
     assert_eq!(
         get_effective_abilities(&game, humility).len(),
         1,
-        "Humility is an Enchantment; its filter is creatures, so CR 604.2 finds          its ability intact at every layer"
+        "Humility is an Enchantment; its filter is creatures, so CR 604.2 finds its ability intact at every layer"
     );
     assert!(!has_keyword(&game, bear, KeywordFlag::Flying));
     assert_eq!(
@@ -398,7 +399,7 @@ fn test_humility_does_not_restore_a_devoid_cards_printed_color() {
     );
     assert!(
         get_effective_colors(&game, drone).is_empty(),
-        "CR 113.12: Devoid set a characteristic rather than granting an ability,          and Layer 5 ran before Layer 6 removed it"
+        "CR 113.12: Devoid set a characteristic rather than granting an ability, and Layer 5 ran before Layer 6 removed it"
     );
 }
 
@@ -462,7 +463,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -471,7 +472,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
     assert_eq!(
         (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
         (Some(3), Some(3)),
-        "CR 613.7a: the granted ability's effect takes the granting spell's          timestamp, which is later than the creature's, so it applies last in 7b"
+        "CR 613.7a: the granted ability's effect takes the granting spell's timestamp, which is later than the creature's, so it applies last in 7b"
     );
 }
 
@@ -503,7 +504,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -517,7 +518,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     assert_eq!(
         (get_effective_power(&game, creature), get_effective_toughness(&game, creature)),
         (Some(2), Some(2)),
-        "CR 604.2: registry membership is not existence — the ability is gone,          so the effect it generated no longer applies"
+        "CR 604.2: registry membership is not existence — the ability is gone, so the effect it generated no longer applies"
     );
 }
 
@@ -541,7 +542,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -555,7 +556,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
     assert_eq!(
         game.continuous_effects.len(),
         1,
-        "only the Layer 6 grant itself — an activated ability generates no          continuous effect"
+        "only the Layer 6 grant itself — an activated ability generates no continuous effect"
     );
 }
 
@@ -594,7 +595,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -710,7 +711,7 @@ fn test_humility_before_hierophants_retires_the_grant() {
 
     assert!(
         get_effective_abilities(&game, bears).is_empty(),
-        "CR 604.2 read against the live board: Humility stripped the Hierophants          earlier in layer 6, so the grant no longer exists when its turn comes"
+        "CR 604.2 read against the live board: Humility stripped the Hierophants earlier in layer 6, so the grant no longer exists when its turn comes"
     );
     assert!(get_effective_abilities(&game, hierophants).is_empty());
 

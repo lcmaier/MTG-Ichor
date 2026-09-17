@@ -35,6 +35,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::ids::{new_object_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::Zone;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,7 +52,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         source: source_id,
         ability_source: None,
         controller: thief,
-        targets: vec![ResolvedTarget::Object(victim)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -81,7 +82,7 @@ fn gain_control(
         source: source_id,
         ability_source: None,
         controller: thief,
-        targets: vec![ResolvedTarget::Object(target)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -96,7 +97,6 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         object_id: spell_id,
         controller,
         chosen_targets: Vec::new(),
-        recipient: EffectRecipient::Implicit,
         chosen_modes: Vec::new(),
         x_value: None,
         effect,
@@ -282,12 +282,12 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     assert_eq!(
         game.battlefield.get(&spell_id).unwrap().controller,
         0,
-        "CR 110.2b: the permanent's controller *by default* is whoever put the          spell on the stack -- P0, who cast it"
+        "CR 110.2b: the permanent's controller *by default* is whoever put the spell on the stack -- P0, who cast it"
     );
     assert_eq!(
         get_effective_controller(&game, spell_id),
         Some(1),
-        "CR 400.7a: and the steal's Layer 2 effect continues to apply to the          permanent the spell became, so P1 controls it"
+        "CR 400.7a: and the steal's Layer 2 effect continues to apply to the permanent the spell became, so P1 controls it"
     );
     assert_eq!(
         game.objects.get(&spell_id).unwrap().owner,
@@ -636,6 +636,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             0,
+            &ChosenTargets::NONE,
         )
         .is_ok(),
         "P0 controls it"
@@ -645,6 +646,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             1,
+            &ChosenTargets::NONE,
         )
         .is_err(),
         "P1 does not"
@@ -657,6 +659,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             1,
+            &ChosenTargets::NONE,
         )
         .is_ok(),
         "CR 613.1b: and now P1 does"
@@ -666,6 +669,7 @@ fn test_you_control_in_an_enchant_filter_reads_the_effective_controller() {
             &EffectRecipient::Target(filter, TargetCount::Exactly(1)),
             &[ResolvedTarget::Object(creature)],
             0,
+            &ChosenTargets::NONE,
         )
         .is_err(),
         "and P0 does not"

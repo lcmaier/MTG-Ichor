@@ -983,10 +983,12 @@ impl GameState {
             source: rider.source,
             ability_source: None,
             controller: rider.controller,
-            targets: vec![match rider.subject {
+            // CR 615.5's rider acts on the replaced event's subject, which is
+            // one thing and therefore one instance.
+            targets: crate::engine::targeting::ChosenTargets::one(vec![match rider.subject {
                 EventSubject::Object(id) => ResolvedTarget::Object(id),
                 EventSubject::Player(pid) => ResolvedTarget::Player(pid),
-            }],
+            }]),
             replaced_amount: rider.replaced_amount,
             damage_prevented: Some(rider.prevented),
         };

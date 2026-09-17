@@ -43,6 +43,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 /// The CR 616.1 prompt, matched by kind alone.
 const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
@@ -71,7 +72,7 @@ fn resolve_targeting(
         source,
         ability_source: None,
         controller: player,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -330,7 +331,7 @@ fn a_multiplier_reading_power_is_asked_at_the_entry_door_only() {
     let outcomes = [at_the_entry(0), at_the_entry(1)];
     assert!(
         outcomes.contains(&2) && outcomes.contains(&4),
-        "the plain doubler first takes the 1/1 to 3 power and the small doubler          falls out; the small doubler first leaves both applied — got {:?}",
+        "the plain doubler first takes the 1/1 to 3 power and the small doubler falls out; the small doubler first leaves both applied — got {:?}",
         outcomes
     );
 
@@ -809,11 +810,20 @@ fn winding_constrictor_applies_to_each_instruction() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, winding_constrictor(), 0);
     let bears = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let one = Effect::Atom(
+    let put_one = |recipient| Effect::Atom(
         Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
-        EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1)),
+        recipient,
     );
-    let twice = Effect::Sequence(vec![one.clone(), one]);
+    // Two *instructions*, one instance of "target" (CR 115.3) — which is the
+    // ruling's board: the effect names one creature and puts counters on it
+    // twice.
+    let twice = Effect::Sequence(vec![
+        put_one(EffectRecipient::Target(
+            SelectionFilter::Permanent(ObjectFilter::All),
+            TargetCount::Exactly(1),
+        )),
+        put_one(EffectRecipient::SameInstanceAs(0)),
+    ]);
 
     resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &twice, &test_dp());
 

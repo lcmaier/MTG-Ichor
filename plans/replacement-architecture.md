@@ -1505,7 +1505,7 @@ item 4), which is not the overlay's but the two-event entry it sits on.
 | `engine/costs.rs:150,165` | `Cost::Tap`, `{Q}` — emit `Tapped` | RA |
 | `engine/combat/steps.rs:70` | attackers tap — emit `Tapped` | RA |
 | `engine/combat/resolution.rs::apply_combat_damage` | batch, not a loop (CR 510.2, 615.7) | RA/RD |
-| `engine/cast.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
+| `engine/put_on_stack.rs::activate_ability` | emit `AbilityActivated`; resolution emits identity-bearing `AbilityResolved` | RA |
 | `state/game_state.rs::StackEntry` | add `cast_from: Zone` — §8c, two customers | RA |
 | `engine/sba.rs` | one CR 704.3 event: gather every condition against one game state, dedupe per object (704.7's same-result collapse), perform as one batch, `cause` on each move | RA ✅ |
 | `engine/resolve.rs::Primitive::Destroy` | lowers to `GameAction::Destroy`, not to `ZoneChange` | RB |

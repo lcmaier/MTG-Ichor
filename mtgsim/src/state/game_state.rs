@@ -4,7 +4,6 @@ use std::sync::Arc;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
@@ -46,14 +45,25 @@ pub struct StackEntry {
     pub object_id: ObjectId,
     /// The player who controls this spell/ability
     pub controller: PlayerId,
-    /// Targets chosen at cast/activation time (locked in)
-    pub chosen_targets: Vec<ResolvedTarget>,
-    /// What `chosen_targets` were chosen against at CR 601.2c / 602.2b, and
-    /// so what CR 608.2b re-checks them against. Recorded rather than
-    /// re-derived at resolution because the two must be the same question:
-    /// an Aura's comes from its enchant ability (`targeting::spell_recipient`),
-    /// which `effect` cannot show.
-    pub recipient: crate::types::effects::EffectRecipient,
+    /// CR 601.2c's instances of the word "target", in printed order: what each
+    /// was announced against, and what was chosen for it. Locked in at
+    /// cast/activation time.
+    ///
+    /// **One entry per instance, not per target and not per atom.** CR 115.3
+    /// makes the instance the unit — "the same target can't be chosen multiple
+    /// times for any one instance … the same object can be chosen once for each
+    /// instance" — so Decimate's four clauses are four entries that may share an
+    /// artifact land, while Victimize's "two target creature cards" is one entry
+    /// holding two distinct cards. CR 603.3d asks the same question of a
+    /// triggered ability, which is why this is the shape rather than a flat list
+    /// with a width.
+    ///
+    /// **Each instance records its own clause** rather than the entry recording
+    /// one, and for the reason the single `recipient` field had: the two must be
+    /// the same question at CR 601.2c and at CR 608.2b, and an Aura's comes from
+    /// its enchant ability (`targeting::spell_instances`), which `effect` cannot
+    /// show.
+    pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
     /// Modes chosen at cast time (for modal spells, future-proofed)
     pub chosen_modes: Vec<usize>,
     /// X value if the spell has a variable cost
@@ -2263,14 +2273,12 @@ mod tests {
 
     #[test]
     fn test_stack_entry_default_no_alt_cost() {
-        use crate::engine::resolve::ResolvedTarget;
         use crate::types::effects::Effect;
 
         let entry = StackEntry {
             object_id: crate::types::ids::new_object_id(),
             controller: 0,
-            chosen_targets: Vec::<ResolvedTarget>::new(),
-            recipient: crate::types::effects::EffectRecipient::Implicit,
+            chosen_targets: Vec::new(),
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),

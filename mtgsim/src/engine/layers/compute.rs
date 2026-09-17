@@ -544,6 +544,13 @@ pub(super) fn object_matches_filter(
         // Identity, off the ids: Opalescence does not animate itself, and no
         // layer can make an object something other than itself.
         ObjectFilter::EachOther => id != players.source,
+        // CR 601.2c's "another target" is a question about a *spell's
+        // announcement*, and a continuous effect's affected set is not one:
+        // there is no instance list on this side to be other than. Refused
+        // rather than answered `true`, which would silently widen a row —
+        // `targeting::object_matches_filter_for_instance` is the asker that
+        // holds the instances.
+        ObjectFilter::OtherThanInstance(_) => false,
         ObjectFilter::And(a, b) => {
             object_matches_filter(a, id, chars, players)
                 && object_matches_filter(b, id, chars, players)

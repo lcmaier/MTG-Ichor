@@ -428,7 +428,7 @@ fn test_blood_moon_strips_an_entering_taplands_ability() {
 
     assert!(
         !game.battlefield.get(&land).unwrap().tapped,
-        "CR 305.7 took the ability away before it could apply, so the land          enters untapped"
+        "CR 305.7 took the ability away before it could apply, so the land enters untapped"
     );
     assert!(
         mtgsim::oracle::characteristics::get_effective_abilities(&game, land)

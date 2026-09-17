@@ -226,6 +226,22 @@ pub enum ObjectFilter {
     /// has a source — a static ability's affected set, a CDA's count — and
     /// the selection-side matcher refuses it rather than guessing one.
     EachOther,
+    /// CR 601.2c — "**another** target creature", "a **third** target
+    /// creature": not what an earlier instance of "target" on this same spell
+    /// took.
+    ///
+    /// The rule allows one object to be chosen once for each instance "as long
+    /// as it fits the targeting criteria", and "another" is how a card puts the
+    /// exclusion *into* those criteria. Incremental Growth's three clauses are
+    /// `Creature`, `And(Creature, OtherThanInstance(0))` and that filter with
+    /// `OtherThanInstance(1)` as well.
+    ///
+    /// [`EachOther`](Self::EachOther)'s sibling, and answered the same way:
+    /// identity is not a characteristic, so no layer can change it and no
+    /// frame is read. Meaningful only where the asker holds the instances
+    /// chosen so far — the CR 601.2c loop and the CR 608.2b re-check — and
+    /// refused elsewhere rather than silently matching everything.
+    OtherThanInstance(usize),
     And(Box<ObjectFilter>, Box<ObjectFilter>),
     /// Added for Root Maze, "Artifacts and lands enter tapped" — English "and"
     /// over two type leaves is set *union*, which is this node.
@@ -508,6 +524,48 @@ pub enum EffectRecipient {
     /// Select without targeting rules — "choose" (rule 303.4a, etc.).
     /// Hexproof/shroud/protection do NOT apply.  Does not fizzle.
     Choose(SelectionFilter, TargetCount),
+    /// CR 115.3 — an instance of "target" (or of a non-targeting "choose")
+    /// that an **earlier atom of this same effect** already announced.
+    ///
+    /// `Target` and `Choose` each *declare* an instance; this refers back to
+    /// one, by its position in `targeting::effect_instances`' pre-order list.
+    ///
+    /// **An atom is an *effect*, not a clause**, and that is why the card has
+    /// to say this rather than the engine working it out. The tree records what
+    /// happens, not how many times the card said "target", and effects per
+    /// clause is whatever the wording needs.
+    ///
+    /// Two registered cards make it exact. Written the way this crate encoded
+    /// cards before A4i — each atom carrying the clause it acts on — these are
+    /// the **same tree**:
+    ///
+    /// ```text
+    /// Act of Treason     Sequence[ Atom(GainControl,          Target(Creature, Exactly(1))),
+    ///                              Atom(Untap,                Target(Creature, Exactly(1))),
+    ///                              Atom(GrantKeywordFlag,     Target(Creature, Exactly(1))) ]
+    ///
+    /// Seeds of Strength  Sequence[ Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+    ///                              Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+    ///                              Atom(ModifyPowerToughness, Target(Creature, Exactly(1))) ]
+    /// ```
+    ///
+    /// Three atoms each, every recipient identical, and the only field that
+    /// differs is the `Primitive` — which says *what happens*, never *to whom*.
+    /// **Act of Treason is one instance and Seeds of Strength is three**,
+    /// because Act of Treason prints "target creature" once and says "that
+    /// creature" and "it" afterwards. No rule reading the tree separates them:
+    /// the difference was never in the tree. It is in the card's text, which is
+    /// what this variant carries.
+    ///
+    /// The atom resolves against the declaring instance's targets *and* its
+    /// recipient, so `resolve_player_for_self` and the filtered-sweep arms see
+    /// what the declaring atom saw.
+    ///
+    /// **Named for how it reads at a call site.** `Instance(0)` says "this
+    /// atom's recipient *is* instance 0"; what it means is "this atom *reuses*
+    /// the instance declared at 0", which is what a card author needs to see
+    /// without opening this file.
+    SameInstanceAs(usize),
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,

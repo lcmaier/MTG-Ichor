@@ -360,7 +360,6 @@ pub fn put_spell_on_stack(
     card_data: Arc<CardData>,
     controller: PlayerId,
 ) -> ObjectId {
-    let recipient = crate::engine::targeting::spell_recipient(&card_data);
     // Through the engine's door, so a static ability that functions on the
     // stack (CR 113.6) is registered as it would be by a cast.
     let id = game
@@ -370,7 +369,6 @@ pub fn put_spell_on_stack(
         object_id: id,
         controller,
         chosen_targets: Vec::new(),
-        recipient,
         chosen_modes: Vec::new(),
         x_value: None,
         effect: Effect::Sequence(Vec::new()),

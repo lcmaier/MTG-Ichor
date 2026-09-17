@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py   # all must pass
 ```
 
 ## Where authority lives
@@ -39,7 +39,7 @@ on the battlefield or the stack** — route through `oracle/characteristics.rs`.
 sites with silently wrong behavior, so assume a new query needs a wrapper.
 
 **Ability *indices* are part of it.** `activatable_abilities`, `priority.rs`'s re-derivation
-by id and `cast.rs::activate_ability` must all index the *effective* list; migrating one alone
+by id and `put_on_stack.rs::activate_ability` must all index the *effective* list; migrating one alone
 mis-activates silently (CR 305.7 grants abilities that exist in no `CardData`).
 
 **Two exemptions, tagged in source and not bugs:** `// PRE-LAYER ZONE:` (cast-zone and

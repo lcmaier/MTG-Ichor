@@ -55,6 +55,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,7 +76,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
-        targets: vec![],
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -743,7 +744,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
         source,
         ability_source: None,
         controller: 0,
-        targets: vec![],
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

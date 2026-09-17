@@ -963,9 +963,9 @@ residual rather than in advance.
     `register_static_effects`, resolution, the CDA rows and cleanup;
   - `place_on_battlefield` and `move_object` (`battlefield` insert and remove,
     `obj.zone`); `PermanentState::add_counters` / `remove_counters` and its
-    timestamp write; the `objects` map, written in `cast.rs` (ability objects),
+    timestamp write; the `objects` map, written in `put_on_stack.rs` (ability objects),
     `resolve.rs` (tokens, ceasing to exist), `sba.rs`, `stack.rs` and `game_state.rs`;
-    `stack_entries` and `resolving` in `stack.rs` and `cast.rs`, because a stack
+    `stack_entries` and `resolving` in `stack.rs` and `put_on_stack.rs`, because a stack
     object's controller is read off its entry; the base controller, set at placement;
   - the `// CAST-ROLLBACK:` exemption, which moves a card without a zone change.
   Status the walk does not read — `tapped`, damage, the mana pool — does not bump. LH's
@@ -1075,7 +1075,7 @@ within 15% on every row, and the rows sum to the 108,626 questions to within
 |---|---:|---|
 | `has_subtype` | 50,627 | the SBA sweep: Aura, Equipment and Fortification asked *separately* of every permanent at every check (`sba.rs`, six sites) |
 | `is_creature` | 17,443 | SBAs, combat, targeting legality |
-| `get_effective_abilities` | 12,923 | `cast.rs` and mana-ability discovery — **a deep clone of the ability list out of the frame on every call** |
+| `get_effective_abilities` | 12,923 | `put_on_stack.rs` and mana-ability discovery — **a deep clone of the ability list out of the frame on every call** |
 | `has_type` / `has_supertype` | 9,890 / 8,441 | SBAs (the legend rule) and targeting |
 | `has_summoning_sickness` | 4,877 | the CR 601.2g window |
 | everything else | under 3,000 each | |
@@ -1303,7 +1303,7 @@ Each phase is a single bounded deliverable. Tests green at the end of each phase
    - Synthesize counter-derived 7c effects from `PermanentState.counters`.
    - Zone-scope fast-path for hidden zones (§5.1).
 5. Rewire existing `oracle/characteristics.rs` wrappers to call `compute_characteristics`.
-6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keyword_flags,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/cast.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.
+6. **Direct-`card_data` read audit** (deferred-migration item): grep for `obj.card_data.{keyword_flags,colors,types,subtypes,power,toughness,name}` outside `oracle/characteristics.rs` and `engine/put_on_stack.rs` (cast-zone legality is pre-stack). Migrate each direct read to a wrapper call OR document why the direct read is correct. Expected output: a list commit + migration edits.
 7. Modify `AbilityDef` to carry a `Keyword(KeywordAbility)` variant; `CardData.keyword_flags` is retained as a write-time convenience but readers go through `EffectiveCharacteristics.abilities`. Add `is_characteristic_defining: bool` and `origin: AbilityOrigin` fields to `AbilityDef` (defaults: false, `PrintedRulesText`). No non-default producers yet.
 8. Stub `ExpirationPredicate` AST (§15.1) with a minimal leaf set. No evaluator yet — just the types so `Duration::WhileCondition` compiles.
 

@@ -788,7 +788,7 @@ fn test_sigarda_does_not_stop_your_own_devour() {
 
     assert!(
         !game.battlefield.contains_key(&sigarda) && !game.battlefield.contains_key(&bear),
-        "your own ability may sacrifice both — Sigarda's restriction names spells and          abilities your *opponents* control"
+        "your own ability may sacrifice both — Sigarda's restriction names spells and abilities your *opponents* control"
     );
     assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 6);
 }
@@ -1041,12 +1041,12 @@ fn test_a_devoured_creature_cannot_then_be_exiled_by_the_next_effect() {
 
     assert!(
         game.players[0].graveyard.contains(&bear),
-        "CR 614.13b: the Bear was already chosen to change zones while applying an entry          replacement, so the next one may not choose it — it stays in the graveyard"
+        "CR 614.13b: the Bear was already chosen to change zones while applying an entry replacement, so the next one may not choose it — it stays in the graveyard"
     );
     assert!(game.exile.is_empty(), "and nothing was exiled");
     assert!(
         dp.is_empty(),
-        "two prompts, not three: with the Bear excluded by 614.13b and the Elder by          614.13a, the second effect had no candidate and asked nothing"
+        "two prompts, not three: with the Bear excluded by 614.13b and the Elder by 614.13a, the second effect had no candidate and asked nothing"
     );
 }
 
@@ -1149,7 +1149,7 @@ fn test_the_cr_101_2_cause_is_the_effects_controller() {
 
     assert!(
         game.battlefield.contains_key(&bear),
-        "the restriction names abilities *you* control, devour is one, and the          candidate filter asked CR 101.2 with the effect's controller"
+        "the restriction names abilities *you* control, devour is one, and the candidate filter asked CR 101.2 with the effect's controller"
     );
     assert_eq!(counters(&game, elder, CounterType::PlusOnePlusOne), 0);
 }

@@ -42,6 +42,7 @@ use mtgsim::types::replacement::{
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -54,7 +55,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source: id,
         ability_source: None,
         controller,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -452,7 +453,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
         source: circle,
         ability_source: Some(circle),
         controller: 0,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

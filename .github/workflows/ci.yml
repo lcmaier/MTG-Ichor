@@ -161,3 +161,11 @@ jobs:
       - name: Rulings ledger
         working-directory: .
         run: python3 plans/check_rulings.py --check
+
+      # A run of spaces in the middle of a message is a lost `\` line
+      # continuation, and this tree had thirty of them when the gate was
+      # written — a class of defect that only ever shows up in a panic or an
+      # `Err` somebody is already reading because something went wrong.
+      - name: String literals
+        working-directory: .
+        run: python3 plans/check_string_literals.py

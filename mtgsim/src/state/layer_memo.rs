@@ -248,7 +248,6 @@ mod tests {
             object_id: card,
             controller: 1,
             chosen_targets: Vec::new(),
-            recipient: crate::types::effects::EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(Vec::new()),

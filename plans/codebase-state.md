@@ -70,9 +70,9 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
 | 110 | Permanents | ✅ `PermanentState` + attachment | `state/battlefield.rs` |
 | 111 | Tokens — cease-to-exist | ✅ SBA 704.5d | `engine/sba.rs:332+` |
-| 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/cast.rs` |
+| 117 | Timing + priority | ✅ priority rounds, mana-ability window (601.2g / 602.1b), bounded retry + pass fallback | `engine/priority.rs`, `engine/put_on_stack.rs` |
 | 118 | Costs (types only) | ✅ alternative/additional cost enums; X + kicker + flashback + evoke scaffolding | `types/costs.rs` |
-| 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/cast.rs`, `engine/costs.rs` |
+| 118.8–118.9 | Alternative / additional cost resolution | 🟡 determine_total_cost (`engine/cost_determination`) + rollback done (T18a); wiring per-cost-type semantics pending (T18b/c/d) | `engine/put_on_stack.rs`, `engine/costs.rs` |
 | 119 | Life changes | ✅ with source attribution | `events/event.rs`, `engine/actions.rs` |
 | 120 | Damage — combat damage routing, infect/wither/lifelink | 🟡 combat damage ✅, lifelink ✅, first/double strike ✅, trample ✅, deathtouch ✅. **CR 120.3's results are a list, decomposed off the target's effective types (RD-1, 2026-09-08)**: 120.3a proposes a contained `LoseLife { cause: Damage }` in the damage's batch, 120.3c proposes `RemoveCounters { Loyalty }` — so a planeswalker can die (CR 704.5i fires 4× in 400 stress games) — 120.3e is gated on the target being a creature, and 120.3f was already lifelink's. **The event carries `unpreventable` from RD-4 (2026-09-09)** — CR 615.12's per-event shape, set by the effect that proposes the damage and carried through a CR 614.9 redirect, because "the same damage" is what a redirect moves. **120.3b/d/g/h ❌** — poison, wither's counters, toxic, a battle's defense counters; each is one more arm on the same `DamageResults`, and each has an owner (`backlog.md` §2.6 and §2.23; Deferred Migrations items 86 and 87) | `engine/actions.rs` (`DamageResults`), `engine/combat/keywords.rs`, `engine/combat/resolution.rs` |
 | 121 | Drawing | ✅ basic | `engine/actions.rs` |
@@ -97,10 +97,10 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 301 | Artifacts (incl. 301.5 Equipment — attachment + can't-attach-to-non-creature) | ✅ attachment tracking, `GameState::attach` / `detach` the one writer, **Equip ✅ (LH-2, 2026-09-05)** — 301.5b's "control matters when it resolves" is CR 608.2b's re-check; 301.5c's creature-Equipment clause and 702.6c qualities are card breadth | `state/game_state.rs`, `engine/resolve.rs`, `cards/phase_lh_cards.rs` |
 | 302 | Creatures + summoning sickness | ✅ turn-based tracking (T09) | `oracle/characteristics.rs` `has_summoning_sickness` |
 | 303 | Enchantments / Auras — an Aura spell targets its enchant ability (303.4a), enters attached (303.4 / 608.3c), fizzles against a gone target (608.3b), "enchanted creature" reaches the host (303.4m, LH-1 2026-09-04), control on resolve (303.4e); **non-stack ETB host choice (303.4f/g) ❌** — `attach_aura_on_etb` was dead code and was deleted with LH-1 | 🟡 | `engine/targeting.rs` `spell_recipient`, `engine/stack.rs` Aura branch, `state/game_state.rs` `attach`/`detach`, `objects/card_data.rs` `enchant_filter` |
-| 304 | Instants | ✅ basic cast path | `engine/cast.rs` |
+| 304 | Instants | ✅ basic cast path | `engine/put_on_stack.rs` |
 | 305 | Lands | ✅ basic lands + mana abilities | `cards/basic_lands.rs` |
 | 306 | Planeswalkers | ✅ loyalty ETB, 0-loyalty SBA; loyalty-ability costs ❌ (T19 pending) | `engine/sba.rs` |
-| 307 | Sorceries | ✅ basic cast path + sorcery-speed enforcement | `engine/cast.rs`, `oracle/legality.rs` |
+| 307 | Sorceries | ✅ basic cast path + sorcery-speed enforcement | `engine/put_on_stack.rs`, `oracle/legality.rs` |
 | 308 | Kindred (formerly Tribal) | ✅ data model only |
 | 309 | Dungeons | ❌ |
 | 310 | Battles | 🟡 enum exists; battle-specific mechanics ❌ |
@@ -113,7 +113,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 400–405 | Zones + move_object + cleanup_zone_state (with attachment cleanup) | ✅ | `engine/zones.rs` (450 lines) |
 | 406 | Library | ✅ |
 | 407 | Graveyard | ✅ |
-| 408 | Stack | ✅ with rollback | `engine/stack.rs`, `engine/cast.rs` |
+| 408 | Stack | ✅ with rollback | `engine/stack.rs`, `engine/put_on_stack.rs` |
 
 ### CR 5 — Turn Structure
 
@@ -123,15 +123,15 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
-| 601.2a | Announce spell / move to stack | ✅ | `engine/cast.rs` (780 lines) |
-| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `Variable`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/cast.rs` |
-| 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/cast.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ❌ literal placeholder at `engine/cast.rs:154` (single-line comment, no code) | `engine/cast.rs` |
-| 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/cast.rs:175–182` |
+| 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
+| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `Variable`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
+| 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
+| 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row A4l sizes it | `engine/put_on_stack.rs` |
+| 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
 | 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::Tap`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
-| 601.2i | Spell becomes cast | ✅ | `engine/cast.rs` |
+| 601.2i | Spell becomes cast | ✅ | `engine/put_on_stack.rs` |
 | 602 | Activated abilities (activate_ability + rollback) | ✅ structural; **activation restrictions** (sorcery-speed PW, graveyard-activated abilities) ❌ (T19) | `engine/actions.rs` activate_ability |
 | **603** | **Triggered abilities** | ❌ `AbilityType::Triggered` enum variant exists (`objects/card_data.rs:49`), **no engine handling**. No trigger queue, no event→trigger mapping, no "puts X onto the stack" mechanism. | only in `ui/display.rs:164` for label printing |
 | 604 | Static abilities | 🟡 keyword statics via `has_keyword`; continuous-effect statics (P/T, color, type) register via `GameState::register_static_effects` ✅; other non-keyword statics ❌ | `state/game_state.rs` |
@@ -632,7 +632,7 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
 5. **CR 601.2a announces a move that CR 601.2 may un-happen (recorded
     2026-08-25, RA-3).** — ✅ closed, archived.
     **Reachability (2026-09-03):** closed — by RC-4b (PR #87, 6541d0b), and
-    nobody struck it: `cast.rs` moves the card with the silent `CAST-ROLLBACK`
+    nobody struck it: `put_on_stack.rs` moves the card with the silent `CAST-ROLLBACK`
     mover in both directions and `announce_zone_change` records the 601.2a move
     at 601.2i beside `SpellCast` (`cast.rs:269`), so a rewound cast leaves no
     forward event. …
@@ -667,9 +667,9 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Replacement
     effects (CR 614–616)" item 7.
 
-8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `cast.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/cast.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **Scheduled 2026-09-01 as Phase LH-1** (`layers-architecture.md` §13a), and deliberately *not* as its own PR: **zero registered cards carry an `enchant_filter`**, so the shared helper returns exactly what the three copies return today for every card that exists. Shipping it alone would put a new arm in front of the performance pool that no card can open -- the failure `engineering-practices.md` §3 is written against -- so it ships with Holy Strength, which makes it live. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `ObjectSet` names an Aura's host — `static_object_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
+8. **CR 608.3b is unimplemented: a permanent spell with an illegal target does not fizzle (found 2026-08-26).** `resolve_popped`'s fizzle check reads `extract_recipient(&entry.effect)`, which for an Aura is the *spell ability's* recipient — and an Aura has no spell ability, so `has_targets` is false and the check never runs. The Aura's actual target lives in `entry.chosen_targets` and is read later, at the attach step. CR 608.3b says such a spell "doesn't resolve. It is removed from the stack and put into its owner's graveyard." Today it resolves and enters the battlefield attached to a target that may no longer be legal. Predates RA and is unreachable in the current pool (no registered Aura is castable from hand — `put_on_stack.rs` never reads `enchant_filter`), but it is the other half of the fizzle path RA-3 just routed, so it is recorded here rather than in the RA ledger. **Sized 2026-09-01, and it is one helper, not three:** `oracle/mana_helpers.rs::spell_recipient`, the inline block in `engine/put_on_stack.rs`, and `engine/stack.rs::extract_recipient` are three copies of the same fourteen lines, computing a spell's recipient from its *effect* — so none can see an `enchant_filter` and all three must learn the Aura rule together or disagree. **Scheduled 2026-09-01 as Phase LH-1** (`layers-architecture.md` §13a), and deliberately *not* as its own PR: **zero registered cards carry an `enchant_filter`**, so the shared helper returns exactly what the three copies return today for every card that exists. Shipping it alone would put a new arm in front of the performance pool that no card can open -- the failure `engineering-practices.md` §3 is written against -- so it ships with Holy Strength, which makes it live. **A second blocker was found the same day and it is the larger one: fixing 608.3b still would not make an Aura registerable.** No `ObjectSet` names an Aura's host — `static_object_set` has two productive arms (`FilteredPermanents` → `Filter`, `Implicit` → `SourceOnly`), `Duration::WhileEnchanted` has no consumer, and `register_static_effects` runs inside `place_on_battlefield`, *before* `resolve_taken` attaches the Aura, so even `Fixed` has nothing to capture. Every faithful Aura's text is about its host, so the Aura half is a phase with a layers change in it. `engine/resolve.rs::attach_aura_on_etb` is meanwhile dead code — zero production callers, three unit tests — implementing CR 303.4g's choose-on-entry for a path no card can take; the live path is `engine/stack.rs`'s Aura branch.
 
-   **Reachability (2026-09-03):** unreachable — `cast.rs` still never reads
+   **Reachability (2026-09-03):** unreachable — `put_on_stack.rs` still never reads
    `enchant_filter`, so no Aura is castable and none is registered; the board
    needs LH-1 (`layers-architecture.md` §13a, ~730 additions), which carries
    this fix.
@@ -1692,7 +1692,7 @@ section never asked.
 31. **`StackEntry.chosen_modes` is dead scaffolding — no writer, no reader
     (found 2026-08-31 by the D3b slice-1 triage).** Declared at
     `state/game_state.rs:33` as `Vec<usize>`, constructed `Vec::new()` at all
-    twelve sites (`cast.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
+    twelve sites (`put_on_stack.rs` ×2, `stack.rs` ×5, `game_state.rs`, `ui/display.rs`
     ×3, one test), and **read nowhere in the tree.**
 
     Exactly the shape of `CardData.color_indicator` in `cr-coverage-audit.md`
@@ -2134,8 +2134,8 @@ section never asked.
     | Site | Stack-resident | Outcome-bearing? |
     |---|---|---|
     | `priority.rs` priority loop | `blacklist`, `retries` | **No for `retries`; yes for `blacklist`, measured 2026-09-15 and halved 2026-09-16.** `all_candidates` left the stack with item 139 — the list is enumerated per prompt now, so the prompt is a function of the board. What survives is the blacklist: a fresh enumeration can still offer the action that just failed, and a fork resuming as a new round is not filtering it. Item 140 has the size |
-    | `cast.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
-    | `cast.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
+    | `put_on_stack.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
+    | `put_on_stack.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
     | `apply_replacements` | `applied` / `declined` / `exempt_applied` | **Yes** — see below |
 
     `priority_player` is already a `GameState` field, which is the fact that
@@ -2150,7 +2150,7 @@ section never asked.
     set is what stops the loop re-offering a declined optional forever, so a
     resumed frame that lost it **hangs**.
 
-    **Violator 2 — `cast.rs`, the CR 601.2 announcement window.** Between the
+    **Violator 2 — `put_on_stack.rs`, the CR 601.2 announcement window.** Between the
     card leaving hand and the `StackEntry` being pushed, the proposal (modes,
     targets, X, chosen costs) is a local. The four `rollback_cast_to_hand` call
     sites are the evidence: a rewind is possible precisely because the state is
@@ -4566,7 +4566,7 @@ actual blocker — none of them is a card-selection problem:
 
 | Never exercised | Blocked by |
 |---|---|
-| 704.5m/n Aura SBAs; 608.3c Aura ETB attach | `engine/cast.rs` never reads `enchant_filter` (0 references). A cast Aura reaches `resolve_popped` with no targets and the Aura branch errors. **Registering an Aura today would produce fuzz errors**, not coverage. Sibling of item 8 |
+| 704.5m/n Aura SBAs; 608.3c Aura ETB attach | `engine/put_on_stack.rs` never reads `enchant_filter` (0 references). A cast Aura reaches `resolve_popped` with no targets and the Aura branch errors. **Registering an Aura today would produce fuzz errors**, not coverage. Sibling of item 8 |
 | 704.5d token cease-to-exist | `Primitive::CreateToken` is a stub |
 | 704.5q counter annihilation | `Primitive::AddCounters` / `RemoveCounters` are stubs |
 | 704.5p Equipment detach | ✅ LH-2 (2026-09-06) — 15 per 200 stress games |
@@ -4652,7 +4652,7 @@ than merely correct. New engine path, so it takes the deliberate
 Item 8 (CR 608.3b) is real and still owed, and this pass sized it: three
 functions compute a spell's recipient from its effect and *none* of them can see
 an Aura's `enchant_filter` — `oracle/mana_helpers.rs::spell_recipient` (the
-CR 601.2c castability pre-check), the inline block in `engine/cast.rs`
+CR 601.2c castability pre-check), the inline block in `engine/put_on_stack.rs`
 (CR 601.2c target selection), and `engine/stack.rs::extract_recipient` (the
 CR 608.2b fizzle). They are three copies of the same fourteen lines, so the fix
 is one shared helper that takes the object rather than a fourth copy.
@@ -5073,9 +5073,9 @@ first.
    `get_effective_power`/`get_effective_toughness`, ~10 lines plus a test, with
    the first Vehicle.
 
-2. **"Any player may activate this ability" is unmodeled (CR 602.1a).** `engine/cast.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
+2. **"Any player may activate this ability" is unmodeled (CR 602.1a).** `engine/put_on_stack.rs::activate_ability` rejects any activation by a player who does not control the permanent. That is CR 602.1a's *default* — "the controller of an activated ability is the player who activated it", and only that permanent's controller may do so — but the rule is overridable by the ability's own text, and **41 printed cards override it**: Aether Storm ("Pay 4 life: Destroy this enchantment... Any player may activate this ability"), Excavation, Feral Hydra, Deadly Designs, Fan Favorite, Endbringer's Revel, Casey Jones, and 34 more (Scryfall `o:"any player may activate"`, 2026-08-23).
 
-   `AbilityDef` has nowhere to record the permission, so this is a missing field rather than a missing check: an `activatable_by` on `AbilityDef` (default: controller only), read by `cast.rs::activate_ability` and by `oracle::mana_helpers::activatable_abilities`, which currently enumerates only the asking player's permanents. Both halves are needed — a permission the action list never offers is invisible.
+   `AbilityDef` has nowhere to record the permission, so this is a missing field rather than a missing check: an `activatable_by` on `AbilityDef` (default: controller only), read by `put_on_stack.rs::activate_ability` and by `oracle::mana_helpers::activatable_abilities`, which currently enumerates only the asking player's permanents. Both halves are needed — a permission the action list never offers is invisible.
 
    Surfaced during the Layer 2 phase, whose migration rewrote the check but not its scope. The error message now names CR 602.1a and says the exception is unmodeled, rather than asserting the rule is universal.
 
@@ -5348,7 +5348,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
 2. **Event shape audit.** Every `events.emit(...)` call site is a potential trigger source. Before wiring triggers, audit that:
 
-   **Known missing already (found 2026-08-24, registering the first activated ability):** `GameEvent` has no variant for an activated ability being put on the stack or resolving. `cast.rs::activate_ability` pushes the ability object onto the stack without `move_object`, so not even a `ZoneChange` is emitted, and the resolution emits nothing either — an activation is completely invisible in the event log. `AbilityCountered` exists, which is the whole of the vocabulary. Triggers that watch activations ("Whenever a player activates an ability…") have nothing to watch, and the event log cannot be used to audit activation behavior at all — measuring how often Merfolk Thaumaturgist's ability resolved needed a temporary probe in `resolve.rs`. Fix as part of the event-stream refit (Replacement item 3): the fork was resolved 2026-08-24 — `AbilityActivated` plus an identity-bearing `AbilityResolved` (source + ability, for CR 603.7h counting), emitted from the chokepoint.
+   **Known missing already (found 2026-08-24, registering the first activated ability):** `GameEvent` has no variant for an activated ability being put on the stack or resolving. `put_on_stack.rs::activate_ability` pushes the ability object onto the stack without `move_object`, so not even a `ZoneChange` is emitted, and the resolution emits nothing either — an activation is completely invisible in the event log. `AbilityCountered` exists, which is the whole of the vocabulary. Triggers that watch activations ("Whenever a player activates an ability…") have nothing to watch, and the event log cannot be used to audit activation behavior at all — measuring how often Merfolk Thaumaturgist's ability resolved needed a temporary probe in `resolve.rs`. Fix as part of the event-stream refit (Replacement item 3): the fork was resolved 2026-08-24 — `AbilityActivated` plus an identity-bearing `AbilityResolved` (source + ability, for CR 603.7h counting), emitted from the chokepoint.
 
    - Events are emitted at the correct granularity (e.g., `PermanentEnteredBattlefield` fires per-permanent, not per-batch).
    - Event timing is post-action, not pre-action, so triggers observe the completed state change.
@@ -5627,7 +5627,7 @@ Still crude, and knowingly so: a flat constant over a static pool is not a mana-
 
 Two real cards, authored verbatim: **Sol Ring** (`cards/artifacts.rs`) and **Merfolk Thaumaturgist** (`cards/utility_creatures.rs`). Sol Ring is colorless, so `random_deck` puts it in every deck rather than only the ones sharing its colors, and its mana value of 1 means it animates into a 1/1 that survives its own SBA check rather than a 0/0 that dies. Measured over 60 games at seed 7: a Sol Ring reached the battlefield in 53, a March in 23, **both in the same game in 20**, and Layer 7d resolved **98 times** (temporary probe, reverted). Both were zero before.
 
-The Thaumaturgist is also the registry's **first `AbilityType::Activated` ability** — every other registered ability is a spell, a mana ability or a static — so `cast.rs::activate_ability`'s stack path, its target selection and its rollback arms now get random-play exposure too.
+The Thaumaturgist is also the registry's **first `AbilityType::Activated` ability** — every other registered ability is a spell, a mana ability or a static — so `put_on_stack.rs::activate_ability`'s stack path, its target selection and its rollback arms now get random-play exposure too.
 
 **Perf: the code costs nothing, the pool costs ~9%.** Four binaries built side by side and run **interleaved**, 200 games / seed 12345, median of five, `--release`:
 
@@ -7213,6 +7213,187 @@ owner decided it the same day.
      make a measurement wrong. `python plans/check_rulings.py --queue` is the
      list; it is deliberately not copied into this file, because a list that
      is both generated and transcribed goes stale in the transcription.
+
+### Found by A4i — several instances of "target" (2026-09-17)
+
+Trace page: `plans/traces/a4i-a-target-belongs-to-an-instance.html` — three
+boards read by read, written at the review because two of its questions (why a
+resolution needs CR 601.2c's instance cursor, and how "another target" stacks)
+are ones the diff cannot answer. Open review findings, triaged:
+`plans/handoffs/a4i-review.md`.
+
+152. **~~Skullcrack's three damage never landed when the card was cast.~~**
+     **Fixed by the instance walk, 2026-09-17.** *"Players can't gain life this
+     turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to
+     target player or planeswalker."* Three atoms, the first two
+     `EffectRecipient::Controller`, and the pre-A4i rule took a `Sequence`'s
+     **first** atom's recipient as the whole spell's — so the spell announced
+     no target, `chosen_targets` stayed empty, and the damage atom read an
+     empty list. Cast from hand, Skullcrack did its two restrictions and
+     nothing else.
+
+     **How it survived RE-3 and three phases after it.** Every Skullcrack test
+     stages a `ResolutionContext` with the target written in by hand, which
+     proves the resolution reads a target and says nothing about whether
+     CR 601.2c ever asked for one. A fixture that writes the answer cannot
+     check the question. The regression
+     (`skullcrack_cast_from_hand_deals_its_three_damage`) casts from hand for
+     exactly that reason, and was shown to fail at `main` (aafb79a) first.
+
+     **How it was found:** A4i's A/B. `performance` came out `IDENTICAL` and
+     `stress` did not, on the same 161-card pool — so a registered, unpooled
+     card was playing differently. The probe that named it compared the old
+     first-atom derivation against `effect_instances` for every registered
+     card; Skullcrack was the only pre-A4i card where they disagreed.
+
+     **Reachability (2026-09-17):** was reachable and wrong; closed. The class
+     is not: any card whose targeting atom is not the first in its sequence had
+     the same defect, and the probe says Skullcrack was the only one registered.
+
+153. **`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
+     modal spell would announce the targets of modes nobody chose.**
+     CR 601.2b chooses modes *before* CR 601.2c announces targets, so a walk
+     that descended into every branch of `Effect::Modal` would declare an
+     instance per mode and ask for all of them. The walk therefore stops at the
+     nodes it understands — the same scope the one-recipient rule it replaced
+     had.
+
+     **Reachability (2026-09-17):** unreachable. `Effect::Modal`,
+     `Conditional`, `Optional`, `ForEach` and `Repeat` all resolve to an error
+     today (`resolve_effect`), so no card can carry one and be played. It bites
+     the moment modal spells land — `backlog.md` §2.7 — and that phase owns it.
+
+     **Sized:** small, and it is a design choice rather than a sweep. The walk
+     takes the chosen modes as an argument and descends only into those, which
+     means `effect_instances` grows a second spelling for the post-601.2b call
+     and `StackEntry.chosen_modes` becomes an input to it rather than a record.
+     Under fifty lines; the cost is deciding where the two spellings live.
+
+154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
+     filter, so "another target" over `SelectionFilter::Any` or `Player` is
+     not expressible.** The leaf lives inside an `ObjectFilter`, and
+     `SelectionFilter::Any`, `Player`, `Spell` and `DamageSource` carry none;
+     `enumerate_legal_selections` also pushes every player unconditionally for
+     `Any` and `Player` without asking `validate_selection`, so a player
+     exclusion would be skipped even if the leaf could be written.
+
+     **Reachability (2026-09-17):** unreachable — no registered card writes
+     "another target" over anything but a permanent filter. CR 115.4 puts the
+     phrase over "any target" on real cards, so a printed one exists; it is
+     Phase 8 breadth's, and the fix is a `SelectionFilter`-level exclusion
+     rather than a wider `ObjectFilter`.
+
+     **Amended at the A4i review (2026-09-17): it has eight named customers.**
+     `o:"must target"` returns 8, and every one is *"Each mode must target a
+     different player"* — a player-filter exclusion, which is exactly what this
+     item says cannot be written. They arrive with modal spells; item 158 has
+     the list and the two sibling axes.
+
+     **Sized:** ~60 lines. The exclusion moves from the filter to the clause —
+     the instance carries "not what instance k took" beside its filter — and
+     the two enumeration arms that bypass `validate_selection` learn to apply
+     it. That is the shape CR 601.2c actually describes, so it is a
+     simplification as well as a widening; it was not done here because it
+     touches `EffectRecipient`, which 146 sites construct.
+
+155. **`every_instance_has_a_choice` feeds instances forward greedily, which
+     is exact for the shapes that print and not in general.** An "another
+     target" chain reuses one filter, so counting the candidates that pass it
+     and subtracting the ones already taken is the answer a bipartite matching
+     would give. A card whose instances carried *different* filters **and**
+     excluded each other could be told it cannot be cast when a different
+     assignment would work.
+
+     **Reachability (2026-09-17):** unreachable — no printed card combines the
+     two, and the failure mode is conservative (a cast refused, never an
+     illegal one allowed). If one prints, the fix is Hopcroft–Karp over at most
+     a handful of instances, which is small but is a different kind of code
+     from what is there.
+
+156. **The rulings gate has a same-day blind spot: a card registered on the
+     day the ledger was created escapes `--check` unless someone stamps it
+     `read`.** Scope is `read` or `first_seen != created`
+     (`check_rulings.py::in_scope`), and A4i registered five cards on
+     2026-09-17, the day A4b's ledger was created — so all five, and the three
+     rulings between them, were out of scope until the PR hand-stamped them.
+     The stamp is honest (the rulings *were* read), and the gate then refused
+     all three until a test named each.
+
+     **Reachability (2026-09-17):** reachable exactly once, and it already
+     happened. `created` never moves again, so no future registration can
+     collide with it. Recorded rather than fixed because `first_seen ==
+     created` is genuinely ambiguous — every card present at creation carries
+     it — and a finer stamp would be a ledger format change to close a hole
+     that cannot recur.
+
+157. **CR 601.2c's "must be chosen as a target" is unimplemented, and it is the
+     third hat of the CR's only combinatorial-optimum rule.**
+
+     > If any effects say that an object or player must be chosen as a target,
+     > the player chooses targets so that they obey the **maximum possible
+     > number** of such effects without violating any rules or effects that say
+     > that an object or player can't be chosen as a target.
+
+     **The whole CR has three sites for that phrase**, surveyed 2026-09-17:
+     **508.1d** (attack requirements), **509.1c** (block requirements) and
+     **601.2c** (targeting requirements). There is no fourth. The first two are
+     RS-3b's, already sized as the NP-hard one with a bounded-exact search and a
+     cap (`cant-effects-architecture.md` §4.2); this is the third and it is
+     unowned.
+
+     **It is much the smallest of the three.** Combat searches every creature a
+     player controls crossed with attack/block assignments; targeting searches
+     one spell's instances — one to four on every printed card — crossed with
+     each instance's legal candidates. Same algorithm, and RS-3b's cap covers it.
+
+     **Not to be confused with "as many as possible"** (CR 101.3, 701.17b,
+     701.23d, the 601.2h discard example), which is a *clamp* rather than an
+     optimization and is already implemented — `Primitive::Mill`,
+     `sacrifice_of_choice`'s `count.min(candidates.len())`. Nothing in that
+     family needs a search.
+
+     **Reachability (2026-09-17): unreachable, and no printed card produces
+     one.** `o:"must be chosen"` and `o:"chosen as a target"` return nothing;
+     `o:/target.{0,20}if able/` returns four and all four are *combat*
+     requirements (Dulcet Sirens, Hunt Down, Ravener, Rimehorn Aurochs), which
+     are 508.1d/509.1c's. So this is a CR-stated facility with no printed
+     producer, which by the RE-5 rule (`engineering-practices.md` §4) is owed
+     with a fixture test and this line, never "nothing owed".
+
+     **Sized:** small, and it belongs with RS-3b rather than alone — the search,
+     the cap and the "requirements versus restrictions" split are the same code.
+     What is A4i-specific is that the announcement loop has to hand the solver
+     all the instances at once instead of deciding them one at a time, which is
+     ~40 lines at the `announce_targets` seam. Until then the greedy loop is
+     exact, because the set of requirements is empty.
+
+158. **"Different from that one" has three axes and the engine expresses one.**
+     A4i's `ObjectFilter::OtherThanInstance` is distinctness *across instances of
+     one object* — Incremental Growth's "another target creature". Two more
+     populations want the same idea on different axes and neither is reachable:
+
+     - **Across modes of one object**, 8 cards: *"Each mode must target a
+       different player"* — Balor, Chaos Balor, Casey & Raph, Donnie & April,
+       Mikey & Mona and kin. This is item 154's gap (the exclusion is an
+       `ObjectFilter` leaf and `SelectionFilter::Player` carries none) plus modal
+       spells (`backlog.md` §2.7). **Item 154 said this gap had no named
+       customer; it has these eight.**
+     - **Across separate stack objects**, 13 cards: *"Each copy targets a
+       different one of those creatures"* — Precursor Golem, Zada, Ink-Treader
+       Nephilim, Mirrorwing Dragon, Radiate, Agrus Kos, Beamsplitter Mage,
+       Exterminator Magmarch, Feather, Frontline Heroism, Ivy, Radiant Performer,
+       Zevlor. The constraint is written by the card as the copies are created,
+       not by CR 601.2c as one spell is announced, so it is
+       `copy-effects-architecture.md`'s and not this one's.
+
+     **Reachability (2026-09-17):** unreachable — none of the 21 is registered,
+     and both axes need a facility that does not exist yet (modes, spell
+     copying). Recorded together because the three axes are one idea, and sizing
+     any of them alone would miss that the expression they want is shared.
+
+     **Sized:** the modal axis is item 154's ~60 lines (move the exclusion from
+     the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
+     carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

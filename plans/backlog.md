@@ -1071,7 +1071,41 @@ mechanic rather than a migration, which is why it is here and not in
   UI enough info to display the gamestate properly." That prompt turned out to
   be fine; the absence of anything that would have told us is the entry.
 
-### 2.20 Several target clauses on one spell
+### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), except CR 601.2d**
+
+- **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
+  is a `Vec<TargetInstance>`, `targeting::effect_instances` walks an effect's
+  clauses in printed order, `EffectRecipient::SameInstanceAs` is how a later atom
+  refers back to one — by the clause's position in that list — and
+  `resolve_effect` hands each atom its own instance as a flat slice.
+  `ObjectFilter::OtherThanInstance` is "another target"; CR 608.2b is asked per
+  instance *and* per target, so a spell resolves unless every target is illegal
+  and an illegal one is simply not affected.
+- **The announcement order is the engine's, not the rule's.** CR 601.2c fixes no
+  order and does not say whether the choices are simultaneous; the loop asks one
+  clause at a time because `OtherThanInstance` needs the earlier answers. The two
+  are outcome-equivalent — every assignment a simultaneous announcement allows is
+  reachable in index order, and the loop cannot produce one it forbids — until
+  601.2c's *"must be chosen as a target … the maximum possible number"* lands,
+  which is a global optimum a greedy loop cannot see. `codebase-state.md` item
+  157. Six of the eight atoms are covered;
+  the consumers are Seeds of Strength (pooled), Incremental Growth, Jagged
+  Lightning, Plague Spores and Seat of the Synod. The A/B was `IDENTICAL` on
+  `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
+- **What is left: CR 601.2d, and it is scheduled.** ATOM-601.2d-001 and -002 —
+  "deal 3 damage divided as you choose among one, two, or three targets". It is
+  a second mechanism rather than a second clause: `TargetCount` gains a divided
+  form, `TargetInstance` a parallel allocation, `DealDamage` a per-target
+  amount, and the `DecisionProvider` a prompt that returns numbers rather than
+  indices. ~500–700 lines with Arc Lightning as its consumer (the atoms are
+  written around its numbers) and Forked Bolt as the cheap pooled option at one
+  mana. `roadmap-v2.md` row **A4l**, back-stopped before Phase 8's breadth,
+  where the 48 "divided as you choose" cards live; it blocks nothing on the
+  spine.
+- **The rest of this entry is the record of the design as it was sized**, kept
+  because the atoms and the card counts are still what A4j is sized against.
+
+#### 2.20 as sized (2026-09-04)
 
 - **Rules** — CR 115.1 ("one or more objects or players as targets"), 115.3
   (one object may be chosen once per *instance* of "target", and for several

@@ -46,6 +46,7 @@ use mtgsim::types::restriction::{
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -117,7 +118,7 @@ fn resolve_spell_with(
         source: id,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -243,7 +244,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
         source,
         ability_source: None,
         controller: 1,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

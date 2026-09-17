@@ -30,6 +30,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 fn zone_of(game: &GameState, id: ObjectId) -> Zone {
     game.get_object(id).unwrap().zone
@@ -129,7 +130,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
         source,
         ability_source: None,
         controller: 0,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

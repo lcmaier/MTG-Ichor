@@ -42,6 +42,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::random::RandomDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,7 +61,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -711,13 +712,18 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
             AmountExpr::Fixed(1),
             Duration::UntilYourNextTurn,
         ),
-        EffectRecipient::Implicit,
+        // The instance the context below announces. `Implicit` names no
+        // instance of "target" and would read nothing (CR 601.2c).
+        EffectRecipient::Target(
+            mtgsim::types::effects::SelectionFilter::Creature,
+            mtgsim::types::effects::TargetCount::Exactly(1),
+        ),
     );
     let ctx = ResolutionContext {
         source: creature,
         ability_source: None,
         controller,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };

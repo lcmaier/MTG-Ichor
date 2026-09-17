@@ -1139,7 +1139,9 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
         | ObjectFilter::ByController(_)
         | ObjectFilter::Token
         | ObjectFilter::ByOwner(_)
-        | ObjectFilter::EachOther => true,
+        | ObjectFilter::EachOther
+        // Identity, which no `EnterMods` field feeds.
+        | ObjectFilter::OtherThanInstance(_) => true,
         ObjectFilter::PowerLE(_) => false,
         ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
             filter_is_mods_invariant(a) && filter_is_mods_invariant(b)
@@ -1225,7 +1227,7 @@ fn check_order_invariance(
         if let Ok(again) = substitute(chosen, template, next.clone(), subject) {
             debug_assert!(
                 &again == next,
-                "CR 616.1 prompt suppressed as order-invariant was not: {:?} is not                      idempotent — it took {:?} to {:?}. Order decides how many of the                      shared members apply, so a substitute that compounds makes that                      observable.",
+                "CR 616.1 prompt suppressed as order-invariant was not: {:?} is not idempotent — it took {:?} to {:?}. Order decides how many of the shared members apply, so a substitute that compounds makes that observable.",
                 chosen.id,
                 next,
                 again
@@ -1914,7 +1916,7 @@ fn plain_arithmetic(
             Ok(arm.apply(n))
         }
         other => Err(format!(
-            "replacement {:?} applies {:?} to a plain count: counters being put on              (CR 614.16), or cards scried (CR 701.22). That arithmetic is over a number,              and a prevention (CR 615) or a life floor is about damage or a life total",
+            "replacement {:?} applies {:?} to a plain count: counters being put on (CR 614.16), or cards scried (CR 701.22). That arithmetic is over a number, and a prevention (CR 615) or a life floor is about damage or a life total",
             chosen.id, other
         )),
     }

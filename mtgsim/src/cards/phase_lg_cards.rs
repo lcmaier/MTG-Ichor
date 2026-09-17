@@ -32,9 +32,6 @@ use crate::types::mana::{ManaCost, ManaType};
 /// Registry-eligible, and the only production card that registers a
 /// `SetController` row — so it is what exercises Layer 2 in `fuzz_games`.
 pub fn act_of_treason() -> Arc<CardData> {
-    let target_creature =
-        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1));
-
     CardDataBuilder::new("Act of Treason")
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
@@ -50,14 +47,17 @@ pub fn act_of_treason() -> Arc<CardData> {
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
+                // One instance of "target" and three atoms (CR 115.3): the
+                // card says "target creature" once, and "that creature" and
+                // "it" are back-references to it, not new clauses.
                 Effect::Atom(
                     Primitive::GainControl(Duration::UntilEndOfTurn),
-                    target_creature.clone(),
+                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
-                Effect::Atom(Primitive::Untap, target_creature.clone()),
+                Effect::Atom(Primitive::Untap, EffectRecipient::SameInstanceAs(0)),
                 Effect::Atom(
                     Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
-                    target_creature,
+                    EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
         })
@@ -80,15 +80,28 @@ mod tests {
             panic!("expected a Sequence, got {:?}", card.abilities[0].effect);
         };
         assert_eq!(atoms.len(), 3);
-        for atom in atoms {
-            let Effect::Atom(_, recipient) = atom else {
-                panic!("expected an Atom, got {atom:?}");
-            };
-            assert_eq!(
-                *recipient,
-                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
-                "all three atoms must name the same target, or 'that creature' is a lie"
-            );
-        }
+
+        // CR 115.3 — one instance of "target", three atoms. The card prints
+        // "target creature" once; a second declaration would let the untap and
+        // the haste land on a different creature from the steal, and would ask
+        // the player three times.
+        assert_eq!(
+            crate::engine::targeting::spell_instances(&card).len(),
+            1,
+            "\"that creature\" and \"it\" are back-references, not new clauses"
+        );
+        let recipients: Vec<&EffectRecipient> = atoms
+            .iter()
+            .map(|atom| match atom {
+                Effect::Atom(_, recipient) => recipient,
+                other => panic!("expected an Atom, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            *recipients[0],
+            EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
+        );
+        assert_eq!(*recipients[1], EffectRecipient::SameInstanceAs(0));
+        assert_eq!(*recipients[2], EffectRecipient::SameInstanceAs(0));
     }
 }

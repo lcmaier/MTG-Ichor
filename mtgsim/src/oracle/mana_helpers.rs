@@ -8,7 +8,7 @@ use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
-use crate::engine::targeting::spell_recipient;
+use crate::engine::targeting::spell_instances;
 use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -173,10 +173,7 @@ pub fn castable_spells(
         // requires targets if no legal target exists. Asked of the card, not
         // the spell ability — an Aura's target is its enchant ability
         // (CR 303.4a) and it has no spell ability to ask.
-        if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) =
-            spell_recipient(&obj.card_data)
-            && !game.has_any_legal_choice(f, None, player_id)
-        {
+        if !every_instance_has_a_choice(game, &spell_instances(&obj.card_data), player_id) {
             continue;
         }
 
@@ -397,12 +394,11 @@ pub fn activatable_abilities(
             // make it illegal. Provably illegal from a static read, which is
             // what the oracle may filter on
             // (`dp-middleware-and-candidate-enumeration.md` §2).
-            if let EffectRecipient::Target(ref f, TargetCount::Exactly(n))
-                | EffectRecipient::Choose(ref f, TargetCount::Exactly(n)) =
-                crate::engine::targeting::effect_recipient(&ability.effect)
-                && n >= 1
-                && !game.has_any_legal_choice(f, None, player_id)
-            {
+            if !every_instance_has_a_choice(
+                game,
+                &crate::engine::targeting::effect_instances(&ability.effect),
+                player_id,
+            ) {
                 continue;
             }
 
@@ -411,6 +407,82 @@ pub fn activatable_abilities(
     }
 
     result
+}
+
+/// CR 601.2c — can a legal choice be announced for **every** instance of the
+/// word "target"?
+///
+/// The rule Decimate's reminder text spells out: "you can't cast this spell
+/// unless you have legal choices for all its targets." One instance and one
+/// legal creature is the shape every card in the pool has, and at that shape
+/// this is the single `has_any_legal_choice` it replaced.
+///
+/// Three things it asks that the single check could not:
+/// - **A count.** Jagged Lightning's "each of two target creatures" needs two
+///   distinct creatures, because CR 601.2c forbids choosing one twice for one
+///   instance.
+/// - **Each instance in turn.** Decimate needs an artifact *and* a creature
+///   *and* an enchantment *and* a land.
+/// - **What the earlier instances took.** Incremental Growth's "a third target
+///   creature" needs a third.
+///
+/// `UpTo` is left alone: choosing zero targets is legal (CR 115.6), so an empty
+/// board does not make such a spell uncastable. An over-approximation here is
+/// `codebase-state.md` item 139's class — the engine offers a cast it then
+/// rewinds — so the checks that can be made statically are made.
+fn every_instance_has_a_choice(
+    game: &GameState,
+    instances: &[EffectRecipient],
+    player_id: PlayerId,
+) -> bool {
+    // The last clause whose criteria read an earlier instance. Everything after
+    // it has nothing to feed forward to, and for every spell but the "another
+    // target" family there is no such clause at all — see
+    // `clause_reads_earlier_instances` for what that costs when it is not asked.
+    let feed_until = instances
+        .iter()
+        .rposition(crate::engine::targeting::clause_reads_earlier_instances);
+    let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
+    for (ix, recipient) in instances.iter().enumerate() {
+        // **Every instance pushes, in order, whether or not it is checked.**
+        // `OtherThanInstance(k)` reads position `k`, so a skipped push would
+        // renumber every instance after it and an "another target" clause would
+        // exclude the wrong one. Pushing nothing is the honest content: an
+        // instance that announces nothing excludes nothing.
+        let mut feed = Vec::new();
+        if let EffectRecipient::Target(f, TargetCount::Exactly(n))
+            | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
+        {
+            let n = *n as usize;
+            let view = crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets);
+            // **One pass, not two.** When a later clause reads this one, the
+            // check and the feed-forward want the same scan: `n` candidates, or
+            // the knowledge that there are not `n`. A bounded enumeration
+            // answers both, and stops where `has_legal_choices` would have.
+            //
+            // What it feeds forward is a static over-approximation, like the
+            // check itself: what matters to the next clause is *how many* this
+            // one will take, and any `n` distinct legal choices exclude the same
+            // number. Feeding nothing would let an "another target" chain claim
+            // it can always be satisfied.
+            //
+            // `UpTo` never reaches here: choosing zero targets is legal
+            // (CR 115.6), so it neither fails the cast nor constrains what
+            // follows.
+            if feed_until.is_some_and(|last| ix < last) {
+                feed = crate::oracle::legality::enumerate_legal_selections_upto(
+                    game, f, None, player_id, view, n,
+                );
+                if feed.len() < n {
+                    return false;
+                }
+            } else if !game.has_legal_choices(f, None, player_id, n, view) {
+                return false;
+            }
+        }
+        earlier_targets.push(feed);
+    }
+    true
 }
 
 /// Check if an ability's costs can be met right now.

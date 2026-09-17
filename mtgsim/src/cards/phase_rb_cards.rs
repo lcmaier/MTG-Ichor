@@ -205,7 +205,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text(
-            "If a card or token would be put into a graveyard from anywhere,              exile it instead.",
+            "If a card or token would be put into a graveyard from anywhere, exile it instead.",
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,
@@ -284,7 +284,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text(
-            "If a card would be put into an opponent's graveyard from anywhere,              exile it instead.",
+            "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
         )
         .ability(AbilityDef {
             is_characteristic_defining: false,

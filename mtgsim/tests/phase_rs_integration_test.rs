@@ -33,6 +33,7 @@ use mtgsim::types::restriction::{
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -132,7 +133,7 @@ fn resolve_edict(
         source: edict,
         ability_source: None,
         controller: caster,
-        targets: vec![ResolvedTarget::Player(victim)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -171,7 +172,7 @@ fn resolve_edict_effect(
         source,
         ability_source: None,
         controller: caster,
-        targets: vec![ResolvedTarget::Player(victim)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -641,7 +642,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         source,
         ability_source: None,
         controller: 1,
-        targets: vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -678,7 +679,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
-    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: Vec::new(), replaced_amount: None, damage_prevented: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None };
 
     let err = game
         .resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new())

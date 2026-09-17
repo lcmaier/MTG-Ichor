@@ -47,6 +47,7 @@ use mtgsim::types::zones::ZoneChangeCause;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,7 +66,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -533,7 +534,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         source: spell,
         ability_source: None,
         controller: 1,
-        targets: vec![ResolvedTarget::Player(1)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
         replaced_amount: None,
         damage_prevented: None,
     };

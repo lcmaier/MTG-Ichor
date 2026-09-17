@@ -91,7 +91,7 @@ pub(super) fn cda_modifications(
             // the ability is not a CDA and was mis-flagged.
             debug_assert!(
                 matches!(recipient, EffectRecipient::Implicit),
-                "CR 604.3a(3): CDA on '{}' has a non-implicit recipient, so it                  affects other objects and is not characteristic-defining",
+                "CR 604.3a(3): CDA on '{}' has a non-implicit recipient, so it affects other objects and is not characteristic-defining",
                 chars.name
             );
 

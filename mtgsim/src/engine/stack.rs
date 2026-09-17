@@ -4,7 +4,6 @@ use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
 use crate::state::game_state::{GameState, ResolvingObject};
 use crate::types::card_types::{EnchantmentType, Subtype};
-use crate::types::effects::EffectRecipient;
 use crate::types::zones::Zone;
 use crate::ui::decision::DecisionProvider;
 
@@ -94,24 +93,28 @@ impl GameState {
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
         // --- Re-validate targets (rule 608.2b; 608.3b for a permanent spell) ---
-        // Against what they were chosen against, which the entry recorded:
+        // Against what they were chosen against, which each instance recorded:
         // an Aura's is its enchant ability, and nothing in `entry.effect`
         // could say so — that was Deferred Migrations item 8.
-        let recipient = &entry.recipient;
-        let has_targets = matches!(recipient, EffectRecipient::Target(_, _));
-
-        if has_targets && !self.any_targets_still_legal(recipient, &entry.chosen_targets, controller) {
-            // All targets illegal — spell/ability fizzles (is countered by game rules)
+        //
+        // **Two answers, once.** The survivors are what the resolution acts on,
+        // instance by instance, and `None` is CR 608.2b's "doesn't resolve".
+        // Filtered here rather than per atom because 608.2b checks targets as
+        // the spell *begins* to resolve: Plague Spores destroying the creature
+        // does not make the land illegal afterwards.
+        let Some(surviving) = self.surviving_targets(&entry.chosen_targets, controller) else {
+            // Every target of every instance is illegal — the spell or ability
+            // is countered by game rules.
             self.handle_fizzle(object_id, &entry, dp)?;
             return Ok(());
-        }
+        };
 
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
             ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
-            targets: entry.chosen_targets.clone(),
+            targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
             // "that much" has no answer here — see `ResolutionContext`.
             replaced_amount: None,
@@ -171,7 +174,13 @@ impl GameState {
                 let is_aura = self.battlefield.contains_key(&object_id)
                     && has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
                 if is_aura {
-                    let host_id = match entry.chosen_targets.first().copied() {
+                    // Instance 0 is the enchant clause (CR 303.4a) — the only
+                    // instance `spell_instances` gives an Aura.
+                    let host_id = match entry
+                        .chosen_targets
+                        .first()
+                        .and_then(|inst| inst.chosen.first().copied())
+                    {
                         Some(ResolvedTarget::Object(id)) => id,
                         _ => return Err(format!(
                             "Aura {} resolved from stack with no Object target — \
@@ -252,6 +261,7 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::targeting::TargetInstance;
     use crate::types::replacement::EnterMods;
     use crate::engine::resolve::ResolvedTarget;
     use crate::objects::card_data::{AbilityDef, AbilityType, CardDataBuilder};
@@ -295,7 +305,9 @@ mod tests {
             .find(|a| a.ability_type == AbilityType::Spell)
             .unwrap();
         let effect = ability.effect.clone();
-        let recipient = crate::engine::targeting::spell_recipient(&card_data);
+        let recipient = crate::engine::targeting::spell_instances(&card_data)
+            .pop()
+            .expect("the helper's cards all announce one instance");
 
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
@@ -303,8 +315,7 @@ mod tests {
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: targets,
-            recipient,
+            chosen_targets: vec![TargetInstance::new(recipient, targets)],
             chosen_modes: Vec::new(),
             x_value: None,
             effect,
@@ -431,7 +442,6 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: Vec::new(),
-            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),
@@ -508,7 +518,6 @@ mod tests {
             object_id: id,
             controller,
             chosen_targets: Vec::new(),
-            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value,
             effect: Effect::Sequence(vec![]),
@@ -554,15 +563,16 @@ mod tests {
         controller: usize,
         targets: Vec<ResolvedTarget>,
     ) -> crate::types::ids::ObjectId {
-        let recipient = crate::engine::targeting::spell_recipient(&card_data);
+        let recipient = crate::engine::targeting::spell_instances(&card_data)
+            .pop()
+            .expect("the helper's cards all announce one instance");
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);
         game.stack.push(id);
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
             controller,
-            chosen_targets: targets,
-            recipient,
+            chosen_targets: vec![TargetInstance::new(recipient, targets)],
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(vec![]),
@@ -671,7 +681,6 @@ mod tests {
             object_id: aura_id,
             controller: 0,
             chosen_targets: Vec::new(),
-            recipient: EffectRecipient::Implicit,
             chosen_modes: Vec::new(),
             x_value: None,
             effect: Effect::Sequence(Vec::new()),

@@ -31,6 +31,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -765,17 +766,26 @@ fn test_a_multi_target_destroy_is_one_event() {
         source: a,
         ability_source: None,
         controller: 0,
-        targets: vec![
+        targets: ChosenTargets::one(vec![
             mtgsim::engine::resolve::ResolvedTarget::Object(a),
             mtgsim::engine::resolve::ResolvedTarget::Object(b),
             mtgsim::engine::resolve::ResolvedTarget::Object(c),
-        ],
+        ]),
         replaced_amount: None,
         damage_prevented: None,
     };
     let dp = ScriptedDecisionProvider::new();
+    // One instance of "target" holding three objects — "destroy three target
+    // creatures" rather than three clauses, which is what makes the deaths one
+    // batch. `Implicit` would declare no instance at all and read nothing.
     game.resolve_effect(
-        &Effect::Atom(Primitive::Destroy, EffectRecipient::Implicit),
+        &Effect::Atom(
+            Primitive::Destroy,
+            EffectRecipient::Target(
+                mtgsim::types::effects::SelectionFilter::Creature,
+                mtgsim::types::effects::TargetCount::Exactly(3),
+            ),
+        ),
         &ctx,
         &dp,
     ).unwrap();
@@ -788,7 +798,7 @@ fn test_a_multi_target_destroy_is_one_event() {
     assert!(batches[0].is_some());
     assert!(
         batches.iter().all(|x| *x == batches[0]),
-        "one spell, one event -- a replacement effect gets to apply once per          death within it, which it cannot judge if they arrive separately",
+        "one spell, one event -- a replacement effect gets to apply once per death within it, which it cannot judge if they arrive separately",
     );
 }
 

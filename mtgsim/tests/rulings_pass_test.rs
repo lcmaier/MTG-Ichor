@@ -54,6 +54,7 @@ use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 use std::sync::Arc;
 
@@ -144,7 +145,7 @@ fn cytoshape_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
         source: source_id,
         ability_source: None,
         controller: 0,
-        targets: vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)],
+        targets: ChosenTargets::one(vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
     };

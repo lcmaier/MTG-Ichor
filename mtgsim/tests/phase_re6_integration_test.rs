@@ -43,6 +43,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -67,7 +68,7 @@ fn resolve_with(
         source,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -82,7 +83,7 @@ fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId)
         source: id,
         ability_source: None,
         controller,
-        targets: vec![],
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -112,8 +113,7 @@ fn stage_spell_with(
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        recipient,
+        chosen_targets: vec![TargetInstance::new(recipient, chosen_targets)],
         chosen_modes: Vec::new(),
         x_value: None,
         effect,

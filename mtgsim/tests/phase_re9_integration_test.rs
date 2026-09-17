@@ -57,6 +57,7 @@ use mtgsim::types::replacement::{
 };
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 /// CR 616.1's choice between two applicable effects.
 const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affected_object: None };
@@ -238,7 +239,7 @@ fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source,
         ability_source: None,
         controller: player,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -257,7 +258,7 @@ fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source: id,
         ability_source: None,
         controller: player,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -748,7 +749,7 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
         source,
         ability_source: None,
         controller: 0,
-        targets: Vec::new(),
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

@@ -512,7 +512,13 @@ struct Reads {
 /// `Channels::NONE`. Only leaves that mention a player pay it.
 fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
     match filter {
-        ObjectFilter::All | ObjectFilter::Token | ObjectFilter::EachOther => {}
+        // Identity leaves read no characteristic: no layer can make an object
+        // something other than itself, so neither a member's frame nor the
+        // source's is touched.
+        ObjectFilter::All
+        | ObjectFilter::Token
+        | ObjectFilter::EachOther
+        | ObjectFilter::OtherThanInstance(_) => {}
         ObjectFilter::ByType(_) => out.members |= Channels::TYPES,
         ObjectFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,
         ObjectFilter::BySupertype(_) => out.members |= Channels::SUPERTYPES,

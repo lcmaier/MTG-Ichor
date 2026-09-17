@@ -117,7 +117,7 @@
 - **Key Design Question(s):**
   - Heist requires exile zone metadata: the exiled card is face-down, and the heisting player (not the owner) can cast it. This is exactly D21 (exile zone metadata — face-down, exiled-by), already a deferred item.
   - "Spend mana as though it were mana of any type" is a mana spending permission that modifies cost payment. This interacts with T12's mana spending restrictions design (Phase 5-Pre).
-  - Casting from exile requires `CastPermission` (documented in `cast.rs` TODO).
+  - Casting from exile requires `CastPermission` (documented in `put_on_stack.rs` TODO).
 - **Recommendation:** Heist depends on three deferred systems: D21 (exile metadata), `CastPermission` (zone-casting), and mana spending permissions. All three are already identified as future work. No new architectural patterns beyond what's planned. When implementing D21, ensure the exile metadata supports "this player may cast this card" and "spend mana as any type" flags.
 
 ---
