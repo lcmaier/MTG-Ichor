@@ -37,6 +37,59 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-17 for A4i** (CR 601.2c's instances of "target" —
+`backlog.md` §2.20, graduated; `codebase-state.md` items 152–156).
+**Pool change**: `performance` 90 → **91** (Seeds of Strength) and `stress`
+161 → **166**, so the `card` column below is a new baseline and is compared to
+nothing. The `rule` column is not: it is the engine change with no card
+registered, at 90 and 161, which is what makes an engine reading possible
+across a pool change at all (§3.1).
+
+**Three arms.** `main` (aafb79a); **rule** (72617d5 + ee67476) — the instance
+model and the six migrated effects, no card registered, both pools the size
+`main` has them; **card** (3ce6186) — the five cards, Seeds of Strength pooled.
+
+| | rule vs main |
+|---|---|
+| every counter, `performance`, 200 games | **IDENTICAL** |
+| every counter, `stress`, 200 games | **differ** — and that is the finding below |
+| `µs / decision`, three sittings | 30.3 (+2.4%), 29.7 (+0.6%), 30.3 (+0.4%) |
+| CPU/game median, first sitting | 6.96 → 7.13 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+`IDENTICAL` on `performance` was the prediction and it held: no card in the
+pool announced a second instance, so the loop is entered with n = 1 everywhere
+and n = 1 is the straight line it replaced. The median over three sittings is
+**+0.6% µs/decision**, inside §3.1's 2.5-point budget, against a run-to-run
+spread §3.1 itself puts at ~2.4% — which is what the first sitting's +2.4% is.
+
+**What the A/B found, and it is not a cost.** `stress` differs on wins, turns,
+spells and decisions with the *same 161-card pool on both arms*, so a
+registered-but-unpooled card was playing differently. It is **Skullcrack**:
+three atoms, the first two `EffectRecipient::Controller`, and the pre-A4i rule
+took a `Sequence`'s first atom's recipient as the whole spell's — so the cast
+announced no target and its three damage went nowhere. Registered since RE-3
+and never caught, because RE-3's tests stage a `ResolutionContext` with the
+target written in by hand. `codebase-state.md` item 152; shown to fail against
+`main` before the fix, and the regression casts from hand.
+
+**And a cost the first sitting found, fixed before the second.**
+`every_instance_has_a_choice` fed each instance's legal choices forward so the
+next clause could exclude them, for every spell rather than only the "another
+target" family — enumerating every candidate where `has_legal_choices` would
+have stopped at the first. The arms played identically game for game and
+**memo hits moved 63,427 → 65,649, +3.5% per game**: no game reached a
+different board, the engine just asked more questions to get to the same one.
+That is the shape §3.1's `IDENTICAL` prediction exists to catch, and it is why
+a difference is a finding rather than a tolerance.
+
+The `card` arm's re-record, `performance`, 200 games at seed 12345, pool 91:
+CPU/game median **6.25 ms**, **28.0 µs/decision**, 343 layer walks, 57,816
+memo hits, 223 decisions, 28.7 average turns. Reachability, `--require`:
+Seeds of Strength **cast 190, resolved 188, in 124 of 200 games (62%)**, and
+the two that did not resolve are CR 608.2b. `stress`, 166 cards: 0 errors,
+0 panics, 0 turn-limit hits.
+
 **Re-recorded 2026-09-16 for A4h** (the retry re-ask's stale list —
 `codebase-state.md` item 139, closed, and item 150 beside it; item 41's fork
 test). **No pool change**: `performance` 90 and `stress` 161, as A4g left

@@ -42,7 +42,7 @@ impl TargetInstance {
 /// A named type rather than a bare nesting because **exactly one place indexes
 /// it** — `resolve_effect`'s walk, which hands each atom its own instance as a
 /// flat slice. Every reader downstream of that sees `&[ResolvedTarget]` and
-/// cannot reach a neighbouring instance's targets by accident.
+/// cannot reach a neighboring instance's targets by accident.
 ///
 /// Distinct from `StackEntry::chosen_targets`, and the difference is CR 608.2b:
 /// the entry holds the **announcement**, clause and all, so the re-check can

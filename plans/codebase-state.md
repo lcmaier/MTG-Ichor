@@ -126,7 +126,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2a | Announce spell / move to stack | ✅ | `engine/cast.rs` (780 lines) |
 | 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `Variable`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/cast.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/cast.rs:130–152`, `ui/ask.rs` |
-| 601.2d | Distribution (damage/counters among targets) | ❌ literal placeholder at `engine/cast.rs:154` (single-line comment, no code) | `engine/cast.rs` |
+| 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row A4l sizes it | `engine/cast.rs` |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/cast.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
@@ -7213,6 +7213,106 @@ owner decided it the same day.
      make a measurement wrong. `python plans/check_rulings.py --queue` is the
      list; it is deliberately not copied into this file, because a list that
      is both generated and transcribed goes stale in the transcription.
+
+### Found by A4i — several instances of "target" (2026-09-17)
+
+152. **~~Skullcrack's three damage never landed when the card was cast.~~**
+     **Fixed by the instance walk, 2026-09-17.** *"Players can't gain life this
+     turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to
+     target player or planeswalker."* Three atoms, the first two
+     `EffectRecipient::Controller`, and the pre-A4i rule took a `Sequence`'s
+     **first** atom's recipient as the whole spell's — so the spell announced
+     no target, `chosen_targets` stayed empty, and the damage atom read an
+     empty list. Cast from hand, Skullcrack did its two restrictions and
+     nothing else.
+
+     **How it survived RE-3 and three phases after it.** Every Skullcrack test
+     stages a `ResolutionContext` with the target written in by hand, which
+     proves the resolution reads a target and says nothing about whether
+     CR 601.2c ever asked for one. A fixture that writes the answer cannot
+     check the question. The regression
+     (`skullcrack_cast_from_hand_deals_its_three_damage`) casts from hand for
+     exactly that reason, and was shown to fail at `main` (aafb79a) first.
+
+     **How it was found:** A4i's A/B. `performance` came out `IDENTICAL` and
+     `stress` did not, on the same 161-card pool — so a registered, unpooled
+     card was playing differently. The probe that named it compared the old
+     first-atom derivation against `effect_instances` for every registered
+     card; Skullcrack was the only pre-A4i card where they disagreed.
+
+     **Reachability (2026-09-17):** was reachable and wrong; closed. The class
+     is not: any card whose targeting atom is not the first in its sequence had
+     the same defect, and the probe says Skullcrack was the only one registered.
+
+153. **`effect_instances` walks `Atom` and `Sequence` and nothing else, so a
+     modal spell would announce the targets of modes nobody chose.**
+     CR 601.2b chooses modes *before* CR 601.2c announces targets, so a walk
+     that descended into every branch of `Effect::Modal` would declare an
+     instance per mode and ask for all of them. The walk therefore stops at the
+     nodes it understands — the same scope the one-recipient rule it replaced
+     had.
+
+     **Reachability (2026-09-17):** unreachable. `Effect::Modal`,
+     `Conditional`, `Optional`, `ForEach` and `Repeat` all resolve to an error
+     today (`resolve_effect`), so no card can carry one and be played. It bites
+     the moment modal spells land — `backlog.md` §2.7 — and that phase owns it.
+
+     **Sized:** small, and it is a design choice rather than a sweep. The walk
+     takes the chosen modes as an argument and descends only into those, which
+     means `effect_instances` grows a second spelling for the post-601.2b call
+     and `StackEntry.chosen_modes` becomes an input to it rather than a record.
+     Under fifty lines; the cost is deciding where the two spellings live.
+
+154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
+     filter, so "another target" over `SelectionFilter::Any` or `Player` is
+     not expressible.** The leaf lives inside an `ObjectFilter`, and
+     `SelectionFilter::Any`, `Player`, `Spell` and `DamageSource` carry none;
+     `enumerate_legal_selections` also pushes every player unconditionally for
+     `Any` and `Player` without asking `validate_selection`, so a player
+     exclusion would be skipped even if the leaf could be written.
+
+     **Reachability (2026-09-17):** unreachable — no registered card writes
+     "another target" over anything but a permanent filter. CR 115.4 puts the
+     phrase over "any target" on real cards, so a printed one exists; it is
+     Phase 8 breadth's, and the fix is a `SelectionFilter`-level exclusion
+     rather than a wider `ObjectFilter`.
+
+     **Sized:** ~60 lines. The exclusion moves from the filter to the clause —
+     the instance carries "not what instance k took" beside its filter — and
+     the two enumeration arms that bypass `validate_selection` learn to apply
+     it. That is the shape CR 601.2c actually describes, so it is a
+     simplification as well as a widening; it was not done here because it
+     touches `EffectRecipient`, which 146 sites construct.
+
+155. **`every_instance_has_a_choice` feeds instances forward greedily, which
+     is exact for the shapes that print and not in general.** An "another
+     target" chain reuses one filter, so counting the candidates that pass it
+     and subtracting the ones already taken is the answer a bipartite matching
+     would give. A card whose instances carried *different* filters **and**
+     excluded each other could be told it cannot be cast when a different
+     assignment would work.
+
+     **Reachability (2026-09-17):** unreachable — no printed card combines the
+     two, and the failure mode is conservative (a cast refused, never an
+     illegal one allowed). If one prints, the fix is Hopcroft–Karp over at most
+     a handful of instances, which is small but is a different kind of code
+     from what is there.
+
+156. **The rulings gate has a same-day blind spot: a card registered on the
+     day the ledger was created escapes `--check` unless someone stamps it
+     `read`.** Scope is `read` or `first_seen != created`
+     (`check_rulings.py::in_scope`), and A4i registered five cards on
+     2026-09-17, the day A4b's ledger was created — so all five, and the three
+     rulings between them, were out of scope until the PR hand-stamped them.
+     The stamp is honest (the rulings *were* read), and the gate then refused
+     all three until a test named each.
+
+     **Reachability (2026-09-17):** reachable exactly once, and it already
+     happened. `created` never moves again, so no future registration can
+     collide with it. Recorded rather than fixed because `first_seen ==
+     created` is genuinely ambiguous — every card present at creation carries
+     it — and a finer stamp would be a ledger format change to close a hole
+     that cannot recur.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

@@ -420,7 +420,7 @@ const PERFORMANCE_POOL: [&str; 91] = [
     // rather than only in a fixture. Three clauses, identical criteria, so a
     // random agent that can reach one creature reaches all three of them and a
     // board with several makes each announcement a real prompt. Two mana and
-    // two colours the pool's duals cover, so a random deck can cast it;
+    // two colors the pool's duals cover, so a random deck can cast it;
     // Incremental Growth, Jagged Lightning and Plague Spores stay out — the
     // first two walk this same loop and the third wants a board a random game
     // does not assemble.

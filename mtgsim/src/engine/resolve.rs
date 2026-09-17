@@ -117,7 +117,7 @@ impl GameState {
     /// [`Self::resolve_effect`]'s body, carrying CR 601.2c's instance cursor.
     ///
     /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
-    /// instance as a flat slice, so no primitive can reach a neighbouring
+    /// instance as a flat slice, so no primitive can reach a neighboring
     /// instance's targets, and an atom whose instance fizzled is handed an
     /// empty one rather than the spell's first (CR 608.2b).
     fn resolve_effect_at(
