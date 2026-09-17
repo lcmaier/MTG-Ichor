@@ -782,7 +782,7 @@ impl GameState {
             ObjectFilter::EachOther => match identity.source {
                 Some(source) => Ok(id != source),
                 None => Err(format!(
-                    "ObjectFilter::EachOther on {} has no source to be other than in a                      selection context",
+                    "ObjectFilter::EachOther on {} has no source to be other than in a selection context",
                     id
                 )),
             },

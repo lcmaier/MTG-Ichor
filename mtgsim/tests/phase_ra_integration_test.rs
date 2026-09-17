@@ -798,7 +798,7 @@ fn test_a_multi_target_destroy_is_one_event() {
     assert!(batches[0].is_some());
     assert!(
         batches.iter().all(|x| *x == batches[0]),
-        "one spell, one event -- a replacement effect gets to apply once per          death within it, which it cannot judge if they arrive separately",
+        "one spell, one event -- a replacement effect gets to apply once per death within it, which it cannot judge if they arrive separately",
     );
 }
 

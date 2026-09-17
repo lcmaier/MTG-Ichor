@@ -1167,7 +1167,7 @@ impl AmountRewrite {
             AmountRewrite::LifeFloor(_) => {
                 debug_assert!(
                     false,
-                    "`AmountRewrite::LifeFloor` is clamped against the affected player's                      life total, which `apply` cannot read. Its only evaluator is                      `pipeline::apply_rewrite`'s `LoseLife` leg."
+                    "`AmountRewrite::LifeFloor` is clamped against the affected player's life total, which `apply` cannot read. Its only evaluator is `pipeline::apply_rewrite`'s `LoseLife` leg."
                 );
                 amount
             }

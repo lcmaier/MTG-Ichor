@@ -140,7 +140,7 @@ impl GameState {
                     // targetless. `cards::registry`'s own test refuses one at
                     // registration, so this is the belt to that's braces.
                     None if matches!(recipient, EffectRecipient::SameInstanceAs(_)) => Err(format!(
-                        "{:?} on {:?} names an instance of \"target\" the effect never                          declared (CR 115.3)",
+                        "{:?} on {:?} names an instance of \"target\" the effect never declared (CR 115.3)",
                         recipient, ctx.source
                     )),
                     // Implicit, Controller, the filtered sweeps, Host — none
@@ -1914,7 +1914,7 @@ impl GameState {
             // `replacement::evaluate_enter_template` is the one evaluator that knows
             // whether to read the board or the look-ahead frame (Master Biomancer).
             AmountExpr::SourcePower => Err(
-                "SourcePower has no meaning at resolution time; it is evaluated                  against the CR 614.12 frame when an entry replacement is applied"
+                "SourcePower has no meaning at resolution time; it is evaluated against the CR 614.12 frame when an entry replacement is applied"
                     .to_string(),
             ),
             AmountExpr::TargetToughness => {
@@ -2039,7 +2039,7 @@ impl GameState {
 /// means the walk was bypassed, which is a wiring error rather than a card's.
 fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> String {
     format!(
-        "a primitive on {:?} was handed {:?}, a back-reference to an instance of          \"target\" rather than the clause that declared it (CR 115.3). Resolve it          through `targeting::instance_of`.",
+        "a primitive on {:?} was handed {:?}, a back-reference to an instance of \"target\" rather than the clause that declared it (CR 115.3). Resolve it through `targeting::instance_of`.",
         ctx.source, recipient
     )
 }

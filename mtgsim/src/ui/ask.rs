@@ -986,7 +986,7 @@ pub fn ask_allocate_next_damage(
 ) -> Vec<u64> {
     assert!(
         buckets.len() >= 2,
-        "ask_allocate_next_damage: CR 615.7 chooses only among two or more          sources; called with {}",
+        "ask_allocate_next_damage: CR 615.7 chooses only among two or more sources; called with {}",
         buckets.len(),
     );
     let options: Vec<ChoiceOption> =

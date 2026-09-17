@@ -282,12 +282,12 @@ fn test_gaining_control_of_a_permanent_spell_moves_the_permanent() {
     assert_eq!(
         game.battlefield.get(&spell_id).unwrap().controller,
         0,
-        "CR 110.2b: the permanent's controller *by default* is whoever put the          spell on the stack -- P0, who cast it"
+        "CR 110.2b: the permanent's controller *by default* is whoever put the spell on the stack -- P0, who cast it"
     );
     assert_eq!(
         get_effective_controller(&game, spell_id),
         Some(1),
-        "CR 400.7a: and the steal's Layer 2 effect continues to apply to the          permanent the spell became, so P1 controls it"
+        "CR 400.7a: and the steal's Layer 2 effect continues to apply to the permanent the spell became, so P1 controls it"
     );
     assert_eq!(
         game.objects.get(&spell_id).unwrap().owner,

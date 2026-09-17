@@ -371,7 +371,7 @@ impl GameState {
         // permanent answers to whoever stole it (CR 613.1b).
         if !crate::oracle::characteristics::controls(self, source_id, player_id) {
             return Err(
-                "Only this permanent's controller can activate its abilities                  (CR 602.1a; \"any player may activate\" is not yet modeled)"
+                "Only this permanent's controller can activate its abilities (CR 602.1a; \"any player may activate\" is not yet modeled)"
                     .to_string(),
             );
         }

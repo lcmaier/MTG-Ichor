@@ -331,7 +331,7 @@ fn a_multiplier_reading_power_is_asked_at_the_entry_door_only() {
     let outcomes = [at_the_entry(0), at_the_entry(1)];
     assert!(
         outcomes.contains(&2) && outcomes.contains(&4),
-        "the plain doubler first takes the 1/1 to 3 power and the small doubler          falls out; the small doubler first leaves both applied — got {:?}",
+        "the plain doubler first takes the 1/1 to 3 power and the small doubler falls out; the small doubler first leaves both applied — got {:?}",
         outcomes
     );
 

@@ -386,7 +386,7 @@ impl ContinuousEffectRegistry {
         // a row landing here was routed through registration and would apply twice.
         debug_assert!(
             effect.layer != Layer::Layer7aCdaPT,
-            "Layer 7a is applied intrinsically, never from the registry              (CR 604.3a(3)); effect from source {:?} tried to register there",
+            "Layer 7a is applied intrinsically, never from the registry (CR 604.3a(3)); effect from source {:?} tried to register there",
             effect.source
         );
 
