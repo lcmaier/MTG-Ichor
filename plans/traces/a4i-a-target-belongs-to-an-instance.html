@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch targeting/a4i-per-instance at 24312fc (the review
+  commit) and the frozen CR `tmnt`; never maintained — a later phase that
+  changes these paths gets its own page. Self-contained: fonts from Google
+  Fonts, mermaid from jsDelivr, nothing else.
+-->
+<title>A Target Belongs to an Instance — A4i</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226;
+    --muted: #5B6770; --line: #D5DCDD; --real: #1F6F78; --real-tint: #E3F0F1;
+    --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B;
+    --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.tree { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.entry { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+</style>
+
+<div class="page">
+
+<h1>A Target Belongs to an Instance</h1>
+<p class="lede">A4i made CR 115.3's <em>instance of the word "target"</em> the unit a chosen object is filed under. The review asked two questions the diff cannot answer: <em>why does a function that resolves one effect need a cursor?</em> and <em>how does "another target" stack?</em> Three boards, read by read, and the table of what each read consults.</p>
+<p class="meta"><span class="pin">targeting/a4i-per-instance @ 24312fc</span><span class="pin">CR tmnt</span><span class="pin">2026-09-17, at review</span> Authority for the design: <code>plans/backlog.md</code> §2.20 (graduated) and <code>plans/roadmap-v2.md</code> row A4i. Findings: <code>plans/codebase-state.md</code> items 152–156. Open review items: <code>plans/handoffs/a4i-review.md</code>. Tests: <code>mtgsim/tests/phase_a4i_integration_test.rs</code>.</p>
+
+<div class="callout rule">
+<p><b>The rule this page is about.</b> CR 601.2c: <em>"The same target can't be chosen multiple times for any one instance of the word 'target' on the spell. However, if the spell uses the word 'target' in multiple places, the same object or player can be chosen once for each instance of the word 'target' (as long as it fits the targeting criteria)."</em> Everything below is that sentence, and its worked example two lines later: <em>"A spell that says 'Destroy target artifact and target land' can target the same artifact land twice."</em></p>
+</div>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Three boards. The first is deliberately the dullest thing the phase can do — one creature, one spell, nothing to choose — because that board is where the <em>instance</em> becomes visible: three atoms that are equal in every field have to reach three different slots, and nothing about the atom says which. The second is the "another target" chain, which is the only shape where an earlier choice constrains a later one. The third is CR 608.2b, whose two rules the one-recipient model could only ask one of.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td><b>Seeds of Strength</b>, one Grizzly Bears on the battlefield</td><td>Why does resolving one effect need a cursor? Three equal atoms, three instances, zero prompts.</td><td><code>seeds_of_strength_can_name_one_creature_for_all_three_instances</code></td></tr>
+<tr><td><b>B</b></td><td><b>Incremental Growth</b>, three creatures</td><td>How does <code>OtherThanInstance</code> stack, what does each announcement see, and what does the castability check do before any of it?</td><td><code>incremental_growth_counters_three_different_creatures</code>, <code>..._needs_a_third_creature_to_be_castable</code></td></tr>
+<tr><td><b>C</b></td><td><b>Plague Spores</b> on an animated Seat of the Synod, which becomes black in response</td><td>CR 608.2b's two rules: the spell resolves unless <em>every</em> target is illegal, and an illegal target is simply not affected.</td><td><code>plague_spores_destroys_the_land_when_the_creature_clause_went_illegal</code></td></tr>
+</table>
+</div>
+
+<h3>The path, with A4i's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  CS["cast_spell / activate_ability"] --> SI["spell_instances / effect_instances<br/>walk Atom + Sequence, collect Target|Choose"]:::new
+  SI --> CAST["castable_spells<br/>every_instance_has_a_choice"]:::new
+  CAST --> AT["announce_targets — CR 601.2c<br/>one clause at a time, in printed order"]:::new
+  AT --> ENUM["enumerate_legal_selections_excluding<br/>(filter, earlier_targets)"]:::new
+  ENUM --> OTI["ObjectFilter::OtherThanInstance(k)<br/>reads earlier_targets.instance(k)"]:::new
+  AT --> ASK["ask_select_recipients<br/>CR 102.2 short circuit"]
+  ASK --> VT["validate_targets<br/>+ distinctness within the instance"]:::changed
+  VT --> SE["StackEntry.chosen_targets:<br/>Vec&lt;TargetInstance&gt;"]:::new
+  SE --> RT["resolve_taken"]
+  RT --> ST["surviving_targets — CR 608.2b<br/>filter per instance, fizzle across all"]:::new
+  ST -->|"None"| FZ["handle_fizzle"]
+  ST -->|"Some(ChosenTargets)"| RE["resolve_effect<br/>declared = effect_instances(effect)<br/>cursor = 0"]:::new
+  RE --> REA["resolve_effect_at — the only indexer"]:::new
+  REA --> IO["instance_of(recipient, declared, cursor)"]:::new
+  IO --> RP["resolve_primitive(p, clause, targets: &amp;[ResolvedTarget])"]:::changed
+  classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
+  classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+</pre>
+<div class="legend"><span class="n">new in A4i</span><span class="c">changed shape</span><span class="d">a player decides</span></div>
+
+<h2>Trace A — three equal atoms, three instances</h2>
+<div class="prose">
+<p><b>Board.</b> Player 0 controls one Grizzly Bears (2/2). Seeds of Strength — <em>"Target creature gets +1/+1 until end of turn."</em> printed three times — is in hand, with exactly {G}{W} in the pool.</p>
+<p>The card's effect is a <code>Sequence</code> of three <code>Atom</code>s, and the three recipients are <b>structurally equal</b>: <code>Target(Creature, Exactly(1))</code>, three times. That equality is the whole difficulty. Ensoul Artifact also has two equal recipients and is <b>one</b> instance; nothing in the values tells the two cases apart, which is why the card says which it means and why the resolution cannot recover it by comparing.</p>
+</div>
+
+<ol class="trace">
+<li class="new"><span class="fn">spell_instances(card)</span> <span class="read tree">effect tree</span> — no <code>enchant_filter</code>, so the spell ability's effect is walked. <code>collect_instances</code> descends <code>Sequence</code>, pushes each <code>Target</code>/<code>Choose</code> atom's recipient, and skips everything else. Result: <b>three</b> clauses, numbered 0, 1, 2 by position.</li>
+<li class="new"><span class="fn">every_instance_has_a_choice</span> <span class="read board">battlefield</span> — for each clause, <code>has_legal_choices(Creature, n = 1, earlier_targets)</code> scans <code>battlefield_ids_ordered</code> and stops at the first legal candidate. One creature, so all three clauses pass. <b>No feed-forward runs:</b> <code>clause_reads_earlier_instances</code> is false for every clause, so <code>rposition</code> is <code>None</code> and the full enumeration is skipped. The cast is offered.</li>
+<li class="decide"><span class="fn">announce_targets</span> → instance 0 <span class="read player">player</span> — <code>enumerate_legal_selections_excluding</code> returns <code>[bears]</code>. <code>ask_select_recipients</code> sees <code>min == max == 1 == legal.len()</code> and returns the list <b>without asking</b> (CR 102.2 — a fixed count that takes all of the legal recipients is not a choice). <code>earlier_targets.push([bears])</code>.</li>
+<li class="decide">→ instance 1, and → instance 2, identically. <code>validate_targets</code> checks distinctness <em>within</em> each instance, which is vacuous at one target, and each clause's filter never mentions an earlier instance, so choosing the bear again is legal — CR 601.2c's second sentence.</li>
+<li class="new">The entry: <code>chosen_targets = [TargetInstance{Target(Creature,1), [bears]}; 3]</code> <span class="read entry">stack entry</span>. Three instances, each recording <b>its own clause</b> beside its choice, because CR 608.2b has to re-ask the same question this announcement answered.</li>
+<li class="new"><span class="fn">surviving_targets</span> <span class="read board">battlefield</span> — the bear is still a legal creature, so each of the three instances survives whole. <code>announced</code> is true, <code>survived</code> is true, so <code>Some(ChosenTargets)</code>.</li>
+<li class="new"><span class="fn">resolve_effect</span> <span class="read tree">effect tree</span> — <code>declared = effect_instances(effect)</code> is recomputed here, and <b>this is the invariant the whole design rests on</b>: the effect the resolution walks is the one the announcement walked, because <code>StackEntry.effect</code> was cloned at cast and is never mutated. The two numberings cannot disagree. <code>cursor = 0</code>.</li>
+<li class="changed"><span class="fn">resolve_effect_at</span> → atom 1. <code>instance_of</code> sees a <code>Target</code>, takes <code>ix = 0</code>, bumps the cursor to 1. <code>resolve_primitive</code> is handed <code>ctx.targets.instance(0)</code> = <code>[bears]</code>.</li>
+<li class="changed">→ atom 2: <code>ix = 1</code>, cursor 2. → atom 3: <code>ix = 2</code>, cursor 3. Three identical atoms, three different slots — and the slot came from <b>position in the walk</b>, never from the recipient's value.</li>
+<li>Three <code>ModifyPowerToughness</code> rows on the same object. <b>5/5.</b></li>
+</ol>
+
+<div class="callout">
+<p><b>This is the answer to "why a cursor".</b> The atom's recipient says what <em>kind</em> of clause it is; it never says <em>which one</em>. The announcement numbered the clauses by pre-order position, so the resolution has to reproduce that numbering, and reproducing it means walking the same tree in the same order while counting declarations. An <code>Instance(ix)</code> atom declares nothing, consumes no number and reads <code>ix</code> directly — which is why the cursor counts <b>declarations</b>, not atoms.</p>
+<p><b>The alternative, and why not.</b> Number the tree once and store the index on each atom. <code>Effect</code> is card data behind an <code>Arc</code>, shared by every copy of the card, so the numbering would have to live on a lowered copy on the <code>StackEntry</code> — a second tree to keep in step with the first. The cursor is the cheap form of the same thing, and it is only safe because of step 7's invariant.</p>
+</div>
+
+<h2>Trace B — "another target", and how the exclusion stacks</h2>
+<div class="prose">
+<p><b>Board.</b> Player 0 controls creatures <b>A</b>, <b>B</b> and <b>C</b>, in that timestamp order. Incremental Growth — <em>"Put a +1/+1 counter on target creature, two +1/+1 counters on another target creature, and three +1/+1 counters on a third target creature."</em></p>
+<p>The card writes the exclusion into the criteria, nested:</p>
+<pre><code>instance 0:  Target(Creature, Exactly(1))
+instance 1:  Target(Permanent(And(ByType(Creature), OtherThanInstance(0))), Exactly(1))
+instance 2:  Target(Permanent(And(And(ByType(Creature), OtherThanInstance(0)),
+                                  OtherThanInstance(1))), Exactly(1))</code></pre>
+<p>Each <code>OtherThanInstance</code> is its own leaf and <code>And</code> conjoins them, so <b>yes, it stacks</b> — instance 2 excludes both earlier choices because it carries both leaves.</p>
+</div>
+
+<ol class="trace">
+<li class="new"><span class="fn">every_instance_has_a_choice</span> — <code>feed_until = rposition(clause_reads_earlier_instances)</code> is <b>2</b>, so the feed-forward runs for instances 0 and 1 and not for 2 (nothing after it reads).</li>
+<li class="new">Instance 0: <code>has_legal_choices(Creature, 1, [])</code> → true at A. Then, because <code>0 &lt; 2</code>, <code>enumerate_legal_selections_excluding</code> runs the <b>full</b> scan and <code>.take(1)</code> pushes <code>[A]</code>. <small>This is the enumeration the A/B priced: a full scan where the check itself short-circuits. See "what is still open".</small></li>
+<li class="new">Instance 1: <code>has_legal_choices(And(Creature, OtherThanInstance(0)), 1, [[A]])</code>. The filter walk reaches <code>OtherThanInstance(0)</code>, reads <code>earlier_targets.instance(0)</code> = <code>[A]</code>, and answers <code>id != A</code> <span class="read entry">earlier instances</span> — <b>off the ids, with no frame</b>, exactly as <code>EachOther</code> does, because identity is not a characteristic and no layer can change it. B passes. Push <code>[B]</code>.</li>
+<li class="new">Instance 2: both leaves read, A and B excluded, C passes. No push — nothing after it reads. <b>The cast is offered.</b></li>
+<li class="decide"><span class="fn">announce_targets</span> → instance 0: candidates <code>[A, B, C]</code>, three options for a count of one, so this <b>is</b> a prompt. The player takes A. <code>earlier_targets.push([A])</code>.</li>
+<li class="decide">→ instance 1: <code>enumerate_legal_selections_excluding</code> now filters A out <em>during enumeration</em>, so the option list is <code>[B, C]</code> — the exclusion shapes the offer rather than rejecting an answer. The player takes B.</li>
+<li class="decide">→ instance 2: both leaves exclude, candidates <code>[C]</code>, <b>forced and unasked</b> (CR 102.2). Two prompts for three instances, which is what the test asserts.</li>
+<li class="new"><span class="fn">surviving_targets</span> — all three legal. <code>announced_targets</code> is built from the entry unfiltered, so an <code>OtherThanInstance</code> re-read at 608.2b sees what CR 601.2c chose and not a half-filtered list. <small>One instance fizzling must not silently legalize another's.</small></li>
+<li class="changed">Resolution: cursor 0 → A gets 1, cursor 1 → B gets 2, cursor 2 → C gets 3. Each atom's own clause, each atom's own slot.</li>
+</ol>
+
+<div class="callout before">
+<p><b>Two creatures instead of three, and the spell is never offered.</b> At instance 2, <code>has_legal_choices</code> finds every candidate excluded and returns false, so <code>castable_spells</code> drops the card. That is Incremental Growth's own ruling — <em>"You must choose three different targets in order to cast Incremental Growth"</em> — and it is enforced at <b>enumeration</b> rather than by proposing the cast and rewinding it, because an engine that offers a cast it then rewinds is <code>codebase-state.md</code> item 139's class of defect.</p>
+</div>
+
+<h2>Trace C — CR 608.2b is two rules</h2>
+<div class="prose">
+<p><b>Board.</b> Player 0 controls a Seat of the Synod (Artifact Land) that Ensoul Artifact has made a 5/5 artifact creature — so one permanent that is a land <em>and</em> a nonblack creature, which is CR 601.2c's own worked example. Plague Spores — <em>"Destroy target nonblack creature and target land. They can't be regenerated."</em> — is cast, both clauses naming that permanent. Then, in response, it becomes black.</p>
+</div>
+
+<ol class="trace">
+<li class="decide">Announcement: instance 0 (<code>nonblack creature</code>) and instance 1 (<code>land</code>) each have exactly one legal choice, so both are forced. The entry holds two instances, both <code>[seat]</code>, each with <b>its own clause recorded</b>.</li>
+<li class="decide">A fixture <code>ChangeColor(Set({Black}))</code> resolves on the Seat <span class="read board">battlefield</span>.</li>
+<li class="new"><span class="fn">surviving_targets</span> <span class="read board">battlefield</span>, and this is the payload. <b>Per instance:</b> instance 0's clause is re-asked — <code>is_single_target_legal(Target(nonblack creature), seat)</code> → the layer walk says the Seat is black now → <b>filtered out</b>, instance 0 survives empty. Instance 1's clause — <code>Target(land)</code> → still legal → survives <code>[seat]</code>.</li>
+<li class="new"><b>Across instances:</b> <code>announced</code> is true (both instances chose something) and <code>survived</code> is true (instance 1 kept a target), so the spell <b>resolves</b>. It is an <code>any</code>, not an <code>all</code> — a spell fails to resolve only when <em>every</em> target of <em>every</em> targeting instance is illegal.</li>
+<li class="changed">Resolution: the two <code>Restrict</code> atoms declare the instances, then <code>Destroy @ Instance(0)</code> is handed <b>the empty slice</b> and proposes nothing — CR 608.2b's "it won't affect that target" — and <code>Destroy @ Instance(1)</code> is handed <code>[seat]</code> and destroys it.</li>
+</ol>
+
+<div class="callout before">
+<p><b>What the one-recipient model did here.</b> One <code>EffectRecipient</code> for the whole spell and one flat <code>chosen_targets</code>, and <code>any_targets_still_legal</code> answered for the list as a whole. So the board above had <em>one</em> answer for both clauses: either the spell fizzled entirely, or it destroyed the Seat twice. There was no shape in which "destroy target nonblack creature" was skipped and "destroy target land" was not — which is why §2.20 said the rule "cannot be asked", not that it was answered wrongly.</p>
+</div>
+
+<h3>And the same rule inside one instance</h3>
+<div class="prose">
+<p>Jagged Lightning — <em>"deals 3 damage to each of two target creatures"</em> — is one instance holding two choices. When one of them leaves the battlefield in response, the survivor filter drops it and the other still takes its three. Before A4i this was wrong in the other direction: <code>any_targets_still_legal</code> returned true because one target was legal, and then <code>DealDamage</code> proposed a member for <b>every</b> entry in the flat list, illegal ones included. The per-target half of 608.2b needed no second clause to be wrong.</p>
+</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>Read</th><th>Before A4i</th><th>After</th><th>What consults it</th></tr>
+<tr><td>Which clause a spell announces against</td><td class="diff-old"><code>effect_recipient</code> — the <b>first</b> direct <code>Atom</code> child's recipient, for the whole spell</td><td class="diff-new"><code>effect_instances</code> — every <code>Target</code>/<code>Choose</code> atom, in pre-order, as a list</td><td>the effect tree <span class="read tree">effect tree</span></td></tr>
+<tr><td>Which targets an atom acts on</td><td class="diff-old"><code>ctx.targets</code> — the spell's whole flat list, whatever the atom's own recipient said</td><td class="diff-new"><code>ctx.targets.instance(ix)</code>, handed down as a slice by the one indexing site</td><td>the resolution context <span class="read entry">stack entry</span></td></tr>
+<tr><td>Whether a target is still legal</td><td>per target, <code>validate_selection</code></td><td>unchanged per target; <b>the grouping changed</b></td><td>the battlefield, through a layer walk <span class="read board">battlefield</span></td></tr>
+<tr><td>Whether the spell resolves at all</td><td class="diff-old"><code>any</code> over one flat list</td><td class="diff-new"><code>any</code> over every targeting instance, with CR 115.6's zero-target clause excluded from "announced"</td><td>the entry's instances <span class="read entry">stack entry</span></td></tr>
+<tr><td>What an illegal target does</td><td class="diff-old">nothing — the whole list was passed through</td><td class="diff-new">filtered out once, as the spell begins to resolve</td><td>the battlefield <span class="read board">battlefield</span></td></tr>
+<tr><td>"another target"</td><td class="diff-old">inexpressible</td><td class="diff-new"><code>OtherThanInstance(k)</code>, answered off the ids from <code>earlier_targets</code></td><td>the earlier instances <span class="read entry">earlier instances</span> — never a frame</td></tr>
+<tr><td>Whether a spell is castable</td><td class="diff-old">one <code>has_any_legal_choice</code> on the first clause's filter</td><td class="diff-new">every clause in turn, with a count and with what the earlier ones took</td><td>the battlefield <span class="read board">battlefield</span></td></tr>
+</table>
+</div>
+
+<h2>What this changed, trace by trace — and what is still open</h2>
+<div class="prose">
+<p><b>Trace A</b> is the phase in one board: the three slots exist, and they are filled by position. Before A4i the spell had one slot and one prompt, so a card that printed "target creature" three times was indistinguishable from one that printed it once.</p>
+<p><b>Trace B</b> is the shape the design missed until review. §2.20 sized "a recipient per atom (or per instance of 'target')" and named two of CR 601.2c's three lines; the third — the exclusion written into the criteria — is the biggest population the entry counted, 36 cards on <code>o:"another target creature"</code> alone.</p>
+<p><b>Trace C</b> is the rule the old model could not ask. It is also where the phase's live bug came from: on the same board shape, <b>Skullcrack</b>'s three atoms are <code>Controller</code>, <code>Controller</code>, <code>Target(Player)</code>, and the first-atom rule meant a cast announced no target at all and the damage went nowhere. Four phases of tests missed it because every Skullcrack test stages a <code>ResolutionContext</code> with the target written in by hand — a fixture that writes the answer cannot check the question.</p>
+</div>
+
+<div class="callout">
+<p><b>Open, from this review</b> (<code>plans/handoffs/a4i-review.md</code>):</p>
+<ul>
+<li><b>The announcement order is the engine's, not the rule's.</b> CR 601.2c fixes no order. The sequential loop is outcome-equivalent today and stops being so the day 601.2c's <em>"must be chosen as a target … the maximum possible number"</em> lands, because that is a global optimum over all instances and a greedy loop cannot see it. No printed card produces one; it is owed as a fixture.</li>
+<li><b>The representation.</b> <code>ChosenTargets</code> is still a <code>Vec&lt;Vec&lt;_&gt;&gt;</code> behind a name; a flat buffer with offsets is strictly better, and <code>surviving_targets</code> currently copies the announcement twice.</li>
+<li><b>The feed-forward rebuilds where it could subtract.</b> Per-clause enumeration is needed when the clauses' filters differ (Decimate), and the feed-forward only runs when they do <em>not</em> (an "another target" chain) — so the case that costs is exactly the case that could enumerate once.</li>
+<li><b>Choice versus target.</b> No registered card uses <code>EffectRecipient::Choose</code>, and the announcement asks one at cast time, which a plain "choose" in an effect's text does not do (CR 608.2c). Inherited from the code A4i replaced, and unsurveyed.</li>
+</ul>
+</div>
+
+<p class="meta">Not maintained. A later phase that changes these paths gets its own page.</p>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { curve: "basis" } });
+</script>
+</body>
+</html>

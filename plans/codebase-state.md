@@ -7216,6 +7216,12 @@ owner decided it the same day.
 
 ### Found by A4i — several instances of "target" (2026-09-17)
 
+Trace page: `plans/traces/a4i-a-target-belongs-to-an-instance.html` — three
+boards read by read, written at the review because two of its questions (why a
+resolution needs CR 601.2c's instance cursor, and how "another target" stacks)
+are ones the diff cannot answer. Open review findings, triaged:
+`plans/handoffs/a4i-review.md`.
+
 152. **~~Skullcrack's three damage never landed when the card was cast.~~**
      **Fixed by the instance walk, 2026-09-17.** *"Players can't gain life this
      turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to
