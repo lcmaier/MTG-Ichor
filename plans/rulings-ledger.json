@@ -469,6 +469,7 @@
     },
     "Incremental Growth": {
       "first_seen": "2026-09-17",
+      "read": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2014-09-20", "comment": "You must choose three different targets in order to cast Incremental Growth. You decide how many +1/+1 counters each creature will get as part of casting the spell."},
         {"n": 2, "published_at": "2014-09-20", "comment": "If some of the creatures are illegal targets as Incremental Growth tries to resolve, the remaining legal targets still get the appropriate number of +1/+1 counters. If all targets are illegal, Incremental Growth doesn’t resolve."}
@@ -484,6 +485,7 @@
     },
     "Jagged Lightning": {
       "first_seen": "2026-09-17",
+      "read": "2026-09-17",
       "rulings": []
     },
     "Kalitas, Traitor of Ghet": {
@@ -723,6 +725,7 @@
     },
     "Plague Spores": {
       "first_seen": "2026-09-17",
+      "read": "2026-09-17",
       "rulings": []
     },
     "Plains": {
@@ -848,10 +851,12 @@
     },
     "Seat of the Synod": {
       "first_seen": "2026-09-17",
+      "read": "2026-09-17",
       "rulings": []
     },
     "Seeds of Strength": {
       "first_seen": "2026-09-17",
+      "read": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2005-10-01", "comment": "You may choose the same creature as a target multiple times since the card says “target creature” multiple times. You may give three different creatures +1/+1 each, one creature +2/+2 and another creature +1/+1, or a single creature +3/+3."}
       ]
