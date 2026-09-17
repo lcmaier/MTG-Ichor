@@ -70,24 +70,37 @@ impl GameState {
             // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
             //
             // Retry loop: on execution failure, blacklist the action for this
-            // priority window and re-prompt with the filtered list; bound retries
-            // at `3 × candidates.len()` (minimum 6) and fall back to `Pass` when the
-            // budget is exhausted, with a diagnostic on stderr.
-            let all_candidates = candidate_priority_actions(self, current_priority);
-            let max_retries = all_candidates.len().saturating_mul(3).max(6);
+            // priority window and re-prompt with a freshly enumerated list minus
+            // the blacklist; bound retries at `3 × candidates.len()` (minimum 6)
+            // and fall back to `Pass` when the budget is exhausted, with a
+            // diagnostic on stderr.
             let mut blacklist: Vec<PriorityAction> = Vec::new();
             let mut retries: usize = 0;
+            // The budget is 3× the list this window *started* with: re-deriving it
+            // from a list the blacklist keeps shortening would shrink the budget
+            // as it is spent.
+            let mut budget: Option<usize> = None;
 
             // Choose an action and attempt execution; retry on failure.
             // On success, `executed` holds the action that ran and (for
             // ActivateAbility) whether it was a mana ability (which bypasses
             // the post-action SBA pass, per rule 605).
             let executed: (PriorityAction, bool) = loop {
-                let available: Vec<PriorityAction> = all_candidates
-                    .iter()
-                    .filter(|a| !blacklist.contains(a))
-                    .cloned()
-                    .collect();
+                // Enumerated per prompt, not per window. A rejected cast's mana
+                // abilities stay activated (CR 732.1 — the reversal is the
+                // player's option and the engine never offers it), so the board a
+                // retry is offered from is not the board the last list was built
+                // from, and re-offering that list offers casts no enumeration of
+                // *this* board would. The prompt has to be a function of
+                // `GameState` or a clone taken at one cannot rebuild it —
+                // `codebase-state.md` items 139 and 41.
+                let available: Vec<PriorityAction> =
+                    candidate_priority_actions(self, current_priority)
+                        .into_iter()
+                        .filter(|a| !blacklist.contains(a))
+                        .collect();
+                let max_retries = *budget
+                    .get_or_insert_with(|| available.len().saturating_mul(3).max(6));
 
                 // If every non-Pass candidate has been blacklisted (or the
                 // retry budget is exhausted), force a Pass. Pass is always
