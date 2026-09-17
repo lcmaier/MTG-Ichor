@@ -7163,6 +7163,57 @@ owner decided it the same day.
      and +5.7% after, because `has_any_legal_choice` walks the battlefield and
      most abilities are unaffordable anyway. `fuzz-record.md`, the A4h block.
 
+### Found by A4b — the rulings ledger (2026-09-17)
+
+151. **The rulings gate is scoped, so 308 of the ledger's 330 rulings are
+     outside it by construction.** `plans/check_rulings.py --check` fails on a
+     ruling that no test names and no disposition answers — but only for a card
+     that carries a `read` stamp, or whose `first_seen` is later than the
+     ledger's `created`. Everything else is the backlog, which is 308 rulings
+     over 93 cards today, 103 of them on 38 `PERFORMANCE_POOL` cards.
+
+     **Why it is scoped rather than armed.** A gate that failed on all 330 the
+     day it landed is a gate nobody could pass, so it would have been turned
+     off or worked around within a PR or two; `specdb owed` has the same shape
+     for the same reason (`engineering-practices.md` §5.1). The forward half
+     needs no scoping and has none: a card registered from here on is in scope
+     the moment `--fetch` sees it, which is what makes §3.4 a rule rather than
+     a habit.
+
+     **Reachability (2026-09-17):** reachable but not wrong today — nothing in
+     the engine is wrong because of this; what it means is that **the pool
+     carries 103 unread claims about its own behaviour**, each one written by
+     the people who adjudicate the game, and item 82 is the standing evidence
+     that reading them finds live bugs. The debt is unread rulings, not
+     unimplemented rules.
+
+     **And the scope rule froze it.** A card registered from here on has a
+     `first_seen` later than the ledger's `created`, so it is in scope from
+     the moment `--fetch` sees it and its rulings are answered in the pull
+     request that registers it. **Nothing new joins the backlog** — the 308 is
+     exactly the rulings on the 93 cards that predate the ledger, and it only
+     shrinks, apart from drift adding one to a card nobody has read yet. That
+     weakens the urgency `engineering-practices.md` §3.4a was written with
+     ("the last point at which the retroactive half is a sitting rather than a
+     project, since the registry only grows"): the registry still only grows,
+     but the backlog no longer grows with it.
+
+     **Sized:** a sitting per tranche, not a phase. A4b's own head — three
+     pooled cards, 22 rulings — came to ten new tests, five annotations on
+     tests that already existed and nine dispositions. At 22 rulings a sitting
+     the remaining **pooled 103 is about five** and the whole 308 is about
+     fourteen, so the off-pool 205 is two thirds of the work on cards no
+     measurement walks. **Scheduled by the owner 2026-09-17** (`roadmap-v2.md`
+     row A4b): the pooled 103 takes a slot between phases whenever one is
+     free, no deadline, and the off-pool 205 is not scheduled at all. Between
+     phases rather than inside one because a bug this finds in a pooled card
+     is an engine fix that moves the random agent's stream and owes its own
+     A/B — the argument §3.4a used for A4b's own slot, and the reason the
+     off-pool half can wait indefinitely: a card no measurement walks cannot
+     make a measurement wrong. `python plans/check_rulings.py --queue` is the
+     list; it is deliberately not copied into this file, because a list that
+     is both generated and transcribed goes stale in the transcription.
+
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

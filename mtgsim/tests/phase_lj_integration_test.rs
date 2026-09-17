@@ -133,6 +133,9 @@ fn test_a_battlefield_scoped_row_does_not_reach_a_graveyard_card() {
 /// the ability is stripped before `gather` reads it, and the Treefolk enters
 /// untapped — the wrong answer, and the one a naive `zones.contains(obj.zone)`
 /// gives, since an entering object is still in its source zone.
+// RULING: Yixlid Jailer #4 - "Although these cards won't have these abilities
+//   in the graveyard, they will be applied if the cards are put onto the
+//   battlefield from the graveyard (due to Zombify, perhaps)."
 // COVERS: ATOM-614.12-001
 #[test]
 fn test_a_treefolk_reanimated_under_yixlid_jailer_still_enters_tapped() {

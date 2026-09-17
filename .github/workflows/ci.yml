@@ -150,3 +150,14 @@ jobs:
       - name: State of play
         working-directory: .
         run: python3 plans/check_state_of_play.py --check
+
+      # A ruling a registered card carries and no test names
+      # (`engineering-practices.md` §3.4a). Offline like the rest: the
+      # ledger is checked in, the fetch that refreshes it is manual, and
+      # `--check` reads the ledger and the `// RULING:` annotations only.
+      # So drift — Scryfall adding a ruling to a card that was correct
+      # when it was registered — fails in the pull request that re-fetches,
+      # and never in one whose branch touched nothing.
+      - name: Rulings ledger
+        working-directory: .
+        run: python3 plans/check_rulings.py --check

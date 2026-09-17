@@ -1147,7 +1147,7 @@ mechanic rather than a migration, which is why it is here and not in
   |---|---|---|
   | `ManaWindowStop` | `ManaAbilityWindow` (decline when covered) | built, CM-4 |
   | `AutoPayer` | `OrderCostReductions`; `GenericManaAllocation` when forced | built, CM-4; the second half is not reached from a game since A4e — a row the census settles, below |
-  | tap solver | `ManaAbilityWindow` (*picks*) | §2.18's oracle half; the Arena problem lives here |
+  | tap solver | `ManaAbilityWindow` (*picks*) | §2.18's oracle half; the Arena problem lives here. **Its live cost is measured (A4h, 2026-09-17), and this row is where it gets a size**: the affordability overapproximation it would replace is what makes the engine offer a cast it then rejects, and the re-ask that follows was `codebase-state.md` item 139 — the path A4h had to make state-dependent, the one item 140's blacklist still sits on, and the one item 138's lever 4 prices at 19.2% of instructions |
   | auto-yield | `PriorityAction` in known-pass spots | unsized; **creates the tell full control answers** |
   | full control | everything — bypasses the stack | sized below |
   | auto-order triggers | trigger ordering when the order cannot matter | with critical-path item 6 |
