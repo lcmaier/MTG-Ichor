@@ -7203,10 +7203,16 @@ owner decided it the same day.
      tests that already existed and nine dispositions. At 22 rulings a sitting
      the remaining **pooled 103 is about five** and the whole 308 is about
      fourteen, so the off-pool 205 is two thirds of the work on cards no
-     measurement walks and is not scheduled. `python plans/check_rulings.py
-     --queue` is the list; it is deliberately not copied into this file,
-     because a list that is both generated and transcribed goes stale in the
-     transcription.
+     measurement walks. **Scheduled by the owner 2026-09-17** (`roadmap-v2.md`
+     row A4b): the pooled 103 takes a slot between phases whenever one is
+     free, no deadline, and the off-pool 205 is not scheduled at all. Between
+     phases rather than inside one because a bug this finds in a pooled card
+     is an engine fix that moves the random agent's stream and owes its own
+     A/B — the argument §3.4a used for A4b's own slot, and the reason the
+     off-pool half can wait indefinitely: a card no measurement walks cannot
+     make a measurement wrong. `python plans/check_rulings.py --queue` is the
+     list; it is deliberately not copied into this file, because a list that
+     is both generated and transcribed goes stale in the transcription.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
