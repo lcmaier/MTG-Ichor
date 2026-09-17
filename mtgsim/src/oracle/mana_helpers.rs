@@ -383,6 +383,12 @@ pub fn activatable_abilities(
                 continue;
             }
 
+            // Single-pass check: non-mana costs via engine, mana costs via
+            // pool + available sources. No double-check.
+            if !can_afford_ability_costs(game, player_id, id, &ability.costs) {
+                continue;
+            }
+
             // CR 602.2b routes an activation through 601.2c, so an ability
             // that *requires* a target and has none is no more activatable
             // than such a spell is castable — the same check `castable_spells`
@@ -397,12 +403,6 @@ pub fn activatable_abilities(
                 && n >= 1
                 && !game.has_any_legal_choice(f, None, player_id)
             {
-                continue;
-            }
-
-            // Single-pass check: non-mana costs via engine, mana costs via
-            // pool + available sources. No double-check.
-            if !can_afford_ability_costs(game, player_id, id, &ability.costs) {
                 continue;
             }
 
