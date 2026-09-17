@@ -118,24 +118,42 @@
 <pre class="mermaid">
 flowchart TD
   CS["cast_spell / activate_ability"] --> SI["spell_instances / effect_instances<br/>walk Atom + Sequence, collect Target|Choose"]:::new
+  SI -->|"card has enchant_filter"| AURA["one instance, from the enchant ability<br/>CR 303.4a — an Aura has no spell ability"]:::new
+  AURA --> CAST
   SI --> CAST["castable_spells<br/>every_instance_has_a_choice"]:::new
+  CAST -->|"any instance has no legal choice"| NOTOFFERED(["not offered<br/>the cast is never proposed"]):::fail
   CAST --> AT["announce_targets — CR 601.2c<br/>one clause at a time, in printed order"]:::new
   AT --> ENUM["enumerate_legal_selections_excluding<br/>(filter, earlier_targets)"]:::new
   ENUM --> OTI["ObjectFilter::OtherThanInstance(k)<br/>reads earlier_targets.instance(k)"]:::new
   AT --> ASK["ask_select_recipients<br/>CR 102.2 short circuit"]
   ASK --> VT["validate_targets<br/>+ distinctness within the instance"]:::changed
+  VT -->|"Err"| RB(["rollback_cast_to_hand /<br/>rollback_ability_activation — CR 601.2e"]):::fail
   VT --> SE["StackEntry.chosen_targets:<br/>Vec&lt;TargetInstance&gt;"]:::new
   SE --> RT["resolve_taken"]
   RT --> ST["surviving_targets — CR 608.2b<br/>filter per instance, fizzle across all"]:::new
-  ST -->|"None"| FZ["handle_fizzle"]
+  ST -->|"None — every target of every<br/>targeting instance is illegal"| FZ(["handle_fizzle<br/>countered by game rules"]):::fail
   ST -->|"Some(ChosenTargets)"| RE["resolve_effect<br/>declared = effect_instances(effect)<br/>cursor = 0"]:::new
   RE --> REA["resolve_effect_at — the only indexer"]:::new
   REA --> IO["instance_of(recipient, declared, cursor)"]:::new
   IO --> RP["resolve_primitive(p, clause, targets: &amp;[ResolvedTarget])"]:::changed
+  RP -->|"instance survived empty"| NOOP(["proposes nothing — CR 608.2b's<br/>&quot;it won't affect that target&quot;"]):::fail
   classDef new fill:#EEE9F7,stroke:#6B4FA0,color:#1B2226;
   classDef changed fill:#E4F2EA,stroke:#2E7D4F,color:#1B2226;
+  classDef fail fill:#F8E8EA,stroke:#8A2F3B,color:#1B2226;
 </pre>
 <div class="legend"><span class="n">new in A4i</span><span class="c">changed shape</span><span class="d">a player decides</span></div>
+<div class="prose">
+<p><b>Four ways a target can fail, and they are four different rules.</b> The
+diagram carries all of them because telling them apart is most of what the phase
+does. <span class="fn">not offered</span> is CR 601.2c asked <em>before</em> the
+cast is proposed, so the engine never has to rewind — Decimate's reminder text as
+a function. <span class="fn">rollback</span> is CR 601.2e, for a proposal that got
+past enumeration and failed validation. <span class="fn">handle_fizzle</span> is
+CR 608.2b's first rule, asked across every instance at once. And
+<span class="fn">proposes nothing</span> is CR 608.2b's <em>second</em> rule, per
+instance — the one the old model had no shape for, because an atom handed an
+empty slice does nothing while its siblings resolve normally.</p>
+</div>
 
 <h2>Trace A — three equal atoms, three instances</h2>
 <div class="prose">
@@ -144,9 +162,9 @@ flowchart TD
 </div>
 
 <ol class="trace">
-<li class="new"><span class="fn">spell_instances(card)</span> <span class="read tree">effect tree</span> — no <code>enchant_filter</code>, so the spell ability's effect is walked. <code>collect_instances</code> descends <code>Sequence</code>, pushes each <code>Target</code>/<code>Choose</code> atom's recipient, and skips everything else. Result: <b>three</b> clauses, numbered 0, 1, 2 by position.</li>
+<li class="new"><span class="fn">spell_instances(card)</span> <span class="read tree">effect tree</span> — no <code>enchant_filter</code>, so the spell ability's effect is walked. <small><b>An Aura would have stopped one line earlier</b>, and the trace below never reaches it: an Aura spell has <em>no spell ability</em> at all (CR 702.5a — enchant is a static ability on the permanent), so walking <code>abilities</code> for an <code>AbilityType::Spell</code> finds nothing and would announce <b>zero</b> instances. The early return synthesizes the one instance CR 303.4c gives it, from <code>enchant_filter</code>. That is what makes the castability check, the announcement and the CR 608.2b re-check all see the same clause — it was Deferred Migrations item 8 when they did not.</small> <code>collect_instances</code> descends <code>Sequence</code>, pushes each <code>Target</code>/<code>Choose</code> atom's recipient, and skips everything else. Result: <b>three</b> clauses, numbered 0, 1, 2 by position.</li>
 <li class="new"><span class="fn">every_instance_has_a_choice</span> <span class="read board">battlefield</span> — for each clause, <code>has_legal_choices(Creature, n = 1, earlier_targets)</code> scans <code>battlefield_ids_ordered</code> and stops at the first legal candidate. One creature, so all three clauses pass. <b>No feed-forward runs:</b> <code>clause_reads_earlier_instances</code> is false for every clause, so <code>rposition</code> is <code>None</code> and the full enumeration is skipped. The cast is offered.</li>
-<li class="decide"><span class="fn">announce_targets</span> → instance 0 <span class="read player">player</span> — <code>enumerate_legal_selections_excluding</code> returns <code>[bears]</code>. <code>ask_select_recipients</code> sees <code>min == max == 1 == legal.len()</code> and returns the list <b>without asking</b> (CR 102.2 — a fixed count that takes all of the legal recipients is not a choice). <code>earlier_targets.push([bears])</code>.</li>
+<li class="decide"><span class="fn">announce_targets</span> → instance 0 <small>(&ldquo;instance&rdquo; is CR 115.3's own word and is the name everywhere — <code>TargetInstance</code>, <code>effect_instances</code>, instance 0. What the review proposed renaming is only the <em>recipient variant</em>: at a call site <code>EffectRecipient::Instance(0)</code> reads as &ldquo;this atom's recipient <b>is</b> instance 0&rdquo; when it means &ldquo;this atom <b>reuses</b> the instance declared at 0&rdquo;.)</small> <span class="read player">player</span> — <code>enumerate_legal_selections_excluding</code> returns <code>[bears]</code>. <code>ask_select_recipients</code> sees <code>min == max == 1 == legal.len()</code> and returns the list <b>without asking</b> (CR 102.2 — a fixed count that takes all of the legal recipients is not a choice). <code>earlier_targets.push([bears])</code>.</li>
 <li class="decide">→ instance 1, and → instance 2, identically. <code>validate_targets</code> checks distinctness <em>within</em> each instance, which is vacuous at one target, and each clause's filter never mentions an earlier instance, so choosing the bear again is legal — CR 601.2c's second sentence.</li>
 <li class="new">The entry: <code>chosen_targets = [TargetInstance{Target(Creature,1), [bears]}; 3]</code> <span class="read entry">stack entry</span>. Three instances, each recording <b>its own clause</b> beside its choice, because CR 608.2b has to re-ask the same question this announcement answered.</li>
 <li class="new"><span class="fn">surviving_targets</span> <span class="read board">battlefield</span> — the bear is still a legal creature, so each of the three instances survives whole. <code>announced</code> is true, <code>survived</code> is true, so <code>Some(ChosenTargets)</code>.</li>

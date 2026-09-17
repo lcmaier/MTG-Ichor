@@ -46,6 +46,42 @@ per-instance loop can take a first target that makes a later requirement
 unsatisfiable, and no amount of per-instance checking sees it. So the announcement
 order stops being free the day requirements exist.
 
+### The optimum shape, surveyed across the whole CR (2026-09-17)
+
+The owner's question, and it is the right one to be nervous about. Searching the
+frozen CR for the phrase gives **exactly three sites**, and they are one rule
+wearing three hats:
+
+| Rule | What is maximized | Owner |
+|---|---|---|
+| **508.1d** | attack requirements obeyed | RS-3b |
+| **509.1c** | block requirements obeyed | RS-3b |
+| **601.2c** | targeting requirements obeyed | **unowned — this finding** |
+
+There is no fourth. `cant-effects-architecture.md` already calls 508.1d/509.1c
+the NP-hard one and gives it a bounded-exact search with a cap (§4.2), so the
+shape is budgeted; what this finding adds is that **targeting is the third hat
+and nobody has it**.
+
+**And the targeting one is much smaller than combat's.** Combat searches over
+every creature a player controls crossed with attack/block assignments.
+Targeting searches over **the instances of one spell** — one to four in every
+printed card — crossed with that instance's legal candidates. It is the same
+algorithm on a search space two orders of magnitude smaller, and RS-3b's cap
+covers it for free.
+
+**Today the space is empty.** No printed card produces a targeting requirement
+(survey below), so there is nothing to maximize and the greedy loop is exact.
+
+### Not to be confused with: "as many as possible"
+
+A different phrase, a different shape, and the engine already does it. CR 101.3
+("only the possible portion is performed"), 701.17b (mill a short library),
+701.23d (search for more than the zone holds) and the 601.2h discard example are
+**clamps**, not optimizations: take `min(asked, available)` and move on. They
+cost nothing and are implemented — `Primitive::Mill`, `sacrifice_of_choice`'s
+`count.min(candidates.len())`. Nothing in that family needs a search.
+
 **Neither half is handled, and they have different owners.**
 
 - The **"can't be chosen"** half is RS-2's, already scheduled
@@ -71,6 +107,22 @@ over a player filter**, which is `OtherThanInstance` applied to something
 gap has no named customer — it has eight, and they arrive with modal spells
 (`backlog.md` §2.7). Update the item.
 
+**And a third population the owner supplied, which my survey missed.**
+`o:"the copy targets" or o:"the copies target" or o:"each copy targets"` returns
+**13**: Precursor Golem, Zada, Ink-Treader Nephilim, Mirrorwing Dragon, Radiate,
+Agrus Kos, Beamsplitter Mage, Exterminator Magmarch, Feather, Frontline Heroism,
+Ivy, Radiant Performer, Zevlor. Most carry *"Each copy targets a different one of
+those creatures."*
+
+**It is the same rule shape on a different axis, and it is not A4i's.** A4i's
+`OtherThanInstance` is distinctness *across instances of one object*; the modal
+eight are distinctness *across modes of one object*; these thirteen are
+distinctness *across separate stack objects* — the copies — and the constraint is
+written by the card as the copies are created, not by CR 601.2c as one spell is
+announced. So it belongs to `copy-effects-architecture.md`, not here. Recorded
+because the three together are the real size of "the engine cannot say *different
+from that one*": **8 + 13 + the A4i family**, three axes, one missing expression.
+
 **Action:** fix the backlog sentence now; open a `codebase-state.md` item for the
 "must be chosen" half with the survey and a size; amend item 154 with the eight.
 
@@ -82,11 +134,41 @@ gap has no named customer — it has eight, and they arrive with modal spells
 a name and made exactly one site index it, which fixed the *indexing* smell and
 not the *representation*. The owner is right that the justification is thin.
 
-**Fix: a flat buffer plus offsets.** `ChosenTargets { flat: Vec<ResolvedTarget>,
-bounds: Vec<u32> }`, instance `i` being `flat[bounds[i]..bounds[i+1]]`. One
-allocation instead of one per instance, `instance(ix)` still returns a slice, and
-`all()` becomes the buffer itself. The public surface does not change, which is
-what makes it a follow-up rather than a re-design.
+**Fix: a flat buffer plus offsets.**
+
+```rust
+pub struct ChosenTargets {
+    /// Every instance's targets, concatenated in instance order.
+    flat: Vec<ResolvedTarget>,
+    /// Where each instance starts in `flat`, plus a trailing sentinel.
+    /// `bounds.len() == instances + 1` and `bounds[instances] == flat.len()`.
+    bounds: Vec<u32>,
+}
+```
+
+`instance(i)` is `&flat[bounds[i] as usize .. bounds[i + 1] as usize]`.
+
+**Why `bounds` is a `Vec` and not an array or a field.** The number of instances
+is a property of the *card*, known only at run time and unbounded in principle —
+one for Lightning Bolt, three for Seeds of Strength, four for Decimate, and
+nothing in the CR caps it. So the index structure has to grow, which makes it a
+`Vec`. It is a **prefix-sum**, not a list of lengths: storing starts rather than
+sizes makes `instance(i)` two reads instead of a running total, and the trailing
+sentinel is what lets the last instance use the same expression as every other
+one instead of a special case.
+
+**Why not `Vec<Range<u32>>`.** Same length as the instance list, no sentinel
+needed — but twice the memory, and it lets the ranges be non-contiguous or
+out of order, which is a state this type should not be able to represent. The
+prefix-sum form makes contiguity structural rather than an invariant someone has
+to maintain.
+
+**What it buys.** `Vec<Vec<T>>` is `1 + N` allocations for N instances; this is
+**2, always**. `all()` stops being a `flatten` and becomes `&flat`. `push` is
+`flat.extend(targets); bounds.push(flat.len() as u32)`, starting from
+`bounds: vec![0]`. The public surface — `instance`, `all`, `len`, `is_empty`,
+`push`, `one`, the `NONE` constant — does not change, which is what makes this a
+follow-up rather than a re-design.
 
 **#13 — `surviving_targets` copies the world twice.** It clones every instance's
 `Vec` (including untargeted ones, which are never filtered), collects into a new
@@ -110,13 +192,28 @@ That turns theme C's hot loop from O(I) enumerations into one, and it is what
 makes #14's complexity defensible rather than merely measured.
 
 **#11 — `FilterIdentity` is bespoke, and it is already missing a member.**
-`enumerate_legal_selections`' `exclude_id` parameter — the Aura that cannot
-enchant itself — is the *same kind of fact*: an identity the filter must exclude,
-unanswerable by any layer. It sits outside the struct as a third positional
-argument. CR 115.5 ("a spell or ability on the stack is an illegal target for
-itself") is a fourth of the same kind and is unmodeled. **Fold `exclude_id` in**,
-and the struct stops being bespoke and starts being the answer to "what identity
-facts does a selection filter need".
+`enumerate_legal_selections`' `exclude_id` is the *same kind of fact*: an
+identity the filter must exclude, unanswerable by any layer, sitting outside the
+struct as a third positional argument. **Fold it in.**
+
+**The owner's question corrected the file and two source comments.** I wrote, and
+the pre-existing doc comments on `has_any_legal_choice` and
+`enumerate_legal_selections` said, that `exclude_id` is "the Aura, which can't
+enchant itself" — and the owner's objection is exactly right: *every* Aura can't
+enchant itself, so that cannot be what a per-call parameter is for.
+
+**What it actually implements is CR 115.5** — *"A spell or ability on the stack
+is an illegal target for itself."* Every caller inside CR 601.2c's loop passes
+the object being cast or activated, not an Aura. The Aura case it was named for
+**cannot arise at all**: an Aura spell is on the *stack* when its target is
+chosen, and an enchant filter is a `Permanent` filter, so `require_on_battlefield`
+rejects it before `exclude_id` is consulted. Where the parameter actually bites
+is the stack-reading filters — `Spell` (a Counterspell offered itself) and
+`DamageSource`.
+
+Both source comments are corrected in this pass; it is a doc fix with no
+behaviour. And it strengthens the fold: `exclude_id` is a **rule**, not a quirk,
+so it belongs in the struct that holds the rules a filter reads off ids.
 
 ---
 
@@ -127,7 +224,18 @@ facts does a selection filter need".
 (`..._does_not_resolve_with_every_creature_gone`). **2 of 3 is not covered**, and
 that is the boundary an off-by-one in `surviving_targets`' `any` would hide —
 `survived` reading `all` instead of `any` passes both existing tests and fails
-only here. Add it.
+only here. **Done** — `incremental_growth_resolves_on_its_last_legal_creature`.
+
+**#7b, from the same round — a doubler per instruction.** The owner asked whether
+Incremental Growth's three counter instructions interact correctly with
+Vorinclex, Monstrous Raider, and **both cards are registered**, so a `stress`
+game can build the board. Tested and correct: each clause is its own
+`AddCounters` proposal, so CR 614.5 asks Vorinclex three times and the answer is
+**2 / 4 / 6** — not twelve on one creature and not six doubled once.
+`vorinclex_doubles_each_of_incremental_growths_three_instructions`. RE-5 had
+asserted the shape against a two-atom fixture on *one* instance (Winding
+Constrictor's ruling); this is the same claim where the instructions also land on
+different subjects, which is what A4i made reachable.
 
 ---
 

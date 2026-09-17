@@ -28,7 +28,7 @@ use mtgsim::cards::phase_a4i_cards::{
     incremental_growth, jagged_lightning, plague_spores, seat_of_the_synod, seeds_of_strength,
 };
 use mtgsim::cards::phase_ld_cards::ensoul_artifact_spell;
-use mtgsim::cards::phase_re_cards::skullcrack;
+use mtgsim::cards::phase_re_cards::{skullcrack, vorinclex_monstrous_raider};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -663,4 +663,80 @@ fn skullcrack_cast_from_hand_deals_its_three_damage() {
         game.players[1].life_total, 17,
         "the damage clause declares an instance of its own, whatever the atoms before it say"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Review questions: the n-1 boundary, and a doubler per instruction
+// ---------------------------------------------------------------------------
+
+/// **Two of three illegal, which is the boundary between CR 608.2b's two rules.**
+///
+/// The 1-of-3 board proves "some illegal, the rest still land" and the 3-of-3
+/// board proves "all illegal, it does not resolve". Neither can tell an `any`
+/// from an `all` in `surviving_targets`' fizzle predicate — this one can: with
+/// two gone and one left, an `all` would fizzle the spell and an `any` resolves
+/// it, and only the third creature's counters say which happened.
+#[test]
+fn incremental_growth_resolves_on_its_last_legal_creature() {
+    let mut game = setup_two_player_game();
+    let a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let b = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let c = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let growth = put_in_hand(&mut game, incremental_growth(), 0);
+    pay_for_growth(&mut game, 0);
+
+    let dp = stopping_dp();
+    answer_targets(&dp, target_creature(), growth, vec![0]);
+    answer_targets(&dp, another_target_creature(&[0]), growth, vec![0]);
+    game.cast_spell(0, growth, &dp).expect("three creatures, so castable");
+    exile(&mut game, a);
+    exile(&mut game, b);
+
+    game.resolve_top_of_stack(&dp).expect("one legal target is still enough");
+
+    assert_eq!(counters(&game, c), 3, "the third clause's three, and nothing else's");
+    assert_eq!(
+        game.get_object(growth).unwrap().zone,
+        Zone::Graveyard,
+        "resolved, not countered by game rules"
+    );
+}
+
+/// **A doubler applies per instruction, not per spell** — Vorinclex against
+/// three clauses that put one, two and three counters on three creatures.
+///
+/// *"If you would put one or more counters on a permanent or player, put twice
+/// that many of each of those kinds of counters on that permanent or player
+/// instead."* Each clause is its own `AddCounters` proposal, so CR 614.5 asks
+/// Vorinclex three times and the answer is **2, 4, 6** — not twelve on one
+/// creature, and not six doubled once.
+///
+/// RE-5 asserted the shape against a two-atom fixture on **one** instance
+/// (Winding Constrictor's ruling, "if an effect includes multiple instructions
+/// … the effect applies to each of those instructions"). This is the same claim
+/// where the instructions also land on different subjects, which is what A4i
+/// made reachable — and both cards are registered, so a `stress` game can
+/// build this board.
+#[test]
+fn vorinclex_doubles_each_of_incremental_growths_three_instructions() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, vorinclex_monstrous_raider(), 0);
+    let a = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let b = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let c = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let growth = put_in_hand(&mut game, incremental_growth(), 0);
+    pay_for_growth(&mut game, 0);
+
+    // Vorinclex is itself a creature, so the board has four and every
+    // announcement is a real prompt. Battlefield order is timestamp order, so
+    // index 1 skips past Vorinclex each time.
+    let dp = stopping_dp();
+    answer_targets(&dp, target_creature(), growth, vec![1]);
+    answer_targets(&dp, another_target_creature(&[0]), growth, vec![1]);
+    answer_targets(&dp, another_target_creature(&[0, 1]), growth, vec![1]);
+    cast_and_resolve(&mut game, 0, growth, &dp);
+
+    assert_eq!(counters(&game, a), 2, "one, doubled");
+    assert_eq!(counters(&game, b), 4, "two, doubled");
+    assert_eq!(counters(&game, c), 6, "three, doubled");
 }

@@ -160,8 +160,9 @@ pub fn candidate_priority_actions(game: &GameState, player_id: PlayerId) -> Vec<
 /// Returns every `ResolvedTarget` that passes `validate_selection` for the
 /// given filter. Used by `ask_select_recipients` to build the options list.
 ///
-/// `exclude_id`: optionally exclude an object (e.g. the Aura itself for
-/// enchant-selection, or the spell being cast for "target spell" effects).
+/// `exclude_id`: CR 115.5's "a spell or ability on the stack is an illegal
+/// target for itself" — the object being cast or activated, which the
+/// `Spell` and `DamageSource` filters would otherwise offer back to it.
 /// `you` is CR 109.5's "you" for the filter — the player the selection is being
 /// made for, which is who a `ByController(PlayerRef::You)` node names.
 pub fn enumerate_legal_selections(

@@ -827,7 +827,14 @@ impl GameState {
     /// Whether the battlefield (or the player list, or the stack) holds `n`
     /// legal choices for one instance of "target".
     ///
-    /// `exclude_id` is typically the Aura itself — it can't enchant itself.
+    /// **`exclude_id` is CR 115.5** — "a spell or ability on the stack is an
+    /// illegal target for itself" — and every caller inside CR 601.2c's loop
+    /// passes the object being cast or activated. The older comment here called
+    /// it "the Aura, which can't enchant itself"; that case cannot arise, since
+    /// an Aura spell is on the *stack* when its target is chosen and an enchant
+    /// filter only matches permanents. Where the parameter actually bites is
+    /// the stack-reading filters, `Spell` and `DamageSource`.
+    ///
     /// For player filters, all players are considered (player hexproof and
     /// shroud are `backlog.md` §2.15's).
     ///
