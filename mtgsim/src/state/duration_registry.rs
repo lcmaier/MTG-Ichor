@@ -274,7 +274,7 @@ impl<T: DurationRow> DurationRegistry<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use uuid::Uuid;
+    use crate::types::ids::new_object_id;
 
     /// The minimum a row can be: registration order, no sort key. Stands in for
     /// `RegisteredReplacementEffect` without dragging a `ReplacementDef` in.
@@ -354,7 +354,7 @@ mod tests {
         // The id is part of the CR 614.5 applied-set key in one wrapper and the
         // CR 613.7a sub-order in the other; a reused id corrupts both.
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let a = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         reg.remove(a);
         let b = reg.add(Row::new(src, Duration::UntilEndOfTurn));
@@ -368,7 +368,7 @@ mod tests {
         // `add` lands at the end. That is what preserves the order a CR 616.1
         // prompt offers candidates in.
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let sources: Vec<ObjectId> = (0..4).map(|_| Uuid::new_v4()).collect();
+        let sources: Vec<ObjectId> = (0..4).map(|_| new_object_id()).collect();
         for s in &sources {
             reg.add(Row::new(*s, Duration::UntilEndOfTurn));
         }
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn a_keyed_registry_stays_sorted_through_out_of_order_adds() {
         let mut reg: DurationRegistry<KeyedRow> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         for rank in [5, 2, 9, 2] {
             let mut row = Row::new(src, Duration::UntilEndOfTurn);
             row.rank = rank;
@@ -403,7 +403,7 @@ mod tests {
     #[test]
     fn update_rows_resorts_keeps_ids_and_bumps_the_generation_once() {
         let mut reg: DurationRegistry<KeyedRow> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let keyed = |rank: u8| {
             let mut r = Row::new(src, Duration::WhileSourceOnBattlefield);
             r.rank = rank;
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn generation_counts_writes_not_calls() {
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         assert_eq!(reg.generation(), 0);
         let id = reg.add(Row::new(src, Duration::UntilEndOfTurn));
         assert_eq!(reg.generation(), 1);
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn as_slice_admits_the_binary_search_effects_in_layer_needs() {
         let mut reg: DurationRegistry<KeyedRow> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         for rank in [1, 2, 2, 3] {
             let mut row = Row::new(src, Duration::UntilEndOfTurn);
             row.rank = rank;
@@ -462,7 +462,7 @@ mod tests {
     #[test]
     fn removal_preserves_order() {
         let mut reg: DurationRegistry<KeyedRow> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         for rank in 0..6u8 {
             let mut row = Row::new(src, Duration::UntilEndOfTurn);
             row.rank = rank;
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn until_end_of_turn_expires_at_cleanup_and_nothing_else_does() {
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(Row::new(src, Duration::UntilEndOfTurn));
         reg.add(Row::new(src, Duration::WhileSourceOnBattlefield));
         reg.add(Row::new(src, Duration::Indefinite));
@@ -488,7 +488,7 @@ mod tests {
     #[test]
     fn until_your_next_turn_needs_the_right_player_and_a_later_turn() {
         let mut reg: DurationRegistry<Row> = DurationRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(Row::new(src, Duration::UntilYourNextTurn));
 
         assert_eq!(reg.remove_expired_at_turn_start(0, 1).len(), 0, "same turn");

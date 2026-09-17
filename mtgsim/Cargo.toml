@@ -12,7 +12,6 @@ edition = "2024"
 rust-version = "1.88"
 
 [dependencies]
-uuid = { version = "1.16", features = ["v4", "v5"] }
 rand = "0.9"
 
 [features]

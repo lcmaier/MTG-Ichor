@@ -32,13 +32,11 @@ mod tests {
 
         let data = CardDataBuilder::new("Forest").card_type(CardType::Land).build();
         let obj0 = GameObject::new(data.clone(), 0, Zone::Battlefield);
-        let id0 = obj0.id;
-        game.add_object(obj0);
+        let id0 = game.add_object(obj0);
         game.place_on_battlefield(id0, 0, &EnterMods::NONE);
 
         let obj1 = GameObject::new(data, 1, Zone::Battlefield);
-        let id1 = obj1.id;
-        game.add_object(obj1);
+        let id1 = game.add_object(obj1);
         game.place_on_battlefield(id1, 1, &EnterMods::NONE);
 
         let p0 = permanents_controlled_by(&game, 0);

@@ -298,8 +298,7 @@ mod tests {
         let recipient = crate::engine::targeting::spell_recipient(&card_data);
 
         let obj = GameObject::new(card_data, controller, Zone::Stack);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.stack.push(id);
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
@@ -347,8 +346,7 @@ mod tests {
         for _ in 0..5 {
             let card = CardDataBuilder::new("Dummy").build();
             let obj = GameObject::new(card, 0, Zone::Library);
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.players[0].library.push(id);
         }
 
@@ -381,8 +379,7 @@ mod tests {
         for _ in 0..5 {
             let card = CardDataBuilder::new("Dummy").build();
             let obj = GameObject::new(card, 1, Zone::Library);
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.players[1].library.push(id);
         }
 
@@ -428,8 +425,7 @@ mod tests {
         controller: usize,
     ) -> crate::types::ids::ObjectId {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.stack.push(id);
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
@@ -506,8 +502,7 @@ mod tests {
         x_value: Option<u64>,
     ) -> crate::types::ids::ObjectId {
         let obj = GameObject::new(card_data, controller, Zone::Stack);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.stack.push(id);
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
@@ -561,8 +556,7 @@ mod tests {
     ) -> crate::types::ids::ObjectId {
         let recipient = crate::engine::targeting::spell_recipient(&card_data);
         let obj = GameObject::new(card_data, controller, Zone::Stack);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.stack.push(id);
         game.stack_entries.insert(id, StackEntry {
             object_id: id,
@@ -588,8 +582,7 @@ mod tests {
 
         // Put a creature on the battlefield
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
-        let creature_id = creature.id;
-        game.add_object(creature);
+        let creature_id = game.add_object(creature);
         game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
 
         // Put Pacifism on the stack targeting the creature
@@ -617,8 +610,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
 
         let creature = GameObject::new(make_grizzly_bears(), 1, Zone::Battlefield);
-        let creature_id = creature.id;
-        game.add_object(creature);
+        let creature_id = game.add_object(creature);
         game.place_on_battlefield(creature_id, 1, &EnterMods::NONE);
 
         let aura_id = put_permanent_on_stack_with_targets(
@@ -658,8 +650,7 @@ mod tests {
             1,
             Zone::Battlefield,
         );
-        let gone_id = gone.id;
-        game.add_object(gone);
+        let gone_id = game.add_object(gone);
         game.insert_battlefield_entity(
             gone_id,
             crate::state::battlefield::PermanentState::new(gone_id, 1, 1),
@@ -674,8 +665,7 @@ mod tests {
         // bare `?` would leak through.
         let mut game = GameState::new(2, 20);
         let aura = GameObject::new(make_pacifism(), 0, Zone::Stack);
-        let aura_id = aura.id;
-        game.add_object(aura);
+        let aura_id = game.add_object(aura);
         game.stack.push(aura_id);
         game.stack_entries.insert(aura_id, StackEntry {
             object_id: aura_id,
@@ -704,8 +694,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let creature = GameObject::new(creature_data, 1, Zone::Battlefield);
-        let creature_id = creature.id;
-        game.add_object(creature);
+        let creature_id = game.add_object(creature);
         game.insert_battlefield_entity(creature_id, crate::state::battlefield::PermanentState::new(creature_id, 1, 1));
 
         // Put Bolt on stack targeting the creature

@@ -190,8 +190,7 @@ fn test_discard_to_hand_size() {
     for _ in 0..3 {
         let card = make_forest();
         let obj = GameObject::new(card, 0, Zone::Hand);
-        let id = obj.id;
-        game.state.add_object(obj);
+        let id = game.state.add_object(obj);
         game.state.players[0].hand.push(id);
     }
     assert_eq!(game.state.players[0].hand.len(), 10);

@@ -1,13 +1,11 @@
 // Combat validation — attacker and blocker legality checks.
 // See rules 508.1 (attackers) and 509.1 (blockers).
 
-use std::collections::HashMap;
-
 use crate::oracle::characteristics::{controls, has_keyword, is_creature};
 use crate::oracle::legality::can_attack;
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
 // ---------------------------------------------------------------------------
@@ -107,7 +105,7 @@ pub struct BlockConstraints {
     pub restrictions: Vec<BlockRestriction>,
     pub requirements: Vec<BlockRequirement>,
     /// Per-creature maximum number of attackers it can block. Default: 1.
-    pub blocking_limits: HashMap<ObjectId, usize>,
+    pub blocking_limits: IdMap<ObjectId, usize>,
 }
 
 /// An effect that prevents a creature from blocking.
@@ -132,7 +130,7 @@ impl BlockConstraints {
         BlockConstraints {
             restrictions: Vec::new(),
             requirements: Vec::new(),
-            blocking_limits: HashMap::new(),
+            blocking_limits: IdMap::default(),
         }
     }
 
@@ -335,7 +333,7 @@ pub fn validate_blockers(
     constraints: &BlockConstraints,
 ) -> Result<(), CombatError> {
     // Count how many times each blocker is used
-    let mut block_counts: HashMap<ObjectId, usize> = HashMap::new();
+    let mut block_counts: IdMap<ObjectId, usize> = IdMap::default();
 
     for (blocker_id, attacker_id) in proposed {
         // Per-pair hard legality (shared with the pre-filter in
@@ -414,23 +412,18 @@ mod tests {
     use crate::types::colors::Color;
     use crate::test_support::set_attacking;
 
-    fn make_bears(owner: PlayerId) -> (ObjectId, std::sync::Arc<crate::objects::card_data::CardData>) {
-        let data = CardDataBuilder::new("Grizzly Bears")
+    fn make_bears() -> std::sync::Arc<crate::objects::card_data::CardData> {
+        CardDataBuilder::new("Grizzly Bears")
             .card_type(CardType::Creature)
             .color(Color::Green)
             .mana_cost(ManaCost::build(&[ManaType::Green], 1))
             .power_toughness(2, 2)
-            .build();
-        let obj = GameObject::new(data.clone(), owner, Zone::Battlefield);
-        (obj.id, data)
+            .build()
     }
 
     /// Place a creature on the battlefield (not summoning sick).
     fn place_creature(game: &mut GameState, owner: PlayerId) -> ObjectId {
-        let (id, data) = make_bears(owner);
-        let mut obj = GameObject::new(data, owner, Zone::Battlefield);
-        obj.id = id;
-        game.add_object(obj);
+        let id = game.add_object(GameObject::new(make_bears(), owner, Zone::Battlefield));
         let entry = PermanentState::new(id, owner, 0);
         game.insert_battlefield_entity(id, entry);
         id
@@ -438,10 +431,7 @@ mod tests {
 
     /// Place a creature that still has summoning sickness.
     fn place_creature_sick(game: &mut GameState, owner: PlayerId) -> ObjectId {
-        let (id, data) = make_bears(owner);
-        let mut obj = GameObject::new(data, owner, Zone::Battlefield);
-        obj.id = id;
-        game.add_object(obj);
+        let id = game.add_object(GameObject::new(make_bears(), owner, Zone::Battlefield));
         game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
         id
     }
@@ -476,8 +466,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -693,8 +682,7 @@ mod tests {
         }
         let data = builder.build();
         let obj = GameObject::new(data, owner, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, owner, 0);
         game.insert_battlefield_entity(id, entry);
         id
@@ -714,8 +702,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert!(has_keyword(&game, id, KeywordFlag::Flying));
         assert!(has_keyword(&game, id, KeywordFlag::Vigilance));
@@ -820,8 +807,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         let result = validate_attackers(
@@ -854,8 +840,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         // Should be able to pay tap cost despite summoning sickness

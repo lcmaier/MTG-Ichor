@@ -142,7 +142,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::effects::{
     ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PatternFill,
     PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
@@ -166,7 +166,7 @@ use crate::types::replacement::{
 /// `test_support`.
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -466,7 +466,7 @@ pub fn loyalty_probe() -> Arc<CardData> {
 /// A spell or activated ability whose whole effect is one atom.
 fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type,
         costs,
         effect,

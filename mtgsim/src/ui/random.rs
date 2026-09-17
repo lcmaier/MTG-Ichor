@@ -89,14 +89,14 @@ fn mana_window_preference(
         return WindowPreference::AnyWillDo;
     }
 
-    let produces: std::collections::HashMap<(ObjectId, AbilityId), ManaType> =
+    let produces: crate::types::ids::IdMap<(ObjectId, AbilityId), ManaType> =
         available_mana_sources(game, player)
             .into_iter()
             .map(|s| ((s.permanent_id, s.ability_id), s.produces))
             .collect();
     // How many wanted types each permanent can make: its flexibility.
-    let mut flexibility: std::collections::HashMap<ObjectId, usize> =
-        std::collections::HashMap::new();
+    let mut flexibility: crate::types::ids::IdMap<ObjectId, usize> =
+        crate::types::ids::IdMap::default();
     for ((perm, _), t) in &produces {
         if wanted.contains(t) {
             *flexibility.entry(*perm).or_insert(0) += 1;
@@ -249,8 +249,8 @@ impl DecisionProvider for RandomDecisionProvider {
         if matches!(context.kind, ChoiceKind::DeclareBlockers) {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
-            let mut used_blockers: std::collections::HashSet<ObjectId> =
-                std::collections::HashSet::new();
+            let mut used_blockers: crate::types::ids::IdSet<ObjectId> =
+                crate::types::ids::IdSet::default();
             let mut picked: Vec<usize> = Vec::new();
             for idx in shuffled {
                 if picked.len() >= count {

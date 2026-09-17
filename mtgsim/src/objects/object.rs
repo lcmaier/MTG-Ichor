@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::types::ids::{ObjectId, PlayerId, new_object_id};
+use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
 use super::card_data::CardData;
@@ -90,10 +90,14 @@ pub struct GameObject {
 }
 
 impl GameObject {
-    /// Create a new game object in the specified zone
+    /// Create a new game object in the specified zone.
+    ///
+    /// Its `id` is [`ObjectId::UNASSIGNED`] until `GameState::add_object`
+    /// stamps one from the state's counter and hands it back — the same door
+    /// that stamps the timestamp, and the only one into the store.
     pub fn new(card_data: Arc<CardData>, owner: PlayerId, zone: Zone) -> Self {
         GameObject {
-            id: new_object_id(),
+            id: ObjectId::UNASSIGNED,
             owner,
             card_data,
             zone,

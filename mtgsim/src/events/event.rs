@@ -391,7 +391,7 @@ pub struct BatchId(pub u64);
 ///
 /// `source` is the stack object that was resolving, and it identifies the
 /// *resolution* rather than the card, because this engine gives every stack
-/// object a fresh v4 `ObjectId`: one per cast, and one per activation for an
+/// object a fresh `ObjectId`: one per cast, and one per activation for an
 /// ability's ephemeral object, which CR 608.2n destroys rather than recycles.
 /// That is an engine property, not a rule.
 ///
@@ -613,8 +613,8 @@ mod tests {
     fn test_a_batch_stamps_every_event_it_emits() {
         let mut log = EventLog::new();
         let outer = log.open_batch(None);
-        log.emit(GameEvent::Tapped { object_id: uuid::Uuid::nil() });
-        log.emit(GameEvent::Untapped { object_id: uuid::Uuid::nil() });
+        log.emit(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED });
+        log.emit(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED });
         log.close_batch(outer);
         log.emit(GameEvent::StateBasedActionPerformed);
 

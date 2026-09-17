@@ -1,7 +1,7 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use crate::types::effects::CounterType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
 
 /// Per-player state in the game.
@@ -34,7 +34,7 @@ pub struct PlayerState {
     /// Written through [`Self::add_counters`] / [`Self::remove_counters`] by
     /// `perform_action`'s counter arms and by nothing else.
     pub counters: BTreeMap<CounterType, u32>,
-    pub commander_damage_taken: HashMap<ObjectId, u32>,
+    pub commander_damage_taken: IdMap<ObjectId, u32>,
 
     // SBA flags — these are ONLY for state-based action checks (rule 704).
     // General per-turn tracking (e.g. "cast a spell this turn") should live
@@ -55,7 +55,7 @@ impl PlayerState {
             lands_per_turn: 1,
             lands_played_this_turn: 0,
             counters: BTreeMap::new(),
-            commander_damage_taken: HashMap::new(),
+            commander_damage_taken: IdMap::default(),
             has_drawn_from_empty_library: false,
         }
     }

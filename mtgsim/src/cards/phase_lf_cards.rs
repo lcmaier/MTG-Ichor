@@ -10,7 +10,7 @@ use crate::types::effects::{
     Primitive,
 };
 use crate::types::costs::Cost;
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// Humility — {2}{W}{W}
@@ -53,7 +53,7 @@ pub fn humility() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -104,7 +104,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
     let granted = AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
         effect: Effect::Atom(
@@ -125,7 +125,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

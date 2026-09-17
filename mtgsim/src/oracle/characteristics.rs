@@ -274,8 +274,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Vigilance)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert!(has_keyword(&game, id, KeywordFlag::Flying));
         assert!(has_keyword(&game, id, KeywordFlag::Vigilance));
@@ -291,8 +290,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert!(!has_keyword(&game, id, KeywordFlag::Flying));
         assert!(!has_keyword(&game, id, KeywordFlag::Haste));
@@ -314,8 +312,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert!(is_creature(&game, id));
     }
@@ -327,8 +324,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert!(!is_creature(&game, id));
     }
@@ -341,8 +337,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         assert_eq!(get_effective_power(&game, id), Some(2));
@@ -361,8 +356,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         // Register a +3/+0 effect via the layer system
@@ -391,8 +385,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         assert_eq!(get_effective_toughness(&game, id), Some(2));

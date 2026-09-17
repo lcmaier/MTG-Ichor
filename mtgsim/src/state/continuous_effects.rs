@@ -477,7 +477,7 @@ mod tests {
     use super::*;
     use crate::engine::layers::types::*;
     use crate::types::effects::Duration;
-    use uuid::Uuid;
+    use crate::types::ids::new_object_id;
     use crate::test_support::registered_source_only;
 
     fn make_effect(source: ObjectId, layer: Layer, timestamp: Timestamp) -> ContinuousEffect {
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     fn test_add_and_iter() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let id = reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
         assert_eq!(id, 1);
         assert_eq!(reg.len(), 1);
@@ -506,7 +506,7 @@ mod tests {
     #[test]
     fn test_remove_by_id() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         let id1 = reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
         let _id2 = reg.add(make_effect(src, Layer::Layer7cModifyPT, 2));
         assert_eq!(reg.len(), 2);
@@ -524,8 +524,8 @@ mod tests {
     #[test]
     fn test_retime_static_rows_moves_only_the_sources_static_rows() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
-        let other = Uuid::new_v4();
+        let src = new_object_id();
+        let other = new_object_id();
         let ability = crate::types::ids::new_ability_id();
         let static_row = |ts| {
             let mut e = make_effect(src, Layer::Layer6Ability, ts);
@@ -560,8 +560,8 @@ mod tests {
     #[test]
     fn test_remove_by_source() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src_a = Uuid::new_v4();
-        let src_b = Uuid::new_v4();
+        let src_a = new_object_id();
+        let src_b = new_object_id();
         reg.add(make_effect(src_a, Layer::Layer7cModifyPT, 1));
         reg.add(make_effect(src_a, Layer::Layer6Ability, 2));
         reg.add(make_effect(src_b, Layer::Layer7cModifyPT, 3));
@@ -576,7 +576,7 @@ mod tests {
     #[test]
     fn test_effects_in_layer_sorted_by_timestamp() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(make_effect(src, Layer::Layer7cModifyPT, 5));
         reg.add(make_effect(src, Layer::Layer7cModifyPT, 2));
         reg.add(make_effect(src, Layer::Layer6Ability, 3));
@@ -593,7 +593,7 @@ mod tests {
     fn test_is_empty() {
         let mut reg = ContinuousEffectRegistry::new();
         assert!(reg.is_empty());
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
         assert!(!reg.is_empty());
     }
@@ -602,7 +602,7 @@ mod tests {
     #[test]
     fn test_remove_expired_at_cleanup_removes_until_end_of_turn() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         // UntilEndOfTurn effect
         reg.add(make_effect(src, Layer::Layer7cModifyPT, 1));
         // WhileSourceOnBattlefield effect (should NOT be removed)
@@ -620,7 +620,7 @@ mod tests {
     #[test]
     fn test_remove_expired_at_turn_start_until_your_next_turn() {
         let mut reg = ContinuousEffectRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
 
         // Effect created by player 0 on turn 1, duration UntilYourNextTurn
         let mut effect = make_effect(src, Layer::Layer7cModifyPT, 1);

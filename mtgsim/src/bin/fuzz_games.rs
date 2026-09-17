@@ -96,7 +96,7 @@ use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
-use mtgsim::types::ids::ObjectId;
+use mtgsim::types::ids::{IdMap, ObjectId};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -728,13 +728,14 @@ fn extract_stats<'a>(
 ///
 /// Counted per object, not remembered per object: a card cast twice (bounced
 /// and recast) owes two announcements, and `ObjectId` survives the round trip.
-/// The event index rather than the id in the report, because ids are v4 UUIDs
-/// and this line sits in the region that must be byte-identical across runs.
+/// The event index rather than the id in the report: this line sits in the
+/// region that must be byte-identical across runs, and the index was the
+/// stable handle when ids were not (they are now, since A4g).
 fn uncast_resolutions<'a>(
     events: impl Iterator<Item = &'a GameEvent>,
     game: &mtgsim::state::game_state::GameState,
 ) -> Vec<String> {
-    let mut casts: HashMap<ObjectId, u32> = HashMap::new();
+    let mut casts: IdMap<ObjectId, u32> = IdMap::default();
     let mut violations = Vec::new();
     for (index, event) in events.enumerate() {
         match event {
@@ -857,10 +858,10 @@ impl AggregateStats {
 /// Append one game's formatted event log to `path`.
 ///
 /// Called from the serial reporting pass, so blocks land in game order however
-/// many workers produced them. Note when diffing two dumps: event lines carry
-/// `ObjectId`s, which are v4 UUIDs and therefore differ between *processes*
-/// regardless of seed or thread count. Mask them before comparing, or every
-/// line looks changed and `diff` cannot align anything.
+/// many workers produced them. Two dumps of the same games diff line for line,
+/// ids included: an `ObjectId` is stamped from the game's own counter, so it is
+/// the same in every process and at every thread count. (Until A4g, 2026-09-16,
+/// ids were v4 UUIDs and had to be masked before two dumps would align.)
 fn dump_event_log(path: &str, game_num: usize, events: &[String]) {
     use std::io::Write;
     let mut file = std::fs::OpenOptions::new()

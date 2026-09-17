@@ -153,8 +153,7 @@ mod tests {
         let ability_id = forest.abilities[0].id;
 
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 

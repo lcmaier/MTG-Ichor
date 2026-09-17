@@ -267,7 +267,7 @@ impl CardDataBuilder {
         Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: crate::types::ids::new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(
@@ -309,7 +309,32 @@ impl CardDataBuilder {
         self
     }
 
-    pub fn build(self) -> Arc<CardData> {
+    /// Finish the card, giving every ability def reachable from it an id.
+    ///
+    /// A def still carrying `AbilityId::UNASSIGNED` — what every card file
+    /// writes — gets `AbilityId::printed(name, ordinal)`. The printed list
+    /// takes ordinals `0..n` in order, so a printed ability's ordinal is its
+    /// index in `abilities`, the index `activatable_abilities` hands out; the
+    /// defs nested in the printed effects (a granted ability, a token's
+    /// abilities) follow from `n`, in `Effect::for_each_ability_def_mut`'s
+    /// order. A def that already has an id keeps it, which is what lets a
+    /// test author one and read it back through the card.
+    pub fn build(mut self) -> Arc<CardData> {
+        let name = self.data.name.clone();
+        let mut ordinal = 0u32;
+        let mut stamp = |def: &mut AbilityDef| {
+            if def.id == AbilityId::UNASSIGNED {
+                def.id = AbilityId::printed(&name, ordinal);
+            }
+            ordinal += 1;
+        };
+        let abilities = Arc::make_mut(&mut self.data.abilities);
+        for def in abilities.iter_mut() {
+            stamp(def);
+        }
+        for def in abilities.iter_mut() {
+            def.effect.for_each_ability_def_mut(&mut stamp);
+        }
         Arc::new(self.data)
     }
 }

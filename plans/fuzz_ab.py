@@ -26,7 +26,9 @@ instead of most of an hour:
 
 Determinism falls out for free: every timing round's output outside
 `=== Timing ===` must equal the threaded counter run's, which checks both
-thread-independence and run-to-run identity without extra runs. The first
+thread-independence and run-to-run identity without extra runs — each round
+under its own MTGSIM_HASH_SEED, since A4g made ids process-stable and the
+id hasher's per-process seed is what still varies map iteration order. The first
 arm is the baseline; every other arm's counters are diffed against it, so a
 "registered but not pooled" arm that should reproduce `main` on
 `performance` is checked by construction — on `stress` registration changes
@@ -120,9 +122,17 @@ FIXTURE_ROWS = [r for r, _ in ROWS if r not in FIXTURE_EXCLUDE]
 BOLD = {"Layer walks", "Board walks", "Memo hits", "Layer frames", "Frames/walk", "Dependency checks", "Replacement gathers", "Restriction queries"}
 
 
-def run(binary, args, out_path):
+def run(binary, args, out_path, hash_seed=None):
+    # `hash_seed` is the per-process seed of the engine's id hasher
+    # (`types::ids::IdHash`, read from MTGSIM_HASH_SEED). Each timing round
+    # gets its own so that the rounds iterate every id-keyed map in a
+    # different order, and an unordered sweep shows up as `deterministic: NO`
+    # rather than agreeing with itself three times.
+    env = None
+    if hash_seed is not None:
+        env = dict(os.environ, MTGSIM_HASH_SEED=str(hash_seed))
     with open(out_path, "w", encoding="utf-8") as f:
-        subprocess.run([binary] + args, stdout=f, stderr=subprocess.STDOUT, check=False)
+        subprocess.run([binary] + args, stdout=f, stderr=subprocess.STDOUT, check=False, env=env)
     return open(out_path, encoding="utf-8", errors="replace").read()
 
 
@@ -316,7 +326,7 @@ def main():
         for r in range(1, args.rounds + 1):
             for label, path in arms:
                 text = run(path, ["--games", str(args.games), "--threads", "1", "--pool", "performance"] + common,
-                           os.path.join(out, f"timing_{label}_r{r}.txt"))
+                           os.path.join(out, f"timing_{label}_r{r}.txt"), hash_seed=r)
                 if strip_timing(text) != counted[(label, "performance")][1]:
                     det_ok[label] = False
                 cpu[label].append(float(grab(text, r"^CPU/game:\s+([\d.]+)ms")))

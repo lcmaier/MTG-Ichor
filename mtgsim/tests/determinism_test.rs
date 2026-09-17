@@ -6,17 +6,23 @@
 //! two runs being compared are not doing the same amount of work, so a real
 //! regression hides inside the spread and a phantom one appears.
 //!
-//! Two things have to hold. The randomness has to come from the seed — it used
-//! to come from `rand::rng()`, which is seeded per process, so the seed reached
-//! deck construction and stopped there. And the *options* have to arrive in a
-//! fixed order — `GameState::battlefield` is a `HashMap` keyed by v4 UUIDs, so
-//! iterating it hands the AI a differently-ordered action list every process
-//! even once the AI's own RNG is seeded.
+//! Three things have to hold. The randomness has to come from the seed — it
+//! used to come from `rand::rng()`, which is seeded per process, so the seed
+//! reached deck construction and stopped there. The ids have to come from the
+//! game — an `ObjectId` is stamped from `GameState`'s own counter, so two runs
+//! of one game name every object alike and their logs compare verbatim (until
+//! A4g, 2026-09-16, ids were v4 UUIDs and the id column had to be stripped
+//! first). And the *options* have to arrive in a fixed order —
+//! `GameState::battlefield` is a `HashMap`, and iterating it hands the AI
+//! whatever order its hasher gives, which is not the game's.
 //!
-//! The first is directly testable here. The second is not testable end-to-end
-//! in one process — two runs inside the same process share one `RandomState`,
-//! so they agree with each other whether or not the sweeps are ordered — so it
-//! is tested at the mechanism instead: the ordered sweeps must come out in
+//! The first two are directly testable here. The third is not testable
+//! end-to-end in one process: the id hasher is seeded once per process
+//! (`types::ids::IdHash`), so two runs in one process see every map in the
+//! same order whether or not the sweeps are ordered. CI's determinism step is
+//! the end-to-end check — three `fuzz_games` runs at one seed under three
+//! hasher seeds, byte-identical outside `=== Timing ===` — and here it is
+//! tested at the mechanism instead: the ordered sweeps must come out in
 //! timestamp order, which a `HashMap` sweep would satisfy only by a 1-in-`n!`
 //! accident.
 
@@ -59,37 +65,15 @@ fn play_seeded_game_with(seed: u64, players: usize) -> Vec<String> {
     game.event_log_snapshot()
 }
 
-/// Object ids are v4 UUIDs, so the rendered log's id column differs between
-/// runs by design. Everything else — which card, which zone, which order —
-/// is the game, and it must match event for event.
-fn strip(log: &[String]) -> Vec<String> {
-    log.iter()
-        .map(|line| {
-            let mut out = String::with_capacity(line.len());
-            let mut depth = 0;
-            for ch in line.chars() {
-                match ch {
-                    '(' => depth += 1,
-                    ')' if depth > 0 => depth -= 1,
-                    _ if depth == 0 => out.push(ch),
-                    _ => {}
-                }
-            }
-            out
-        })
-        .collect()
-}
-
+/// Verbatim, ids included: which card, which zone, which order, and which
+/// object — the id column is the game's too, and it must match event for
+/// event.
 #[test]
 fn test_same_seed_replays_the_same_game() {
     let first = play_seeded_game(0xFEED_BEEF);
     let second = play_seeded_game(0xFEED_BEEF);
 
-    assert_eq!(
-        strip(&first),
-        strip(&second),
-        "same seed produced two different games"
-    );
+    assert_eq!(first, second, "same seed produced two different games");
     assert!(first.len() > 20, "game was too short to prove anything");
 }
 
@@ -99,7 +83,7 @@ fn test_same_seed_replays_the_same_game() {
 fn test_same_seed_replays_the_same_four_player_game() {
     let first = play_seeded_game_with(0xC0FF_EE42, 4);
     let second = play_seeded_game_with(0xC0FF_EE42, 4);
-    assert_eq!(strip(&first), strip(&second), "same seed produced two different four-player games");
+    assert_eq!(first, second, "same seed produced two different four-player games");
     assert!(first.len() > 20, "game was too short to prove anything");
 }
 

@@ -12,14 +12,11 @@ use crate::types::card_types::CardType;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
-/// Format a card name with its ObjectId (short UUID suffix for disambiguation).
+/// Format a card name with its ObjectId, for disambiguation.
 pub fn card_label(game: &GameState, id: ObjectId) -> String {
     match game.objects.get(&id) {
-        Some(obj) => {
-            let short_id = &format!("{}", id)[..8];
-            format!("{} ({})", obj.card_data.name, short_id)
-        }
-        None => format!("<unknown {}>", &format!("{}", id)[..8]),
+        Some(obj) => format!("{} ({})", obj.card_data.name, id),
+        None => format!("<unknown {}>", id),
     }
 }
 
@@ -390,13 +387,10 @@ pub fn format_mana_pool(game: &GameState, player_id: PlayerId) -> String {
 // Event log formatting
 // ---------------------------------------------------------------------------
 
-/// Resolve an ObjectId to "CardName (short-id)" for readable logs.
+/// Resolve an ObjectId to "CardName (#id)" for readable logs.
 fn obj_name(game: &GameState, id: ObjectId) -> String {
     match game.objects.get(&id) {
-        Some(obj) => {
-            let short = &format!("{}", id)[..8];
-            format!("{} ({})", obj.card_data.name, short)
-        }
+        Some(obj) => format!("{} ({})", obj.card_data.name, id),
         None => format!("{}", id),
     }
 }
@@ -552,8 +546,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let data = CardDataBuilder::new("Forest").card_type(CardType::Land).build();
         let obj = GameObject::new(data, 0, Zone::Hand);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
 
         assert_eq!(card_name(&game, id), "Forest");
     }
@@ -566,8 +559,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -583,8 +575,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
         game.insert_battlefield_entity(id, entry);
@@ -630,8 +621,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let bears_id = obj.id;
-        game.add_object(obj);
+        let bears_id = game.add_object(obj);
         let entry = PermanentState::new(bears_id, 0, 0);
         game.insert_battlefield_entity(bears_id, entry);
 
@@ -642,8 +632,7 @@ mod tests {
             .mana_ability_single(ManaType::Green)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let forest_id = obj.id;
-        game.add_object(obj);
+        let forest_id = game.add_object(obj);
         let entry = PermanentState::new(forest_id, 0, 0);
         game.insert_battlefield_entity(forest_id, entry);
 
@@ -664,8 +653,7 @@ mod tests {
             .card_type(CardType::Instant)
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = obj.id;
-        game.add_object(obj);
+        let bolt_id = game.add_object(obj);
         game.stack.push(bolt_id);
         game.stack_entries.insert(bolt_id, StackEntry {
             object_id: bolt_id,
@@ -697,8 +685,7 @@ mod tests {
             .card_type(CardType::Instant)
             .build();
         let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = obj.id;
-        game.add_object(obj);
+        let bolt_id = game.add_object(obj);
         game.stack.push(bolt_id);
         game.stack_entries.insert(bolt_id, StackEntry {
             object_id: bolt_id,
@@ -719,8 +706,7 @@ mod tests {
             .card_type(CardType::Instant)
             .build();
         let obj2 = GameObject::new(recall, 0, Zone::Stack);
-        let recall_id = obj2.id;
-        game.add_object(obj2);
+        let recall_id = game.add_object(obj2);
         game.stack.push(recall_id);
         game.stack_entries.insert(recall_id, StackEntry {
             object_id: recall_id,
@@ -754,8 +740,7 @@ mod tests {
             .mana_ability_single(ManaType::Green)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 

@@ -46,8 +46,7 @@ fn place_creature_sick(
 ) -> ObjectId {
     let data = card_factory();
     let obj = GameObject::new(data, owner, Zone::Battlefield);
-    let id = obj.id;
-    game.add_object(obj);
+    let id = game.add_object(obj);
     game.place_on_battlefield(id, owner, &EnterMods::NONE); // entered this turn = summoning sick
     id
 }

@@ -8,7 +8,7 @@ use crate::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason, 
 use crate::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
 use crate::objects::object::GameObject;
 use crate::types::effects::{CounterType, TokenDef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
@@ -74,7 +74,7 @@ impl<'a> ActionContext<'a> {
     /// mutation, and the resolving object's id answers that. **That is a
     /// property of this engine, not a rule** — a cast produces one stack object
     /// and `activate_ability` mints a fresh ephemeral one per activation, each
-    /// with its own v4 `ObjectId`, and CR 608.2n destroys the ability's object
+    /// with its own `ObjectId`, and CR 608.2n destroys the ability's object
     /// rather than recycling it. Carrying the target list would copy it onto
     /// every event for no reader.
     pub(crate) fn resolution_stamp(&self) -> Option<ResolutionStamp> {
@@ -1816,7 +1816,7 @@ impl GameState {
             }
         }
         let performed = self.execute_actions(entries, ctx)?;
-        let created: HashSet<ObjectId> = performed
+        let created: IdSet<ObjectId> = performed
             .iter()
             .filter_map(|a| match a {
                 GameAction::EnterBattlefield { object, .. }
@@ -2018,8 +2018,7 @@ mod tests {
             .build();
 
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         (game, id)
@@ -2132,8 +2131,7 @@ mod tests {
                 .keyword_flag(KeywordFlag::Lifelink)
                 .build();
             let obj = GameObject::new(data, 0, Zone::Battlefield);
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.place_on_battlefield(id, 0, &EnterMods::NONE);
             id
         };
@@ -2191,8 +2189,7 @@ mod tests {
 
         let mut obj = GameObject::new(general, 0, Zone::Battlefield);
         obj.is_commander = true;
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE);
 
         (game, id)
@@ -2278,8 +2275,7 @@ mod tests {
                 .build();
             let mut obj = GameObject::new(data, 0, Zone::Battlefield);
             obj.is_commander = true;
-            let id = obj.id;
-            game.add_object(obj);
+            let id = game.add_object(obj);
             game.place_on_battlefield(id, 0, &EnterMods::NONE);
             id
         };

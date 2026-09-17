@@ -424,7 +424,7 @@ mod tests {
     fn a_condition_on_a_missing_source_is_false() {
         let game = setup_two_player_game();
         let anywhere = Condition::SourceInZone(ZoneSet::ALL);
-        assert!(!settled_holds(&anywhere, &game, ObjectId::from_u128(0)));
+        assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED));
     }
 
     #[test]

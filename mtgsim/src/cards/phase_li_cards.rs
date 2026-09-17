@@ -27,7 +27,7 @@ use crate::types::effects::{
     Primitive, SelectionFilter, Selector, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
-use crate::types::ids::new_ability_id;
+use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 
 /// A `TypeChange` that adds and nothing else.
@@ -49,7 +49,7 @@ fn static_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-        id: new_ability_id(),
+        id: AbilityId::UNASSIGNED,
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect,
@@ -221,7 +221,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         .ability(AbilityDef {
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
-            id: new_ability_id(),
+            id: AbilityId::UNASSIGNED,
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

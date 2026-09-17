@@ -283,8 +283,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -299,8 +298,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert!(!can_attack(&game, id));
@@ -315,8 +313,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Haste)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.place_on_battlefield(id, 0, &EnterMods::NONE); // entered this turn = summoning sick
 
         assert!(can_attack(&game, id));
@@ -341,8 +338,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Hand);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.players[0].hand.push(id);
 
         let lands = playable_lands(&game, 0);
@@ -360,8 +356,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Hand);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.players[0].hand.push(id);
 
         assert!(playable_lands(&game, 0).is_empty());
@@ -378,8 +373,7 @@ mod tests {
             .card_type(CardType::Land)
             .build();
         let obj = GameObject::new(forest, 0, Zone::Hand);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         game.players[0].hand.push(id);
 
         assert!(playable_lands(&game, 0).is_empty());
@@ -395,8 +389,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -414,8 +407,7 @@ mod tests {
             .keyword_flag(KeywordFlag::Defender)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -430,8 +422,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
         game.insert_battlefield_entity(id, entry);
@@ -449,8 +440,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
@@ -466,8 +456,7 @@ mod tests {
             .power_toughness(2, 2)
             .build();
         let obj = GameObject::new(data, 0, Zone::Battlefield);
-        let id = obj.id;
-        game.add_object(obj);
+        let id = game.add_object(obj);
         let mut entry = PermanentState::new(id, 0, 0);
         entry.tapped = true;
         game.insert_battlefield_entity(id, entry);

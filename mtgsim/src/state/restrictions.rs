@@ -94,7 +94,7 @@ mod tests {
     use crate::types::effects::{ObjectSet, PlayerSet};
     use crate::types::replacement::EventPattern;
     use crate::types::restriction::{Restriction, RestrictionDef};
-    use uuid::Uuid;
+    use crate::types::ids::new_object_id;
 
     fn row(source: ObjectId, duration: Duration) -> RegisteredRestriction {
         RegisteredRestriction {
@@ -118,7 +118,7 @@ mod tests {
     #[test]
     fn test_until_end_of_turn_expires_at_cleanup() {
         let mut reg = RestrictionRegistry::new();
-        let src = Uuid::new_v4();
+        let src = new_object_id();
         reg.add(row(src, Duration::UntilEndOfTurn));
         reg.add(row(src, Duration::Indefinite));
 
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_registration_order_survives_removal() {
         let mut reg = RestrictionRegistry::new();
-        let sources: Vec<ObjectId> = (0..3).map(|_| Uuid::new_v4()).collect();
+        let sources: Vec<ObjectId> = (0..3).map(|_| new_object_id()).collect();
         for s in &sources {
             reg.add(row(*s, Duration::UntilEndOfTurn));
         }

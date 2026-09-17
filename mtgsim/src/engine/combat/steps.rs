@@ -2,8 +2,6 @@
 // declare blockers, and combat damage steps.
 // See rules 508, 509, 510.
 
-use std::collections::HashSet;
-
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::combat::resolution::assign_combat_damage;
 use crate::engine::combat::validation::{
@@ -15,7 +13,7 @@ use crate::oracle::characteristics::has_keyword;
 use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
 use crate::ui::decision::DecisionProvider;
@@ -59,7 +57,7 @@ impl GameState {
 
         // Pre-collect vigilance set to avoid borrow-checker conflict
         // (has_keyword borrows self.objects, battlefield.get_mut borrows self.battlefield)
-        let vigilance_set: HashSet<ObjectId> = proposed.iter()
+        let vigilance_set: IdSet<ObjectId> = proposed.iter()
             .filter(|(id, _)| has_keyword(self, *id, KeywordFlag::Vigilance))
             .map(|(id, _)| *id)
             .collect();
