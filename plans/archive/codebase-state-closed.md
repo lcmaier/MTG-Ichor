@@ -1804,3 +1804,57 @@ prefix sites) were 27 and three.
      Everywhere PR was: the type swap alone, expected `IDENTICAL` on every
      counter at two and four seats on both pools, then the hasher, read as a
      CPU delta and a callgrind re-read against §12's reading.
+
+## Found by the post-RE audit, pass 3 — parallel-play readiness (2026-09-15)
+
+*Closed by A4h, 2026-09-16. The live file keeps the stub at item 139; this is
+the entry as it stood when the work was sized.*
+
+139. **A retry re-prompt offers a list computed before the rejected action
+     changed the board — the one thing the fork test found on the stack.**
+     `run_priority_round` computes `all_candidates` once per round and the
+     retry loop re-asks with that list minus a `blacklist`; when the rejected
+     action was a cast whose mana abilities stay activated (CR 732.1's "may
+     not reverse" branch, item 72), the board at the re-prompt has fewer
+     untapped sources and more mana floating than the list was computed
+     from, so the re-prompt offers casts a fresh enumeration would not — and
+     a fork at that prompt, resuming with a fresh round, offers a different
+     list. Measured 2026-09-15 by running item 41's test as a throwaway
+     probe — record every provider answer, clone `GameState` at the first
+     prompt of a priority round, replay the recorded answers from that
+     prompt on, compare the rendered logs with ids masked: **779 forks over
+     50 games, 741 replayed the original game event for event, and every one
+     of the other 38 was this mechanism** — a prompt mismatch at the fork
+     itself, and none diverged without one. Twenty-one of the 38 rejoined
+     the original game anyway (the random agent's next pick converged);
+     seventeen played a different game. The three boards: `performance` at
+     two seats, 353 forks, 336 identical; `stress` at four, 314, 296;
+     Commander scale, 112, 109.
+
+     **Why it is not a rules bug.** The candidate list is an overapproximation
+     by contract (`plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`
+     §2) and the engine rejects what it cannot pay; the game played is
+     legal. What is wrong is that item 40's table called `all_candidates`
+     and `blacklist` harmless — "drop them and the fork re-offers a cast that
+     fails again, slower, same game" — and it is not the same game: the
+     re-offer is of a *different* list. So the prompt is not a function of
+     the state, which is the property the fork model needs and the one item
+     40's invariant was written to protect.
+
+     **Reachability (2026-09-15):** reachable — not wrong today; a legal
+     game, and a prompt a fork cannot rebuild. Every game reaches it: 54–85
+     same-player re-asks a game at four seats.
+
+     **Sized:** recompute the candidates after a rejected action — move the
+     enumeration inside the retry loop, minus the blacklist — ~5 lines in
+     `engine/priority.rs`; it moves the random agent's stream, so its own PR
+     with the A/B and a `fuzz-record.md` block, and item 41's test rides in
+     it (the test cannot be green without it). The `blacklist` stays
+     stack-resident until item 140.
+
+     **Closed 2026-09-16 (A4h).** The enumeration moved inside the retry
+     loop; the blacklist stayed on the stack, and the fork test that rode in
+     with the fix says it is still outcome-bearing there — item 140 owns
+     that half. The measurement the fix is read against is
+     `tests/priority_fork_test.rs`' 192-game sweep and the A4h block of
+     `fuzz-record.md`.

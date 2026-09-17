@@ -9,7 +9,7 @@ use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
 use crate::engine::targeting::spell_recipient;
-use crate::types::effects::EffectRecipient;
+use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
@@ -386,6 +386,23 @@ pub fn activatable_abilities(
             // Single-pass check: non-mana costs via engine, mana costs via
             // pool + available sources. No double-check.
             if !can_afford_ability_costs(game, player_id, id, &ability.costs) {
+                continue;
+            }
+
+            // CR 602.2b routes an activation through 601.2c, so an ability
+            // that *requires* a target and has none is no more activatable
+            // than such a spell is castable — the same check `castable_spells`
+            // makes, and the one the enumeration was missing. `UpTo` is left
+            // in: choosing zero targets is legal, so an empty board does not
+            // make it illegal. Provably illegal from a static read, which is
+            // what the oracle may filter on
+            // (`dp-middleware-and-candidate-enumeration.md` §2).
+            if let EffectRecipient::Target(ref f, TargetCount::Exactly(n))
+                | EffectRecipient::Choose(ref f, TargetCount::Exactly(n)) =
+                crate::engine::targeting::effect_recipient(&ability.effect)
+                && n >= 1
+                && !game.has_any_legal_choice(f, None, player_id)
+            {
                 continue;
             }
 

@@ -37,6 +37,117 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-16 for A4h** (the retry re-ask's stale list —
+`codebase-state.md` item 139, closed, and item 150 beside it; item 41's fork
+test). **No pool change**: `performance` 90 and `stress` 161, as A4g left
+them, so every column below is comparable to A4g's. Recorded because the
+stream moves in every game after its first rejected action.
+
+**Four arms, and the third is the one the budget is read on.** `main`
+(9c3c8e6); **inert** (43ae182) — `#[derive(Clone)]` on the random provider and
+`Game::resume_turn_at_priority`, no engine change; **cost** — a throwaway
+build of the inert arm that does A4h's extra work on every re-ask and throws
+the answer away, so it plays `main`'s games while paying A4h's bill; **new**
+(HEAD) — both fixes and the test.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| inert vs `main`, every counter, both pools | **IDENTICAL** | **IDENTICAL** |
+| cost vs `main`, every gameplay counter, both pools | **IDENTICAL**; the layer diagnostics move, because the probe calls the engine (`Layer walks` 352 → 364 at 50 games) | **IDENTICAL**, same exception |
+| new vs `main`, both pools | differ, by construction | differ, by construction |
+| **`µs / decision`, cost vs inert — the overhead** | **+2.8%**, **+0.7%** | **+3.9%**, **+2.8%**, **+2.1%** |
+| `µs / decision`, new vs `main` | 28.7 → 30.3, **+5.6%** | 48.9 → 51.2, **+4.7%** |
+| `ms / 1,000 walks`, cost | −1.3% vs `main`, −2.7% vs inert | −0.7% vs `main`, −0.5% / −1.2% vs inert |
+| CPU/game median, main → inert → cost → new | 6.78 → 6.75 → 6.93 → 7.13 ms | 22.31 → 22.02 → 22.89 → 23.42 ms |
+| `Decisions` a game, `performance` | 236 → 235 | 456 → 457 |
+| `Priority decisions` a game, `performance` | 94 → **89** | 182 → **172** |
+| deterministic across rounds, three hasher seeds | yes / yes / yes / yes | yes / yes / yes / yes |
+
+**The overhead is one extra enumeration per re-ask, and the cost arm is what
+isolates it.** §3.1's budget is 2.5 points of CPU per decision *at identical
+counters*, and a stream-moving PR has none — so an arm that does A4h's work
+without A4h's effect is the only honest read. Five sittings, three rounds or
+five: **+0.7% and +2.8% at two seats, +2.1%, +2.8% and +3.9% at four**. That
+is the budget's line, over it as often as under, against a run-to-run spread
+§3.1 itself puts at ~2.4% — so this block says why rather than claiming the
+gate, and the reviewer decides.
+
+**Why it is worth paying.** What it buys is item 40's invariant at the
+priority boundary: the prompt is a function of `GameState`, so a clone taken
+at one can be resumed, which is the property the AI track is built on and the
+one `tests/priority_fork_test.rs` now asserts every run. Where it goes is the
+re-ask path only, which exists because the candidate list is an
+overapproximation by contract
+(`dp-middleware-and-candidate-enumeration.md` §2). What removes it is Phase
+10's exact action space — item 140's third option — which retires the re-asks
+and this cost together.
+
+`ms / 1,000 walks` moves the *other* way in all five (−0.5% to −2.7%): the
+cost is more layer walks, not slower ones, because
+`candidate_priority_actions` reads every permanent's effective abilities. A
+calibration the cost arm gave for free — an earlier build enumerating on
+*every* iteration rather than only on a re-ask read **+21.3%**, which is what
+one whole extra `candidate_priority_actions` per priority window costs. A4h
+pays about a tenth of that. And ordering inside item 150's check is worth
+1.5 points on its own: with `has_any_legal_choice` ahead of the cost check
+the shipped arm read +7.2% at two seats, and +5.6% behind it.
+
+**The rest of the shipped arm's delta is a different game, not overhead.**
+At two seats on `performance` the new arm casts 23.0 spells a game against
+22.3, plays 18.3 lands against 17.9 and runs 30.8 turns against 30.4 — a
+busier board, walked more (`Layer frames` 4,496 → 4,726). It is also a
+*better-behaved* one: `Priority decisions` — the prompts offering more than
+`Pass` — fall 94 → 89 at two seats and 182 → 172 at four, which is item 150's
+check taking the equip abilities no creature could receive off the list.
+
+**No callgrind row.** The stream moved, so an instruction count would be a
+new baseline rather than a comparison; §12's reading stays A4g's.
+
+**Which games diverge, and why the event dump cannot attribute them.** 40
+games, two seats, `performance`, `--dump-events` both arms, split per game:
+**36 of 40 differ** — 35 of them already with item 139's fix alone. The first
+difference is never *at* a rejection in the dump, and it cannot be: a cast
+that `castable_spells` offered and 601.2g could not pay taps nothing and
+emits no event, so the re-ask the fix changed is invisible and the divergence
+first surfaces at the next decision that happens to differ. The instrument
+that *can* see it is the fork test, which compares the offered lists at the
+prompt — all 119 of its pre-fix failures name a list the branch could not
+rebuild, none a silent divergence after one.
+
+**One fresh turn-limit hit, and it is a long game.** Four seats, `stress`:
+`Hit turn limit` 1 → 2. `main`'s is game 159 (seed 12503); the new one is game
+111 (seed 12455), and at `--max-turns 600` it finishes — P1 wins in 242
+turns, against 246 for the pre-existing one. Neither is a loop.
+
+**The §3 fixture rows (50 games, two seats), new arm.**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 26 (52.0%) | 21 (42.0%) / 29 (58.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 27.6 | 32.2 |
+| Spells cast | 21.9 | 22.4 |
+| Lands played | 17.1 | 18.1 |
+| Combat w/ atk | 10.0 | 10.9 |
+| Creatures died | 6.1 | 4.8 |
+| Damage events | 20.6 | 25.3 |
+| Total damage | 61.1 | 59.1 |
+| Life changes | 14.4 | 19.9 |
+| **Layer walks** | **349** | **490** |
+| **Board walks** | **229** | **331** |
+| **Memo hits** | **54,467** | **133,051** |
+| **Layer frames** | **4,133** | **8,338** |
+| **Frames/walk** | **11.83** | **17.01** |
+| **Dependency checks** | **10** | **4** |
+| **Replacement gathers** | **1010** | **1417** |
+| **Restriction queries** | **1012** | **1419** |
+| Mana productions | 82 | 142 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.30 | 1.28 |
+| Max batch depth | 5 | 5 |
+| Decisions | 221 | 415 |
+| Priority decisions | 82 | 176 |
+
 **Re-recorded 2026-09-16 for A4g** (process-stable ids —
 `codebase-state.md` item 144, closed; `layers-architecture.md` §12, the
 second 2026-09-16 re-read). **No pool change**: `performance` 90 and `stress`

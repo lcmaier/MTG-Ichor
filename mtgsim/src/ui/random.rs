@@ -137,6 +137,15 @@ fn mana_window_preference(
 /// declines) until the per-window activation cap is hit, at which point it
 /// declines so the 601.2g / 602.1b loop exits and the engine rolls back any
 /// unpayable cost. See `pick_n` for details.
+///
+/// **`Clone` is the other half of a fork** (`codebase-state.md` item 41). A
+/// harness that clones `GameState` at a decision point and plays the branch
+/// forward has cloned half the game: this provider's `StdRng` lives outside
+/// the state deliberately (`CLAUDE.md`'s second randomness opt-out), so a
+/// branch that does not carry it re-randomizes every choice from the fork on.
+/// Cloning both streams is what makes a branch a replay; a search that wants
+/// determinization reseeds the branch's provider instead.
+#[derive(Clone)]
 pub struct RandomDecisionProvider {
     /// Current mana-ability window tracker: `(spell_or_ability_id, activations_so_far)`.
     /// Resets when a new window id is seen. See `pick_n` for the rationale.

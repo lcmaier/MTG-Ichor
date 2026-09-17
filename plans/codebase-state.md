@@ -2133,7 +2133,7 @@ section never asked.
 
     | Site | Stack-resident | Outcome-bearing? |
     |---|---|---|
-    | `priority.rs` priority loop | `blacklist`, `retries`, `all_candidates` | **No for `retries`; wrong for the other two, measured 2026-09-15.** `all_candidates` is computed once per round and reused across the retry loop while a rejected cast's mana taps stay (CR 732.1), so a retry re-prompt offers a list a fresh enumeration would not, and `blacklist` is what filters it; a fork at that prompt cannot rebuild either. Item 139 has the measurement and the size |
+    | `priority.rs` priority loop | `blacklist`, `retries` | **No for `retries`; yes for `blacklist`, measured 2026-09-15 and halved 2026-09-16.** `all_candidates` left the stack with item 139 — the list is enumerated per prompt now, so the prompt is a function of the board. What survives is the blacklist: a fresh enumeration can still offer the action that just failed, and a fork resuming as a new round is not filtering it. Item 140 has the size |
     | `cast.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
     | `cast.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
     | `apply_replacements` | `applied` / `declined` / `exempt_applied` | **Yes** — see below |
@@ -2188,6 +2188,19 @@ section never asked.
     priority loop's `all_candidates` and `blacklist`, found by running item
     41's test as a probe — item 139.
 
+    **A4h (2026-09-16):** the row is honest now and one of its two halves is
+    closed. `all_candidates` is gone from the frame; `blacklist` is not, and
+    the fork test is what turned "wrong" into a number — with the enumeration
+    fixed and the blacklist left alone, 52 of 15,646 branches still failed to
+    replay, every one of them offered a list the original had filtered. The
+    third thing the pass found was not decision state at all but an
+    enumeration gap (item 150), and it is the reason the count is 0 rather
+    than 52: the actions the blacklist still holds are ones no fresh
+    enumeration offers back. **That is a property of today's pools, not of the
+    design** — one card whose activation fails for a reason the oracle cannot
+    read puts the count back above zero, and item 140's `blacklist` on
+    `GameState` is what makes it structural.
+
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
     pass: the two non-outcome-bearing sets are loop locals that do not survive
@@ -2239,12 +2252,36 @@ section never asked.
     question, since a clone carries every library in its shuffled order and a
     search over it is omniscient until that query exists.
 
-    **Reachability (2026-09-15):** unreachable — nothing forks; the test was
-    run as a throwaway probe and does not exist in the tree.
+    **Met for round starts 2026-09-16 (A4h), and the test is in the tree.**
+    `tests/priority_fork_test.rs` clones `GameState` and the provider at every
+    priority prompt where `priority_player == active_player` — the round start
+    and the active player's own re-asks, which is what the state can tell apart
+    — resumes through `Game::resume_turn_at_priority`, and requires the two
+    rendered logs to be equal **verbatim, ids included**: A4g made ids
+    process-stable, so the probe's mask is gone and the assertion is stronger
+    than the probe's was. Three boards, one seed each, about six seconds in
+    debug; the 64-seed sweep behind them is an `#[ignore]`d test, 192 games in
+    about two seconds in release. What it took was **two** fixes, not one —
+    item 139's fresh enumeration and item 150's target check — and the sweep
+    reads 119 failing branches on `main`, 38 with item 139's fix alone, 92 with
+    item 150's alone, **0 of 13,530 with both**. The RNG decision above is what
+    the test implements: both streams cloned, and the guard on it is a fourth
+    test that reseeds the branch's provider and requires a *different* game.
 
-    **Sized:** the test, ~250 lines beside `tests/determinism_test.rs` — a
-    recording provider, a replaying one, the id mask — in item 139's PR;
-    `#[derive(Clone)]` on the random provider, one line.
+    **What is still owed** is item 140's half — a prompt anywhere else in a
+    round, and CR 514.3a's cleanup re-loop — and with it the blacklist, which
+    is the one thing on the frame that can still decide a prompt. The entry
+    point item 140 extends rather than replaces is in the tree
+    (`Game::resume_turn_at_priority`); what it adds is a round that can start
+    at a seat other than the active player.
+
+    **Reachability (2026-09-16):** closed for round starts — asserted every
+    run; reachable for the rest, item 140.
+
+    **Sized:** ~~the test, ~250 lines beside `tests/determinism_test.rs`~~ —
+    **built 2026-09-16** (A4h), 440 lines: a fork recorder that doubles as the
+    branch's prompt watcher, three boards, the reseed guard and the sweep. No
+    id mask, and no replaying provider — cloning the random one is the replay.
 
 42. **`EventLog` is on `GameState` and grows monotonically.** `clear()` is
     documented as between-games only, so a ~33-turn game carries every
@@ -5368,6 +5405,20 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    this phase's first decision, and the check is that a sink-compiled-in-but-off
    arm is `IDENTICAL` to `main` on both pools.
 
+   **A fifth emit point, named 2026-09-16 (A4h): the decision boundary.**
+   The four above are proposals, pipeline iterations and layer walks, and
+   none of them is the prompt — so a sink built to this spec would not have
+   found what A4h found, which was a prompt whose *option list* was wrong.
+   No event log can show that one: a cast the enumeration offered and CR
+   601.2g could not pay performs nothing and emits nothing, so
+   `--dump-events` is blind to the re-ask by construction. What answers "why
+   was I offered this" is the candidate enumeration and the list handed to
+   `ask_choose_priority_action` — the result, the blacklist, the retry index.
+   The instrument that did find it is `tests/priority_fork_test.rs`, which
+   compares offered lists across a fork; that is an assertion, not a
+   facility. The row already expects the dispatcher to add a point of its
+   own, so this is a sixth rather than a re-plan.
+
    **The higher-value artifact item 5 does not name:** a two-version trace diff
    — one board through two engine builds, compared — which is what a human
    cannot do by hand and what `fuzz_ab.py` already does for counters. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
@@ -6569,6 +6620,37 @@ Commander-scale board closes item 69.
         land. A "nothing to do" pre-check or an epoch-keyed cached list is
         the shape, ~30 lines. Item 139 makes the list right; this makes it
         cheap. **Rank 4, re-measure first.**
+
+        **Re-measured 2026-09-16 (A4h), which was this lever's own
+        precondition, and two instruments agree.** Callgrind on the
+        post-lever tree reads `candidate_priority_actions` at 14.62 G,
+        **19.2%** (`layers-architecture.md` §12, the three-arm table);
+        A4h's cost arm — one extra enumeration per priority window, wall
+        clock — reads **+21.3%** of CPU a game. **Levers 1 and 2 worked on
+        it and its share did not move**: 24.71 G → 14.62 G absolute (−41%),
+        19.9% → 19.2% of a total that fell with it. So per-call work is not
+        the lever left here — the next win **reduces calls or exits them
+        early**, which is this row's own "91.5% of them `[Pass]`": the
+        dominant cost is proving there is nothing to do.
+
+        **Of the two shapes above the pre-check is the one the data picks,
+        and the cache is wrong for the path A4h added.** A re-ask happens
+        precisely *because* the board changed (CR 732.1's taps, item 139),
+        so a list cached against a board epoch misses on exactly that prompt
+        and helps only the pass case. What is cacheable is narrower: the
+        **ability inventory** — which permanents a player controls that have
+        an activated or mana ability at all — changes on a zone change or a
+        Layer 6 grant, while **payability** changes on every tap, and
+        `activatable_abilities` and `available_mana_sources` recompute both
+        together per prompt today.
+
+        **It may outrank 6 and 7, and that is the owner's call.** §12's rows
+        are inclusive and overlap: both `activatable_abilities` and
+        `available_mana_sources` iterate `battlefield_ordered()` (lever 6,
+        16.8%, which §12 calls the largest single lever left) and allocate a
+        `Vec` per call (lever 7, 18.2%). Cutting enumerations cuts the sorts
+        and the allocations with them; caching the sort leaves the
+        enumeration paying for everything else.
      5. **The mana window** — 15.0%: CR 601.2g's loop re-enumerates every
         mana ability per prompt, 394 times a game at ~220,000 instructions
         each. Levers 1 and 2 shrink it; `backlog.md` §2.18's solver removes
@@ -6617,47 +6699,23 @@ Commander-scale board closes item 69.
      Commander board turned out to need; the next reading is the next spine
      close's.
 
-139. **A retry re-prompt offers a list computed before the rejected action
-     changed the board — the one thing the fork test found on the stack.**
-     `run_priority_round` computes `all_candidates` once per round and the
-     retry loop re-asks with that list minus a `blacklist`; when the rejected
-     action was a cast whose mana abilities stay activated (CR 732.1's "may
-     not reverse" branch, item 72), the board at the re-prompt has fewer
-     untapped sources and more mana floating than the list was computed
-     from, so the re-prompt offers casts a fresh enumeration would not — and
-     a fork at that prompt, resuming with a fresh round, offers a different
-     list. Measured 2026-09-15 by running item 41's test as a throwaway
-     probe — record every provider answer, clone `GameState` at the first
-     prompt of a priority round, replay the recorded answers from that
-     prompt on, compare the rendered logs with ids masked: **779 forks over
-     50 games, 741 replayed the original game event for event, and every one
-     of the other 38 was this mechanism** — a prompt mismatch at the fork
-     itself, and none diverged without one. Twenty-one of the 38 rejoined
-     the original game anyway (the random agent's next pick converged);
-     seventeen played a different game. The three boards: `performance` at
-     two seats, 353 forks, 336 identical; `stress` at four, 314, 296;
-     Commander scale, 112, 109.
+139. **~~A retry re-prompt offers a list computed before the rejected action
+     changed the board~~ ✅ CLOSED 2026-09-16 (A4h) — the enumeration moved
+     inside the retry loop, so every priority prompt is built from the board it
+     is asked about.** `run_priority_round` had built `all_candidates` once per
+     priority window and re-offered it minus the `blacklist`; a rejected cast
+     whose mana abilities stayed activated (CR 732.1, item 72) left the re-ask
+     offering casts no enumeration of that board would. The blacklist filter
+     stays — a fresh list can still hold the action that just failed — and the
+     retry budget is taken from the first enumeration rather than re-derived,
+     because a budget re-derived from a list the blacklist keeps shortening
+     shrinks as it is spent. Item 41's test is what closes it, and it found a
+     second mechanism of the same shape on the way (item 150).
+     → `plans/archive/codebase-state-closed.md`; `fuzz-record.md`, the A4h block.
 
-     **Why it is not a rules bug.** The candidate list is an overapproximation
-     by contract (`plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`
-     §2) and the engine rejects what it cannot pay; the game played is
-     legal. What is wrong is that item 40's table called `all_candidates`
-     and `blacklist` harmless — "drop them and the fork re-offers a cast that
-     fails again, slower, same game" — and it is not the same game: the
-     re-offer is of a *different* list. So the prompt is not a function of
-     the state, which is the property the fork model needs and the one item
-     40's invariant was written to protect.
-
-     **Reachability (2026-09-15):** reachable — not wrong today; a legal
-     game, and a prompt a fork cannot rebuild. Every game reaches it: 54–85
-     same-player re-asks a game at four seats.
-
-     **Sized:** recompute the candidates after a rejected action — move the
-     enumeration inside the retry loop, minus the blacklist — ~5 lines in
-     `engine/priority.rs`; it moves the random agent's stream, so its own PR
-     with the A/B and a `fuzz-record.md` block, and item 41's test rides in
-     it (the test cannot be green without it). The `blacklist` stays
-     stack-resident until item 140.
+     **Reachability (2026-09-16):** closed — landed; 0 of 13,530 forked
+     branches fail to replay across the test's 192-game sweep, against 119 on
+     `main`.
 
 140. **A prompt mid-round cannot be resumed: `consecutive_passes` and
      `current_priority` are loop locals, and `run_priority_round` starts
@@ -6684,6 +6742,20 @@ Commander-scale board closes item 69.
      onto `GameState`, cleared per round (~20 lines), or made moot by the
      exact action space, which is Phase 10's. Lands with the first
      fork-based harness, after item 139.
+
+     **A4h (2026-09-16) left it two things.** `Game::resume_turn_at_priority`
+     exists — `run_turn`'s step drainer takes a `resuming` flag, so a caller
+     re-enters at a step's priority round without re-running CR 703.4's
+     turn-based actions — and what this item adds is the *other* half of the
+     probe's hand-rolled resume: a round that starts at a seat other than the
+     active player. And the `blacklist` is no longer "probably": with the
+     enumeration fixed and the blacklist left on the frame, 52 of 15,646
+     forked branches still failed to replay, each one offered an action the
+     original had filtered. It reads 0 today only because item 150 took the
+     last action the oracle was offering back — so the first card whose
+     activation fails for a reason `activatable_abilities` cannot read turns
+     `tests/priority_fork_test.rs` red, and that is the signal this item is
+     due rather than a regression in the card.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
@@ -7056,6 +7128,40 @@ owner decided it the same day.
      **Sized:** nothing owed unless the triggers doc wants per-instance
      identity; then `AbilityIdentity` gains the index (~10 lines) and the 13
      pair sites are read once more.
+
+### Found by A4h — item 41's fork test (2026-09-16)
+
+150. **~~`activatable_abilities` never checked whether the ability had a legal
+     target~~ ✅ CLOSED 2026-09-16 (A4h, the same PR) — it does now, the way
+     `castable_spells` always has.** The enumeration checked costs and CR
+     602.5d's timing and stopped, so an Equipment's equip ability was offered
+     on a creatureless board, rejected by `activate_ability`'s CR 601.2c check,
+     blacklisted — and the next enumeration offered it right back. CR 602.2b
+     routes an activation through 601.2b–i, so 601.2c applies to an ability
+     exactly as it does to a spell; an empty legal-choice set is provably
+     illegal from a static read, which is what the oracle may filter on
+     (`dp-middleware-and-candidate-enumeration.md` §2). `UpTo` is left in the
+     list, because choosing zero targets is legal.
+
+     **How it was found, and why it is recorded rather than folded into 139.**
+     It is not a rules bug either — the games played were legal, the engine
+     rejected what it could not do. It is the *second* way the offered list
+     stopped being a function of the board, and item 139's fix could not reach
+     it: with the enumeration fresh and this gap open, 52 of 15,646 forked
+     branches still failed to replay. The blacklist was deciding the prompt,
+     which is item 40's violation with a different owner. Two cards in the
+     pools reach it, Bonesplitter and Cobbled Wings, and both are Equipment;
+     the cost of leaving it was a re-ask loop that could only end at the retry
+     budget, which is the diagnostic `engine/priority.rs` has printed since it
+     was written.
+
+     **Reachability (2026-09-16):** closed — landed; and the reason the fork
+     test reads 0, which item 140 inherits.
+
+     **The budget it spent:** the target check runs after the cost check for a
+     reason — before it, the shipped arm read +7.2% µs/decision at two seats
+     and +5.7% after, because `has_any_legal_choice` walks the battlefield and
+     most abilities are unaffordable anyway. `fuzz-record.md`, the A4h block.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

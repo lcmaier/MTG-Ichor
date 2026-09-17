@@ -132,7 +132,42 @@ impl Game {
     /// 4. Advance to next step/phase
     pub fn run_turn(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         let starting_turn = self.state.turn_number;
+        self.run_turn_steps(decisions, starting_turn, false)
+    }
 
+    /// Finish the turn from a priority prompt a fork was taken at.
+    ///
+    /// The entry point `codebase-state.md` item 41's test needs and item 140
+    /// extends: a clone taken at a priority prompt is resumed by re-entering
+    /// the step's priority loop, **not** by re-running the step from the top —
+    /// its turn-based actions (CR 703.4) have already happened, and performing
+    /// them twice is a different game. Everything the resumed loop reads is on
+    /// `GameState`, which is what makes the clone a complete description of the
+    /// game at that prompt.
+    ///
+    /// **Round starts only, and not the cleanup step's.** `run_priority_round`
+    /// begins every round at the active player and its `blacklist` is a loop
+    /// local, so a clone taken anywhere else in a round resumes as a different
+    /// round; CR 514.3a's re-loop lives in this method's own cleanup branch and
+    /// is not re-enterable at all. Item 140 owns both.
+    pub fn resume_turn_at_priority(
+        &mut self,
+        decisions: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        let starting_turn = self.state.turn_number;
+        self.run_turn_steps(decisions, starting_turn, true)
+    }
+
+    /// The step drainer behind [`Game::run_turn`] and
+    /// [`Game::resume_turn_at_priority`]. `starting_turn` is the turn number
+    /// this call is finishing; `resuming` skips the current step's turn-based
+    /// actions, for a caller that re-enters after them.
+    fn run_turn_steps(
+        &mut self,
+        decisions: &dyn DecisionProvider,
+        starting_turn: u32,
+        mut resuming: bool,
+    ) -> Result<(), String> {
         loop {
             if self.is_over() {
                 return Ok(());
@@ -142,7 +177,11 @@ impl Game {
             let step = self.state.phase.step;
 
             // 1. Turn-based actions for the current step
-            self.process_turn_based_actions(phase_type, step, decisions)?;
+            if resuming {
+                resuming = false;
+            } else {
+                self.process_turn_based_actions(phase_type, step, decisions)?;
+            }
 
             // 2. Priority round (most steps grant priority)
             //
