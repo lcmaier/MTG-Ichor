@@ -19,6 +19,7 @@ use super::phase_lg_cards;
 use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
+use super::phase_a4i_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -866,6 +867,16 @@ impl CardRegistry {
         // and the affected side's zone check, and are registered nowhere.
         registry.register("Darksteel Colossus", phase_rf_cards::darksteel_colossus);
         registry.register("Nexus of Fate", phase_rf_cards::nexus_of_fate);
+
+        // A4i — CR 601.2c's three shapes of "several instances of target". The
+        // module doc says which card presses on which; Seat of the Synod is
+        // here because the CR's own example of one object satisfying two
+        // clauses is an artifact land.
+        registry.register("Seeds of Strength", phase_a4i_cards::seeds_of_strength);
+        registry.register("Incremental Growth", phase_a4i_cards::incremental_growth);
+        registry.register("Jagged Lightning", phase_a4i_cards::jagged_lightning);
+        registry.register("Plague Spores", phase_a4i_cards::plague_spores);
+        registry.register("Seat of the Synod", phase_a4i_cards::seat_of_the_synod);
 
         registry
     }
