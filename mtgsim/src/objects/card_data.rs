@@ -312,11 +312,13 @@ impl CardDataBuilder {
     /// Finish the card, giving every ability def reachable from it an id.
     ///
     /// A def still carrying `AbilityId::UNASSIGNED` — what every card file
-    /// writes — gets `AbilityId::printed(name, ordinal)`, the ordinal being
-    /// its position in one walk of the card: the printed list in order, each
-    /// def followed by the defs nested in its effect (a granted ability, a
-    /// token's abilities). A def that already has an id keeps it, which is
-    /// what lets a test author one and read it back through the card.
+    /// writes — gets `AbilityId::printed(name, ordinal)`. The printed list
+    /// takes ordinals `0..n` in order, so a printed ability's ordinal is its
+    /// index in `abilities`, the index `activatable_abilities` hands out; the
+    /// defs nested in the printed effects (a granted ability, a token's
+    /// abilities) follow from `n`, in `Effect::for_each_ability_def_mut`'s
+    /// order. A def that already has an id keeps it, which is what lets a
+    /// test author one and read it back through the card.
     pub fn build(mut self) -> Arc<CardData> {
         let name = self.data.name.clone();
         let mut ordinal = 0u32;
@@ -326,8 +328,11 @@ impl CardDataBuilder {
             }
             ordinal += 1;
         };
-        for def in Arc::make_mut(&mut self.data.abilities).iter_mut() {
+        let abilities = Arc::make_mut(&mut self.data.abilities);
+        for def in abilities.iter_mut() {
             stamp(def);
+        }
+        for def in abilities.iter_mut() {
             def.effect.for_each_ability_def_mut(&mut stamp);
         }
         Arc::new(self.data)

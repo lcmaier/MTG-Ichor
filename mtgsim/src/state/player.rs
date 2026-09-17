@@ -55,7 +55,7 @@ impl PlayerState {
             lands_per_turn: 1,
             lands_played_this_turn: 0,
             counters: BTreeMap::new(),
-            commander_damage_taken: Default::default(),
+            commander_damage_taken: IdMap::default(),
             has_drawn_from_empty_library: false,
         }
     }

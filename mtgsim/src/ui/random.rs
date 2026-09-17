@@ -96,7 +96,7 @@ fn mana_window_preference(
             .collect();
     // How many wanted types each permanent can make: its flexibility.
     let mut flexibility: crate::types::ids::IdMap<ObjectId, usize> =
-        Default::default();
+        crate::types::ids::IdMap::default();
     for ((perm, _), t) in &produces {
         if wanted.contains(t) {
             *flexibility.entry(*perm).or_insert(0) += 1;
@@ -250,7 +250,7 @@ impl DecisionProvider for RandomDecisionProvider {
             let mut shuffled: Vec<usize> = (0..options.len()).collect();
             shuffled.shuffle(&mut *rng);
             let mut used_blockers: crate::types::ids::IdSet<ObjectId> =
-                Default::default();
+                crate::types::ids::IdSet::default();
             let mut picked: Vec<usize> = Vec::new();
             for idx in shuffled {
                 if picked.len() >= count {

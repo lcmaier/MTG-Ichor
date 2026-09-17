@@ -247,7 +247,7 @@ pub fn enumerate_activatable_mana_abilities(
     player_id: PlayerId,
 ) -> Vec<(ObjectId, AbilityId)> {
     let mut seen: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
-        Default::default();
+        crate::types::ids::IdSet::default();
     let mut result = Vec::new();
     for src in available_mana_sources(game, player_id) {
         let key = (src.permanent_id, src.ability_id);

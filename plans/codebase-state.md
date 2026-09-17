@@ -7045,7 +7045,8 @@ owner decided it the same day.
      which `AbilityIdentity { source, ability }` exists to carry — cannot
      tell two instances apart by the pair. The index into the effective list
      can, and whether CR 603.7h wants the instance or the ability is the
-     triggers doc's question (`roadmap-v2.md` A6), not this item's.
+     triggers doc's question — seam **S3** in `roadmap-v2.md` §3b and A6,
+     where the doc's prep will find it — not this item's.
 
      **Reachability (2026-09-16):** reachable — a policy-visible difference
      (which of two identical candidates the random agent is offered), never a

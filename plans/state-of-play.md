@@ -97,7 +97,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 6851 of 7062 lines (97%) |
+| Section size | 6852 of 7063 lines (97%) |
 | Numbered items | 199 |
 | …closed, still recorded | 56 |
 | …open — unreachable, and says why | 88 |

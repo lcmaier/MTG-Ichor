@@ -1445,14 +1445,14 @@ pub enum Effect {
 }
 
 impl Effect {
-    /// Visit every `AbilityDef` nested in this effect, depth first, each def
-    /// before the defs nested in its own effect: a granted ability
+    /// Visit every `AbilityDef` nested in this effect: a granted ability
     /// (`Primitive::GrantAbility`), a created token's abilities
     /// (`Primitive::CreateToken`, and the token a replacement creates
-    /// instead), and whatever a replacement's rider nests in turn.
-    ///
-    /// `CardDataBuilder::build` is the caller: this is how a def that never
-    /// sits in a card's printed list still gets an id derived from the card.
+    /// instead), and whatever a replacement's rider nests in turn. The order
+    /// is the recursion's — each def, then the defs inside its own effect —
+    /// and nothing reads it except as a fixed order: `CardDataBuilder::build`
+    /// is the caller, numbering these after the printed list so that a def
+    /// that never sits in that list still gets an id derived from the card.
     pub fn for_each_ability_def_mut(
         &mut self,
         f: &mut impl FnMut(&mut crate::objects::card_data::AbilityDef),

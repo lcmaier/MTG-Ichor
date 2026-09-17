@@ -7,6 +7,9 @@
 //!
 //! Two newtypes over one integer rather than two aliases of it, so that the
 //! thirteen `(ObjectId, AbilityId)` sites cannot swap their halves silently.
+//!
+//! The hasher at the bottom of this file, and why it is written here rather
+//! than taken from a crate, is `plans/id-hasher.md`.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hasher};
@@ -88,14 +91,15 @@ const ROLE_TEST: u64 = 0b11 << ROLE_SHIFT;
 impl AbilityId {
     /// What a card file writes. `CardDataBuilder::build` replaces it with
     /// [`Self::printed`] on every def it can reach from the card — the printed
-    /// list and every def nested in an effect (a granted ability, a token's
-    /// abilities) — so a def that reaches an object still carrying this was
-    /// never built into a card.
+    /// list first, then every def nested in an effect (a granted ability, a
+    /// token's abilities) — so a def that reaches an object still carrying
+    /// this was never built into a card.
     pub const UNASSIGNED: AbilityId = AbilityId(0);
 
-    /// A printed ability: the `ordinal`-th def reachable from the card named
-    /// `card_name`. Pure in its inputs, so the same card built twice, in two
-    /// processes, has the same ids.
+    /// A printed ability of the card named `card_name`: `ordinal` is its
+    /// index in the printed list, or, past the list's end, its place among
+    /// the defs nested in the printed effects. Pure in its inputs, so the
+    /// same card built twice, in two processes, has the same ids.
     pub fn printed(card_name: &str, ordinal: u32) -> AbilityId {
         AbilityId(ROLE_PRINTED | ((fnv1a_64(card_name.as_bytes()) ^ ordinal as u64) & !ROLE_MASK))
     }

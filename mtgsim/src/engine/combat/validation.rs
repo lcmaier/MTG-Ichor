@@ -130,7 +130,7 @@ impl BlockConstraints {
         BlockConstraints {
             restrictions: Vec::new(),
             requirements: Vec::new(),
-            blocking_limits: Default::default(),
+            blocking_limits: IdMap::default(),
         }
     }
 
@@ -333,7 +333,7 @@ pub fn validate_blockers(
     constraints: &BlockConstraints,
 ) -> Result<(), CombatError> {
     // Count how many times each blocker is used
-    let mut block_counts: IdMap<ObjectId, usize> = Default::default();
+    let mut block_counts: IdMap<ObjectId, usize> = IdMap::default();
 
     for (blocker_id, attacker_id) in proposed {
         // Per-pair hard legality (shared with the pre-filter in

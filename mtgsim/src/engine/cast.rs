@@ -489,7 +489,7 @@ impl GameState {
         }
 
         let mut failed: crate::types::ids::IdSet<(ObjectId, AbilityId)> =
-            Default::default();
+            crate::types::ids::IdSet::default();
 
         loop {
             let legal: Vec<(ObjectId, AbilityId)> =

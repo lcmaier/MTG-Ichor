@@ -124,12 +124,12 @@ impl<'l> Board<'l> {
         Board {
             members: Vec::new(),
             battlefield_entities: 0,
-            frames: Default::default(),
+            frames: IdMap::default(),
             live: false,
             started: HashMap::new(),
             track_started: false,
             lookahead: None,
-            sub: RefCell::new(Default::default()),
+            sub: RefCell::new(IdMap::default()),
         }
     }
 
@@ -186,12 +186,12 @@ impl<'l> Board<'l> {
         let mut board = Board {
             members,
             battlefield_entities,
-            frames: Default::default(),
+            frames: IdMap::default(),
             live: true,
             started: HashMap::new(),
             track_started,
             lookahead,
-            sub: RefCell::new(Default::default()),
+            sub: RefCell::new(IdMap::default()),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
