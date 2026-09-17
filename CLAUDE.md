@@ -11,7 +11,7 @@ cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
 cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card
 python plans/specdb.py stats              # rules coverage by phase
-python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check   # all must pass
+python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check   # all must pass
 ```
 
 ## Where authority lives
@@ -179,9 +179,9 @@ one-consumer-per-PR rule and where review findings go. `gh` is installed; openin
 - Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
 - **Before deferring a rules question, read the rule that *watches* the one you are
   implementing** — it is in another chapter. → `engineering-practices.md` §8.
-- Test cards in `src/cards/phase_XX_cards.rs`; integration tests in
-  `tests/phase_XX_integration_test.rs`. **Register every card you write**; a phase that
-  opens a new engine path also adds one to `PERFORMANCE_POOL`. → `engineering-practices.md` §3.
+- Test cards in `src/cards/phase_XX_cards.rs`; integration tests in `tests/phase_XX_integration_test.rs`.
+  **Register every card you write, and read its rulings** — `check_rulings.py` gates the second, a
+  phase opening a new engine path adds one to `PERFORMANCE_POOL`. → `engineering-practices.md` §3, §3.4.
 - A bugfix must be shown to fail against the pre-fix tree (`git stash push mtgsim/src`) first.
 
 ## Maintaining this file
