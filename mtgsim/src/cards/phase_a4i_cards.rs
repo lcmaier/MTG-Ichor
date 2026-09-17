@@ -62,14 +62,14 @@ fn target_creature() -> EffectRecipient {
 /// Target creature gets +1/+1 until end of turn.
 /// Target creature gets +1/+1 until end of turn.
 ///
-/// **Three instances of "target" with identical clauses**, which is the case
-/// no structural rule can decide. Written the obvious way — each atom carrying
-/// the clause it acts on — this card and Ensoul Artifact are both a `Sequence`
-/// whose atoms carry pairwise-equal recipients, and their instance counts are
-/// three and one. Ensoul Artifact prints "target artifact" once and acts on it
-/// twice; this prints "target creature" three times. Nothing in the shape
-/// separates them, so the card says which it means
-/// (`EffectRecipient::SameInstanceAs`).
+/// **Three instances of "target" with identical clauses**, which is the case no
+/// structural rule can decide. Written the way this crate encoded cards before
+/// A4i, this card's effect tree is the same as **Act of Treason**'s — three
+/// atoms, every recipient `Target(Creature, Exactly(1))`, differing only in the
+/// `Primitive`, which says what happens and never to whom. Act of Treason is
+/// **one** instance ("target creature", then "that creature", then "it") and
+/// this is **three**. The difference is in the printed text and nowhere in the
+/// tree, so the card carries it — see `EffectRecipient::SameInstanceAs`.
 ///
 /// In `PERFORMANCE_POOL`, and why: several-clause casting is a new engine path
 /// (`engineering-practices.md` §3.1), and this is the cheapest card that walks

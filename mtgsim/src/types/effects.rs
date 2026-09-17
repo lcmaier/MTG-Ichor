@@ -530,29 +530,32 @@ pub enum EffectRecipient {
     /// `Target` and `Choose` each *declare* an instance; this refers back to
     /// one, by its position in `targeting::effect_instances`' pre-order list.
     ///
-    /// **Why the card has to say it, rather than the engine working it out.**
-    /// Write each atom with the clause it acts on — the obvious encoding, and
-    /// the one this crate used before A4i — and these two cards become the same
-    /// shape:
+    /// **An atom is an *effect*, not a clause**, and that is why the card has
+    /// to say this rather than the engine working it out. The tree records what
+    /// happens, not how many times the card said "target", and effects per
+    /// clause is whatever the wording needs.
+    ///
+    /// Two registered cards make it exact. Written the way this crate encoded
+    /// cards before A4i — each atom carrying the clause it acts on — these are
+    /// the **same tree**:
     ///
     /// ```text
-    /// Ensoul Artifact   Sequence[ Atom(_, Target(artifact, 1)),
-    ///                             Atom(_, Target(artifact, 1)) ]      1 instance
-    /// Seeds of Strength Sequence[ Atom(_, Target(creature, 1)),
-    ///                             Atom(_, Target(creature, 1)),
-    ///                             Atom(_, Target(creature, 1)) ]      3 instances
+    /// Act of Treason     Sequence[ Atom(GainControl,          Target(Creature, Exactly(1))),
+    ///                              Atom(Untap,                Target(Creature, Exactly(1))),
+    ///                              Atom(GrantKeywordFlag,     Target(Creature, Exactly(1))) ]
+    ///
+    /// Seeds of Strength  Sequence[ Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+    ///                              Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+    ///                              Atom(ModifyPowerToughness, Target(Creature, Exactly(1))) ]
     /// ```
     ///
-    /// The filters differ, but nothing turns on that. What each card *is* is a
-    /// `Sequence` whose atoms all carry **pairwise-equal** recipients, and the
-    /// correct instance count differs anyway: Ensoul Artifact prints "target
-    /// artifact" once and acts on it twice, Seeds of Strength prints "target
-    /// creature" three times.
-    ///
-    /// So no rule over the values can decide it. Collapsing equal recipients
-    /// gives Ensoul Artifact 1 (right) and Seeds of Strength 1 (wrong); one
-    /// instance per occurrence gives 2 (wrong) and 3 (right). The fact lives in
-    /// the card's text and nowhere else, which is what this variant carries.
+    /// Three atoms each, every recipient identical, and the only field that
+    /// differs is the `Primitive` — which says *what happens*, never *to whom*.
+    /// **Act of Treason is one instance and Seeds of Strength is three**,
+    /// because Act of Treason prints "target creature" once and says "that
+    /// creature" and "it" afterwards. No rule reading the tree separates them:
+    /// the difference was never in the tree. It is in the card's text, which is
+    /// what this variant carries.
     ///
     /// The atom resolves against the declaring instance's targets *and* its
     /// recipient, so `resolve_player_for_self` and the filtered-sweep arms see

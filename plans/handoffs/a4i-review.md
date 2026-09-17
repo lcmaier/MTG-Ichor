@@ -344,3 +344,54 @@ trace page.
 this review. A4i qualifies under §7's own test — it changes *how* a target read
 is answered rather than what the answer is — and both questions above are ones
 the diff cannot answer.
+
+---
+
+## H — Found at round four (2026-09-17), the owner's performance question
+
+**The storage and the walks are tight; the *derivation* is not, and it is
+recomputed on a hot path.**
+
+`spell_instances` / `effect_instances` allocate a `Vec` and clone each clause,
+every call. `castable_spells` calls it once per card in hand per priority check.
+Measured with a thread-local probe, 50 games at seed 12345, single-threaded,
+`performance` pool:
+
+| | per game |
+|---|---:|
+| `effect_instances` calls | **366** |
+| clauses cloned | **325** |
+| (for scale) layer walks | 340 |
+| (for scale) decisions | 226 |
+
+**It is derived more often than the layer system walks.** Each call is a `Vec`
+allocation plus a deep clone per clause — and for a filter like Doom Blade's
+`And(ByType(Creature), Not(ByColor(Black)))` the clone is a small `Box` tree,
+not a memcpy.
+
+**Not an A4i regression**, which is why every arm read `IDENTICAL`: the code it
+replaced called `spell_recipient`, which cloned one recipient per call. A4i
+turned one clone into a `Vec` plus *n* clones, and *n* is 1 for every card but
+Incremental Growth. At ~366 allocations per ~6,470 µs game it is a few tenths of
+a percent — under the ~2.4% run-to-run spread, and invisible to the sitting.
+
+**The fix is not a faster derivation; it is not deriving.** The instance list is
+a pure function of the card, and `CardData` is built once and shared behind an
+`Arc` — so the list is a constant being recomputed. Compute it in
+`CardDataBuilder::build()`, store it on `CardData` (and per `AbilityDef`), and
+`spell_instances` returns `&[EffectRecipient]`: **zero allocations, zero clones,
+per call**.
+
+It also retires an invariant rather than restating one. `resolve_effect`
+currently re-derives the list and relies on "the effect the resolution walks is
+the one the announcement walked"; with the list on the card there is one list,
+and nothing to keep in step.
+
+**Sized:** a field on `CardData` and on `AbilityDef`, filled at `build()`; the
+two derivation functions become accessors; ~40 call sites take a slice instead
+of a `Vec`. Small, mechanical, and it owes an A/B — where `IDENTICAL` counters
+with a *lower* CPU reading is the prediction, since nothing about what the
+engine decides changes.
+
+**Not done in this PR**: it changes `CardData`, which is a core type and was not
+part of the four themes the owner scheduled. Proposed as its own row.

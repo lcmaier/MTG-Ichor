@@ -158,13 +158,22 @@ empty slice does nothing while its siblings resolve normally.</p>
 <h2>Trace A — three equal atoms, three instances</h2>
 <div class="prose">
 <p><b>Board.</b> Player 0 controls one Grizzly Bears (2/2). Seeds of Strength — <em>"Target creature gets +1/+1 until end of turn."</em> printed three times — is in hand, with exactly {G}{W} in the pool.</p>
-<p>The card's effect is a <code>Sequence</code> of three <code>Atom</code>s, and the three recipients are equal to each other: <code>Target(Creature, Exactly(1))</code>, three times. <b>That within-card equality is the whole difficulty</b>, because Ensoul Artifact has it too — write each atom with the clause it acts on, which is how this crate encoded cards before A4i, and both cards are <em>a <code>Sequence</code> whose atoms carry pairwise-equal recipients</em>:</p>
-<pre><code>Ensoul Artifact    Sequence[ Atom(ChangeType,          Target(artifact, 1)),
-                             Atom(SetPowerToughness,   Target(artifact, 1)) ]   -> 1 instance
-Seeds of Strength  Sequence[ Atom(ModifyPowerToughness, Target(creature, 1)),
-                             Atom(ModifyPowerToughness, Target(creature, 1)),
-                             Atom(ModifyPowerToughness, Target(creature, 1)) ]  -> 3 instances</code></pre>
-<p>The filters differ between the two cards and nothing turns on that — what matters is that <em>within</em> each card the recipients are equal, which is the only signal an inference rule could read. Collapsing equal recipients gives Ensoul Artifact 1 (right) and Seeds of Strength 1 (wrong); one instance per occurrence gives 2 (wrong) and 3 (right). Ensoul Artifact prints &ldquo;target artifact&rdquo; once and acts on it twice; Seeds of Strength prints &ldquo;target creature&rdquo; three times. The fact is in the card's text and nowhere else, so the card carries it — <code>EffectRecipient::SameInstanceAs</code>.</p>
+<p>The card's effect is a <code>Sequence</code> of three <code>Atom</code>s carrying three equal recipients: <code>Target(Creature, Exactly(1))</code>, three times.</p>
+
+<div class="callout before">
+<p><b>An atom is an <em>effect</em>, not a clause — and that is the whole difficulty.</b> The tree records what happens, not how many times the card said the word &ldquo;target&rdquo;. Effects per clause is whatever the wording needs: one clause can have three effects, and three clauses can have one each. So the atom count measures the wrong thing, and counting more carefully does not help.</p>
+<p><b>Two registered cards make it exact.</b> Written the way this crate encoded cards before A4i — each atom carrying the clause it acts on — Act of Treason and Seeds of Strength are the <em>same tree</em>:</p>
+<pre><code>Act of Treason     Sequence[ Atom(GainControl,          Target(Creature, Exactly(1))),
+                             Atom(Untap,                Target(Creature, Exactly(1))),
+                             Atom(GrantKeywordFlag,     Target(Creature, Exactly(1))) ]
+
+Seeds of Strength  Sequence[ Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+                             Atom(ModifyPowerToughness, Target(Creature, Exactly(1))),
+                             Atom(ModifyPowerToughness, Target(Creature, Exactly(1))) ]</code></pre>
+<p>Three atoms each. Every recipient identical — same variant, same filter, same count — and the only field that differs is the <code>Primitive</code>, which says <em>what happens</em>, never <em>to whom</em>. <b>Act of Treason is one instance and Seeds of Strength is three.</b></p>
+<p>Act of Treason prints &ldquo;target creature&rdquo; <b>once</b>: <em>&ldquo;Gain control of target creature until end of turn. Untap <b>that creature</b>. <b>It</b> gains haste until end of turn.&rdquo;</em> — &ldquo;that creature&rdquo; and &ldquo;it&rdquo; are back-references. Seeds of Strength prints it <b>three times</b>. No rule reading the tree can tell those apart, because the difference was never in the tree; it is in the card's text. So the card carries it, and that is <code>EffectRecipient::SameInstanceAs</code>.</p>
+<p><small>This is not hypothetical: Act of Treason is in <code>PERFORMANCE_POOL</code>, and it is the card the migration audit caught. Under the walk it would have declared three instances, asked three times, and untapped a different creature from the one it stole.</small></p>
+</div>
 </div>
 
 <ol class="trace">
