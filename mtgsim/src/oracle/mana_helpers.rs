@@ -435,34 +435,47 @@ fn every_instance_has_a_choice(
     instances: &[EffectRecipient],
     player_id: PlayerId,
 ) -> bool {
+    // The last clause whose criteria read an earlier instance. Everything after
+    // it has nothing to feed forward to, and for every spell but the "another
+    // target" family there is no such clause at all — see
+    // `clause_reads_earlier_instances` for what that costs when it is not asked.
+    let feed_until = instances
+        .iter()
+        .rposition(crate::engine::targeting::clause_reads_earlier_instances);
     let mut earlier = crate::engine::targeting::ChosenTargets::EMPTY;
-    for recipient in instances {
-        let (EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count)) = recipient
-        else {
-            continue;
-        };
-        let TargetCount::Exactly(n) = count else {
-            // `UpTo` announces nothing it must announce, so it neither fails
-            // here nor constrains the instances after it.
-            continue;
-        };
-        let n = *n as usize;
-        if !game.has_legal_choices(f, None, player_id, n, &earlier) {
-            return false;
+    for (ix, recipient) in instances.iter().enumerate() {
+        // **Every instance pushes, in order, whether or not it is checked.**
+        // `OtherThanInstance(k)` reads position `k`, so a skipped push would
+        // renumber every instance after it and an "another target" clause would
+        // exclude the wrong one. Pushing nothing is the honest content: an
+        // instance that announces nothing excludes nothing.
+        let mut feed = Vec::new();
+        if let EffectRecipient::Target(f, TargetCount::Exactly(n))
+            | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
+        {
+            let n = *n as usize;
+            if !game.has_legal_choices(f, None, player_id, n, &earlier) {
+                return false;
+            }
+            // The enumeration is a static over-approximation, so what it feeds
+            // forward is too: what matters to the next instance is *how many*
+            // this one will take, and any n distinct legal choices exclude the
+            // same number. Taking none would make an "another target" chain
+            // claim it can always be satisfied.
+            //
+            // Only while something later still reads it. `UpTo` never gets
+            // here: choosing zero targets is legal (CR 115.6), so it neither
+            // fails the cast nor constrains what follows.
+            if feed_until.is_some_and(|last| ix < last) {
+                feed = crate::oracle::legality::enumerate_legal_selections_excluding(
+                    game, f, None, player_id, &earlier,
+                )
+                .into_iter()
+                .take(n)
+                .collect();
+            }
         }
-        // The enumeration is a static over-approximation, so the instances it
-        // feeds forward are too: what matters to the next instance is *how
-        // many* this one will take, and any n distinct legal choices exclude
-        // the same number. Taking none here would make an "another target"
-        // chain claim it can always be satisfied.
-        earlier.push(
-            crate::oracle::legality::enumerate_legal_selections_excluding(
-                game, f, None, player_id, &earlier,
-            )
-            .into_iter()
-            .take(n)
-            .collect(),
-        );
+        earlier.push(feed);
     }
     true
 }

@@ -154,6 +154,34 @@ fn collect_instances(effect: &Effect, out: &mut Vec<EffectRecipient>) {
     }
 }
 
+/// Whether a clause's criteria read an earlier instance of "target" —
+/// `ObjectFilter::OtherThanInstance`, the "another target" family.
+///
+/// **A cost question, not a correctness one.** The announcement loop feeds each
+/// instance's choice forward so the next one can exclude it, and building that
+/// list means enumerating every legal candidate rather than stopping at the
+/// first. For the spells that print — one instance, or several that may share —
+/// nothing ever reads it, and doing it anyway cost 3.5% more memo hits per game
+/// on a board where no game played differently (A4i's A/B). So the loop asks
+/// this first and skips the enumeration when the answer is no.
+pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
+    fn filter_reads(filter: &ObjectFilter) -> bool {
+        match filter {
+            ObjectFilter::OtherThanInstance(_) => true,
+            ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
+                filter_reads(a) || filter_reads(b)
+            }
+            ObjectFilter::Not(inner) => filter_reads(inner),
+            _ => false,
+        }
+    }
+    match recipient {
+        EffectRecipient::Target(SelectionFilter::Permanent(f), _)
+        | EffectRecipient::Choose(SelectionFilter::Permanent(f), _) => filter_reads(f),
+        _ => false,
+    }
+}
+
 /// The two facts a filter leaf may need that are **not characteristics**, so
 /// that no layer can change them and no frame answers them.
 ///
