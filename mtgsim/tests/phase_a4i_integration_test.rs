@@ -28,6 +28,7 @@ use mtgsim::cards::phase_a4i_cards::{
     incremental_growth, jagged_lightning, plague_spores, seat_of_the_synod, seeds_of_strength,
 };
 use mtgsim::cards::phase_ld_cards::ensoul_artifact_spell;
+use mtgsim::cards::phase_re_cards::skullcrack;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
@@ -618,5 +619,48 @@ fn incremental_growth_does_not_resolve_with_every_creature_gone() {
             .events()
             .any(|e| matches!(e, mtgsim::events::event::GameEvent::SpellFizzled { .. })),
         "and it says so"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// What the A/B found: a registered card whose target was never asked for
+// ---------------------------------------------------------------------------
+
+/// **Skullcrack's three damage never landed when the card was cast.**
+///
+/// *"Players can't gain life this turn. Damage can't be prevented this turn.
+/// Skullcrack deals 3 damage to target player or planeswalker."* Three atoms,
+/// and the first two are `EffectRecipient::Controller`. The pre-A4i rule took a
+/// `Sequence`'s **first** atom's recipient as the whole spell's, so the spell
+/// announced no target at all, `chosen_targets` was empty, and the damage atom
+/// read an empty list.
+///
+/// RE-3's Skullcrack tests did not catch it because they stage a
+/// `ResolutionContext` with the target written in by hand — which proves the
+/// resolution reads a target and nothing about whether CR 601.2c ever asked for
+/// one. This one casts from hand.
+///
+/// Found by A4i's A/B: `performance` was `IDENTICAL` and `stress` was not, on
+/// the same 161-card pool, and Skullcrack is registered but unpooled.
+/// `codebase-state.md` carries the item. Shown to fail against `main`
+/// (aafb79a): the opponent stays at 20 there, and reaches 17 here.
+#[test]
+fn skullcrack_cast_from_hand_deals_its_three_damage() {
+    let mut game = setup_two_player_game();
+    let card = put_in_hand(&mut game, skullcrack(), 0);
+    pay_for(&mut game, 0, 1, &[(ManaType::Red, 1)]);
+
+    let dp = stopping_dp();
+    answer_targets(
+        &dp,
+        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        card,
+        vec![1],
+    );
+    cast_and_resolve(&mut game, 0, card, &dp);
+
+    assert_eq!(
+        game.players[1].life_total, 17,
+        "the damage clause declares an instance of its own, whatever the atoms before it say"
     );
 }
