@@ -1,6 +1,6 @@
 # The id hasher — what it is, and why it is ours
 
-> Written 2026-09-16 with A4g (PR #158), the PR that replaced the v4 UUID ids
+> Written 2026-09-16 with A4g (PR #158), the PR that replaced the v4 and v5 UUID ids
 > with process-stable integers and put `types::ids::IdHash` on every map keyed
 > by one. An explainer, not an authority: the code is `mtgsim/src/types/ids.rs`,
 > the decision is `codebase-state.md` item 144 (archived), the measurement is
@@ -42,6 +42,15 @@ million `object_matches_filter`, 7.0 million `has_type`. With the ids as
 single row in the profile. Halving the key to eight bytes (A4g's first arm,
 the type swap alone) took a tenth off that row, which says the cost was
 mostly per call, not per byte.
+
+Two UUID versions left with A4g. v4, minted from the operating system's
+randomness for every object and every printed ability def, was the one the
+profile saw. v5 lived at one site: `land_types.rs` derived the CR 305.6
+intrinsic mana ability's id as a SHA-1 over the object id and a land-type
+byte, because that ability is synthesized inside every recompute of the
+frame and has nowhere to store a minted id — the one place the engine
+already wanted a derived id, and the shape `AbilityId::derived_on` now
+gives over the integer, without the hash.
 
 ## 3. What our keys are, and what that lets us skip
 
