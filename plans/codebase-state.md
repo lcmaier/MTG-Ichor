@@ -5405,6 +5405,20 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    this phase's first decision, and the check is that a sink-compiled-in-but-off
    arm is `IDENTICAL` to `main` on both pools.
 
+   **A fifth emit point, named 2026-09-16 (A4h): the decision boundary.**
+   The four above are proposals, pipeline iterations and layer walks, and
+   none of them is the prompt — so a sink built to this spec would not have
+   found what A4h found, which was a prompt whose *option list* was wrong.
+   No event log can show that one: a cast the enumeration offered and CR
+   601.2g could not pay performs nothing and emits nothing, so
+   `--dump-events` is blind to the re-ask by construction. What answers "why
+   was I offered this" is the candidate enumeration and the list handed to
+   `ask_choose_priority_action` — the result, the blacklist, the retry index.
+   The instrument that did find it is `tests/priority_fork_test.rs`, which
+   compares offered lists across a fork; that is an assertion, not a
+   facility. The row already expects the dispatcher to add a point of its
+   own, so this is a sixth rather than a re-plan.
+
    **The higher-value artifact item 5 does not name:** a two-version trace diff
    — one board through two engine builds, compared — which is what a human
    cannot do by hand and what `fuzz_ab.py` already does for counters. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
@@ -6606,6 +6620,37 @@ Commander-scale board closes item 69.
         land. A "nothing to do" pre-check or an epoch-keyed cached list is
         the shape, ~30 lines. Item 139 makes the list right; this makes it
         cheap. **Rank 4, re-measure first.**
+
+        **Re-measured 2026-09-16 (A4h), which was this lever's own
+        precondition, and two instruments agree.** Callgrind on the
+        post-lever tree reads `candidate_priority_actions` at 14.62 G,
+        **19.2%** (`layers-architecture.md` §12, the three-arm table);
+        A4h's cost arm — one extra enumeration per priority window, wall
+        clock — reads **+21.3%** of CPU a game. **Levers 1 and 2 worked on
+        it and its share did not move**: 24.71 G → 14.62 G absolute (−41%),
+        19.9% → 19.2% of a total that fell with it. So per-call work is not
+        the lever left here — the next win **reduces calls or exits them
+        early**, which is this row's own "91.5% of them `[Pass]`": the
+        dominant cost is proving there is nothing to do.
+
+        **Of the two shapes above the pre-check is the one the data picks,
+        and the cache is wrong for the path A4h added.** A re-ask happens
+        precisely *because* the board changed (CR 732.1's taps, item 139),
+        so a list cached against a board epoch misses on exactly that prompt
+        and helps only the pass case. What is cacheable is narrower: the
+        **ability inventory** — which permanents a player controls that have
+        an activated or mana ability at all — changes on a zone change or a
+        Layer 6 grant, while **payability** changes on every tap, and
+        `activatable_abilities` and `available_mana_sources` recompute both
+        together per prompt today.
+
+        **It may outrank 6 and 7, and that is the owner's call.** §12's rows
+        are inclusive and overlap: both `activatable_abilities` and
+        `available_mana_sources` iterate `battlefield_ordered()` (lever 6,
+        16.8%, which §12 calls the largest single lever left) and allocate a
+        `Vec` per call (lever 7, 18.2%). Cutting enumerations cuts the sorts
+        and the allocations with them; caching the sort leaves the
+        enumeration paying for everything else.
      5. **The mana window** — 15.0%: CR 601.2g's loop re-enumerates every
         mana ability per prompt, 394 times a game at ~220,000 instructions
         each. Levers 1 and 2 shrink it; `backlog.md` §2.18's solver removes
