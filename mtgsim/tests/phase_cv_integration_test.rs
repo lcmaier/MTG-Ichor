@@ -128,6 +128,10 @@ fn anthem_bear() -> Arc<CardData> {
 // 1. The capture, and that it is a snapshot
 // ---------------------------------------------------------------------------
 
+// RULING: Cytoshape #1 - "Only the creature that's becoming a copy is
+//   targeted. The creature that it will copy isn't chosen until Cytoshape
+//   resolves." The assertion below is that there is exactly one prompt and
+//   that it is the CR 707.4 choice, made as the spell resolves.
 // COVERS-PARTIAL: ATOM-613.2a-001
 /// CR 613.2a — a layer 1a row replaces every characteristic channel at once.
 ///
@@ -170,6 +174,8 @@ fn test_cytoshape_target_becomes_a_copy_of_the_chosen_creature() {
     assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
 }
 
+// RULING: Cytoshape #3 - "If the creature copies a creature that's copying a
+//   creature, it will become whatever the chosen creature is copying."
 // COVERS-PARTIAL: ATOM-613.2c-001
 /// CR 613.2c / 707.2 — copiable values are read **after** layer 1, so a copy of
 /// a copy gets the first copy's values, not its printed card.
@@ -255,6 +261,10 @@ fn test_re_copy_keeps_noncopy_effects_and_stays_on_the_battlefield() {
 // 2. What the capture excludes — §3.1's third property
 // ---------------------------------------------------------------------------
 
+// RULING: Cytoshape #2 - "It won't copy counters on that creature. It won't
+//   copy effects that have changed the creature's power, toughness ..." The
+//   types-and-color half of the same sentence is
+//   `rulings_pass_test.rs::test_the_capture_excludes_layer_4_types_and_layer_5_colors`.
 // COVERS-PARTIAL: ATOM-707.2-001
 // COVERS-PARTIAL: ATOM-707.2-003
 /// CR 707.2's last sentence — an anthem's Layer 7c row and a +1/+1 counter on
@@ -655,6 +665,9 @@ fn test_cytoshape_with_no_surviving_target_asks_nothing_and_registers_nothing() 
     );
 }
 
+// RULING: Cytoshape #8 - "At the end of the turn, the creature reverts to what
+//   it was before." The second sentence, about two Cytoshapes wearing off
+//   together, is `rulings_pass_test.rs::test_two_copies_on_one_creature_wear_off_together`.
 /// CR 514.2 — a turn-bounded copy expires at cleanup, and so do the rows its
 /// copied static ability generated, because they share the `Duration`.
 #[test]
