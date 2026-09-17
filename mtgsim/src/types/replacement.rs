@@ -1885,8 +1885,8 @@ pub fn regeneration_rider() -> Effect {
                 TargetCount::Exactly(1),
             ),
         ),
-        Effect::Atom(Primitive::Tap, EffectRecipient::Instance(0)),
-        Effect::Atom(Primitive::RemoveFromCombat, EffectRecipient::Instance(0)),
+        Effect::Atom(Primitive::Tap, EffectRecipient::SameInstanceAs(0)),
+        Effect::Atom(Primitive::RemoveFromCombat, EffectRecipient::SameInstanceAs(0)),
     ])
 }
 

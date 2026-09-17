@@ -972,7 +972,7 @@ mod instance_references {
     use super::*;
     use crate::types::effects::{Effect, EffectRecipient};
 
-    /// Every `EffectRecipient::Instance(ix)` a registered card writes names an
+    /// Every `EffectRecipient::SameInstanceAs(ix)` a registered card writes names an
     /// instance of "target" that the same effect declares (CR 115.3).
     ///
     /// **An authoring check, not a rules one.** A card that writes
@@ -988,7 +988,7 @@ mod instance_references {
             let mut stack = vec![effect];
             while let Some(e) = stack.pop() {
                 match e {
-                    Effect::Atom(_, EffectRecipient::Instance(ix)) => assert!(
+                    Effect::Atom(_, EffectRecipient::SameInstanceAs(ix)) => assert!(
                         *ix < declared,
                         "{what} refers to instance {ix} of \"target\" but declares {declared}"
                     ),

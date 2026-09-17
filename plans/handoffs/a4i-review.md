@@ -14,11 +14,11 @@ reading; the rest are follow-ups, and the owner decides.
 
 | # | Site | Finding |
 |---|---|---|
-| 1 | `backlog.md:1078` | "`EffectRecipient::Instance(ix)`" — the prose never says what `ix` is. It is the clause's position in `effect_instances`' printed-order list. Say "by index" in words. |
-| 3 | `phase_rf_integration_test.rs:133` | `ChosenTargets::EMPTY` reads as "could be full", which is meaningless for a targetless effect. **Rename to `NONE`.** The deeper problem the name exposes: one constant is doing two jobs — "this effect announced no instances" and "there are no *earlier* instances yet". Theme C item 11 removes the second. |
+| 1 | `backlog.md:1078` | "`EffectRecipient::SameInstanceAs(ix)`" — the prose never says what `ix` is. It is the clause's position in `effect_instances`' printed-order list. Say "by index" in words. |
+| 3 | `phase_rf_integration_test.rs:133` | `ChosenTargets::NONE` reads as "could be full", which is meaningless for a targetless effect. **Rename to `NONE`.** The deeper problem the name exposes: one constant is doing two jobs — "this effect announced no instances" and "there are no *earlier* instances yet". Theme C item 11 removes the second. |
 | 4 | `phase_re8_integration_test.rs:123` | `Instance(0)` is inscrutable at the call site. Rename the variant so the call site reads: **`SameInstanceAs(0)`**. Keeps CR 115.3's word, says what it does, and it is a variant this PR introduced — a handful of sites. |
 | 12 | `targeting.rs:473` | `earlier` → **`earlier_targets`**, everywhere it appears as a parameter. |
-| 5 | `engine/cast.rs` | The file holds `cast_spell`, `activate_ability`, `announce_targets` and `run_mana_ability_window` — CR 602.2b routes an activation through 601.2's steps, so the module is not about casting. Rename to **`engine/put_on_stack.rs`**: a cast and an activation both put an object on the stack by those steps, and "proposal" is taken by the action pipeline. Rename-only; ride it with `roadmap-v2.md` row A4m, which is already a rename PR. |
+| 5 | `engine/put_on_stack.rs` | The file holds `cast_spell`, `activate_ability`, `announce_targets` and `run_mana_ability_window` — CR 602.2b routes an activation through 601.2's steps, so the module is not about casting. Rename to **`engine/put_on_stack.rs`**: a cast and an activation both put an object on the stack by those steps, and "proposal" is taken by the action pipeline. Rename-only; ride it with `roadmap-v2.md` row A4m, which is already a rename PR. |
 
 ---
 
@@ -255,7 +255,7 @@ without being cast among them.
    exercised by no card at all.
 2. **The timing may be wrong, and it was wrong before this PR.** `announce_targets`
    asks a `Choose` clause **at cast time**, because the code it replaced did
-   (`cast.rs` matched `Target(..) | Choose(..)` in one arm). But a plain "choose"
+   (`put_on_stack.rs` matched `Target(..) | Choose(..)` in one arm). But a plain "choose"
    in an effect's text is made **on resolution** (CR 608.2c), not as the spell is
    cast; only a clause that says "as you cast" is announced early (CR 601.2b).
    The Black Gate — *"Choose a player with the most life or tied for most life.

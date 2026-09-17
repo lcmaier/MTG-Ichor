@@ -220,7 +220,7 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
         EffectRecipient::Controller,
     );
-    let ctx = ResolutionContext { source, ability_source: None, controller, targets: ChosenTargets::EMPTY, replaced_amount: None, damage_prevented: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None };
     game.resolve_effect(&effect, &ctx, &test_dp())
 }
 

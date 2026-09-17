@@ -143,7 +143,7 @@ Four consequences that shape everything below:
 - `engine/costs.rs::assemble_total_cost` builds base-or-alternative, expands X
   into generic, appends chosen additional costs, and calls
   `apply_cost_modifications`, **a passthrough with a test asserting it is
-  one**. One production caller (`cast.rs`, at 601.2f), ten mentions in
+  one**. One production caller (`put_on_stack.rs`, at 601.2f), ten mentions in
   `costs.rs`'s own tests.
 - Nothing registered modified a cost. No `Effect` arm, no `ChoiceKind`, no
   row kind, no gate. `castable_spells` (`oracle/mana_helpers.rs`) read the
@@ -645,7 +645,7 @@ about it.
 
 CR 602.2b applies 601.2f–h to activated abilities, so Training Grounds and
 Heartstone are `CostSubject::ActivatedAbilities(ObjectFilter)` — a second
-subject with a second call site (`cast.rs::activate_ability` pays
+subject with a second call site (`put_on_stack.rs::activate_ability` pays
 `ability.costs` directly and does not pass through `assemble_total_cost`).
 **This is where the one-mana floor lives**: every one of the eight cards that
 print "this effect can't reduce the mana in that cost to less than one mana"
@@ -969,7 +969,7 @@ the same player.
 | Site | Change |
 |---|---|
 | `engine/costs.rs::assemble_total_cost` and `apply_cost_modifications` | both deleted; `cost_determination::determine_total_cost` is the whole of CR 601.2f, assembly included, and `costs.rs` keeps payment. 1 production caller, 8 tests moved |
-| `engine/cast.rs` 601.2f | passes the new arguments |
+| `engine/put_on_stack.rs` 601.2f | passes the new arguments |
 | `oracle/mana_helpers.rs::castable_spells` | previews the total (§3.6) |
 | `state/game_state.rs` | `cost_modification_ability_sources`; `register_static_effects` inserts through `as_cost_modification`; `atoms_of_static_body` gains the no-rows arm |
 | `state/continuous_effects.rs::RegistryScopeSummary` | `any_granted_cost_modification`, `any_copied_cost_modification` |

@@ -679,7 +679,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
-    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::EMPTY, replaced_amount: None, damage_prevented: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None };
 
     let err = game
         .resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new())

@@ -76,7 +76,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -744,7 +744,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
         source,
         ability_source: None,
         controller: 0,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

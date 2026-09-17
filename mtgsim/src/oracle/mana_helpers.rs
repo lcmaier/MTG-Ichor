@@ -442,7 +442,7 @@ fn every_instance_has_a_choice(
     let feed_until = instances
         .iter()
         .rposition(crate::engine::targeting::clause_reads_earlier_instances);
-    let mut earlier = crate::engine::targeting::ChosenTargets::EMPTY;
+    let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
     for (ix, recipient) in instances.iter().enumerate() {
         // **Every instance pushes, in order, whether or not it is checked.**
         // `OtherThanInstance(k)` reads position `k`, so a skipped push would
@@ -454,7 +454,7 @@ fn every_instance_has_a_choice(
             | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
         {
             let n = *n as usize;
-            if !game.has_legal_choices(f, None, player_id, n, &earlier) {
+            if !game.has_legal_choices(f, None, player_id, n, &earlier_targets) {
                 return false;
             }
             // The enumeration is a static over-approximation, so what it feeds
@@ -468,14 +468,14 @@ fn every_instance_has_a_choice(
             // fails the cast nor constrains what follows.
             if feed_until.is_some_and(|last| ix < last) {
                 feed = crate::oracle::legality::enumerate_legal_selections_excluding(
-                    game, f, None, player_id, &earlier,
+                    game, f, None, player_id, &earlier_targets,
                 )
                 .into_iter()
                 .take(n)
                 .collect();
             }
         }
-        earlier.push(feed);
+        earlier_targets.push(feed);
     }
     true
 }

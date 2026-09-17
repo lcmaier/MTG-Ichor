@@ -103,7 +103,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
                     ),
                     // "Target creature gains haste **and** becomes red" — one
                     // instance of "target", two atoms (CR 115.3).
-                    EffectRecipient::Instance(0),
+                    EffectRecipient::SameInstanceAs(0),
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),

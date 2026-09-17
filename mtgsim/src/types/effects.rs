@@ -539,7 +539,12 @@ pub enum EffectRecipient {
     /// The atom resolves against the declaring instance's targets *and* its
     /// recipient, so `resolve_player_for_self` and the filtered-sweep arms see
     /// what the declaring atom saw.
-    Instance(usize),
+    ///
+    /// **Named for how it reads at a call site.** `Instance(0)` says "this
+    /// atom's recipient *is* instance 0"; what it means is "this atom *reuses*
+    /// the instance declared at 0", which is what a card author needs to see
+    /// without opening this file.
+    SameInstanceAs(usize),
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,

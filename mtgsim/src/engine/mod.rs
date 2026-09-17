@@ -7,7 +7,7 @@ pub mod mana;
 pub mod sba;
 pub mod resolve;
 pub mod targeting;
-pub mod cast;
+pub mod put_on_stack;
 pub mod stack;
 pub mod priority;
 pub mod combat;

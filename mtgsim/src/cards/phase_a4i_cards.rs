@@ -144,9 +144,9 @@ pub fn seeds_of_strength() -> Arc<CardData> {
 pub fn incremental_growth() -> Arc<CardData> {
     // "another target creature", "a third target creature": a creature, and not
     // one an earlier instance took.
-    let other_than = |earlier: &[usize]| {
+    let other_than = |earlier_targets: &[usize]| {
         let mut filter = ObjectFilter::ByType(CardType::Creature);
-        for &ix in earlier {
+        for &ix in earlier_targets {
             filter = ObjectFilter::And(
                 Box::new(filter),
                 Box::new(ObjectFilter::OtherThanInstance(ix)),
@@ -269,8 +269,8 @@ pub fn plague_spores() -> Arc<CardData> {
                 SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)),
                 TargetCount::Exactly(1),
             )),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Instance(0)),
-            Effect::Atom(Primitive::Destroy, EffectRecipient::Instance(1)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::SameInstanceAs(0)),
+            Effect::Atom(Primitive::Destroy, EffectRecipient::SameInstanceAs(1)),
         ])))
         .build()
 }

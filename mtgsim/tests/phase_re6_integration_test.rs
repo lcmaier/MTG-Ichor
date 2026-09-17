@@ -83,7 +83,7 @@ fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId)
         source: id,
         ability_source: None,
         controller,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

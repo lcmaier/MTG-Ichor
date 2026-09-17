@@ -239,7 +239,7 @@ fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source,
         ability_source: None,
         controller: player,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -258,7 +258,7 @@ fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         source: id,
         ability_source: None,
         controller: player,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -749,7 +749,7 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
         source,
         ability_source: None,
         controller: 0,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

@@ -1075,8 +1075,8 @@ mechanic rather than a migration, which is why it is here and not in
 
 - **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
   is a `Vec<TargetInstance>`, `targeting::effect_instances` walks an effect's
-  clauses in printed order, `EffectRecipient::Instance(ix)` is how a later atom
-  refers back to one, and `resolve_effect` hands each atom its own instance as a
+  clauses in printed order, `EffectRecipient::SameInstanceAs` is how a later atom
+  refers back to one — by the clause's position in that list, and `resolve_effect` hands each atom its own instance as a
   flat slice. CR 601.2c announces one clause at a time;
   `ObjectFilter::OtherThanInstance` is "another target"; CR 608.2b is asked per
   instance *and* per target, so a spell resolves unless every target is illegal

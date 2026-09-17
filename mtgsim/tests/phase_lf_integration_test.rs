@@ -711,7 +711,7 @@ fn test_humility_before_hierophants_retires_the_grant() {
 
     assert!(
         get_effective_abilities(&game, bears).is_empty(),
-        "CR 604.2 read against the live board: Humility stripped the Hierophants          earlier in layer 6, so the grant no longer exists when its turn comes"
+        "CR 604.2 read against the live board: Humility stripped the Hierophants          earlier_targets in layer 6, so the grant no longer exists when its turn comes"
     );
     assert!(get_effective_abilities(&game, hierophants).is_empty());
 

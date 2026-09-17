@@ -822,7 +822,7 @@ fn winding_constrictor_applies_to_each_instruction() {
             SelectionFilter::Permanent(ObjectFilter::All),
             TargetCount::Exactly(1),
         )),
-        put_one(EffectRecipient::Instance(0)),
+        put_one(EffectRecipient::SameInstanceAs(0)),
     ]);
 
     resolve_targeting(&mut game, 0, vec![ResolvedTarget::Object(bears)], &twice, &test_dp());

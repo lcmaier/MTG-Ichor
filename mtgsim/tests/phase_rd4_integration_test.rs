@@ -244,7 +244,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
         source,
         ability_source: None,
         controller: 1,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

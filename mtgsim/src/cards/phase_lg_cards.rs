@@ -54,10 +54,10 @@ pub fn act_of_treason() -> Arc<CardData> {
                     Primitive::GainControl(Duration::UntilEndOfTurn),
                     EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
                 ),
-                Effect::Atom(Primitive::Untap, EffectRecipient::Instance(0)),
+                Effect::Atom(Primitive::Untap, EffectRecipient::SameInstanceAs(0)),
                 Effect::Atom(
                     Primitive::GrantKeywordFlag(KeywordFlag::Haste, Duration::UntilEndOfTurn),
-                    EffectRecipient::Instance(0),
+                    EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
         })
@@ -101,7 +101,7 @@ mod tests {
             *recipients[0],
             EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1))
         );
-        assert_eq!(*recipients[1], EffectRecipient::Instance(0));
-        assert_eq!(*recipients[2], EffectRecipient::Instance(0));
+        assert_eq!(*recipients[1], EffectRecipient::SameInstanceAs(0));
+        assert_eq!(*recipients[2], EffectRecipient::SameInstanceAs(0));
     }
 }

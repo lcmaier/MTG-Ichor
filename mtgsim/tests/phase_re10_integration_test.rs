@@ -66,7 +66,7 @@ fn resolve_ability(
         source,
         ability_source: Some(source),
         controller,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

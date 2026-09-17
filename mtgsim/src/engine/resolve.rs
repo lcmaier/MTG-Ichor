@@ -76,7 +76,7 @@ impl ResolutionContext {
             source,
             ability_source: None,
             controller,
-            targets: ChosenTargets::EMPTY,
+            targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
         }
@@ -139,7 +139,7 @@ impl GameState {
                     // card-authoring error, loud rather than silently
                     // targetless. `cards::registry`'s own test refuses one at
                     // registration, so this is the belt to that's braces.
-                    None if matches!(recipient, EffectRecipient::Instance(_)) => Err(format!(
+                    None if matches!(recipient, EffectRecipient::SameInstanceAs(_)) => Err(format!(
                         "{:?} on {:?} names an instance of \"target\" the effect never                          declared (CR 115.3)",
                         recipient, ctx.source
                     )),
@@ -232,7 +232,7 @@ impl GameState {
     /// `targets` is **this atom's instance** of "target" (CR 115.3), already
     /// filtered by CR 608.2b — not the spell's whole list. `recipient` is the
     /// clause that instance was announced with, which for an
-    /// `EffectRecipient::Instance` atom is the *declaring* atom's clause, so
+    /// `EffectRecipient::SameInstanceAs` atom is the *declaring* atom's clause, so
     /// the two atoms of Ensoul Artifact behave identically.
     fn resolve_primitive(
         &mut self,
@@ -1083,7 +1083,7 @@ impl GameState {
                             })
                             .collect()
                     }
-                    EffectRecipient::Instance(_) => return Err(back_reference(recipient, ctx)),
+                    EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
                     // order. A row on a card in another zone is §3.3 source 2 and needs
@@ -1365,7 +1365,7 @@ impl GameState {
                             }
                         })
                         .collect(),
-                    EffectRecipient::Instance(_) => return Err(back_reference(recipient, ctx)),
+                    EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
                     EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::FilteredObjectsIn(..)
                     | EffectRecipient::Host => {
@@ -2035,7 +2035,7 @@ impl GameState {
 
 /// `resolve_primitive` is handed the clause an instance was **declared** with,
 /// never a back-reference to it — `targeting::instance_of` resolves
-/// `EffectRecipient::Instance` before the primitive sees it. Reaching one here
+/// `EffectRecipient::SameInstanceAs` before the primitive sees it. Reaching one here
 /// means the walk was bypassed, which is a wiring error rather than a card's.
 fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> String {
     format!(

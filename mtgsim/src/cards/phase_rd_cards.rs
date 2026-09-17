@@ -1741,7 +1741,7 @@ mod tests {
             source: permanent,
             ability_source: Some(permanent),
             controller,
-            targets: ChosenTargets::EMPTY,
+            targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
         };

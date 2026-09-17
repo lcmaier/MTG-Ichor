@@ -878,7 +878,7 @@ more requirements. Phase 6 or later.
 allows that player to cast it and no rule or effect prohibits that player from
 casting it."
 
-**Site.** `cast.rs`'s cast-legality check and `legality.rs::playable_lands`.
+**Site.** `put_on_stack.rs`'s cast-legality check and `legality.rs::playable_lands`.
 Both are already tagged `// PRE-LAYER ZONE:` for reading printed characteristics
 on purpose, and that exemption stays: the restriction check is about whether the
 *player may act*, which is a separate question from what the object's
@@ -916,7 +916,7 @@ announcement**, which is this codebase's existing documented contract for
   choice can change → offer it" is a legal over-approximation, because false
   positives are already harmless there;
 - the real check runs at the end of CR 601.2, against the announced spell, and
-  an illegal cast rewinds through the machinery `cast.rs::rollback_cast_to_hand`
+  an illegal cast rewinds through the machinery `put_on_stack.rs::rollback_cast_to_hand`
   already implements.
 
 No search, no frame, no forward-looking evaluation. The only genuinely new thing
@@ -936,11 +936,11 @@ another spell or ability even if no opponent has lost life that turn").
 ### 4.4 Tier 1c — activating abilities
 
 **Rule.** CR 602.5. **Site.** `mana_helpers::activatable_abilities` and
-`cast.rs::activate_ability`.
+`put_on_stack.rs::activate_ability`.
 
 **One thing to get right, and it is a `CLAUDE.md` invariant already.** Ability
 *indices* are part of the layer-system invariant: `activatable_abilities`
-produces an index, `priority.rs` re-derives it by id, `cast.rs::activate_ability`
+produces an index, `priority.rs` re-derives it by id, `put_on_stack.rs::activate_ability`
 consumes it, and all three must index the *effective* list. A restriction that
 filters abilities filters that list, so it has to be applied at all three sites
 or at none. Filtering one alone mis-activates silently — the same failure the
@@ -1475,7 +1475,7 @@ builds. Both rules are applied below. Sub-phases are numbered `RS-1` … `RS-4`.
 |---|---|---|---|
 | **RS-0 — the shared duration registry** | A `DurationRegistry<T>` that both existing registries *own* and delegate to — composition, not a split (§9 finding 7). Migrate both; no new behaviour | **10** shared methods, **2** of them (`remove_expired_at_cleanup`, `remove_expired_at_turn_start`) character-for-character identical today | low — pure refactor, two existing test suites as the check, and a stated abort condition if `effects_in_layer`'s cache will not compose |
 | **RS-1 — the spine + Tier 2** | `RestrictionDef`, `Restriction::Event`, the registry, the sweep, `is_prohibited`; `Primitive::Restrict`; **§4.9's candidate filter**. Consumers: indestructible moves onto it, `CantBeRegenerated` folds in, Sigarda stops producing a prompt | **3** production sites replaced (`pipeline.rs:53`, `gather.rs:228`, `resolve.rs:638`) and **1** enforcement site for indestructible, which is `pipeline.rs:56` and nothing else; **1** `GameState` field + its init + **1** `turns.rs` clear deleted. New code sized against its two structural twins: `state/replacement_effects.rs` is **259** lines and `gather`'s sweep + gate is ~**120** of `gather.rs`'s 556 | low — it *deletes* two bespoke mechanisms and adds no new call site. **Shipped 2026-08-31**; both halves of that held, and the row was still read as "net-deleting in lines", which it never claimed — `codebase-state.md` item 36. Actual: +1,104/−86 in `src/`, and the anchors in this cell already predicted ~+300 |
-| **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`cast.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `cast.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
+| **RS-2 — the read-side choice points** | `Cast`, `PlayLand`, `ActivateAbility`, `BeTargeted`. Consumers: hexproof + shroud (`T22`), Grafdigger's Cage, Aggressive Mining | **6** enforcement sites (`put_on_stack.rs` legality, `legality.rs::playable_lands`, `activatable_abilities`, `priority.rs` re-derivation, `put_on_stack.rs::activate_ability`, `targeting.rs::validate_targets`) + **2** enumeration sites that must agree (`enumerate_legal_selections`, `has_any_legal_choice`) | **medium-high** — the three ability-index sites are the `CLAUDE.md` invariant, and a restriction can now cause a CR 601.2 rewind (§4.3) |
 | **RS-3a — combat, the predicate half** | `Attack`, `Block`, `BeBlocked` as per-creature restrictions. Consumers: menace, the evasion family, landwalk, protection's blocking half, Defender re-expressed as data | **2** validators rewritten (`validate_attackers`, `validate_blockers` + `can_block`), **2** enumerators (`legal_attackers`, `legal_blockers`). Covers **1,267 of 1,277** Tier-1a clauses — the 1,219 per-creature plus the 48 per-attacker blocker counts | medium — large surface, but every check is local |
 | **RS-3b — combat, the solver half** | `Requirement`, the coupling graph, the bounded search (§4.2). Consumers: goad, Silent Arbiter, "can't attack alone" | **13** cross-creature clauses + **2** global-cap cards + ~**150** requirement cards. New code, not a migration | **highest** — CR 508.1d is NP-hard in general; this is where the bounded-exact choice and its cap live |
 | **RS-4 — costs** | `PayCost`, the CR 614.17b derivation, the `Cost → GameAction` projection. Consumers: Yasharn, Platinum Emperion | **10**-arm projection over a closed enum; **2** payment sites (`costs.rs`, the `ChooseAdditionalCosts` path) | low, and it is last because 614.17b's derived half needs Tier 2 *and* the authored half is 16 clauses |

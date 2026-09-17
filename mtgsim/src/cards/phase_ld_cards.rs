@@ -104,7 +104,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                     ),
                     // One instance, two atoms: "target artifact **becomes**
                     // an artifact creature with base power and toughness 5/5".
-                    EffectRecipient::Instance(0),
+                    EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
         })
@@ -160,7 +160,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
                     ),
                     // "Target creature **becomes** an Angel in addition to its
                     // other types **and gains** flying" — one instance (CR 115.3).
-                    EffectRecipient::Instance(0),
+                    EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
         })
@@ -212,7 +212,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
                     ),
                     // One instance: the Legendary supertype and the +2/+2 are
                     // two atoms of one "target creature" clause (CR 115.3).
-                    EffectRecipient::Instance(0),
+                    EffectRecipient::SameInstanceAs(0),
                 ),
             ]),
         })

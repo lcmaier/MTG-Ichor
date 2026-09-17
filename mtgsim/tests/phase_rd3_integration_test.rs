@@ -55,7 +55,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         source: id,
         ability_source: None,
         controller,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -453,7 +453,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
         source: circle,
         ability_source: Some(circle),
         controller: 0,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };

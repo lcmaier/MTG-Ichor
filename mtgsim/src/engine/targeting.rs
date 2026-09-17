@@ -53,9 +53,11 @@ impl TargetInstance {
 pub struct ChosenTargets(Vec<Vec<ResolvedTarget>>);
 
 impl ChosenTargets {
-    /// No instance announced anything — a mana ability's resolution, a
-    /// CR 615.5 rider that names nothing.
-    pub const EMPTY: ChosenTargets = ChosenTargets(Vec::new());
+    /// **No instances at all** — not an empty list of them. A mana ability's
+    /// resolution, a CR 615.5 rider that names nothing, or a filter asked
+    /// outside CR 601.2c's loop. `EMPTY` read as "it could be full", which is
+    /// not a thing a targetless effect can be.
+    pub const NONE: ChosenTargets = ChosenTargets(Vec::new());
 
     /// The single-instance spelling, which is every spell the engine could
     /// cast before CR 601.2c's loop existed and most of them afterwards.
@@ -124,7 +126,7 @@ pub fn spell_instances(card: &CardData) -> Vec<EffectRecipient> {
 /// same walk CR 603.3d will want for a triggered ability.
 ///
 /// Each `Target`/`Choose` atom **declares** an instance; an
-/// `EffectRecipient::Instance` atom refers back to one and declares nothing,
+/// `EffectRecipient::SameInstanceAs` atom refers back to one and declares nothing,
 /// which is what keeps Ensoul Artifact's two atoms one instance while Seeds of
 /// Strength's three clauses are three.
 ///
@@ -186,7 +188,7 @@ pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
 /// that no layer can change them and no frame answers them.
 ///
 /// Both are identity questions and both were already in the tree as one
-/// `Option<ObjectId>` parameter; `earlier` is the second, added for CR 601.2c's
+/// `Option<ObjectId>` parameter; `earlier_targets` is the second, added for CR 601.2c's
 /// "another target". A filter may carry both — "another target creature you
 /// control other than this one" is a legal English sentence — so they are
 /// fields rather than an enum.
@@ -199,14 +201,14 @@ pub(crate) struct FilterIdentity<'a> {
     /// The instances of "target" announced before this one, which
     /// [`ObjectFilter::OtherThanInstance`] reads. Empty outside CR 601.2c's
     /// loop and CR 608.2b's re-check, where that leaf is likewise refused.
-    pub earlier: &'a ChosenTargets,
+    pub earlier_targets: &'a ChosenTargets,
 }
 
 impl FilterIdentity<'static> {
     /// Neither fact is available — a plain selection or a look-ahead frame.
     pub const NONE: FilterIdentity<'static> = FilterIdentity {
         source: None,
-        earlier: &ChosenTargets::EMPTY,
+        earlier_targets: &ChosenTargets::NONE,
     };
 }
 
@@ -231,7 +233,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::Instance(ix) => declared.get(*ix).map(|r| (*ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.get(*ix).map(|r| (*ix, r)),
         _ => None,
     }
 }
@@ -245,7 +247,7 @@ impl GameState {
     /// inside the filter — "the controller of the object the ability is on",
     /// which for a spell or activated ability being cast is the player casting
     /// it, and for an Aura's enchant clause is the Aura's controller.
-    /// `earlier` is the instances announced before this one, which is what
+    /// `earlier_targets` is the instances announced before this one, which is what
     /// `ObjectFilter::OtherThanInstance` reads — empty for a spell whose
     /// clauses name no earlier instance, which is all but the "another target"
     /// family.
@@ -254,7 +256,7 @@ impl GameState {
         recipient: &EffectRecipient,
         targets: &[ResolvedTarget],
         you: PlayerId,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit
@@ -275,8 +277,8 @@ impl GameState {
             // An instance is validated against the clause that *declared* it;
             // a back-reference never reaches here, because the CR 601.2c loop
             // walks the declared clauses rather than the atoms.
-            EffectRecipient::Instance(ix) => Err(format!(
-                "EffectRecipient::Instance({ix}) is a back-reference to an instance of \
+            EffectRecipient::SameInstanceAs(ix) => Err(format!(
+                "EffectRecipient::SameInstanceAs({ix}) is a back-reference to an instance of \
                  \"target\", not a clause to validate against (CR 115.3). Validate the \
                  clause `targeting::effect_instances` returned at that index."
             )),
@@ -307,7 +309,7 @@ impl GameState {
                     }
                 }
                 for t in targets {
-                    self.validate_selection(filter, t, you, earlier)?;
+                    self.validate_selection(filter, t, you, earlier_targets)?;
                 }
                 Ok(())
             }
@@ -349,14 +351,14 @@ impl GameState {
         filter: &SelectionFilter,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
             SelectionFilter::Player => self.validate_player_target(target),
             SelectionFilter::Any => self.validate_any_target(target),
             SelectionFilter::Permanent(pf) => {
-                self.validate_permanent_target(target, pf, you, earlier)
+                self.validate_permanent_target(target, pf, you, earlier_targets)
             }
             SelectionFilter::Spell => self.validate_spell_target(target),
             SelectionFilter::DamageSource => self.validate_damage_source(target),
@@ -470,12 +472,12 @@ impl GameState {
         target: &ResolvedTarget,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
                 self.require_on_battlefield(*id)?;
-                if !self.object_matches_filter_for_instance(*id, filter, you, earlier)? {
+                if !self.object_matches_filter_for_instance(*id, filter, you, earlier_targets)? {
                     return Err(format!(
                         "Target {} does not match permanent filter {:?}", id, filter
                     ));
@@ -561,12 +563,12 @@ impl GameState {
         id: ObjectId,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> Result<bool, String> {
         self.get_object(id)?;
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        let identity = FilterIdentity { source: None, earlier };
+        let identity = FilterIdentity { source: None, earlier_targets };
         self.object_matches_filter_with(id, filter, you, identity, &|| {
             frame
                 .get_or_init(|| compute_characteristics(self, id))
@@ -600,7 +602,7 @@ impl GameState {
     ) -> Result<bool, String> {
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        let identity = FilterIdentity { source: Some(source), earlier: &ChosenTargets::EMPTY };
+        let identity = FilterIdentity { source: Some(source), earlier_targets: &ChosenTargets::NONE };
         self.object_matches_filter_with(id, filter, you, identity, &|| match chars {
             Some(chars) => Ok(chars),
             None => frame
@@ -712,16 +714,16 @@ impl GameState {
             // creature is every creature. An instance the walk never reached
             // is the refused case below.
             ObjectFilter::OtherThanInstance(ix) => {
-                if *ix >= identity.earlier.len() {
+                if *ix >= identity.earlier_targets.len() {
                     return Err(format!(
                         "ObjectFilter::OtherThanInstance({ix}) on {id} names an instance of \
                          \"target\" that has not been announced (CR 601.2c). Only the \
-                         announcement loop and the CR 608.2b re-check hold the earlier \
+                         announcement loop and the CR 608.2b re-check hold the earlier_targets \
                          instances; a filter asked anywhere else cannot carry this leaf."
                     ));
                 }
                 Ok(!identity
-                    .earlier
+                    .earlier_targets
                     .instance(*ix)
                     .contains(&ResolvedTarget::Object(id)))
             }
@@ -849,7 +851,7 @@ impl GameState {
     /// `n` is how many **distinct** choices one instance needs — Jagged
     /// Lightning's "each of two target creatures" is not castable into a board
     /// with one creature, because 601.2c's first sentence forbids choosing it
-    /// twice. `earlier` is the instances already announced, which is what makes
+    /// twice. `earlier_targets` is the instances already announced, which is what makes
     /// Incremental Growth's third clause need a third creature rather than the
     /// same one again.
     ///
@@ -865,7 +867,7 @@ impl GameState {
         exclude_id: Option<ObjectId>,
         you: PlayerId,
         n: usize,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> bool {
         if n == 0 {
             return true;
@@ -887,7 +889,7 @@ impl GameState {
                         continue;
                     }
                     let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, earlier).is_ok() {
+                    if self.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
                         found += 1;
                         if found >= n {
                             return true;
@@ -927,7 +929,7 @@ impl GameState {
                         continue;
                     }
                     let candidate = ResolvedTarget::Object(id);
-                    if self.validate_selection(filter, &candidate, you, earlier).is_ok() {
+                    if self.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
                         found += 1;
                         if found >= n {
                             return true;
@@ -946,11 +948,11 @@ impl GameState {
         recipient: &EffectRecipient,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier: &ChosenTargets,
+        earlier_targets: &ChosenTargets,
     ) -> bool {
         match recipient {
             EffectRecipient::Target(filter, _) => {
-                self.validate_selection(filter, target, you, earlier).is_ok()
+                self.validate_selection(filter, target, you, earlier_targets).is_ok()
             }
             // Choose, Implicit, Controller — always "legal" (no fizzle).
             _ => true,
@@ -986,7 +988,7 @@ mod tests {
         let (game, land_id) = setup_game_with_land();
         let targets = vec![ResolvedTarget::Object(land_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
     }
 
     #[test]
@@ -997,7 +999,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Land)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
     }
 
     #[test]
@@ -1008,7 +1010,7 @@ mod tests {
             ObjectFilter::ByType(CardType::Creature)),
             TargetCount::Exactly(1),
         );
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
     }
 
     #[test]
@@ -1016,7 +1018,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(1)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_ok());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_ok());
     }
 
     #[test]
@@ -1024,7 +1026,7 @@ mod tests {
         let game = GameState::new(2, 20);
         let targets = vec![ResolvedTarget::Player(5)];
         let spec = EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
     }
 
     #[test]
@@ -1033,15 +1035,15 @@ mod tests {
         let fake_id = crate::types::ids::new_object_id();
         let targets = vec![ResolvedTarget::Object(fake_id)];
         let spec = EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
     }
 
     #[test]
     fn test_validate_no_targets() {
         let game = GameState::new(2, 20);
         let spec = EffectRecipient::Implicit;
-        assert!(game.validate_targets(&spec, &[], 0, &ChosenTargets::EMPTY).is_ok());
-        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0, &ChosenTargets::EMPTY).is_err());
+        assert!(game.validate_targets(&spec, &[], 0, &ChosenTargets::NONE).is_ok());
+        assert!(game.validate_targets(&spec, &[ResolvedTarget::Player(0)], 0, &ChosenTargets::NONE).is_err());
     }
 
     #[test]
@@ -1052,7 +1054,7 @@ mod tests {
             ResolvedTarget::Object(land_id),
         ];
         let spec = EffectRecipient::Target(SelectionFilter::Permanent(ObjectFilter::All), TargetCount::Exactly(1));
-        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::EMPTY).is_err());
+        assert!(game.validate_targets(&spec, &targets, 0, &ChosenTargets::NONE).is_err());
     }
 
     #[test]

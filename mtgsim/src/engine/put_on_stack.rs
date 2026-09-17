@@ -1,3 +1,15 @@
+//! Putting a spell or an activated ability onto the stack — CR 601.2's steps,
+//! and everything that happens between "a player begins to cast" and "the spell
+//! becomes cast".
+//!
+//! **Not `cast.rs`, and the reason is CR 602.2b**: *"the remainder of the
+//! process for activating an ability is identical to the process for casting a
+//! spell"* — an activation runs 601.2's steps too. A module named for casting
+//! described half of what is in it, and `announce_targets` and
+//! `run_mana_ability_window` are shared by both. "Proposal" was the other
+//! candidate and is taken: `engine::actions` uses it for what
+//! `perform_action` reads.
+
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
@@ -285,7 +297,7 @@ impl GameState {
         decisions: &dyn DecisionProvider,
     ) -> Result<Vec<TargetInstance>, String> {
         let mut announced = Vec::with_capacity(instances.len());
-        let mut earlier = crate::engine::targeting::ChosenTargets::EMPTY;
+        let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
         for recipient in instances {
             let (EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count)) =
                 recipient
@@ -298,7 +310,7 @@ impl GameState {
                 ));
             };
             let legal = enumerate_legal_selections_excluding(
-                self, filter, Some(source_id), player_id, &earlier,
+                self, filter, Some(source_id), player_id, &earlier_targets,
             );
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
@@ -308,8 +320,8 @@ impl GameState {
                 decisions, self, player_id, recipient, source_id,
                 &legal, min_sel, max_sel,
             );
-            self.validate_targets(recipient, &chosen, player_id, &earlier)?;
-            earlier.push(chosen.clone());
+            self.validate_targets(recipient, &chosen, player_id, &earlier_targets)?;
+            earlier_targets.push(chosen.clone());
             announced.push(TargetInstance::new(recipient.clone(), chosen));
         }
         Ok(announced)

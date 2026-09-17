@@ -149,9 +149,9 @@ fn target_creature() -> EffectRecipient {
 
 /// Incremental Growth's later clauses, as the card writes them: a creature,
 /// and not one an earlier instance took.
-fn another_target_creature(earlier: &[usize]) -> EffectRecipient {
+fn another_target_creature(earlier_targets: &[usize]) -> EffectRecipient {
     let mut filter = ObjectFilter::ByType(CardType::Creature);
-    for &ix in earlier {
+    for &ix in earlier_targets {
         filter = ObjectFilter::And(
             Box::new(filter),
             Box::new(ObjectFilter::OtherThanInstance(ix)),
@@ -357,7 +357,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
             &two_creatures,
             &[ResolvedTarget::Object(a), ResolvedTarget::Object(b)],
             0,
-            &ChosenTargets::EMPTY,
+            &ChosenTargets::NONE,
         )
         .is_ok(),
         "two different creatures"
@@ -367,7 +367,7 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
             &two_creatures,
             &[ResolvedTarget::Object(a), ResolvedTarget::Object(a)],
             0,
-            &ChosenTargets::EMPTY,
+            &ChosenTargets::NONE,
         )
         .is_err(),
         "the same creature twice for one instance (CR 601.2c)"
@@ -375,10 +375,10 @@ fn the_same_creature_cannot_be_chosen_twice_for_one_instance() {
 
     // And the same object *is* legal once for each of two instances.
     let one_creature = target_creature();
-    let mut earlier = ChosenTargets::EMPTY;
-    earlier.push(vec![ResolvedTarget::Object(a)]);
+    let mut earlier_targets = ChosenTargets::NONE;
+    earlier_targets.push(vec![ResolvedTarget::Object(a)]);
     assert!(
-        game.validate_targets(&one_creature, &[ResolvedTarget::Object(a)], 0, &earlier)
+        game.validate_targets(&one_creature, &[ResolvedTarget::Object(a)], 0, &earlier_targets)
             .is_ok(),
         "CR 601.2c's second sentence"
     );

@@ -23,7 +23,7 @@
 ///
 /// Every variant below is quadrant ①, and every one is consumed somewhere:
 /// combat (`engine::combat`), state-based actions (`engine::sba`), casting
-/// (`engine::cast`, flash), or damage (`engine::keywords`).
+/// (`engine::put_on_stack`, flash), or damage (`engine::keywords`).
 ///
 /// # Quadrants ③ and ④ are already here, in the right place
 ///

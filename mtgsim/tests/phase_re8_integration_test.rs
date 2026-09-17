@@ -120,7 +120,7 @@ fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
                                 mtgsim::types::effects::TargetCount::Exactly(1),
                             )
                         } else {
-                            EffectRecipient::Instance(0)
+                            EffectRecipient::SameInstanceAs(0)
                         };
                         Effect::Atom(p, recipient)
                     })
@@ -177,7 +177,7 @@ fn resolve_spell(
         source,
         ability_source: None,
         controller: caster,
-        targets: ChosenTargets::EMPTY,
+        targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
     };
