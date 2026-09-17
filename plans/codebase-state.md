@@ -7163,6 +7163,38 @@ owner decided it the same day.
      and +5.7% after, because `has_any_legal_choice` walks the battlefield and
      most abilities are unaffordable anyway. `fuzz-record.md`, the A4h block.
 
+### Found by A4b — the rulings ledger (2026-09-17)
+
+151. **The rulings gate is scoped, so 308 of the ledger's 330 rulings are
+     outside it by construction.** `plans/check_rulings.py --check` fails on a
+     ruling that no test names and no disposition answers — but only for a card
+     that carries a `read` stamp, or whose `first_seen` is later than the
+     ledger's `created`. Everything else is the backlog, which is 308 rulings
+     over 93 cards today, 103 of them on 38 `PERFORMANCE_POOL` cards.
+
+     **Why it is scoped rather than armed.** A gate that failed on all 330 the
+     day it landed is a gate nobody could pass, so it would have been turned
+     off or worked around within a PR or two; `specdb owed` has the same shape
+     for the same reason (`engineering-practices.md` §5.1). The forward half
+     needs no scoping and has none: a card registered from here on is in scope
+     the moment `--fetch` sees it, which is what makes §3.4 a rule rather than
+     a habit.
+
+     **Reachability (2026-09-17):** reachable but not wrong today — nothing in
+     the engine is wrong because of this; what it means is that **the pool
+     carries 103 unread claims about its own behaviour**, each one written by
+     the people who adjudicate the game, and item 82 is the standing evidence
+     that reading them finds live bugs. The debt is unread rulings, not
+     unimplemented rules.
+
+     **Sized:** a sitting per tranche, not a phase. A4b's own head — three
+     pooled cards, 22 rulings — came to ten new tests, five annotations on
+     tests that already existed and nine dispositions. At that rate the
+     remaining pooled 103 is three or four more sittings, and the 205 off the
+     pool is not scheduled. `python plans/check_rulings.py --queue` is the
+     list; it is deliberately not copied into this file, because a list that
+     is both generated and transcribed goes stale in the transcription.
+
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.

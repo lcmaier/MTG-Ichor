@@ -812,20 +812,38 @@ prose, and nothing compiles prose into an assertion. What *can* exist is a
 authored, the join is generated, and the check fails when a claim has no
 disposition.
 
-**Census, 2026-09-08, all 92 registered cards** (`/cards/collection` for
-identity, then one rulings fetch each):
+**Census, re-counted 2026-09-17 at A4b, and this is the live one.** The
+2026-09-08 figures it replaces — 92 registered cards, 43 carrying a ruling
+(46%), 145 rulings, 87 of them on the then-73 pooled cards — are kept in the
+line below because the *rate* moved and the rate is what sizes the rest.
 
 | | |
 |---|---:|
-| cards carrying at least one ruling | 43 of 92 (46%) |
-| total rulings | 145 |
-| …on the 73 `PERFORMANCE_POOL` cards | 87 |
-| median rulings per card | 0 |
-| most on one card | 8 (Cytoshape, pooled) |
+| registered names | 161 |
+| …real printings (the rest is one deliberate fixture, Loyalty Probe) | 160 |
+| cards carrying at least one ruling | 96 of 160 (60%) |
+| total rulings | 330 |
+| …on the 90 `PERFORMANCE_POOL` cards | 125 |
+| median rulings per card | 2 |
+| most on one card | 9 (Stunning Reversal, Live Fast, Bard, King of Dale — none pooled) |
+| most on a *pooled* card | 8 (Cytoshape) |
 
-145 is a bounded job, not an open-ended one, and at CM-3's observed rate — 11
-rulings into 6 tests, 2 already-covered, 3 named gaps — it is roughly 80 tests
-across the whole registry, or 50 if the pool goes first.
+`python plans/check_rulings.py` prints it from the ledger; nothing here is
+typed twice.
+
+**The registry grew 1.7× and the rulings grew 2.3×**, which is the number a
+re-count exists to find. Per card it is 1.58 → 2.06 and the carrying rate 46%
+→ 60%, so the phases since CM-3 registered rulings-heavier cards than the ones
+before them — unsurprising in hindsight, since a replacement or copy card is
+exactly the kind players ask about. It also means **a projection from the old
+ratio would have been wrong by a third**: 145 scaled by card count is ~250, and
+the count is 330.
+
+330 is still a bounded job. At CM-3's observed rate — 11 rulings into 6 tests,
+2 already-covered, 3 named gaps — it is roughly 180 tests across the whole
+registry, or 68 if the pool goes first. A4b's own sitting came in cheaper than
+that rate, for a reason worth writing down: see "what the queue's head is
+made of", below.
 
 **What the census cost, and what it immediately bought.** Reading the rulings of
 three pooled cards nobody had checked found `codebase-state.md` **item 82**:
@@ -869,8 +887,52 @@ alongside the parser, it is the parser's acceptance test. It also changes its
 own economics, because at that point the 145 rulings here are a pilot for
 thousands.
 
-Sizing the ledger alone: ~250 lines of Python, one data file, one line in the
-check command. About `check_state_of_play.py`.
+**Built 2026-09-17 (A4b).** `plans/check_rulings.py`, `plans/rulings-ledger.json`,
+and the check line's fifth script. **The two halves of the sizing above
+disagreed with each other and the comparison was the right one**: 640 lines of
+Python, not ~250, but `check_state_of_play.py` is itself 487 — so "about
+`check_state_of_play.py`" was accurate and the number beside it was not. A
+fifth of the file is its docstring, which is where the four decisions below are
+spelled out for whoever runs the gate. The data file is 1,082 lines, one line
+per ruling so that an added ruling is an added line in `git diff`. Four
+decisions the section had left open, and what each was decided on:
+
+- **A `check_*.py` script, not a `specdb` subcommand.** The `CLAUDE.md` line
+  budget argued the other way and lost to one fact: **CI deliberately does not
+  run `specdb`** (the owner, 2026-08-31 — `plans/` is largely generated and its
+  labels are not trusted enough to block a merge), so a subcommand would have
+  been a report rather than a gate. Joining the `check_*` family is what makes
+  an unlinked ruling fail a pull request, which is what `check_state_of_play.py`
+  says in as many words. The budget cost turned out to be zero: the check line
+  is one line and takes a fifth `&&`.
+- **A ruling is keyed `<Card Name> #<n>`, with `n` stored and never reused.**
+  Card plus date was the obvious key and the census refuses it: **298 of the 330
+  — 90% — share a date with another ruling on the same card**, and 70 of the 84
+  cards carrying more than one carry all of them on a single date. A date
+  therefore needs an ordinal, and an ordinal derived
+  from position renumbers its neighbours when a ruling is inserted — silently
+  re-pointing every annotation below it. `specdb`'s rule for atom ids, for
+  `specdb`'s reason.
+- **Drift fails rather than reports, and the two are not in tension here.**
+  `--check` is offline, so it cannot see a ruling the ledger does not hold;
+  drift can only surface in the pull request that runs `--fetch`. The failing
+  form is the one that catches it *and* the one that cannot land on somebody
+  whose branch touched nothing.
+- **The escape is five kinds, not one free-text field**, because each becomes
+  untrue a different way and that is the only thing a disposition is for:
+  `not-expressible` (names a facility and a `plans/` doc that must exist),
+  `no-registered-card` (the engine can state it; nothing reaches the board),
+  `defect` (names a `codebase-state.md` item, which must exist),
+  `format-variant`, and `no-board` — a ruling about card frames names none and
+  never will. A `format-variant` is a disposition rather than a fetch-time
+  regex for the same reason: a filter re-decides it on every run, where a
+  judgement is made once.
+
+**The gate is scoped, or it is a report.** A card is in scope when someone has
+`read` it, or when its `first_seen` stamp is later than the ledger's `created`
+— a card registered *after* the ledger existed is one §3.4 already obliged.
+Everything else is the backlog: counted, queued, never failed. Same shape as
+`owed`'s `SHIPPED_PHASES` and for the same reason (§5.1).
 
 **Scheduled (the owner, 2026-09-08): after replacements, between phases —
 `roadmap-v2.md` row A4b.** It gates nothing and nothing gates it, which is the
@@ -880,10 +942,39 @@ a live bug in the measured pool on its first afternoon (item 82). A4 is also
 the last point at which the retroactive half is a sitting rather than a
 project, since the registry only grows.
 
-The two halves stay separable and only one of them is the tool. **The reading**
-needs no tool and is pool-first: 87 rulings across the 73 pooled cards. **The
-tool** is the drift detector and the parser's acceptance test, and it must be
-in place before the first machine-ingested card is registered.
+The two halves stay separable and only one of them is the tool. **The tool** is
+the drift detector and the parser's acceptance test, and it is in place. **The
+reading** needs no tool and is pool-first — the pool is what every measurement
+walks, which is where item 82 came from — and within the pool it goes by
+descending ruling count, then by name, which is the order `--queue` prints.
+
+**A4b's sitting read the queue's head**: every pooled card carrying more than
+four rulings, which is Cytoshape (8), Culling Drone (7) and Yixlid Jailer (7).
+A rule rather than a count, so the next sitting does not have to ask where the
+last one stopped. Twenty-two rulings: thirteen answered by a test — ten new in
+`tests/rulings_pass_test.rs`, five annotations on tests that already existed —
+and nine by a disposition. **The remainder is 308 rulings over 93 cards, 103 of
+them on 38 pooled cards**, and it is the ledger's own backlog rather than a
+list in this file.
+
+### What the queue's head is made of, and what that predicts
+
+**No defect.** The engine answered all thirteen testable rulings correctly,
+which is a different result from item 82's afternoon and the reason is
+structural rather than luck: **a card with many rulings is a complex card, and
+in this crate a complex card is one some phase was built around.** Culling
+Drone is LE's Layer 5 CDA, Yixlid Jailer is LJ's whole point, Cytoshape is what
+CV-1 was sized against. Three spot-checks outside the head say the same thing
+from the other end — Badlands and Keldon Warlord are pool filler and were
+right; Furnace of Rath's tests *quote its rulings verbatim*, because RD was
+written from them.
+
+So the head of a count-ordered queue is the best-covered part of it, and the
+honest prediction is that **the gap rate rises as the queue drains**. That is
+not an argument to reorder it: an "already tested" answer is one annotation and
+is exactly what the gate wants, so the cheap cards genuinely are the ones to do
+first. It is an argument against reading the first sitting's zero as the
+registry's rate.
 
 ### 3.5 The input we have none of — a human playing the game
 
