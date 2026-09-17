@@ -528,13 +528,31 @@ pub enum EffectRecipient {
     /// that an **earlier atom of this same effect** already announced.
     ///
     /// `Target` and `Choose` each *declare* an instance; this refers back to
-    /// one, by its position in `targeting::target_instances`' pre-order list.
-    /// The distinction is the whole of CR 115.3 and it cannot be recovered
-    /// from the recipient values: Ensoul Artifact's two atoms carry the same
-    /// clause and are **one** instance ("target artifact becomes … 5/5"),
-    /// while Seeds of Strength's three carry the same clause and are
-    /// **three** ("target creature gets +1/+1" printed three times). Equal
-    /// values, opposite answers — so the card says which it means.
+    /// one, by its position in `targeting::effect_instances`' pre-order list.
+    ///
+    /// **Why the card has to say it, rather than the engine working it out.**
+    /// Write each atom with the clause it acts on — the obvious encoding, and
+    /// the one this crate used before A4i — and these two cards become the same
+    /// shape:
+    ///
+    /// ```text
+    /// Ensoul Artifact   Sequence[ Atom(_, Target(artifact, 1)),
+    ///                             Atom(_, Target(artifact, 1)) ]      1 instance
+    /// Seeds of Strength Sequence[ Atom(_, Target(creature, 1)),
+    ///                             Atom(_, Target(creature, 1)),
+    ///                             Atom(_, Target(creature, 1)) ]      3 instances
+    /// ```
+    ///
+    /// The filters differ, but nothing turns on that. What each card *is* is a
+    /// `Sequence` whose atoms all carry **pairwise-equal** recipients, and the
+    /// correct instance count differs anyway: Ensoul Artifact prints "target
+    /// artifact" once and acts on it twice, Seeds of Strength prints "target
+    /// creature" three times.
+    ///
+    /// So no rule over the values can decide it. Collapsing equal recipients
+    /// gives Ensoul Artifact 1 (right) and Seeds of Strength 1 (wrong); one
+    /// instance per occurrence gives 2 (wrong) and 3 (right). The fact lives in
+    /// the card's text and nowhere else, which is what this variant carries.
     ///
     /// The atom resolves against the declaring instance's targets *and* its
     /// recipient, so `resolve_player_for_self` and the filtered-sweep arms see

@@ -218,57 +218,46 @@ pub fn enumerate_legal_selections_upto(
     earlier_targets: crate::engine::targeting::EarlierTargets<'_>,
     limit: usize,
 ) -> Vec<crate::engine::resolve::ResolvedTarget> {
-    use crate::engine::resolve::ResolvedTarget;
+    use crate::engine::resolve::ResolvedTarget as RT;
     use crate::types::effects::SelectionFilter;
 
-    let mut selections = Vec::new();
-    if limit == 0 {
-        return selections;
-    }
-
-    // Every arm below pushes in the order the arm documents, so the cap keeps
-    // the *first* `limit` candidates rather than an arbitrary `limit` of them —
-    // which is what makes a bounded enumeration process-independent in the same
-    // way the unbounded one is.
-    macro_rules! push {
-        ($sel:expr) => {{
-            selections.push($sel);
-            if selections.len() >= limit {
-                return selections;
-            }
-        }};
-    }
+    // **Each arm is an iterator and the cap is `take`.** Every arm yields in
+    // the order its comment documents, so `take` keeps the *first* `limit`
+    // candidates rather than an arbitrary `limit` of them — which is what makes
+    // a bounded enumeration process-independent in the same way the unbounded
+    // one is. Laziness is what makes the bound cost anything: the battlefield
+    // arms only run `validate_selection`, a layer walk, until `take` is
+    // satisfied.
+    let players = || (0..game.num_players()).map(RT::Player);
+    let battlefield = || {
+        game.battlefield_ids_ordered()
+            .into_iter()
+            .filter(move |&id| Some(id) != exclude_id)
+    };
+    let stack = || {
+        game.stack
+            .iter()
+            .copied()
+            .filter(move |&id| Some(id) != exclude_id)
+    };
+    let passes = |id: ObjectId| {
+        let candidate = RT::Object(id);
+        game.validate_selection(filter, &candidate, you, earlier_targets)
+            .is_ok()
+            .then_some(candidate)
+    };
 
     match filter {
-        SelectionFilter::Player => {
-            for pid in 0..game.num_players() {
-                push!(ResolvedTarget::Player(pid));
-            }
-        }
-        SelectionFilter::Any => {
-            // Players
-            for pid in 0..game.num_players() {
-                push!(ResolvedTarget::Player(pid));
-            }
-            // Creatures and planeswalkers on battlefield
-            for id in game.battlefield_ids_ordered() {
-                if Some(id) == exclude_id {
-                    continue;
-                }
-                let candidate = ResolvedTarget::Object(id);
-                if game.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
-                    push!(candidate);
-                }
-            }
-        }
-        SelectionFilter::Spell => {
-            for &id in &game.stack {
-                if Some(id) == exclude_id {
-                    continue;
-                }
-                push!(ResolvedTarget::Object(id));
-            }
-        }
+        SelectionFilter::Player => players().take(limit).collect(),
+
+        // "Any target" — players, then creatures and planeswalkers.
+        SelectionFilter::Any => players()
+            .chain(battlefield().filter_map(passes))
+            .take(limit)
+            .collect(),
+
+        SelectionFilter::Spell => stack().map(RT::Object).take(limit).collect(),
+
         // CR 609.7a — permanents first, then spells on the stack. Both halves
         // are enumerated rather than validated one by one, because
         // `validate_damage_source` asks the same two membership questions and
@@ -278,37 +267,19 @@ pub fn enumerate_legal_selections_upto(
         // Battlefield order is CR 613.7's timestamp order and stack order is
         // the stack's, so the list a `DecisionProvider` picks from by index is
         // process-independent.
-        SelectionFilter::DamageSource => {
-            for id in game.battlefield_ids_ordered() {
-                if Some(id) == exclude_id {
-                    continue;
-                }
-                push!(ResolvedTarget::Object(id));
-            }
-            for &id in &game.stack {
-                if Some(id) == exclude_id {
-                    continue;
-                }
-                if game.stack_entries.get(&id).is_some_and(|e| e.is_spell) {
-                    push!(ResolvedTarget::Object(id));
-                }
-            }
-        }
-        // Creature, Permanent(_), or other battlefield-based filters
-        _ => {
-            for id in game.battlefield_ids_ordered() {
-                if Some(id) == exclude_id {
-                    continue;
-                }
-                let candidate = ResolvedTarget::Object(id);
-                if game.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
-                    push!(candidate);
-                }
-            }
-        }
-    }
+        SelectionFilter::DamageSource => battlefield()
+            .map(RT::Object)
+            .chain(
+                stack()
+                    .filter(|id| game.stack_entries.get(id).is_some_and(|e| e.is_spell))
+                    .map(RT::Object),
+            )
+            .take(limit)
+            .collect(),
 
-    selections
+        // Creature, Permanent(_), or other battlefield-based filters
+        _ => battlefield().filter_map(passes).take(limit).collect(),
+    }
 }
 
 #[cfg(test)]

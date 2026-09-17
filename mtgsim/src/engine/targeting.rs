@@ -71,17 +71,18 @@ pub struct ChosenTargets {
     bounds: Vec<u32>,
 }
 
-impl Default for ChosenTargets {
-    fn default() -> Self {
-        ChosenTargets { flat: Vec::new(), bounds: vec![0] }
-    }
-}
-
 impl ChosenTargets {
     /// **No instances at all** — not an empty list of them. A mana ability's
     /// resolution, a CR 615.5 rider that names nothing, or a filter asked
     /// outside CR 601.2c's loop. `EMPTY` read as "it could be full", which is
     /// not a thing a targetless effect can be.
+    ///
+    /// **The only spelling of empty, and there is deliberately no `Default`.**
+    /// A derived one would have had to pick between `bounds: vec![0]` and
+    /// `bounds: vec![]`, and both mean zero instances while the derived
+    /// `PartialEq` calls them different values — two ways to say one thing, in
+    /// a type that is compared in tests. `NONE` is a `const`, so it is also the
+    /// value a builder starts from.
     pub const NONE: ChosenTargets = ChosenTargets { flat: Vec::new(), bounds: Vec::new() };
 
     /// The single-instance spelling, which is every spell the engine could
@@ -130,7 +131,7 @@ impl ChosenTargets {
 
 impl<I: IntoIterator<Item = ResolvedTarget>> FromIterator<I> for ChosenTargets {
     fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
-        let mut out = ChosenTargets::default();
+        let mut out = ChosenTargets::NONE;
         for instance in iter {
             out.push(instance);
         }
@@ -164,9 +165,11 @@ pub fn spell_instances(card: &CardData) -> Vec<EffectRecipient> {
 /// same walk CR 603.3d will want for a triggered ability.
 ///
 /// Each `Target`/`Choose` atom **declares** an instance; an
-/// `EffectRecipient::SameInstanceAs` atom refers back to one and declares nothing,
-/// which is what keeps Ensoul Artifact's two atoms one instance while Seeds of
-/// Strength's three clauses are three.
+/// `EffectRecipient::SameInstanceAs` atom refers back to one and declares
+/// nothing. That is what separates Ensoul Artifact's two atoms — one instance,
+/// acted on twice — from Seeds of Strength's three clauses, which are three;
+/// written without the back-reference the two cards are the same shape, and
+/// `EffectRecipient::SameInstanceAs`'s doc has the worked comparison.
 ///
 /// **`Atom` and `Sequence` only** — the scope the one-recipient rule this
 /// replaced also had. `Modal` is the one that will need more than a wider walk:
@@ -881,7 +884,7 @@ impl GameState {
         // cannot be what makes the spell fail to resolve.
         let mut announced = false;
         let mut survived = false;
-        let mut survivors = ChosenTargets::default();
+        let mut survivors = ChosenTargets::NONE;
         for inst in instances {
             if !inst.is_targeted() {
                 // A `Choose` does not fizzle and is not re-checked, so it is
@@ -1155,3 +1158,4 @@ mod tests {
         assert!(game.surviving_targets(&instances, 0).is_none());
     }
 }
+

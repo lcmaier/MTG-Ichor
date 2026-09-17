@@ -63,9 +63,13 @@ fn target_creature() -> EffectRecipient {
 /// Target creature gets +1/+1 until end of turn.
 ///
 /// **Three instances of "target" with identical clauses**, which is the case
-/// no structural rule can decide: equal recipient values that mean three
-/// separate choices, where Ensoul Artifact's two equal values mean one. The
-/// card says "target creature" three times, so it announces three times.
+/// no structural rule can decide. Written the obvious way — each atom carrying
+/// the clause it acts on — this card and Ensoul Artifact are both a `Sequence`
+/// whose atoms carry pairwise-equal recipients, and their instance counts are
+/// three and one. Ensoul Artifact prints "target artifact" once and acts on it
+/// twice; this prints "target creature" three times. Nothing in the shape
+/// separates them, so the card says which it means
+/// (`EffectRecipient::SameInstanceAs`).
 ///
 /// In `PERFORMANCE_POOL`, and why: several-clause casting is a new engine path
 /// (`engineering-practices.md` §3.1), and this is the cheapest card that walks
