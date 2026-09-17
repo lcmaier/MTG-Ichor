@@ -46,6 +46,7 @@ use mtgsim::types::replacement::{AmountRewrite, EventPattern, ReplacementDef, Re
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 /// The discard prompt, matched by kind alone (`ScriptedDecisionProvider`
 /// compares discriminants).
@@ -104,17 +105,24 @@ fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
             id: new_ability_id(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
+            // "**Target** player draws a card, then discards a card" — one
+            // instance of "target" and several instructions (CR 115.3), which
+            // is the shape Notion Thief's ruling is about. The first atom
+            // declares the instance; the rest refer back.
             effect: Effect::Sequence(
                 primitives
                     .into_iter()
-                    .map(|p| {
-                        Effect::Atom(
-                            p,
+                    .enumerate()
+                    .map(|(i, p)| {
+                        let recipient = if i == 0 {
                             EffectRecipient::Target(
                                 mtgsim::types::effects::SelectionFilter::Player,
                                 mtgsim::types::effects::TargetCount::Exactly(1),
-                            ),
-                        )
+                            )
+                        } else {
+                            EffectRecipient::Instance(0)
+                        };
+                        Effect::Atom(p, recipient)
                     })
                     .collect(),
             ),
@@ -147,7 +155,7 @@ fn resolve_spell_at(
         source,
         ability_source: None,
         controller: caster,
-        targets: vec![ResolvedTarget::Player(target_player)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -169,7 +177,7 @@ fn resolve_spell(
         source,
         ability_source: None,
         controller: caster,
-        targets: Vec::new(),
+        targets: ChosenTargets::EMPTY,
         replaced_amount: None,
         damage_prevented: None,
     };

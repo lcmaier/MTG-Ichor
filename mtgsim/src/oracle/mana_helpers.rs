@@ -8,7 +8,7 @@ use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
-use crate::engine::targeting::spell_recipient;
+use crate::engine::targeting::spell_instances;
 use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -173,10 +173,7 @@ pub fn castable_spells(
         // requires targets if no legal target exists. Asked of the card, not
         // the spell ability — an Aura's target is its enchant ability
         // (CR 303.4a) and it has no spell ability to ask.
-        if let EffectRecipient::Target(ref f, _) | EffectRecipient::Choose(ref f, _) =
-            spell_recipient(&obj.card_data)
-            && !game.has_any_legal_choice(f, None, player_id)
-        {
+        if !every_instance_has_a_choice(game, &spell_instances(&obj.card_data), player_id) {
             continue;
         }
 
@@ -397,12 +394,11 @@ pub fn activatable_abilities(
             // make it illegal. Provably illegal from a static read, which is
             // what the oracle may filter on
             // (`dp-middleware-and-candidate-enumeration.md` §2).
-            if let EffectRecipient::Target(ref f, TargetCount::Exactly(n))
-                | EffectRecipient::Choose(ref f, TargetCount::Exactly(n)) =
-                crate::engine::targeting::effect_recipient(&ability.effect)
-                && n >= 1
-                && !game.has_any_legal_choice(f, None, player_id)
-            {
+            if !every_instance_has_a_choice(
+                game,
+                &crate::engine::targeting::effect_instances(&ability.effect),
+                player_id,
+            ) {
                 continue;
             }
 
@@ -411,6 +407,64 @@ pub fn activatable_abilities(
     }
 
     result
+}
+
+/// CR 601.2c — can a legal choice be announced for **every** instance of the
+/// word "target"?
+///
+/// The rule Decimate's reminder text spells out: "you can't cast this spell
+/// unless you have legal choices for all its targets." One instance and one
+/// legal creature is the shape every card in the pool has, and at that shape
+/// this is the single `has_any_legal_choice` it replaced.
+///
+/// Three things it asks that the single check could not:
+/// - **A count.** Jagged Lightning's "each of two target creatures" needs two
+///   distinct creatures, because CR 601.2c forbids choosing one twice for one
+///   instance.
+/// - **Each instance in turn.** Decimate needs an artifact *and* a creature
+///   *and* an enchantment *and* a land.
+/// - **What the earlier instances took.** Incremental Growth's "a third target
+///   creature" needs a third.
+///
+/// `UpTo` is left alone: choosing zero targets is legal (CR 115.6), so an empty
+/// board does not make such a spell uncastable. An over-approximation here is
+/// `codebase-state.md` item 139's class — the engine offers a cast it then
+/// rewinds — so the checks that can be made statically are made.
+fn every_instance_has_a_choice(
+    game: &GameState,
+    instances: &[EffectRecipient],
+    player_id: PlayerId,
+) -> bool {
+    let mut earlier = crate::engine::targeting::ChosenTargets::EMPTY;
+    for recipient in instances {
+        let (EffectRecipient::Target(f, count) | EffectRecipient::Choose(f, count)) = recipient
+        else {
+            continue;
+        };
+        let TargetCount::Exactly(n) = count else {
+            // `UpTo` announces nothing it must announce, so it neither fails
+            // here nor constrains the instances after it.
+            continue;
+        };
+        let n = *n as usize;
+        if !game.has_legal_choices(f, None, player_id, n, &earlier) {
+            return false;
+        }
+        // The enumeration is a static over-approximation, so the instances it
+        // feeds forward are too: what matters to the next instance is *how
+        // many* this one will take, and any n distinct legal choices exclude
+        // the same number. Taking none here would make an "another target"
+        // chain claim it can always be satisfied.
+        earlier.push(
+            crate::oracle::legality::enumerate_legal_selections_excluding(
+                game, f, None, player_id, &earlier,
+            )
+            .into_iter()
+            .take(n)
+            .collect(),
+        );
+    }
+    true
 }
 
 /// Check if an ability's costs can be met right now.

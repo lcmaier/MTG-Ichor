@@ -48,6 +48,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef, SourceFilter};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,7 +73,7 @@ fn resolve_spell(
         source: source_id,
         ability_source: None,
         controller,
-        targets: targets.into_iter().map(ResolvedTarget::Object).collect(),
+        targets: ChosenTargets::one(targets.into_iter().map(ResolvedTarget::Object).collect()),
         replaced_amount: None,
         damage_prevented: None,
     };

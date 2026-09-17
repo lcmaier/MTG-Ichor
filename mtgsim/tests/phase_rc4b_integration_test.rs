@@ -38,6 +38,7 @@ use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Log readers
@@ -219,7 +220,7 @@ fn create_zombie(game: &mut GameState, controller: usize, source: ObjectId) -> R
         Primitive::CreateToken(def, AmountExpr::Fixed(1)),
         EffectRecipient::Controller,
     );
-    let ctx = ResolutionContext { source, ability_source: None, controller, targets: Vec::new(), replaced_amount: None, damage_prevented: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller, targets: ChosenTargets::EMPTY, replaced_amount: None, damage_prevented: None };
     game.resolve_effect(&effect, &ctx, &test_dp())
 }
 

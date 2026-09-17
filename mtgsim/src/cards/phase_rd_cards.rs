@@ -1316,6 +1316,7 @@ pub fn reflect_damage() -> Arc<CardData> {
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::targeting::ChosenTargets;
     use super::*;
     use crate::engine::actions::{ActionContext, GameAction};
     use crate::events::event::DamageTarget;
@@ -1563,7 +1564,7 @@ mod tests {
             source: id,
             ability_source: None,
             controller,
-            targets,
+            targets: ChosenTargets::one(targets),
             replaced_amount: None,
             damage_prevented: None,
         };
@@ -1740,7 +1741,7 @@ mod tests {
             source: permanent,
             ability_source: Some(permanent),
             controller,
-            targets: Vec::new(),
+            targets: ChosenTargets::EMPTY,
             replaced_amount: None,
             damage_prevented: None,
         };

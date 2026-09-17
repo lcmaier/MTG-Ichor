@@ -101,7 +101,9 @@ pub fn crimson_wisps() -> Arc<CardData> {
                         ColorChange::Set(red_set),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    // "Target creature gains haste **and** becomes red" — one
+                    // instance of "target", two atoms (CR 115.3).
+                    EffectRecipient::Instance(0),
                 ),
                 Effect::Atom(
                     Primitive::DrawCards(AmountExpr::Fixed(1)),

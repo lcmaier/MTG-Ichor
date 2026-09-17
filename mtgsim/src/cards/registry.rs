@@ -944,3 +944,55 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod instance_references {
+    use super::*;
+    use crate::types::effects::{Effect, EffectRecipient};
+
+    /// Every `EffectRecipient::Instance(ix)` a registered card writes names an
+    /// instance of "target" that the same effect declares (CR 115.3).
+    ///
+    /// **An authoring check, not a rules one.** A card that writes
+    /// `Instance(1)` where its effect declares one clause resolves to an error
+    /// deep inside `resolve_effect` — at the moment the spell is already on the
+    /// stack and paid for. Caught here it is a typo; caught there it is a game
+    /// that cannot finish. The walk is `effect_instances`' own, so the two
+    /// cannot disagree about what counts as a declaration.
+    #[test]
+    fn every_instance_back_reference_names_a_declared_clause() {
+        fn check(what: &str, effect: &Effect) {
+            let declared = crate::engine::targeting::effect_instances(effect).len();
+            let mut stack = vec![effect];
+            while let Some(e) = stack.pop() {
+                match e {
+                    Effect::Atom(_, EffectRecipient::Instance(ix)) => assert!(
+                        *ix < declared,
+                        "{what} refers to instance {ix} of \"target\" but declares {declared}"
+                    ),
+                    Effect::Atom(..) => {}
+                    Effect::Sequence(subs) | Effect::Modal { modes: subs, .. } => {
+                        stack.extend(subs.iter())
+                    }
+                    Effect::Conditional(_, inner)
+                    | Effect::Optional(inner)
+                    | Effect::ForEach(_, inner)
+                    | Effect::Repeat(_, inner) => stack.push(inner),
+                    Effect::Replacement(_)
+                    | Effect::Restriction(_)
+                    | Effect::CostModification(_) => {}
+                }
+            }
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                check(&format!("{name} ability #{i}"), &ability.effect);
+            }
+        }
+    }
+}

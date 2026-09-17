@@ -42,6 +42,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,7 +77,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn Dec
         source,
         ability_source: None,
         controller: player,
-        targets: vec![],
+        targets: ChosenTargets::EMPTY,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -94,7 +95,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
-        targets: vec![],
+        targets: ChosenTargets::EMPTY,
         replaced_amount: None,
         damage_prevented: None,
     };

@@ -38,6 +38,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::{ChosenTargets, TargetInstance};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -84,7 +85,7 @@ fn resolve_with(
         source,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -189,8 +190,7 @@ fn stack_object_with(
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets,
-        recipient,
+        chosen_targets: vec![TargetInstance::new(recipient, chosen_targets)],
         chosen_modes: Vec::new(),
         x_value: None,
         effect,

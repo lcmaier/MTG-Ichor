@@ -61,7 +61,8 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
 /// Target artifact becomes an artifact creature with base power and toughness
 /// 5/5 until end of turn.
 ///
-/// Both atoms share `ctx.targets` — a Sequence targeting the same object.
+/// Both atoms are one instance of "target" (CR 115.3) — the second declares
+/// nothing and refers back to the first.
 /// Tests: AddType(Creature) + SetPowerToughness on the same target.
 pub fn ensoul_artifact_spell() -> Arc<CardData> {
     CardDataBuilder::new("Ensoul Artifact")
@@ -90,7 +91,6 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                         },
                         Duration::UntilEndOfTurn,
                     ),
-                    // Both atoms use the same recipient — targets are shared via ctx.targets
                     EffectRecipient::Target(
                         SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
                         TargetCount::Exactly(1),
@@ -102,10 +102,9 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
                         AmountExpr::Fixed(5),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(
-                        SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
-                        TargetCount::Exactly(1),
-                    ),
+                    // One instance, two atoms: "target artifact **becomes**
+                    // an artifact creature with base power and toughness 5/5".
+                    EffectRecipient::Instance(0),
                 ),
             ]),
         })
@@ -159,7 +158,9 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
                         AmountExpr::Fixed(2),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    // "Target creature **becomes** an Angel in addition to its
+                    // other types **and gains** flying" — one instance (CR 115.3).
+                    EffectRecipient::Instance(0),
                 ),
             ]),
         })
@@ -209,7 +210,9 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
                         AmountExpr::Fixed(1),
                         Duration::UntilEndOfTurn,
                     ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+                    // One instance: the Legendary supertype and the +2/+2 are
+                    // two atoms of one "target creature" clause (CR 115.3).
+                    EffectRecipient::Instance(0),
                 ),
             ]),
         })

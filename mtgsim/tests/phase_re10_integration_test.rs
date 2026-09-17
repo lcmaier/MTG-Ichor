@@ -36,6 +36,7 @@ use mtgsim::test_support::{
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -65,7 +66,7 @@ fn resolve_ability(
         source,
         ability_source: Some(source),
         controller,
-        targets: Vec::new(),
+        targets: ChosenTargets::EMPTY,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -85,7 +86,7 @@ fn resolve_spell(
         source: id,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };

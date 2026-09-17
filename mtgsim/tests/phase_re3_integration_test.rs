@@ -33,6 +33,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,7 +54,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         source,
         ability_source: None,
         controller: player,
-        targets: vec![],
+        targets: ChosenTargets::EMPTY,
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -116,7 +117,7 @@ fn resolve_from(
         source,
         ability_source: None,
         controller,
-        targets,
+        targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
     };

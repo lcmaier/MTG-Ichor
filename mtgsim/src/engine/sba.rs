@@ -342,7 +342,20 @@ impl GameState {
                         if let Some(filter) = &obj.card_data.enchant_filter {
                             let candidate = ResolvedTarget::Object(host_id);
                             let you = get_effective_controller(self, id)?;
-                            if self.validate_selection(filter, &candidate, you).is_err() {
+                            // SBA 704.5n asks the enchant clause about the host
+                            // it is already attached to, outside CR 601.2c's
+                            // loop — so there are no earlier instances, and a
+                            // `OtherThanInstance` leaf on an enchant filter is
+                            // refused rather than answered.
+                            if self
+                                .validate_selection(
+                                    filter,
+                                    &candidate,
+                                    you,
+                                    &crate::engine::targeting::ChosenTargets::EMPTY,
+                                )
+                                .is_err()
+                            {
                                 return Some(id);
                             }
                         }

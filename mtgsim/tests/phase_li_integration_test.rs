@@ -28,6 +28,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 fn pt(game: &GameState, id: ObjectId) -> (Option<i32>, Option<i32>) {
     (get_effective_power(game, id), get_effective_toughness(game, id))
@@ -54,7 +55,7 @@ fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgs
         source,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(target)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
     };

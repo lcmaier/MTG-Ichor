@@ -12,7 +12,7 @@ use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolvedTarget;
-use mtgsim::engine::targeting::spell_recipient;
+use mtgsim::engine::targeting::spell_instances;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -44,7 +44,8 @@ fn pt(game: &GameState, id: ObjectId) -> (i32, i32) {
 
 /// Holy Strength on the stack targeting `target`, as `cast_spell` leaves it
 /// after CR 601.2c: a permanent spell with no spell ability carries an empty
-/// `Sequence`, and the Aura's target lives in `chosen_targets`.
+/// `Sequence`, and the Aura's one instance of "target" — its enchant clause,
+/// CR 303.4a — lives in `chosen_targets`.
 fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: ObjectId) -> ObjectId {
     let obj = GameObject::new(holy_strength(), controller, Zone::Stack);
     let id = game.add_object(obj);
@@ -52,8 +53,12 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
     game.set_stack_entry(StackEntry {
         object_id: id,
         controller,
-        chosen_targets: vec![ResolvedTarget::Object(target)],
-        recipient: spell_recipient(&holy_strength()),
+        chosen_targets: vec![TargetInstance::new(
+            spell_instances(&holy_strength())
+                .pop()
+                .expect("an Aura announces its enchant clause"),
+            vec![ResolvedTarget::Object(target)],
+        )],
         chosen_modes: Vec::new(),
         x_value: None,
         effect: Effect::Sequence(Vec::new()),
@@ -324,6 +329,7 @@ use mtgsim::cards::phase_lf_cards::humility;
 use mtgsim::cards::phase_lh_cards::cobbled_wings;
 use mtgsim::oracle::characteristics::has_keyword;
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::engine::targeting::{TargetInstance};
 
 fn equip_ability_index(game: &GameState, equipment: ObjectId) -> usize {
     get_effective_abilities(game, equipment)

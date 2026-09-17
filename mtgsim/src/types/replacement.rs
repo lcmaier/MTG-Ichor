@@ -1867,19 +1867,26 @@ impl ReplacementDef {
 /// `EffectRecipient::Target` names the shielded permanent: a rider resolves
 /// against a `ResolutionContext` whose single resolved target is the event's
 /// subject.
+///
+/// **One instance of "target", three atoms** (CR 115.3). The rule's three
+/// clauses are all about the same permanent — "remove all damage marked on
+/// **it** and its controller taps **it**" — so the first atom declares the
+/// instance and the other two refer back. Three declarations would be three
+/// instances against a context that holds one, and the tap and the combat
+/// removal would silently find nothing.
 pub fn regeneration_rider() -> Effect {
     use crate::types::effects::{EffectRecipient, ObjectFilter, Primitive, SelectionFilter,
                                 TargetCount};
-    let it = || {
-        EffectRecipient::Target(
-            SelectionFilter::Permanent(ObjectFilter::All),
-            TargetCount::Exactly(1),
-        )
-    };
     Effect::Sequence(vec![
-        Effect::Atom(Primitive::RemoveAllDamage, it()),
-        Effect::Atom(Primitive::Tap, it()),
-        Effect::Atom(Primitive::RemoveFromCombat, it()),
+        Effect::Atom(
+            Primitive::RemoveAllDamage,
+            EffectRecipient::Target(
+                SelectionFilter::Permanent(ObjectFilter::All),
+                TargetCount::Exactly(1),
+            ),
+        ),
+        Effect::Atom(Primitive::Tap, EffectRecipient::Instance(0)),
+        Effect::Atom(Primitive::RemoveFromCombat, EffectRecipient::Instance(0)),
     ])
 }
 

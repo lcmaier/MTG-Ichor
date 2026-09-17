@@ -34,6 +34,7 @@ use mtgsim::types::effects::{
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::{AbilityId, ObjectId};
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -462,7 +463,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -503,7 +504,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -541,7 +542,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -594,7 +595,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
         source: caster,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(creature)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
     };

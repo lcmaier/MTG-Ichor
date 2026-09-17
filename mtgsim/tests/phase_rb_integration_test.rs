@@ -41,6 +41,7 @@ use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::types::replacement::EnterMods;
+use mtgsim::engine::targeting::{ChosenTargets};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1082,7 +1083,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
         source,
         ability_source: None,
         controller: 0,
-        targets: vec![ResolvedTarget::Object(target)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -1288,7 +1289,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         source: killer,
         ability_source: None,
         controller: 1,
-        targets: vec![ResolvedTarget::Object(bear)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
         replaced_amount: None,
         damage_prevented: None,
     };
@@ -1327,7 +1328,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         source: killer,
         ability_source: None,
         controller: 1,
-        targets: vec![ResolvedTarget::Object(bear)],
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
         replaced_amount: None,
         damage_prevented: None,
     };

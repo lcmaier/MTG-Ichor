@@ -170,6 +170,30 @@ pub fn enumerate_legal_selections(
     exclude_id: Option<ObjectId>,
     you: PlayerId,
 ) -> Vec<crate::engine::resolve::ResolvedTarget> {
+    enumerate_legal_selections_excluding(
+        game,
+        filter,
+        exclude_id,
+        you,
+        &crate::engine::targeting::ChosenTargets::EMPTY,
+    )
+}
+
+/// [`enumerate_legal_selections`] inside CR 601.2c's loop, where the instances
+/// of "target" announced so far are known.
+///
+/// `earlier` is what an `ObjectFilter::OtherThanInstance` leaf reads — the
+/// difference between Incremental Growth offering three creatures for its
+/// second clause and offering the two it has not already taken. Outside the
+/// loop the list is empty and that leaf is refused, which is why the plain
+/// spelling above stays the one to call.
+pub fn enumerate_legal_selections_excluding(
+    game: &GameState,
+    filter: &crate::types::effects::SelectionFilter,
+    exclude_id: Option<ObjectId>,
+    you: PlayerId,
+    earlier: &crate::engine::targeting::ChosenTargets,
+) -> Vec<crate::engine::resolve::ResolvedTarget> {
     use crate::engine::resolve::ResolvedTarget;
     use crate::types::effects::SelectionFilter;
 
@@ -192,7 +216,7 @@ pub fn enumerate_legal_selections(
                     continue;
                 }
                 let candidate = ResolvedTarget::Object(id);
-                if game.validate_selection(filter, &candidate, you).is_ok() {
+                if game.validate_selection(filter, &candidate, you, earlier).is_ok() {
                     selections.push(candidate);
                 }
             }
@@ -237,7 +261,7 @@ pub fn enumerate_legal_selections(
                     continue;
                 }
                 let candidate = ResolvedTarget::Object(id);
-                if game.validate_selection(filter, &candidate, you).is_ok() {
+                if game.validate_selection(filter, &candidate, you, earlier).is_ok() {
                     selections.push(candidate);
                 }
             }
@@ -249,6 +273,7 @@ pub fn enumerate_legal_selections(
 
 #[cfg(test)]
 mod tests {
+    use crate::engine::targeting::ChosenTargets;
     use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
@@ -513,19 +538,20 @@ mod tests {
         // both directions: everything offered validates, and the card in hand
         // does not.
         for choice in &legal {
-            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0).is_ok());
+            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, &ChosenTargets::EMPTY).is_ok());
         }
         assert!(game
             .validate_selection(
                 &SelectionFilter::DamageSource,
                 &ResolvedTarget::Object(in_hand),
-                0
+                0,
+                &ChosenTargets::EMPTY,
             )
             .is_err());
         assert!(game
-            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0)
+            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, &ChosenTargets::EMPTY)
             .is_err());
-        assert!(game.has_any_legal_choice(&SelectionFilter::DamageSource, None, 0));
+        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, &ChosenTargets::EMPTY));
     }
 
     // The board with nothing on it: no permanent, no spell, so CR 101.3's
@@ -538,6 +564,6 @@ mod tests {
         let game = setup_two_player_game();
         assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
             .is_empty());
-        assert!(!game.has_any_legal_choice(&SelectionFilter::DamageSource, None, 0));
+        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, &ChosenTargets::EMPTY));
     }
 }

@@ -5,6 +5,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::{CounterSubject, DamageTarget, LossReason};
+use crate::engine::targeting::{instance_of, ChosenTargets};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
@@ -39,8 +40,11 @@ pub struct ResolutionContext {
     pub ability_source: Option<ObjectId>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
-    /// Resolved targets (validated before resolution begins)
-    pub targets: Vec<ResolvedTarget>,
+    /// What each instance of "target" holds **after** CR 608.2b's re-check —
+    /// the survivors, not the announcement. An instance every one of whose
+    /// targets went illegal is empty here, and the atom that reads it does
+    /// nothing, which is 608.2b's "it won't affect that target".
+    pub targets: ChosenTargets,
     /// CR 615.5's "that much" — the amount the replaced event carried, for a
     /// rider and for nothing else.
     ///
@@ -61,7 +65,7 @@ pub struct ResolutionContext {
 }
 
 impl ResolutionContext {
-    /// A resolution that names nothing — no targets, no rider, and no
+    /// A resolution that names nothing — no targets: ChosenTargets::one(targets), no rider, and no
     /// permanent distinct from `source`. What a mana ability's resolution uses.
     ///
     /// The two CR 615.5 numbers are one optional thing wearing two `Option`s;
@@ -72,7 +76,7 @@ impl ResolutionContext {
             source,
             ability_source: None,
             controller,
-            targets: Vec::new(),
+            targets: ChosenTargets::EMPTY,
             replaced_amount: None,
             damage_prevented: None,
         }
@@ -102,14 +106,52 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        // The instances this effect declares, in the order `effect_instances`
+        // numbered them at CR 601.2c — so an atom finds its own targets by the
+        // same index the announcement filled.
+        let declared = crate::engine::targeting::effect_instances(effect);
+        let mut cursor = 0usize;
+        self.resolve_effect_at(effect, ctx, dp, &declared, &mut cursor)
+    }
+
+    /// [`Self::resolve_effect`]'s body, carrying CR 601.2c's instance cursor.
+    ///
+    /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
+    /// instance as a flat slice, so no primitive can reach a neighbouring
+    /// instance's targets, and an atom whose instance fizzled is handed an
+    /// empty one rather than the spell's first (CR 608.2b).
+    fn resolve_effect_at(
+        &mut self,
+        effect: &Effect,
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+        declared: &[EffectRecipient],
+        cursor: &mut usize,
+    ) -> Result<(), String> {
         match effect {
             Effect::Atom(primitive, recipient) => {
-                self.resolve_primitive(primitive, recipient, ctx, dp)
+                match instance_of(recipient, declared, cursor) {
+                    Some((ix, clause)) => {
+                        let targets = ctx.targets.instance(ix).to_vec();
+                        self.resolve_primitive(primitive, clause, &targets, ctx, dp)
+                    }
+                    // `Instance(ix)` naming a clause that does not exist: a
+                    // card-authoring error, loud rather than silently
+                    // targetless. `cards::registry`'s own test refuses one at
+                    // registration, so this is the belt to that's braces.
+                    None if matches!(recipient, EffectRecipient::Instance(_)) => Err(format!(
+                        "{:?} on {:?} names an instance of \"target\" the effect never                          declared (CR 115.3)",
+                        recipient, ctx.source
+                    )),
+                    // Implicit, Controller, the filtered sweeps, Host — none
+                    // reads a chosen target.
+                    None => self.resolve_primitive(primitive, recipient, &[], ctx, dp),
+                }
             }
 
             Effect::Sequence(effects) => {
                 for sub in effects {
-                    self.resolve_effect(sub, ctx, dp)?;
+                    self.resolve_effect_at(sub, ctx, dp, declared, cursor)?;
                 }
                 Ok(())
             }
@@ -186,10 +228,17 @@ impl GameState {
     }
 
     /// Resolve a single primitive action against its targets.
+    ///
+    /// `targets` is **this atom's instance** of "target" (CR 115.3), already
+    /// filtered by CR 608.2b — not the spell's whole list. `recipient` is the
+    /// clause that instance was announced with, which for an
+    /// `EffectRecipient::Instance` atom is the *declaring* atom's clause, so
+    /// the two atoms of Ensoul Artifact behave identically.
     fn resolve_primitive(
         &mut self,
         primitive: &Primitive,
         recipient: &EffectRecipient,
+        targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
@@ -226,8 +275,7 @@ impl GameState {
                         })
                         .map(DamageTarget::Object)
                         .collect(),
-                    _ => ctx
-                        .targets
+                    _ => targets
                         .iter()
                         .map(|t| match t {
                             ResolvedTarget::Object(id) => DamageTarget::Object(*id),
@@ -260,7 +308,7 @@ impl GameState {
             Primitive::DrawCards(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
                 // Drawing targets the controller (EffectRecipient::Controller or None)
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 // **One instruction, whatever `count` is** (CR 121.2a); its performer
                 // does CR 121.2's individual draws. A loop here would make "draw three
                 // cards" three instructions, the distinction Alms Collector's ruling turns
@@ -289,7 +337,7 @@ impl GameState {
             // moves because they all move at once.
             Primitive::Mill(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 let library = &self.get_player(player_id)?.library;
                 let batch: Vec<GameAction> = library
                     .iter()
@@ -320,7 +368,7 @@ impl GameState {
             // asks the player, `AtRandom` draws from the game's own `rng`.
             Primitive::Discard(amount_expr, chooser) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 let hand = self.get_player(player_id)?.hand.clone();
                 let chosen = match chooser {
                     DiscardChooser::Affected => {
@@ -349,14 +397,14 @@ impl GameState {
             // CR 701.22 — the instruction, and the performer does the rest.
             Primitive::Scry(amount_expr) => {
                 let n = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 self.execute_action(GameAction::Scry { player: player_id, n }, &actx)?;
                 Ok(())
             }
 
             Primitive::GainLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 self.execute_action(GameAction::GainLife {
                     player: player_id,
                     amount,
@@ -367,7 +415,7 @@ impl GameState {
 
             Primitive::LoseLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(recipient, ctx);
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
                 self.execute_action(GameAction::LoseLife {
                     player: player_id,
                     amount,
@@ -383,7 +431,7 @@ impl GameState {
             // non-event (CR 119.10) and a 0 loss a no-op.
             Primitive::SetLifeTotal(amount_expr) => {
                 let target = self.evaluate_amount(amount_expr, ctx)? as i64;
-                let player = self.resolve_player_for_self(recipient, ctx);
+                let player = self.resolve_player_for_self(recipient, targets, ctx);
                 let current = self.get_player(player)?.life_total;
                 if target > current {
                     self.execute_action(GameAction::GainLife {
@@ -406,7 +454,7 @@ impl GameState {
             // one, exactly as for a state-based loss; a player who has
             // already left is gated here, as the SBA check gates them.
             Primitive::LoseGame => {
-                let player = self.resolve_player_for_self(recipient, ctx);
+                let player = self.resolve_player_for_self(recipient, targets, ctx);
                 if self.in_game(player) {
                     self.execute_action(
                         GameAction::PlayerLoses { player, reason: LossReason::Effect },
@@ -416,7 +464,7 @@ impl GameState {
                 Ok(())
             }
             Primitive::WinGame => {
-                let player = self.resolve_player_for_self(recipient, ctx);
+                let player = self.resolve_player_for_self(recipient, targets, ctx);
                 if self.in_game(player) {
                     self.execute_action(GameAction::PlayerWins { player }, &actx)?;
                 }
@@ -439,8 +487,7 @@ impl GameState {
                             || self.resolving.as_ref().is_some_and(|r| r.id == source);
                         if here { vec![source] } else { Vec::new() }
                     }
-                    _ => ctx
-                        .targets
+                    _ => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Object(id) if self.objects.contains_key(id) => Some(*id),
@@ -467,7 +514,7 @@ impl GameState {
             // what a skip replaces (CR 614.10a). Pushed, because "the most recently
             // created turn will be taken first".
             Primitive::ExtraTurn => {
-                let player = self.resolve_player_for_self(recipient, ctx);
+                let player = self.resolve_player_for_self(recipient, targets, ctx);
                 self.turn_queue.push(player);
                 Ok(())
             }
@@ -514,7 +561,7 @@ impl GameState {
                 // CR 701.6a — the countered spell goes to its owner's graveyard, through
                 // `execute_action(ZoneChange)` so the CR 614 pipeline sees it;
                 // `remove_from_zone_collection(Stack)` tears down the `StackEntry`.
-                for target in &ctx.targets {
+                for target in targets {
                     if let ResolvedTarget::Object(id) = target {
                         let id = *id;
                         if self.stack.contains(&id) {
@@ -533,7 +580,7 @@ impl GameState {
                 // Counter target activated or triggered ability on the stack
                 // (rule 701.6b). The ability ceases to exist — it is simply
                 // removed from the stack. It does NOT go to any zone.
-                for target in &ctx.targets {
+                for target in targets {
                     if let ResolvedTarget::Object(id) = target
                         && let Some(pos) = self.stack.iter().position(|s| s == id) {
                         let removed_id = self.stack.remove(pos);
@@ -564,7 +611,7 @@ impl GameState {
                 // `engine::restriction::is_prohibited`, so a CR 614.15 self-replacement
                 // (614.17c) can still see the proposal.
                 let mut batch = Vec::new();
-                for target in &ctx.targets {
+                for target in targets {
                     if let ResolvedTarget::Object(id) = target
                         && self.battlefield.contains_key(id) {
                         batch.push(GameAction::Destroy {
@@ -592,7 +639,7 @@ impl GameState {
                 if !self.battlefield.contains_key(&attachment) {
                     return Ok(());
                 }
-                for target in &ctx.targets {
+                for target in targets {
                     if let ResolvedTarget::Object(host) = target {
                         if !self.battlefield.contains_key(host) {
                             continue;
@@ -626,8 +673,7 @@ impl GameState {
                     // and does as much as it can, so a target that has left is skipped. The
                     // performer is loud, which makes checking here the caller's job — the
                     // shape `Primitive::Destroy` above has.
-                    _ => ctx
-                        .targets
+                    _ => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Object(id) if self.battlefield.contains_key(id) => {
@@ -656,7 +702,7 @@ impl GameState {
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.collect_battlefield_targets(ctx);
+                let target_ids = self.collect_battlefield_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -686,7 +732,7 @@ impl GameState {
             Primitive::SetPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.collect_battlefield_targets(ctx);
+                let target_ids = self.collect_battlefield_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -712,11 +758,11 @@ impl GameState {
 
             // === Copy effects (CR 707, layer 1a) ===
             Primitive::Copy(roles, duration) => {
-                self.apply_copy(roles, *duration, ctx, dp)
+                self.apply_copy(roles, *duration, targets, ctx, dp)
             }
 
             Primitive::SwitchPowerToughness(duration) => {
-                let target_ids = self.collect_battlefield_targets(ctx);
+                let target_ids = self.collect_battlefield_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -741,7 +787,7 @@ impl GameState {
 
             Primitive::ChangeColor(color_change, duration) => {
                 use crate::types::effects::ColorChange;
-                let target_ids = self.collect_battlefield_targets(ctx);
+                let target_ids = self.collect_battlefield_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -770,7 +816,7 @@ impl GameState {
             // === Phase LD: Layer 4 type-changing effects ===
 
             Primitive::ChangeType(type_change, duration) => {
-                let target_ids = self.collect_battlefield_targets(ctx);
+                let target_ids = self.collect_battlefield_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -847,6 +893,7 @@ impl GameState {
             Primitive::GrantKeywordFlag(keyword, duration) => {
                 self.register_resolution_ability_effect(
                     ctx,
+                    targets,
                     *duration,
                     EffectModification::GrantKeywordFlag(*keyword),
                 );
@@ -856,6 +903,7 @@ impl GameState {
             Primitive::RemoveKeywordFlag(keyword, duration) => {
                 self.register_resolution_ability_effect(
                     ctx,
+                    targets,
                     *duration,
                     EffectModification::RemoveKeywordFlag(*keyword),
                 );
@@ -865,6 +913,7 @@ impl GameState {
             Primitive::LoseAbility(ability_id, duration) => {
                 self.register_resolution_ability_effect(
                     ctx,
+                    targets,
                     *duration,
                     EffectModification::LoseAbility(*ability_id),
                 );
@@ -874,6 +923,7 @@ impl GameState {
             Primitive::LoseAllAbilities(duration) => {
                 self.register_resolution_ability_effect(
                     ctx,
+                    targets,
                     *duration,
                     EffectModification::LoseAllAbilities,
                 );
@@ -883,6 +933,7 @@ impl GameState {
             Primitive::GrantAbility(def, duration) => {
                 let granted_at = self.register_resolution_ability_effect(
                     ctx,
+                    targets,
                     *duration,
                     EffectModification::GrantAbility(def.clone()),
                 );
@@ -896,7 +947,7 @@ impl GameState {
                     // that the row can own its target `Vec` instead of cloning
                     // it. Safe because registering an effect moves nothing
                     // between zones, so battlefield membership is unchanged.
-                    for grantee in self.collect_battlefield_targets(ctx) {
+                    for grantee in self.collect_battlefield_targets(targets) {
                         self.register_granted_static_effects(
                             def, grantee, granted_at, *duration, ctx.controller,
                         );
@@ -913,7 +964,7 @@ impl GameState {
             // stay one event (`replacement-architecture.md` §3.1).
             Primitive::CreateToken(token_def, amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
-                let controller = self.resolve_player_for_self(recipient, ctx);
+                let controller = self.resolve_player_for_self(recipient, targets, ctx);
                 // CR 800.4b — no token is created for a player who has left — and
                 // CR 800.4d's first sentence at the same line, since CR 111.2 makes the
                 // two rules name one player here. A rule checked ahead of the proposal,
@@ -937,7 +988,7 @@ impl GameState {
             // next time", `Duration::UntilEndOfTurn` "this turn", `Prevent` "instead",
             // the `then` rider its sentence — so the engine builds it, not a card author.
             Primitive::Regenerate => {
-                for object in self.collect_battlefield_targets(ctx) {
+                for object in self.collect_battlefield_targets(targets) {
                     let controller = get_effective_controller(self, object)
                         .unwrap_or(ctx.controller);
                     let def = ReplacementDef::new(
@@ -954,7 +1005,7 @@ impl GameState {
                         controller,
                         duration: Duration::UntilEndOfTurn,
                         created_on_turn: self.turn_number,
-                        targets: ctx.targets.clone(),
+                        targets: targets.to_vec(),
                         def,
                     });
                 }
@@ -1018,7 +1069,7 @@ impl GameState {
                              `ObjectSet::NO_OBJECTS` and `PlayerSet::Nobody`.",
                             ctx.source
                         );
-                        ctx.targets
+                        targets
                             .iter()
                             .filter_map(|t| match t {
                                 // A target that left the battlefield since it
@@ -1032,6 +1083,7 @@ impl GameState {
                             })
                             .collect()
                     }
+                    EffectRecipient::Instance(_) => return Err(back_reference(recipient, ctx)),
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
                     // order. A row on a card in another zone is §3.3 source 2 and needs
@@ -1090,7 +1142,7 @@ impl GameState {
                         controller: ctx.controller,
                         duration: *duration,
                         created_on_turn: self.turn_number,
-                        targets: ctx.targets.clone(),
+                        targets: targets.to_vec(),
                         def: row,
                     });
                 }
@@ -1120,7 +1172,7 @@ impl GameState {
                 if matches!(objects, ObjectSet::Fixed(ids) if ids.is_empty())
                     && matches!(players, PlayerSet::Nobody)
                 {
-                    for object in self.collect_battlefield_targets(ctx) {
+                    for object in self.collect_battlefield_targets(targets) {
                         let mut filled = def.clone();
                         *restriction_object_set_mut(&mut filled) =
                             ObjectSet::Fixed(vec![object]);
@@ -1153,7 +1205,7 @@ impl GameState {
             // apply, which is why the cause is its own `ZoneChangeCause` variant.
             Primitive::Sacrifice(filter, amount) => {
                 let count = self.evaluate_amount(amount, ctx)?;
-                for target in &ctx.targets {
+                for target in targets {
                     let ResolvedTarget::Player(player) = target else {
                         continue;
                     };
@@ -1168,7 +1220,7 @@ impl GameState {
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously.
                 let batch = self
-                    .collect_battlefield_targets(ctx)
+                    .collect_battlefield_targets(targets)
                     .into_iter()
                     .map(|object| GameAction::Tap { object })
                     .collect();
@@ -1183,7 +1235,7 @@ impl GameState {
             // consulted by each (`cant-effects-architecture.md`) and not a
             // replaceable event here → `replacement-architecture.md` §8a.
             Primitive::RemoveFromCombat => {
-                for object in self.collect_battlefield_targets(ctx) {
+                for object in self.collect_battlefield_targets(targets) {
                     self.remove_from_combat(object);
                 }
                 Ok(())
@@ -1195,7 +1247,7 @@ impl GameState {
             // seven cards restrict and which owes an enforcement point
             // (`codebase-state.md`, Before Replacement item 20).
             Primitive::RemoveAllDamage => {
-                for object in self.collect_battlefield_targets(ctx) {
+                for object in self.collect_battlefield_targets(targets) {
                     if let Some(entry) = self.battlefield.get_mut(&object) {
                         entry.damage_marked = 0;
                         entry.damaged_by_deathtouch = false;
@@ -1212,12 +1264,12 @@ impl GameState {
 
             Primitive::AddCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx)? as u32;
-                let by = self.resolve_putter(by, ctx)?;
+                let by = self.resolve_putter(by, targets, ctx)?;
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously, which is what lets a single CR 614.16
                 // doubler see all of them.
                 let batch = self
-                    .collect_battlefield_targets(ctx)
+                    .collect_battlefield_targets(targets)
                     .into_iter()
                     .map(|object| GameAction::AddCounters {
                         subject: CounterSubject::Object(object),
@@ -1233,7 +1285,7 @@ impl GameState {
             Primitive::RemoveCounters(counter_type, amount_expr) => {
                 let n = self.evaluate_amount(amount_expr, ctx)? as u32;
                 let batch = self
-                    .collect_battlefield_targets(ctx)
+                    .collect_battlefield_targets(targets)
                     .into_iter()
                     .map(|object| GameAction::RemoveCounters {
                         subject: CounterSubject::Object(object),
@@ -1250,8 +1302,8 @@ impl GameState {
             // watches it through the one arm.
             Primitive::GetCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx)? as u32;
-                let player = self.resolve_player_for_self(recipient, ctx);
-                let by = self.resolve_putter(by, ctx)?;
+                let player = self.resolve_player_for_self(recipient, targets, ctx);
+                let by = self.resolve_putter(by, targets, ctx)?;
                 self.execute_action(
                     GameAction::AddCounters {
                         subject: CounterSubject::Player(player),
@@ -1267,7 +1319,7 @@ impl GameState {
             // === Layer 2 — control-changing effects (CR 613.1b) ===
 
             Primitive::GainControl(duration) => {
-                let target_ids = self.collect_permanent_or_spell_targets(ctx);
+                let target_ids = self.collect_permanent_or_spell_targets(targets);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -1304,8 +1356,7 @@ impl GameState {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
                     EffectRecipient::Implicit => vec![self.get_object(ctx.source)?.owner],
-                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => ctx
-                        .targets
+                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -1314,6 +1365,7 @@ impl GameState {
                             }
                         })
                         .collect(),
+                    EffectRecipient::Instance(_) => return Err(back_reference(recipient, ctx)),
                     EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::FilteredObjectsIn(..)
                     | EffectRecipient::Host => {
@@ -1376,10 +1428,11 @@ impl GameState {
     fn register_resolution_ability_effect(
         &mut self,
         ctx: &ResolutionContext,
+        targets: &[ResolvedTarget],
         duration: Duration,
         modification: EffectModification,
     ) -> Option<Timestamp> {
-        let targets = self.collect_battlefield_targets(ctx);
+        let targets = self.collect_battlefield_targets(targets);
         if targets.is_empty() {
             return None;
         }
@@ -1549,6 +1602,7 @@ impl GameState {
         &mut self,
         roles: &CopyRoles,
         duration: Duration,
+        targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
@@ -1563,7 +1617,7 @@ impl GameState {
                 // skipped, and with nothing left to affect there is no effect
                 // and so no choice to make. Asking first would prompt for a
                 // decision that changes nothing.
-                let recipients = self.collect_battlefield_targets(ctx);
+                let recipients = self.collect_battlefield_targets(targets);
                 if recipients.is_empty() {
                     return Ok(());
                 }
@@ -1587,7 +1641,7 @@ impl GameState {
                 (donor, recipients)
             }
             CopyRoles::FilteredCopyRecipient { filter, exclude_donor } => {
-                let Some(&donor) = self.collect_battlefield_targets(ctx).first() else {
+                let Some(&donor) = self.collect_battlefield_targets(targets).first() else {
                     return Ok(());
                 };
                 // Ordered, because the row's `Fixed` set is read back by
@@ -1797,8 +1851,8 @@ impl GameState {
         )
     }
 
-    fn collect_battlefield_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
-        ctx.targets.iter()
+    fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
+        targets.iter()
             .filter_map(|t| {
                 if let ResolvedTarget::Object(id) = t
                     && self.battlefield.contains_key(id) {
@@ -1816,8 +1870,8 @@ impl GameState {
     /// The wider sibling of `collect_battlefield_targets`, and only Layer 2
     /// wants it: every other continuous effect describes a characteristic a
     /// permanent has, while control is the one thing a spell also has.
-    fn collect_permanent_or_spell_targets(&self, ctx: &ResolutionContext) -> Vec<ObjectId> {
-        ctx.targets
+    fn collect_permanent_or_spell_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
+        targets
             .iter()
             .filter_map(|t| match t {
                 ResolvedTarget::Object(id)
@@ -1919,13 +1973,18 @@ impl GameState {
     /// no target it is an authoring error and loud. Bold Plagiarist's
     /// "*they* put" is the printed customer, a trigger whose effect names the
     /// player who triggered it — `Player(id)` once CR 603 fills it.
-    fn resolve_putter(&self, by: &PlayerRef, ctx: &ResolutionContext) -> Result<PlayerId, String> {
+    fn resolve_putter(
+        &self,
+        by: &PlayerRef,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Result<PlayerId, String> {
         Ok(match by {
             PlayerRef::You => ctx.controller,
             PlayerRef::Player(pid) => *pid,
             PlayerRef::Owner => self.get_object(ctx.source)?.owner,
             PlayerRef::Opponent => {
-                let targeted = ctx.targets.iter().find_map(|t| match t {
+                let targeted = targets.iter().find_map(|t| match t {
                     ResolvedTarget::Player(pid) if *pid != ctx.controller => Some(*pid),
                     _ => None,
                 });
@@ -1956,12 +2015,13 @@ impl GameState {
     fn resolve_player_for_self(
         &self,
         recipient: &EffectRecipient,
+        targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
     ) -> PlayerId {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
             EffectRecipient::Target(SelectionFilter::Player, _) => {
-                for t in &ctx.targets {
+                for t in targets {
                     if let ResolvedTarget::Player(pid) = t {
                         return *pid;
                     }
@@ -1971,6 +2031,17 @@ impl GameState {
             _ => ctx.controller,
         }
     }
+}
+
+/// `resolve_primitive` is handed the clause an instance was **declared** with,
+/// never a back-reference to it — `targeting::instance_of` resolves
+/// `EffectRecipient::Instance` before the primitive sees it. Reaching one here
+/// means the walk was bypassed, which is a wiring error rather than a card's.
+fn back_reference(recipient: &EffectRecipient, ctx: &ResolutionContext) -> String {
+    format!(
+        "a primitive on {:?} was handed {:?}, a back-reference to an instance of          \"target\" rather than the clause that declared it (CR 115.3). Resolve it          through `targeting::instance_of`.",
+        ctx.source, recipient
+    )
 }
 
 /// The affected set inside a [`RestrictionDef`], whichever arm it is.
@@ -2036,7 +2107,7 @@ mod tests {
             source,
             ability_source: None,
             controller: 0,
-            targets,
+            targets: ChosenTargets::one(targets),
             replaced_amount: None,
             damage_prevented: None,
         }

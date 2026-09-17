@@ -6,13 +6,13 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
-use crate::engine::targeting::{effect_recipient, spell_recipient};
+use crate::engine::targeting::{effect_instances, spell_instances, TargetInstance};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
 use crate::types::zones::Zone;
-use crate::oracle::legality::enumerate_legal_selections;
+use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::{
     enumerate_activatable_mana_abilities, remaining_cost_after_pool,
 };
@@ -71,7 +71,7 @@ impl GameState {
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
-        let recipient = spell_recipient(&card_data);
+        let instances = spell_instances(&card_data);
 
         // --- 601.2a: Move to stack ---
         // Capture the origin first: once the card is on the stack its `zone`
@@ -145,24 +145,19 @@ impl GameState {
             0
         };
 
-        // --- 601.2c: Choose targets ---
-        let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(card_id), player_id);
-            let (min_sel, max_sel) = match count {
-                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
-                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
-            };
-            let chosen = ask_select_recipients(
-                decisions, self, player_id, &recipient, card_id,
-                &legal, min_sel, max_sel,
-            );
-            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
+        // --- 601.2c: Choose targets, one instance of "target" at a time ---
+        // "The player announces their choice of an appropriate object or player
+        // for **each** target the spell requires." In printed order, because an
+        // `OtherThanInstance` clause reads the instances already announced —
+        // Incremental Growth's second creature has to know the first.
+        let targets = match self.announce_targets(
+            player_id, card_id, &instances, decisions,
+        ) {
+            Ok(targets) => targets,
+            Err(e) => {
                 self.rollback_cast_to_hand(card_id)?;
                 return Err(e);
             }
-            chosen
-        } else {
-            Vec::new()
         };
 
         // --- 601.2d: division among targets is not asked — `backlog.md` §2.20 ---
@@ -185,7 +180,6 @@ impl GameState {
             object_id: card_id,
             controller: player_id,
             chosen_targets: targets,
-            recipient,
             chosen_modes: Vec::new(),
             x_value: if x_count > 0 { Some(x_value) } else { None },
             effect,
@@ -267,6 +261,60 @@ impl GameState {
         Ok(())
     }
 
+    /// CR 601.2c — announce a choice for each instance of the word "target".
+    ///
+    /// One [`ask_select_recipients`] per instance, in printed order, and
+    /// nothing else: §2.20's sizing said "no new `DecisionProvider` shape" and
+    /// this is what that means. A spell with one instance asks exactly the one
+    /// question it asked before the loop existed.
+    ///
+    /// **Printed order is load-bearing.** Each instance is enumerated against
+    /// the ones already announced, which is what `ObjectFilter::OtherThanInstance`
+    /// reads; announcing out of order would let Incremental Growth's "another
+    /// target creature" exclude a creature that had not been chosen yet.
+    ///
+    /// CR 602.2b routes an activated ability through the same step, so this is
+    /// shared rather than duplicated. The caller owns the rollback — CR 601.2e
+    /// for a spell, `rollback_ability_activation` for an ability — because the
+    /// two rewind different things.
+    fn announce_targets(
+        &mut self,
+        player_id: PlayerId,
+        source_id: ObjectId,
+        instances: &[EffectRecipient],
+        decisions: &dyn DecisionProvider,
+    ) -> Result<Vec<TargetInstance>, String> {
+        let mut announced = Vec::with_capacity(instances.len());
+        let mut earlier = crate::engine::targeting::ChosenTargets::EMPTY;
+        for recipient in instances {
+            let (EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count)) =
+                recipient
+            else {
+                // `effect_instances` yields only targeting clauses, so this is
+                // unreachable rather than a case with a sensible default.
+                return Err(format!(
+                    "{:?} is not an instance of \"target\" (CR 601.2c)",
+                    recipient
+                ));
+            };
+            let legal = enumerate_legal_selections_excluding(
+                self, filter, Some(source_id), player_id, &earlier,
+            );
+            let (min_sel, max_sel) = match count {
+                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
+                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
+            };
+            let chosen = ask_select_recipients(
+                decisions, self, player_id, recipient, source_id,
+                &legal, min_sel, max_sel,
+            );
+            self.validate_targets(recipient, &chosen, player_id, &earlier)?;
+            earlier.push(chosen.clone());
+            announced.push(TargetInstance::new(recipient.clone(), chosen));
+        }
+        Ok(announced)
+    }
+
     /// Activate a non-mana activated ability and put it on the stack (rule 602.2).
     ///
     /// Creates a new stack object representing the ability. The source permanent
@@ -337,7 +385,7 @@ impl GameState {
             source: source_id,
             ability: ability.id,
         };
-        let recipient = effect_recipient(&effect);
+        let instances = effect_instances(&effect);
 
         // Create a new object on the stack representing the ability (rule 602.2a)
         // Abilities on the stack are not cards — they have no CardData.
@@ -349,30 +397,22 @@ impl GameState {
         // From here on, any Err path must call `rollback_ability_activation`
         // to keep game state clean: `run_priority_round`'s retry loop relies on it.
 
-        let targets = if let EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count) = &recipient {
-            let legal = enumerate_legal_selections(self, filter, Some(ability_obj_id), player_id);
-            let (min_sel, max_sel) = match count {
-                crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
-                crate::types::effects::TargetCount::UpTo(n) => (0, *n as usize),
-            };
-            let chosen = ask_select_recipients(
-                decisions, self, player_id, &recipient, ability_obj_id,
-                &legal, min_sel, max_sel,
-            );
-            if let Err(e) = self.validate_targets(&recipient, &chosen, player_id) {
+        // CR 602.2b routes an activation through 601.2c, so an ability
+        // announces its instances exactly as a spell does.
+        let targets = match self.announce_targets(
+            player_id, ability_obj_id, &instances, decisions,
+        ) {
+            Ok(targets) => targets,
+            Err(e) => {
                 self.rollback_ability_activation(ability_obj_id);
                 return Err(e);
             }
-            chosen
-        } else {
-            Vec::new()
         };
 
         let stack_entry = StackEntry {
             object_id: ability_obj_id,
             controller: player_id,
             chosen_targets: targets,
-            recipient,
             chosen_modes: Vec::new(),
             x_value: None,
             effect,
@@ -797,7 +837,11 @@ mod tests {
 
         // StackEntry should have correct targets
         let entry = game.stack_entries.get(&card_id).unwrap();
-        assert_eq!(entry.chosen_targets, vec![ResolvedTarget::Player(1)]);
+        assert_eq!(entry.chosen_targets.len(), 1, "one instance of \"target\"");
+        assert_eq!(
+            entry.chosen_targets[0].chosen,
+            vec![ResolvedTarget::Player(1)]
+        );
         assert!(entry.is_spell);
     }
 
