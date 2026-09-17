@@ -7187,13 +7187,26 @@ owner decided it the same day.
      that reading them finds live bugs. The debt is unread rulings, not
      unimplemented rules.
 
+     **And the scope rule froze it.** A card registered from here on has a
+     `first_seen` later than the ledger's `created`, so it is in scope from
+     the moment `--fetch` sees it and its rulings are answered in the pull
+     request that registers it. **Nothing new joins the backlog** — the 308 is
+     exactly the rulings on the 93 cards that predate the ledger, and it only
+     shrinks, apart from drift adding one to a card nobody has read yet. That
+     weakens the urgency `engineering-practices.md` §3.4a was written with
+     ("the last point at which the retroactive half is a sitting rather than a
+     project, since the registry only grows"): the registry still only grows,
+     but the backlog no longer grows with it.
+
      **Sized:** a sitting per tranche, not a phase. A4b's own head — three
      pooled cards, 22 rulings — came to ten new tests, five annotations on
-     tests that already existed and nine dispositions. At that rate the
-     remaining pooled 103 is three or four more sittings, and the 205 off the
-     pool is not scheduled. `python plans/check_rulings.py --queue` is the
-     list; it is deliberately not copied into this file, because a list that
-     is both generated and transcribed goes stale in the transcription.
+     tests that already existed and nine dispositions. At 22 rulings a sitting
+     the remaining **pooled 103 is about five** and the whole 308 is about
+     fourteen, so the off-pool 205 is two thirds of the work on cards no
+     measurement walks and is not scheduled. `python plans/check_rulings.py
+     --queue` is the list; it is deliberately not copied into this file,
+     because a list that is both generated and transcribed goes stale in the
+     transcription.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

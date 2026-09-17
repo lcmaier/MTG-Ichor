@@ -10,10 +10,14 @@
 //! `CLAUDE.md` files an integration test under the phase that registered its
 //! cards, and §3.4's forward rule keeps doing that: a phase reads its own
 //! cards' rulings and its tests go in its own file. The retroactive half is
-//! not a phase — it walks the pool in ruling-count order and its cards come
-//! from LC, LE, LF, LJ, CV and RF at once — so filing it by phase would
-//! scatter one sitting across six files and make the next sitting's diff
-//! unreadable. It appends here instead.
+//! not a phase. A sitting is chosen by ruling count, which is orthogonal to
+//! whatever the card files happen to be keyed on — the phase that first needed
+//! a card today, its first printing after `roadmap-v2.md` §C's C0 re-files them
+//! by set — so a sitting's cards are scattered across six of them either way,
+//! and filing its tests to match would scatter one sitting's diff to match.
+//! It appends here instead. C0 moves no test file; it costs each one a changed
+//! `use` line, this one included (`codebase-state.md` "Before card breadth"
+//! item 10, step 3).
 //!
 //! **The queue is pool-first** (§3.4a): the pool is what every measurement
 //! walks, which is where `codebase-state.md` item 82 came from. What landed

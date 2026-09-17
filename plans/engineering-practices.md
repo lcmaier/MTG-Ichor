@@ -938,9 +938,15 @@ Everything else is the backlog: counted, queued, never failed. Same shape as
 `roadmap-v2.md` row A4b.** It gates nothing and nothing gates it, which is the
 argument for giving it a slot rather than a "whenever": a task that is nobody's
 blocker is deferred indefinitely by default, and this one has already produced
-a live bug in the measured pool on its first afternoon (item 82). A4 is also
-the last point at which the retroactive half is a sitting rather than a
-project, since the registry only grows.
+a live bug in the measured pool on its first afternoon (item 82). A4 was also
+believed to be the last point at which the retroactive half is a sitting
+rather than a project, since the registry only grows — **and the gate's scope
+rule turned out to defuse that** (`codebase-state.md` item 151). A card
+registered after the ledger is in scope immediately, so it never joins the
+backlog; the backlog is frozen at the 308 rulings on the 93 cards that predate
+the ledger and only shrinks. The reading can therefore be spread out without
+the job getting larger, which the slot's original argument assumed it could
+not be.
 
 The two halves stay separable and only one of them is the tool. **The tool** is
 the drift detector and the parser's acceptance test, and it is in place. **The
