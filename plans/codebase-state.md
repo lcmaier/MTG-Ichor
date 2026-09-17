@@ -7283,6 +7283,12 @@ are ones the diff cannot answer. Open review findings, triaged:
      Phase 8 breadth's, and the fix is a `SelectionFilter`-level exclusion
      rather than a wider `ObjectFilter`.
 
+     **Amended at the A4i review (2026-09-17): it has eight named customers.**
+     `o:"must target"` returns 8, and every one is *"Each mode must target a
+     different player"* — a player-filter exclusion, which is exactly what this
+     item says cannot be written. They arrive with modal spells; item 158 has
+     the list and the two sibling axes.
+
      **Sized:** ~60 lines. The exclusion moves from the filter to the clause —
      the instance carries "not what instance k took" beside its filter — and
      the two enumeration arms that bypass `validate_selection` learn to apply
@@ -7319,6 +7325,75 @@ are ones the diff cannot answer. Open review findings, triaged:
      created` is genuinely ambiguous — every card present at creation carries
      it — and a finer stamp would be a ledger format change to close a hole
      that cannot recur.
+
+157. **CR 601.2c's "must be chosen as a target" is unimplemented, and it is the
+     third hat of the CR's only combinatorial-optimum rule.**
+
+     > If any effects say that an object or player must be chosen as a target,
+     > the player chooses targets so that they obey the **maximum possible
+     > number** of such effects without violating any rules or effects that say
+     > that an object or player can't be chosen as a target.
+
+     **The whole CR has three sites for that phrase**, surveyed 2026-09-17:
+     **508.1d** (attack requirements), **509.1c** (block requirements) and
+     **601.2c** (targeting requirements). There is no fourth. The first two are
+     RS-3b's, already sized as the NP-hard one with a bounded-exact search and a
+     cap (`cant-effects-architecture.md` §4.2); this is the third and it is
+     unowned.
+
+     **It is much the smallest of the three.** Combat searches every creature a
+     player controls crossed with attack/block assignments; targeting searches
+     one spell's instances — one to four on every printed card — crossed with
+     each instance's legal candidates. Same algorithm, and RS-3b's cap covers it.
+
+     **Not to be confused with "as many as possible"** (CR 101.3, 701.17b,
+     701.23d, the 601.2h discard example), which is a *clamp* rather than an
+     optimization and is already implemented — `Primitive::Mill`,
+     `sacrifice_of_choice`'s `count.min(candidates.len())`. Nothing in that
+     family needs a search.
+
+     **Reachability (2026-09-17): unreachable, and no printed card produces
+     one.** `o:"must be chosen"` and `o:"chosen as a target"` return nothing;
+     `o:/target.{0,20}if able/` returns four and all four are *combat*
+     requirements (Dulcet Sirens, Hunt Down, Ravener, Rimehorn Aurochs), which
+     are 508.1d/509.1c's. So this is a CR-stated facility with no printed
+     producer, which by the RE-5 rule (`engineering-practices.md` §4) is owed
+     with a fixture test and this line, never "nothing owed".
+
+     **Sized:** small, and it belongs with RS-3b rather than alone — the search,
+     the cap and the "requirements versus restrictions" split are the same code.
+     What is A4i-specific is that the announcement loop has to hand the solver
+     all the instances at once instead of deciding them one at a time, which is
+     ~40 lines at the `announce_targets` seam. Until then the greedy loop is
+     exact, because the set of requirements is empty.
+
+158. **"Different from that one" has three axes and the engine expresses one.**
+     A4i's `ObjectFilter::OtherThanInstance` is distinctness *across instances of
+     one object* — Incremental Growth's "another target creature". Two more
+     populations want the same idea on different axes and neither is reachable:
+
+     - **Across modes of one object**, 8 cards: *"Each mode must target a
+       different player"* — Balor, Chaos Balor, Casey & Raph, Donnie & April,
+       Mikey & Mona and kin. This is item 154's gap (the exclusion is an
+       `ObjectFilter` leaf and `SelectionFilter::Player` carries none) plus modal
+       spells (`backlog.md` §2.7). **Item 154 said this gap had no named
+       customer; it has these eight.**
+     - **Across separate stack objects**, 13 cards: *"Each copy targets a
+       different one of those creatures"* — Precursor Golem, Zada, Ink-Treader
+       Nephilim, Mirrorwing Dragon, Radiate, Agrus Kos, Beamsplitter Mage,
+       Exterminator Magmarch, Feather, Frontline Heroism, Ivy, Radiant Performer,
+       Zevlor. The constraint is written by the card as the copies are created,
+       not by CR 601.2c as one spell is announced, so it is
+       `copy-effects-architecture.md`'s and not this one's.
+
+     **Reachability (2026-09-17):** unreachable — none of the 21 is registered,
+     and both axes need a facility that does not exist yet (modes, spell
+     copying). Recorded together because the three axes are one idea, and sizing
+     any of them alone would miss that the expression they want is shared.
+
+     **Sized:** the modal axis is item 154's ~60 lines (move the exclusion from
+     the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
+     carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

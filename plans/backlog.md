@@ -1076,11 +1076,19 @@ mechanic rather than a migration, which is why it is here and not in
 - **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
   is a `Vec<TargetInstance>`, `targeting::effect_instances` walks an effect's
   clauses in printed order, `EffectRecipient::SameInstanceAs` is how a later atom
-  refers back to one — by the clause's position in that list, and `resolve_effect` hands each atom its own instance as a
-  flat slice. CR 601.2c announces one clause at a time;
+  refers back to one — by the clause's position in that list — and
+  `resolve_effect` hands each atom its own instance as a flat slice.
   `ObjectFilter::OtherThanInstance` is "another target"; CR 608.2b is asked per
   instance *and* per target, so a spell resolves unless every target is illegal
-  and an illegal one is simply not affected. Six of the eight atoms are covered;
+  and an illegal one is simply not affected.
+- **The announcement order is the engine's, not the rule's.** CR 601.2c fixes no
+  order and does not say whether the choices are simultaneous; the loop asks one
+  clause at a time because `OtherThanInstance` needs the earlier answers. The two
+  are outcome-equivalent — every assignment a simultaneous announcement allows is
+  reachable in index order, and the loop cannot produce one it forbids — until
+  601.2c's *"must be chosen as a target … the maximum possible number"* lands,
+  which is a global optimum a greedy loop cannot see. `codebase-state.md` item
+  157. Six of the eight atoms are covered;
   the consumers are Seeds of Strength (pooled), Incremental Growth, Jagged
   Lightning, Plague Spores and Seat of the Synod. The A/B was `IDENTICAL` on
   `performance` and found a live bug on `stress` (`codebase-state.md` item 152).
