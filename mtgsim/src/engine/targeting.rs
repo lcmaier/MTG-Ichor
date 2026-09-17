@@ -39,64 +39,102 @@ impl TargetInstance {
 
 /// What each instance of "target" holds, indexed by the instance.
 ///
-/// A named type rather than a bare nesting because **exactly one place indexes
-/// it** — `resolve_effect`'s walk, which hands each atom its own instance as a
-/// flat slice. Every reader downstream of that sees `&[ResolvedTarget]` and
-/// cannot reach a neighboring instance's targets by accident.
+/// **A flat buffer and a prefix sum, not a nesting.** `flat` is every
+/// instance's targets concatenated in instance order; `bounds[i]` is where
+/// instance `i` starts, with a trailing sentinel so `bounds.len()` is one more
+/// than the instance count and the last instance needs no special case. Two
+/// allocations however many instances there are, where a `Vec<Vec<_>>` is one
+/// per instance plus one; and `all()` is the buffer rather than a `flatten`.
+///
+/// Starts rather than lengths, because the alternative that also fits —
+/// `Vec<Range<u32>>` — can represent ranges that are out of order or leave
+/// gaps, and this type should not be able to say that. Contiguity is structural
+/// here rather than an invariant somebody maintains.
+///
+/// **Exactly one place indexes it**: `resolve_effect`'s walk, which hands each
+/// atom its own instance as a flat slice. Every reader downstream sees
+/// `&[ResolvedTarget]` and cannot reach a neighboring instance's targets by
+/// accident.
 ///
 /// Distinct from `StackEntry::chosen_targets`, and the difference is CR 608.2b:
 /// the entry holds the **announcement**, clause and all, so the re-check can
 /// ask the same question; this holds the **survivors** of that re-check. One
 /// type for both is how a filtered list leaks back into the thing it was
 /// filtered from.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ChosenTargets(Vec<Vec<ResolvedTarget>>);
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChosenTargets {
+    /// Every instance's targets, concatenated in instance order.
+    flat: Vec<ResolvedTarget>,
+    /// Where each instance starts in `flat`, plus the trailing sentinel.
+    /// Invariant: non-empty, non-decreasing, and its last element is
+    /// `flat.len()`.
+    bounds: Vec<u32>,
+}
+
+impl Default for ChosenTargets {
+    fn default() -> Self {
+        ChosenTargets { flat: Vec::new(), bounds: vec![0] }
+    }
+}
 
 impl ChosenTargets {
     /// **No instances at all** — not an empty list of them. A mana ability's
     /// resolution, a CR 615.5 rider that names nothing, or a filter asked
     /// outside CR 601.2c's loop. `EMPTY` read as "it could be full", which is
     /// not a thing a targetless effect can be.
-    pub const NONE: ChosenTargets = ChosenTargets(Vec::new());
+    pub const NONE: ChosenTargets = ChosenTargets { flat: Vec::new(), bounds: Vec::new() };
 
     /// The single-instance spelling, which is every spell the engine could
     /// cast before CR 601.2c's loop existed and most of them afterwards.
     pub fn one(targets: Vec<ResolvedTarget>) -> Self {
-        ChosenTargets(vec![targets])
+        let n = targets.len() as u32;
+        ChosenTargets { flat: targets, bounds: vec![0, n] }
     }
 
     /// What instance `ix` holds. An out-of-range instance holds nothing rather
     /// than panicking: an atom whose declaring instance found no legal target
     /// is CR 608.2b's unaffected one, not a crash.
     pub fn instance(&self, ix: usize) -> &[ResolvedTarget] {
-        self.0.get(ix).map_or(&[], |v| v.as_slice())
+        match (self.bounds.get(ix), self.bounds.get(ix + 1)) {
+            (Some(&from), Some(&to)) => &self.flat[from as usize..to as usize],
+            _ => &[],
+        }
     }
 
     /// Every target of every instance, in instance order. CR 608.2b's "all its
     /// targets" is asked of this.
-    pub fn all(&self) -> impl Iterator<Item = &ResolvedTarget> {
-        self.0.iter().flatten()
+    pub fn all(&self) -> &[ResolvedTarget] {
+        &self.flat
     }
 
+    /// How many instances of "target" this holds — never how many targets.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.bounds.len().saturating_sub(1)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.len() == 0
     }
 
     /// Append the next instance's choice. CR 601.2c announces in printed
     /// order, and `ObjectFilter::OtherThanInstance` reads the ones already
     /// pushed, so the order is load-bearing rather than incidental.
-    pub fn push(&mut self, targets: Vec<ResolvedTarget>) {
-        self.0.push(targets);
+    pub fn push(&mut self, targets: impl IntoIterator<Item = ResolvedTarget>) {
+        if self.bounds.is_empty() {
+            self.bounds.push(0);
+        }
+        self.flat.extend(targets);
+        self.bounds.push(self.flat.len() as u32);
     }
 }
 
-impl FromIterator<Vec<ResolvedTarget>> for ChosenTargets {
-    fn from_iter<I: IntoIterator<Item = Vec<ResolvedTarget>>>(iter: I) -> Self {
-        ChosenTargets(iter.into_iter().collect())
+impl<I: IntoIterator<Item = ResolvedTarget>> FromIterator<I> for ChosenTargets {
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        let mut out = ChosenTargets::default();
+        for instance in iter {
+            out.push(instance);
+        }
+        out
     }
 }
 
@@ -184,6 +222,45 @@ pub fn clause_reads_earlier_instances(recipient: &EffectRecipient) -> bool {
     }
 }
 
+/// What the announced instances look like to `ObjectFilter::OtherThanInstance`,
+/// without copying them.
+///
+/// Two shapes answer the same question. Inside CR 601.2c's loop the earlier
+/// choices are a [`ChosenTargets`] being built; inside CR 608.2b's re-check
+/// they are the `&[TargetInstance]` already sitting on the `StackEntry`, and
+/// collecting *that* into a `ChosenTargets` was a whole copy of the
+/// announcement per resolution to serve one by-index read.
+///
+/// An enum rather than a trait object because both arms are known here, it
+/// stays `Copy`, and `NONE` needs no promoted static.
+#[derive(Clone, Copy)]
+pub enum EarlierTargets<'a> {
+    /// Outside both, where the leaf is refused rather than answered.
+    None,
+    /// CR 601.2c's loop: the instances announced so far.
+    Chosen(&'a ChosenTargets),
+    /// CR 608.2b's re-check: the announcement on the entry, borrowed.
+    Announced(&'a [TargetInstance]),
+}
+
+impl EarlierTargets<'_> {
+    fn len(&self) -> usize {
+        match self {
+            EarlierTargets::None => 0,
+            EarlierTargets::Chosen(c) => c.len(),
+            EarlierTargets::Announced(i) => i.len(),
+        }
+    }
+
+    fn instance(&self, ix: usize) -> &[ResolvedTarget] {
+        match self {
+            EarlierTargets::None => &[],
+            EarlierTargets::Chosen(c) => c.instance(ix),
+            EarlierTargets::Announced(i) => i.get(ix).map_or(&[], |inst| inst.chosen.as_slice()),
+        }
+    }
+}
+
 /// The two facts a filter leaf may need that are **not characteristics**, so
 /// that no layer can change them and no frame answers them.
 ///
@@ -199,16 +276,16 @@ pub(crate) struct FilterIdentity<'a> {
     /// answered.
     pub source: Option<ObjectId>,
     /// The instances of "target" announced before this one, which
-    /// [`ObjectFilter::OtherThanInstance`] reads. Empty outside CR 601.2c's
+    /// [`ObjectFilter::OtherThanInstance`] reads. `None` outside CR 601.2c's
     /// loop and CR 608.2b's re-check, where that leaf is likewise refused.
-    pub earlier_targets: &'a ChosenTargets,
+    pub earlier_targets: EarlierTargets<'a>,
 }
 
 impl FilterIdentity<'static> {
     /// Neither fact is available — a plain selection or a look-ahead frame.
     pub const NONE: FilterIdentity<'static> = FilterIdentity {
         source: None,
-        earlier_targets: &ChosenTargets::NONE,
+        earlier_targets: EarlierTargets::None,
     };
 }
 
@@ -309,7 +386,12 @@ impl GameState {
                     }
                 }
                 for t in targets {
-                    self.validate_selection(filter, t, you, earlier_targets)?;
+                    self.validate_selection(
+                        filter,
+                        t,
+                        you,
+                        EarlierTargets::Chosen(earlier_targets),
+                    )?;
                 }
                 Ok(())
             }
@@ -351,7 +433,7 @@ impl GameState {
         filter: &SelectionFilter,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier_targets: &ChosenTargets,
+        earlier_targets: EarlierTargets<'_>,
     ) -> Result<(), String> {
         match filter {
             SelectionFilter::Creature => self.validate_creature_target(target),
@@ -472,7 +554,7 @@ impl GameState {
         target: &ResolvedTarget,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier_targets: &ChosenTargets,
+        earlier_targets: EarlierTargets<'_>,
     ) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
@@ -563,7 +645,7 @@ impl GameState {
         id: ObjectId,
         filter: &ObjectFilter,
         you: PlayerId,
-        earlier_targets: &ChosenTargets,
+        earlier_targets: EarlierTargets<'_>,
     ) -> Result<bool, String> {
         self.get_object(id)?;
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
@@ -602,7 +684,7 @@ impl GameState {
     ) -> Result<bool, String> {
         let frame: std::cell::OnceCell<Option<std::sync::Arc<EffectiveCharacteristics>>> =
             std::cell::OnceCell::new();
-        let identity = FilterIdentity { source: Some(source), earlier_targets: &ChosenTargets::NONE };
+        let identity = FilterIdentity { source: Some(source), earlier_targets: EarlierTargets::None };
         self.object_matches_filter_with(id, filter, you, identity, &|| match chars {
             Some(chars) => Ok(chars),
             None => frame
@@ -786,39 +868,34 @@ impl GameState {
         // the *announcement*; the objects have not changed, so it stays
         // satisfied, and re-asking it against a half-filtered list would make
         // one instance's fizzle silently legalize another's.
-        let announced_targets: ChosenTargets =
-            instances.iter().map(|inst| inst.chosen.clone()).collect();
-
-        let survivors: ChosenTargets = instances
-            .iter()
-            .map(|inst| {
-                if !inst.is_targeted() {
-                    return inst.chosen.clone();
-                }
-                inst.chosen
-                    .iter()
-                    .filter(|t| {
-                        self.is_single_target_legal(&inst.recipient, t, you, &announced_targets)
-                    })
-                    .copied()
-                    .collect()
-            })
-            .collect();
+        //
+        // Borrowed from the entry rather than copied: the announcement is
+        // already `instances`, and the only thing the leaf needs of it is a
+        // by-index read.
+        let announced_targets = EarlierTargets::Announced(instances);
 
         // CR 115.6 — "a spell or ability that requires targets may allow zero
         // targets to be chosen … that spell or ability is targeted only if one
         // or more targets have been chosen for it." An `UpTo` clause the player
         // took nothing for leaves nothing for 608.2b to find illegal, so it
         // cannot be what makes the spell fail to resolve.
-        let announced = instances
-            .iter()
-            .filter(|inst| inst.is_targeted())
-            .any(|inst| !inst.chosen.is_empty());
-        let survived = instances
-            .iter()
-            .enumerate()
-            .filter(|(_, inst)| inst.is_targeted())
-            .any(|(ix, _)| !survivors.instance(ix).is_empty());
+        let mut announced = false;
+        let mut survived = false;
+        let mut survivors = ChosenTargets::default();
+        for inst in instances {
+            if !inst.is_targeted() {
+                // A `Choose` does not fizzle and is not re-checked, so it is
+                // carried through whole.
+                survivors.push(inst.chosen.iter().copied());
+                continue;
+            }
+            announced |= !inst.chosen.is_empty();
+            let before = survivors.all().len();
+            survivors.push(inst.chosen.iter().copied().filter(|t| {
+                self.is_single_target_legal(&inst.recipient, t, you, announced_targets)
+            }));
+            survived |= survivors.all().len() > before;
+        }
 
         if announced && !survived {
             return None;
@@ -867,7 +944,7 @@ impl GameState {
         exclude_id: Option<ObjectId>,
         you: PlayerId,
         n: usize,
-        earlier_targets: &ChosenTargets,
+        earlier_targets: EarlierTargets<'_>,
     ) -> bool {
         if n == 0 {
             return true;
@@ -948,7 +1025,7 @@ impl GameState {
         recipient: &EffectRecipient,
         target: &ResolvedTarget,
         you: PlayerId,
-        earlier_targets: &ChosenTargets,
+        earlier_targets: EarlierTargets<'_>,
     ) -> bool {
         match recipient {
             EffectRecipient::Target(filter, _) => {

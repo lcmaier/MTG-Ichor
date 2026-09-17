@@ -454,25 +454,30 @@ fn every_instance_has_a_choice(
             | EffectRecipient::Choose(f, TargetCount::Exactly(n)) = recipient
         {
             let n = *n as usize;
-            if !game.has_legal_choices(f, None, player_id, n, &earlier_targets) {
-                return false;
-            }
-            // The enumeration is a static over-approximation, so what it feeds
-            // forward is too: what matters to the next instance is *how many*
-            // this one will take, and any n distinct legal choices exclude the
-            // same number. Taking none would make an "another target" chain
-            // claim it can always be satisfied.
+            let view = crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets);
+            // **One pass, not two.** When a later clause reads this one, the
+            // check and the feed-forward want the same scan: `n` candidates, or
+            // the knowledge that there are not `n`. A bounded enumeration
+            // answers both, and stops where `has_legal_choices` would have.
             //
-            // Only while something later still reads it. `UpTo` never gets
-            // here: choosing zero targets is legal (CR 115.6), so it neither
-            // fails the cast nor constrains what follows.
+            // What it feeds forward is a static over-approximation, like the
+            // check itself: what matters to the next clause is *how many* this
+            // one will take, and any `n` distinct legal choices exclude the same
+            // number. Feeding nothing would let an "another target" chain claim
+            // it can always be satisfied.
+            //
+            // `UpTo` never reaches here: choosing zero targets is legal
+            // (CR 115.6), so it neither fails the cast nor constrains what
+            // follows.
             if feed_until.is_some_and(|last| ix < last) {
-                feed = crate::oracle::legality::enumerate_legal_selections_excluding(
-                    game, f, None, player_id, &earlier_targets,
-                )
-                .into_iter()
-                .take(n)
-                .collect();
+                feed = crate::oracle::legality::enumerate_legal_selections_upto(
+                    game, f, None, player_id, view, n,
+                );
+                if feed.len() < n {
+                    return false;
+                }
+            } else if !game.has_legal_choices(f, None, player_id, n, view) {
+                return false;
             }
         }
         earlier_targets.push(feed);

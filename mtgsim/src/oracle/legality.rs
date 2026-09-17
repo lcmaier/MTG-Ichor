@@ -176,7 +176,7 @@ pub fn enumerate_legal_selections(
         filter,
         exclude_id,
         you,
-        &crate::engine::targeting::ChosenTargets::NONE,
+        crate::engine::targeting::EarlierTargets::None,
     )
 }
 
@@ -193,23 +193,62 @@ pub fn enumerate_legal_selections_excluding(
     filter: &crate::types::effects::SelectionFilter,
     exclude_id: Option<ObjectId>,
     you: PlayerId,
-    earlier_targets: &crate::engine::targeting::ChosenTargets,
+    earlier_targets: crate::engine::targeting::EarlierTargets<'_>,
+) -> Vec<crate::engine::resolve::ResolvedTarget> {
+    enumerate_legal_selections_upto(game, filter, exclude_id, you, earlier_targets, usize::MAX)
+}
+
+/// [`enumerate_legal_selections_excluding`] that stops once it has `limit`.
+///
+/// **For a caller that wants candidates rather than the candidate list.**
+/// CR 601.2c's castability check needs to know that `n` legal choices exist and,
+/// when a later clause excludes them, *which* `n` — and nothing about the rest.
+/// Enumerating the whole battlefield to keep the first three is a
+/// `validate_selection` per extra permanent, and each of those is a layer walk.
+///
+/// The bound is what lets the check and the feed-forward be one pass: a caller
+/// that asks for `n` and gets fewer than `n` back has its answer, and a caller
+/// that gets `n` back has the list it needed. `usize::MAX` is the unbounded
+/// spelling, which is what a `DecisionProvider`'s option list wants.
+pub fn enumerate_legal_selections_upto(
+    game: &GameState,
+    filter: &crate::types::effects::SelectionFilter,
+    exclude_id: Option<ObjectId>,
+    you: PlayerId,
+    earlier_targets: crate::engine::targeting::EarlierTargets<'_>,
+    limit: usize,
 ) -> Vec<crate::engine::resolve::ResolvedTarget> {
     use crate::engine::resolve::ResolvedTarget;
     use crate::types::effects::SelectionFilter;
 
     let mut selections = Vec::new();
+    if limit == 0 {
+        return selections;
+    }
+
+    // Every arm below pushes in the order the arm documents, so the cap keeps
+    // the *first* `limit` candidates rather than an arbitrary `limit` of them —
+    // which is what makes a bounded enumeration process-independent in the same
+    // way the unbounded one is.
+    macro_rules! push {
+        ($sel:expr) => {{
+            selections.push($sel);
+            if selections.len() >= limit {
+                return selections;
+            }
+        }};
+    }
 
     match filter {
         SelectionFilter::Player => {
             for pid in 0..game.num_players() {
-                selections.push(ResolvedTarget::Player(pid));
+                push!(ResolvedTarget::Player(pid));
             }
         }
         SelectionFilter::Any => {
             // Players
             for pid in 0..game.num_players() {
-                selections.push(ResolvedTarget::Player(pid));
+                push!(ResolvedTarget::Player(pid));
             }
             // Creatures and planeswalkers on battlefield
             for id in game.battlefield_ids_ordered() {
@@ -218,7 +257,7 @@ pub fn enumerate_legal_selections_excluding(
                 }
                 let candidate = ResolvedTarget::Object(id);
                 if game.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
-                    selections.push(candidate);
+                    push!(candidate);
                 }
             }
         }
@@ -227,7 +266,7 @@ pub fn enumerate_legal_selections_excluding(
                 if Some(id) == exclude_id {
                     continue;
                 }
-                selections.push(ResolvedTarget::Object(id));
+                push!(ResolvedTarget::Object(id));
             }
         }
         // CR 609.7a — permanents first, then spells on the stack. Both halves
@@ -244,14 +283,14 @@ pub fn enumerate_legal_selections_excluding(
                 if Some(id) == exclude_id {
                     continue;
                 }
-                selections.push(ResolvedTarget::Object(id));
+                push!(ResolvedTarget::Object(id));
             }
             for &id in &game.stack {
                 if Some(id) == exclude_id {
                     continue;
                 }
                 if game.stack_entries.get(&id).is_some_and(|e| e.is_spell) {
-                    selections.push(ResolvedTarget::Object(id));
+                    push!(ResolvedTarget::Object(id));
                 }
             }
         }
@@ -263,7 +302,7 @@ pub fn enumerate_legal_selections_excluding(
                 }
                 let candidate = ResolvedTarget::Object(id);
                 if game.validate_selection(filter, &candidate, you, earlier_targets).is_ok() {
-                    selections.push(candidate);
+                    push!(candidate);
                 }
             }
         }
@@ -274,7 +313,7 @@ pub fn enumerate_legal_selections_excluding(
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::targeting::ChosenTargets;
+    use crate::engine::targeting::EarlierTargets;
     use crate::types::replacement::EnterMods;
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
@@ -539,20 +578,20 @@ mod tests {
         // both directions: everything offered validates, and the card in hand
         // does not.
         for choice in &legal {
-            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, &ChosenTargets::NONE).is_ok());
+            assert!(game.validate_selection(&SelectionFilter::DamageSource, choice, 0, EarlierTargets::None).is_ok());
         }
         assert!(game
             .validate_selection(
                 &SelectionFilter::DamageSource,
                 &ResolvedTarget::Object(in_hand),
                 0,
-                &ChosenTargets::NONE,
+                EarlierTargets::None,
             )
             .is_err());
         assert!(game
-            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, &ChosenTargets::NONE)
+            .validate_selection(&SelectionFilter::DamageSource, &ResolvedTarget::Player(0), 0, EarlierTargets::None)
             .is_err());
-        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, &ChosenTargets::NONE));
+        assert!(game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, EarlierTargets::None));
     }
 
     // The board with nothing on it: no permanent, no spell, so CR 101.3's
@@ -565,6 +604,6 @@ mod tests {
         let game = setup_two_player_game();
         assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
             .is_empty());
-        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, &ChosenTargets::NONE));
+        assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, EarlierTargets::None));
     }
 }

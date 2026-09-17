@@ -352,7 +352,7 @@ impl GameState {
                                     filter,
                                     &candidate,
                                     you,
-                                    &crate::engine::targeting::ChosenTargets::NONE,
+                                    crate::engine::targeting::EarlierTargets::None,
                                 )
                                 .is_err()
                             {

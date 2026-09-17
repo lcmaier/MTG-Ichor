@@ -209,11 +209,22 @@ the object being cast or activated, not an Aura. The Aura case it was named for
 chosen, and an enchant filter is a `Permanent` filter, so `require_on_battlefield`
 rejects it before `exclude_id` is consulted. Where the parameter actually bites
 is the stack-reading filters — `Spell` (a Counterspell offered itself) and
-`DamageSource`.
+`DamageSource`. Both comments are corrected; doc only, no behaviour.
 
-Both source comments are corrected in this pass; it is a doc fix with no
-behaviour. And it strengthens the fold: `exclude_id` is a **rule**, not a quirk,
-so it belongs in the struct that holds the rules a filter reads off ids.
+**But the fold itself was wrong, and building it is what showed why.**
+`FilterIdentity` is read by `object_matches_filter_with` and by nothing else —
+and the arms where `exclude_id` actually bites, `Spell` and `DamageSource`, never
+call it. They have no `ObjectFilter` to walk at all; they answer membership
+questions directly. Folding `exclude_id` into `FilterIdentity` would move CR
+115.5 into a leaf those two arms cannot reach, which is a regression wearing a
+tidier signature.
+
+So `exclude_id` stays where it is — applied in the enumeration, uniformly,
+whatever the filter's shape — and what it needed was a name for its rule, which
+it now has. **`FilterIdentity` is left holding one fact plus the announcement
+view**, and it keeps its shape for the reason it was written: a filter leaf that
+asks about identity rather than a characteristic has one place to read from.
+**Resolved as "will not do", with the reason recorded.**
 
 ---
 

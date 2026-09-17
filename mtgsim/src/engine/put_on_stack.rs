@@ -310,7 +310,11 @@ impl GameState {
                 ));
             };
             let legal = enumerate_legal_selections_excluding(
-                self, filter, Some(source_id), player_id, &earlier_targets,
+                self,
+                filter,
+                Some(source_id),
+                player_id,
+                crate::engine::targeting::EarlierTargets::Chosen(&earlier_targets),
             );
             let (min_sel, max_sel) = match count {
                 crate::types::effects::TargetCount::Exactly(n) => (*n as usize, *n as usize),
