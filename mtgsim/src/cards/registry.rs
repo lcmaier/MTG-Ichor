@@ -50,7 +50,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 90] = [
+const PERFORMANCE_POOL: [&str; 91] = [
     "Plains",
     "Island",
     "Swamp",
@@ -414,6 +414,17 @@ const PERFORMANCE_POOL: [&str; 90] = [
     // opens, which no permanent can measure. Nexus of Fate stays out for
     // Time Walk's reason: an extra turn moves `Avg turns/game` by design.
     "Darksteel Colossus",
+    // The pool's spell with **several instances of the word "target"**
+    // (CR 601.2c, A4i) — the announcement loop, the CR 608.2b re-check per
+    // instance, and the per-instance castability gate, in a measured game
+    // rather than only in a fixture. Three clauses, identical criteria, so a
+    // random agent that can reach one creature reaches all three of them and a
+    // board with several makes each announcement a real prompt. Two mana and
+    // two colours the pool's duals cover, so a random deck can cast it;
+    // Incremental Growth, Jagged Lightning and Plague Spores stay out — the
+    // first two walk this same loop and the third wants a board a random game
+    // does not assemble.
+    "Seeds of Strength",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
