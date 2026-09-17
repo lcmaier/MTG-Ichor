@@ -90,6 +90,40 @@ Seeds of Strength **cast 190, resolved 188, in 124 of 200 games (62%)**, and
 the two that did not resolve are CR 608.2b. `stress`, 166 cards: 0 errors,
 0 panics, 0 turn-limit hits.
 
+**The review's round, 2026-09-17** (themes A, B, C, F of
+`plans/handoffs/a4i-review.md`). **No pool change** — `performance` 91 and
+`stress` 166, as the block above left them, so these columns are comparable to
+it. Two arms: **preC** (c731e55, A4i as reviewed) and **postC** (3ea4cb5, the
+flat `ChosenTargets`, the one-pass `surviving_targets`, and the bounded
+castability enumeration). Theme A's renames sit between them and are
+behaviour-free.
+
+| | postC vs preC |
+|---|---|
+| every counter, `performance`, 200 games | **IDENTICAL** |
+| every gameplay counter, `stress`, 200 games | **IDENTICAL** |
+| `Memo hits`, `stress` | **71,580 → 71,469, −0.16%** |
+| `µs / decision`, `performance` | 29.3 → 29.0, **−1.1%** |
+| CPU/game median, `performance` | 6.54 → 6.47 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+**The only counter that moved is the one the change was about, and it moved
+down.** Same games, same turns, same decisions, fewer memoized layer queries:
+the castability check's feed-forward used to enumerate every legal candidate and
+keep the first `n`, and now stops at `n`. It runs only for a clause that a later
+clause excludes — the "another target" family — which today is Incremental
+Growth alone, registered and unpooled, hence `performance` `IDENTICAL` and
+`stress` down a little.
+
+**Attributed rather than assumed.** With `--require "Incremental Growth"`
+putting the card in every deck, the same gap is **71,184 → 70,593, −0.83%** —
+five times wider, which is what a per-card effect does when the card goes from
+a third of games to all of them.
+
+It is the mirror image of the +3.5% the first sitting found: that was the
+feed-forward running where nothing read it, this is the same loop no longer
+reading more than it needs.
+
 **Re-recorded 2026-09-16 for A4h** (the retry re-ask's stale list —
 `codebase-state.md` item 139, closed, and item 150 beside it; item 41's fork
 test). **No pool change**: `performance` 90 and `stress` 161, as A4g left

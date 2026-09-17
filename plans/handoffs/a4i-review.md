@@ -5,12 +5,20 @@ The owner's review of [PR #161](https://github.com/lcmaier/MTG-Ichor/pull/161),
 Sixteen comments, seven themes. **Close one theme per session, starting cold
 from this file**; delete the file in the PR that lands the last one.
 
-Nothing here is merged into the PR yet. Two themes (A, F) are pre-merge in my
-reading; the rest are follow-ups, and the owner decides.
+**Closed before merge, at the owner's direction (2026-09-17): A, B, C and F.**
+The owner's call on C was explicit — *"I don't want to ship the double vec even
+as a placeholder"* — so the representation landed in this PR rather than after
+it. What is left open is **E** (choice versus target: the survey, and whether a
+non-targeting `Choose` belongs in the announcement at all), which wants a
+`backlog.md` entry rather than a fix, and **D**'s sibling questions that became
+`codebase-state.md` items 157 and 158.
+
+Each theme below ends with what actually happened, including the one item that
+was **withdrawn because building it showed it was wrong**.
 
 ---
 
-## A — Naming and legibility · *pre-merge, mechanical*
+## A — Naming and legibility · ✅ **closed cc1b4d9**
 
 | # | Site | Finding |
 |---|---|---|
@@ -22,7 +30,7 @@ reading; the rest are follow-ups, and the owner decides.
 
 ---
 
-## B — The rule, stated correctly · *pre-merge for the prose, design for the rest*
+## B — The rule, stated correctly · ✅ **closed 615fd48** (prose + items 157, 158; the solver itself is item 157's, unscheduled)
 
 **Finding (#2, `backlog.md:1080`).** "CR 601.2c announces one clause at a time"
 is a claim about the engine, not about the rule. The rule says only *"The player
@@ -128,7 +136,7 @@ from that one*": **8 + 13 + the A4i family**, three axes, one missing expression
 
 ---
 
-## C — Representation and cost · *follow-up, one PR*
+## C — Representation and cost · ✅ **closed 3ea4cb5**, A/B in `fuzz-record.md` (three of four items; the fourth withdrawn, below)
 
 **#9 — the nested `Vec` is still there.** The last round moved the nesting behind
 a name and made exactly one site index it, which fixed the *indexing* smell and
@@ -228,7 +236,7 @@ asks about identity rather than a characteristic has one place to read from.
 
 ---
 
-## D — Coverage · *pre-merge, small*
+## D — Coverage · ✅ **closed c731e55**
 
 **#16 — the n−1 boundary is untested.** Incremental Growth's tests cover **1 of
 3** illegal (`..._still_counters_the_creatures_that_are_left`) and **3 of 3**
@@ -250,7 +258,7 @@ different subjects, which is what A4i made reachable.
 
 ---
 
-## E — Choice versus target · *design, then a backlog entry*
+## E — Choice versus target · ⏳ **open** — wants a `backlog.md` entry, not a fix
 
 **#8.** `spell_instances` returns whatever the card declares. For a **cast** Aura
 that is `Target` (CR 303.4c — an Aura spell targets); `EffectRecipient::Choose`
@@ -283,7 +291,7 @@ is shaped like.
 
 ---
 
-## F — Enforce the broken string categorically · *pre-merge; it is a gate*
+## F — Enforce the broken string categorically · ✅ **closed 22a7d6f** — and it was thirty scars, not seven
 
 **#7.** Two strings in this PR are corrupted the same way — a `\`-newline
 continuation that became a run of literal spaces, because the script that wrote
@@ -305,7 +313,7 @@ exempting the label-to-placeholder shape. Fix the seven. ~60 lines.
 
 ---
 
-## G — Comprehension, answered · *the trace page is the artifact*
+## G — Comprehension, answered · ✅ **trace page written**
 
 **#6 — why `resolve_effect` needs a cursor.** An atom's recipient says what
 *kind* of clause it is, never *which one*: Seeds of Strength's three atoms carry
