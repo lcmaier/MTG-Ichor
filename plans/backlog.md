@@ -1031,7 +1031,48 @@ mechanic rather than a migration, which is why it is here and not in
 
 ---
 
-### 2.21 Can a client render what it is being asked? — the decision boundary's other half
+### 2.21 Can a client render what it is being asked? — **shipped 2026-09-18 (A4j)**
+
+- **What shipped.** `ChoiceKind::subject() -> Option<ObjectId>` and
+  `ChoiceKind::describe() -> PromptText` — a CR rule number as the stable
+  handle plus one rendered line naming objects by id — both matched without
+  a wildcard, so a new variant cannot compile without deciding which object
+  it is about and what a client shows. `tests/prompt_subject_test.rs` walks
+  whole games at two seats and four, each deck a different window of the
+  registry, and checks every prompt raised: a subject or a declared `None`,
+  the line naming its subject, the rule present in `tmnt.txt`; a second test
+  builds one of each variant for the prompts no registered card raises.
+  `ui/cli.rs` renders `describe()` and lost its four bespoke matches.
+- **The gap, counted against the tree.** 18 of 25 variants carried an
+  `ObjectId` under five field names, which is why the contract is a method
+  and not a name. Three carried none and gained it: `ChooseAlternativeCost`
+  and `ChooseAdditionalCosts` were bare unit variants, so a client could not
+  tell which spell was asking, and `GenericManaAllocation` carried a
+  `ManaCost` and no id. **`LegendRule` was counted as the fourth and is not
+  one.** CR 704.5j singles out no member of the group; the options are the
+  whole subject, and a highlighted member would misstate the rule — it is
+  the fourth legitimate `None` beside `PriorityAction`, `DeclareAttackers`
+  and `DeclareBlockers`. Two more are runtime rather than shape:
+  `Discard { source: None }` is CR 514.1's cleanup discard, which the test
+  allows in that step only, and `ChooseReplacementEffect { affected_object:
+  None }` is an event about the choosing player. `Option<ObjectId>` held;
+  nothing argued for a richer `PromptSubject`.
+- **Found on the way.** `ChooseCopySource`'s doc cited CR 707.4, which in
+  the baseline is a copying permanent changing what it copies; Cytoshape's
+  choice is CR 608.2d's, announced while applying the effect. The handle
+  and the doc say so now, and the test's rule check is what would have
+  caught the next one.
+- **Not started here, on purpose.** `SelectRecipients` still carries an
+  `EffectRecipient`; item 141's payload rule is the incoming contract for
+  new arms, and retiring the AST there is its own piece.
+- **The check.** Every gameplay counter `IDENTICAL` on both pools at two
+  seats and four, `Memo hits` included — the row adds two methods and fills
+  three payloads, and decides nothing.
+- **The rest of this entry is the record as it was sized.** One name in it
+  had gone stale by the time the row ran and is corrected in place:
+  `DiscardToHandSize` is `Discard { source: None }`.
+
+#### 2.21 as sized (2026-09-08)
 
 - **Rules** — none. This is an engine-interface question, not a CR one, which
   is why it needs writing down: nothing in the CR will fail if we get it wrong.
@@ -1057,7 +1098,7 @@ mechanic rather than a migration, which is why it is here and not in
   every `ChoiceKind` answers, matched exhaustively so a new variant must
   decide, plus a test that walks a game and asserts every prompt raised carries
   one. The variants that legitimately have no subject — `PriorityAction`,
-  `DiscardToHandSize` — say `None` and say why, which is the same discipline
+  `Discard { source: None }` — say `None` and say why, which is the same discipline
   `ZoneChangeCause`'s no-catchall rule uses. ~1 small PR.
 - **Blocks** — the GUI half of v1, quietly. Not a rules bug and not something
   the fuzz harness can find, because `RandomDecisionProvider` picks by index

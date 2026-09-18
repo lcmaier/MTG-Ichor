@@ -6783,10 +6783,12 @@ Commander-scale board closes item 69.
      observation from it through `backlog.md` §2.9's per-viewer query (§4
      consequence 3). Keeping it costs nothing, a reference; removing it is
      nine impls times four methods for no gain until that query exists.
-     **Decided: keep.** Two watch items ride with it — `roadmap-v2.md` §9's
-     trait shape (a new method serializes too) and `backlog.md` §2.21's rule
-     that every `ChoiceKind` carries its subject, which a wire format
-     enforces for free.
+     **Decided: keep.** One watch item rides with it — `roadmap-v2.md` §9's
+     trait shape (a new method serializes too). The other was `backlog.md`
+     §2.21's rule that every `ChoiceKind` carries its subject, and it is
+     enforced since A4j (2026-09-18): `subject()` and `describe()` match
+     without a wildcard and `tests/prompt_subject_test.rs` walks games, so a
+     wire format has nothing left to enforce there.
 
      **The payload rule (the owner's review of PR #153, 2026-09-15).** A
      `ChoiceKind` payload names things by id and by CR vocabulary — an
@@ -6825,9 +6827,14 @@ Commander-scale board closes item 69.
 
      **Reachability (2026-09-15):** unreachable — nothing serializes.
 
-     **Sized:** `subject()` and `describe()` matched exhaustively over the
-     25 variants, ~120 lines, plus §2.21's test that walks a game and
-     asserts every prompt renders — one small PR, any time; then
+     **Shipped 2026-09-18 (A4j):** `subject()` and `describe()` matched
+     exhaustively over the 25 variants, `PromptText { rule, text }` as the
+     rendering, `tests/prompt_subject_test.rs` walking games plus one
+     fixture per variant. Three payloads gained their id and `LegendRule`
+     did not — CR 704.5j names no member, `backlog.md` §2.21 has the
+     finding. The structured payload stays in-process as this item's shape
+     says; what a boundary adapter sends is the variant, the subject id,
+     the option ids and the rendering. **Sized:** what remains is
      `#[derive(Serialize, Deserialize)]` on the ids and the vocabulary
      enums the rendering leaves in the wire type, ~30 lines, with the
      harness's adapter (Phase 10); nothing before.
