@@ -10,6 +10,10 @@ edition = "2024"
 # lint on a std API newer than 1.88. A later syntax floor is not caught by
 # either — re-measure it when the pin moves.
 rust-version = "1.88"
+# The build script, under a name that does not read as `CardDataBuilder::build`:
+# it stamps the commit into the binary for the trace sink's header (see the
+# file's own doc). Cargo's default name is `build.rs`; this key is the rename.
+build = "stamp_commit.rs"
 
 [dependencies]
 rand = "0.9"

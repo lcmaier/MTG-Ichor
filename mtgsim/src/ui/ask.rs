@@ -34,7 +34,7 @@ use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
-use crate::state::trace::{render_debug, Record};
+use crate::engine::trace_records;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -134,7 +134,7 @@ fn validate_pick_n(
     ctx: &ChoiceContext,
 ) {
     game.trace(|| {
-        let mut r = decision_record("pick_n", player, ctx, options);
+        let mut r = trace_records::decision("pick_n", player, ctx, options);
         r.field_u64s("bounds", &[bounds.0 as u64, bounds.1 as u64]);
         r.field_usizes("answer", indices);
         r
@@ -204,7 +204,7 @@ fn validate_pick_number(
     ctx: &ChoiceContext,
 ) {
     game.trace(|| {
-        let mut r = decision_record("pick_number", player, ctx, &[]);
+        let mut r = trace_records::decision("pick_number", player, ctx, &[]);
         r.field_u64("min", min);
         r.field_u64("max", max);
         r.field_u64("answer", value);
@@ -250,7 +250,7 @@ fn validate_allocation(
     ctx: &ChoiceContext,
 ) {
     game.trace(|| {
-        let mut r = decision_record("allocate", player, ctx, buckets);
+        let mut r = trace_records::decision("allocate", player, ctx, buckets);
         r.field_u64("total", total);
         r.field_u64s("mins", per_bucket_mins);
         match per_bucket_maxs {
@@ -359,7 +359,7 @@ fn validate_ordering(
     ctx: &ChoiceContext,
 ) {
     game.trace(|| {
-        let mut r = decision_record("choose_ordering", player, ctx, items);
+        let mut r = trace_records::decision("choose_ordering", player, ctx, items);
         r.field_usizes("answer", order);
         r
     });
@@ -403,68 +403,6 @@ fn check_ordering(
     // Item 138's decision count: one item has one order.
     if items_len >= 2 {
         diagnostics.record_decision();
-    }
-}
-
-/// The prompt as the trace sink records it: who was asked, which primitive,
-/// which `ChoiceKind` (its variant name and its subject — item 141's payload
-/// rule, so a `SelectRecipients` does not drag its filter tree in) and the
-/// options by id. The caller adds the primitive's own bounds and the answer.
-fn decision_record(
-    prompt: &str,
-    player: PlayerId,
-    ctx: &ChoiceContext,
-    options: &[ChoiceOption],
-) -> Record {
-    let mut r = Record::new("decision");
-    r.field_u64("player", player as u64);
-    r.field_str("prompt", prompt);
-    r.field_str("choice", choice_kind_name(&ctx.kind));
-    r.field_opt_u64("subject", ctx.kind.subject().map(|o| o.raw()));
-    let rendered: Vec<String> = options.iter().map(render_option).collect();
-    r.field_strs("options", &rendered);
-    r
-}
-
-/// The variant's name alone — `SelectRecipients`, not its fields.
-fn choice_kind_name(kind: &ChoiceKind) -> &'static str {
-    match kind {
-        ChoiceKind::PriorityAction => "PriorityAction",
-        ChoiceKind::DeclareAttackers => "DeclareAttackers",
-        ChoiceKind::DeclareBlockers => "DeclareBlockers",
-        ChoiceKind::AssignCombatDamage { .. } => "AssignCombatDamage",
-        ChoiceKind::AssignTrampleDamage { .. } => "AssignTrampleDamage",
-        ChoiceKind::ChooseXValue { .. } => "ChooseXValue",
-        ChoiceKind::ChooseAlternativeCost { .. } => "ChooseAlternativeCost",
-        ChoiceKind::ChooseAdditionalCosts { .. } => "ChooseAdditionalCosts",
-        ChoiceKind::SelectRecipients { .. } => "SelectRecipients",
-        ChoiceKind::GenericManaAllocation { .. } => "GenericManaAllocation",
-        ChoiceKind::OrderCostReductions { .. } => "OrderCostReductions",
-        ChoiceKind::ManaAbilityWindow { .. } => "ManaAbilityWindow",
-        ChoiceKind::ChooseSacrificeForCost { .. } => "ChooseSacrificeForCost",
-        ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
-        ChoiceKind::ApplyOptionalReplacement { .. } => "ApplyOptionalReplacement",
-        ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
-        ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
-        ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",
-        ChoiceKind::ChooseAuxiliaryZoneChange { .. } => "ChooseAuxiliaryZoneChange",
-        ChoiceKind::ChooseCopySource { .. } => "ChooseCopySource",
-        ChoiceKind::CommanderToCommandZoneSba { .. } => "CommanderToCommandZoneSba",
-        ChoiceKind::Discard { .. } => "Discard",
-        ChoiceKind::Scry { .. } => "Scry",
-        ChoiceKind::ScryOrder { .. } => "ScryOrder",
-        ChoiceKind::LegendRule { .. } => "LegendRule",
-    }
-}
-
-/// One option as the record spells it: an object by `#id`, a player by
-/// `P<n>`, a priority action by its variant and id, the rest by `{:?}`.
-fn render_option(option: &ChoiceOption) -> String {
-    match option {
-        ChoiceOption::Object(id) => id.to_string(),
-        ChoiceOption::Player(p) => format!("P{}", p),
-        ChoiceOption::Action(a) => render_debug(a),
-        other => render_debug(other),
     }
 }
 

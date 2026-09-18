@@ -26,8 +26,9 @@
 //! record and every record it writes afterwards carries the new branch.
 //! **Not `serde`.** Main item 141 leaves the wire format to Phase 10, and a
 //! sink that pulled the dependency in first would decide it by accident; the
-//! handful of record kinds here are written by [`Record`], a builder that
-//! knows how to escape a string and separate fields.
+//! handful of record kinds are written by [`Record`], a builder that knows
+//! how to escape a string and separate fields; the records themselves are
+//! `engine::trace_records`, one function per kind.
 //!
 //! # The two traps, and where they are avoided
 //!
@@ -47,7 +48,7 @@ use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 
-/// The build's commit, baked in by `build.rs` so a trace says which engine
+/// The build's commit, baked in by `stamp_commit.rs` so a trace says which engine
 /// wrote it — the per-game header the two-version diff will key on.
 pub const COMMIT: &str = match option_env!("MTGSIM_COMMIT") {
     Some(c) => c,

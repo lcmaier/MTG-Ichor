@@ -1,5 +1,7 @@
-//! Bakes the build's commit into the binary as `MTGSIM_COMMIT`, which the
-//! trace sink writes into every trace's `game` header (`state::trace`). A
+//! The build script (`build = "stamp_commit.rs"` in Cargo.toml — named so it
+//! does not read as `CardDataBuilder::build`). It bakes the build's commit
+//! into the binary as `MTGSIM_COMMIT`, which the trace sink writes into every
+//! trace's `game` header (`state::trace`). A
 //! trace has to say which engine wrote it, and a two-version diff keys on
 //! that; nothing at runtime can answer it honestly, because the binary a
 //! sitting copies aside outlives the checkout it was built from.
@@ -32,7 +34,7 @@ fn main() {
     println!("cargo:rustc-env=MTGSIM_COMMIT={commit}");
 
     // The paths that change the answer: the tree, and the refs HEAD reads.
-    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=stamp_commit.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=tests");

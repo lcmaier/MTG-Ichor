@@ -788,6 +788,7 @@ impl GameState {
         inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
         use crate::engine::replacement::{apply_replacements, subject_of, EventSubject, Rider};
+        use crate::engine::trace_records;
 
         // CR 104.1 — "a game ends immediately". Asked at the chokepoint so every
         // proposal after the batch that ended the game stops at one line: the rest
@@ -863,30 +864,7 @@ impl GameState {
 
         // The trace sink's first emit point: the proposals as they entered,
         // and the subject groups CR 616.1 will decide them in.
-        self.trace(|| {
-            use crate::state::trace::{render_debug, Record};
-            let mut r = Record::new("batch");
-            r.field_opt_u64("batch", self.events.current_stamp().batch.map(|b| b.0));
-            r.field_u64("depth", self.batch_depth as u64);
-            r.field_u64("inherited", inherited.len() as u64);
-            r.key("members").begin_array();
-            for (i, action) in batch.iter().enumerate() {
-                r.begin_object();
-                r.field_u64("i", i as u64);
-                r.field_str("action", &render_debug(action));
-                r.end();
-            }
-            r.end();
-            r.key("groups").begin_array();
-            for (subject, members) in &groups {
-                r.begin_object();
-                r.field_str("subject", &render_debug(subject));
-                r.field_usizes("members", members);
-                r.end();
-            }
-            r.end();
-            r
-        });
+        self.trace(|| trace_records::batch(self, &batch, &groups, inherited.len()));
 
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
@@ -948,20 +926,7 @@ impl GameState {
             performed.push(action);
         }
         self.trace(|| {
-            use crate::state::trace::Record;
-            let mut r = Record::new("batch_end");
-            r.field_opt_u64("batch", self.events.current_stamp().batch.map(|b| b.0));
-            r.field_u64("depth", self.batch_depth as u64);
-            r.key("members").begin_array();
-            for (i, action) in decided_rendered.iter().flatten().enumerate() {
-                r.begin_object();
-                r.field_u64("i", i as u64);
-                r.field_opt_str("performed", action.as_deref());
-                r.end();
-            }
-            r.end();
-            r.field_u64("riders", riders.len() as u64);
-            r
+            trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
 
         // CR 104.2a / 104.4a are read off the batch, not off a member: two players

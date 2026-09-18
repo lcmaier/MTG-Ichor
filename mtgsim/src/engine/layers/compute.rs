@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::board::{compute_board, compute_board_to, membership, Board, Membership};
 use crate::engine::layers::lookahead::Lookahead;
+use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
 use crate::objects::card_data::CardData;
 use crate::state::game_state::GameState;
@@ -106,7 +107,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
         Membership::NonMember => {
             let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len())?);
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
-            trace_walk(game, id, "non_member", frames_before, &frame);
+            game.trace(|| trace_records::layer_walk(game, id, WalkKind::NonMember, frames_before, &frame));
             return Some(frame);
         }
     };
@@ -121,41 +122,12 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     debug_assert!(wanted.is_some(), "a member's frame comes out of the pass");
     if let Some(frame) = &wanted {
         let kind = match membership {
-            Membership::Member => "member",
-            _ => "zone_only",
+            Membership::Member => WalkKind::Member,
+            _ => WalkKind::ZoneOnly,
         };
-        trace_walk(game, id, kind, frames_before, frame);
+        game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, frame));
     }
     wanted
-}
-
-/// The trace sink's record of one top-level walk: what was asked, how the
-/// entry classified it, how many frames the answer cost, and the answer's
-/// shape. Built behind the sink's branch; the type set is sorted because a
-/// `HashSet`'s order is the process's.
-pub(super) fn trace_walk(
-    game: &GameState,
-    id: ObjectId,
-    membership: &str,
-    frames_before: u64,
-    frame: &EffectiveCharacteristics,
-) {
-    game.trace(|| {
-        use crate::state::trace::Record;
-        let mut r = Record::new("layer_walk");
-        r.field_u64("object", id.raw());
-        r.field_str("membership", membership);
-        r.field_u64("epoch", game.layer_epoch());
-        r.field_u64("frames", game.diagnostics.layer_frames() - frames_before);
-        r.field_str("name", &frame.name);
-        let mut types: Vec<String> = frame.types.iter().map(|t| format!("{:?}", t)).collect();
-        types.sort();
-        r.field_strs("types", &types);
-        r.field_opt_i64("power", frame.power.map(i64::from));
-        r.field_opt_i64("toughness", frame.toughness.map(i64::from));
-        r.field_u64("controller", frame.controller as u64);
-        r
-    });
 }
 
 /// The debug mode §12 required in the same commit as the cache: every hit is
@@ -199,12 +171,16 @@ pub(crate) fn compute_characteristics_uncached(
 ) -> Option<EffectiveCharacteristics> {
     let frames_before = game.diagnostics.layer_frames();
     let frame = walk_uncached(game, id)?;
-    trace_walk(game, id, "lki", frames_before, &frame);
+    game.trace(|| trace_records::layer_walk(game, id, WalkKind::Lki, frames_before, &frame));
     Some(frame)
 }
 
-/// [`compute_characteristics_uncached`]'s walk without its trace record —
-/// what the debug audit runs, so a debug build's trace is a release build's.
+/// The walk [`compute_characteristics_uncached`] records and the debug-build
+/// memo audit (`audit_memo_hit`) does not. Both callers are the release
+/// engine's shape: the LKI capture is a real walk and writes a `layer_walk`;
+/// the audit re-walks a memo hit to check it and rewinds the counts, and a
+/// record from it would make a debug build's trace differ from a release
+/// build's — which would break regenerating a page from a test.
 fn walk_uncached(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;

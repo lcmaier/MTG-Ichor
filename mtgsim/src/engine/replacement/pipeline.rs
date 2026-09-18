@@ -457,7 +457,7 @@ pub(crate) fn apply_replacements(
         // is what the debug build checks it against after the rewrite.
         let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
         let (chosen, decided) = if choosable.len() == 1 {
-            (choosable.into_iter().next().expect("len checked"), "single")
+            (choosable.into_iter().next().expect("len checked"), Decided::Single)
         } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
@@ -465,7 +465,7 @@ pub(crate) fn apply_replacements(
             // owns these and was dropping them. The fourth shape's check needs
             // the *rewrite* to compute its premise the other way.
             unsuppressed = rest.map(|c| (c.instance, c.members)).collect();
-            (first, "order_invariant")
+            (first, Decided::OrderInvariant)
         } else {
             let Some(chooser) = chooser else {
                 // Nobody to ask. An object with neither controller nor owner is
@@ -486,7 +486,7 @@ pub(crate) fn apply_replacements(
                 subject_object(subject),
                 &sources,
             );
-            (choosable.into_iter().nth(index).expect("index validated by ask_*"), "asked")
+            (choosable.into_iter().nth(index).expect("index validated by ask_*"), Decided::Asked)
         };
         if let Some(t) = &mut trace {
             t.decided = decided;
@@ -513,13 +513,13 @@ pub(crate) fn apply_replacements(
                 applied.insert(chosen.id);
                 declined.insert(chosen.id);
                 if let Some(mut t) = trace.take() {
-                    t.optional = Some("declined");
+                    t.optional = Some(OptionalAnswer::Declined);
                     game.trace(|| t.record(game, &members));
                 }
                 continue;
             }
             if let Some(t) = &mut trace {
-                t.optional = Some("accepted");
+                t.optional = Some(OptionalAnswer::Accepted);
             }
         }
 
@@ -627,22 +627,66 @@ struct IterationTrace {
     event: String,
     subject: String,
     frame_computed: bool,
-    candidates: Vec<CandidateTrace>,
-    chooser: Option<crate::types::ids::PlayerId>,
-    decided: &'static str,
+    /// One row per applicable effect the gather found this iteration.
+    candidates: Vec<CandidateRow>,
+    chooser: Option<PlayerId>,
+    decided: Decided,
     choice: Option<String>,
-    optional: Option<&'static str>,
+    optional: Option<OptionalAnswer>,
     rewrite: Option<String>,
 }
 
-struct CandidateTrace {
+/// One row of [`IterationTrace::candidates`]: an applicable replacement
+/// effect, the batch members it applies to, and whether it reached the
+/// bucket.
+struct CandidateRow {
     id: String,
     source: ObjectId,
     class: String,
+    /// Batch indices, not group positions, so the row joins the `batch`
+    /// record the way `results` does.
     members: Vec<usize>,
     /// Survived CR 616.1a–e's ladder — one of the effects the chooser chose
     /// among, or the one applied unasked.
     bucket: bool,
+}
+
+/// How an iteration's choice was made: nothing to choose, one candidate,
+/// several with one outcome (`ordering_cannot_change_outcome`), or a
+/// CR 616.1 prompt.
+#[derive(Clone, Copy)]
+enum Decided {
+    None,
+    Single,
+    OrderInvariant,
+    Asked,
+}
+
+impl Decided {
+    fn name(self) -> &'static str {
+        match self {
+            Decided::None => "none",
+            Decided::Single => "single",
+            Decided::OrderInvariant => "order_invariant",
+            Decided::Asked => "asked",
+        }
+    }
+}
+
+/// A "you may … instead" effect's answer (CR 614.1a).
+#[derive(Clone, Copy)]
+enum OptionalAnswer {
+    Accepted,
+    Declined,
+}
+
+impl OptionalAnswer {
+    fn name(self) -> &'static str {
+        match self {
+            OptionalAnswer::Accepted => "accepted",
+            OptionalAnswer::Declined => "declined",
+        }
+    }
 }
 
 impl IterationTrace {
@@ -654,19 +698,17 @@ impl IterationTrace {
             frame_computed: false,
             candidates: Vec::new(),
             chooser: None,
-            decided: "none",
+            decided: Decided::None,
             choice: None,
             optional: None,
             rewrite: None,
         }
     }
 
-    /// `members` are the batch's indices, not the group's positions, so a
-    /// candidate's row joins the `batch` record the way `results` does.
     fn candidates(&mut self, candidates: &[Candidate], group: &[Member]) {
         self.candidates = candidates
             .iter()
-            .map(|c| CandidateTrace {
+            .map(|c| CandidateRow {
                 id: render_debug(&c.instance.id),
                 source: c.instance.source,
                 class: render_debug(&c.instance.def.class),
@@ -701,9 +743,9 @@ impl IterationTrace {
         }
         r.end();
         r.field_opt_u64("chooser", self.chooser.map(|p| p as u64));
-        r.field_str("decided", self.decided);
+        r.field_str("decided", self.decided.name());
         r.field_opt_str("choice", self.choice.as_deref());
-        r.field_opt_str("optional", self.optional);
+        r.field_opt_str("optional", self.optional.map(OptionalAnswer::name));
         r.field_opt_str("rewrite", self.rewrite.as_deref());
         r.key("results").begin_array();
         for m in members {

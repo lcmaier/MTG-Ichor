@@ -160,6 +160,14 @@ pub fn compute_as_entering(
     let frames_before = game.diagnostics.layer_frames();
     let lookahead = Lookahead::new(game, id, controller, pending);
     let frame = compute_board(game, Some(&lookahead)).take(id)?;
-    super::compute::trace_walk(game, id, "entering", frames_before, &frame);
+    game.trace(|| {
+        crate::engine::trace_records::layer_walk(
+            game,
+            id,
+            crate::engine::trace_records::WalkKind::Entering,
+            frames_before,
+            &frame,
+        )
+    });
     Some(frame)
 }

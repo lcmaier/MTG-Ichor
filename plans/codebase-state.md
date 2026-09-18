@@ -7676,7 +7676,7 @@ row A4c.** One thing is owed, by decision 6:
      cannot do by hand. Out of A4c because nothing it would compare exists
      twice yet; the format is ready for it — one record per line,
      process-stable ids (A4g), `seq` and `branch` as the join keys, and a
-     `game` header carrying the seed and the build's commit (`build.rs`, so a
+     `game` header carrying the seed and the build's commit (`stamp_commit.rs`, so a
      binary copied aside for a sitting says what it was built from). What the
      format does not settle is the alignment: once one arm writes a record the
      other does not (a `layer_walk` the memo answered on one side), `seq`
