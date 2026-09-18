@@ -533,6 +533,15 @@ impl GameState {
                 if *pid >= self.players.len() {
                     return Err(format!("Player {} does not exist", pid));
                 }
+                // CR 800.4a, the same sentence the `Player` validator reads:
+                // a player who has left the game is not a player. Without it
+                // "any target" is the one filter that lets three damage
+                // resolve against a seat the game no longer has, because the
+                // player leg of this validator asked only that the index be in
+                // range.
+                if !self.in_game(*pid) {
+                    return Err(format!("Player {} has left the game", pid));
+                }
                 Ok(())
             }
             ResolvedTarget::Object(id) => {
@@ -963,15 +972,22 @@ impl GameState {
         if n == 0 {
             return true;
         }
+        // CR 800.4a — the seats that are still players. `players.len()` is the
+        // seat count the game *began* with, which the rule never shrinks, so a
+        // departed seat would otherwise be counted toward `n` by both arms that
+        // read it. A closure rather than a `let`, so the battlefield filters
+        // below do not pay for it on `mana_helpers`' hot path.
+        let seats_in_game = || (0..self.players.len()).filter(|&p| self.in_game(p)).count();
         match filter {
             SelectionFilter::Player => {
                 // Player hexproof and shroud (Leyline of Sanctity's class) are
-                // `backlog.md` §2.15's; until then every player is a legal choice.
-                self.players.len() >= n
+                // `backlog.md` §2.15's; until then every player still in the
+                // game is a legal choice.
+                seats_in_game() >= n
             }
             SelectionFilter::Any => {
                 // "Any target" = creature or planeswalker on battlefield, OR player
-                let mut found = self.players.len();
+                let mut found = seats_in_game();
                 if found >= n {
                     return true;
                 }
