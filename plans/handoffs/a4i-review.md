@@ -263,7 +263,7 @@ different subjects, which is what A4i made reachable.
 
 ---
 
-## E — Choice versus target · ⏳ **open** — wants a `backlog.md` entry, not a fix
+## E — Choice versus target · ✅ **closed 2026-09-18** — `backlog.md` §2.33
 
 **#8.** `spell_instances` returns whatever the card declares. For a **cast** Aura
 that is `Target` (CR 303.4c — an Aura spell targets); `EffectRecipient::Choose`
@@ -293,6 +293,12 @@ express; and whether `Choose` belongs in the instance list at all or is a
 resolution-time selection that never had an instance. **Open it as a
 `backlog.md` entry**; it is the kind of question §2.9's information-model entry
 is shaped like.
+
+**Filed as `backlog.md` §2.33 (2026-09-18, A4n's PR).** All three claims hold
+against the tree: the one construction site is `resolve.rs:1807`, no card file or
+test constructs a `Choose`, and `announce_targets` still reads it in `Target`'s
+arm at `put_on_stack.rs:302`. The entry carries the pool scale the theme asked
+for and says what the survey must produce.
 
 ---
 
