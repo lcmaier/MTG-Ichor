@@ -470,7 +470,7 @@ impl GameState {
                 if self.battlefield.contains_key(id) {
                     return Ok(());
                 }
-                if self.stack_entries.get(id).is_some_and(|e| e.is_spell) {
+                if self.is_spell_on_stack(*id) {
                     return Ok(());
                 }
                 Err(format!(
@@ -576,11 +576,22 @@ impl GameState {
     }
 
     /// Validate a target is a spell on the stack.
+    ///
+    /// CR 112.1's "a spell is a card on the stack", asked of the `StackEntry`:
+    /// membership alone let "counter target spell" name an activated ability's
+    /// object, and CR 701.6a's move to the graveyard then manufactured a second
+    /// copy of the ability's source card. The complement — "counter target
+    /// activated or triggered ability", which `Primitive::CounterAbility`
+    /// already resolves — is a filter of its own and negates this predicate; no
+    /// registered card asks for it yet.
     fn validate_spell_target(&self, target: &ResolvedTarget) -> Result<(), String> {
         match target {
             ResolvedTarget::Object(id) => {
-                if !self.stack.contains(id) {
-                    return Err(format!("Target {} is not on the stack", id));
+                if !self.is_spell_on_stack(*id) {
+                    return Err(format!(
+                        "Target {} is not a spell on the stack (CR 112.1)",
+                        id
+                    ));
                 }
                 Ok(())
             }
@@ -979,8 +990,14 @@ impl GameState {
                 false
             }
             SelectionFilter::Spell => {
-                // Spells live on the stack, not the battlefield
-                self.stack.iter().filter(|&&id| Some(id) != exclude_id).count() >= n
+                // Spells live on the stack, not the battlefield — and not
+                // every object there is one (CR 112.1), which is what
+                // `is_spell_on_stack` asks. The sibling arm below asks it too.
+                self.stack
+                    .iter()
+                    .filter(|&&id| Some(id) != exclude_id && self.is_spell_on_stack(id))
+                    .count()
+                    >= n
             }
             // CR 609.7a's two reachable categories, in the order
             // `enumerate_legal_selections` offers them. Cheaper than the
@@ -995,10 +1012,7 @@ impl GameState {
                 let spells = self
                     .stack
                     .iter()
-                    .filter(|id| {
-                        Some(**id) != exclude_id
-                            && self.stack_entries.get(id).is_some_and(|e| e.is_spell)
-                    })
+                    .filter(|&&id| Some(id) != exclude_id && self.is_spell_on_stack(id))
                     .count();
                 permanents + spells >= n
             }

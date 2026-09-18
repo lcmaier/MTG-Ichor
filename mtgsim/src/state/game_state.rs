@@ -2020,6 +2020,27 @@ impl GameState {
         entry
     }
 
+    /// CR 112.1 — is `id` a **spell** on the stack, as opposed to an activated
+    /// ability's ephemeral object?
+    ///
+    /// One predicate rather than a copy per arm, because two `SelectionFilter`s
+    /// ask it — `Spell` and CR 609.7a's `DamageSource` — at three sites each:
+    /// the validator, the count, and the enumeration. The `Spell` arms asked
+    /// `stack.contains` instead until A4o, and CR 701.6a then put an ability's
+    /// object, whose `CardData` is a clone of its source's, into a graveyard as
+    /// a second copy of the card.
+    ///
+    /// **The entry, not the stack, is what answers.** An ability on the stack
+    /// is a `GameObject` like any other (CR 113.7a) and nothing about the
+    /// object says which it is; the `StackEntry` does, and it is the same field
+    /// the resolution and the fizzle already branch on. The one object this
+    /// declines is the spell **currently resolving**, whose entry
+    /// `resolve_top_of_stack` has already taken — no rule reaches it, since
+    /// CR 601.2c and CR 603.3d both choose before a resolution starts.
+    pub fn is_spell_on_stack(&self, id: ObjectId) -> bool {
+        self.stack_entries.get(&id).is_some_and(|e| e.is_spell)
+    }
+
     /// Get an immutable reference to a game object
     pub fn get_object(&self, id: ObjectId) -> Result<&GameObject, String> {
         self.objects.get(&id).ok_or_else(|| format!("Object {} not found", id))
