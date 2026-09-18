@@ -37,6 +37,147 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-18 for A4p** (a seat that has left the game is not a
+target — `codebase-state.md` item 160, struck; `roadmap-v2.md` row A4p).
+**No pool change**: `performance` 91 and `stress` 166, the cards A4i left, so
+every column here is comparable to the A4o block below. The record exists
+because the fix changes what CR 601.2c enumerates for the `Player` and `Any`
+filters from the first elimination of a game on — and above two seats, that is
+every game.
+
+**Four arms — two trees, two seat counts.** `main` (c0b52ca, post-#163) and
+`fix` (b544a30), each at `--players 2` and `--players 4`, both pools,
+`--rounds 3 --games 200`.
+
+| | fix vs main |
+|---|---|
+| every counter, both pools, **two** seats | **IDENTICAL** |
+| every counter, both pools, **four** seats | **differ** — attributed below |
+| `µs / decision`, `performance`, two seats | 29.2 → 29.7, **+1.5%** |
+| `µs / decision`, `performance`, four seats | 51.4 → 52.2, **+1.5%** |
+| CPU/game median, two seats / four seats | 6.52 → 6.62 ms / 22.73 → 22.97 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+**The two-seat `IDENTICAL` is the rule, not luck.** CR 104.2a ends a two-player
+game the moment a player leaves, so `in_game` is false for a seat only in a
+window the game does not survive: at two seats the filter has nothing to
+remove. Both arms also reproduced the A4o block's recorded two-seat fixture
+table to the digit, which is the check that the baseline is the baseline.
+Neither µs/decision reading is a cost — both sit inside the sitting's own ~2–6%
+spread, and the two seat counts moved by the same +1.5% while their CPU/game
+medians moved by +1.5% and +1.1%.
+
+**Attributed game by game rather than assumed.** Both arms dumped 200 games per
+pool at four seats (`--dump-events --threads 1`), diffed per game; then a probe
+build of the `fix` tree replayed all 200 games one at a time by their per-game
+seeds (`game_seed = master + game_num`). The probe carries a `println!` at each
+of the **four** sites whose answer this fix can change (the enumeration's offer
+list, the two count arms, and `validate_any_target`), printing only when the two
+answers differ and returning the fixed one either way. The probe's own
+200-game dump is byte-identical to the `fix` arm's on both pools, which is what
+makes it a probe of that arm rather than a fifth tree.
+
+| | diverging games | games where an answer changed | changed answers |
+|---|---|---|---|
+| four seats, `performance` | 65 of 200 | 100 | 189 |
+| four seats, `stress` | 68 of 200 | 113 | 343 |
+
+**Every diverging game is a game where an answer changed**, on both pools, with
+no diverging game left over. The converse does not hold and should not: a
+shorter candidate list the agent would have passed on anyway leaves the stream
+where it was, which is why 189 changed answers produce 65 forks. All 400 games
+have a departure — a four-player game ends when three seats are gone — so the
+population the fix can reach is every game, and it reaches half of them.
+
+**Only the enumeration ever changed an answer, and that is a finding about the
+pool rather than about the fix.** Every registered card with a
+`Player` or `Any` instance declares `TargetCount::Exactly(1)`, so both count
+arms are asked `n = 1` and answer `true` while any seat remains: the count
+half of the fix is correct and unreachable at once, and what would reach it is
+a card with two instances of "target player" and two seats left. The
+`validate_any_target` half never fired either, because on the `fix` arm the
+enumeration withholds the seat and CR 608.2b's re-check never meets a departed
+one. The whole measured difference is the offer list.
+
+**The defect was live in the measured games, and this is what it cost.** A
+second probe, this one on the `main` tree — a `println!` at the `DamageDealt`
+performer when the target player is not in the game, dump byte-identical to
+`main`'s — names every one of them: **11 Lightning Bolts resolved against a
+player who had left the game**, 10 over 10 games on `performance` and one on
+`stress`, for 3, 6 and 12 damage (the pool's damage doublers are why the
+numbers are not all 3). The `fix` arm manufactures **zero** on both pools,
+which is the same claim `tests/phase_a4p_integration_test.rs` makes on one
+board. The sibling half cost nothing observable: "target player" was offered
+and then refused by `validate_player_target`, so the agent lost a priority
+action to a rewind and no effect landed.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools). The
+two-seat table is unchanged from A4o's, digit for digit:
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 16 (32.0%) / 34 (68.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.3 | 28.1 |
+| Spells cast | 22.1 | 19.2 |
+| Lands played | 16.8 | 17.0 |
+| Combat w/ atk | 9.8 | 7.3 |
+| Creatures died | 6.5 | 4.3 |
+| Damage events | 22.3 | 15.8 |
+| Total damage | 59.9 | 44.1 |
+| Life changes | 14.5 | 11.7 |
+| **Layer walks** | **339** | **414** |
+| **Board walks** | **228** | **243** |
+| **Memo hits** | **56,661** | **63,025** |
+| **Layer frames** | **4,162** | **4,382** |
+| **Frames/walk** | **12.29** | **10.58** |
+| **Dependency checks** | **21** | **26** |
+| **Replacement gathers** | **1029** | **1037** |
+| **Restriction queries** | **1031** | **1039** |
+| Mana productions | 82 | 104 |
+| Prevention allocations | 0.02 | 0.04 |
+| Replacement prompts | 0.14 | 0.56 |
+| Max batch depth | 4 | 5 |
+| Decisions | 225 | 279 |
+| Priority decisions | 84 | 112 |
+
+**And the four-player table** (50 games / seed 12345), which is the one that
+moves:
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 14 (28.0%) / 10 (20.0%) / 2 (4.0%) | 16 (32.0%) / 17 (34.0%) / 13 (26.0%) / 4 (8.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 58.6 | 65.5 |
+| Spells cast | 43.3 | 43.4 |
+| Lands played | 35.3 | 37.7 |
+| Combat w/ atk | 24.6 | 24.0 |
+| Creatures died | 14.3 | 11.5 |
+| Damage events | 53.7 | 53.4 |
+| Total damage | 149.0 | 158.5 |
+| Life changes | 38.9 | 42.5 |
+| Turns after a departure | 19.3 | 18.7 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **768** | **1,160** |
+| **Board walks** | **496** | **640** |
+| **Memo hits** | **178,408** | **269,509** |
+| **Layer frames** | **14,706** | **20,463** |
+| **Frames/walk** | **19.14** | **17.64** |
+| **Dependency checks** | **96** | **131** |
+| **Replacement gathers** | **2184** | **2625** |
+| **Restriction queries** | **2189** | **2630** |
+| Mana productions | 158 | 249 |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 1.54 | 2.50 |
+| Max batch depth | 5 | 5 |
+| Decisions | 446 | 709 |
+| Priority decisions | 166 | 281 |
+
+Errors, panics and `Uncast resolved` are 0 on every arm and every run. The one
+turn-limit hit is four-seat `stress` **game 159 (seed 12503)**, the long game
+A4o's block already identified — both arms reach the cap on it, and the fix
+does not touch what makes it long.
+
 **Re-recorded 2026-09-18 for A4o** ("counter target spell" may not name an
 activated ability — `codebase-state.md` item 159, struck; `roadmap-v2.md` row
 A4o). **No pool change**: `performance` 91 and `stress` 166, the cards A4i left,

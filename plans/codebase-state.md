@@ -7431,33 +7431,24 @@ are ones the diff cannot answer. Open review findings, triaged:
      every diverging game in all four A/B arms is one where this filter's
      answer changed.
 
-160. **The `Player` and `Any` selection arms count and offer seats that have
-     left the game (found by A4i's audit, 2026-09-17; pre-existing, inherited
-     by A4i's count logic).** `GameState::num_players()` is the player
-     vector's length, which CR 800.4a never shrinks; `enumerate_legal_selections_upto`'s
-     `players()` closure yields `0..num_players()` for `Player` and `Any`, and
-     `has_legal_choices` counts `players.len()` for `Player` and seeds `Any`'s
-     count with it. `validate_player_target` refuses a departed seat under
-     CR 800.4a and its comment says such a seat is "not offered at CR 601.2c",
-     which the enumeration contradicts; `validate_any_target` never asks
-     `in_game` at all.
+160. **~~The `Player` and `Any` selection arms count and offer seats that
+     have left the game~~ ✅ CLOSED 2026-09-18 (A4p, PR #164) — the player
+     iterator and both count arms ask `in_game`, and `validate_any_target`
+     asks it too.** CR 800.4a, at the three sites the item named: the
+     enumeration's `players()` closure, which feeds the `Player` and `Any`
+     arms alike; `has_legal_choices`' two arms, which now count seats rather
+     than the vector; and the "any target" validator, which had no CR 800.4a
+     check at all while its `Player` sibling had one — so that sibling's
+     comment, "not offered at CR 601.2c", is true now rather than aspirational.
+     **It was live in the measured games:** at four seats `main` resolved 11
+     Lightning Bolts against a player who had left, over 11 games of the 400
+     the A/B dumped, and the fixed arm none.
+     → `plans/archive/codebase-state-closed.md`;
+     `fuzz-record.md`, the A4p block.
 
-     **Reproduced with a fixture (2026-09-17)** at four seats with seat 3
-     departed: both filters offer `Player(3)`; `validate_targets` refuses it
-     for `Player` — a cast the oracle offered and the engine rewinds, item
-     139's class — and **accepts it for `Any`**, so "any target" damage
-     resolves against a player who is not in the game.
-
-     **Reachability (2026-09-17):** reachable — wrong today at four seats, in
-     `fuzz_games --players 4` from the first elimination on, and v1 is four
-     seats. Unreachable at two, where a departure ends the game (CR 104.2a), so
-     every recorded two-seat table is untouched. Row A4p.
-
-     **Sized:** three edits, ~15 lines, and two fixtures at four seats. The
-     player iterator filters on `in_game`; the two count arms count in-game
-     seats; `validate_any_target` gains the check the `Player` validator has.
-     A/B prediction: `IDENTICAL` on both pools at two seats; the four-seat
-     `stress` arm differs, and that is the finding the arm exists to show.
+     **Reachability (2026-09-18):** closed — landed; the stream moved at four
+     seats on both pools and at neither pool at two, and every diverging game
+     is one where the offer list changed.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

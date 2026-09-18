@@ -1933,3 +1933,68 @@ arm alone left one diverging game unexplained; both together leave none.
      `castable_spells` offers whenever an ability is on the stack, so it moves
      the random agent's stream and owes its own A/B and a `fuzz-record.md`
      block, with `differ` the honest prediction on both pools.
+
+### Item 160 — closed 2026-09-18 by A4p (PR #164)
+
+**What closed it.** The three edits the item sized, at the three sites it
+named. One of them does more than its line suggests: the enumeration's
+`players()` closure is shared by the `Player` arm and the `Any` arm, so
+filtering it once withdraws the offer from both, and the `Any` arm needed no
+edit of its own. The two count arms share a closure for the same reason,
+written as a closure rather than a `let` so the battlefield filters do not pay
+for a seat scan on `mana_helpers`' hot path.
+
+**The two halves failed differently, and the item was right that they did.**
+"Target player" was offered and then refused — `validate_player_target` has had
+the CR 800.4a check since it was written, so the oracle promised a cast the
+engine rewound, which costs a priority action and lands no effect. "Any target"
+was caught nowhere, and that is the half that cost something: three damage,
+resolving against a player the game no longer had.
+
+**What the item did not predict, three things.** The A/B prediction named the
+four-seat `stress` arm as the one that would differ; four-seat `performance`
+differs too, and by nearly as much — 65 of 200 games against `stress`' 68, with
+Lightning Bolt pooled on both. **Only the enumeration ever changed an answer in the
+400 measured games:** every registered card with a `Player` or `Any`
+instance declares `TargetCount::Exactly(1)`, so both count arms are asked
+`n = 1` and say `true` while any seat remains — the count half is correct and
+unreachable at once, and what would reach it is a card with two instances of
+"target player" and two seats left. And **the damage did not come through
+CR 608.2b**, which is where the item's fixture put it: `validate_any_target`
+never refused a target on the fixed arm at all, because the enumeration had
+stopped offering the seat first. The eleven Lightning Bolts `main` resolved
+against a departed seat were aimed at one *at announcement*, by an enumeration
+that still listed it. The validator is the back-stop for the narrower window
+the fixture builds — a seat that leaves between announcement and resolution —
+and that window did not open once in 400 games, which is exactly why it needed
+a fixture rather than a fuzz run.
+
+*Original entry:*
+
+160. **The `Player` and `Any` selection arms count and offer seats that have
+     left the game (found by A4i's audit, 2026-09-17; pre-existing, inherited
+     by A4i's count logic).** `GameState::num_players()` is the player
+     vector's length, which CR 800.4a never shrinks; `enumerate_legal_selections_upto`'s
+     `players()` closure yields `0..num_players()` for `Player` and `Any`, and
+     `has_legal_choices` counts `players.len()` for `Player` and seeds `Any`'s
+     count with it. `validate_player_target` refuses a departed seat under
+     CR 800.4a and its comment says such a seat is "not offered at CR 601.2c",
+     which the enumeration contradicts; `validate_any_target` never asks
+     `in_game` at all.
+
+     **Reproduced with a fixture (2026-09-17)** at four seats with seat 3
+     departed: both filters offer `Player(3)`; `validate_targets` refuses it
+     for `Player` — a cast the oracle offered and the engine rewinds, item
+     139's class — and **accepts it for `Any`**, so "any target" damage
+     resolves against a player who is not in the game.
+
+     **Reachability (2026-09-17):** reachable — wrong today at four seats, in
+     `fuzz_games --players 4` from the first elimination on, and v1 is four
+     seats. Unreachable at two, where a departure ends the game (CR 104.2a), so
+     every recorded two-seat table is untouched. Row A4p.
+
+     **Sized:** three edits, ~15 lines, and two fixtures at four seats. The
+     player iterator filters on `in_game`; the two count arms count in-game
+     seats; `validate_any_target` gains the check the `Player` validator has.
+     A/B prediction: `IDENTICAL` on both pools at two seats; the four-seat
+     `stress` arm differs, and that is the finding the arm exists to show.
