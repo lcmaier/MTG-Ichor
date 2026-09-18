@@ -7217,8 +7217,19 @@ owner decided it the same day.
 Trace page: `plans/traces/a4i-a-target-belongs-to-an-instance.html` — three
 boards read by read, written at the review because two of its questions (why a
 resolution needs CR 601.2c's instance cursor, and how "another target" stacks)
-are ones the diff cannot answer. Open review findings, triaged:
-`plans/handoffs/a4i-review.md`.
+are ones the diff cannot answer.
+
+**The review's nine themes, and where each went.** The handoff file was deleted
+with A4n (2026-09-18) under its own eviction contract, so this is the index.
+**A** (names), **D** (the n−1 coverage boundary), **F** (`check_string_literals.py`)
+and **G** (the trace page above) closed inside A4i's own PR — cc1b4d9, c731e55,
+22a7d6f. **B** is items 157 and 158, with item 154 amended. **C** landed three of
+four items (3ea4cb5; `fuzz-record.md`'s A4i block) and **withdrew the fourth after
+building it** — `targeting.rs`'s `FilterIdentity` carries why, because that is
+where someone would try it again. **E** is `backlog.md` §2.33. **H** and **I.2**
+are `roadmap-v2.md` row A4n, which carries the measurement and the three riders.
+**I.1** is items 159 and 160, closed by A4o and A4p. **I.3** amended item 155 in
+place.
 
 152. **~~Skullcrack's three damage never landed when the card was cast.~~**
      **Fixed by the instance walk, 2026-09-17.** *"Players can't gain life this
@@ -7229,6 +7240,11 @@ are ones the diff cannot answer. Open review findings, triaged:
      no target, `chosen_targets` stayed empty, and the damage atom read an
      empty list. Cast from hand, Skullcrack did its two restrictions and
      nothing else.
+
+     **Reachability (2026-09-18):** closed — fixed 2026-09-17 and covered by
+     `phase_a4i_integration_test.rs`. Dated here because the strike-through
+     alone sat too far into the item for `check_state_of_play.py` to read, so
+     the board counted a closed item as a claim with no verdict.
 
      **How it survived RE-3 and three phases after it.** Every Skullcrack test
      stages a `ResolutionContext` with the target written in by hand, which

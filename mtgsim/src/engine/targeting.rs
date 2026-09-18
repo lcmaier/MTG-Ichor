@@ -272,6 +272,14 @@ impl EarlierTargets<'_> {
 /// "another target". A filter may carry both — "another target creature you
 /// control other than this one" is a legal English sentence — so they are
 /// fields rather than an enum.
+///
+/// **`exclude_id` is not a third field, and the fold was withdrawn after it was
+/// built** (A4i's review, 2026-09-17). It is the same kind of fact, but CR 115.5
+/// — "a spell or ability on the stack is an illegal target for itself" — bites on
+/// the `Spell` and `DamageSource` arms, and those answer membership directly
+/// without ever walking an `ObjectFilter`. A leaf-level fact cannot reach them, so
+/// `exclude_id` stays applied in the enumeration, uniformly, whatever the filter's
+/// shape.
 #[derive(Clone, Copy)]
 pub(crate) struct FilterIdentity<'a> {
     /// What [`ObjectFilter::EachOther`] is other than: the effect's own source.

@@ -357,8 +357,8 @@ Seeds of Strength **cast 190, resolved 188, in 124 of 200 games (62%)**, and
 the two that did not resolve are CR 608.2b. `stress`, 166 cards: 0 errors,
 0 panics, 0 turn-limit hits.
 
-**The review's round, 2026-09-17** (themes A, B, C, F of
-`plans/handoffs/a4i-review.md`). **No pool change** — `performance` 91 and
+**The review's round, 2026-09-17** (themes A, B, C, F of A4i's review; the
+handoff was evicted with A4n and `codebase-state.md`'s A4i section is the index). **No pool change** — `performance` 91 and
 `stress` 166, as the block above left them, so these columns are comparable to
 it. Two arms: **preC** (c731e55, A4i as reviewed) and **postC** (3ea4cb5, the
 flat `ChosenTargets`, the one-pass `surviving_targets`, and the bounded

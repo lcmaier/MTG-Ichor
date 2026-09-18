@@ -95,7 +95,7 @@
 
 <h1>A Target Belongs to an Instance</h1>
 <p class="lede">A4i made CR 115.3's <em>instance of the word "target"</em> the unit a chosen object is filed under. The review asked two questions the diff cannot answer: <em>why does a function that resolves one effect need a cursor?</em> and <em>how does "another target" stack?</em> Three boards, read by read, and the table of what each read consults.</p>
-<p class="meta"><span class="pin">targeting/a4i-per-instance @ 24312fc</span><span class="pin">CR tmnt</span><span class="pin">2026-09-17, at review</span> Authority for the design: <code>plans/backlog.md</code> §2.20 (graduated) and <code>plans/roadmap-v2.md</code> row A4i. Findings: <code>plans/codebase-state.md</code> items 152–156. Open review items: <code>plans/handoffs/a4i-review.md</code>. Tests: <code>mtgsim/tests/phase_a4i_integration_test.rs</code>.</p>
+<p class="meta"><span class="pin">targeting/a4i-per-instance @ 24312fc</span><span class="pin">CR tmnt</span><span class="pin">2026-09-17, at review</span> Authority for the design: <code>plans/backlog.md</code> §2.20 (graduated) and <code>plans/roadmap-v2.md</code> row A4i. Findings: <code>plans/codebase-state.md</code> items 152–156. Open review items: <code>plans/codebase-state.md</code>'s A4i section. Tests: <code>mtgsim/tests/phase_a4i_integration_test.rs</code>.</p>
 
 <div class="callout rule">
 <p><b>The rule this page is about.</b> CR 601.2c: <em>"The same target can't be chosen multiple times for any one instance of the word 'target' on the spell. However, if the spell uses the word 'target' in multiple places, the same object or player can be chosen once for each instance of the word 'target' (as long as it fits the targeting criteria)."</em> Everything below is that sentence, and its worked example two lines later: <em>"A spell that says 'Destroy target artifact and target land' can target the same artifact land twice."</em></p>
@@ -265,7 +265,7 @@ instance 2:  Target(Permanent(And(And(ByType(Creature), OtherThanInstance(0)),
 </div>
 
 <div class="callout">
-<p><b>Open, from this review</b> (<code>plans/handoffs/a4i-review.md</code>):</p>
+<p><b>Open, from this review</b> (the handoff was evicted 2026-09-18; <code>plans/codebase-state.md</code>'s A4i section indexes every theme):</p>
 <ul>
 <li><b>The announcement order is the engine's, not the rule's.</b> CR 601.2c fixes no order. The sequential loop is outcome-equivalent today and stops being so the day 601.2c's <em>"must be chosen as a target … the maximum possible number"</em> lands, because that is a global optimum over all instances and a greedy loop cannot see it. No printed card produces one; it is owed as a fixture.</li>
 <li><b>The representation.</b> <code>ChosenTargets</code> is still a <code>Vec&lt;Vec&lt;_&gt;&gt;</code> behind a name; a flat buffer with offsets is strictly better, and <code>surviving_targets</code> currently copies the announcement twice.</li>
