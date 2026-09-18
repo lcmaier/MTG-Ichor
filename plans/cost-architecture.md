@@ -470,7 +470,13 @@ Three things follow, and all three are used:
   decided is the *scope*, that the payer may never take a split with surplus in
   the pool, and that restraint is what keeps the `{2}{U}` board's `{U}{U}` up
   for Counterspell whoever answers. Whether a decorator keeps an answer the
-  engine no longer asks for is the middleware census's, `backlog.md` §2.22.
+  engine no longer asks for was the middleware census's, `backlog.md` §2.22 —
+  **decided 2026-09-18 (A4k): retired.** The branch, `split_is_forced` and the
+  bucket walk are gone; `AutoPayer` answers `OrderCostReductions` and nothing
+  else, and a split with one legal answer is `ui::ask`'s in every client,
+  because a prompt with one legal answer belongs to the engine, not to a
+  middleware — a client that drives the provider by another route gets the
+  engine's answer too, never a second copy of it.
 
   **Two decorators, not one with a scope, and clients compose.** The first
   design gave one payer a `PayerScope` enum so each client could take a subset.

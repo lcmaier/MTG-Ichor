@@ -1,29 +1,28 @@
-// AutoPayer — the payment prompts that have a right answer, as a decorator.
+// AutoPayer — the payment prompt that has a right answer, as a decorator.
 //
-// `backlog.md` §2.18's "auto-payment oracle": the thing a GUI's auto-pay
-// button and an AI harness both want, and what `cost-architecture.md` §3.4
-// named when it said "the engine keeps asking; a payer answers".
+// `backlog.md` §2.18's "auto-payment oracle", the half that answers: what a
+// GUI's auto-pay button and an AI harness both want, and what
+// `cost-architecture.md` §3.4 named when it said "the engine keeps asking; a
+// payer answers".
 //
-// **What it answers, and the criterion.** A prompt belongs here when it has
-// exactly one legal answer. Not "the answers are similar enough" — one answer,
-// so being asked cannot change anything.
+// **What it answers, and the criterion.** A prompt belongs here when every
+// legal answer leaves the same game. Not "the answers are similar enough" —
+// the same game, so being asked cannot change anything.
 //
-//   CR 601.2f  `OrderCostReductions`   — always: by `cost-architecture.md`
+//   CR 601.2f  `OrderCostReductions` — always: by `cost-architecture.md`
 //              §3.4's theorem every order yields the identical total, so the
 //              prompt is one the CR mandates and that cannot matter.
-//   CR 601.2h  `GenericManaAllocation` — only when the split is forced; see
-//              `split_is_forced`. With surplus in the pool it is a real
-//              choice and goes to the wrapped provider.
 //
-// **What it deliberately does not answer.** `ChooseSacrificeForCost` fails the
-// criterion: which creature dies is a strategic choice, and a client that wants
-// an auto-sacrifice policy stacks its own decorator for that kind. Why the
-// criterion is this strict rather than "the answers are close enough" is
-// `cost-architecture.md` §3.4.
+// **What it does not answer.** CR 601.2h's generic split: a split with surplus
+// in the pool decides what is left up for the rest of the step (§3.4), and a
+// split with one legal answer is the engine's (`ui::ask::forced_allocation`)
+// — a prompt with one legal answer belongs to the engine, not to a middleware
+// (`backlog.md` §2.22, which retired the branch that used to answer it here).
+// `ChooseSacrificeForCost`: which creature dies is a strategic choice, and a
+// client that wants an auto-sacrifice policy stacks its own decorator.
 //
-// The criterion is matched exhaustively over `ChoiceKind` at the two sites
-// below, so CP-1's announcement prompt and item 72's reversal each have to
-// pick a side rather than inherit one.
+// The criterion is matched over `ChoiceKind` at the one site below, so a new
+// payment prompt has to pick a side rather than inherit one.
 //
 // **Stack invariant: at most one decorator answers any one prompt.** Stated
 // in full in `mana_window_stop`, which owns the window's stop and is the
@@ -34,8 +33,8 @@ use crate::types::ids::PlayerId;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
 
-/// Answers CR 601.2f's and 601.2h's payment prompts from the prompt itself,
-/// and passes every other decision to `D`.
+/// Answers CR 601.2f's ordering prompt from the prompt itself, and passes
+/// every other decision to `D`.
 pub struct AutoPayer<D> {
     inner: D,
 }
@@ -49,48 +48,6 @@ impl<D: DecisionProvider> AutoPayer<D> {
     pub fn inner(&self) -> &D {
         &self.inner
     }
-}
-
-/// Whether CR 601.2h's generic split has exactly one legal answer.
-///
-/// The caps are `ask_choose_generic_mana_allocation`'s: `available[t]` minus the
-/// pips of `t` the cost owes, so every pip already has its own mana reserved.
-/// Two ways the remainder can be forced, and nothing else is:
-///
-/// - **One bucket with headroom.** Everything goes there.
-/// - **The caps sum to exactly what is owed.** Every bucket is maxed out.
-///
-/// Otherwise two buckets have slack and moving one mana between them is a
-/// second legal answer — which is the player's, because it decides what is left
-/// in the pool for the rest of the step (`cost-architecture.md` §3.4).
-fn split_is_forced(total: u64, maxs: Option<&[u64]>) -> bool {
-    let Some(maxs) = maxs else { return false };
-    maxs.iter().filter(|&&m| m > 0).count() <= 1 || maxs.iter().sum::<u64>() == total
-}
-
-/// Fill `total` into the buckets in the order they were offered, each up to its
-/// own cap, starting from the minimums.
-///
-/// Only called when [`split_is_forced`], so "in bucket order" names the walk
-/// and not a policy — there is one answer and this reaches it. It must not
-/// re-derive the caps: the deleted `auto_allocate_generic` subtracted the pips
-/// a second time, which is the bug `codebase-state.md` 16c/16d paid for once
-/// already. Bucket order is the pool's types sorted by discriminant, so the
-/// answer is the same in every process.
-fn fill_in_bucket_order(total: u64, mins: &[u64], maxs: Option<&[u64]>) -> Vec<u64> {
-    let n = mins.len();
-    let mut alloc = mins.to_vec();
-    let mut remaining = total.saturating_sub(alloc.iter().sum::<u64>());
-    for i in 0..n {
-        if remaining == 0 {
-            break;
-        }
-        let cap = maxs.map_or(u64::MAX, |m| m[i]);
-        let give = remaining.min(cap.saturating_sub(alloc[i]));
-        alloc[i] += give;
-        remaining -= give;
-    }
-    alloc
 }
 
 impl<D: DecisionProvider> DecisionProvider for AutoPayer<D> {
@@ -129,11 +86,10 @@ impl<D: DecisionProvider> DecisionProvider for AutoPayer<D> {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        if matches!(context.kind, ChoiceKind::GenericManaAllocation { .. })
-            && split_is_forced(total, per_bucket_maxs)
-        {
-            return fill_in_bucket_order(total, per_bucket_mins, per_bucket_maxs);
-        }
+        // Every allocation is the wrapped provider's. The generic split that
+        // reaches here has two or more legal answers — the engine took the
+        // forced one before asking — and which mana pays the generic is the
+        // player's (`cost-architecture.md` §3.4).
         self.inner.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
     }
 
@@ -180,34 +136,16 @@ mod tests {
         }
     }
 
-    /// Caps summing to exactly what is owed: every bucket is maxed, one legal
-    /// answer, and the wrapped provider is never consulted. (A
-    /// `ScriptedDecisionProvider` with an empty queue panics on any call, so
-    /// "never consulted" is what not panicking means here.)
-    #[test]
-    fn answers_a_split_whose_caps_leave_no_slack() {
-        let game = setup_two_player_game();
-        let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(3), &[0, 0, 0], Some(&[1, 2, 1]));
-        assert_eq!(alloc, vec![1, 2, 1], "caps sum to 4 and 4 is owed");
-    }
-
-    /// One bucket with headroom: everything goes there whatever the caller says.
-    #[test]
-    fn answers_a_split_with_only_one_bucket_that_can_take_anything() {
-        let game = setup_two_player_game();
-        let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets(3), &[0, 0, 0], Some(&[0, 5, 0]));
-        assert_eq!(alloc, vec![0, 2, 0]);
-    }
-
-    /// Minimums are the floor, not a starting suggestion.
-    #[test]
-    fn the_split_starts_from_the_minimums() {
-        let game = setup_two_player_game();
-        let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(2), &[1, 1], Some(&[3, 1]));
-        assert_eq!(alloc, vec![3, 1], "caps sum to 4 and 4 is owed, minimums included");
+    fn expects_split(answer: Vec<u64>) -> ScriptedDecisionProvider {
+        let inner = ScriptedDecisionProvider::new();
+        inner.expect_allocation(
+            ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
+                mana_cost: ManaCost::zero(),
+            },
+            answer,
+        );
+        inner
     }
 
     /// **The review's board.** A {2}{U} three-drop cast off a pool of
@@ -218,46 +156,22 @@ mod tests {
     #[test]
     fn defers_a_split_that_decides_what_is_left_in_the_pool() {
         let game = setup_two_player_game();
-        let inner = ScriptedDecisionProvider::new();
-        inner.expect_allocation(
-            ChoiceKind::GenericManaAllocation {
-                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
-                mana_cost: ManaCost::zero(),
-            },
-            vec![0, 2],
-        );
-        let dp = AutoPayer::new(inner);
+        let dp = AutoPayer::new(expects_split(vec![0, 2]));
         let alloc = dp.allocate(&game, 0, &split_ctx(), 2, &buckets(2), &[0, 0], Some(&[2, 2]));
         assert_eq!(alloc, vec![0, 2], "the player spent green and kept blue up");
     }
 
-    /// No caps at all is not a forced split — it is an unbounded one.
+    /// A split with one legal answer is the engine's, not this decorator's:
+    /// caps summing to exactly what is owed never reach a provider from a game
+    /// (`ui::ask::forced_allocation`), and a client that drives the provider by
+    /// another route gets the wrapped provider's answer, never a second copy of
+    /// the engine's. Retired A4k, 2026-09-18 (`backlog.md` §2.22).
     #[test]
-    fn defers_a_split_with_no_caps() {
+    fn a_forced_split_is_the_wrapped_providers_too() {
         let game = setup_two_player_game();
-        let inner = ScriptedDecisionProvider::new();
-        inner.expect_allocation(
-            ChoiceKind::GenericManaAllocation {
-                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
-                mana_cost: ManaCost::zero(),
-            },
-            vec![1, 1],
-        );
-        let dp = AutoPayer::new(inner);
-        assert_eq!(dp.allocate(&game, 0, &split_ctx(), 2, &buckets(2), &[0, 0], None), vec![1, 1]);
-    }
-
-    /// Same prompt, same answer, every time — no RNG reaches this decorator.
-    #[test]
-    fn the_split_is_a_function_of_the_prompt() {
-        let game = setup_two_player_game();
-        let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let once = dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[1, 1, 1]));
-        for _ in 0..8 {
-            let again =
-                dp.allocate(&game, 0, &split_ctx(), 3, &buckets(3), &[0, 0, 0], Some(&[1, 1, 1]));
-            assert_eq!(once, again);
-        }
+        let dp = AutoPayer::new(expects_split(vec![1, 2, 1]));
+        let alloc = dp.allocate(&game, 0, &split_ctx(), 4, &buckets(3), &[0, 0, 0], Some(&[1, 2, 1]));
+        assert_eq!(alloc, vec![1, 2, 1], "the answer is the inner provider's, not computed here");
     }
 
     /// CR 601.2f's ordering prompt is answered with gather order, which is what
