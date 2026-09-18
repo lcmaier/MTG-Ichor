@@ -376,7 +376,9 @@ pub fn render_debug(value: &impl fmt::Debug) -> String {
     tidy_ids(&format!("{:?}", value))
 }
 
-/// `ObjectId(17)` → `#17`, everywhere in `s`.
+/// `ObjectId(17)` → `#17`, everywhere in `s`. Whether `#17` is the right
+/// spelling at all is `backlog.md` §2.36's question; this follows the log's
+/// convention until it is answered.
 pub fn tidy_ids(s: &str) -> String {
     const TAG: &str = "ObjectId(";
     let mut out = String::with_capacity(s.len());

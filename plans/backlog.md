@@ -2105,6 +2105,40 @@ builder asks between them.
 | **Owner** | — ; filed 2026-09-18 by A4k, from A4j's review |
 
 
+### 2.36 How an object or a player is named in text — `#17` was a mistake
+
+**The surface that cannot express it.** `ObjectId`'s `Display` is `#17`
+(A4g, 2026-09-16, chosen so an id "reads as one wherever it lands in a log
+line"), and everything that renders text follows it: `ui::display`'s event
+lines (`Everywhere (#39)`), the trace sink's `render_debug`, which rewrites
+`{:?}`'s `ObjectId(17)` to `#17` inside a rendered action, `render_option`'s
+`#17` for an object and `P0` for a player, and `plans/traces/viewer.html`,
+which finds `#N` by regex to attach a name. The owner's review of A4c
+(2026-09-18): `ObjectId(17)` carried more than `#17` does, and the prefix was
+a mistake from the start that nobody caught. Read alone, `#17` does not say
+whether it is an object, a player, a counter or an ordinal, and `P0` is a
+second convention for the other id.
+
+**What the decision is.** One rule for how an object and a player are named
+in every human-facing line — event log, trace, prompt, the CLI's board, the
+GUI's tooltip — and whether a machine-facing rendering (a record, a wire
+payload) should say the type at all or leave it to the field's schema.
+Candidates: the type's own `Debug` (`ObjectId(17)`, `PlayerId(0)`), a typed
+short form (`obj 17`, `player 0`), or a name-first form with the id behind
+it (`Grizzly Bears [17]`, `Alice [0]`), which is what a client wants and what
+`backlog.md` §2.9's per-viewer query would supply. Not a rendering the engine
+decides per site: one `Display` and one place the trace and the prompt line
+take it from.
+
+| Field | |
+|---|---|
+| **Rules** | none; the CR does not speak to how a game names its objects, and CR 400.7's "new object" identity is what an id already is |
+| **Verdict** | `ObjectId::fmt` (`types/ids.rs`) is one convention and `render_option` is a second; four renderers repeat the choice, and a trace record's `#17` is only readable through the names table |
+| **Size** | small: one `Display` decision, the four renderers, the viewer's regex, and the `format_event` fixtures that assert a line's text; a docs pass over the trace pages' examples is not owed (they are pinned) |
+| **Blocks** | nothing on the spine; the readability of every log, trace and prompt line, and main item 141's wire shape, which should not inherit a spelling by accident |
+| **Atoms** | none |
+| **Owner** | — ; filed 2026-09-18 from the owner's review of A4c (PR #170) |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
