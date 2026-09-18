@@ -37,6 +37,124 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-18 for A4q** (identical clauses that read no earlier
+instance are checked once — `roadmap-v2.md` row A4q; A4i's review, theme I.2's
+third rider, split out of A4n). **No pool change**: `performance` 91 and
+`stress` 166, the cards A4i left, so every column here is comparable to the A4n
+and A4p blocks below. The record exists because a counter moves — one counter,
+the one the fold is about.
+
+**Two arms, two seat counts.** `main` (bf7bfb0, post-#166) and `new` (dbc57dd),
+each at `--players 2` and `--players 4`, both pools, `--rounds 3 --games 200`.
+
+| | new vs main |
+|---|---|
+| every **gameplay** counter, both pools, two seats and four | **IDENTICAL** |
+| `Memo hits`, `performance`, two seats / four seats | 58,274 → **58,004**, −0.46% / 183,117 → **181,724**, −0.76% |
+| `Memo hits`, `stress`, two seats / four seats | 70,914 → **70,806**, −0.15% / 257,253 → **256,736**, −0.20% |
+| `Layer walks`, every pool and seat count | **unchanged** — `performance` 343 and 791, `stress` 428 and 1,081 |
+| `µs / decision`, `performance`, two seats / four seats | 27.2 → 26.9, −1.3% / 47.0 → 47.2, +0.3% |
+| CPU/game median, two seats / four seats | 6.07 → 5.99 ms / 20.70 → 20.77 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+**`IDENTICAL` on everything the game does, `Memo hits` down, was the whole
+prediction and it held on all four arms.** A castability answer the fold does
+not change cannot change a game, and none did: same wins, same turns, same
+spells cast, same decisions, and the four-seat `stress` `Hit turn limit: 1`
+that A4n's and A4p's blocks also carry. What went away is the asking.
+
+**`Layer walks` did not move, and the row's "may move with it" was the right
+worry about the wrong shape.** The concern was that a scan the fold skips is a
+frame the memo never gets filled with, so some later question would walk where
+it used to hit. It cannot happen for *this* fold: the clauses it collapses are
+identical, so the surviving clause walks the same candidates the skipped ones
+would have and fills the memo with exactly them — only the repeat hits behind
+it go away. A fold across clauses with *different* filters is the one that
+would trade a hit for a walk, and this is not that fold.
+
+**Attributed to one card, forced.** With `--require "Seeds of Strength"` in
+every deck — 1.44 copies, cast 188, resolved 186, in 124 of 200 games (62%),
+those four numbers identical on both arms — the same `performance` gap at two
+seats is **58,504 → 57,675, −1.42%**. Three times the unforced −0.46%, which
+is what a per-card effect does when the card goes from a share of the draws to
+a guaranteed copy in every deck.
+
+**And it is one card in the registry, not just one in the pool.** A probe over
+`default_registry` — every card built, every `AbilityDef::instances` and
+`CardData::spell_instances` walked for a clause equal to an earlier one in the
+reusable range — names **Seeds of Strength alone**, out of 166. The other two
+registered cards with several instances do not fold and should not: Incremental
+Growth's three clauses each exclude the ones before them, and Plague Spores'
+two name a creature and a land. So `stress`'s narrower gap is dilution — one
+card competing for 36 deck slots against 166 names rather than 91 — and not a
+second shape behaving differently. Nothing is owed in `codebase-state.md` for
+that reason.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools). The
+`main` arm reproduced A4p's two tables digit for digit, which is the check that
+the baseline is the baseline; the tables below are those tables with `Memo hits`
+moved and nothing else. At two seats 56,661 → 56,556 on `performance` (−0.19%)
+and 63,025 → 62,943 on `stress` (−0.13%); at four, 178,408 → 176,892 (−0.85%)
+and 269,509 → 269,118 (−0.15%).
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 16 (32.0%) / 34 (68.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.3 | 28.1 |
+| Spells cast | 22.1 | 19.2 |
+| Lands played | 16.8 | 17.0 |
+| Combat w/ atk | 9.8 | 7.3 |
+| Creatures died | 6.5 | 4.3 |
+| Damage events | 22.3 | 15.8 |
+| Total damage | 59.9 | 44.1 |
+| Life changes | 14.5 | 11.7 |
+| **Layer walks** | **339** | **414** |
+| **Board walks** | **228** | **243** |
+| **Memo hits** | **56,556** | **62,943** |
+| **Layer frames** | **4,162** | **4,382** |
+| **Frames/walk** | **12.29** | **10.58** |
+| **Dependency checks** | **21** | **26** |
+| **Replacement gathers** | **1029** | **1037** |
+| **Restriction queries** | **1031** | **1039** |
+| Mana productions | 82 | 104 |
+| Prevention allocations | 0.02 | 0.04 |
+| Replacement prompts | 0.14 | 0.56 |
+| Max batch depth | 4 | 5 |
+| Decisions | 225 | 279 |
+| Priority decisions | 84 | 112 |
+
+**And the four-player table:**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 24 (48.0%) / 14 (28.0%) / 10 (20.0%) / 2 (4.0%) | 16 (32.0%) / 17 (34.0%) / 13 (26.0%) / 4 (8.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 58.6 | 65.5 |
+| Spells cast | 43.3 | 43.4 |
+| Lands played | 35.3 | 37.7 |
+| Combat w/ atk | 24.6 | 24.0 |
+| Creatures died | 14.3 | 11.5 |
+| Damage events | 53.7 | 53.4 |
+| Total damage | 149.0 | 158.5 |
+| Life changes | 38.9 | 42.5 |
+| Turns after a departure | 19.3 | 18.7 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **768** | **1,160** |
+| **Board walks** | **496** | **640** |
+| **Memo hits** | **176,892** | **269,118** |
+| **Layer frames** | **14,706** | **20,463** |
+| **Frames/walk** | **19.14** | **17.64** |
+| **Dependency checks** | **96** | **131** |
+| **Replacement gathers** | **2184** | **2625** |
+| **Restriction queries** | **2189** | **2630** |
+| Mana productions | 158 | 249 |
+| Prevention allocations | 0.00 | 0.04 |
+| Replacement prompts | 1.54 | 2.50 |
+| Max batch depth | 5 | 5 |
+| Decisions | 446 | 709 |
+| Priority decisions | 166 | 281 |
+
 **Re-recorded 2026-09-18 for A4n** (the instance list is computed once, in
 `CardDataBuilder::build`, and stored — `roadmap-v2.md` row A4n; A4i's review,
 themes H and I.2). **No pool change**: `performance` 91 and `stress` 166, the
@@ -46,7 +164,7 @@ four, both pools, which is why no table is repeated here. The record exists
 because the number the finding was measured in moved, and the timing did not.
 
 **Two arms, two seat counts, three sittings each.** `main` (879f114, the merge
-base, post-#165) and `new` (NEWSHA), each at `--players 2` and `--players 4`,
+base, post-#165) and `new` (9f6eb55), each at `--players 2` and `--players 4`,
 both pools, `--rounds 3 --games 200`.
 
 | | new vs main |
