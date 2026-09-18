@@ -7,7 +7,7 @@ use std::io::{self, BufRead, Write};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
-use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use crate::ui::choice_types::{ChoiceContext, ChoiceOption, PromptText};
 use crate::ui::decision::DecisionProvider;
 
 /// Interactive CLI decision provider for human play.
@@ -89,44 +89,9 @@ impl DecisionProvider for CliDecisionProvider {
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        let prompt = match &context.kind {
-            ChoiceKind::PriorityAction => "Choose action:".to_string(),
-            ChoiceKind::DeclareAttackers => "Choose attackers (indices):".to_string(),
-            ChoiceKind::DeclareBlockers => "Choose blockers (indices):".to_string(),
-            ChoiceKind::ChooseAlternativeCost => "Choose cost (0=normal, 1+=alternative):".to_string(),
-            ChoiceKind::ChooseAdditionalCosts => "Choose additional costs (indices, or none):".to_string(),
-            ChoiceKind::SelectRecipients { .. } => "Choose targets (indices):".to_string(),
-            ChoiceKind::Discard { .. } => "Choose card(s) to discard:".to_string(),
-            ChoiceKind::Scry { n, .. } => {
-                format!("Scry {}: choose which to put on the bottom:", n)
-            }
-            ChoiceKind::ScryOrder { bottom, .. } => {
-                let where_ = if *bottom { "bottom" } else { "top" };
-                format!("Scry: order the cards going on {} (top-most first):", where_)
-            }
-            ChoiceKind::ManaAbilityWindow { remaining_cost, .. } => {
-                format!(
-                    "Mana ability window: activate a mana ability to pay {} more, \
-                     or leave blank to stop:",
-                    remaining_cost
-                )
-            }
-            ChoiceKind::LegendRule { legend_name } => {
-                format!("Legend rule: choose which '{}' to keep:", legend_name)
-            }
-            ChoiceKind::ChooseSacrificeForCost { count, .. } => {
-                format!("Choose {} permanent(s) to sacrifice (indices):", count)
-            }
-            ChoiceKind::ChooseCopySource { .. } => {
-                "Choose the creature to be copied:".to_string()
-            }
-            ChoiceKind::ChooseDamageSource { .. } => {
-                "Choose a source of damage:".to_string()
-            }
-            _ => format!("Choose from options ({:?}):", context.kind),
-        };
+        let PromptText { rule, text } = context.kind.describe();
 
-        println!("\n--- {} ---", prompt);
+        println!("\n--- {} (CR {}) ---", text, rule);
         for (i, opt) in options.iter().enumerate() {
             println!("  [{}] {:?}", i, opt);
         }
@@ -171,10 +136,7 @@ impl DecisionProvider for CliDecisionProvider {
         min: u64,
         max: u64,
     ) -> u64 {
-        let prompt = match &context.kind {
-            ChoiceKind::ChooseXValue { .. } => "Choose value for X:".to_string(),
-            _ => format!("Choose a number ({:?}):", context.kind),
-        };
+        let PromptText { rule, text } = context.kind.describe();
 
         // For very large ranges (like X value with u64::MAX), show "0 or more"
         let range_str = if max == u64::MAX {
@@ -183,7 +145,7 @@ impl DecisionProvider for CliDecisionProvider {
             format!("{}-{}", min, max)
         };
 
-        println!("\n--- {} ({}) ---", prompt, range_str);
+        println!("\n--- {} (CR {}) ({}) ---", text, rule, range_str);
 
         loop {
             let input = read_line();
@@ -205,14 +167,9 @@ impl DecisionProvider for CliDecisionProvider {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        let prompt = match &context.kind {
-            ChoiceKind::AssignCombatDamage { .. } => "Assign combat damage:".to_string(),
-            ChoiceKind::AssignTrampleDamage { .. } => "Assign trample damage:".to_string(),
-            ChoiceKind::GenericManaAllocation { .. } => "Allocate generic mana:".to_string(),
-            _ => format!("Distribute {} ({:?}):", total, context.kind),
-        };
+        let PromptText { rule, text } = context.kind.describe();
 
-        println!("\n--- {} (total: {}) ---", prompt, total);
+        println!("\n--- {} (CR {}) (total: {}) ---", text, rule, total);
         for (i, bucket) in buckets.iter().enumerate() {
             let min_label = if per_bucket_mins[i] > 0 {
                 format!(" (min {})", per_bucket_mins[i])
@@ -270,13 +227,8 @@ impl DecisionProvider for CliDecisionProvider {
         context: &ChoiceContext,
         items: &[ChoiceOption],
     ) -> Vec<usize> {
-        let prompt = match &context.kind {
-            ChoiceKind::OrderCostReductions { .. } => {
-                "Order the cost reductions (CR 601.2f; the first applies first):".to_string()
-            }
-            other => format!("Order items ({:?}):", other),
-        };
-        println!("\n--- {} ---", prompt);
+        let PromptText { rule, text } = context.kind.describe();
+        println!("\n--- {} (CR {}) ---", text, rule);
         for (i, item) in items.iter().enumerate() {
             println!("  [{}] {:?}", i, item);
         }

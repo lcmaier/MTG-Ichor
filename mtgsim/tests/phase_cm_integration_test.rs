@@ -254,7 +254,7 @@ fn test_a_chosen_alternative_cost_is_modified_too() {
     let card = phase_cm_cards::bargain_lesson();
     let dp = ScriptedDecisionProvider::new();
     // Options are [the normal cost, the alternative]; take the alternative.
-    dp.expect_pick_n(ChoiceKind::ChooseAlternativeCost, vec![1]);
+    dp.expect_pick_n(ChoiceKind::ChooseAlternativeCost { spell_id: ObjectId::UNASSIGNED }, vec![1]);
     // Nothing to script: one bucket can take the generic mana, so the split
     // is forced (CR 102.2) and no prompt is made.
     let cast = cast_from_pool(&mut game, 0, card, &[(ManaType::Red, 2)], &dp);
