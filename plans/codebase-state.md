@@ -5398,10 +5398,11 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    ("Where the reads differ", the two-commit before/after) are entirely
    authored. The sink generates a **spine**; §7.1 needs a sentence saying tier 1
    is not subsumed. And "gated the way `Diagnostics` is" describes no
-   mechanism: those are seven always-on `Cell<u64>`s, free because incrementing
-   is free, while `compute_characteristics` — one of the four emit points — runs
-   ~62,000 times per measured game and `GameState` derives `Clone`, which the
-   counters ride deliberately and a growing buffer must not. What "off" costs is
+   mechanism: those are thirteen always-on `Cell<u64>`s — seven when this was
+   written — free because incrementing is free, while `compute_characteristics`
+   — one of the four emit points — runs ~62,000 times per measured game and
+   `GameState` derives `Clone`, which the diagnostics ride deliberately and a
+   growing buffer must not. What "off" costs is
    this phase's first decision, and the check is that a sink-compiled-in-but-off
    arm is `IDENTICAL` to `main` on both pools.
 
