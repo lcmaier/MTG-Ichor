@@ -197,16 +197,16 @@ fn test_one_pass_answers_every_member_and_nested_reads_are_not_board_walks() {
     put_in_graveyard(&mut game, card_of_type("Forest", CardType::Land), 0);
 
     let (walks, board_walks, hits) = (
-        game.counters.layer_walks(),
-        game.counters.board_walks(),
-        game.counters.memo_hits(),
+        game.diagnostics.layer_walks(),
+        game.diagnostics.board_walks(),
+        game.diagnostics.memo_hits(),
     );
     assert_eq!(pt(&game, goyf), (Some(2), Some(3)), "instant and land: two types");
-    assert_eq!(game.counters.layer_walks(), walks + 1, "one miss");
-    assert_eq!(game.counters.board_walks(), board_walks + 1, "one board walk — the graveyard reads nest inside it");
+    assert_eq!(game.diagnostics.layer_walks(), walks + 1, "one miss");
+    assert_eq!(game.diagnostics.board_walks(), board_walks + 1, "one board walk — the graveyard reads nest inside it");
 
     assert!(is_creature(&game, bears));
-    assert_eq!(game.counters.layer_walks(), walks + 1, "the other member was filled by the same pass");
+    assert_eq!(game.diagnostics.layer_walks(), walks + 1, "the other member was filled by the same pass");
     // Two hits: `pt` asks twice, and the toughness query was already a hit.
-    assert_eq!(game.counters.memo_hits(), hits + 2);
+    assert_eq!(game.diagnostics.memo_hits(), hits + 2);
 }

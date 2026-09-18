@@ -88,14 +88,14 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     let epoch = game.layer_epoch();
     if let Some(frame) = game.layer_memo.get(id, epoch) {
-        game.counters.record_memo_hit();
+        game.diagnostics.record_memo_hit();
         #[cfg(debug_assertions)]
         audit_memo_hit(game, id, &frame);
         return Some(frame);
     }
     // Counted before the store is probed, so a query for an object that does
     // not exist is a walk — the same walk it was before the pass.
-    game.counters.record_layer_walk();
+    game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
 
     let asked = match membership(game, id) {
@@ -130,13 +130,13 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
 #[cfg(debug_assertions)]
 fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
     let (walks, board_walks, frames, checks) = (
-        game.counters.layer_walks(),
-        game.counters.board_walks(),
-        game.counters.layer_frames(),
-        game.counters.dependency_checks(),
+        game.diagnostics.layer_walks(),
+        game.diagnostics.board_walks(),
+        game.diagnostics.layer_frames(),
+        game.diagnostics.dependency_checks(),
     );
     let fresh = compute_characteristics_uncached(game, id);
-    game.counters.rewind_layer_work(walks, board_walks, frames, checks);
+    game.diagnostics.rewind_layer_work(walks, board_walks, frames, checks);
     debug_assert_eq!(
         fresh.as_ref(),
         Some(served),
@@ -148,7 +148,7 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
 }
 
 /// One full layer walk of `id`, owned by the caller — a memo **miss**, and
-/// the walk `EngineCounters::layer_walks` counts. For a member that is a
+/// the walk `Diagnostics::layer_walks` counts. For a member that is a
 /// whole pass, of which one frame is kept.
 ///
 /// The CR 603.10a LKI capture reads through here: the frame it takes is about
@@ -158,7 +158,7 @@ pub(crate) fn compute_characteristics_uncached(
     game: &GameState,
     id: ObjectId,
 ) -> Option<EffectiveCharacteristics> {
-    game.counters.record_layer_walk();
+    game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
     match membership(game, id) {
         Membership::Member => compute_board(game, None).take(id),
@@ -190,7 +190,7 @@ pub(super) fn compute_non_member(
         board.entity(game, id).is_none(),
         "a battlefield entity is a member of every pass, never walked alone"
     );
-    game.counters.record_layer_frame();
+    game.diagnostics.record_layer_frame();
 
     let controller = base_controller(game, id, board.lookahead).unwrap_or(obj.owner);
     let mut chars = seed_frame(&obj.card_data, controller, 0);

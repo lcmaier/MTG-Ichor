@@ -8,6 +8,7 @@ use crate::events::event::EventLog;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
+use crate::state::diagnostics::Diagnostics;
 use crate::state::layer_memo::LayerMemo;
 use crate::state::replacement_effects::{
     EntrySelectionScope, PreventionAllocationScope, ReplacementEffectRegistry,
@@ -177,7 +178,7 @@ pub struct GameState {
     pub battlefield: IdMap<ObjectId, PermanentState>,
 
     /// How much work the engine has done this game — see
-    /// [`EngineCounters`](crate::state::diagnostics::EngineCounters).
+    /// [`Diagnostics`].
     ///
     /// **Diagnostic only; nothing may branch on it.** It is on `GameState`
     /// rather than in a thread-local for the reason `GameState.rng` is: ambient
@@ -185,7 +186,7 @@ pub struct GameState {
     /// for. A read of these numbers changing behavior would make them
     /// unmeasurable, which is why every accessor is read-only and no engine
     /// module imports them.
-    pub counters: crate::state::diagnostics::EngineCounters,
+    pub diagnostics: Diagnostics,
     /// One counter every write to a layer-walk input bumps — the coarse key
     /// of [`LayerMemo`]. Read through [`GameState::layer_epoch`], which folds
     /// in the registry's own count; written through
@@ -695,7 +696,7 @@ impl GameState {
             stack_entries: IdMap::default(),
             resolving: None,
             battlefield: IdMap::default(),
-            counters: Default::default(),
+            diagnostics: Default::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),
             exile: Vec::new(),

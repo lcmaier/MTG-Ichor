@@ -1049,9 +1049,9 @@ fn run_one_game(
                 );
                 s.copies = copies.clone();
                 // Read once at the end of the game rather than accumulated per
-                // turn: the counters are monotonic for the game's lifetime and
+                // turn: the diagnostics are monotonic for the game's lifetime and
                 // nothing resets them, so the final value *is* the total.
-                let c = &game.state.counters;
+                let c = &game.state.diagnostics;
                 s.layer_walks = c.layer_walks();
                 s.board_walks = c.board_walks();
                 s.memo_hits = c.memo_hits();

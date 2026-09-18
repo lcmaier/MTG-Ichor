@@ -630,7 +630,7 @@ mod tests {
         let plain = put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
         let printed = ManaCost::build(&[ManaType::Red], 1);
 
-        let queries = |g: &GameState| g.counters.layer_walks() + g.counters.memo_hits();
+        let queries = |g: &GameState| g.diagnostics.layer_walks() + g.diagnostics.memo_hits();
         let before = queries(&game);
         assert_eq!(preview_mana_cost(&game, plain, &printed), printed);
         assert_eq!(queries(&game), before, "the gate skipped the frame entirely");

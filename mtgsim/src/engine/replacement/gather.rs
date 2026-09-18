@@ -184,7 +184,7 @@ pub(crate) fn gather(
     blocked: bool,
     frame: &EntryFrame<'_>,
 ) -> Vec<ReplacementInstance> {
-    game.counters.record_replacement_gather();
+    game.diagnostics.record_replacement_gather();
 
     // What *caused* this event, for [`ReplacementDef::by`]: the controller of the
     // resolving spell or ability (CR 608.2; CR 109.5's "you"), or `None` for a

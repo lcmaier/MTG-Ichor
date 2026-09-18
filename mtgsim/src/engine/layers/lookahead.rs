@@ -156,7 +156,7 @@ pub fn compute_as_entering(
     controller: PlayerId,
     pending: &EnterMods,
 ) -> Option<EffectiveCharacteristics> {
-    game.counters.record_layer_walk();
+    game.diagnostics.record_layer_walk();
     let lookahead = Lookahead::new(game, id, controller, pending);
     compute_board(game, Some(&lookahead)).take(id)
 }

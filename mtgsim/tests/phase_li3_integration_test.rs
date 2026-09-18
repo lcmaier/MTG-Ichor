@@ -115,10 +115,10 @@ fn test_blood_moon_takes_kird_apes_forest_away_two_layers_earlier() {
     put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
     assert!(!get_effective_subtypes(&game, taiga).contains(&Subtype::Land(LandType::Forest)));
 
-    let before = game.counters.dependency_checks();
+    let before = game.diagnostics.dependency_checks();
     assert_eq!(pt(&game, ape), (Some(1), Some(1)), "no Forest at layer 4, no bonus at 7c");
     assert_eq!(
-        game.counters.dependency_checks(),
+        game.diagnostics.dependency_checks(),
         before,
         "the condition reads a lower layer's output; CR 613.8 is confined to one layer"
     );
@@ -243,14 +243,14 @@ fn test_a_conditional_static_waits_for_what_can_falsify_its_condition() {
     put_on_battlefield(&mut game, dual_lands::taiga(), 0);
     put_on_battlefield(&mut game, phase_li_cards::simian_clause(), 0);
     let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-    let before = game.counters.dependency_checks();
+    let before = game.diagnostics.dependency_checks();
     put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
     assert!(
         !is_ape(&game, bears),
         "the Clause waits for Blood Moon (CR 613.8a(b)), and finds no Forest when its turn comes"
     );
     assert!(
-        game.counters.dependency_checks() > before,
+        game.diagnostics.dependency_checks() > before,
         "the pair reached the hypothetical, which is what `condition_reads` is for"
     );
 

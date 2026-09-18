@@ -195,7 +195,7 @@ impl<'l> Board<'l> {
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
-            game.counters.record_layer_frame();
+            game.diagnostics.record_layer_frame();
             // The controller seed and CR 302.6's clock come from the entity —
             // the real one, or the one the performer would build for the
             // entering object — and from CR 108.4's other arms otherwise.
@@ -1212,7 +1212,7 @@ fn depends_on(
         return false;
     }
 
-    game.counters.record_dependency_check();
+    game.diagnostics.record_dependency_check();
     let before = observe(game, board, layer_index, a);
     let mut journal = Some(Journal::default());
     perform(game, board, layer_index, b, &mut journal);
@@ -1345,7 +1345,7 @@ pub(super) fn compute_board_traced<'l>(
     ceiling: usize,
     mut trace: Option<(usize, &mut Vec<TraceStep>)>,
 ) -> Board<'l> {
-    game.counters.record_board_walk();
+    game.diagnostics.record_board_walk();
     let mut board = Board::seed(game, lookahead, asked);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
         let apps = applications_in_layer(game, &board, layer, layer_index);
@@ -1468,11 +1468,11 @@ mod tests {
         let mut game = setup_two_player_game();
         let urborg = put_on_battlefield(&mut game, phase_li_cards::urborg_tomb_of_yawgmoth(), 0);
         let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
-        let before = game.counters.dependency_checks();
+        let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
         assert_eq!(order.iter().map(|a| a.source).collect::<Vec<_>>(), vec![moon, urborg]);
         assert!(order[1].affected.is_empty(), "Urborg's ability is gone by its turn");
-        assert_eq!(game.counters.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
+        assert_eq!(game.diagnostics.dependency_checks() - before, 1, "one hypothetical: Urborg against Blood Moon");
     }
 
     /// A conditional static waits for what can falsify its condition,
@@ -1491,7 +1491,7 @@ mod tests {
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
         let moon = put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
 
-        let before = game.counters.dependency_checks();
+        let before = game.diagnostics.dependency_checks();
         let order = layer_4_order(&game);
         assert_eq!(
             order.iter().map(|a| a.source).collect::<Vec<_>>(),
@@ -1501,7 +1501,7 @@ mod tests {
         assert_eq!(order[0].affected, vec![taiga], "Blood Moon reaches the one nonbasic land");
         assert!(order[1].affected.is_empty(), "and by the Clause's turn there is no Forest");
         assert_eq!(
-            game.counters.dependency_checks() - before,
+            game.diagnostics.dependency_checks() - before,
             1,
             "one hypothetical: the Clause against Blood Moon"
         );
@@ -1521,9 +1521,9 @@ mod tests {
             put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
             put_on_battlefield(&mut game, phase5_pre_cards::glorious_anthem(), 0);
         }
-        let before = game.counters.dependency_checks();
+        let before = game.diagnostics.dependency_checks();
         compute_board(&game, None);
-        assert_eq!(game.counters.dependency_checks(), before);
+        assert_eq!(game.diagnostics.dependency_checks(), before);
     }
 
     /// CR 305.7 in the channel table: setting a land to a basic land type

@@ -207,14 +207,14 @@ const PICK_REPLACEMENT: ChoiceKind = ChoiceKind::ChooseReplacementEffect { affec
 fn a_player_at_zero_life_loses_as_a_proposal_the_pipeline_sees() {
     let mut game = setup_game(2);
     game.players[1].life_total = 0;
-    let gathers = game.counters.replacement_gathers();
+    let gathers = game.diagnostics.replacement_gathers();
 
     assert!(sba(&mut game, &test_dp()));
 
     assert_eq!(losses(&game), vec![(1, LossReason::LifeReachedZero)]);
     assert!(game.player_lost[1]);
     assert_eq!(
-        game.counters.replacement_gathers(),
+        game.diagnostics.replacement_gathers(),
         gathers + 1,
         "one member, one CR 614 gather: the loss went through the pipeline"
     );
@@ -259,7 +259,7 @@ fn two_reasons_are_one_loss_carrying_the_first_in_cr_order() {
     let mut game = setup_game(2);
     game.players[0].life_total = 0;
     game.players[0].has_drawn_from_empty_library = true;
-    let gathers = game.counters.replacement_gathers();
+    let gathers = game.diagnostics.replacement_gathers();
 
     assert!(sba(&mut game, &test_dp()));
 
@@ -268,7 +268,7 @@ fn two_reasons_are_one_loss_carrying_the_first_in_cr_order() {
         vec![(0, LossReason::LifeReachedZero)],
         "one loss, and 704.5a comes before 704.5b"
     );
-    assert_eq!(game.counters.replacement_gathers(), gathers + 1, "one member, not two");
+    assert_eq!(game.diagnostics.replacement_gathers(), gathers + 1, "one member, not two");
 }
 
 // COVERS: ATOM-104.2a-001
@@ -665,11 +665,11 @@ fn setting_a_life_total_higher_is_a_gain_of_the_difference() {
 fn setting_a_life_total_to_what_it_already_is_proposes_nothing() {
     let mut game = setup_game(2);
     game.players[0].life_total = 12;
-    let gathers = game.counters.replacement_gathers();
+    let gathers = game.diagnostics.replacement_gathers();
     set_life(&mut game, 0, 12, &test_dp());
 
     assert!(life_changes(&game, 0).is_empty());
-    assert_eq!(game.counters.replacement_gathers(), gathers, "no event, so nothing to replace");
+    assert_eq!(game.diagnostics.replacement_gathers(), gathers, "no event, so nothing to replace");
 }
 
 /// Rhox Faithmender's ruling: *"becomes 10" from 3 becomes 17* — the gain of
@@ -730,7 +730,7 @@ fn a_loss_for_two_reasons_is_replaced_once() {
     let archangel = put_on_battlefield(&mut game, exquisite_archangel(), 0);
     game.players[0].life_total = 0;
     game.players[0].has_drawn_from_empty_library = true;
-    let gathers = game.counters.replacement_gathers();
+    let gathers = game.diagnostics.replacement_gathers();
 
     assert!(sba(&mut game, &test_dp()), "the check changed the game — the rider ran");
 
@@ -741,7 +741,7 @@ fn a_loss_for_two_reasons_is_replaced_once() {
     assert_eq!(zone_of(&game, archangel), Zone::Exile, "and one exile");
     // One member: the gather ran once for the loss and then once for the
     // rider's two proposals (the exile and the gain), never twice for a loss.
-    assert_eq!(game.counters.replacement_gathers(), gathers + 3);
+    assert_eq!(game.diagnostics.replacement_gathers(), gathers + 3);
 }
 
 /// Item 112 — CR 704.5b's window closes at the check that read it. The
@@ -1025,7 +1025,7 @@ fn platinum_angel_refuses_every_state_based_loss_and_the_game_goes_on() {
     game.players[0].life_total = -10;
     game.players[0].add_counters(CounterType::Poison, 10);
     draw_one(&mut game, 0, &test_dp());
-    let queries = game.counters.restriction_queries();
+    let queries = game.diagnostics.restriction_queries();
 
     assert!(!sba(&mut game, &test_dp()));
     assert!(!sba(&mut game, &test_dp()), "and again — you keep playing");
@@ -1033,7 +1033,7 @@ fn platinum_angel_refuses_every_state_based_loss_and_the_game_goes_on() {
     assert!(losses(&game).is_empty());
     assert!(!game.player_lost[0]);
     assert_eq!(game.result, None);
-    assert!(game.counters.restriction_queries() > queries, "the proposal was asked, and refused");
+    assert!(game.diagnostics.restriction_queries() > queries, "the proposal was asked, and refused");
 }
 
 #[test]
