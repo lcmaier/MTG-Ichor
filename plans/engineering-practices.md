@@ -1358,15 +1358,26 @@ schedulable rather than done:
   by hand: each proposal entering a batch, each pipeline iteration, each
   top-level layer walk, and the performed events. JSON lines, plus a script
   that turns one into a page in this format, so tier 1 becomes generated.
-  **Scheduled: its own PR, after CM-4 and before item 6** — `roadmap-v2.md`
-  row A4c, moved there 2026-09-08 out of the trigger phase's first PR. The first
-  question anyone asks a trigger dispatcher is "why did this fire, or not",
-  which is a trace question, and it wants answering before that phase starts
-  rather than with it. Sized at `codebase-state.md`, "Before Triggered
-  abilities" item 5 — **with two corrections recorded there**: a sink generates
-  a page's *spine*, never its argument, so tier 1 is not subsumed by tier 2;
-  and item 5's "gated the way `Diagnostics` is" describes no mechanism,
-  since those cells are always on.
+  **Landed 2026-09-18 (row A4c, PR #170)** as `mtgsim/src/state/trace.rs`: five
+  emit points — the batch, the CR 616.1 iteration, the layer walk, the
+  decision boundary (A4h's addition: the prompt, and the rejection between a
+  prompt and its re-ask) and the performed event — off at one branch each,
+  reachable as `fuzz_games --trace DIR`, `cli_play --trace PATH` and
+  `test_support::install_trace`. `plans/trace_spine.py` renders one game's
+  lines through `plans/traces/viewer.html`, which also reads a file dropped
+  on it. **Tier 1 is not subsumed.** A sink generates a page's *spine* — the
+  step rows, each read labelled by what it consulted — and never its
+  argument: which boards, which question each answers, the "where the reads
+  differ" table and the closing section are authored, and a generated page
+  marks their places. What it is for is the question asked mid-debugging,
+  and the regeneration of a page's rows after a refactor: rd-2's Trace A
+  regenerated from its test found two rows the pinned page states and
+  today's engine does not (row A4c has them), which is the diff a spine
+  exists to show and not a reason to touch the page. The two corrections
+  item 5 recorded before the code held: "gated the way `Diagnostics` is"
+  became one `Option` branch per emit point with the payload built behind
+  it, and the check was `IDENTICAL` on every counter with the sink compiled
+  in and off, and on (`fuzz-record.md`, the A4c block).
 - **Tier 3 — the codebase map.** One structural page: the modules and what each
   owns, the chokepoint's arms, the three gate legs a new replacement source
   must extend, the two `object_matches_filter`s, the accessor pair, and the
