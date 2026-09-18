@@ -13,6 +13,11 @@ non-targeting `Choose` belongs in the announcement at all), which wants a
 `backlog.md` entry rather than a fix, and **D**'s sibling questions that became
 `codebase-state.md` items 157 and 158.
 
+**A second audit after the merge (2026-09-17, theme I below) found two live
+defects, both pre-existing and both inherited by A4i's new count arms, and
+scheduled them as `roadmap-v2.md` rows A4o and A4p; its performance riders
+went onto row A4n.**
+
 Each theme below ends with what actually happened, including the one item that
 was **withdrawn because building it showed it was wrong**.
 
@@ -395,3 +400,104 @@ engine decides changes.
 
 **Not done in this PR**: it changes `CardData`, which is a core type and was not
 part of the four themes the owner scheduled. Proposed as its own row.
+
+---
+
+## I — Second audit, fresh eyes after the merge (2026-09-17)
+
+A read of the merged PR against two questions the owner set: is it
+performance-tight, and does it anticipate the card pool. The tree it read is
+`d0102bd`: 1,594 tests green, zero warnings. **The model holds.** The instance
+walk, the CR 608.2b split, the refusal of `OtherThanInstance` wherever there is
+no announcement to read, and `announce_targets`' `(chooser, source, clauses)`
+signature — which is what CR 603.3d will hand it — are all right and are left
+alone. What follows is what the read found, ranked, with where each went.
+
+### I.1 — Two live defects, both pre-existing, both inherited by A4i's new arms
+
+Neither is A4i's doing. Both sit in the selection arms A4i rewrote to count `n`
+candidates, and the rewrite carried the gap into the new logic rather than
+closing it. Both were **reproduced with a throwaway fixture** before being
+scheduled, so the rows below start from a known board rather than a suspicion.
+
+**`SelectionFilter::Spell` accepts an activated ability on the stack, and the
+pool has both halves.** `validate_spell_target` checks stack membership only;
+`enumerate_legal_selections_upto`'s `stack()` closure yields every stack id;
+A4i's `has_legal_choices` `Spell` arm counts every stack id. Only the sibling
+`DamageSource` arm filters on `is_spell`. Counterspell and Merfolk
+Thaumaturgist's activated ability are both in `PERFORMANCE_POOL`, so a random
+game can cast Counterspell at the ability — and with the ability the only other
+object on the stack, CR 102.2 makes the choice forced and nothing prompts.
+`Primitive::CounterSpell` then moves the ephemeral ability object to its
+owner's graveyard through `change_zone`.
+
+The fixture: Thaumaturgist on the battlefield under player 1, summoning
+sickness cleared; Counterspell in player 0's hand with {U}{U} in the pool;
+player 1 activates, player 0 casts, the stack resolves. **`castable_spells`
+offers Counterspell, the entry's one instance holds the ability object, and
+the game ends with two Merfolk Thaumaturgist objects — one on the battlefield
+and one in player 1's graveyard.** A phantom card, in every measured game that
+lines the two up. `codebase-state.md` item 159; **row A4o**, first in the
+slot because it is live.
+
+**The `Player` and `Any` arms count and offer seats that have left the game.**
+`num_players()` is the player vector's length, which CR 800.4a never shrinks,
+and neither the enumeration's `players()` closure nor `has_legal_choices`'
+`Player` and `Any` arms ask `in_game`. Reproduced at four seats with seat 3
+departed: both filters offer `Player(3)`. `validate_targets` refuses it for
+`Player` — a cast the oracle offered and the engine rewinds, item 139's class,
+and the validator's own comment claims the seat is "not offered at CR 601.2c",
+which the enumeration contradicts — and **accepts it for `Any`**, because
+`validate_any_target` never asks `in_game`. "Any target" damage resolves
+against a player who is not in the game. Two-player streams cannot move,
+since a two-player departure ends the game (CR 104.2a); the four-seat `stress`
+arm is where the fix will differ. `codebase-state.md` item 160; **row A4p**.
+
+### I.2 — Performance: one allocation the redesign missed, and three riders for A4n
+
+**The resolution walk allocates per atom, which defeats the flat buffer.**
+Theme C replaced the nested `Vec` so that reading an instance is a slice
+borrow, and the one site that indexes it — `resolve_effect_at` — then calls
+`to_vec()` on the slice before handing it to `resolve_primitive`. Every
+targeting atom of every resolution still heap-allocates. The copy is not
+needed for the borrow checker: `ctx` is a `&ResolutionContext` independent of
+`&mut self`, and the slice passes straight through — removed, compiled with
+`cargo check`, clean, reverted. Two lines. Small today; it is the path A6
+multiplies by every trigger it resolves. **Rides with A4n**, whose A/B it
+shares.
+
+**A4n is the right call, and its row now says three more things.** The list is
+recomputed on three paths, not one — the castability check per card in hand per
+priority pass, the activatable-ability check per ability per permanent per
+priority pass, and the resolution walk once per resolution — and the row's fix
+covers all three. But the precompute cannot live only in
+`CardDataBuilder::build()`: card files construct `AbilityDef` as struct
+literals, and a Layer 6 `GrantAbility` carries one inside a `Primitive` that
+never meets the builder, so the field is filled where every definition is born
+or computed lazily. And identical clauses that read no earlier instance are
+checked once: Seeds of Strength, pooled, runs three `has_legal_choices`
+battlefield scans per priority pass per copy in hand for one answer. Both are
+on the row.
+
+### I.3 — Item 155's condition is too narrow, and its reachability line holds
+
+The item says the greedy feed-forward is exact when an "another target" chain
+"reuses one filter". The exact condition is **monotone widening**: greedy is
+right as long as no later clause is narrower than an earlier clause it
+excludes. The shape that fails is "target creature" followed by "another
+target creature you control", on a board where the caster's only creature is
+first in timestamp order — greedy takes it for the first clause and finds
+nothing for the second, when swapping would work. A Scryfall regex for that
+narrowing shape (`o:/target creature[^.]*another target creature you control/`)
+returns one card, Combine Guildmage, and it uses the same filter twice. So the
+item is safe and the failure stays conservative; the item now states the rule a
+card author can check against. Amended in place.
+
+### What was not found
+
+No A4i regression. No path where the new count logic is asked more often than
+the single check it replaced, except the identical-clause case above. No
+determinism hazard: the bounded enumeration takes the first `n` in timestamp
+order. No hole in the refusals: an undeclared back-reference is refused at
+registration and at resolution, and a filter leaf asked outside the loop errors
+rather than matching everything.
