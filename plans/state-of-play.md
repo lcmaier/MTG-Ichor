@@ -139,7 +139,6 @@ discipline. → `engineering-practices.md` §5.
 is an open plate.
 
 - `plans/handoffs/a4i-review.md`
-- `plans/handoffs/a4p-brief.md`
 
 ## What this file deliberately does not know
 
