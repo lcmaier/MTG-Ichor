@@ -271,8 +271,8 @@ def corpus_block(conn):
 
 T1 = [
     (["603.1b"], "603.1b", "more than one trigger condition, and \"all\" of them in a period",
-     "multi-condition (turn history)", None,
-     "no paper card prints the form -- the nearest phrase, `o:\"if all\"`, finds no card with two trigger conditions -- so ATOM-603.1b-001 is the customer"),
+     "multi-condition (turn history)", 'o:"done all"',
+     "Avatar Aang (2025) prints the form: four bending conditions and \"if you've done all four this turn\", which its ruling reads over the whole turn whether or not Aang was there -- so the tracker is per player per turn, not per source"),
     (["603.2"], "603.2", "a game event or a game state matches the trigger event", "umbrella", TRIGGER,
      "every card that carries a trigger; the base every other row is a share of"),
     (["603.2b"], "603.2b", "a phase or step begins -- \"at the beginning of\"", "per event", 'o:"at the beginning of"',
@@ -280,39 +280,58 @@ T1 = [
     (["603.2c"], "603.2c", "one event with several occurrences -- once per occurrence, or once for \"one or more\"",
      "one-or-more", 'o:"whenever" o:"one or more"', "the batch (`BatchId`) is the boundary"),
     (["603.2d"], "603.2d", "a triggered ability triggers additional times", "count modifier",
-     'o:"triggers an additional time"', "not an event: a multiplier read as the ability triggers (Panharmonicon)"),
+     'o:"triggers an additional time"',
+     "not an event: a multiplier read as the ability triggers. Panharmonicon's ruling draws its edges -- the object's own triggered abilities only, never CR 603.6d's \"enters\" statics or a replacement effect; the rule's last sentence excludes the delayed and reflexive triggers those abilities create; and an ability that \"triggers only once each turn\" is not doubled (the row below 603.2h)"),
     (["603.2e"], "603.2e", "\"becomes\" -- tapped, untapped, attached, blocked: the transition only", "per transition",
      '(o:"becomes tapped" or o:"becomes untapped" or o:"becomes attached" or o:"becomes blocked")',
      "\"becomes the target\" and \"becomes unattached\" have rows of their own below"),
     (["603.2f"], "603.2f", "the object with the ability is at no time visible to all players -- it does not trigger",
-     "visibility gate", None, "not an event; a gate on every row (S1, `Zone::is_public()`)"),
+     "visibility gate", None,
+     "not an event; a gate on every row. It answers `atomic-tests/supplemental-docs/603-2f-complexity.md`: Guerrilla Tactics discarded onto the library under Library of Leng is never visible and does not trigger, and under Future Sight the top card is revealed and it does -- visibility is per object, not per zone (S1, `backlog.md` §2.9), and `Zone::is_public()` is the base case only"),
     (["603.2g"], "603.2g", "a prevented or replaced event never happened", "stream property", None,
      "why the matcher reads the *performed* stream and nothing upstream of it"),
     (["603.2h"], "603.2h", "\"Do this only once each turn\"", "per-turn action gate",
-     'o:"do this only once each turn"', "a tracker on the source's controller, read at resolution (ATOM-603.2h-002)"),
+     'o:"do this only once each turn"',
+     "the action-taken gate, per source object: Nykthos Paragon's rulings have every life gain trigger it until the action is taken, one of two instances on the stack act (ATOM-603.2h-002), and two Paragons act twice; Panharmonicon can double it, since the extra instance just does nothing"),
+    ([], "(no rule; CR 702.179d's speed is the baseline CR's one use)",
+     "\"This ability triggers only once each turn\" -- a cap on triggering, per source object", "per-turn trigger gate",
+     'o:"triggers only once each turn"',
+     "no rule of its own in the baseline CR; the rulings (Jin-Gitaxias: once, not once per opponent; Tyvar: once per creature it is granted to; Fang and Stonebinder's Familiar: once for a batch) and the judge literature read it as a flag set when the ability triggers, which Panharmonicon cannot double. A second tracker beside 603.2h's, written by the dispatcher rather than by the resolution -- question 16"),
     (["603.3b"], "603.3b", "another ability triggering -- the second APNAP tier", "per event",
      'o:"causes a triggered ability to trigger"', "Strict Proctor's shape: the trigger event is a trigger"),
     (["603.4"], "603.4", "intervening \"if\" -- the condition read as the event happens and again at resolution",
      "intervening-if", TRIGGER + ' o:", if "',
-     "a comma-if anywhere behind a trigger word; the regex reading `o:/(when|whenever|at the beginning of)[^.]*, if /` is the --boundary check"),
+     "a comma-if anywhere behind a trigger word; the regex reading is §7's pair 6"),
     (["603.5"], "603.5", "\"may\" and \"unless\" -- the choice is made at resolution, the ability stacks regardless",
      "optional", None, "not an event; a `ChoiceKind` the phase adds (A4j)"),
     (["603.6", "603.6a"], "603.6a", "a permanent enters the battlefield", "per event (zone change)",
-     W + ' o:"enters"', "`o:\"enters\"` alone also matches CR 603.6d's \"enters tapped\" statics, which are not triggers"),
+     W + ' o:"enters"', "`o:\"enters\"` alone also matches CR 603.6d's \"enters\" statics, which are not triggers -- the line Panharmonicon's ruling draws, since CR 603.2d doubles the triggers and never the statics"),
     (["603.6c"], "603.6c", "a permanent leaves the battlefield, including \"dies\" (CR 700.4: put into a graveyard from the battlefield)",
      "look-back (603.10a)", W + ' (o:"leaves the battlefield" or o:"dies" or o:"put into a graveyard from the battlefield")',
      "one row, not two, because CR 700.4 makes the phrases one event"),
     (["603.6c"], "603.6c", "a phased-in permanent leaves the game because its owner leaves", "look-back (603.10a)", None,
      "no printed phrase to search; `GameEvent::LeftTheGame` carries the frame and item 6 owns the qualifier"),
     (["603.6c"], "603.6c", "put into a zone \"from anywhere\" -- never a leaves-the-battlefield ability",
-     "per event (zone change)", W + ' o:"from anywhere"', "the row that must *not* look back"),
+     "per event (zone change)", W + ' o:"from anywhere"',
+     "the row that must *not* look back through 603.10a's first class: Guile's ruling has it trigger from the graveyard even when Lignify took the ability on the battlefield, and not when Yixlid Jailer takes it in the graveyard. A library or hand destination is 603.10a's third class instead, and that one does look back"),
     (["603.6e"], "603.6e", "the enchanted permanent leaves the battlefield -- an Aura's own trigger",
      "look-back (400.7e/f)", W + ' o:"enchanted" (o:"dies" or o:"leaves the battlefield")',
      "finds both new objects: the card and the Aura in its graveyard"),
-    (["603.7", "603.7a", "603.7c"], "603.7", "a delayed triggered ability -- \"at the beginning of the next ...\", \"when this creature becomes untapped\"",
+    (["603.7", "603.7a"], "603.7", "a delayed triggered ability -- \"at the beginning of the next ...\", \"when this creature becomes untapped\"",
      "delayed", 'o:"at the beginning of the next"', "created at resolution, never retroactive (603.7a); CR 513.2's next-turn rule"),
-    (["603.7b"], "603.7b", "\"the next time\" -- once, unless a stated duration; simultaneous events, the controller chooses",
-     "delayed", 'o:"the next time"', "ATOM-603.7b-002 is the simultaneous case (Tatsumasa under a doubler)"),
+    (["603.7b"], "603.7b", "once -- the next time its event occurs -- unless a stated duration; simultaneous events, the controller chooses",
+     "delayed", None,
+     "not searched: the first draft's `o:\"the next time\"` counts CR 615's shields (\"the next time ... would deal damage ... prevent\"), not delayed triggers, and was withdrawn; ATOM-603.7b-002 is the simultaneous case (Tatsumasa under a doubler)"),
+    (["603.7c"], "603.7c", "a delayed trigger tracks its object through characteristic changes, and loses it at a zone change (CR 400.7)",
+     "delayed: identity", None, "an object reference, not a filter -- the same identity question as 603.6's zone-change triggers"),
+    (["603.7d"], "603.7d", "created by a spell: the source is the spell, the controller whoever controlled it as it resolved",
+     "delayed: provenance", None, "the spell's stack object is gone by the time the trigger fires (CR 608.2n), so the source is a remembered identity"),
+    (["603.7e"], "603.7e", "created by an activated or triggered ability: the source is that ability's source",
+     "delayed: provenance", None, "inherits `AbilityIdentity`'s source half"),
+    (["603.7f"], "603.7f", "created by a static ability's replacement effect: the source is the object with the static ability, the controller its controller as the replacement applied",
+     "delayed: provenance", None, "the pipeline is the producer and carries no resolution stamp -- question 14"),
+    (["603.7g"], "603.7g", "created by a static ability that let a player take an action: the source is that object, the controller its controller as the action was taken",
+     "delayed: provenance", None, "a special action is the producer -- question 14"),
     (["603.7h"], "603.7h", "the ability that created it has resolved N times this turn", "delayed, counted",
      'o:"time this ability has resolved this turn"', "Ashling's shape; the count is per instance or per ability (S3)"),
     (["603.8"], "603.8", "a game state matches -- a state trigger", "state",
@@ -322,8 +341,9 @@ T1 = [
      W + ' o:"loses the game"', "over-count: also matches \"you lose the game\" effects behind an unrelated trigger"),
     (["603.10a"], "603.10a", "a card leaves a graveyard", "look-back", W + ' (o:"leaves your graveyard" or o:"leaves a graveyard" or o:"leave your graveyard" or o:"leave a graveyard")',
      "the second of 603.10a's three classes"),
-    (["603.10a"], "603.10a", "an object all players can see is put into a hand or library", "look-back", None,
-     "the third class; no phrase isolates it"),
+    (["603.10a"], "603.10a", "an object all players can see is put into a hand or library", "look-back",
+     '(o:"put into a library from" or o:"put into your hand from" or o:"is returned to your hand" or o:"is returned to its owner\'s hand" or o:"are put into a library") ' + W,
+     "the third class, and printed: Wan Shi Tong and Dutiful Knowledge Seeker (\"put into a library from anywhere\"), Golgari Brownscale (into your hand from your graveyard), Stormfront Riders (returned to your hand from the battlefield -- its ruling has it trigger for itself when bounced with another). A custom card can name the class outright, which is why the row carries a query rather than \"not searched\""),
     (["603.10b"], "603.10b", "a permanent phases out", "look-back", 'o:"phases out"', "phasing is unbuilt"),
     (["603.10c"], "603.10c", "an object becomes unattached", "look-back", 'o:"becomes unattached"', ""),
     (["603.10d"], "603.10d", "a player loses control of an object, or an opponent gains control of it from them",
@@ -373,7 +393,7 @@ T2 = [
      "carried; the frame is CR 603.10a's look-back, captured before CR 611.2a drops the registry rows"),
     ("draws a card", "121.1", 'o:"whenever" o:"draw"', ["CardDrawn"],
      [("who", "CardDrawn.player_id"), ("which card", "CardDrawn.card_id"), ("first or second card this turn (miracle, 702.94a)", "tracker")],
-     "carried; CR 121.5 is why this is not the library-to-hand zone change"),
+     "carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and \"if you draw one or more cards this way\" reads the count the performed draws returned, not the stream"),
     ("at the beginning of upkeep", "603.2b / 500.6", 'o:"at the beginning of" o:"upkeep"', ["StepBegin"],
      [("which step", "StepBegin.step"), ("whose turn", "!StepBegin.player"), ("whose turn (today)", "live: the active player")],
      "**field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- \"your upkeep\" and \"each opponent's upkeep\" read it"),
@@ -502,7 +522,7 @@ T2 = [
     ("turn history: first / second spell, second card, last turn, this game", "603.1b / item 42",
      '(o:"first spell" or o:"second spell" or o:"second card" or o:"last turn" or o:"this game")', [],
      [("what a player did this turn, last turn, this game", "tracker")],
-     "item 42's per-player turn summaries, which wait for the doc (P2-P4)"),
+     "item 42's per-player turn summaries, which wait for the doc (P2-P4). \"This game\" is a scope, not a window: Commander's Insight counts commander casts from the command zone this game, which is CR 903.8's own counter -- question 15"),
     ("keyword actions with no engine action: turned face up, transforms, cycles, explores, crews, expends, commits a crime",
      "701 / 702 / 700.13-14", W + ' (o:"turned face up" or o:"transforms" or o:"cycle" or o:"explores" or o:"becomes crewed" or o:"expend" or o:"commit a crime")', [],
      [("the keyword action", "no event")],
@@ -638,9 +658,17 @@ BOUNDARY = [
 
 
 def render_boundary():
-    L = ["| substring query | cards | regex query | cards |", "|---|---:|---|---:|"]
-    for a, b in BOUNDARY:
-        L.append("| `%s` | %s | `%s` | %s |" % (esc(a), fmt(count(a)), esc(b), fmt(count(b))))
+    # The regex queries carry `|`, which a table cell would have to escape and
+    # a reader of the raw file would then misread; they are listed under the
+    # table instead, by pair number.
+    L = ["| pair | substring query | cards | cards, regex reading |", "|---:|---|---:|---:|"]
+    for i, (a, b) in enumerate(BOUNDARY, 1):
+        L.append("| %d | `%s` | %s | %s |" % (i, esc(a), fmt(count(a)), fmt(count(b))))
+    L.append("")
+    L.append("The regex readings, by pair (each plus `%s`, `unique=cards`):" % BASE.strip())
+    L.append("")
+    for i, (_, b) in enumerate(BOUNDARY, 1):
+        L.append("%d. `%s`" % (i, b))
     return "\n".join(L)
 
 

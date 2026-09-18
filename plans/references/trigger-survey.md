@@ -58,9 +58,13 @@ that the regex form did not honor word boundaries through the API in its own
 test; on 2026-09-18 it did (§7), and the tables still use the substring form
 on purpose — a number anyone can reproduce beats a cleaner one that rests on
 a feature the API does not document as stable. And the CR is the customer: an
-event the CR names with no printed card today still gets a row (CR 603.1b's
-"all of those conditions", 603.10a's third class, 603.6c's owner-leaves
-clause), since a fixture is its test until a card is.
+event the CR names with no printed card today still gets a row (603.6c's
+owner-leaves clause, 603.7b–g's provenance rules), since a fixture is its test
+until a card is. Two rows were first drafted that way and the owner's review
+found the cards — Avatar Aang prints CR 603.1b's form, and Wan Shi Tong's
+family prints 603.10a's third class — so both carry queries now. That is the
+trap in the other direction: the phrase the CR uses is not always the phrase a
+card uses, and a "not searched" needs a second search before it stands.
 
 ---
 
@@ -115,36 +119,43 @@ Every trigger event, shape or gate that CR 603.1b through 603.12a names, in
 the CR's order, with the corpus atoms that exercise it and a printed count
 where a phrase isolates it. "Shape" is the brief's axis: per event,
 one-or-more, state, delayed, intervening-if, look-back — plus reflexive
-(603.12) and the two count modifiers (603.2d, 603.2h), which the CR names and
-the axis did not.
+(603.12), the two count modifiers (603.2d, 603.2h), 603.2h's uncodified
+sibling "this ability triggers only once each turn", and 603.7c–g's identity
+and provenance rules, which the CR names and the axis did not.
 
 <!-- trigger-survey: begin TABLE-1 -->
 | CR | the event, as the CR words it | shape | corpus atoms | cards | Scryfall query (plus `game:paper -is:funny`, `unique=cards`) |
 |---|---|---|---|---:|---|
-| 603.1b | more than one trigger condition, and "all" of them in a period -- no paper card prints the form -- the nearest phrase, `o:"if all"`, finds no card with two trigger conditions -- so ATOM-603.1b-001 is the customer | multi-condition (turn history) | 603.1b-001 | -- | not searched |
+| 603.1b | more than one trigger condition, and "all" of them in a period -- Avatar Aang (2025) prints the form: four bending conditions and "if you've done all four this turn", which its ruling reads over the whole turn whether or not Aang was there -- so the tracker is per player per turn, not per source | multi-condition (turn history) | 603.1b-001 | 1 | `o:"done all"` |
 | 603.2 | a game event or a game state matches the trigger event -- every card that carries a trigger; the base every other row is a share of | umbrella | 603.2-001 | 14,149 | `(o:"when " or o:"whenever " or o:"at the beginning of")` |
 | 603.2b | a phase or step begins -- "at the beginning of" -- the step rows in table 2 split it | per event | 603.2b-001 | 2,566 | `o:"at the beginning of"` |
 | 603.2c | one event with several occurrences -- once per occurrence, or once for "one or more" -- the batch (`BatchId`) is the boundary | one-or-more | 603.2c-001 | 443 | `o:"whenever" o:"one or more"` |
-| 603.2d | a triggered ability triggers additional times -- not an event: a multiplier read as the ability triggers (Panharmonicon) | count modifier | 603.2d-001 | 37 | `o:"triggers an additional time"` |
+| 603.2d | a triggered ability triggers additional times -- not an event: a multiplier read as the ability triggers. Panharmonicon's ruling draws its edges -- the object's own triggered abilities only, never CR 603.6d's "enters" statics or a replacement effect; the rule's last sentence excludes the delayed and reflexive triggers those abilities create; and an ability that "triggers only once each turn" is not doubled (the row below 603.2h) | count modifier | 603.2d-001 | 37 | `o:"triggers an additional time"` |
 | 603.2e | "becomes" -- tapped, untapped, attached, blocked: the transition only -- "becomes the target" and "becomes unattached" have rows of their own below | per transition | 603.2e-001, 603.2e-002 | 328 | `(o:"becomes tapped" or o:"becomes untapped" or o:"becomes attached" or o:"becomes blocked")` |
-| 603.2f | the object with the ability is at no time visible to all players -- it does not trigger -- not an event; a gate on every row (S1, `Zone::is_public()`) | visibility gate | 603.2f-001 | -- | not searched |
+| 603.2f | the object with the ability is at no time visible to all players -- it does not trigger -- not an event; a gate on every row. It answers `atomic-tests/supplemental-docs/603-2f-complexity.md`: Guerrilla Tactics discarded onto the library under Library of Leng is never visible and does not trigger, and under Future Sight the top card is revealed and it does -- visibility is per object, not per zone (S1, `backlog.md` §2.9), and `Zone::is_public()` is the base case only | visibility gate | 603.2f-001 | -- | not searched |
 | 603.2g | a prevented or replaced event never happened -- why the matcher reads the *performed* stream and nothing upstream of it | stream property | 603.2g-001 | -- | not searched |
-| 603.2h | "Do this only once each turn" -- a tracker on the source's controller, read at resolution (ATOM-603.2h-002) | per-turn action gate | 603.2h-001, 603.2h-002 | 34 | `o:"do this only once each turn"` |
+| 603.2h | "Do this only once each turn" -- the action-taken gate, per source object: Nykthos Paragon's rulings have every life gain trigger it until the action is taken, one of two instances on the stack act (ATOM-603.2h-002), and two Paragons act twice; Panharmonicon can double it, since the extra instance just does nothing | per-turn action gate | 603.2h-001, 603.2h-002 | 34 | `o:"do this only once each turn"` |
+| (no rule; CR 702.179d's speed is the baseline CR's one use) | "This ability triggers only once each turn" -- a cap on triggering, per source object -- no rule of its own in the baseline CR; the rulings (Jin-Gitaxias: once, not once per opponent; Tyvar: once per creature it is granted to; Fang and Stonebinder's Familiar: once for a batch) and the judge literature read it as a flag set when the ability triggers, which Panharmonicon cannot double. A second tracker beside 603.2h's, written by the dispatcher rather than by the resolution -- question 16 | per-turn trigger gate | none | 128 | `o:"triggers only once each turn"` |
 | 603.3b | another ability triggering -- the second APNAP tier -- Strict Proctor's shape: the trigger event is a trigger | per event | 603.3b-001, 603.3b-002 | 1 | `o:"causes a triggered ability to trigger"` |
-| 603.4 | intervening "if" -- the condition read as the event happens and again at resolution -- a comma-if anywhere behind a trigger word; the regex reading `o:/(when\|whenever\|at the beginning of)[^.]*, if /` is the --boundary check | intervening-if | 603.4-001, 603.4-002, 603.4-003 | 1,338 | `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "` |
+| 603.4 | intervening "if" -- the condition read as the event happens and again at resolution -- a comma-if anywhere behind a trigger word; the regex reading is §7's pair 6 | intervening-if | 603.4-001, 603.4-002, 603.4-003 | 1,338 | `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "` |
 | 603.5 | "may" and "unless" -- the choice is made at resolution, the ability stacks regardless -- not an event; a `ChoiceKind` the phase adds (A4j) | optional | 603.5-001 | -- | not searched |
-| 603.6a | a permanent enters the battlefield -- `o:"enters"` alone also matches CR 603.6d's "enters tapped" statics, which are not triggers | per event (zone change) | 603.6-001, 603.6a-001 | 5,701 | `(o:"when " or o:"whenever ") o:"enters"` |
+| 603.6a | a permanent enters the battlefield -- `o:"enters"` alone also matches CR 603.6d's "enters" statics, which are not triggers -- the line Panharmonicon's ruling draws, since CR 603.2d doubles the triggers and never the statics | per event (zone change) | 603.6-001, 603.6a-001 | 5,701 | `(o:"when " or o:"whenever ") o:"enters"` |
 | 603.6c | a permanent leaves the battlefield, including "dies" (CR 700.4: put into a graveyard from the battlefield) -- one row, not two, because CR 700.4 makes the phrases one event | look-back (603.10a) | 603.6c-001, 603.6c-002 | 1,688 | `(o:"when " or o:"whenever ") (o:"leaves the battlefield" or o:"dies" or o:"put into a graveyard from the battlefield")` |
 | 603.6c | a phased-in permanent leaves the game because its owner leaves -- no printed phrase to search; `GameEvent::LeftTheGame` carries the frame and item 6 owns the qualifier | look-back (603.10a) | 603.6c-001, 603.6c-002 | -- | not searched |
-| 603.6c | put into a zone "from anywhere" -- never a leaves-the-battlefield ability -- the row that must *not* look back | per event (zone change) | 603.6c-001, 603.6c-002 | 94 | `(o:"when " or o:"whenever ") o:"from anywhere"` |
+| 603.6c | put into a zone "from anywhere" -- never a leaves-the-battlefield ability -- the row that must *not* look back through 603.10a's first class: Guile's ruling has it trigger from the graveyard even when Lignify took the ability on the battlefield, and not when Yixlid Jailer takes it in the graveyard. A library or hand destination is 603.10a's third class instead, and that one does look back | per event (zone change) | 603.6c-001, 603.6c-002 | 94 | `(o:"when " or o:"whenever ") o:"from anywhere"` |
 | 603.6e | the enchanted permanent leaves the battlefield -- an Aura's own trigger -- finds both new objects: the card and the Aura in its graveyard | look-back (400.7e/f) | 603.6e-001, 603.6e-002 | 98 | `(o:"when " or o:"whenever ") o:"enchanted" (o:"dies" or o:"leaves the battlefield")` |
-| 603.7 | a delayed triggered ability -- "at the beginning of the next ...", "when this creature becomes untapped" -- created at resolution, never retroactive (603.7a); CR 513.2's next-turn rule | delayed | 603.7-001, 603.7a-001, 603.7c-001 | 391 | `o:"at the beginning of the next"` |
-| 603.7b | "the next time" -- once, unless a stated duration; simultaneous events, the controller chooses -- ATOM-603.7b-002 is the simultaneous case (Tatsumasa under a doubler) | delayed | 603.7b-001, 603.7b-002 | 82 | `o:"the next time"` |
+| 603.7 | a delayed triggered ability -- "at the beginning of the next ...", "when this creature becomes untapped" -- created at resolution, never retroactive (603.7a); CR 513.2's next-turn rule | delayed | 603.7-001, 603.7a-001 | 391 | `o:"at the beginning of the next"` |
+| 603.7b | once -- the next time its event occurs -- unless a stated duration; simultaneous events, the controller chooses -- not searched: the first draft's `o:"the next time"` counts CR 615's shields ("the next time ... would deal damage ... prevent"), not delayed triggers, and was withdrawn; ATOM-603.7b-002 is the simultaneous case (Tatsumasa under a doubler) | delayed | 603.7b-001, 603.7b-002 | -- | not searched |
+| 603.7c | a delayed trigger tracks its object through characteristic changes, and loses it at a zone change (CR 400.7) -- an object reference, not a filter -- the same identity question as 603.6's zone-change triggers | delayed: identity | 603.7c-001 | -- | not searched |
+| 603.7d | created by a spell: the source is the spell, the controller whoever controlled it as it resolved -- the spell's stack object is gone by the time the trigger fires (CR 608.2n), so the source is a remembered identity | delayed: provenance | 603.7d-001 | -- | not searched |
+| 603.7e | created by an activated or triggered ability: the source is that ability's source -- inherits `AbilityIdentity`'s source half | delayed: provenance | 603.7e-001 | -- | not searched |
+| 603.7f | created by a static ability's replacement effect: the source is the object with the static ability, the controller its controller as the replacement applied -- the pipeline is the producer and carries no resolution stamp -- question 14 | delayed: provenance | 603.7f-001 | -- | not searched |
+| 603.7g | created by a static ability that let a player take an action: the source is that object, the controller its controller as the action was taken -- a special action is the producer -- question 14 | delayed: provenance | 603.7g-001 | -- | not searched |
 | 603.7h | the ability that created it has resolved N times this turn -- Ashling's shape; the count is per instance or per ability (S3) | delayed, counted | 603.7h-001 | 27 | `o:"time this ability has resolved this turn"` |
 | 603.8 | a game state matches -- a state trigger -- no event by definition; P1's mid-resolution check | state | 603.8-001, 603.8-002 | 29 | `(o:"when you control no" or o:"whenever you control no" or o:"when there are no" or o:"whenever there are no" or o:"when you have no" or o:"whenever you have no")` |
 | 603.9 / 603.10f | a player loses the game, or leaves it other than by a draw -- over-count: also matches "you lose the game" effects behind an unrelated trigger | look-back | 603.9-001 | 21 | `(o:"when " or o:"whenever ") o:"loses the game"` |
 | 603.10a | a card leaves a graveyard -- the second of 603.10a's three classes | look-back | 603.10a-001, 603.10a-002 | 38 | `(o:"when " or o:"whenever ") (o:"leaves your graveyard" or o:"leaves a graveyard" or o:"leave your graveyard" or o:"leave a graveyard")` |
-| 603.10a | an object all players can see is put into a hand or library -- the third class; no phrase isolates it | look-back | 603.10a-001, 603.10a-002 | -- | not searched |
+| 603.10a | an object all players can see is put into a hand or library -- the third class, and printed: Wan Shi Tong and Dutiful Knowledge Seeker ("put into a library from anywhere"), Golgari Brownscale (into your hand from your graveyard), Stormfront Riders (returned to your hand from the battlefield -- its ruling has it trigger for itself when bounced with another). A custom card can name the class outright, which is why the row carries a query rather than "not searched" | look-back | 603.10a-001, 603.10a-002 | 8 | `(o:"put into a library from" or o:"put into your hand from" or o:"is returned to your hand" or o:"is returned to its owner's hand" or o:"are put into a library") (o:"when " or o:"whenever ")` |
 | 603.10b | a permanent phases out -- phasing is unbuilt | look-back | none | 37 | `o:"phases out"` |
 | 603.10c | an object becomes unattached | look-back | 603.10c-001, 603.10c-002, 603.10c-003 | 4 | `o:"becomes unattached"` |
 | 603.10d | a player loses control of an object, or an opponent gains control of it from them | look-back | 603.10d-001 | 126 | `(o:"when " or o:"whenever ") (o:"gains control" or o:"gain control" or o:"loses control" or o:"lose control")` |
@@ -183,7 +194,7 @@ shape every event can wear.
 | attacks / is attacked / attacks with / attacks alone | 508.3a-e | 1,695 | `AttackersDeclared` | which creatures: `AttackersDeclared.attackers`; whom each attacks: **not on the record** (`AttackersDeclared` has no `defender`); whom each attacks (today): live (`AttackingInfo.target`); the attacking player: live (the active player); alone: `AttackersDeclared.attackers` | **field gap**: 508.3a's "attacks [a player]", 508.3b's "is attacked" and 508.3e's "attacks another player" read the defender, which the record does not carry |
 | casts a spell | 601.2i | 1,546 | `SpellCast` | the spell: `SpellCast.spell_id`; who cast it: `SpellCast.caster`; creature spell, mana value, colors: live (the stack object); the zone it was cast from: live (the stack entry's `cast_from`); first / second spell this turn: a turn tracker (item 42) | carried; a copy is not cast (CR 707.10) and CV's copy path must emit no `SpellCast` |
 | dies | 700.4 / 603.6c | 1,241 | `ZoneChange` | from the battlefield to a graveyard: `ZoneChange.from`; why: `ZoneChange.cause`; what it was, and whose (603.10a): `ZoneChange.lki` | carried; the frame is CR 603.10a's look-back, captured before CR 611.2a drops the registry rows |
-| draws a card | 121.1 | 1,216 | `CardDrawn` | who: `CardDrawn.player_id`; which card: `CardDrawn.card_id`; first or second card this turn (miracle, 702.94a): a turn tracker (item 42) | carried; CR 121.5 is why this is not the library-to-hand zone change |
+| draws a card | 121.1 | 1,216 | `CardDrawn` | who: `CardDrawn.player_id`; which card: `CardDrawn.card_id`; first or second card this turn (miracle, 702.94a): a turn tracker (item 42) | carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and "if you draw one or more cards this way" reads the count the performed draws returned, not the stream |
 | at the beginning of upkeep | 603.2b / 500.6 | 1,167 | `StepBegin` | which step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`); whose turn (today): live (the active player) | **field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- "your upkeep" and "each opponent's upkeep" read it |
 | deals damage / deals combat damage | 120.4b | 1,127 | `DamageDealt` | the source: `DamageDealt.source_id`; the recipient: `DamageDealt.target`; how much: `DamageDealt.amount`; combat or not: **not on the record** (`DamageDealt` has no `is_combat`); the source's controller and types: live (the source, still on the battlefield until SBAs) | **field gap**: `GameAction::DealDamage` carries `is_combat` and the performer drops it; the next row is the share that reads it |
 | deals combat damage | 510.2 / 120.4b | 804 | `DamageDealt` | combat or not: **not on the record** (`DamageDealt` has no `is_combat`) | the share of the row above that cannot be matched off the record |
@@ -224,7 +235,7 @@ shape every event can wear.
 | damage is prevented | 615.13 | 15 | **none** | that a prevention effect applied: no event | **no event**: a shield applying is a CR 616.1 trace record, not a performed event (615.13 wants one per prevention applied) |
 | state triggers | 603.8 | 29 | **none** | the state: live (a predicate at every dispatch (P1)) | no event by definition |
 | reflexive -- "when you do" | 603.12 | 258 | (the creating resolution's own records) | the action, inside the creating resolution: the `EventStamp` envelope | carried: the records a resolution performed carry its `ResolutionStamp` |
-| turn history: first / second spell, second card, last turn, this game | 603.1b / item 42 | 237 | **none** | what a player did this turn, last turn, this game: a turn tracker (item 42) | item 42's per-player turn summaries, which wait for the doc (P2-P4) |
+| turn history: first / second spell, second card, last turn, this game | 603.1b / item 42 | 237 | **none** | what a player did this turn, last turn, this game: a turn tracker (item 42) | item 42's per-player turn summaries, which wait for the doc (P2-P4). "This game" is a scope, not a window: Commander's Insight counts commander casts from the command zone this game, which is CR 903.8's own counter -- question 15 |
 | keyword actions with no engine action: turned face up, transforms, cycles, explores, crews, expends, commits a crime | 701 / 702 / 700.13-14 | 318 | **none** | the keyword action: no event | **no action, so no event**: Phase 8's breadth, one event per keyword as the keyword lands |
 | inherent triggers with no source: the monarch, the initiative, rad counters | 724.2 / 725.2 / 727.1 | 113 | `StepBegin`, `DamageDealt` | the events: `StepBegin.step`; the source: no source -- CR 113.8's exception | the events exist; the *source* does not, and `AbilityIdentity` has no arm for a rule-owned ability -- a question for the doc |
 
@@ -360,7 +371,7 @@ the doc rather than after it.
 - **Item 15 — the frame is captured only for a battlefield departure.**
   CR 603.10a names three look-back classes and the engine captures one: a
   card leaving a graveyard (38 cards) and a visible object put into a hand or
-  library get `lki: None`. It matters because a continuous effect's filter
+  library (8) get `lki: None`. It matters because a continuous effect's filter
   can reach a graveyard (`ZoneSet`, `layers-architecture.md` §13c) — under
   Yixlid Jailer, registered since LJ, a "when this card leaves your
   graveyard" ability must not trigger, and the only way to know is the frame
@@ -468,11 +479,18 @@ records the rule and the row rather than an answer.
    graveyard" reads the zone change announced just before, in the same batch;
    a token has no zone change and a `TokenCreated` instead. The doc decides
    whether the matcher joins the two records or the entry carries the zone.
-10. **CR 707.10 — a copy is not cast.** `SpellCast` has one emitter, inside
-    `cast_spell`; no spell-copy path exists yet. When CV builds one it must
-    emit no `SpellCast`, and the doc should say so where the copy track will
-    read it (`copy-effects-architecture.md`), since the survey found the rule
-    and not a site.
+10. **CR 707.10 and 707.12 — which copies are cast.** Two shapes, and
+    `copy-effects-architecture.md` §4.4 already holds them as tiers D and E.
+    A copy of a *spell* is put onto the stack and "isn't cast" (707.10, tier
+    D): no `SpellCast`, so "whenever you cast" stays quiet and storm's copies
+    do not storm again. A copy of a *card* that an effect lets a player cast
+    (707.12, tier E — Isochron Scepter, Mizzix's Mastery, the Elite Arcanist
+    of Panharmonicon's ruling) "follows the rules for casting spells": the
+    copy is created in the card's zone and cast through CR 601.2a–h while
+    another spell or ability is resolving (CR 117.2a), so `SpellCast` fires
+    for it and every cast trigger sees it. `SpellCast` has one emitter today,
+    inside `cast_spell`, and neither tier is built; the doc says which door
+    each tier takes, and the copy track builds it so.
 11. **One spell, one permanent, two instances of "target".** CR 115.9a counts
     instances separately for "with N targets"; whether "becomes the target"
     and ward trigger once or per instance is a rulings question for item 12's
@@ -489,11 +507,43 @@ records the rule and the row rather than an answer.
     graveyard reads the board *after* the event. The doc states it as the
     matcher's rule, because it is the one case where a `ZoneChange` with a
     frame must be matched without one.
-14. **Delayed triggers from a replacement (603.7f) and from a static
-    action (603.7g).** Both name a source and a controller the creating
-    object had "at the time"; the pipeline (CR 614) and a special action are
-    the two producers, and neither has a resolution stamp to inherit. The doc
-    decides who registers a delayed trigger and what it records about its birth.
+14. **Delayed triggers' identity and provenance (603.7c–g).** 603.7c tracks
+    an object rather than a filter and loses it at a zone change (CR 400.7);
+    603.7d–e name the source and controller a spell or an ability hands down,
+    where the spell's stack object is gone by the time the trigger fires
+    (CR 608.2n); 603.7f–g name what a replacement effect and a static
+    ability's special action hand down "at the time", and neither producer
+    has a resolution stamp to inherit. The doc decides who registers a delayed
+    trigger, what it records about its birth, and what its object reference
+    is. Each of the five has its atom in the corpus (table one).
+15. **Game-scoped lookback and the two-turn window.** Item 42 bounds the
+    in-state *event* window to each player's current and previous turn and
+    materializes what the rules read as per-player counters; a "this game"
+    quantity is a *scope* on a counter, not a window on the log — Approach of
+    the Second Sun's casts, or Commander's Insight's commander casts from the
+    command zone, which is CR 903.8's own tax counter. What the doc decides
+    is how a new game-scoped quantity gets its counter. Three shapes are on
+    the table. A tracker field per quantity, bumped at the chokepoint — item
+    42's design, one field and one update arm per card family. The per-turn
+    summaries kept for the whole game rather than for two turns: they are a
+    few dozen counters per player per turn, so a hundred-turn four-seat game
+    holds kilobytes, "this game" becomes a fold over them and "since the
+    beginning of your last turn" a range — for the quantities the summary
+    already carries. And a card-registered counter: a tracker the ability
+    declares the way a trigger declares its event (a filter, a scope, a key),
+    fed by the same matcher, for a quantity no summary anticipated. The sink
+    stays outside the engine under all three.
+16. **Two once-per-turn gates, not one.** CR 603.2h's "Do this only once
+    each turn" is an *action-taken* gate: the ability keeps triggering until
+    the action is taken, only one of several instances on the stack acts, and
+    Panharmonicon can double it (Nykthos Paragon's rulings). "This ability
+    triggers only once each turn" — 128 cards and no rule of its own in the
+    baseline CR — is a *triggered* gate: set as the ability triggers, once per
+    source object, once for a batch, and not doubled (Jin-Gitaxias, Tyvar,
+    Fang, Stonebinder's Familiar; the judge literature). The first is written
+    by the resolution and read at trigger time and again at resolution; the
+    second is written by the dispatcher and read before CR 603.2d's
+    multiplier applies. The doc names both trackers and where each is written.
 
 ---
 
@@ -504,15 +554,25 @@ are the rows where a word boundary could change the count; the substring
 column is what the tables use.
 
 <!-- trigger-survey: begin BOUNDARY -->
-| substring query | cards | regex query | cards |
-|---|---:|---|---:|
-| `o:"dies"` | 1,246 | `o:/\bdies\b/` | 1,245 |
-| `o:"when "` | 6,181 | `o:/\bwhen\b/` | 6,181 |
-| `(o:"when " or o:"whenever " or o:"at the beginning of")` | 14,149 | `o:/\b(when\|whenever\|at the beginning of)\b/` | 14,149 |
-| `(o:"when " or o:"whenever ") o:"enters"` | 5,701 | `o:/\b(when\|whenever)\b[^.]*\benters\b/` | 5,461 |
-| `(o:"when " or o:"whenever ") o:"attacks"` | 1,695 | `o:/\bwhenever\b[^.]*\battacks\b/` | 1,611 |
-| `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "` | 1,338 | `o:/(when\|whenever\|at the beginning of)[^.]*, if /` | 1,329 |
-| `o:"whenever" o:"one or more"` | 443 | `o:/\b(when\|whenever)\b[^.]*one or more/` | 454 |
+| pair | substring query | cards | cards, regex reading |
+|---:|---|---:|---:|
+| 1 | `o:"dies"` | 1,246 | 1,245 |
+| 2 | `o:"when "` | 6,181 | 6,181 |
+| 3 | `(o:"when " or o:"whenever " or o:"at the beginning of")` | 14,149 | 14,149 |
+| 4 | `(o:"when " or o:"whenever ") o:"enters"` | 5,701 | 5,461 |
+| 5 | `(o:"when " or o:"whenever ") o:"attacks"` | 1,695 | 1,611 |
+| 6 | `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "` | 1,338 | 1,329 |
+| 7 | `o:"whenever" o:"one or more"` | 443 | 454 |
+
+The regex readings, by pair (each plus `game:paper -is:funny`, `unique=cards`):
+
+1. `o:/\bdies\b/`
+2. `o:/\bwhen\b/`
+3. `o:/\b(when|whenever|at the beginning of)\b/`
+4. `o:/\b(when|whenever)\b[^.]*\benters\b/`
+5. `o:/\bwhenever\b[^.]*\battacks\b/`
+6. `o:/(when|whenever|at the beginning of)[^.]*, if /`
+7. `o:/\b(when|whenever)\b[^.]*one or more/`
 <!-- trigger-survey: end BOUNDARY -->
 
 Two things to read off it. `o:"when "` and `\bwhen\b` agree exactly: the

@@ -75,3 +75,32 @@ Answer: Yes, (presumably) all of them. From the ruling thread: "Immediately afte
 On this last point, further consider this ruling specific to Library of Leng from the Gatherer rulings: "If more than one card is discarded due to a single effect, the Library allows you to decide whether or not to use it on each of the cards. You get to decide the order the cards are placed on the library if more than one goes there," If an effect caused Player A to discard multiple cards, and Player A controls a Future Sight, does the order they decide to put the cards on top of their library affect if Tactics damage ability triggers? Does the Leng's "one at a time" ruling mean it happens no matter what? I'm unsure. This entire scenario is pulled from an MTG judge forum thread, it might not even be the right ruling since this is just one judge's opinion.
 
 This is emblematic of a broader design concern that must be tackled before implementation can happen in earnest: MtG is arbitrarily complex. Even the comprehensive rules cannot and do not cover every single possible edge case. How do we handle this complexity? Let our system compose as architected, trusting the unit and composition tests to give us correct results where "correct results" can be well-defined?
+
+---
+
+## Resolution postscript (2026-09-18) — CR 603.2f is the answer
+
+The trigger survey (`plans/references/trigger-survey.md`, table one's 603.2f
+row) read this scenario against the rule, and the rule answers it in one
+sentence: "If a triggered ability's trigger condition is met, but the object
+with that triggered ability is at no time visible to all players, the ability
+does not trigger." Guerrilla Tactics discarded onto the library under Library
+of Leng goes from one hidden zone to another and is never visible, so it does
+not trigger — with Mind Peel, with Coercion, and under Telepathy alike. The
+thread's answers hold; its guessed reason ("its source isn't in an appropriate
+zone") is not the rule's, since the ability functions from the hand and the
+library (CR 113.6's zone leg is not the gate) and visibility is. Under Future
+Sight the top card is revealed, so immediately after the discard the card is
+visible to all players and the ability triggers; with two cards discarded onto
+the library the owner's ordering decides, because only the top one is ever
+revealed. One reading the survey leaves to the triggers architecture doc to
+state: the visibility CR 603.2f asks about is the object's as the event
+completes (CR 603.10's default instant), not its history — Coercion's reveal
+and Telepathy's open hand are before the event and do not count, which is how
+the thread ruled.
+
+What the engine needs from it: visibility is a property of an object, not of a
+zone. `Zone::is_public()` answers the base case, and Future Sight's case waits
+for the information model (`backlog.md` §2.9; seam S1 in `roadmap-v2.md` §3b).
+The broader question this file ends on is answered the way the survey answers
+it: the CR is the customer, and a fixture is its test until a card is.

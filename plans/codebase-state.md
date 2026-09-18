@@ -5389,7 +5389,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    one-or-more boundary, post-action timing with CR 603.2g's prevented events
    never reaching the stream, and context — except where a performer drops a
    field the proposal had, which is item 10's shape; the nine gaps are items
-   10–18 below, and fourteen corner cases are kept as the doc's questions.
+   10–18 below, and sixteen corner cases are kept as the doc's questions.
    **Reachability (2026-09-18):** closed — A6 step 1, the survey.
    Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
    abilities (CR 603)" item 2.
@@ -5586,7 +5586,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 15. **The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).** CR 603.10a names three look-back classes and the
     engine captures one: a card leaving a graveyard (38 cards) and a visible
-    object put into a hand or library get `lki: None`. A continuous effect's
+    object put into a hand or library (8) get `lki: None`. A continuous effect's
     filter can reach a graveyard (`ZoneSet`, `layers-architecture.md` §13c;
     Yixlid Jailer is registered since LJ), so under it a "when this card
     leaves your graveyard" ability must not trigger, and only the frame from
