@@ -158,8 +158,10 @@ makes on one board.
 | Decisions | 456 | 694 |
 | Priority decisions | 169 | 273 |
 
-Errors, panics and turn-limit hits are 0 on every arm and every run but the one
-four-seat `stress` game at the cap that A4e recorded and both arms still hit.
+Errors, panics and turn-limit hits are 0 on every arm and every run but one:
+four-seat `stress` **game 159 (seed 12503)**, which both arms hit at the cap and
+which is the long game RF's block already identified — 246 turns at
+`--max-turns 600`, not a loop.
 
 **Re-recorded 2026-09-17 for A4i** (CR 601.2c's instances of "target" —
 `backlog.md` §2.20, graduated; `codebase-state.md` items 152–156).
