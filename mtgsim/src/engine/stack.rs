@@ -18,7 +18,7 @@ impl GameState {
     ///    resolving spell there for the whole of its resolution.
     /// 2. Take its StackEntry.
     /// 3. Re-validate targets (608.2b) — fizzle if all illegal.
-    /// 4. Resolve the effect via resolve_effect().
+    /// 4. Resolve the effect via resolve_announced().
     /// 5. Post-resolution: instant or sorcery to its owner's graveyard and the
     ///    ability removed (608.2n), permanent spell onto the battlefield
     ///    (608.3a/c) — through `change_zone` like anything else, which is also
@@ -120,7 +120,7 @@ impl GameState {
             replaced_amount: None,
             damage_prevented: None,
         };
-        self.resolve_effect(&entry.effect, &ctx, dp)?;
+        self.resolve_announced(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
 
         // --- Post-resolution (rule 608.2n) ---
         // The zone change goes through the chokepoint like every other one;

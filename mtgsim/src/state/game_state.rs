@@ -63,7 +63,8 @@ pub struct StackEntry {
     /// one, and for the reason the single `recipient` field had: the two must be
     /// the same question at CR 601.2c and at CR 608.2b, and an Aura's comes from
     /// its enchant ability (`CardData::spell_instances`), which `effect` cannot
-    /// show.
+    /// show. The resolution reads its clauses off this record too
+    /// (`targeting::DeclaredInstances`).
     pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
     /// Modes chosen at cast time (for modal spells, future-proofed)
     pub chosen_modes: Vec<usize>,

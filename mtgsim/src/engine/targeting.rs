@@ -4,7 +4,7 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// One instance of the word "target" (CR 115.3) — the clause it was chosen
@@ -241,6 +241,39 @@ impl FilterIdentity<'static> {
     };
 }
 
+/// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
+/// back to one (`EffectRecipient::SameInstanceAs`).
+///
+/// **The stack reads the announcement.** `StackEntry::chosen_targets` recorded
+/// each clause beside its choice, so the index the announcement filled is the
+/// index the resolution reads, and nothing is derived from the effect tree at
+/// resolution. `resolve_effect` used to walk the tree again and rest on the
+/// second walk numbering the atoms as the first had; there is no second walk
+/// now. An Aura's instance comes from its enchant ability and sits in no tree
+/// (CR 303.4a), which is why the announcement is the one list that is right
+/// for every spell.
+///
+/// **A bare effect has no announcement** — CR 615.5's rider, and a test that
+/// staged its `ResolutionContext` by hand — so its clauses are read off the
+/// tree, and only when a `SameInstanceAs` atom asks: a declaring atom is its
+/// own clause, and [`instance_of`] never opens this for one.
+#[derive(Clone, Copy)]
+pub enum DeclaredInstances<'a> {
+    /// The stack's: what CR 601.2c announced, clause by clause.
+    Announced(&'a [TargetInstance]),
+    /// Nothing was announced: the effect's own declaring atoms, in printed order.
+    Effect(&'a Effect),
+}
+
+impl<'a> DeclaredInstances<'a> {
+    fn clause(self, ix: usize) -> Option<&'a EffectRecipient> {
+        match self {
+            DeclaredInstances::Announced(announced) => announced.get(ix).map(|inst| &inst.recipient),
+            DeclaredInstances::Effect(effect) => effect.instance(ix),
+        }
+    }
+}
+
 /// Which instance an atom's recipient resolves against, and the clause that
 /// instance was announced with.
 ///
@@ -251,7 +284,7 @@ impl FilterIdentity<'static> {
 /// chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
-    declared: &'a [EffectRecipient],
+    declared: DeclaredInstances<'a>,
     cursor: &mut usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
@@ -262,7 +295,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.get(*ix).map(|r| (*ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(*ix).map(|r| (*ix, r)),
         _ => None,
     }
 }

@@ -5,7 +5,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::events::event::{CounterSubject, DamageTarget, LossReason};
-use crate::engine::targeting::{instance_of, ChosenTargets};
+use crate::engine::targeting::{instance_of, ChosenTargets, DeclaredInstances, TargetInstance};
 use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
@@ -106,12 +106,28 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // The instances this effect declares, in the order `Effect::instances`
-        // numbered them at CR 601.2c — so an atom finds its own targets by the
-        // same index the announcement filled.
-        let declared = effect.instances();
+        // Nothing was announced for a bare effect — CR 615.5's rider, or a
+        // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
+        // clause off the tree (`DeclaredInstances::Effect`). The stack's path
+        // is [`Self::resolve_announced`].
         let mut cursor = 0usize;
-        self.resolve_effect_at(effect, ctx, dp, &declared, &mut cursor)
+        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut cursor)
+    }
+
+    /// [`Self::resolve_effect`] for a spell or ability leaving the stack.
+    ///
+    /// `announced` is the entry's CR 601.2c record, so an atom finds its own
+    /// targets by the index the announcement filled and nothing is derived
+    /// from the tree — see `DeclaredInstances`.
+    pub fn resolve_announced(
+        &mut self,
+        effect: &Effect,
+        announced: &[TargetInstance],
+        ctx: &ResolutionContext,
+        dp: &dyn DecisionProvider,
+    ) -> Result<(), String> {
+        let mut cursor = 0usize;
+        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut cursor)
     }
 
     /// [`Self::resolve_effect`]'s body, carrying CR 601.2c's instance cursor.
@@ -125,15 +141,14 @@ impl GameState {
         effect: &Effect,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-        declared: &[EffectRecipient],
+        declared: DeclaredInstances<'_>,
         cursor: &mut usize,
     ) -> Result<(), String> {
         match effect {
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, cursor) {
                     Some((ix, clause)) => {
-                        let targets = ctx.targets.instance(ix).to_vec();
-                        self.resolve_primitive(primitive, clause, &targets, ctx, dp)
+                        self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp)
                     }
                     // `Instance(ix)` naming a clause that does not exist: a
                     // card-authoring error, loud rather than silently
