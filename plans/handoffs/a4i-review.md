@@ -413,7 +413,7 @@ no announcement to read, and `announce_targets`' `(chooser, source, clauses)`
 signature — which is what CR 603.3d will hand it — are all right and are left
 alone. What follows is what the read found, ranked, with where each went.
 
-### I.1 — Two live defects, both pre-existing, both inherited by A4i's new arms
+### I.1 — Two live defects, both pre-existing, both inherited by A4i's new arms · ✅ **both closed**
 
 Neither is A4i's doing. Both sit in the selection arms A4i rewrote to count `n`
 candidates, and the rewrite carried the gap into the new logic rather than
@@ -438,7 +438,9 @@ offers Counterspell, the entry's one instance holds the ability object, and
 the game ends with two Merfolk Thaumaturgist objects — one on the battlefield
 and one in player 1's graveyard.** A phantom card, in every measured game that
 lines the two up. `codebase-state.md` item 159; **row A4o**, first in the
-slot because it is live.
+slot because it is live. ✅ **Landed 2026-09-18, PR #163** — the filter asks
+`is_spell_on_stack` at all three sites, and `main` had been manufacturing 26
+phantom cards over the four A/B arms.
 
 **The `Player` and `Any` arms count and offer seats that have left the game.**
 `num_players()` is the player vector's length, which CR 800.4a never shrinks,
@@ -451,7 +453,12 @@ which the enumeration contradicts — and **accepts it for `Any`**, because
 `validate_any_target` never asks `in_game`. "Any target" damage resolves
 against a player who is not in the game. Two-player streams cannot move,
 since a two-player departure ends the game (CR 104.2a); the four-seat `stress`
-arm is where the fix will differ. `codebase-state.md` item 160; **row A4p**.
+arm is where the fix will differ. `codebase-state.md` item 160; **row A4p**. ✅ **Landed
+2026-09-18, PR #164** — and it was not only `stress`: both four-seat pools
+diverge, `main` resolved 11 Lightning Bolts against a seat that had left, and
+the CR 608.2b window the fixture builds turned out not to be the one the
+measured games used. The enumeration was already offering the departed seat at
+announcement.
 
 ### I.2 — Performance: one allocation the redesign missed, and three riders for A4n
 

@@ -228,7 +228,15 @@ pub fn enumerate_legal_selections_upto(
     // one is. Laziness is what makes the bound cost anything: the battlefield
     // arms only run `validate_selection`, a layer walk, until `take` is
     // satisfied.
-    let players = || (0..game.num_players()).map(RT::Player);
+    // CR 800.4a — a player who has left the game is not a player, so not a
+    // candidate to offer. `num_players()` is the seat count the game *began*
+    // with, which the rule never shrinks, so the range is the wrong question on
+    // its own. Both arms that read it — `Player` and `Any` — want this set.
+    let players = || {
+        (0..game.num_players())
+            .filter(move |&p| game.in_game(p))
+            .map(RT::Player)
+    };
     let battlefield = || {
         game.battlefield_ids_ordered()
             .into_iter()
@@ -575,5 +583,62 @@ mod tests {
         assert!(enumerate_legal_selections(&game, &SelectionFilter::DamageSource, None, 0)
             .is_empty());
         assert!(!game.has_legal_choices(&SelectionFilter::DamageSource, None, 0, 1, EarlierTargets::None));
+    }
+
+    // CR 800.4a — a player who has left the game is not a player, so not a
+    // legal target and not a candidate to offer. `num_players()` is the player
+    // vector's length and nothing ever shrinks it, which is why both arms that
+    // read it had to ask a second question.
+    //
+    // **Four seats, and the flag set directly.** The rule needs a game that
+    // continues after a departure, which CR 104.2a denies a two-player game;
+    // what the departure was *for* belongs to `engine::leaving`'s own tests,
+    // and this one asks only what the selection arms do with the answer.
+    #[test]
+    fn a_seat_that_left_the_game_is_neither_offered_nor_counted() {
+        use crate::engine::resolve::ResolvedTarget;
+        use crate::test_support::setup_game;
+        use crate::types::effects::SelectionFilter;
+
+        let mut game = setup_game(4);
+        let seats = |game: &GameState, filter| {
+            enumerate_legal_selections(game, &filter, None, 0)
+        };
+
+        // The control: with everyone in the game, four seats and a fourth
+        // choice. Without it the assertions below would pass on an arm that
+        // offered nothing at all.
+        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+            assert_eq!(seats(&game, filter.clone()).len(), 4, "{:?}: four seats", filter);
+            assert!(game.has_legal_choices(&filter, None, 0, 4, EarlierTargets::None));
+        }
+
+        game.player_lost[3] = true;
+
+        let in_game = vec![
+            ResolvedTarget::Player(0),
+            ResolvedTarget::Player(1),
+            ResolvedTarget::Player(2),
+        ];
+        for filter in [SelectionFilter::Player, SelectionFilter::Any] {
+            // The battlefield is empty, so `Any` offers the seats and nothing
+            // else and the two lists are the same list.
+            assert_eq!(seats(&game, filter.clone()), in_game, "{:?}: the seat is not offered", filter);
+            assert!(
+                game.has_legal_choices(&filter, None, 0, 3, EarlierTargets::None),
+                "{:?}: three seats are still three choices",
+                filter,
+            );
+            assert!(
+                !game.has_legal_choices(&filter, None, 0, 4, EarlierTargets::None),
+                "{:?}: and the fourth is not a choice to count",
+                filter,
+            );
+            // Enumeration and enforcement agree — the rule RS-2 fixed in both
+            // directions, asked here of the seat that left.
+            assert!(game
+                .validate_selection(&filter, &ResolvedTarget::Player(3), 0, EarlierTargets::None)
+                .is_err());
+        }
     }
 }
