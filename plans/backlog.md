@@ -1074,7 +1074,7 @@ mechanic rather than a migration, which is why it is here and not in
 ### 2.20 Several target clauses on one spell — **shipped 2026-09-17 (A4i), except CR 601.2d**
 
 - **What shipped.** CR 115.3's instance is the unit: `StackEntry.chosen_targets`
-  is a `Vec<TargetInstance>`, `targeting::effect_instances` walks an effect's
+  is a `Vec<TargetInstance>`, `Effect::instances` walks an effect's
   clauses in printed order, `EffectRecipient::SameInstanceAs` is how a later atom
   refers back to one — by the clause's position in that list — and
   `resolve_effect` hands each atom its own instance as a flat slice.
@@ -1629,8 +1629,8 @@ comment sweep found the `TODO` in `Game::setup` with no owner.
 non-targeting selection — CR 303.4a's Aura put onto the battlefield without being
 cast, "sacrifice a creature of your choice", the player or creature type a spell
 names without targeting. `announce_targets` asks it **at cast time**, in the same
-match arm as `Target` (`put_on_stack.rs:302`), and `effect_instances` collects it
-as an instance of "target" (`targeting.rs:188`). The CR makes a plain "choose"
+match arm as `Target` (`put_on_stack.rs:302`), and `Effect::instances` collects it
+as an instance of "target". The CR makes a plain "choose"
 at **resolution** (CR 608.2c); only a clause that says so is announced early
 (CR 601.2b). One enum arm is doing two rules' work and nothing on it says which.
 
@@ -1639,7 +1639,7 @@ replaced already matched `Target(..) | Choose(..)` in one arm, so the timing
 predates the instance model. And **no registered card constructs a `Choose`** —
 its one construction site is `resolve.rs:1807`, inside the sacrifice-of-choice
 path, built at resolution and never announced — so the `Choose` leg of the
-instance model, collected by `effect_instances`, announced by `announce_targets`
+instance model, collected by `Effect::instances`, announced by `announce_targets`
 and exempted from CR 608.2b's re-check by `surviving_targets`, is exercised by no
 card at all. The wrong timing and the dead leg are the same fact.
 
@@ -1659,7 +1659,7 @@ or the pool, and there should be.
 | Field | |
 |---|---|
 | **Rules** | CR 601.2b (modes, and the other choices made "as you cast"), 601.2c (targets, announced per instance), 608.2c (a resolving spell's instructions, in the order written — where a plain "choose" is made), 303.4a/303.4c (an Aura *spell* targets; an Aura put onto the battlefield without being cast does not), 700.2 (modal, which 601.2b sends first) |
-| **Verdict** | `EffectRecipient::Choose` carries a filter and a count and no timing, and `announce_targets` reads it in `Target`'s arm; `effect_instances` makes it an instance. A card whose "choose" is a resolution choice cannot say so |
+| **Verdict** | `EffectRecipient::Choose` carries a filter and a count and no timing, and `announce_targets` reads it in `Target`'s arm; `Effect::instances` makes it an instance. A card whose "choose" is a resolution choice cannot say so |
 | **Size** | the survey is a sitting. The change after it is small if `Choose` leaves the instance list — one arm and its readers — and medium if it gains a timing axis: a second recipient kind, `announce_targets` filtering on it, and `resolve_effect` asking the rest |
 | **Blocks** | nothing today — zero cards. The first card with a non-targeting choice, and the Black Gate class that carries both timings in one ability. **And A6**: CR 603.3d hands `announce_targets` its clauses, so a triggered ability with a "choose" clause inherits whatever this decides. Pool scale (Scryfall, `game:paper`, 2026-09-18): `o:"choose a player"` 17, `o:"choose a creature type"` 91, `o:"as you cast this spell"` 37 |
 | **Atoms** | none filed under `Backlog`. CR 601.2b's seven atoms are cost and mode announcement and `ATOM-608.2c-001` is instruction order, so the question this entry asks has no atom — the survey's first output is whether it needs one |

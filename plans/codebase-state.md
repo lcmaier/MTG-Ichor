@@ -7227,7 +7227,8 @@ and **G** (the trace page above) closed inside A4i's own PR — cc1b4d9, c731e55
 four items (3ea4cb5; `fuzz-record.md`'s A4i block) and **withdrew the fourth after
 building it** — `targeting.rs`'s `FilterIdentity` carries why, because that is
 where someone would try it again. **E** is `backlog.md` §2.33. **H** and **I.2**
-are `roadmap-v2.md` row A4n, which carries the measurement and the three riders.
+are `roadmap-v2.md` row A4n, which carries the measurement and the three riders —
+closed 2026-09-18, with the third rider split out as row A4q.
 **I.1** is items 159 and 160, closed by A4o and A4p. **I.3** amended item 155 in
 place.
 
@@ -7282,6 +7283,17 @@ place.
      means `effect_instances` grows a second spelling for the post-601.2b call
      and `StackEntry.chosen_modes` becomes an input to it rather than a record.
      Under fifty lines; the cost is deciding where the two spellings live.
+
+     **Amended 2026-09-18 (A4n):** the walk is `Effect::instances` now, run
+     once per card by `CardDataBuilder::build` and stored on every def
+     (`AbilityDef::instances`) and on the card (`CardData::spell_instances`);
+     the engine reads the stored lists and never walks at cast time. That
+     settles where the second spelling lives: a modal spell's post-601.2b list
+     depends on the modes chosen at that cast, so it cannot be a stored
+     constant, and the mode-aware walk runs at cast time from
+     `StackEntry.chosen_modes` — once per cast, which is the rate the stored
+     list was built to take castability *off*. The stored list stays the
+     pre-601.2b one, and today a `Modal` node declares nothing in it.
 
 154. **`ObjectFilter::OtherThanInstance` is only asked of a `Permanent`
      filter, so "another target" over `SelectionFilter::Any` or `Player` is
