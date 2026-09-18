@@ -25,7 +25,7 @@ use crate::types::ids::{IdMap, ObjectId};
 /// Per-object frames, each stamped with the epoch it was computed at.
 ///
 /// `RefCell` because the walk fills it through `&GameState` — the same reason
-/// `EngineCounters` is `Cell`s — and a frame is served as a shared `Arc`, so a
+/// `Diagnostics` is `Cell`s — and a frame is served as a shared `Arc`, so a
 /// hit never clones the ability list. Cloned with the state: a fork inherits
 /// the frames, which are exactly as valid for the clone as for the original,
 /// and the two epochs then move independently.
@@ -75,11 +75,11 @@ mod tests {
 
     /// Query `id`, and say whether the memo answered.
     fn query(game: &GameState, id: ObjectId) -> (Option<Arc<EffectiveCharacteristics>>, bool) {
-        let hits = game.counters.memo_hits();
-        let walks = game.counters.layer_walks();
+        let hits = game.diagnostics.memo_hits();
+        let walks = game.diagnostics.layer_walks();
         let frame = compute_characteristics(game, id);
-        let hit = game.counters.memo_hits() == hits + 1;
-        let miss = game.counters.layer_walks() == walks + 1;
+        let hit = game.diagnostics.memo_hits() == hits + 1;
+        let miss = game.diagnostics.layer_walks() == walks + 1;
         assert!(hit != miss, "a query is exactly one of a hit and a walk");
         (frame, hit)
     }
@@ -116,7 +116,7 @@ mod tests {
         let (second, hit) = query(&game, bears);
         assert!(hit, "the second is served from the memo");
         assert!(Arc::ptr_eq(first.as_ref().unwrap(), second.as_ref().unwrap()));
-        assert_eq!(game.counters.layer_walks(), 1, "one walk for two queries");
+        assert_eq!(game.diagnostics.layer_walks(), 1, "one walk for two queries");
     }
 
     #[test]

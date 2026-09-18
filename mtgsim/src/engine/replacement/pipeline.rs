@@ -678,7 +678,7 @@ fn next_damage_shares(
             ))
         }
     };
-    game.counters.record_prevention_allocation();
+    game.diagnostics.record_prevention_allocation();
     let offer: Vec<(ObjectId, u64)> = buckets.iter().map(|b| (b.1, b.2)).collect();
     let shares = ask_allocate_next_damage(ctx.dp, game, chooser, chosen.source, remaining, &offer);
 

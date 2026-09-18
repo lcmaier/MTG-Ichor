@@ -132,7 +132,7 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
     let source = source_for(&mut game, 0);
     let victim = place_vanilla_creature(&mut game, 1, 9, 9, &[]);
 
-    let before = game.counters.replacement_gathers();
+    let before = game.diagnostics.replacement_gathers();
     game.execute_action(
         GameAction::DealDamage {
             source,
@@ -144,11 +144,11 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
         &test_ctx(),
     )
     .unwrap();
-    let object_gathers = game.counters.replacement_gathers() - before;
+    let object_gathers = game.diagnostics.replacement_gathers() - before;
 
-    let before = game.counters.replacement_gathers();
+    let before = game.diagnostics.replacement_gathers();
     bolt_player(&mut game, source, 1, 1);
-    let player_gathers = game.counters.replacement_gathers() - before;
+    let player_gathers = game.diagnostics.replacement_gathers() - before;
 
     assert_eq!(object_gathers, 1, "the damage itself");
     assert_eq!(

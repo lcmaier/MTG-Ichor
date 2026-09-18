@@ -160,12 +160,12 @@ fn another_target_creature(earlier_targets: &[usize]) -> EffectRecipient {
     EffectRecipient::Target(SelectionFilter::Permanent(filter), TargetCount::Exactly(1))
 }
 
-/// `EngineCounters::decisions` is cumulative over the game, so a test that
+/// `Diagnostics::decisions` is cumulative over the game, so a test that
 /// staged a board by casting something reads the delta rather than the total.
 fn decisions_during(game: &mut GameState, f: impl FnOnce(&mut GameState)) -> u64 {
-    let before = game.counters.decisions();
+    let before = game.diagnostics.decisions();
     f(game);
-    game.counters.decisions() - before
+    game.diagnostics.decisions() - before
 }
 
 /// Seat of the Synod as a 5/5 artifact **creature** land — the one permanent
@@ -237,7 +237,7 @@ fn seeds_of_strength_can_name_one_creature_for_all_three_instances() {
     cast_and_resolve(&mut game, 0, seeds, &dp);
 
     assert_eq!(pt(&game, bear), (5, 5), "2/2 plus +1/+1 three times");
-    assert_eq!(game.counters.decisions(), 0, "one legal choice for a fixed count is forced");
+    assert_eq!(game.diagnostics.decisions(), 0, "one legal choice for a fixed count is forced");
 }
 
 // COVERS: ATOM-115.3-001

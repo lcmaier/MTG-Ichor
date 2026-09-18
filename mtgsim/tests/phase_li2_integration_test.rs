@@ -542,13 +542,13 @@ fn test_a_cda_and_a_non_cda_in_one_layer_are_independent() {
     put_on_battlefield(&mut game, elves_are_also_goblins(), 0);
     let creature = put_on_battlefield(&mut game, changeling_ish, 0);
 
-    let checks = game.counters.dependency_checks();
+    let checks = game.diagnostics.dependency_checks();
     assert_eq!(
         get_effective_subtypes(&game, creature),
         HashSet::from([Subtype::Creature(CreatureType::Elf), Subtype::Creature(CreatureType::Goblin)]),
         "the CDA made it an Elf before the row asked which creatures are Elves"
     );
-    assert_eq!(game.counters.dependency_checks(), checks, "clause (c) settled the pair with no hypothetical");
+    assert_eq!(game.diagnostics.dependency_checks(), checks, "clause (c) settled the pair with no hypothetical");
 }
 
 // ---------------------------------------------------------------------------
@@ -677,7 +677,7 @@ fn test_the_hierophants_grant_waits_for_humility_whatever_the_timestamps() {
     put_on_battlefield(&mut game, phase_lf_cards::humility(), 1);
     assert!(get_effective_abilities(&game, bears).is_empty());
     assert!(get_effective_abilities(&game, hierophants).is_empty());
-    assert!(game.counters.dependency_checks() > 0, "the pair reached the hypothetical: a static reads its own abilities, Humility writes them");
+    assert!(game.diagnostics.dependency_checks() > 0, "the pair reached the hypothetical: a static reads its own abilities, Humility writes them");
 }
 
 /// The lowering the tests above rest on, in one place: an `AbilityDef` built

@@ -1,4 +1,4 @@
-//! Seed-deterministic counters for how much work the engine did.
+//! Seed-deterministic measurements of how much work the engine did.
 //!
 //! # Why these exist, and why they are not a profiler
 //!
@@ -20,7 +20,7 @@
 //! No timers, no allocation counts, no per-call-site breakdown. Each of those is
 //! either machine-dependent (the first two) or a profiler's job (the third), and
 //! a diagnostic that cannot go in the fixtures table is a diagnostic nobody will
-//! look at twice. Each counter names a decision the engine makes a lot.
+//! look at twice. Each row names a decision the engine makes a lot.
 
 use std::cell::Cell;
 
@@ -39,7 +39,7 @@ use std::cell::Cell;
 /// alternative — resetting on clone — would need `Clone` by hand and would be a
 /// guess about a consumer that does not exist.
 #[derive(Debug, Clone, Default)]
-pub struct EngineCounters {
+pub struct Diagnostics {
     layer_walks: Cell<u64>,
     board_walks: Cell<u64>,
     memo_hits: Cell<u64>,
@@ -55,7 +55,7 @@ pub struct EngineCounters {
     priority_decisions: Cell<u64>,
 }
 
-impl EngineCounters {
+impl Diagnostics {
     /// One full CR 613 layer walk actually performed — a top-level query the
     /// memo could not answer, or one of the two readers that bypass it.
     ///
@@ -146,7 +146,7 @@ impl EngineCounters {
 
     /// One `engine::restriction::is_prohibited` — a CR 101.2 question.
     ///
-    /// Worth its own counter rather than folding into the gather count: it is
+    /// Worth its own row rather than folding into the gather count: it is
     /// asked on **every iteration** of the CR 616.1 loop, so the two diverge
     /// exactly when a replacement effect rewrites an event more than once.
     pub fn record_restriction_query(&self) {
@@ -157,7 +157,7 @@ impl EngineCounters {
     /// meeting two or more simultaneous sources, so the affected player was
     /// asked which damage it prevents.
     ///
-    /// **A reachability count, not a cost.** The other counters here measure
+    /// **A reachability count, not a cost.** The other rows here measure
     /// work; this one measures whether the pool can build 615.7's board at
     /// all (`replacement-architecture.md` §9). Zero on any board with no such
     /// effect, and it can
@@ -217,7 +217,7 @@ impl EngineCounters {
 
     /// Un-count a walk that was not engine work: the memo's debug audit
     /// recomputes every hit to check it, and those walks must not make a
-    /// debug build's counters differ from a release build's. The one setter,
+    /// debug build's numbers differ from a release build's. The one setter,
     /// and it does not exist in release.
     #[cfg(debug_assertions)]
     pub(crate) fn rewind_layer_work(&self, walks: u64, board_walks: u64, frames: u64, checks: u64) {

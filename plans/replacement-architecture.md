@@ -2666,7 +2666,7 @@ Infernal Darkness's lines as fixtures until item 6 owns their upkeeps.
 RE-9", items 132–135): the pattern's `mana_type` field (False Dawn); Hall of
 Gemstone's chosen color, Naked Singularity's per-subtype map, Harvest Mage's
 choice inside the substitution; a mixed production under `Fixed`, refused
-rather than guessed; and the `EngineCounters` rename (§11 item 97), its own PR.
+rather than guessed; and the `EngineCounters` rename (§11 item 97), landed as A4m.
 
 **Measured:** the engine arm **identical to `main`** on every gameplay and
 layer row at two seats and four; gathers +80 / +151 a game against 81 / 151

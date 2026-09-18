@@ -333,7 +333,7 @@ fn a_production_of_nothing_performs_and_announces_nothing() {
     assert!(game.battlefield.get(&id).unwrap().tapped, "the cost was paid");
     assert_eq!(game.players[0].mana_pool.total(), 0);
     assert!(mana_added(&game).is_empty());
-    assert_eq!(game.counters.mana_productions(), 0);
+    assert_eq!(game.diagnostics.mana_productions(), 0);
 }
 
 /// CR 605.3b: the resolution is a step after the activation, so the tap
@@ -371,7 +371,7 @@ fn mana_productions_counts_performed_productions() {
     tap_for_mana(&mut game, forest(), 0, &test_dp()).unwrap();
     tap_for_mana(&mut game, barren_waste(), 0, &test_dp()).unwrap();
 
-    assert_eq!(game.counters.mana_productions(), 2);
+    assert_eq!(game.diagnostics.mana_productions(), 2);
 }
 
 // ---------------------------------------------------------------------------

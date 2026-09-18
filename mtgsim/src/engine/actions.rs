@@ -801,7 +801,7 @@ impl GameState {
         // Loud rather than a draw: a nesting this deep is a lost lineage, the
         // engine's mistake (`BATCH_NESTING_LIMIT`), and a rules answer would hide
         // it. The `Err` unwinds to the harness, which counts it as an error.
-        self.counters.record_batch_depth(self.batch_depth as u64);
+        self.diagnostics.record_batch_depth(self.batch_depth as u64);
         if self.batch_depth > BATCH_NESTING_LIMIT {
             return Err(format!(
                 "batches nested {} deep, past the {} any legitimate chain reaches: a proposal \
@@ -1582,7 +1582,7 @@ impl GameState {
                 if mana.iter().all(|(_, n)| *n == 0) && special.is_empty() {
                     return Ok(());
                 }
-                self.counters.record_mana_production();
+                self.diagnostics.record_mana_production();
                 let pool = &mut self.get_player_mut(player)?.mana_pool;
                 for (mana_type, n) in &mana {
                     if *n > 0 {

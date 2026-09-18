@@ -493,7 +493,7 @@ flowchart TD
       <tr>
         <td><strong>2 · Engine-emitted traces</strong></td>
         <td>A <code>TraceSink</code> on <code>GameState</code>, off by default, recording what this page recorded by hand: each proposal entering a batch, each pipeline iteration (candidates gathered with their verdicts, whether the frame was computed, the bucket, the chooser, the choice or the suppression, the rewrite), each top-level layer walk with its frame count, and the performed events the log already holds. JSON lines. A generator script turns a trace into a page in this format, so tier 1 becomes generated rather than written.</td>
-        <td>Emit points in <code>execute_batch_inner</code>, <code>apply_replacements</code>, <code>compute_characteristics</code> and <code>compute_as_entering</code>, gated the way <code>EngineCounters</code> is. Reachable three ways: <code>cli_play --trace</code>, <code>fuzz_games --trace-game N</code>, and a test-support helper so any <code>// COVERS:</code> test can write its trace, which is how a phase's page is regenerated after a refactor.</td>
+        <td>Emit points in <code>execute_batch_inner</code>, <code>apply_replacements</code>, <code>compute_characteristics</code> and <code>compute_as_entering</code>, gated the way <code>Diagnostics</code> is. Reachable three ways: <code>cli_play --trace</code>, <code>fuzz_games --trace-game N</code>, and a test-support helper so any <code>// COVERS:</code> test can write its trace, which is how a phase's page is regenerated after a refactor.</td>
         <td class="plan-when">before item 6 (triggers) — the entry-hop half of its seam is used; item 46's batch half is RC-5 part 2</td>
         <td>~300–400 lines Rust, ~300 viewer, ~100 script; one small phase</td>
       </tr>
