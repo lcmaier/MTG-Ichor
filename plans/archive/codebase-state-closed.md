@@ -1998,3 +1998,55 @@ a fixture rather than a fuzz run.
      seats; `validate_any_target` gains the check the `Player` validator has.
      A/B prediction: `IDENTICAL` on both pools at two seats; the four-seat
      `stress` arm differs, and that is the finding the arm exists to show.
+
+### Item 132 — closed 2026-09-18 by A4m (PR #165)
+
+**What closed it.** `EngineCounters` is `Diagnostics`, `GameState.counters` is
+`GameState.diagnostics`, and the 27 recorders and accessors keep their names. The
+owner took `Diagnostics` over this entry's proposed `EngineMeters`: the module is
+already `state::diagnostics`, so the type stops fighting its path, and the one
+place the stutter would show — the fully-qualified field declaration — takes a
+`use` instead.
+
+**The sizing was low — 81 against 120 — and both misses are the same kind.** This
+entry said six `EngineCounters` sites and ~75 `.counters.` calls; `roadmap-v2.md`
+row A4m later said 72 sites across 12 files, lower still. The tree at 573ca8b had
+**120 lines across 21 files**. `ui/ask.rs` alone is 48 of them, because the diagnostics reach
+its four `validate_*` helpers as an *argument* — 25 call sites pass
+`&game.counters`, and its own unit tests build 11 `EngineCounters::default()`s —
+and seven integration test files read the accessors for another 34. Neither count
+included an argument site or a test file, which is what a count taken by grepping
+for the type and the method calls will always miss.
+
+**What made the sweep safe was not the count.** Every substitution was anchored
+on one of the 27 recorders and accessors, never on `.counters.` alone, which
+matches two `HashMap`s one struct over. That the anchor cannot hit CR 122's
+counters is checkable rather than hopeful: a `HashMap` has no `record_layer_walk`.
+
+**Nothing moved, as a rename should not.** `plans/fuzz_ab.py --rounds 0` against a
+`main` arm built at 573ca8b reads `IDENTICAL` on both pools at two seats and at
+four, and raw `fuzz_games` output between the arms is byte-identical apart from
+the four timing lines. The printed row labels and `fuzz_ab.py`'s `ROWS` table are
+untouched on purpose — they are what every table in `fuzz-record.md` is keyed on —
+so this PR has no `fuzz-record.md` block.
+
+*Original entry:*
+
+132. **`GameState.counters` is the engine's diagnostics, and the two fields
+     one struct over with the same name are CR 122's counters.**
+     `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
+     poison and energy; `GameState.counters` holds `EngineCounters` — the
+     layer walks, gathers and productions `fuzz_games` prints. Three fields,
+     one spelling, two meanings; RE-9's design check wrote "a permanent
+     counter" about a diagnostic row and the review asked which
+     (`replacement-architecture.md` §11 item 97).
+
+     **Reachability (2026-09-15):** reachable, and not wrong — a name. Every
+     reader compiles and every number is right; what is wrong is what a
+     reader assumes before the type tells them.
+
+     **Sized:** a mechanical sweep, six `EngineCounters` sites and ~75
+     `.counters.` calls and accessors, **its own PR** on main item 124's
+     precedent (`refactor/object-set-rename`): a rename does not ride inside
+     a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
+     CR never uses and one that reads as measurement at every call site.

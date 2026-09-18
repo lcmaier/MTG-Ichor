@@ -5378,7 +5378,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    the rewrite), each top-level layer walk with its frame count, and the
    performed events the log already holds — makes the page generated rather
    than written, and makes the same question answerable at a breakpoint. JSON
-   lines, off by default, gated the way `EngineCounters` is. Emit points:
+   lines, off by default, gated the way `Diagnostics` is. Emit points:
    `execute_batch_inner`, `apply_replacements`, `compute_characteristics`,
    `compute_as_entering`. Reachable three ways: `cli_play --trace`,
    `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
@@ -5397,7 +5397,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    choice) and half authored counterfactual, and its summary tables
    ("Where the reads differ", the two-commit before/after) are entirely
    authored. The sink generates a **spine**; §7.1 needs a sentence saying tier 1
-   is not subsumed. And "gated the way `EngineCounters` is" describes no
+   is not subsumed. And "gated the way `Diagnostics` is" describes no
    mechanism: those are seven always-on `Cell<u64>`s, free because incrementing
    is free, while `compute_characteristics` — one of the four emit points — runs
    ~62,000 times per measured game and `GameState` derives `Clone`, which the
@@ -6169,24 +6169,21 @@ closed. **The last of RE's ten PRs.**
 
 **Left absent, with its customer named:**
 
-132. **`GameState.counters` is the engine's diagnostics, and the two fields
-     one struct over with the same name are CR 122's counters.**
-     `PermanentState.counters` and `PlayerState.counters` hold +1/+1, loyalty,
-     poison and energy; `GameState.counters` holds `EngineCounters` — the
-     layer walks, gathers and productions `fuzz_games` prints. Three fields,
-     one spelling, two meanings; RE-9's design check wrote "a permanent
-     counter" about a diagnostic row and the review asked which
-     (`replacement-architecture.md` §11 item 97).
+132. **~~`GameState.counters` is the engine's diagnostics, and the two
+     fields one struct over with the same name are CR 122's counters~~
+     ✅ CLOSED 2026-09-18 (A4m, PR #165) — the type is `Diagnostics` and the
+     field is `game.diagnostics`.** The owner's name rather than this
+     entry's proposed `EngineMeters`: the module is already
+     `state::diagnostics`, so the type stops fighting its path. **The sizing
+     was low** — 120 lines across 21 files against this entry's 81 and row
+     A4m's 72, because neither count included an argument site or a test
+     file.
+     → `plans/archive/codebase-state-closed.md`. **No `fuzz-record.md`
+     block, because nothing moved:** both pools read `IDENTICAL` at two
+     seats and at four, which is the whole claim a rename makes.
 
-     **Reachability (2026-09-15):** reachable, and not wrong — a name. Every
-     reader compiles and every number is right; what is wrong is what a
-     reader assumes before the type tells them.
-
-     **Sized:** a mechanical sweep, six `EngineCounters` sites and ~75
-     `.counters.` calls and accessors, **its own PR** on main item 124's
-     precedent (`refactor/object-set-rename`): a rename does not ride inside
-     a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
-     CR never uses and one that reads as measurement at every call site.
+     **Reachability (2026-09-18):** closed — landed; every printed row label
+     the recorded tables are keyed on is untouched.
 
 133. **`EventPattern::ProduceMana` has a field for one of CR 106.12b's three
      axes.** The rule: a replacement applying "if a permanent 'is tapped for
@@ -6470,7 +6467,7 @@ Commander-scale board closes item 69.
      cores per GPU (§4's arithmetic).
 
      **The instrument, built 2026-09-16 (A4e, PR #155).** Two cells on
-     `EngineCounters`, `decisions` and `priority_decisions`, recorded in
+     `Diagnostics`, `decisions` and `priority_decisions`, recorded in
      `ui::ask`'s four `validate_*` helpers rather than in the 24 bodies: each
      helper runs exactly once per prompt with the candidate list *and* the
      bounds in scope, so what counts is decided once per primitive instead of

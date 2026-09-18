@@ -1354,7 +1354,7 @@ Tier 1 is the practice above. Two more were planned with it, and both are
 schedulable rather than done:
 
 - **Tier 2 — engine-emitted traces.** A `TraceSink` on `GameState`, off by
-  default and gated the way `EngineCounters` is, recording what tier 1 records
+  default and gated the way `Diagnostics` is, recording what tier 1 records
   by hand: each proposal entering a batch, each pipeline iteration, each
   top-level layer walk, and the performed events. JSON lines, plus a script
   that turns one into a page in this format, so tier 1 becomes generated.
@@ -1365,8 +1365,8 @@ schedulable rather than done:
   rather than with it. Sized at `codebase-state.md`, "Before Triggered
   abilities" item 5 — **with two corrections recorded there**: a sink generates
   a page's *spine*, never its argument, so tier 1 is not subsumed by tier 2;
-  and item 5's "gated the way `EngineCounters` is" describes no mechanism,
-  since those counters are always on.
+  and item 5's "gated the way `Diagnostics` is" describes no mechanism,
+  since those cells are always on.
 - **Tier 3 — the codebase map.** One structural page: the modules and what each
   owns, the chokepoint's arms, the three gate legs a new replacement source
   must extend, the two `object_matches_filter`s, the accessor pair, and the
