@@ -154,6 +154,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -628,6 +629,7 @@ pub fn registered_source_only(
 pub fn static_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
         id: new_ability_id(),
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect,

@@ -30,6 +30,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -73,6 +74,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -132,6 +134,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -184,6 +187,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -248,6 +252,7 @@ pub fn blood_moon() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -295,6 +300,7 @@ pub fn urborg_effect() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -336,6 +342,7 @@ pub fn dual_land_ub() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![crate::types::costs::Cost::Tap],
             effect: Effect::Atom(
@@ -380,6 +387,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -427,6 +435,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -491,6 +500,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -544,6 +554,7 @@ pub fn self_stripping_land() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

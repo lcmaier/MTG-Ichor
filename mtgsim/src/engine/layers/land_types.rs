@@ -100,6 +100,7 @@ pub(crate) fn intrinsic_mana_ability(
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: intrinsic_ability_id(object_id, land_type),
+        instances: Vec::new(),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
         effect: Effect::Atom(
@@ -235,6 +236,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::Tap],
                 effect: Effect::Atom(

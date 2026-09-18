@@ -37,6 +37,68 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-18 for A4n** (the instance list is computed once, in
+`CardDataBuilder::build`, and stored — `roadmap-v2.md` row A4n; A4i's review,
+themes H and I.2). **No pool change**: `performance` 91 and `stress` 166, the
+cards A4i left, so every column here is comparable to the A4p block below —
+and **both arms reproduce A4p's fixture tables to the digit**, two seats and
+four, both pools, which is why no table is repeated here. The record exists
+because the number the finding was measured in moved, and the timing did not.
+
+**Two arms, two seat counts, three sittings each.** `main` (879f114, the merge
+base, post-#165) and `new` (NEWSHA), each at `--players 2` and `--players 4`,
+both pools, `--rounds 3 --games 200`.
+
+| | new vs main |
+|---|---|
+| every counter, both pools, **two** seats | **IDENTICAL** |
+| every counter, both pools, **four** seats | **IDENTICAL** |
+| `µs / decision`, `performance`, two seats, three sittings | 30.0 → 30.3 (+0.9%), 29.3 → 28.6 (−2.3%), 28.4 → 27.9 (−1.7%) |
+| `µs / decision`, `performance`, four seats, three sittings | 49.3 → 49.5 (+0.5%), 49.6 → 49.3 (−0.6%), 50.4 → 48.4 (−4.0%) |
+| CPU/game median, first sitting, two seats / four seats | 6.69 → 6.75 ms / 21.69 → 21.79 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+**`IDENTICAL` was the prediction and it held everywhere.** The stored list is
+the walk's own answer — `cards::registry`'s new test compares the two for every
+registered card — so no game could play differently, and none did: every
+counter on every arm, and the four-seat `Hit turn limit: 1` on `stress` that
+A4p's block also carried.
+
+**The lower CPU reading the row predicted is not readable, and the row said
+it would not be.** The median of three sittings is −1.7% per decision at two
+seats and −0.6% at four, inside a spread the script itself puts at ~2–6%; the
+sign is the predicted one in four sittings of six and the size is the noise
+floor's. That is what "a cost-model finding, not a timing one" meant: ~366
+allocations against a ~6,700 µs game sit below what an interleaved sitting can
+resolve. A timing table cannot show this change, so the instrument that found
+it is the one that records it.
+
+**The instrument, re-read on both arms.** A counter on the walk itself —
+`effect_instances` on `main`, `Effect::instances` on `new` — 50 games at seed
+12345, `--threads 1`, printed per game beside `Decisions`:
+
+| derivations of the instance list, per game | performance | stress |
+|---|---|---|
+| `main`, on the cast / activate / resolve paths | 365.7 | 512.7 |
+| `new`, on those paths | **0** | **0** |
+| `new`, inside `CardDataBuilder::build` | 659.7 | 1031.6 |
+
+The `main` reading reproduces A4i's review to the decimal (366, against 339
+layer walks and 225 decisions on the same board). The zero is structural rather
+than measured: the walk has two callers left, the builder and the registry test,
+and the play-path readers take `&[EffectRecipient]` off the def or the card.
+
+**The third row is the harness, not the engine, and it is outside the timer.**
+`fuzz_games::random_deck` calls `registry.create(name)` — a fresh `build()` —
+for every slot of every deck and again for every registered name in each of
+its two name filters, so a two-seat `performance` game constructs roughly 480
+cards, each build now walking each def's effect once. `run_one_game` starts its
+clock after the decks exist, so none of it reaches `CPU/game`; and the walk
+allocates nothing for a def that declares no instance, which is most of them.
+It is recorded because a reader of the probe would otherwise see the count go
+*up*, and because a harness that builds one registry per process — the GUI, the
+AI harness — pays it once.
+
 **Re-recorded 2026-09-18 for A4p** (a seat that has left the game is not a
 target — `codebase-state.md` item 160, struck; `roadmap-v2.md` row A4p).
 **No pool change**: `performance` 91 and `stress` 166, the cards A4i left, so
@@ -357,8 +419,8 @@ Seeds of Strength **cast 190, resolved 188, in 124 of 200 games (62%)**, and
 the two that did not resolve are CR 608.2b. `stress`, 166 cards: 0 errors,
 0 panics, 0 turn-limit hits.
 
-**The review's round, 2026-09-17** (themes A, B, C, F of
-`plans/handoffs/a4i-review.md`). **No pool change** — `performance` 91 and
+**The review's round, 2026-09-17** (themes A, B, C, F of A4i's review; the
+handoff was evicted with A4n and `codebase-state.md`'s A4i section is the index). **No pool change** — `performance` 91 and
 `stress` 166, as the block above left them, so these columns are comparable to
 it. Two arms: **preC** (c731e55, A4i as reviewed) and **postC** (3ea4cb5, the
 flat `ChosenTargets`, the one-pass `surviving_targets`, and the bounded

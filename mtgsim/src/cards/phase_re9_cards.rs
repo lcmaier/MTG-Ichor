@@ -86,6 +86,7 @@ use crate::types::replacement::{
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -243,6 +244,7 @@ pub fn deep_water() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Mana(ManaCost::build(&[ManaType::Blue], 0))],
             effect: Effect::Atom(
@@ -302,6 +304,7 @@ pub fn pale_moon() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -381,6 +384,7 @@ pub fn doubling_cube() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
             effect: Effect::Atom(

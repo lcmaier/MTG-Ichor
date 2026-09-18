@@ -126,6 +126,7 @@ POLYSEMOUS = {
     "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
     "plan": 2, "splice": 2,
     "member": 2,
+    "instance": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

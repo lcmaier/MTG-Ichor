@@ -119,6 +119,7 @@ pub fn aggravated_assault() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::OnlyAsSorcery,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![Cost::Mana(ManaCost::build(
                 &[ManaType::Red, ManaType::Red],

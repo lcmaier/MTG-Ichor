@@ -528,7 +528,7 @@ pub enum EffectRecipient {
     /// that an **earlier atom of this same effect** already announced.
     ///
     /// `Target` and `Choose` each *declare* an instance; this refers back to
-    /// one, by its position in `targeting::effect_instances`' pre-order list.
+    /// one, by its position in [`Effect::instances`]' pre-order list.
     ///
     /// **An atom is an *effect*, not a clause**, and that is why the card has
     /// to say this rather than the engine working it out. The tree records what
@@ -1550,6 +1550,68 @@ impl Effect {
                     then.for_each_ability_def_mut(f);
                 }
             }
+        }
+    }
+
+    /// The instances of "target" this effect declares, in printed order
+    /// (CR 601.2c) — what the announcement asks for and CR 608.2b re-checks.
+    ///
+    /// Each `Target`/`Choose` atom **declares** an instance; an
+    /// `EffectRecipient::SameInstanceAs` atom refers back to one and declares
+    /// nothing. That is what separates Ensoul Artifact's two atoms — one
+    /// instance, acted on twice — from Seeds of Strength's three clauses, which
+    /// are three; written without the back-reference the two cards are the same
+    /// shape, and `EffectRecipient::SameInstanceAs`'s doc has the worked
+    /// comparison.
+    ///
+    /// **Run once per card, by `CardDataBuilder::build`**, which stores the
+    /// answer on every def it reaches (`AbilityDef::instances`) and on the card
+    /// (`CardData::spell_instances`). The engine reads the stored lists: the
+    /// castability check asks per card in hand per priority pass, and this
+    /// allocates. `cards::registry`'s test checks the stored lists against this
+    /// walk. CR 603.3d will want the same walk for a triggered ability.
+    ///
+    /// **`Atom` and `Sequence` only** — the scope the one-recipient rule this
+    /// replaced also had. `Modal` is the one that will need more than a wider
+    /// walk: CR 601.2b chooses modes *before* 601.2c, so an unchosen mode
+    /// announces no targets, and a walk that descended into every branch would
+    /// announce all of them. It resolves to an error today (`resolve_effect`),
+    /// and `codebase-state.md` item 153 carries it.
+    pub fn instances(&self) -> Vec<EffectRecipient> {
+        let mut out = Vec::new();
+        self.for_each_instance(&mut |recipient| {
+            out.push(recipient.clone());
+            true
+        });
+        out
+    }
+
+    /// The clause of the `ix`th instance this effect declares, found without
+    /// collecting them — what a `SameInstanceAs(ix)` atom resolves against when
+    /// nothing was announced (`targeting::DeclaredInstances::Effect`).
+    pub fn instance(&self, ix: usize) -> Option<&EffectRecipient> {
+        let mut remaining = ix;
+        let mut found = None;
+        self.for_each_instance(&mut |recipient| {
+            if remaining == 0 {
+                found = Some(recipient);
+                return false;
+            }
+            remaining -= 1;
+            true
+        });
+        found
+    }
+
+    /// [`Self::instances`]' walk: each declaring atom in pre-order, stopping
+    /// when `f` returns `false`.
+    fn for_each_instance<'a>(&'a self, f: &mut impl FnMut(&'a EffectRecipient) -> bool) -> bool {
+        match self {
+            Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
+                f(recipient)
+            }
+            Effect::Sequence(effects) => effects.iter().all(|sub| sub.for_each_instance(f)),
+            _ => true,
         }
     }
 

@@ -82,6 +82,7 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -103,6 +104,7 @@ fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             // "**Target** player draws a card, then discards a card" — one
@@ -694,6 +696,7 @@ fn scry_plus_one() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(

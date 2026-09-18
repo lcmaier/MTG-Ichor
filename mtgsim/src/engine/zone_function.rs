@@ -253,6 +253,7 @@ mod tests {
     fn ability(effect: Effect) -> AbilityDef {
         AbilityDef {
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect,

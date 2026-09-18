@@ -46,6 +46,7 @@ fn spell(effect: Effect) -> AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Spell,
         costs: Vec::new(),
         effect,

@@ -361,6 +361,7 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -453,6 +454,7 @@ pub fn altars_reap() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -523,6 +525,7 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1)],
             effect: Effect::Atom(
@@ -598,6 +601,7 @@ pub fn mind_stone() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![
                 Cost::Mana(ManaCost::build(&[], 1)),
@@ -650,6 +654,7 @@ pub fn bone_splinters() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -702,6 +707,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Activated,
             costs: vec![
                 Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),

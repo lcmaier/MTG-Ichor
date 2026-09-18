@@ -44,6 +44,7 @@ pub fn act_of_treason() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -86,7 +87,7 @@ mod tests {
         // the haste land on a different creature from the steal, and would ask
         // the player three times.
         assert_eq!(
-            crate::engine::targeting::spell_instances(&card).len(),
+            card.spell_instances.len(),
             1,
             "\"that creature\" and \"it\" are back-references, not new clauses"
         );

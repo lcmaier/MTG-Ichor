@@ -167,6 +167,7 @@ use crate::types::replacement::{
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -467,6 +468,7 @@ pub fn loyalty_probe() -> Arc<CardData> {
 fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type,
         costs,
         effect,

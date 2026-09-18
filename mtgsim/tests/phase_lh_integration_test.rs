@@ -12,7 +12,6 @@ use mtgsim::cards::phase_lh_cards::holy_strength;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{DestructionSource, GameAction, ZoneChangeCause};
 use mtgsim::engine::resolve::ResolvedTarget;
-use mtgsim::engine::targeting::spell_instances;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{
@@ -54,8 +53,10 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         object_id: id,
         controller,
         chosen_targets: vec![TargetInstance::new(
-            spell_instances(&holy_strength())
-                .pop()
+            holy_strength()
+                .spell_instances
+                .last()
+                .cloned()
                 .expect("an Aura announces its enchant clause"),
             vec![ResolvedTarget::Object(target)],
         )],

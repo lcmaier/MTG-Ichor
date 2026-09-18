@@ -1,7 +1,6 @@
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::{AbilityType, CardData};
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
@@ -139,64 +138,6 @@ impl<I: IntoIterator<Item = ResolvedTarget>> FromIterator<I> for ChosenTargets {
     }
 }
 
-/// The instances of "target" a spell announces at CR 601.2c, in printed order,
-/// read off the card.
-///
-/// **An Aura spell's target is defined by its enchant ability (CR 303.4a), not
-/// by a spell ability, and an Aura has none.** One function, one rule: the
-/// castability pre-check, the target selection and the fizzle all read this, so
-/// all three see `enchant_filter`.
-///
-/// PRE-LAYER ZONE: printed abilities, on a card in hand. The resolution does
-/// not call this — it reads the entry.
-pub fn spell_instances(card: &CardData) -> Vec<EffectRecipient> {
-    // CR 702.5a — only an Aura carries an enchant ability.
-    if let Some(filter) = &card.enchant_filter {
-        return vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))];
-    }
-    match card.abilities.iter().find(|a| a.ability_type == AbilityType::Spell) {
-        Some(spell) => effect_instances(&spell.effect),
-        None => Vec::new(),
-    }
-}
-
-/// The instances of "target" an effect tree announces, in printed order
-/// (CR 601.2c). Shared by [`spell_instances`] and `activate_ability`, and the
-/// same walk CR 603.3d will want for a triggered ability.
-///
-/// Each `Target`/`Choose` atom **declares** an instance; an
-/// `EffectRecipient::SameInstanceAs` atom refers back to one and declares
-/// nothing. That is what separates Ensoul Artifact's two atoms — one instance,
-/// acted on twice — from Seeds of Strength's three clauses, which are three;
-/// written without the back-reference the two cards are the same shape, and
-/// `EffectRecipient::SameInstanceAs`'s doc has the worked comparison.
-///
-/// **`Atom` and `Sequence` only** — the scope the one-recipient rule this
-/// replaced also had. `Modal` is the one that will need more than a wider walk:
-/// CR 601.2b chooses modes *before* 601.2c, so an unchosen mode announces no
-/// targets, and a walk that descended into every branch would announce all of
-/// them. It resolves to an error today (`resolve_effect`), and
-/// `codebase-state.md` carries the item.
-pub fn effect_instances(effect: &Effect) -> Vec<EffectRecipient> {
-    let mut out = Vec::new();
-    collect_instances(effect, &mut out);
-    out
-}
-
-fn collect_instances(effect: &Effect, out: &mut Vec<EffectRecipient>) {
-    match effect {
-        Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
-            out.push(recipient.clone());
-        }
-        Effect::Sequence(effects) => {
-            for sub in effects {
-                collect_instances(sub, out);
-            }
-        }
-        _ => {}
-    }
-}
-
 /// Whether a clause's criteria read an earlier instance of "target" —
 /// `ObjectFilter::OtherThanInstance`, the "another target" family.
 ///
@@ -272,6 +213,14 @@ impl EarlierTargets<'_> {
 /// "another target". A filter may carry both — "another target creature you
 /// control other than this one" is a legal English sentence — so they are
 /// fields rather than an enum.
+///
+/// **`exclude_id` is not a third field, and the fold was withdrawn after it was
+/// built** (A4i's review, 2026-09-17). It is the same kind of fact, but CR 115.5
+/// — "a spell or ability on the stack is an illegal target for itself" — bites on
+/// the `Spell` and `DamageSource` arms, and those answer membership directly
+/// without ever walking an `ObjectFilter`. A leaf-level fact cannot reach them, so
+/// `exclude_id` stays applied in the enumeration, uniformly, whatever the filter's
+/// shape.
 #[derive(Clone, Copy)]
 pub(crate) struct FilterIdentity<'a> {
     /// What [`ObjectFilter::EachOther`] is other than: the effect's own source.
@@ -292,6 +241,39 @@ impl FilterIdentity<'static> {
     };
 }
 
+/// Where a resolution reads CR 601.2c's clauses from, for an atom that refers
+/// back to one (`EffectRecipient::SameInstanceAs`).
+///
+/// **The stack reads the announcement.** `StackEntry::chosen_targets` recorded
+/// each clause beside its choice, so the index the announcement filled is the
+/// index the resolution reads, and nothing is derived from the effect tree at
+/// resolution. `resolve_effect` used to walk the tree again and rest on the
+/// second walk numbering the atoms as the first had; there is no second walk
+/// now. An Aura's instance comes from its enchant ability and sits in no tree
+/// (CR 303.4a), which is why the announcement is the one list that is right
+/// for every spell.
+///
+/// **A bare effect has no announcement** — CR 615.5's rider, and a test that
+/// staged its `ResolutionContext` by hand — so its clauses are read off the
+/// tree, and only when a `SameInstanceAs` atom asks: a declaring atom is its
+/// own clause, and [`instance_of`] never opens this for one.
+#[derive(Clone, Copy)]
+pub enum DeclaredInstances<'a> {
+    /// The stack's: what CR 601.2c announced, clause by clause.
+    Announced(&'a [TargetInstance]),
+    /// Nothing was announced: the effect's own declaring atoms, in printed order.
+    Effect(&'a Effect),
+}
+
+impl<'a> DeclaredInstances<'a> {
+    fn clause(self, ix: usize) -> Option<&'a EffectRecipient> {
+        match self {
+            DeclaredInstances::Announced(announced) => announced.get(ix).map(|inst| &inst.recipient),
+            DeclaredInstances::Effect(effect) => effect.instance(ix),
+        }
+    }
+}
+
 /// Which instance an atom's recipient resolves against, and the clause that
 /// instance was announced with.
 ///
@@ -302,7 +284,7 @@ impl FilterIdentity<'static> {
 /// chosen target.
 pub(crate) fn instance_of<'a>(
     recipient: &'a EffectRecipient,
-    declared: &'a [EffectRecipient],
+    declared: DeclaredInstances<'a>,
     cursor: &mut usize,
 ) -> Option<(usize, &'a EffectRecipient)> {
     match recipient {
@@ -313,7 +295,7 @@ pub(crate) fn instance_of<'a>(
         }
         // The declaring atom's clause, not this atom's: an `Instance` atom
         // behaves exactly as the atom that announced the instance did.
-        EffectRecipient::SameInstanceAs(ix) => declared.get(*ix).map(|r| (*ix, r)),
+        EffectRecipient::SameInstanceAs(ix) => declared.clause(*ix).map(|r| (*ix, r)),
         _ => None,
     }
 }
@@ -360,7 +342,7 @@ impl GameState {
             EffectRecipient::SameInstanceAs(ix) => Err(format!(
                 "EffectRecipient::SameInstanceAs({ix}) is a back-reference to an instance of \
                  \"target\", not a clause to validate against (CR 115.3). Validate the \
-                 clause `targeting::effect_instances` returned at that index."
+                 clause `Effect::instances` lists at that index."
             )),
 
             // Target and Choose validate identically: hexproof, shroud and

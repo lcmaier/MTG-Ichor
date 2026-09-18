@@ -71,6 +71,7 @@ fn enters_with(
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -300,6 +301,7 @@ fn test_two_entry_replacements_accumulate() {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -312,6 +314,7 @@ fn test_two_entry_replacements_accumulate() {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -380,6 +383,7 @@ fn orb_shaped() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -801,6 +805,7 @@ fn kismet_shaped() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(

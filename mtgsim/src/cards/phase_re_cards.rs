@@ -337,6 +337,7 @@ use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
 fn static_replacement(def: ReplacementDef) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(def)),
@@ -351,6 +352,7 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
 fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Conditional(condition, Box::new(Effect::Replacement(Box::new(def)))),
@@ -364,6 +366,7 @@ fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> 
 fn static_restriction(what: Restriction) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Restriction(Box::new(RestrictionDef::new(what))),
@@ -376,6 +379,7 @@ fn static_restriction(what: Restriction) -> AbilityDef {
 fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type,
         costs,
         effect,
@@ -2312,6 +2316,7 @@ pub fn live_fast() -> Arc<CardData> {
         .rules_text("You draw two cards, lose 2 life, and get {E}{E} (two energy counters).")
         .ability(AbilityDef {
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![

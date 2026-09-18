@@ -60,6 +60,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
         )
         .ability(AbilityDef {
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -100,6 +101,7 @@ pub fn culling_drone() -> Arc<CardData> {
         .rules_text("Devoid (This card has no color.)")
         .ability(AbilityDef {
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
