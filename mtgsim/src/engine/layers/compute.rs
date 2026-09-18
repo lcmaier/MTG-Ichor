@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::board::{compute_board, compute_board_to, membership, Board, Membership};
 use crate::engine::layers::lookahead::Lookahead;
+use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
 use crate::objects::card_data::CardData;
 use crate::state::game_state::GameState;
@@ -97,13 +98,16 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     // not exist is a walk — the same walk it was before the pass.
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
+    let frames_before = game.diagnostics.layer_frames();
 
-    let asked = match membership(game, id) {
+    let membership = membership(game, id);
+    let asked = match membership {
         Membership::Member => None,
         Membership::ZoneOnly => Some(id),
         Membership::NonMember => {
             let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len())?);
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
+            game.trace(|| trace_records::layer_walk(game, id, WalkKind::NonMember, frames_before, &frame));
             return Some(frame);
         }
     };
@@ -116,6 +120,13 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
         game.layer_memo.insert(member, epoch, frame);
     }
     debug_assert!(wanted.is_some(), "a member's frame comes out of the pass");
+    if let Some(frame) = &wanted {
+        let kind = match membership {
+            Membership::Member => WalkKind::Member,
+            _ => WalkKind::ZoneOnly,
+        };
+        game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, frame));
+    }
     wanted
 }
 
@@ -135,7 +146,7 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
         game.diagnostics.layer_frames(),
         game.diagnostics.dependency_checks(),
     );
-    let fresh = compute_characteristics_uncached(game, id);
+    let fresh = walk_uncached(game, id);
     game.diagnostics.rewind_layer_work(walks, board_walks, frames, checks);
     debug_assert_eq!(
         fresh.as_ref(),
@@ -158,6 +169,19 @@ pub(crate) fn compute_characteristics_uncached(
     game: &GameState,
     id: ObjectId,
 ) -> Option<EffectiveCharacteristics> {
+    let frames_before = game.diagnostics.layer_frames();
+    let frame = walk_uncached(game, id)?;
+    game.trace(|| trace_records::layer_walk(game, id, WalkKind::Lki, frames_before, &frame));
+    Some(frame)
+}
+
+/// The walk [`compute_characteristics_uncached`] records and the debug-build
+/// memo audit (`audit_memo_hit`) does not. Both callers are the release
+/// engine's shape: the LKI capture is a real walk and writes a `layer_walk`;
+/// the audit re-walks a memo hit to check it and rewinds the counts, and a
+/// record from it would make a debug build's trace differ from a release
+/// build's — which would break regenerating a page from a test.
+fn walk_uncached(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
     match membership(game, id) {

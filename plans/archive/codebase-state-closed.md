@@ -1441,6 +1441,85 @@ The original entry, as it stood on 2026-09-04:
 
    **Reachability (2026-09-03):** closed — RC-4b, PR #87 (6541d0b).
 
+5. **~~Tier 2 of the trace plan — a `TraceSink` on `GameState`, owed before the
+   dispatcher~~ — ✅ CLOSED 2026-09-18 (A4c, PR #170).** What shipped: `state::trace`,
+   with `TraceSink` (a `Mutex`-guarded writer behind an `Arc`, so `GameState`
+   stays `Send`), `TraceHandle` (the pointer plus a branch number that rides
+   the state; its hand-written `Clone` writes a `fork` record) and `Record`
+   (the JSON builder). The five emit points: `execute_batch_inner` writes a
+   `batch` and a `batch_end`, `apply_replacements` a `pipeline` per CR 616.1
+   iteration, `compute_characteristics`, `compute_as_entering` and the LKI
+   walk a `layer_walk`, the four `validate_*` helpers a `decision`, and
+   `emit_event` — the one door every emitter now uses — an `event` whose text
+   is `format_event`'s; the priority loop adds `priority_rejected`. Reachable
+   the three ways the item asked: `fuzz_games --trace DIR [--trace-game N]`,
+   `cli_play --trace PATH`, `test_support::install_trace` and
+   `install_trace_file`. `plans/trace_spine.py` renders one game's lines as a
+   page's spine through `plans/traces/viewer.html`, or as `--dump-events`'
+   text. The record as scheduled follows. Trace pages are hand-authored today (`engineering-practices.md`
+   §7): two to three hours per phase, which is the right cost at a phase's close
+   and the wrong cost for a question asked mid-debugging. A sink recording what
+   those pages record by hand — each proposal entering a batch, each
+   `apply_replacements` iteration (candidates and their verdicts, whether the
+   frame was computed, the bucket, the chooser, the choice or the suppression,
+   the rewrite), each top-level layer walk with its frame count, and the
+   performed events the log already holds — makes the page generated rather
+   than written, and makes the same question answerable at a breakpoint. JSON
+   lines, off by default, gated the way `Diagnostics` is. Emit points:
+   `execute_batch_inner`, `apply_replacements`, `compute_characteristics`,
+   `compute_as_entering`. Reachable three ways: `cli_play --trace`,
+   `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
+   test can write its own trace, which is how a page is regenerated after a
+   refactor. **Scheduled 2026-09-08: its own PR, after CM-4 and before item 6**
+   (`roadmap-v2.md` row A4c). It had been cargo on A6's first PR, which is the
+   PR least able to carry it — the trigger phase is 4–6 PRs of new subsystem,
+   and "why did this fire, or not" is a question you want answerable *before*
+   starting it. Ordering-free against CM-4, which goes first because it is the
+   next phase on the spine.
+
+   **Two corrections to this item, from reading the tier-1 pages against it
+   (2026-09-08, before any code):** "makes the page generated rather than
+   written" cannot hold — a page's step rows are half mechanical (call site,
+   `file:line`, which frame was consulted, the candidates and verdicts, the
+   choice) and half authored counterfactual, and its summary tables
+   ("Where the reads differ", the two-commit before/after) are entirely
+   authored. The sink generates a **spine**; §7.1 needs a sentence saying tier 1
+   is not subsumed. And "gated the way `Diagnostics` is" describes no
+   mechanism: those are thirteen always-on `Cell<u64>`s — seven when this was
+   written — free because incrementing is free, while `compute_characteristics`
+   — one of the four emit points — runs ~62,000 times per measured game and
+   `GameState` derives `Clone`, which the diagnostics ride deliberately and a
+   growing buffer must not. What "off" costs is
+   this phase's first decision, and the check is that a sink-compiled-in-but-off
+   arm is `IDENTICAL` to `main` on both pools.
+
+   **A fifth emit point, named 2026-09-16 (A4h): the decision boundary.**
+   The four above are proposals, pipeline iterations and layer walks, and
+   none of them is the prompt — so a sink built to this spec would not have
+   found what A4h found, which was a prompt whose *option list* was wrong.
+   No event log can show that one: a cast the enumeration offered and CR
+   601.2g could not pay performs nothing and emits nothing, so
+   `--dump-events` is blind to the re-ask by construction. What answers "why
+   was I offered this" is the candidate enumeration and the list handed to
+   `ask_choose_priority_action` — the result, the blacklist, the retry index.
+   The instrument that did find it is `tests/priority_fork_test.rs`, which
+   compares offered lists across a fork; that is an assertion, not a
+   facility. The row already expects the dispatcher to add a point of its
+   own, so this is a sixth rather than a re-plan.
+
+   **The higher-value artifact item 5 does not name:** a two-version trace diff
+   — one board through two engine builds, compared — which is what a human
+   cannot do by hand and what `fuzz_ab.py` already does for counters. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
+   script; one small phase. The seam it rides is `execute_batch_inner` and the
+   entry performer, which RC-4b gave the shape they will keep.
+
+   **Reachability (2026-09-03):** nothing owed to correctness — tooling, sized
+   in the entry.
+
+   **Reachability (2026-09-18):** closed — A4c, PR #170. The two corrections
+   held: a sink generates a spine, and "off" is one branch with the payload
+   behind it, `IDENTICAL` to `main` compiled in and off, and on.
+
 
 ## Before Commander (CR 903)
 

@@ -153,6 +153,9 @@ impl GameState {
                                 "WARN: activate_ability source {} missing: {}",
                                 permanent_id, e
                             );
+                            self.trace(|| {
+                                crate::engine::trace_records::priority_rejected(current_priority, &action, &e, retries, &blacklist)
+                            });
                             continue;
                         }
                         // Effective abilities: intrinsic land mana abilities
@@ -191,9 +194,16 @@ impl GameState {
 
                 match exec_result {
                     Ok(()) => break (action, was_mana_ability),
-                    Err(_e) => {
+                    Err(e) => {
                         blacklist.push(action);
                         retries = retries.saturating_add(1);
+                        // What `--dump-events` cannot show: a cast the enumeration
+                        // offered and the engine rejected performs nothing, so the
+                        // re-ask that follows is only explicable from here.
+                        self.trace(|| {
+                            let rejected = blacklist.last().expect("pushed above");
+                            crate::engine::trace_records::priority_rejected(current_priority, rejected, &e, retries, &blacklist)
+                        });
                         // Loop again with tighter candidate list.
                     }
                 }

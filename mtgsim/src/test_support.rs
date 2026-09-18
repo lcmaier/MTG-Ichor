@@ -49,6 +49,7 @@ use crate::engine::layers::types::{
 use crate::types::effects::Duration;
 use crate::types::zones::Zone;
 use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use crate::state::trace::{TraceHandle, TraceSink};
 
 // ---------------------------------------------------------------------------
 // Game setup
@@ -690,4 +691,77 @@ pub fn put_on_battlefield_this_turn(
     let mods = game.default_enter_mods(id, player);
     game.place_on_battlefield(id, player, &mods);
     id
+}
+
+// ---------------------------------------------------------------------------
+// The trace sink, for a test that wants its own spine
+// ---------------------------------------------------------------------------
+
+/// A trace sink over a buffer the test can read back — `state::trace`'s
+/// third consumer, and how a page's spine is regenerated after a refactor:
+/// install one on the board a `// COVERS:` test builds, run the test, hand
+/// [`Self::lines`] to `plans/trace_spine.py`.
+pub struct TraceBuffer {
+    buf: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    sink: std::sync::Arc<TraceSink>,
+}
+
+struct SharedBuffer(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl std::io::Write for SharedBuffer {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().expect("trace buffer poisoned").extend_from_slice(data);
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl TraceBuffer {
+    /// Every line written so far, flushed first.
+    pub fn lines(&self) -> Vec<String> {
+        self.sink.flush().expect("trace flush");
+        let bytes = self.buf.lock().expect("trace buffer poisoned").clone();
+        String::from_utf8(bytes).expect("trace is UTF-8").lines().map(str::to_string).collect()
+    }
+
+    /// The lines whose `kind` is `kind`.
+    pub fn of_kind(&self, kind: &str) -> Vec<String> {
+        let tag = format!("\"kind\":\"{}\"", kind);
+        self.lines().into_iter().filter(|l| l.contains(&tag)).collect()
+    }
+
+    /// The sink, for a second game that should share it.
+    pub fn sink(&self) -> &std::sync::Arc<TraceSink> {
+        &self.sink
+    }
+}
+
+/// Attach a buffer-backed sink to `game` and write its header. `label` is the
+/// trace's own name for the board, usually the test's.
+pub fn install_trace(game: &mut GameState, label: &str) -> TraceBuffer {
+    let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = TraceSink::to_writer(SharedBuffer(std::sync::Arc::clone(&buf)));
+    game.install_trace(TraceHandle::new(&sink));
+    game.trace_game(label, None);
+    TraceBuffer { buf, sink }
+}
+
+/// Attach a file-backed sink to `game` — for regenerating a page's spine from
+/// a test: `install_trace_file(&mut game, "target/traces/rd-2-a.jsonl", ..)`,
+/// then `python plans/trace_spine.py` on the file.
+pub fn install_trace_file(
+    game: &mut GameState,
+    path: impl AsRef<std::path::Path>,
+    label: &str,
+) -> std::sync::Arc<TraceSink> {
+    if let Some(dir) = path.as_ref().parent() {
+        std::fs::create_dir_all(dir).expect("trace directory");
+    }
+    let sink = TraceSink::to_file(path).expect("trace file");
+    game.install_trace(TraceHandle::new(&sink));
+    game.trace_game(label, None);
+    sink
 }

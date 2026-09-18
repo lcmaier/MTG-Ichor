@@ -9,3 +9,4 @@ pub mod replacement_effects;
 pub mod restrictions;
 pub mod diagnostics;
 pub mod layer_memo;
+pub mod trace;

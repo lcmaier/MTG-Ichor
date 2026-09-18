@@ -82,6 +82,12 @@ impl<'g> EntryFrame<'g> {
         self.basis.as_ref().is_some_and(|basis| basis.object == id)
     }
 
+    /// Has the frame been computed this iteration? The trace sink's question:
+    /// a page labels each read "board" or "frame", and this is the label.
+    pub(crate) fn computed(&self) -> bool {
+        self.frame.get().is_some()
+    }
+
     /// The frame, if `id` is the object this event is about and the event has
     /// one. Computed on first use.
     pub(crate) fn frame_of(&self, id: ObjectId) -> Option<&EffectiveCharacteristics> {

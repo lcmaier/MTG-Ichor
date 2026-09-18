@@ -78,6 +78,7 @@ CR_DIR = ROOT / "MTG-Rules" / "versions"
 # English plus one rule number. Adding one here is the whole cost of coining it.
 WATCHLIST = [
     "elision",
+    "trace", "sink", "emit point", "spine", "branch",
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "cell", "census", "chokepoint", "containment",
     "cursor", "customer", "def",

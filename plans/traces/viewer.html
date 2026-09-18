@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces/viewer.html — the trace sink's viewer (tier 2 of
+  `plans/engineering-practices.md` §7.1, row A4c). Open it and drop a
+  `.jsonl` the engine wrote (`fuzz_games --trace DIR`, `cli_play --trace
+  PATH`, `test_support::install_trace_file`), or let `plans/trace_spine.py`
+  embed one and write a page in §7's structure. What it renders is a page's
+  SPINE — the step rows, one per record — and never its argument: the map's
+  questions, the "where the reads differ" table and the closing section are
+  authored, and a generated page leaves them as placeholders.
+  Self-contained: fonts from Google Fonts, nothing else.
+-->
+<!--__PIN__-->
+<title>__TITLE__</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --bg: #F3F6F6; --surface: #FFFFFF; --surface-2: #EAF0F0; --ink: #1B2226;
+    --muted: #5B6770; --line: #D5DCDD; --real: #1F6F78; --real-tint: #E3F0F1;
+    --frame: #B0701A; --frame-tint: #FBF1DF; --new: #6B4FA0; --new-tint: #EEE9F7;
+    --changed: #2E7D4F; --changed-tint: #E4F2EA; --decide: #8A2F3B;
+    --decide-tint: #F8E8EA; --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 1080px; margin: 0 auto; padding: 2rem 16px 4rem; }
+  h1 { font-family: var(--display); font-weight: 500; font-size: 2.2rem; margin: 0 0 .4rem; }
+  h2 { font-family: var(--display); font-weight: 500; font-size: 1.5rem; margin: 2.2rem 0 .6rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  p.lede { color: var(--muted); font-size: 1.05rem; margin: 0 0 1rem; }
+  code, pre { font-family: var(--mono); font-size: .86em; }
+  code { background: var(--code-bg); padding: .05rem .3rem; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: .8rem 1rem; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: .1rem .7rem; margin: 0 .4rem .3rem 0; font-size: .85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: .95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: .5rem .7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: .55rem 0 .55rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: .55rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: .8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .trace li.nested { margin-left: 2.6rem; }
+  .trace li.nested2 { margin-left: 4.2rem; }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: .86em; }
+  .read { display: inline-block; font-size: .78rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; border-radius: 4px; padding: .05rem .45rem; margin-left: .4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.entry { background: var(--new-tint); color: var(--new); }
+  .seq { color: var(--muted); font-family: var(--mono); font-size: .78rem; margin-left: .5rem; }
+  details { margin-top: .3rem; }
+  summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: .9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.authored { border-left-color: var(--decide); color: var(--muted); font-style: italic; }
+  .controls { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .7rem 1rem; margin: 1rem 0; font-size: .92rem; }
+  .controls label { white-space: nowrap; }
+  .drop { border: 2px dashed var(--line); border-radius: 12px; padding: 2.5rem 1rem; text-align: center; color: var(--muted); margin: 1.5rem 0; }
+  small { color: var(--muted); }
+  .kind { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="page">
+<h1 id="title">__TITLE__</h1>
+<p class="lede" id="lede">A page's spine, generated from the trace sink's records: one row per emit point, each labelled by what it consulted. The argument — which board answers which question, and where the reads differ — is authored, never generated.</p>
+<div id="meta"></div>
+<div class="drop" id="drop">Drop a <code>.jsonl</code> the engine wrote here, or <label><input type="file" id="file" accept=".jsonl,.json,.txt"> choose one</label>.</div>
+
+<div id="content" hidden>
+<h2>The map</h2>
+<div class="callout authored">Authored: which boards, which cards, and which trace answers which question. The table below is what the trace can say on its own — the top-level batches and what each proposed.</div>
+<div class="wrap"><table id="map"></table></div>
+
+<h2>The spine</h2>
+<div class="controls" id="controls"></div>
+<ol class="trace" id="spine"></ol>
+
+<h2>Where the reads differ</h2>
+<div class="callout authored">Authored: the comparison table is the page's payload and no sink can write it — it compares this engine's reads with another's, or with the rule's. The rows above say what each read consulted; the columns are yours.</div>
+
+<h2>What this changed, trace by trace — and what is still open</h2>
+<div class="callout authored">Authored.</div>
+</div>
+</div>
+
+<script id="trace" type="application/x-ndjson">/*__TRACE__*/</script>
+<script>
+(function () {
+  const KINDS = ["game", "fork", "batch", "pipeline", "layer_walk", "decision", "priority_rejected", "event", "batch_end", "object"];
+  const DEFAULT_ON = new Set(["batch", "pipeline", "decision", "priority_rejected", "event", "fork"]);
+  const FN = {
+    game: "trace_game", fork: "GameState::clone", batch: "execute_batch_inner", batch_end: "execute_batch_inner",
+    pipeline: "apply_replacements", layer_walk: "compute_characteristics", decision: "validate_*",
+    priority_rejected: "run_priority_round", event: "emit_event", object: "trace_objects",
+  };
+  let records = [], names = new Map(), on = new Set(DEFAULT_ON), branch = "all", topOnly = false;
+
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const named = s => esc(s).replace(/#(\d+)\b/g, (m, id) => names.has(+id) ? `#${id}&thinsp;<small>${esc(names.get(+id))}</small>` : m);
+  const short = a => String(a).replace(/\s*\{.*$/, "");
+
+  function parse(text) {
+    const out = [];
+    for (const line of text.split(/\r?\n/)) {
+      const t = line.trim();
+      if (!t) continue;
+      try { out.push(JSON.parse(t)); } catch (e) { console.warn("skipped line", t.slice(0, 80)); }
+    }
+    return out;
+  }
+
+  function load(text) {
+    records = parse(text);
+    names = new Map();
+    for (const r of records) if (r.kind === "object") names.set(r.id, r.name);
+    document.getElementById("drop").hidden = true;
+    document.getElementById("content").hidden = false;
+    renderMeta(); renderMap(); renderControls(); renderSpine();
+  }
+
+  function renderMeta() {
+    const g = records.find(r => r.kind === "game") || {};
+    const counts = {};
+    for (const r of records) counts[r.kind] = (counts[r.kind] || 0) + 1;
+    const pins = [];
+    if (g.label) pins.push(esc(g.label));
+    if (g.commit) pins.push("commit " + esc(g.commit));
+    if (g.seed != null) pins.push("seed " + g.seed);
+    if (g.players) pins.push(g.players + " players");
+    pins.push(records.length + " records");
+    document.getElementById("meta").innerHTML = pins.map(p => `<span class="pin">${p}</span>`).join("")
+      + `<p><small>${KINDS.filter(k => counts[k]).map(k => `${k} ${counts[k]}`).join(" · ")}</small></p>`;
+  }
+
+  function renderMap() {
+    const rows = records.filter(r => r.kind === "batch" && r.depth === 1);
+    const cells = rows.slice(0, 400).map(r => {
+      const kinds = [...new Set(r.members.map(m => short(m.action)))].join(", ");
+      return `<tr><td><a href="#seq${r.seq}">batch ${r.batch}</a></td><td>${r.members.length}</td><td>${named(kinds)}</td><td>${r.groups.length}</td></tr>`;
+    });
+    document.getElementById("map").innerHTML = `<tr><th>Batch</th><th>Members</th><th>Proposed</th><th>Groups</th></tr>` + cells.join("")
+      + (rows.length > 400 ? `<tr><td colspan="4"><small>${rows.length - 400} more</small></td></tr>` : "");
+  }
+
+  function renderControls() {
+    const branches = [...new Set(records.map(r => r.branch))].sort((a, b) => a - b);
+    const c = document.getElementById("controls");
+    c.innerHTML = KINDS.map(k => `<label><input type="checkbox" data-kind="${k}" ${on.has(k) ? "checked" : ""}> ${k}</label>`).join("")
+      + `<label>branch <select id="branch"><option value="all">all</option>${branches.map(b => `<option value="${b}">${b}</option>`).join("")}</select></label>`
+      + `<label><input type="checkbox" id="top"> top-level batches only</label>`;
+    c.querySelectorAll("input[data-kind]").forEach(el => el.addEventListener("change", () => { el.checked ? on.add(el.dataset.kind) : on.delete(el.dataset.kind); renderSpine(); }));
+    c.querySelector("#branch").addEventListener("change", e => { branch = e.target.value; renderSpine(); });
+    c.querySelector("#top").addEventListener("change", e => { topOnly = e.target.checked; renderSpine(); });
+  }
+
+  function readLabel(r) {
+    switch (r.kind) {
+      case "decision": case "priority_rejected": return "player";
+      case "pipeline": return r.frame_computed ? "frame" : "board";
+      case "layer_walk": return r.membership === "entering" ? "frame" : "board";
+      case "batch": return "entry";
+      default: return "board";
+    }
+  }
+
+  function cls(r) {
+    if (r.kind === "decision" || r.kind === "priority_rejected") return "decide";
+    if (r.kind === "batch" || r.kind === "fork") return "new";
+    if (r.kind === "pipeline" && r.choice) return "changed";
+    return "";
+  }
+
+  function summary(r) {
+    switch (r.kind) {
+      case "game": return `${esc(r.label)} — commit ${esc(r.commit)}, seed ${r.seed == null ? "none" : r.seed}, ${r.players} players`;
+      case "fork": return `branch ${r.from} forks to branch ${r.to}`;
+      case "batch": return `batch ${r.batch} at depth ${r.depth}, ${r.members.length} proposal${r.members.length === 1 ? "" : "s"}` +
+        (r.inherited ? `, inheriting ${r.inherited} applied` : "") + ` — groups: ` +
+        r.groups.map(g => `${named(g.subject)} [${g.members.join(", ")}]`).join("; ") +
+        `<br><small>${r.members.map(m => `${m.i}: ${named(m.action)}`).join("<br>")}</small>`;
+      case "batch_end": return `batch ${r.batch} performed ` +
+        r.members.map(m => m.performed == null ? `${m.i}: <em>dropped</em>` : `${m.i}: ${named(short(m.performed))}`).join(", ") +
+        (r.riders ? ` — ${r.riders} rider${r.riders === 1 ? "" : "s"} queued` : "");
+      case "pipeline": {
+        const cands = r.candidates.length ? r.candidates.map(c => `${named(c.id)}${c.bucket ? "" : " <small>(below the ladder)</small>"} over [${c.members.join(", ")}]`).join("; ") : "nothing gathered";
+        const verdict = r.decided === "none" ? "" : ` → ${r.decided}${r.optional ? ", " + r.optional : ""}: ${named(r.choice)}${r.rewrite ? " with " + named(r.rewrite) : ""}`;
+        const results = r.results.map(m => m.event == null ? `${m.i}: <em>does not happen</em>` : `${m.i}: ${named(short(m.event))}`).join(", ");
+        return `iteration ${r.iteration} on ${named(r.subject)}` + (r.chooser != null ? `, chooser P${r.chooser}` : "") +
+          `: ${cands}${verdict}<br><small>${results}</small>`;
+      }
+      case "layer_walk": {
+        const pt = r.power == null ? "" : ` ${r.power}/${r.toughness}`;
+        return `walk #${r.object} <small>${esc(r.name)}</small> as ${r.membership}, ${r.frames} frame${r.frames === 1 ? "" : "s"} at epoch ${r.epoch} → ${esc(r.types.join(" "))}${pt}, P${r.controller}`;
+      }
+      case "decision": {
+        const ans = Array.isArray(r.answer) ? `[${r.answer.join(", ")}]` : r.answer;
+        const bounds = r.bounds ? ` ${r.bounds[0]}–${r.bounds[1]} of` : (r.min != null ? ` ${r.min}–${r.max}` : (r.total != null ? ` ${r.total} across` : ""));
+        return `P${r.player} asked ${esc(r.prompt)} for ${esc(r.choice)}${r.subject != null ? " on " + named("#" + r.subject) : ""}:${bounds} [${r.options.map(named).join(", ")}] → ${esc(ans)}`;
+      }
+      case "priority_rejected": return `P${r.player}'s ${named(r.action)} rejected — <em>${esc(r.error)}</em> — retry ${r.retry}, blacklist [${r.blacklist.map(named).join(", ")}]`;
+      case "event": return `${named(r.text)}` + (r.batch != null ? ` <small>batch ${r.batch}</small>` : "") + (r.resolution != null ? ` <small>resolving ${named("#" + r.resolution)}</small>` : "");
+      case "object": return `#${r.id} ${esc(r.name)} (P${r.owner}${r.token ? ", token" : ""})`;
+      default: return esc(JSON.stringify(r));
+    }
+  }
+
+  function renderSpine() {
+    const rows = [];
+    let depth = 0;
+    let shown = 0;
+    for (const r of records) {
+      if (r.kind === "batch") depth = r.depth;
+      const inside = r.kind === "batch_end" ? r.depth : depth;
+      if (r.kind === "batch_end") depth = Math.max(0, r.depth - 1);
+      if (!on.has(r.kind)) continue;
+      if (branch !== "all" && String(r.branch) !== branch) continue;
+      if (topOnly && inside > 1) continue;
+      if (++shown > 3000) { rows.push(`<li><small>… ${records.length - shown + 1} more records; narrow the filters</small></li>`); break; }
+      const nest = inside >= 3 ? " nested2" : inside === 2 ? " nested" : "";
+      rows.push(`<li class="${cls(r)}${nest}" id="seq${r.seq}"><span class="fn">${FN[r.kind] || r.kind}</span><span class="read ${readLabel(r)}">${readLabel(r)}</span><span class="seq">#${r.seq}${r.branch ? " b" + r.branch : ""}</span> — ${summary(r)}<details><summary>record</summary><pre>${esc(JSON.stringify(r, null, 1))}</pre></details></li>`);
+    }
+    document.getElementById("spine").innerHTML = rows.join("");
+  }
+
+  const embedded = document.getElementById("trace").textContent;
+  if (embedded && !embedded.includes("__TRACE__")) load(embedded);
+  document.getElementById("file").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (f) f.text().then(load);
+  });
+  const drop = document.getElementById("drop");
+  drop.addEventListener("dragover", e => { e.preventDefault(); });
+  drop.addEventListener("drop", e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) f.text().then(load);
+  });
+})();
+</script>
+</body>
+</html>

@@ -258,7 +258,7 @@ impl GameState {
 
         self.change_zone(card_id, Zone::Hand, ZoneChangeCause::Drawn, ctx)?;
         // CR 121.5 — the zone change alone cannot distinguish this from a tutor.
-        self.events.emit(GameEvent::CardDrawn { player_id, card_id });
+        self.emit_event(GameEvent::CardDrawn { player_id, card_id });
         Ok(Some(card_id))
     }
 

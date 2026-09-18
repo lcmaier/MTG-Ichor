@@ -2341,6 +2341,18 @@ section never asked.
     keeping `records_from` semantics, the ~100–150 above; the fork test
     compares the sink's output instead of the state's log.
 
+    **What rode with A4c (2026-09-18, PR #170), and what did not.** The
+    performed-event stream reaches the sink through one door,
+    `GameState::emit_event`, which every emitter now calls and which writes
+    the same text `--dump-events` prints — so the dump is a projection of a
+    trace (`plans/trace_spine.py --events`), and the fork test's comparison
+    can read a trace instead of the state's log when item 140 extends it.
+    **The in-state window stays unbounded**: bounding it is a `GameState`
+    representation change with its own clone-cost reading, and the
+    per-player turn summaries wait for A6's doc by that row's own text. What
+    is still sized here is the window and the summaries, ~60 plus ~100–150
+    lines, minus the sink.
+
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
     2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
     `EntryCountersTemplate.by`, the merge keyed on `(kind, putter)`, the entry
@@ -5390,66 +5402,15 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
     abilities (CR 603)" item 4.
 
-5. **Tier 2 of the trace plan — a `TraceSink` on `GameState`, owed before the
-   dispatcher.** Trace pages are hand-authored today (`engineering-practices.md`
-   §7): two to three hours per phase, which is the right cost at a phase's close
-   and the wrong cost for a question asked mid-debugging. A sink recording what
-   those pages record by hand — each proposal entering a batch, each
-   `apply_replacements` iteration (candidates and their verdicts, whether the
-   frame was computed, the bucket, the chooser, the choice or the suppression,
-   the rewrite), each top-level layer walk with its frame count, and the
-   performed events the log already holds — makes the page generated rather
-   than written, and makes the same question answerable at a breakpoint. JSON
-   lines, off by default, gated the way `Diagnostics` is. Emit points:
-   `execute_batch_inner`, `apply_replacements`, `compute_characteristics`,
-   `compute_as_entering`. Reachable three ways: `cli_play --trace`,
-   `fuzz_games --trace-game N`, and a `test_support` helper so any `// COVERS:`
-   test can write its own trace, which is how a page is regenerated after a
-   refactor. **Scheduled 2026-09-08: its own PR, after CM-4 and before item 6**
-   (`roadmap-v2.md` row A4c). It had been cargo on A6's first PR, which is the
-   PR least able to carry it — the trigger phase is 4–6 PRs of new subsystem,
-   and "why did this fire, or not" is a question you want answerable *before*
-   starting it. Ordering-free against CM-4, which goes first because it is the
-   next phase on the spine.
-
-   **Two corrections to this item, from reading the tier-1 pages against it
-   (2026-09-08, before any code):** "makes the page generated rather than
-   written" cannot hold — a page's step rows are half mechanical (call site,
-   `file:line`, which frame was consulted, the candidates and verdicts, the
-   choice) and half authored counterfactual, and its summary tables
-   ("Where the reads differ", the two-commit before/after) are entirely
-   authored. The sink generates a **spine**; §7.1 needs a sentence saying tier 1
-   is not subsumed. And "gated the way `Diagnostics` is" describes no
-   mechanism: those are thirteen always-on `Cell<u64>`s — seven when this was
-   written — free because incrementing is free, while `compute_characteristics`
-   — one of the four emit points — runs ~62,000 times per measured game and
-   `GameState` derives `Clone`, which the diagnostics ride deliberately and a
-   growing buffer must not. What "off" costs is
-   this phase's first decision, and the check is that a sink-compiled-in-but-off
-   arm is `IDENTICAL` to `main` on both pools.
-
-   **A fifth emit point, named 2026-09-16 (A4h): the decision boundary.**
-   The four above are proposals, pipeline iterations and layer walks, and
-   none of them is the prompt — so a sink built to this spec would not have
-   found what A4h found, which was a prompt whose *option list* was wrong.
-   No event log can show that one: a cast the enumeration offered and CR
-   601.2g could not pay performs nothing and emits nothing, so
-   `--dump-events` is blind to the re-ask by construction. What answers "why
-   was I offered this" is the candidate enumeration and the list handed to
-   `ask_choose_priority_action` — the result, the blacklist, the retry index.
-   The instrument that did find it is `tests/priority_fork_test.rs`, which
-   compares offered lists across a fork; that is an assertion, not a
-   facility. The row already expects the dispatcher to add a point of its
-   own, so this is a sixth rather than a re-plan.
-
-   **The higher-value artifact item 5 does not name:** a two-version trace diff
-   — one board through two engine builds, compared — which is what a human
-   cannot do by hand and what `fuzz_ab.py` already does for counters. **Sized:** ~300–400 lines Rust, ~300 viewer, ~100
-   script; one small phase. The seam it rides is `execute_batch_inner` and the
-   entry performer, which RC-4b gave the shape they will keep.
-
-   **Reachability (2026-09-03):** nothing owed to correctness — tooling, sized
-   in the entry.
+5. **~~Tier 2 of the trace plan — a `TraceSink` on `GameState`, owed before the
+   dispatcher~~ — ✅ CLOSED 2026-09-18 (A4c, PR #170).** — archived. Built as
+   `mtgsim/src/state/trace.rs`: five emit points behind one branch each, a
+   handle whose `Clone` is the fork marker, JSON lines with no `serde`, and
+   `plans/trace_spine.py` rendering a spine and never a page's argument. The
+   dispatcher's own emit point is item 9 below.
+   **Reachability (2026-09-18):** closed — A4c, PR #170.
+   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
+   abilities (CR 603)" item 5.
 
 3. **LKI formalization.** Several dies-handling sites already read `self.objects.get(&id)` *before* `move_object` to capture pre-move state (see `engine/sba.rs` dies handlers). This is ad-hoc LKI. Triggered abilities that reference "the creature that died" need a formalized `LastKnownInformation` snapshot mechanism, especially after layers land (LKI needs *post-layer* characteristics at moment-of-death, per rule 603.10 / 608.2h).
 
@@ -5518,6 +5479,25 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** one `in_game` read at the dispatcher's put-on-stack site,
    ~5 lines and a four-player fixture, inside critical-path item 6.
+
+9. **The dispatcher is the trace sink's sixth emit point, and it does not
+   exist yet (A4c, 2026-09-18).** The five item 5 named are built — the batch,
+   the CR 616.1 iteration, the layer walk, the decision boundary, the
+   performed event — and "why did this fire, or not" is answered by none of
+   them: whether a trigger matched an event is a read the matcher makes, and
+   a sink can only record what it is handed. Owed with the dispatcher: a
+   `trigger` record per matcher decision (the event, the ability's identity,
+   its source, matched or not and which predicate said so) and a `pending`
+   record when the queue drains onto the stack in APNAP order (CR 603.3b),
+   each written behind `game.trace` the way the five are, so a game nobody
+   traces pays one branch at each. `plans/traces/viewer.html` gets a summary
+   arm for both kinds in the same PR.
+
+   **Reachability (2026-09-18):** unreachable — no dispatcher, so no record it
+   could write.
+
+   **Sized:** ~40 lines at the two sites the dispatcher adds, inside
+   critical-path item 6's first PR; the viewer's two arms ~20.
 
 ### Before Commander (CR 903)
 
@@ -7683,3 +7663,29 @@ the file.
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
 - Migrations that are substantial enough to warrant ticketing get a link from here to their ticket; tiny migrations are just done inline.
+
+### Found by A4c — the trace sink (2026-09-18)
+
+**The sink is `mtgsim/src/state/trace.rs`; the record is its module doc and
+`tests/trace_sink_test.rs`; what the row did not predict is on `roadmap-v2.md`
+row A4c.** One thing is owed, by decision 6:
+
+166. **The two-version trace diff — the artifact item 5 called higher-value,
+     shaped for and not built.** One board through two engine builds, compared
+     record by record: what `plans/fuzz_ab.py` does for counters and a human
+     cannot do by hand. Out of A4c because nothing it would compare exists
+     twice yet; the format is ready for it — one record per line,
+     process-stable ids (A4g), `seq` and `branch` as the join keys, and a
+     `game` header carrying the seed and the build's commit (`stamp_commit.rs`, so a
+     binary copied aside for a sitting says what it was built from). What the
+     format does not settle is the alignment: once one arm writes a record the
+     other does not (a `layer_walk` the memo answered on one side), `seq`
+     drifts, and the diff has to pair `batch` records by their proposals the
+     way `diff` pairs lines — which is the whole of the tool.
+
+     **Reachability (2026-09-18):** nothing owed to correctness — tooling.
+
+     **Sized:** ~150 lines of Python beside `plans/trace_spine.py`, aligning on
+     `batch` records and reporting the first `pipeline` or `decision` that
+     differs; its first customer is the next stream-moving PR's A/B, which
+     today attributes a divergence by hand (`fuzz-record.md`, A4h's block).

@@ -34,6 +34,7 @@ use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
+use crate::engine::trace_records;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -112,8 +113,37 @@ fn forced_allocation(
 // Validation helpers
 // ===========================================================================
 
-/// Validate pick_n response: indices in range, no duplicates, count in bounds.
+/// Validate pick_n response: indices in range, no duplicates, count in bounds
+/// — and record the prompt, because this is the decision boundary.
+///
+/// **The trace sink's fifth emit point** (`codebase-state.md` "Before
+/// Triggered abilities" item 5, A4h): the four validators run exactly once
+/// per prompt with the list and the bounds in scope, which is item 138's
+/// argument for the decision count and the same one for the record. The
+/// record is written before the checks so a bad answer is on the record
+/// beside the panic that names it. Its payload is item 141's rule
+/// rehearsed: the `ChoiceKind` variant and its subject, the options by id,
+/// the bounds and the answer — never an engine AST.
 fn validate_pick_n(
+    indices: &[usize],
+    options: &[ChoiceOption],
+    bounds: (usize, usize),
+    context_desc: &str,
+    game: &GameState,
+    player: PlayerId,
+    ctx: &ChoiceContext,
+) {
+    game.trace(|| {
+        let mut r = trace_records::decision("pick_n", player, ctx, options);
+        r.field_u64s("bounds", &[bounds.0 as u64, bounds.1 as u64]);
+        r.field_usizes("answer", indices);
+        r
+    });
+    check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
+}
+
+/// [`validate_pick_n`]'s checks, without the record.
+fn check_pick_n(
     indices: &[usize],
     options_len: usize,
     bounds: (usize, usize),
@@ -169,6 +199,26 @@ fn validate_pick_number(
     min: u64,
     max: u64,
     context_desc: &str,
+    game: &GameState,
+    player: PlayerId,
+    ctx: &ChoiceContext,
+) {
+    game.trace(|| {
+        let mut r = trace_records::decision("pick_number", player, ctx, &[]);
+        r.field_u64("min", min);
+        r.field_u64("max", max);
+        r.field_u64("answer", value);
+        r
+    });
+    check_pick_number(value, min, max, context_desc, &game.diagnostics);
+}
+
+/// [`validate_pick_number`]'s checks, without the record.
+fn check_pick_number(
+    value: u64,
+    min: u64,
+    max: u64,
+    context_desc: &str,
     diagnostics: &Diagnostics,
 ) {
     assert!(
@@ -189,6 +239,40 @@ fn validate_pick_number(
 /// Validate allocate response: length matches buckets, sum equals total,
 /// each bucket >= its per-bucket minimum and <= its per-bucket maximum.
 fn validate_allocation(
+    alloc: &[u64],
+    buckets: &[ChoiceOption],
+    total: u64,
+    per_bucket_mins: &[u64],
+    per_bucket_maxs: Option<&[u64]>,
+    context_desc: &str,
+    game: &GameState,
+    player: PlayerId,
+    ctx: &ChoiceContext,
+) {
+    game.trace(|| {
+        let mut r = trace_records::decision("allocate", player, ctx, buckets);
+        r.field_u64("total", total);
+        r.field_u64s("mins", per_bucket_mins);
+        match per_bucket_maxs {
+            Some(maxs) => r.field_u64s("maxs", maxs),
+            None => r.key("maxs").null(),
+        };
+        r.field_u64s("answer", alloc);
+        r
+    });
+    check_allocation(
+        alloc,
+        buckets.len(),
+        total,
+        per_bucket_mins,
+        per_bucket_maxs,
+        context_desc,
+        &game.diagnostics,
+    );
+}
+
+/// [`validate_allocation`]'s checks, without the record.
+fn check_allocation(
     alloc: &[u64],
     buckets_len: usize,
     total: u64,
@@ -268,6 +352,23 @@ fn validate_allocation(
 /// "sequential" check is needed.
 fn validate_ordering(
     order: &[usize],
+    items: &[ChoiceOption],
+    context_desc: &str,
+    game: &GameState,
+    player: PlayerId,
+    ctx: &ChoiceContext,
+) {
+    game.trace(|| {
+        let mut r = trace_records::decision("choose_ordering", player, ctx, items);
+        r.field_usizes("answer", order);
+        r
+    });
+    check_ordering(order, items.len(), context_desc, &game.diagnostics);
+}
+
+/// [`validate_ordering`]'s checks, without the record.
+fn check_ordering(
+    order: &[usize],
     items_len: usize,
     context_desc: &str,
     diagnostics: &Diagnostics,
@@ -327,7 +428,7 @@ pub fn ask_choose_priority_action(
         kind: ChoiceKind::PriorityAction,
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_priority_action", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_priority_action", game, player, &ctx);
     // Item 138's split of the count above. `Pass` is always offered
     // (`engine::priority`), so a longer list is a seat with something else to
     // do — and the priority prompts that are `[Pass]` alone, 91.5% of them at
@@ -361,7 +462,7 @@ pub fn ask_choose_attackers(
         kind: ChoiceKind::DeclareAttackers,
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
-    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_attackers", &game.diagnostics);
+    validate_pick_n(&indices, &options, (0, legal.len()), "choose_attackers", game, player, &ctx);
     indices.iter().map(|&i| (legal[i].0, legal[i].1.clone())).collect()
 }
 
@@ -384,7 +485,7 @@ pub fn ask_choose_blockers(
         kind: ChoiceKind::DeclareBlockers,
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
-    validate_pick_n(&indices, options.len(), (0, legal.len()), "choose_blockers", &game.diagnostics);
+    validate_pick_n(&indices, &options, (0, legal.len()), "choose_blockers", game, player, &ctx);
     indices.iter().map(|&i| legal[i]).collect()
 }
 
@@ -410,7 +511,7 @@ pub fn ask_choose_attacker_damage_assignment(
     let mins = vec![0u64; buckets.len()];
     let alloc = forced_allocation(power, &mins, None).unwrap_or_else(|| {
         let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, None);
-        validate_allocation(&alloc, buckets.len(), power, &mins, None, "choose_attacker_damage_assignment", &game.diagnostics);
+        validate_allocation(&alloc, &buckets, power, &mins, None, "choose_attacker_damage_assignment", game, player, &ctx);
         alloc
     });
     blockers
@@ -462,7 +563,7 @@ pub fn ask_choose_trample_damage_assignment(
     };
     let alloc = forced_allocation(power, &mins, per_bucket_maxs).unwrap_or_else(|| {
         let alloc = dp.allocate(game, player, &ctx, power, &buckets, &mins, per_bucket_maxs);
-        validate_allocation(&alloc, buckets.len(), power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", &game.diagnostics);
+        validate_allocation(&alloc, &buckets, power, &mins, per_bucket_maxs, "choose_trample_damage_assignment", game, player, &ctx);
         alloc
     });
 
@@ -501,7 +602,7 @@ pub fn ask_choose_x_value(
     // Contract check: value must be in [0, u64::MAX] — tautological for u64, but
     // keeps the validate_* pattern wired in so fuzz harness exercises it. Affordability
     // is enforced by the casting pipeline rollback (601.2h), not here.
-    validate_pick_number(value, 0, u64::MAX, "choose_x_value", &game.diagnostics);
+    validate_pick_number(value, 0, u64::MAX, "choose_x_value", game, player, &ctx);
     value
 }
 
@@ -526,7 +627,7 @@ pub fn ask_choose_alternative_cost(
         kind: ChoiceKind::ChooseAlternativeCost { spell_id },
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_alternative_cost", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_alternative_cost", game, player, &ctx);
     let chosen = index[0];
     if chosen == 0 {
         None
@@ -557,10 +658,10 @@ pub fn ask_choose_additional_costs(
     let indices = dp.pick_n(game, player, &ctx, &options, (0, available.len()));
     validate_pick_n(
         &indices,
-        options.len(),
+        &options,
         (0, available.len()),
         "choose_additional_costs",
-        &game.diagnostics,
+        game, player, &ctx,
     );
     indices
 }
@@ -611,10 +712,10 @@ pub fn ask_select_recipients(
     let indices = dp.pick_n(game, player, &ctx, &options, (min_selections, max_selections));
     validate_pick_n(
         &indices,
-        options.len(),
+        &options,
         (min_selections, max_selections),
         "select_recipients",
-        &game.diagnostics,
+        game, player, &ctx,
     );
     indices.iter().map(|&i| legal_selections[i]).collect()
 }
@@ -658,7 +759,7 @@ pub fn ask_activate_mana_ability(
     };
     // (0, 1): 0 = decline / stop, 1 = activate one ability
     let indices = dp.pick_n(game, player, &ctx, &options, (0, 1));
-    validate_pick_n(&indices, options.len(), (0, 1), "activate_mana_ability", &game.diagnostics);
+    validate_pick_n(&indices, &options, (0, 1), "activate_mana_ability", game, player, &ctx);
     if indices.is_empty() {
         None
     } else {
@@ -684,7 +785,7 @@ pub fn ask_order_cost_reductions(
         kind: ChoiceKind::OrderCostReductions { spell_id },
     };
     let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, options.len(), "order_cost_reductions", &game.diagnostics);
+    validate_ordering(&order, &options, "order_cost_reductions", game, player, &ctx);
     order
 }
 
@@ -764,12 +865,12 @@ pub fn ask_choose_generic_mana_allocation(
         let alloc = dp.allocate(game, player, &ctx, generic_count, &buckets, &mins, Some(&maxs));
         validate_allocation(
             &alloc,
-            buckets.len(),
+            &buckets,
             generic_count,
             &mins,
             Some(&maxs),
             "choose_generic_mana_allocation",
-            &game.diagnostics,
+            game, player, &ctx,
         );
         alloc
     });
@@ -805,7 +906,7 @@ pub fn ask_commander_to_command_zone(
         kind: ChoiceKind::CommanderToCommandZoneSba { commander },
     };
     let picked = dp.pick_n(game, owner, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, options.len(), (0, 1), "commander_to_command_zone", &game.diagnostics);
+    validate_pick_n(&picked, &options, (0, 1), "commander_to_command_zone", game, owner, &ctx);
     !picked.is_empty()
 }
 
@@ -848,7 +949,7 @@ pub fn ask_discard(
     let options: Vec<ChoiceOption> = hand.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext { kind: ChoiceKind::Discard { source } };
     let mut picked = dp.pick_n(game, player, &ctx, &options, (count, count));
-    validate_pick_n(&picked, options.len(), (count, count), "discard", &game.diagnostics);
+    validate_pick_n(&picked, &options, (count, count), "discard", game, player, &ctx);
     picked.sort();
     picked.into_iter().map(|i| hand[i]).collect()
 }
@@ -895,7 +996,7 @@ pub fn ask_scry(
     let bounds = (0, looked_at.len());
     let ctx = ChoiceContext { kind: ChoiceKind::Scry { source, n } };
     let to_bottom = dp.pick_n(game, player, &ctx, &options, bounds);
-    validate_pick_n(&to_bottom, options.len(), bounds, "scry", &game.diagnostics);
+    validate_pick_n(&to_bottom, &options, bounds, "scry", game, player, &ctx);
 
     let mut bottom: Vec<ObjectId> = Vec::with_capacity(to_bottom.len());
     let mut top: Vec<ObjectId> = Vec::with_capacity(looked_at.len() - to_bottom.len());
@@ -925,7 +1026,7 @@ fn order_scry_group(
     let options: Vec<ChoiceOption> = group.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext { kind: ChoiceKind::ScryOrder { source, bottom } };
     let order = dp.choose_ordering(game, player, &ctx, &options);
-    validate_ordering(&order, options.len(), "scry_order", &game.diagnostics);
+    validate_ordering(&order, &options, "scry_order", game, player, &ctx);
     order.into_iter().map(|i| group[i]).collect()
 }
 
@@ -967,7 +1068,7 @@ pub fn ask_choose_replacement(
         kind: ChoiceKind::ChooseReplacementEffect { affected_object },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_replacement", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_replacement", game, chooser, &ctx);
     index[0]
 }
 
@@ -1003,7 +1104,7 @@ pub fn ask_allocate_next_damage(
     };
     forced_allocation(total, &mins, Some(&maxs)).unwrap_or_else(|| {
         let alloc = dp.allocate(game, chooser, &ctx, total, &options, &mins, Some(&maxs));
-        validate_allocation(&alloc, options.len(), total, &mins, Some(&maxs), "allocate_next_damage", &game.diagnostics);
+        validate_allocation(&alloc, &options, total, &mins, Some(&maxs), "allocate_next_damage", game, chooser, &ctx);
         alloc
     })
 }
@@ -1030,7 +1131,7 @@ pub fn ask_apply_optional_replacement(
         },
     };
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, options.len(), (0, 1), "apply_optional_replacement", &game.diagnostics);
+    validate_pick_n(&picked, &options, (0, 1), "apply_optional_replacement", game, chooser, &ctx);
     !picked.is_empty()
 }
 
@@ -1059,7 +1160,7 @@ pub fn ask_choose_entering_controller(
         kind: ChoiceKind::ChooseEnteringController { object },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_entering_controller", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_entering_controller", game, chooser, &ctx);
     candidates[index[0]]
 }
 
@@ -1107,7 +1208,7 @@ pub fn ask_choose_auxiliary_zone_change(
         kind: ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to },
     };
     let indices = dp.pick_n(game, chooser, &ctx, &options, (0, max));
-    validate_pick_n(&indices, options.len(), (0, max), "choose_auxiliary_zone_change", &game.diagnostics);
+    validate_pick_n(&indices, &options, (0, max), "choose_auxiliary_zone_change", game, chooser, &ctx);
     // Sorted, so the batch is built in candidate order however the provider
     // returned its picks — the order the moves are performed in is observable
     // (a graveyard is ordered), and it must not depend on a DP's whim.
@@ -1134,7 +1235,7 @@ pub fn ask_choose_copy_source(
         kind: ChoiceKind::ChooseCopySource { spell_id },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_copy_source", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_copy_source", game, chooser, &ctx);
     candidates[index[0]]
 }
 
@@ -1166,7 +1267,7 @@ pub fn ask_choose_damage_source(
         kind: ChoiceKind::ChooseDamageSource { source },
     };
     let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_damage_source", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_damage_source", game, chooser, &ctx);
     candidates[index[0]]
 }
 
@@ -1200,7 +1301,7 @@ pub fn ask_choose_sacrifice_for_cost(
         kind: ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count },
     };
     let picks = dp.pick_n(game, player, &ctx, &options, (n, n));
-    validate_pick_n(&picks, options.len(), (n, n), "choose_sacrifice_for_cost", &game.diagnostics);
+    validate_pick_n(&picks, &options, (n, n), "choose_sacrifice_for_cost", game, player, &ctx);
     picks.into_iter().map(|i| candidates[i]).collect()
 }
 
@@ -1226,7 +1327,7 @@ pub fn ask_choose_legend_to_keep(
         },
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
-    validate_pick_n(&index, options.len(), (1, 1), "choose_legend_to_keep", &game.diagnostics);
+    validate_pick_n(&index, &options, (1, 1), "choose_legend_to_keep", game, player, &ctx);
     legendaries[index[0]]
 }
 
@@ -1730,7 +1831,7 @@ mod tests {
     fn test_validation_rejects_wrong_bucket_count() {
         let alloc = vec![1u64, 2];
         let mins = vec![0u64; 3];
-        validate_allocation(&alloc, 3, 3, &mins, None, "test", &Diagnostics::default());
+        check_allocation(&alloc, 3, 3, &mins, None, "test", &Diagnostics::default());
     }
 
     #[test]
@@ -1738,7 +1839,7 @@ mod tests {
     fn test_validation_rejects_mismatched_mins_length() {
         let alloc = vec![1u64, 1, 1];
         let mins = vec![0u64; 2]; // wrong length
-        validate_allocation(&alloc, 3, 3, &mins, None, "test", &Diagnostics::default());
+        check_allocation(&alloc, 3, 3, &mins, None, "test", &Diagnostics::default());
     }
 
     #[test]
@@ -1747,7 +1848,7 @@ mod tests {
         let alloc = vec![1u64, 1, 1];
         let mins = vec![0u64; 3];
         let maxs = vec![3u64; 2]; // wrong length
-        validate_allocation(&alloc, 3, 3, &mins, Some(&maxs), "test", &Diagnostics::default());
+        check_allocation(&alloc, 3, 3, &mins, Some(&maxs), "test", &Diagnostics::default());
     }
 
     #[test]
@@ -1756,7 +1857,7 @@ mod tests {
         let alloc = vec![0u64, 5];
         let mins = vec![0u64, 0];
         let maxs = vec![10u64, 3];
-        validate_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test", &Diagnostics::default());
+        check_allocation(&alloc, 2, 5, &mins, Some(&maxs), "test", &Diagnostics::default());
     }
 
     /// The three shapes `forced_allocation` answers, and the four it refuses.
@@ -1789,43 +1890,43 @@ mod tests {
     #[test]
     #[should_panic(expected = "DP returned duplicate index 1")]
     fn test_validation_rejects_duplicate_pick_n_index() {
-        validate_pick_n(&[1, 1], 3, (2, 2), "test", &Diagnostics::default());
+        check_pick_n(&[1, 1], 3, (2, 2), "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 0 selections, expected 1-2")]
     fn test_validation_rejects_count_below_min() {
-        validate_pick_n(&[], 5, (1, 2), "test", &Diagnostics::default());
+        check_pick_n(&[], 5, (1, 2), "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 5 but range is [0, 3]")]
     fn test_validation_pick_number_above_max() {
-        validate_pick_number(5, 0, 3, "test", &Diagnostics::default());
+        check_pick_number(5, 0, 3, "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 1 but range is [3, 10]")]
     fn test_validation_pick_number_below_min() {
-        validate_pick_number(1, 3, 10, "test", &Diagnostics::default());
+        check_pick_number(1, 3, 10, "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned 2 indices but 3 items to order")]
     fn test_validation_ordering_wrong_length() {
-        validate_ordering(&[0, 1], 3, "test", &Diagnostics::default());
+        check_ordering(&[0, 1], 3, "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned duplicate index 1 in ordering")]
     fn test_validation_ordering_duplicate() {
-        validate_ordering(&[0, 1, 1], 3, "test", &Diagnostics::default());
+        check_ordering(&[0, 1, 1], 3, "test", &Diagnostics::default());
     }
 
     #[test]
     #[should_panic(expected = "DP returned index 3 but only 3 items")]
     fn test_validation_ordering_index_oob() {
-        validate_ordering(&[0, 1, 3], 3, "test", &Diagnostics::default());
+        check_ordering(&[0, 1, 3], 3, "test", &Diagnostics::default());
     }
 
     // ===========================================================================

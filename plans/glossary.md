@@ -508,3 +508,35 @@ departed player there. → `engine/leaving.rs`; `GameState::is_multiplayer`.
 the CR, with an id like `ATOM-614.9-001`. Tests claim atoms with `// COVERS:` at
 write time, and a phase does not close until `specdb.py`'s `owed` is clean for
 it. → `engineering-practices.md` §5.
+
+**trace** — one game's records from the trace sink, a JSON object per line,
+and the file that holds them; a *trace page* is tier 1's hand-authored walk
+and a trace is what tier 2 writes. The two meet at the spine. →
+`engineering-practices.md` §7, §7.1; `state::trace`.
+
+**sink** — the trace sink, `TraceSink`: the one writer every emit point's
+record goes to, shared by every branch of a game and off by default. An
+observer and never a participant — it draws from no rng, asks no provider and
+changes no control flow, and the check is `IDENTICAL` counters with it off
+and on. → `state::trace`'s module doc.
+
+**emit point** — a site where the engine hands the sink a record: the batch
+(`execute_batch_inner`), the CR 616.1 iteration (`apply_replacements`), the
+layer walk (`compute_characteristics` and its entering and LKI forms), the
+decision boundary (the four `validate_*` helpers, and the priority loop's
+rejection) and the performed event (`emit_event`). Not an *emitter*: an
+emitter announces a performed event to the log and there is one per event
+(`announce_zone_change`); an emit point observes and announces nothing. →
+`state::trace`.
+
+**spine** — a trace page's step rows, one per read, each labelled by what it
+consulted: what the sink generates and `plans/trace_spine.py` renders. Not the
+page — the map's questions, the comparison table and the closing section are
+the *argument*, and stay authored. → `engineering-practices.md` §7.1.
+
+**branch** — of a trace, which fork of a game a record was written by, the
+number every record carries beside `seq`. `TraceHandle`'s hand-written `Clone`
+is the fork marker: a `GameState` clone takes a fresh branch and writes one
+`fork` record naming both. Not *lineage*, which is which CR 614.5 applied set
+a proposed event starts from, and not the verb the quadrant map uses for what
+the engine does with a keyword. → `state::trace`.

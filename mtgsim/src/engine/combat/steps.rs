@@ -83,7 +83,7 @@ impl GameState {
         self.attacks_declared = true;
 
         let attacker_ids: Vec<ObjectId> = proposed.iter().map(|(id, _)| *id).collect();
-        self.events.emit(GameEvent::AttackersDeclared {
+        self.emit_event(GameEvent::AttackersDeclared {
             attackers: attacker_ids,
         });
 
@@ -174,7 +174,7 @@ impl GameState {
             }
 
             let blocker_pairs: Vec<(ObjectId, ObjectId)> = proposed.clone();
-            self.events.emit(GameEvent::BlockersDeclared {
+            self.emit_event(GameEvent::BlockersDeclared {
                 blockers: blocker_pairs,
             });
         }

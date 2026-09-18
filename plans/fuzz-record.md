@@ -37,6 +37,58 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-18 for A4c** (the trace sink — `roadmap-v2.md` row
+A4c; `codebase-state.md` "Before Triggered abilities" item 5 closed). **No pool
+change**: `performance` 91 and `stress` 166, as A4q left them, so every column
+here is comparable to the A4q block below. The record exists because the row's
+check is that **no counter moves**: the sink is an observer, and an observer
+that moved one would have become a participant.
+
+**Three arms, two seat counts.** `main` (2958c1e); **off** (4a2a803) — the
+sink compiled in and not attached, which is the binary every untraced game
+runs; **on** — the same binary under `--trace DIR`, every game written to its
+own file. Each at `--players 2` and `--players 4`, both pools, `--rounds 3
+--games 200`; `plans/fuzz_ab.py --arm-args` is what the on arm needed.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| off vs `main`, every counter, both pools | **IDENTICAL** | **IDENTICAL** |
+| on vs `main`, every counter, both pools | **IDENTICAL** | **IDENTICAL** |
+| `µs / decision`, off vs `main` — §3.1's budget | 28.9 → 29.1, **+0.8%** | 51.4 → 51.8, **+0.7%** |
+| `µs / decision`, on vs `main` — recorded, not budgeted | 28.9 → 67.0, +131.5% | 51.4 → 101.0, +96.5% |
+| CPU/game median, main → off → on | 6.45 → 6.50 → 14.93 ms | 22.62 → 22.78 → 44.44 ms |
+| one traced `performance` game, seed 12345 | 3,091 records, 0.65 MB | 7,533 records, 1.6 MB |
+| the on arm's 200 `performance` games | 206 MB | 465 MB, 1.3–4.8 MB a game |
+| deterministic across rounds, three hasher seeds | yes / yes / yes | yes / yes / yes |
+| one traced game under three `MTGSIM_HASH_SEED`s | byte-identical | byte-identical |
+
+**Off is one branch per emit point, and it reads at the spread's floor.**
++0.8% and +0.7% per decision, against a run-to-run spread §3.1 puts at
+~2.4% — not distinguishable from zero, and inside the 2.5-point budget either
+way. That is what "every payload built behind the branch" buys: the untraced
+path renders nothing, sorts nothing and takes no lock.
+
+**On is the price of writing, and it is not budgeted.** A traced two-seat
+game writes about 3,000 records and two thirds of a megabyte, a four-seat
+game 7,500 and a megabyte and a half, through a `BufWriter` behind a `Mutex`.
+The `pipeline` record is the largest kind — one per CR 616.1 iteration, the
+event rendered as proposed and as it left — and the `event` record's text is
+`format_event`'s, which resolves every name. A sink asked for one batch, or
+one kind, would cost proportionally less; nothing selects yet because nothing
+has asked for less.
+
+**Every counter `IDENTICAL` on all four arms is the row's whole claim.** The
+gameplay rows say the sink decided nothing; the diagnostic rows — `Layer
+walks`, `Memo hits`, `Decisions` — say it *asked* nothing, which is the finer
+check: a `layer_walk` record built by re-querying the memoized entry would
+have moved `Memo hits`, and this one reads the frame the walk just computed.
+The four-seat `stress` `Hit turn limit: 1` is the standing one A4n, A4p and
+A4q's blocks carry, identical on all three arms.
+
+**The §3 fixture rows, as shipped**: the `main` arm reproduced A4q's two
+tables digit for digit at both seat counts, and the off and on arms
+reproduced `main`'s. The tables are A4q's, below, and are not repeated.
+
 **Re-recorded 2026-09-18 for A4q** (identical clauses that read no earlier
 instance are checked once — `roadmap-v2.md` row A4q; A4i's review, theme I.2's
 third rider, split out of A4n). **No pool change**: `performance` 91 and

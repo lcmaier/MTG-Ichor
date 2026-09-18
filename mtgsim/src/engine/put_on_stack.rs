@@ -265,7 +265,7 @@ impl GameState {
         // battlefield. The mana abilities activated at 601.2g are already in
         // the log, where CR 732.1 leaves them even when a cast rewinds.
         self.announce_zone_change(card_id, cast_from, Zone::Stack, ZoneChangeCause::Cast, None)?;
-        self.events.emit(GameEvent::SpellCast {
+        self.emit_event(GameEvent::SpellCast {
             spell_id: card_id,
             caster: player_id,
         });
@@ -446,7 +446,7 @@ impl GameState {
 
         // CR 602.2a — the ability is on the stack. Identified durably: the
         // ephemeral `ability_obj_id` is deleted at resolution.
-        self.events.emit(GameEvent::AbilityActivated { identity, controller: player_id });
+        self.emit_event(GameEvent::AbilityActivated { identity, controller: player_id });
 
         // --- 602.1b: Mana ability window ---
         // Same rules-correct model as 601.2g for spells. The player activates

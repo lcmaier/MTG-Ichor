@@ -499,6 +499,12 @@ pub struct GameState {
     // --- Event log ---
     pub events: EventLog,
 
+    /// The trace sink's handle, if a sink is attached — see
+    /// [`crate::state::trace`]. `None` in every game nobody traces, which
+    /// is what every emit point checks and all it pays. A pointer and a
+    /// branch number, never a buffer: the derived `Clone` forks it.
+    pub(crate) trace: Option<crate::state::trace::TraceHandle>,
+
     // --- Randomness ---
     /// The game's one source of randomness: shuffles now, coin flips and
     /// "at random" choices later (CR 705).
@@ -747,6 +753,7 @@ impl GameState {
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             events: EventLog::new(),
+            trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
     }
@@ -1159,7 +1166,7 @@ impl GameState {
         // anything can look.
         let effective = crate::oracle::characteristics::get_effective_controller(self, id)
             .unwrap_or(controller);
-        self.events.emit(crate::events::event::GameEvent::PermanentEnteredBattlefield {
+        self.emit_event(crate::events::event::GameEvent::PermanentEnteredBattlefield {
             object_id: id,
             controller: effective,
         });

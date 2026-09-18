@@ -436,7 +436,7 @@ impl GameState {
 
         for (equip_id, host_id) in equip_bad_host {
             self.detach(equip_id);
-            self.events.emit(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
+            self.emit_event(GameEvent::EquipmentDetached { equipment_id: equip_id, former_host: host_id });
             any_performed = true;
         }
 
@@ -477,7 +477,7 @@ impl GameState {
 
         for (att_id, host_id) in detachments {
             self.detach(att_id);
-            self.events.emit(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
+            self.emit_event(GameEvent::EquipmentDetached { equipment_id: att_id, former_host: host_id });
             any_performed = true;
         }
 
@@ -500,7 +500,7 @@ impl GameState {
         for (id, pairs) in annihilation_targets {
             self.remove_counters(id, CounterType::PlusOnePlusOne, pairs);
             self.remove_counters(id, CounterType::MinusOneMinusOne, pairs);
-            self.events.emit(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
+            self.emit_event(GameEvent::CountersAnnihilated { object_id: id, pairs_removed: pairs });
             any_performed = true;
         }
 
@@ -522,13 +522,13 @@ impl GameState {
         for (id, zone, _) in tokens_to_remove {
             self.remove_from_zone_collection(id, zone)?;
             self.remove_object(id);
-            self.events.emit(GameEvent::TokenCeasedToExist { object_id: id });
+            self.emit_event(GameEvent::TokenCeasedToExist { object_id: id });
             any_performed = true;
         }
 
         // CR 704.3 — one check, one event.
         if any_performed {
-            self.events.emit(GameEvent::StateBasedActionPerformed);
+            self.emit_event(GameEvent::StateBasedActionPerformed);
         }
 
         Ok(any_performed)
