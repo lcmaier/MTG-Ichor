@@ -24,6 +24,7 @@ use std::sync::Arc;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
+use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::ui::auto_payer::AutoPayer;
@@ -80,6 +81,19 @@ fn main() {
     // A `GameState` is seeded to a fixed default so tests replay; an actual game
     // of Magic wants a different shuffle every time.
     game.reseed_from_entropy();
+    // `--trace PATH` — the trace sink, one JSON line per engine step.
+    let args: Vec<String> = std::env::args().collect();
+    let trace = args
+        .iter()
+        .position(|a| a == "--trace")
+        .and_then(|i| args.get(i + 1))
+        .map(|path| {
+            let sink = TraceSink::to_file(path).expect("cannot open the trace file");
+            game.state.install_trace(TraceHandle::new(&sink));
+            game.state.trace_game("cli_play", None);
+            println!("Tracing to {}", path);
+            sink
+        });
     let auto_pay = !std::env::args().any(|a| a == "--no-auto-pay");
     if !auto_pay {
         println!("Auto-pay off: the mana window keeps asking after your cost is covered.");
@@ -113,5 +127,9 @@ fn main() {
             GameResult::Draw => println!("\n*** DRAW ***"),
         },
         Err(e) => println!("\nGame error: {}", e),
+    }
+    if let Some(sink) = trace {
+        game.state.trace_objects();
+        sink.flush().ok();
     }
 }

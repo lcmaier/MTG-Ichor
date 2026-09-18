@@ -226,6 +226,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arm", action="append", required=True, metavar="LABEL=PATH",
                     help="a fuzz_games binary; the first is the baseline. Repeatable")
+    ap.add_argument("--arm-args", action="append", default=[], metavar="LABEL=ARGS",
+                    help="extra fuzz_games flags for one arm, whitespace-separated (A4c's sink-on arm: "
+                         "--arm-args 'on=--trace C:/tmp/traces'). A row the baseline does not print is dropped "
+                         "from the IDENTICAL compare, so an arm may announce itself in the header")
     ap.add_argument("--games", type=int, default=200)
     ap.add_argument("--rounds", type=int, default=3, help="timing rounds (medians); 0 skips timing")
     ap.add_argument("--seed", type=int, default=12345)
@@ -251,6 +255,13 @@ def main():
             sys.exit(f"--arm {spec!r}: not a file")
         arms.append((label, os.path.abspath(path)))
     labels = [a for a, _ in arms]
+    extra = {}
+    for spec in args.arm_args:
+        label, _, flags = spec.partition("=")
+        if label not in labels:
+            sys.exit(f"--arm-args {spec!r}: no such arm")
+        extra[label] = flags.split()
+    arms = [(label, path, extra.get(label, [])) for label, path in arms]
     out = args.out or tempfile.mkdtemp(prefix="fuzz_ab_")
     os.makedirs(out, exist_ok=True)
     common = ["--seed", str(args.seed)]
@@ -266,8 +277,8 @@ def main():
     # ---- counters, both pools, threaded ----------------------------------
     counted = {}   # (arm, pool) -> (counters, stripped text)
     for pool in POOLS:
-        for label, path in arms:
-            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--pool", pool] + common,
+        for label, path, flags in arms:
+            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--pool", pool] + common + flags,
                        os.path.join(out, f"counters_{label}_{pool}.txt"))
             counted[(label, pool)] = (counters(text), strip_timing(text))
     for pool in POOLS:
@@ -289,8 +300,8 @@ def main():
     # ---- reachability -----------------------------------------------------
     if args.require:
         print(f"\n=== --require {args.require}, performance, {args.games} games ===")
-        for label, path in arms:
-            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--require", args.require] + common,
+        for label, path, flags in arms:
+            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--require", args.require] + common + flags,
                        os.path.join(out, f"require_{label}.txt"))
             block = text[text.find("=== Reachability"):] if "=== Reachability" in text else "(no reachability block)"
             print(f"-- {label}")
@@ -300,8 +311,8 @@ def main():
     if not args.no_fixtures:
         fixed = {}
         for pool in POOLS:
-            for label, path in arms:
-                text = run(path, ["--games", "50", "--threads", str(args.threads), "--pool", pool] + common,
+            for label, path, flags in arms:
+                text = run(path, ["--games", "50", "--threads", str(args.threads), "--pool", pool] + common + flags,
                            os.path.join(out, f"fixture_{label}_{pool}.txt"))
                 fixed[(label, pool)] = counters(text)
         for label in labels:
@@ -324,8 +335,8 @@ def main():
         turn_p50 = {a: [] for a in labels}
         det_ok = {a: True for a in labels}
         for r in range(1, args.rounds + 1):
-            for label, path in arms:
-                text = run(path, ["--games", str(args.games), "--threads", "1", "--pool", "performance"] + common,
+            for label, path, flags in arms:
+                text = run(path, ["--games", str(args.games), "--threads", "1", "--pool", "performance"] + common + flags,
                            os.path.join(out, f"timing_{label}_r{r}.txt"), hash_seed=r)
                 if strip_timing(text) != counted[(label, "performance")][1]:
                     det_ok[label] = False

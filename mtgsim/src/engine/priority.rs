@@ -3,6 +3,7 @@ use crate::engine::actions::ActionContext;
 use crate::state::game_state::GameState;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
+use crate::types::ids::PlayerId;
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// Result of a single priority round.
@@ -153,6 +154,9 @@ impl GameState {
                                 "WARN: activate_ability source {} missing: {}",
                                 permanent_id, e
                             );
+                            self.trace(|| {
+                                priority_rejected(current_priority, &action, &e, retries, &blacklist)
+                            });
                             continue;
                         }
                         // Effective abilities: intrinsic land mana abilities
@@ -191,9 +195,16 @@ impl GameState {
 
                 match exec_result {
                     Ok(()) => break (action, was_mana_ability),
-                    Err(_e) => {
+                    Err(e) => {
                         blacklist.push(action);
                         retries = retries.saturating_add(1);
+                        // What `--dump-events` cannot show: a cast the enumeration
+                        // offered and the engine rejected performs nothing, so the
+                        // re-ask that follows is only explicable from here.
+                        self.trace(|| {
+                            let rejected = blacklist.last().expect("pushed above");
+                            priority_rejected(current_priority, rejected, &e, retries, &blacklist)
+                        });
                         // Loop again with tighter candidate list.
                     }
                 }
@@ -287,6 +298,28 @@ impl GameState {
         }
         Ok(())
     }
+}
+
+/// The trace sink's record of a rejected priority action — the fifth emit
+/// point (A4h, `codebase-state.md` "Before Triggered abilities" item 5): the
+/// list offered is the `decision` record before this, the re-ask is the one
+/// after, and this is what happened in between.
+fn priority_rejected(
+    player: PlayerId,
+    action: &PriorityAction,
+    error: &str,
+    retry: usize,
+    blacklist: &[PriorityAction],
+) -> crate::state::trace::Record {
+    use crate::state::trace::{render_debug, Record};
+    let mut r = Record::new("priority_rejected");
+    r.field_u64("player", player as u64);
+    r.field_str("action", &render_debug(action));
+    r.field_str("error", error);
+    r.field_u64("retry", retry as u64);
+    let rendered: Vec<String> = blacklist.iter().map(render_debug).collect();
+    r.field_strs("blacklist", &rendered);
+    r
 }
 
 #[cfg(test)]

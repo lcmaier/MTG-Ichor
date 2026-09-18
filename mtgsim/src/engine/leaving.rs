@@ -100,7 +100,7 @@ impl GameState {
                 None
             };
             self.remove_from_game(id)?;
-            self.events.emit(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki });
+            self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki });
         }
         Ok(())
     }

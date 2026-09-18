@@ -861,6 +861,33 @@ impl GameState {
             }
         }
 
+        // The trace sink's first emit point: the proposals as they entered,
+        // and the subject groups CR 616.1 will decide them in.
+        self.trace(|| {
+            use crate::state::trace::{render_debug, Record};
+            let mut r = Record::new("batch");
+            r.field_opt_u64("batch", self.events.current_stamp().batch.map(|b| b.0));
+            r.field_u64("depth", self.batch_depth as u64);
+            r.field_u64("inherited", inherited.len() as u64);
+            r.key("members").begin_array();
+            for (i, action) in batch.iter().enumerate() {
+                r.begin_object();
+                r.field_u64("i", i as u64);
+                r.field_str("action", &render_debug(action));
+                r.end();
+            }
+            r.end();
+            r.key("groups").begin_array();
+            for (subject, members) in &groups {
+                r.begin_object();
+                r.field_str("subject", &render_debug(subject));
+                r.field_usizes("members", members);
+                r.end();
+            }
+            r.end();
+            r
+        });
+
         let mut riders: Vec<Rider> = Vec::new();
         let mut decided: Vec<Option<GameAction>> = vec![None; batch.len()];
         // What each member's CR 616.1 loop applied, carried into phase 2 for the
@@ -906,12 +933,36 @@ impl GameState {
         // Batch order, not APNAP: the choices were what CR 101.4 sequences, and
         // the performed events are simultaneous. The order is still observable
         // (a graveyard is ordered), and it is the caller's `battlefield_ids_ordered`.
+        // Rendered ahead of the loop that consumes `decided`, and only in a
+        // traced game: the `batch_end` record says what each proposal became.
+        let decided_rendered: Option<Vec<Option<String>>> = self.trace_on().then(|| {
+            decided
+                .iter()
+                .map(|d| d.as_ref().map(crate::state::trace::render_debug))
+                .collect()
+        });
         let mut performed = Vec::with_capacity(decided.len());
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
             self.perform_action(action.clone(), ctx, &applied_to[i])?;
             performed.push(action);
         }
+        self.trace(|| {
+            use crate::state::trace::Record;
+            let mut r = Record::new("batch_end");
+            r.field_opt_u64("batch", self.events.current_stamp().batch.map(|b| b.0));
+            r.field_u64("depth", self.batch_depth as u64);
+            r.key("members").begin_array();
+            for (i, action) in decided_rendered.iter().flatten().enumerate() {
+                r.begin_object();
+                r.field_u64("i", i as u64);
+                r.field_opt_str("performed", action.as_deref());
+                r.end();
+            }
+            r.end();
+            r.field_u64("riders", riders.len() as u64);
+            r
+        });
 
         // CR 104.2a / 104.4a are read off the batch, not off a member: two players
         // losing in one state-based check is one simultaneous event whose outcome
@@ -1106,7 +1157,7 @@ impl GameState {
                     }
                 }
 
-                self.events.emit(GameEvent::DamageDealt {
+                self.emit_event(GameEvent::DamageDealt {
                     source_id: source,
                     target,
                     amount,
@@ -1203,7 +1254,7 @@ impl GameState {
                 p.life_total += amount as i64;
                 let new_life = p.life_total;
 
-                self.events.emit(GameEvent::LifeChanged {
+                self.emit_event(GameEvent::LifeChanged {
                     player_id: player,
                     old: old_life,
                     new: new_life,
@@ -1225,7 +1276,7 @@ impl GameState {
                 p.life_total -= amount as i64;
                 let new_life = p.life_total;
 
-                self.events.emit(GameEvent::LifeChanged {
+                self.emit_event(GameEvent::LifeChanged {
                     player_id: player,
                     old: old_life,
                     new: new_life,
@@ -1270,7 +1321,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = false;
-                self.events.emit(GameEvent::Untapped { object_id: object });
+                self.emit_event(GameEvent::Untapped { object_id: object });
                 Ok(())
             }
 
@@ -1289,7 +1340,7 @@ impl GameState {
                 // CR 701.3b — already there: the effect does nothing, and
                 // nothing "becomes attached" (CR 603.2e's transition rule).
                 if self.attach(attachment, host) {
-                    self.events.emit(GameEvent::Attached { attachment, host, former_host });
+                    self.emit_event(GameEvent::Attached { attachment, host, former_host });
                 }
                 Ok(())
             }
@@ -1304,7 +1355,7 @@ impl GameState {
                     return Ok(());
                 }
                 entry.tapped = true;
-                self.events.emit(GameEvent::Tapped { object_id: object });
+                self.emit_event(GameEvent::Tapped { object_id: object });
                 Ok(())
             }
 
@@ -1332,7 +1383,7 @@ impl GameState {
                         self.get_player_mut(player)?.add_counters(counter, n);
                     }
                 }
-                self.events.emit(GameEvent::CountersChanged { subject, counter, added: n as i32 });
+                self.emit_event(GameEvent::CountersChanged { subject, counter, added: n as i32 });
                 Ok(())
             }
 
@@ -1360,7 +1411,7 @@ impl GameState {
                 if removed == 0 {
                     return Ok(());
                 }
-                self.events.emit(GameEvent::CountersChanged {
+                self.emit_event(GameEvent::CountersChanged {
                     subject,
                     counter,
                     added: -(removed as i32),
@@ -1456,7 +1507,7 @@ impl GameState {
                 // "until your next turn" effect (CR 614.10a).
                 self.begin_turn(turn, player);
                 self.priority_player = player;
-                self.events.emit(GameEvent::TurnBegin { player, turn_number: turn });
+                self.emit_event(GameEvent::TurnBegin { player, turn_number: turn });
                 Ok(())
             }
 
@@ -1465,13 +1516,13 @@ impl GameState {
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.events.emit(GameEvent::PhaseBegin { phase });
+                self.emit_event(GameEvent::PhaseBegin { phase });
                 Ok(())
             }
 
             GameAction::BeginStep { step, player: _ } => {
                 self.phase.step = Some(step);
-                self.events.emit(GameEvent::StepBegin { step });
+                self.emit_event(GameEvent::StepBegin { step });
                 Ok(())
             }
 
@@ -1512,7 +1563,7 @@ impl GameState {
                 // when the library had nothing to look at. `k` is Elrond,
                 // Master of Healing's count and `n` the instruction's; the
                 // two differ exactly when the library was short.
-                self.events.emit(GameEvent::Scried {
+                self.emit_event(GameEvent::Scried {
                     player_id: player,
                     n,
                     looked_at: k as u64,
@@ -1526,7 +1577,7 @@ impl GameState {
             GameAction::ShuffleLibrary { player } => {
                 self.get_player(player)?;
                 self.shuffle_library(player);
-                self.events.emit(GameEvent::LibraryShuffled { player_id: player });
+                self.emit_event(GameEvent::LibraryShuffled { player_id: player });
                 Ok(())
             }
 
@@ -1544,7 +1595,7 @@ impl GameState {
                     return Err(format!("player {} has already left the game", player));
                 }
                 self.player_lost[player] = true;
-                self.events.emit(GameEvent::PlayerLost { player_id: player, reason });
+                self.emit_event(GameEvent::PlayerLost { player_id: player, reason });
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as
                 // soon as the player leaves the game". Clause 4's exile is a result of
@@ -1563,7 +1614,7 @@ impl GameState {
                 if self.result.is_none() {
                     self.result = Some(GameResult::Winner(player));
                 }
-                self.events.emit(GameEvent::PlayerWon { player_id: player });
+                self.emit_event(GameEvent::PlayerWon { player_id: player });
                 Ok(())
             }
 
@@ -1603,7 +1654,7 @@ impl GameState {
                         None => announced.push((mana_type, n)),
                     }
                 }
-                self.events.emit(GameEvent::ManaAdded {
+                self.emit_event(GameEvent::ManaAdded {
                     player_id: player,
                     source_id: source,
                     mana: announced,
@@ -1673,7 +1724,7 @@ impl GameState {
         lki: Option<Box<EffectiveCharacteristics>>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.events.emit(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
+        self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
         Ok(())
     }
 
@@ -1688,7 +1739,7 @@ impl GameState {
         zone: Zone,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
-        self.events.emit(GameEvent::TokenCreated { object_id: object, owner, zone });
+        self.emit_event(GameEvent::TokenCreated { object_id: object, owner, zone });
         Ok(())
     }
 

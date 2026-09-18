@@ -8,6 +8,7 @@ use crate::events::event::{CounterSubject, DamageTarget};
 use crate::types::card_types::CardType;
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
+use crate::state::trace::{render_debug, Record};
 use crate::types::effects::{
     ObjectSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
@@ -348,10 +349,12 @@ pub(crate) fn apply_replacements(
         members.into_iter().map(|m| (m.index, m.event)).collect()
     };
 
+    let mut iteration: u64 = 0;
     // Unbounded on purpose: every iteration consumes something finite — CR 614.5's
     // `applied`, `declined`, or `check_exempt_terminates`'s slot — and nothing
     // touches the board between iterations (riders queue, §4.1a).
     loop {
+        iteration += 1;
         // CR 614.7a — a non-event has nothing to replace; ahead of the "can't" check,
         // and per member, since a prevention can empty one member of a group.
         for m in &mut members {
@@ -376,6 +379,9 @@ pub(crate) fn apply_replacements(
         // filter asks. Per iteration and not per event, because clause (1)
         // says the frame accounts for the replacements already applied.
         let frame = EntryFrame::new(game, &first);
+        // The trace sink's record of this iteration: built only in a traced
+        // game, filled as the loop decides, written at whichever exit it takes.
+        let mut trace = game.trace_on().then(|| IterationTrace::new(iteration, &first, &subject));
 
         // CR 614.4 — gathered against live state at proposal, per member, keyed by
         // CR 614.5's identity: one instance over two members is one candidate.
@@ -419,26 +425,39 @@ pub(crate) fn apply_replacements(
                 m.event = None;
             }
         }
+        if let Some(t) = &mut trace {
+            t.candidates(&candidates, &members);
+            t.frame_computed = frame.computed();
+        }
         if candidates.is_empty() {
+            if let Some(t) = trace {
+                game.trace(|| t.record(game, &members));
+            }
             return Ok((finish(members), applied));
         }
 
         // CR 616.1a–e's ladder: everything below the first non-empty step is
         // not a choice this pass has.
         let choosable = must_choose_among(candidates, |c| c.instance.def.class);
+        if let Some(t) = &mut trace {
+            t.bucket(&choosable);
+        }
 
         // CR 616.1 / 400.6 — the affected object's controller (or its owner if
         // it has no controller) or the affected player. One subject, so one
         // chooser for the whole group.
         let chooser = chooser_for(game, &first);
+        if let Some(t) = &mut trace {
+            t.chooser = chooser;
+        }
 
         // **Never prompt with fewer than two candidates** (`CLAUDE.md`; §11 item 7),
         // and never for a choice with one outcome (§11 item 19):
         // `ordering_cannot_change_outcome` is the provable form, and `unsuppressed`
         // is what the debug build checks it against after the rewrite.
         let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
-        let chosen = if choosable.len() == 1 {
-            choosable.into_iter().next().expect("len checked")
+        let (chosen, decided) = if choosable.len() == 1 {
+            (choosable.into_iter().next().expect("len checked"), "single")
         } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
@@ -446,7 +465,7 @@ pub(crate) fn apply_replacements(
             // owns these and was dropping them. The fourth shape's check needs
             // the *rewrite* to compute its premise the other way.
             unsuppressed = rest.map(|c| (c.instance, c.members)).collect();
-            first
+            (first, "order_invariant")
         } else {
             let Some(chooser) = chooser else {
                 // Nobody to ask. An object with neither controller nor owner is
@@ -467,8 +486,12 @@ pub(crate) fn apply_replacements(
                 subject_object(subject),
                 &sources,
             );
-            choosable.into_iter().nth(index).expect("index validated by ask_*")
+            (choosable.into_iter().nth(index).expect("index validated by ask_*"), "asked")
         };
+        if let Some(t) = &mut trace {
+            t.decided = decided;
+            t.choice = Some(render_debug(&chosen.instance.id));
+        }
         let Candidate { instance: chosen, members: applicable } = chosen;
 
         // "You **may** … instead": declining marks it applied — the offer is CR 614.5's
@@ -489,7 +512,14 @@ pub(crate) fn apply_replacements(
                 // offered and refusing *is* the opportunity.
                 applied.insert(chosen.id);
                 declined.insert(chosen.id);
+                if let Some(mut t) = trace.take() {
+                    t.optional = Some("declined");
+                    game.trace(|| t.record(game, &members));
+                }
                 continue;
+            }
+            if let Some(t) = &mut trace {
+                t.optional = Some("accepted");
             }
         }
 
@@ -576,6 +606,114 @@ pub(crate) fn apply_replacements(
         }
 
         consume_use(game, &chosen, outcome);
+        if let Some(mut t) = trace.take() {
+            t.rewrite = Some(render_debug(&chosen.def.rewrite));
+            game.trace(|| t.record(game, &members));
+        }
+    }
+}
+
+/// The trace sink's view of one CR 616.1 iteration — what the hand-authored
+/// pages record per step: the candidates and their verdicts, whether the
+/// look-ahead frame was consulted, the bucket, the chooser, the choice or
+/// its suppression, the rewrite, and what each member became.
+///
+/// Accumulated rather than written in one place because an iteration has
+/// three exits — nothing gathered, an optional declined, an effect applied —
+/// and each is a different verdict on the same candidates. Exists only in a
+/// traced game (`game.trace_on()`), so the untraced path allocates nothing.
+struct IterationTrace {
+    iteration: u64,
+    event: String,
+    subject: String,
+    frame_computed: bool,
+    candidates: Vec<CandidateTrace>,
+    chooser: Option<crate::types::ids::PlayerId>,
+    decided: &'static str,
+    choice: Option<String>,
+    optional: Option<&'static str>,
+    rewrite: Option<String>,
+}
+
+struct CandidateTrace {
+    id: String,
+    source: ObjectId,
+    class: String,
+    members: Vec<usize>,
+    /// Survived CR 616.1a–e's ladder — one of the effects the chooser chose
+    /// among, or the one applied unasked.
+    bucket: bool,
+}
+
+impl IterationTrace {
+    fn new(iteration: u64, first: &GameAction, subject: &EventSubject) -> Self {
+        IterationTrace {
+            iteration,
+            event: render_debug(first),
+            subject: render_debug(subject),
+            frame_computed: false,
+            candidates: Vec::new(),
+            chooser: None,
+            decided: "none",
+            choice: None,
+            optional: None,
+            rewrite: None,
+        }
+    }
+
+    /// `members` are the batch's indices, not the group's positions, so a
+    /// candidate's row joins the `batch` record the way `results` does.
+    fn candidates(&mut self, candidates: &[Candidate], group: &[Member]) {
+        self.candidates = candidates
+            .iter()
+            .map(|c| CandidateTrace {
+                id: render_debug(&c.instance.id),
+                source: c.instance.source,
+                class: render_debug(&c.instance.def.class),
+                members: c.members.iter().map(|&pos| group[pos].index).collect(),
+                bucket: false,
+            })
+            .collect();
+    }
+
+    fn bucket(&mut self, choosable: &[Candidate]) {
+        for c in &mut self.candidates {
+            c.bucket = choosable.iter().any(|k| render_debug(&k.instance.id) == c.id);
+        }
+    }
+
+    fn record(self, game: &GameState, members: &[Member]) -> Record {
+        let mut r = Record::new("pipeline");
+        r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
+        r.field_u64("iteration", self.iteration);
+        r.field_str("subject", &self.subject);
+        r.field_str("event", &self.event);
+        r.field_bool("frame_computed", self.frame_computed);
+        r.key("candidates").begin_array();
+        for c in &self.candidates {
+            r.begin_object();
+            r.field_str("id", &c.id);
+            r.field_u64("source", c.source.raw());
+            r.field_str("class", &c.class);
+            r.field_usizes("members", &c.members);
+            r.field_bool("bucket", c.bucket);
+            r.end();
+        }
+        r.end();
+        r.field_opt_u64("chooser", self.chooser.map(|p| p as u64));
+        r.field_str("decided", self.decided);
+        r.field_opt_str("choice", self.choice.as_deref());
+        r.field_opt_str("optional", self.optional);
+        r.field_opt_str("rewrite", self.rewrite.as_deref());
+        r.key("results").begin_array();
+        for m in members {
+            r.begin_object();
+            r.field_u64("i", m.index as u64);
+            r.field_opt_str("event", m.event.as_ref().map(render_debug).as_deref());
+            r.end();
+        }
+        r.end();
+        r
     }
 }
 

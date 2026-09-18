@@ -157,6 +157,9 @@ pub fn compute_as_entering(
     pending: &EnterMods,
 ) -> Option<EffectiveCharacteristics> {
     game.diagnostics.record_layer_walk();
+    let frames_before = game.diagnostics.layer_frames();
     let lookahead = Lookahead::new(game, id, controller, pending);
-    compute_board(game, Some(&lookahead)).take(id)
+    let frame = compute_board(game, Some(&lookahead)).take(id)?;
+    super::compute::trace_walk(game, id, "entering", frames_before, &frame);
+    Some(frame)
 }

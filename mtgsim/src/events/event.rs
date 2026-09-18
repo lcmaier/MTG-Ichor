@@ -484,6 +484,12 @@ impl EventLog {
         self.records.push(EventRecord { event, stamp: self.stamp });
     }
 
+    /// The stamp the next emitted event will carry — the trace sink's join
+    /// key between a batch record and the events performed inside it.
+    pub fn current_stamp(&self) -> EventStamp {
+        self.stamp
+    }
+
     /// Open a batch, returning the stamp to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new

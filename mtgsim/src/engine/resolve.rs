@@ -581,7 +581,7 @@ impl GameState {
                         let id = *id;
                         if self.stack.contains(&id) {
                             self.change_zone(id, crate::types::zones::Zone::Graveyard, ZoneChangeCause::Countered, &actx)?;
-                            self.events.emit(crate::events::event::GameEvent::SpellCountered {
+                            self.emit_event(crate::events::event::GameEvent::SpellCountered {
                                 spell_id: id,
                                 countered_by: ctx.source,
                             });
@@ -603,7 +603,7 @@ impl GameState {
                         // Remove the object entirely — abilities on the
                         // stack are not cards and have no destination zone.
                         self.remove_object(removed_id);
-                        self.events.emit(crate::events::event::GameEvent::AbilityCountered {
+                        self.emit_event(crate::events::event::GameEvent::AbilityCountered {
                             ability_id: removed_id,
                             countered_by: ctx.source,
                         });

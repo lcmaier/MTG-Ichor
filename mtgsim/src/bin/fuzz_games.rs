@@ -2,6 +2,7 @@
 //
 // Usage: cargo run --bin fuzz_games -- --games 100 --max-turns 200 --verbose
 //        cargo run --bin fuzz_games -- --games 10 --dump-events events.log
+//        cargo run --bin fuzz_games -- --games 10 --trace traces/ --trace-game 3
 //        cargo run --bin fuzz_games -- --seed 12345 --games 1 --verbose
 //        cargo run --bin fuzz_games -- --games 200 --threads 1     (serial)
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
@@ -94,6 +95,7 @@ use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::card_types::{CardType, Supertype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{IdMap, ObjectId};
@@ -150,6 +152,15 @@ struct Args {
     /// Starting life, `--life`. Twenty by default; forty is Commander's
     /// (CR 903.7), and it changes no RNG draw, only how long a game runs.
     life: i64,
+    /// Attach the trace sink (`state::trace`) to every game and write each
+    /// game's JSON lines to `DIR/game-<n>-seed-<seed>.jsonl`, `--trace DIR`.
+    /// One file per game rather than one file, so a threaded run's output
+    /// does not depend on which worker finished first. Off by default, and
+    /// off costs one branch per emit point.
+    trace: Option<String>,
+    /// With `--trace`, trace only game N (1-based, the number the report
+    /// prints), `--trace-game N`.
+    trace_game: Option<usize>,
 }
 
 /// The two pools, and the reason there are two.
@@ -195,6 +206,8 @@ fn parse_args() -> Args {
         players: 2,
         deck_size: 60,
         life: 20,
+        trace: None,
+        trace_game: None,
     };
 
     let mut i = 1;
@@ -219,6 +232,18 @@ fn parse_args() -> Args {
                 i += 1;
                 if i < args.len() {
                     result.dump_events = Some(args[i].clone());
+                }
+            }
+            "--trace" => {
+                i += 1;
+                if i < args.len() {
+                    result.trace = Some(args[i].clone());
+                }
+            }
+            "--trace-game" => {
+                i += 1;
+                if i < args.len() {
+                    result.trace_game = args[i].parse().ok();
                 }
             }
             "--seed" | "-s" => {
@@ -971,6 +996,25 @@ struct TableConfig {
     life: i64,
 }
 
+/// Where a traced game's lines go, and which games are traced.
+#[derive(Clone)]
+struct TraceConfig {
+    dir: Option<String>,
+    only: Option<usize>,
+}
+
+impl TraceConfig {
+    /// The sink for game `game_num` (0-based), or none.
+    fn sink_for(&self, game_num: usize, game_seed: u64) -> Option<Arc<TraceSink>> {
+        let dir = self.dir.as_ref()?;
+        if self.only.is_some_and(|n| n != game_num + 1) {
+            return None;
+        }
+        let path = std::path::Path::new(dir).join(format!("game-{}-seed-{}.jsonl", game_num + 1, game_seed));
+        Some(TraceSink::to_file(&path).unwrap_or_else(|e| panic!("cannot open trace file {}: {}", path.display(), e)))
+    }
+}
+
 /// Run game `game_num`, catching a panic as a result rather than unwinding out.
 ///
 /// Depends on nothing but its arguments — that is what lets the pool hand games
@@ -985,6 +1029,7 @@ fn run_one_game(
     require_names: &[String],
     middleware: MiddlewareConfig,
     table: TableConfig,
+    trace: &TraceConfig,
 ) -> (GameOutcome, std::time::Duration) {
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
@@ -1019,6 +1064,19 @@ fn run_one_game(
         config.starting_life = table.life;
         let mut game = Game::new(config, decks).expect("Failed to create game");
         game.reseed(shuffle_seed);
+        let sink = trace.sink_for(game_num, game_seed);
+        if let Some(sink) = &sink {
+            game.state.install_trace(TraceHandle::new(sink));
+            game.state.trace_game(&format!("fuzz_games game {}", game_num + 1), Some(game_seed));
+        }
+        // The names table closes the trace on every exit, so a game that
+        // errored is as readable as one that finished.
+        let finish_trace = |game: &Game| {
+            if let Some(sink) = &sink {
+                game.state.trace_objects();
+                sink.flush().ok();
+            }
+        };
         let dp = build_stack(dp_seed, middleware);
         let dp = &*dp;
         game.setup(dp).expect("Failed to setup game");
@@ -1027,6 +1085,7 @@ fn run_one_game(
 
         while !game.is_over() && turns < max_turns {
             if let Err(e) = game.run_turn(dp) {
+                finish_trace(&game);
                 return Err((
                     format!("Turn {} error: {}", turns, e),
                     if keep_event_log { Some(game.event_log_snapshot()) } else { None },
@@ -1034,6 +1093,7 @@ fn run_one_game(
             }
             turns += 1;
         }
+        finish_trace(&game);
 
         Ok((
             game.result(),
@@ -1111,13 +1171,14 @@ fn run_games(
     require_names: &[String],
     middleware: MiddlewareConfig,
     table: TableConfig,
+    trace: &TraceConfig,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    middleware, table,
+                    middleware, table, trace,
                 )
             })
             .collect();
@@ -1148,6 +1209,7 @@ fn run_games(
                                     require_names,
                                     middleware,
                                     table,
+                                    trace,
                                 ),
                             ));
                         }
@@ -1197,6 +1259,16 @@ fn main() {
     }
     if args.life != 20 {
         println!("Life: {}", args.life);
+    }
+    // Off the default for the payer line's reason; `fuzz_ab.py` drops a row
+    // the baseline does not print, so an arm with the sink on still reads
+    // `IDENTICAL` on everything the game did.
+    if let Some(dir) = &args.trace {
+        std::fs::create_dir_all(dir).expect("cannot create the trace directory");
+        match args.trace_game {
+            Some(n) => println!("Trace: {} (game {} only)", dir, n),
+            None => println!("Trace: {} (every game)", dir),
+        }
     }
 
     // Named in the header and again in the results, because the stats below
@@ -1295,6 +1367,7 @@ fn main() {
             deck_size: args.deck_size,
             life: args.life,
         },
+        &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
