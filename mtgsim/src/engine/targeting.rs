@@ -533,12 +533,12 @@ impl GameState {
                 if *pid >= self.players.len() {
                     return Err(format!("Player {} does not exist", pid));
                 }
-                // CR 800.4a, the same sentence the `Player` validator reads:
-                // a player who has left the game is not a player. Without it
-                // "any target" is the one filter that lets three damage
-                // resolve against a seat the game no longer has, because the
-                // player leg of this validator asked only that the index be in
-                // range.
+                // CR 800.4a, the same sentence `validate_player_target` reads:
+                // a player who has left the game is not a player. **Not made
+                // redundant by the enumeration filtering the same seat**, which
+                // is why it went missing here for as long as it did: CR 608.2b
+                // re-asks at resolution, and a seat can leave after it was
+                // legally chosen.
                 if !self.in_game(*pid) {
                     return Err(format!("Player {} has left the game", pid));
                 }
