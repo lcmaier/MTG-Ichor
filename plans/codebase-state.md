@@ -2808,13 +2808,21 @@ games; with Humility forced beside her, both are on the board in 52%.
     question is where the surviving Scrap Trawler trigger lands; shipping the
     prompt before that is shipping it against a board the engine cannot
     finish.
-    **Answered by a middleware? Decided 2026-09-18 (A4k, `backlog.md` §2.22
-    row 9): only under the same toggle as auto-yield.** On a human's seat it
-    is a prompt-skipping automation — reverse what the solver tapped, keep
-    what the hand tapped — inside the tap solver's decorator (main item 162);
-    on a bot's seat a plain policy, `fuzz_games` keeping the taps as today's
-    stream does; never silently on a human's. The placement here does not
-    move.
+    **Two options, and only two — decided 2026-09-18 (A4k, `backlog.md` §2.22
+    row 9) and re-derived at its review.** *Reverse all* is a no-log clone
+    taken at the window's first activation (item 42's measurement: 4–6 µs)
+    and restored at the rewind with `events` truncated to its length — CR
+    732.1's "no abilities trigger and no effects apply" by construction, the
+    RNG rewound with it, the retry loop's locals and `Diagnostics` kept live.
+    *Reverse some* is not a facility the chokepoint has: performed events with
+    replacements applied have no per-event undo, and Arena offers undo-all
+    only. Re-sized on that: ~40 lines, the clone, the restore and the
+    truncation, in place of the ~60 below. **Answered by a middleware? Only
+    under the same toggle as auto-yield.** On a human's seat it is a
+    prompt-skipping automation — reverse all when the solver made the taps —
+    inside the tap solver's decorator (main item 162); on a bot's seat a
+    plain policy, `fuzz_games` keeping the taps as today's stream does; never
+    silently on a human's. The placement here does not move.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
@@ -7043,8 +7051,10 @@ owner decided it the same day.
      retired was the census's — **retired 2026-09-18 (A4k, `backlog.md` §2.22
      row 2)**: the branch, `split_is_forced` and the bucket walk are gone with
      six tests, one test in (a forced split reaches the wrapped provider), and
-     `AutoPayer` answers `OrderCostReductions` alone; `cost-architecture.md`
-     §3.4's note records it. The line
+     `AutoPayer` answers `OrderCostReductions` alone — for now: the census's
+     review moved that answer into the engine too, as an elision (item 165),
+     and the module goes with it; `cost-architecture.md` §3.4's note records
+     both. The line
      worth keeping: **a prompt with one legal answer belongs to the engine, not
      to a middleware** — a decorator can only spare a round trip the engine had
      already decided to spend.
@@ -7513,46 +7523,65 @@ is the debt — one line per middleware the census names and defers, so the
 target system's prerequisites are where this section's readers look for them.
 Items 72 (CR 732.1's reversal), 84 (the two combat helpers) and 145 (the
 payer's dead branch) are updated in place; the one code change, the payer's
-forced branch retired, is recorded on item 145. One thing the census read on
-the way and did not fix, because the ticket touched no engine file but the
-payer: `ui/ask.rs`'s module doc, `forced_allocation`'s doc and item 145 cite
-"CR 102.2" for "a forced choice is not made", and in `tmnt.txt` 102.2 is the
-two-player-opponent rule — the CR states the general form nowhere, and the
-anchors the tree actually rests on are CR 616.1's "two or more" and 601.2f's
-"if multiple". A comment fix, next time a hand is in the file.
+forced branch retired, is recorded on item 145. **Amended the same day at the
+owner's review of PR #169**, and the items below carry the amended shape: an
+answer that cannot change the game is the engine's to elide, so the payer's
+remaining prompt moves into the engine (item 165) and no decorator is
+"answer-preserving"; full control is a switch above the stack, not a handle in
+each decorator (item 161); the solver's preference is the client's in the
+client's own shape, and the solver owns both payment prompts (item 162); the
+reversal is two options, keep or reverse all, by a clone (items 72, 163). One
+thing the census read on the way and did not fix, because the ticket touched
+no engine file but the payer: `ui/ask.rs`'s module doc, `forced_allocation`'s
+doc and item 145 cite "CR 102.2" for "a forced choice is not made", and in
+`tmnt.txt` 102.2 is the two-player-opponent rule — the CR states the general
+form nowhere, and the anchors the tree actually rests on are CR 616.1's "two
+or more" and 601.2f's "if multiple". A comment fix, next time a hand is in
+the file.
 
-161. **Full control and auto-yield — sized, sequenced, not built.** The
-     toggle is a `FullControl` handle every `ui::` decorator checks and
-     passes through when it is off, plus a `CliDecisionProvider` command
-     intercepted before an index is parsed; auto-yield is `AutoYield<D>`,
-     answering `PriorityAction` with `Pass` while one of three yield
-     conditions holds, read off the `&GameState` every prompt carries.
-     **Neither ships without the other** (§2.22 rows 3 and 4): auto-yield
-     makes the tell — a fast-forwarded turn says the player holds nothing at
-     instant speed — and the toggle is what puts the prompts back. Human seats
-     only; a bot's non-forced pass is its agent's decision. The yield command
-     must ride in the recorded input stream or a CLI game stops replaying.
+161. **Full control and auto-yield — sized, sequenced, not built.** Full
+     control is the raw provider entered and left mid-game: a
+     `FullControl<D, R>` at the top of the seat holding the decorated stack and
+     the raw provider, forwarding each of the four methods to one or the other
+     on a `Cell<bool>`, plus a `CliDecisionProvider` command intercepted before
+     an index is parsed. The decorators stay stateless and know nothing of it.
+     Auto-yield is `AutoYield<D>`, answering `PriorityAction` with `Pass` while
+     one of three yield conditions holds, read off the `&GameState` every
+     prompt carries. **Neither ships without the other** (§2.22 rows 3 and 4):
+     auto-yield makes the tell — a fast-forwarded turn says the player holds
+     nothing at instant speed — and the switch is what puts the prompts back.
+     Human seats only; a bot's non-forced pass is its agent's decision. The
+     switch's position and the yield command must ride in the recorded input
+     stream or a CLI game stops replaying. A GUI provider with state wants
+     `Rc<P>` and a forwarding impl so the raw side and the decorated side are
+     one provider.
 
      **Reachability (2026-09-18):** unreachable — a facility that does not
      exist; nothing wrong today, since nothing auto-passes.
 
-     **Sized:** one PR, ~350–450 lines with tests — the toggle ~200 plus ~90
-     (2026-09-08's sizing, re-derived and holding), auto-yield ~100–150. A/B
-     `IDENTICAL` by construction: `fuzz_games` stacks neither. Any time,
-     before the GUI; §2.22's sequence step 2.
+     **Sized:** one PR, ~250–350 lines with tests — the switch ~100 with the
+     command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
+     review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
+     `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
+     step 3.
 
 162. **The tap solver's two halves — the matching and its two customers.**
      §2.18's oracle half is a bipartite matching from the pips
      `remaining_cost_after_pool` still owes to the mana abilities
      `available_mana_sources` offers, in `oracle/`; the decorator picks in CR
      601.2g's window while the component is uncovered, disjoint from
-     `ManaWindowStop`'s predicate. The second customer is
-     `castable_spells`' affordability, a heuristic overapproximation today
-     (`find_mana_sources`), whose over-offers are the CR 732.1 rewinds A4h made
-     the retry loop state-dependent for (item 139) and the enumeration lever 4
-     prices at 19.2% (item 138). **The Arena problem is the preference, not
-     the matching**: which covering set is an order over sources the client
-     supplies, defaulting to the random agent's least-flexible-first policy.
+     `ManaWindowStop`'s predicate, **and answers `GenericManaAllocation` when
+     the pool has surplus**, since one preference decides both. The second
+     customer is `castable_spells`' affordability, a heuristic
+     overapproximation today (`find_mana_sources`), whose over-offers are the
+     CR 732.1 rewinds A4h made the retry loop state-dependent for (item 139)
+     and the enumeration lever 4 prices at 19.2% (item 138). **The Arena
+     problem is the preference, not the matching, and the preference is the
+     client's in the client's own shape**: the framework owes possibility —
+     any client-side intent maps onto the matching's (source, type) edges, so
+     a per-type spend-or-keep setting a GUI might draw does — and sets no
+     default from an example; a seat that supplies none gets the random
+     agent's measured least-flexible-first policy.
 
      **Reachability (2026-09-18):** reachable — not wrong; a cost. 194 window
      prompts a game at four seats, 60% of inner prompts, and the rewinds the
@@ -7566,7 +7595,7 @@ anchors the tree actually rests on are CR 616.1's "two or more" and 601.2f's
      `Decisions` falling with the engine no faster. §2.22 rows 6 and 7.
 
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
-     reversal's answer placed with it.** In §2.22's fork-model table the
+     reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
      controller in APNAP order, mid-step, of a seat that did not act. Two
      halves. The engine's, by §2.22's rule 1: two triggers that are copies of
@@ -7575,18 +7604,27 @@ anchors the tree actually rests on are CR 616.1's "two or more" and 601.2f's
      with expiry conditions, item 47's precedent for CR 616.1's prompt. The
      decorator's, for the rest: timestamp order for a human under the toggle,
      the agent's own for a bot. **Item 72's reversal (CR 732.1), decided
-     2026-09-18:** a decorator may answer it only under the same toggle as
-     auto-yield — reverse what the solver tapped and keep what the hand
-     tapped, on a human's seat; a plain policy on a bot's (`fuzz_games`: keep,
-     today's stream); never silently on a human's. It lives inside item 162's
+     2026-09-18 and re-derived at review: two options, keep or reverse all.**
+     *Reverse all* is a no-log clone taken at the window's first activation
+     and restored at the rewind with `events` truncated to its length — CR
+     732.1's "no abilities trigger and no effects apply" by construction, the
+     RNG rewound with it, the retry loop's locals and `Diagnostics` kept live.
+     *Reverse some* is not a facility the chokepoint has: performed events
+     with replacements applied have no per-event undo, and Arena offers
+     undo-all only. A decorator may answer the offer only under the same
+     toggle as auto-yield — reverse all when the solver made the taps, on a
+     human's seat; a plain policy on a bot's (`fuzz_games`: keep, today's
+     stream); never silently on a human's. It lives inside item 162's
      decorator, since the taps a solver made are the ones it should unmake.
 
      **Reachability (2026-09-18):** unreachable — neither prompt exists; the
      dispatcher stub places nothing ("Before Triggered abilities" item 1).
 
-     **Sized:** the elision ~30 lines and a probe, the decorator ~40, the
-     reversal arm ~15; all inside critical-path item 6's doc and PRs, which
-     inherit the classification rather than deriving it. §2.22 rows 8 and 9.
+     **Sized:** the ordering elision ~30 lines and a probe, its decorator ~40;
+     the reversal prompt ~40 in the engine (the clone, the restore, the
+     truncation) and its decorator arm ~15; all inside critical-path item 6's
+     doc and PRs, which inherit the classification rather than deriving it.
+     §2.22 rows 8 and 9.
 
 164. **The `[Pass]`-only priority prompt is still asked of the provider.**
      `candidate_priority_actions` always offers `Pass`, and 91.5% of priority
@@ -7611,6 +7649,30 @@ anchors the tree actually rests on are CR 616.1's "two or more" and 601.2f's
      Size the migration by running it before scheduling; if most of the 148
      are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
      was not, and cheap.
+
+165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
+     should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
+     order because, by `cost-architecture.md` §3.4's theorem, every order gives
+     the identical total — which makes the prompt §2.22's rule 1, second case:
+     an answer that cannot change the game is the engine's to elide, as item
+     47's `pipeline::ordering_cannot_change_outcome` already does for CR
+     616.1's. §3.4 kept the prompt "until it shows in a profile"; the owner's
+     review of the census (2026-09-18) read that as a timing call and struck
+     the "answer-preserving" decorator kind, so the elision is owed and the
+     module goes with it.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost, and a
+     second home for one fact. 0 / 0.07 / 0.02 prompts a game.
+
+     **Sized:** ~20 lines — one guard at the call site in
+     `cost_determination/total.rs`, false the day either expiry condition
+     lands (a reduction whose amount is a hybrid symbol, CR 118.7e; a
+     `not_below` reduction), the two conditions §3.4 already names;
+     ATOM-601.2f-004's test restated from "the prompt is asked" to "both
+     reductions apply and every order gives the CR's answer"; `ui/auto_payer.rs`
+     deleted and `cli_play`'s human stack `ManaWindowStop(Cli)`. It moves the
+     random agent's stream by the prompts it removes, so a `differ` A/B and its
+     own PR — §2.22's sequence step 2, first after this one.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

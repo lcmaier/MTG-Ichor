@@ -12,6 +12,8 @@
 //   CR 601.2f  `OrderCostReductions` — always: by `cost-architecture.md`
 //              §3.4's theorem every order yields the identical total, so the
 //              prompt is one the CR mandates and that cannot matter.
+//              Scheduled to move into the engine as an elision, and this
+//              module to go with it: `backlog.md` §2.22 row 2 (2026-09-18).
 //
 // **What it does not answer.** CR 601.2h's generic split: a split with surplus
 // in the pool decides what is left up for the rest of the step (§3.4), and a

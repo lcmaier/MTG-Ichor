@@ -1212,41 +1212,52 @@ mechanic rather than a migration, which is why it is here and not in
   `ui::AutoPayer`) one at a time against one phase's need, and settled the
   composition rule; what was missing was the census — every row v1's two use
   cases want, sized against the tree and sequenced against each other. **Three
-  rules come out of it, and every row below is read against them:**
-  1. **A prompt with one legal answer belongs to the engine, not to a
-     middleware.** `ui::ask` declines it before any provider is asked
-     (`ask_discard`, `order_scry_group`, `ask_select_recipients`,
+  rules come out of it, and every row below is read against them.** They were
+  amended at the owner's review of PR #169 the same day, and the amendments
+  are marked.
+  1. **A prompt whose answer cannot change the game belongs to the engine, not
+     to a middleware.** Two cases, and the engine already holds one of each. A
+     prompt with one legal answer, which `ui::ask` declines before any provider
+     is asked (`ask_discard`, `order_scry_group`, `ask_select_recipients`,
      `forced_allocation`, and five asks that assert two or more candidates —
-     A4e, `codebase-state.md` item 145). A decorator can only spare a round
-     trip the engine had already decided to spend, which is the ceiling on
-     what any row here saves — and the reason the payer's forced branch
-     retires in this PR (row 2). A note on the number the tree cites for the
-     rule, since the census read it: `ui/ask.rs` and item 145 say "CR 102.2",
-     and in `tmnt.txt` 102.2 is the two-player-opponent rule; the CR states
-     the general form nowhere, and the anchors are CR 616.1's "two or more"
-     and 601.2f's "if multiple". One comment fix, next time a hand is in the
-     file.
-  2. **A decorator is one of two kinds, and the kind decides where it lives.**
-     *Answer-preserving*: every legal answer leaves the same game
-     (`OrderCostReductions`, by `cost-architecture.md` §3.4's theorem). It
-     lives in `ui::`, needs no toggle, and every client stacks it. *Policy*:
-     the answers differ and a rule picks one — declining the window once the
-     cost is covered, passing priority, dividing combat damage, which sources
-     to tap. It lives in `ui::` only when both use cases want the same rule;
-     a **human's seat takes it under a toggle**, because the automation is a
-     choice made for the player, and a **bot's seat takes it at
+     A4e, `codebase-state.md` item 145). And a prompt whose every legal answer
+     leaves the same game, which the engine elides with stated expiry
+     conditions — item 47's `pipeline::ordering_cannot_change_outcome` for CR
+     616.1's prompt. A decorator can only spare a round trip the engine had
+     already decided to spend, which is the ceiling on what any row here saves
+     — and the reason the payer's forced branch retires in this PR and the
+     rest of the payer follows it (row 2). A note on the number the tree cites
+     for the first case, since the census read it: `ui/ask.rs` and item 145
+     say "CR 102.2", and in `tmnt.txt` 102.2 is the two-player-opponent rule;
+     the CR states the general form nowhere, and the anchors are CR 616.1's
+     "two or more" and 601.2f's "if multiple". One comment fix, next time a
+     hand is in the file.
+  2. **Every decorator is a policy, and a policy's seat decides where it
+     lives.** The answers differ and a rule picks one — declining the window
+     once the cost is covered, passing priority, dividing combat damage, which
+     sources to tap. It lives in `ui::` only when both use cases want the same
+     rule; a **human's seat takes it under a toggle**, because the automation
+     is a choice made for the player, and a **bot's seat takes it at
      construction**, because for an agent it is the harness's policy and
-     nothing else. CM-4's criterion — "exactly one legal answer" — is the
-     first kind's definition, and it was the right bar for the payer; the
-     supplemental doc's `AutoYieldDP` and its auto-tapper are the second
-     kind, which is why they need what the payer never did.
+     nothing else. **The census's first draft had a second kind**,
+     *answer-preserving* — every legal answer leaves the same game,
+     `OrderCostReductions` by `cost-architecture.md` §3.4's theorem — living
+     in `ui::` with no toggle and stacked by every client. **Struck at review
+     (the owner, 2026-09-18):** an answer that cannot change the game is rule
+     1's, the engine's to elide, and a decorator for it is a second home for
+     one fact. CM-4's "exactly one legal answer" was the right bar for what a
+     payer might answer; it is now the bar for what the engine declines to
+     ask, and the supplemental doc's `AutoYieldDP` and auto-tapper are what
+     decorators are for.
   3. **At most one decorator answers any one prompt**, so composition
      commutes and stack order carries no meaning (`ui/mana_window_stop.rs`,
      CM-4's review). Two predicates on one `ChoiceKind` coexist when they are
      disjoint — the stop answers the window once covered, a solver while it
-     is not. **Full control is therefore a handle every decorator checks,
-     never an outer wrapper**, and the supplemental doc's ordering question
-     (§6) is closed by construction rather than by convention.
+     is not. **Full control is therefore a switch above the stack, never a
+     wrapper in it and never a handle inside each decorator** (amended at
+     review; row 3): on, the seat's prompts go to the raw provider; off, to
+     the decorated stack. The supplemental doc's ordering question (§6) is
+     closed by construction rather than by convention.
 - **The tree, counted 2026-09-18.** `ui/ask.rs` has **24 `ask_*` functions**,
   the whole decision surface, at **26 engine call sites in 12 files** — every
   ask once, `ask_select_recipients` and `ask_discard` twice. The
@@ -1264,7 +1275,9 @@ mechanic rather than a migration, which is why it is here and not in
   nothing this entry does to it can move a fuzz counter. The engine answers
   every forced prompt itself since A4e; the four `validate_*` helpers count
   the rest as `Decisions` and `Priority decisions` (item 138's instrument, the
-  rows `fuzz_ab.py` diffs).
+  rows `fuzz_ab.py` diffs). The engine holds one `&dyn DecisionProvider` for
+  the whole game — `Game::setup`, `run_turn` and the signatures between — which
+  is the fact row 3 is shaped around.
 - **The supplemental doc's §4, re-derived against what CM-4 built.** Four
   claims stood, three moved, one was wrong:
   - **The pattern stands**, as a generic parameter rather than a
@@ -1279,24 +1292,27 @@ mechanic rather than a migration, which is why it is here and not in
     forced case into the engine.
   - **`RawDP` is the undecorated provider**, not a mode: `--no-auto-pay` is
     it, and rule 1 is what makes "raw" mean the same thing for a human and an
-    agent — neither is handed a prompt the engine could answer.
+    agent — neither is handed a prompt the engine could answer. Full control
+    (row 3) is `RawDP` entered and left mid-game.
   - **"Full control generalized" per wrapper moved**: one toggle, not one per
     decorator, because the per-wrapper form is the scope enum CM-4's review
     took out in another shape, and because two of the rows are counterweights
     (auto-yield makes the tell that full control answers) — a player who could
     switch one off and not the other would have the leak without the remedy.
-    The *mechanism* §4 sketched — each decorator consults a switch and passes
-    through when it is off — is exactly how the handle below works.
+    The *mechanism* §4 sketched — each decorator consults a switch — is not
+    how it is built either: the switch sits above the stack and the
+    decorators know nothing of it.
   - **The Arena problem is correctly diagnosed and belongs to a client**: it is
     the *preference* half of the tap-solver row, and this census frames it as
     policy (that row).
   - §6's five open questions: **wrapper ordering** — closed (rule 3); **mana
     solver design** — the oracle half is a matching, sized below, and the
-    lookahead is the client's; **preference system** — the client's, expressed
-    to the solver as an order over sources; **training mode** — the harness
-    builds its own stack at construction, so it always knows what is on;
-    **serialization** — both built decorators are stateless, auto-yield's
-    yield-until condition is provider state that must ride in the recorded
+    lookahead is the client's; **preference system** — the client's, in
+    whatever shape the client wants, mapped onto the matching's edges (rows 6
+    and 7); **training mode** — the harness builds its own stack at
+    construction, so it always knows what is on; **serialization** — both
+    built decorators are stateless, the switch's position and auto-yield's
+    yield-until condition are client state that must ride in the recorded
     input stream (the replay caveat below), and nothing here is
     outcome-bearing in item 40's sense, since dropping a decorator and
     re-asking the human reaches the same game.
@@ -1308,14 +1324,14 @@ mechanic rather than a migration, which is why it is here and not in
   | # | Middleware | Answers | Kind | Human / bot | Size | Status |
   |---|---|---|---|---|---:|---|
   | 1 | `ManaWindowStop` | `ManaAbilityWindow`, decline once covered | policy — declining forecloses CR 605.3a's float | toggle (`--no-auto-pay` today) / on by default | 0 | built, CM-4 |
-  | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | answer-preserving, the one row of its kind | both, no toggle | −50 this PR | built, CM-4; **forced split retired here** |
-  | 3 | full control | nothing — the handle rows 1, 2, 4, 5 and 7 check | the toggle | human only | ~200 + ~90 tests | sized 2026-09-08, re-derived below |
+  | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | an elision the engine owes (rule 1, item 47's shape) | both, no toggle | −50 this PR; the decorator goes next | built, CM-4; **forced split retired here, the rest moves into the engine in the follow-up PR** |
+  | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | re-derived at review, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **one PR with row 3** |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250 | §2.18; two customers, below |
-  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
+  | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | with critical-path item 6; classified at birth below |
-  | 9 | reversal policy | CR 732.1's offer (item 72), once it exists | policy | human under the toggle / a bot policy — never silent on a human's | ~15, inside row 7 | with item 6 |
+  | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | with item 6 |
 
   **Row 2, decided: the payer keeps no answer the engine stopped asking for.**
   `AutoPayer::allocate`'s forced branch and `auto_payer::split_is_forced`
@@ -1325,28 +1341,49 @@ mechanic rather than a migration, which is why it is here and not in
   client — and rule 1 says that client should get the engine's answer too.
   Retired: the branch, its predicate, its bucket walk and six tests out, one
   test in (a forced split reaches the wrapped provider), about fifty lines
-  net. What the payer keeps is what §3.4 built it for: the ordering prompt,
-  and the *absence* of an answer to a split with surplus, which is the
-  `{2}{U}` board's `{U}{U}` still up for Counterspell. It stays a decorator
-  for a prompt asked well under once a game because it is the one row of the
-  first kind and the shape the next one copies.
+  net. What the payer keeps beyond that is the *absence* of an answer to a
+  split with surplus, which is the `{2}{U}` board's `{U}{U}` still up for
+  Counterspell. **And at review (the owner, 2026-09-18) the rest goes too.**
+  The ordering answer is rule 1's second case: by §3.4's theorem every order
+  gives one total, so the engine elides the prompt the way item 47 elides CR
+  616.1's — one guard at the call site in `cost_determination/total.rs`,
+  false the day either expiry condition lands (a reduction whose amount is a
+  hybrid symbol, CR 118.7e; a `not_below` reduction), ~20 lines;
+  ATOM-601.2f-004's test restated from "the prompt is asked" to "both
+  reductions apply and every order gives the CR's answer"; `AutoPayer` deleted
+  and `cli_play`'s human stack becomes `ManaWindowStop(Cli)`. It moves the
+  random agent's stream by the 0.07 prompts a game the stress pool asks, so it
+  is a `differ` A/B and its own PR, first in the sequence below. §3.4's "take
+  it then, not now" was a timing call, and this is the time: the prompt is
+  kept alive today by a module whose one job is to answer it.
 
-  **Row 3, full control, re-derived 2026-09-18 (sized 2026-09-08 at ~200
-  lines plus ~90 of tests, and it holds).** The reason it is that small is
+  **Row 3, full control, re-derived at review (2026-09-18; sized 2026-09-08 at
+  ~200 lines as a handle, now ~100 as a switch).** The reason it is small is
   worth keeping: **the engine asks the provider at every priority point** —
   `candidate_priority_actions` always offers `Pass`, so
   `ask_choose_priority_action` is always reached (`engine/priority.rs`). The
-  toggle needs no keystroke listener beside the engine; it is one more
-  command at a prompt the player already sits at, which is Arena's
-  granularity. The pieces: a `FullControl` handle (`Rc<Cell<bool>>`, ~35);
-  one check each in `ManaWindowStop`, `AutoPayer` (two before A4k, one now)
-  and `AutoYield` (~20); `CliDecisionProvider` intercepting the command before
-  it parses an index — `pick_n`'s `read_usize` loop is the one place (~45);
-  wiring in `cli_play` (~10); and the two-line pass-through each later
-  decorator adds. **It is a handle, not a wrapper** (rule 3), and it is client
-  state rather than `GameState` — item 40's test is "drop it and re-derive",
-  and a game replayed with the toggle off asks the human what the decorators
-  answered, reaching the same game from the same answers.
+  toggle needs no keystroke listener beside the engine; it is one more command
+  at a prompt the player already sits at, Arena's granularity. **What full
+  control is:** the raw provider, for as long as it is on — the supplemental
+  doc's `RawDP`, entered and left mid-game. The engine holds one
+  `&dyn DecisionProvider` for the whole game, so the stack cannot be rebuilt
+  mid-game without an indirection, and the census's first draft put that
+  indirection inside every decorator as a handle each one checked. **The
+  owner's shape is better:** one `FullControl<D, R>` at the top of the seat
+  holding the decorated stack `D` and the raw provider `R`, forwarding each of
+  the four methods to one or the other on a `Cell<bool>` (~40);
+  `CliDecisionProvider` intercepting the command before it parses an index —
+  `pick_n`'s `read_usize` loop is the one place (~45); wiring in `cli_play`
+  (~10). The decorators stay stateless and know nothing of the toggle, so
+  rule 3 needs no toggle arm and a new decorator adds nothing here. One
+  wrinkle: `R` and the bottom of `D` must be the same human provider. The
+  CLI's is a unit struct, so two instances are fine; a GUI provider holding a
+  channel wants `Rc<P>` and a forwarding `impl DecisionProvider for Rc<P>`
+  (~10 lines), which is the framework's answer for any client whose provider
+  has state. It is client state rather than `GameState` — item 40's test is
+  "drop it and re-derive", and a game replayed with the switch off asks the
+  human what the decorators answered, reaching the same game from the same
+  answers.
 
   **Row 4, auto-yield, and why it ships with row 3 and never before it.**
   `AutoYield<D>` answers `PriorityAction` with `Pass` while a yield condition
@@ -1366,7 +1403,8 @@ mechanic rather than a migration, which is why it is here and not in
   (a) below sizes it. **Replay caveat, designed for rather than retrofitted:**
   a yield set mid-game makes a CLI game non-replayable unless the command is
   in the recorded input stream — cheap now, expensive once a replay format
-  exists; it binds rows 3 and 4 alike.
+  exists; it binds rows 3 and 4 alike, and any client setting a decorator
+  reads.
 
   **Row 5, combat defaults.** Item 84's two callerless helpers,
   `default_damage_assignment` and `default_trample_assignment`, are the body
@@ -1408,34 +1446,65 @@ mechanic rather than a migration, which is why it is here and not in
   job is the counter that reads it. **The Arena problem is the preference,
   not the matching**: when several covering sets exist, which lands stay
   untapped is a question about the rest of the hand and the opponents'
-  boards, so the solver takes an order over sources from its client and
-  breaks ties by it; the default order is the one the random agent already
-  plays — the least flexible source first, the policy that took its land
-  taps per cast from 7.66 to 3.18 (§2.18). A GUI's "keep blue open" and a
-  harness's learned preference are both that order. Nobody writes a solver
-  here; this is its frame. Row 6 may land any time as an oracle PR; row 7
-  after rows 3 and 6.
+  boards, so the solver takes a preference from its client and breaks ties by
+  it. **The census fixes the interface and not the preference's shape.** Part
+  of the engine's purpose is that people write their own GUIs and hook them
+  in (`CLAUDE.md`'s v1), so what the framework owes a client is *possibility*:
+  any client-side expression of intent must map onto the matching's edges,
+  and every edge is a (source, type) pair, so a preference stated over types
+  does — the owner's example is a color wheel, a per-type spend-or-keep
+  setting a GUI could draw, which maps as an order over edges by the type they
+  produce. The example sets no default. A seat that supplies no preference
+  gets the one policy that is measured, the random agent's least flexible
+  source first, which took its land taps per cast from 7.66 to 3.18 (§2.18);
+  a harness's learned preference is another client's expression of the same
+  interface. **And the solver owns both payment prompts a client stacks it
+  for**: the window's picks, and `GenericManaAllocation` when the pool has
+  surplus (41 / 88 / 136 a game), because the same preference answers both
+  and the second reaches a human as typed numbers today. Rule 3 holds — one
+  owner, two prompts. Nobody writes a solver here; this is its frame. Row 6
+  may land any time as an oracle PR; row 7 after rows 3 and 6.
 
-  **Rows 8 and 9, classified at birth, since neither prompt exists.** CR
-  603.3b's ordering is asked of each trigger's controller in APNAP order as
-  the abilities go on the stack; in the classification below it is a **C**
-  row and part of the **residual** — asked mid-step of a seat that did not
-  act. Two halves, and the first is the engine's by rule 1: two triggers that
-  are copies of one ability under one controller with no targets give the
-  same game in either order, and the engine declines to ask — *measured
-  first*, then elided with expiry conditions, which is item 47's precedent
-  for CR 616.1's prompt (`pipeline::ordering_cannot_change_outcome`), ~30
+  **Row 8, classified at birth, since the prompt does not exist.** CR 603.3b's
+  ordering is asked of each trigger's controller in APNAP order as the
+  abilities go on the stack; in the classification below it is a **C** row
+  and part of the **residual** — asked mid-step of a seat that did not act.
+  Two halves, and the first is the engine's by rule 1: two triggers that are
+  copies of one ability under one controller with no targets give the same
+  game in either order, and the engine declines to ask — *measured first*,
+  then elided with expiry conditions, which is item 47's precedent, ~30
   lines. The rest is policy — a human under the toggle gets timestamp order,
   a bot's agent orders — ~40 lines of decorator, sized inside item 6's doc.
-  **The reversal (row 9, item 72), decided 2026-09-18:** a decorator may
-  answer CR 732.1's offer **only under the same toggle as auto-yield**. On a
-  human's seat it is a prompt-skipping automation — reverse what the solver
-  tapped, keep what the hand tapped — and it lives inside row 7, since the
-  taps a solver made are the ones it should unmake; on a bot's seat it is a
-  plain policy (`fuzz_games`: keep, which is today's stream); **never
-  silently on a human's**. Item 72's placement with item 6 does not move,
-  and the invariant it states — the ability's cost and its mana undone
-  together — is the engine's whoever answers.
+
+  **Row 9, the reversal (item 72), decided 2026-09-18 and re-derived at review
+  — two options, and only two.** Is a reversal even possible in an engine
+  that performs every mutation through the chokepoint with replacements
+  applied? *Reverse all* is, and cheaply: `GameState` is `Clone` and a no-log
+  clone is 4–6 µs (item 42's measurement, `codebase-state.md`), so the engine
+  takes one at the window's first activation and, if the player takes CR
+  732.1's offer at the rewind, restores it, truncating `events` to the
+  snapshot's length. That is the rule's "no abilities trigger and no effects
+  apply as a result of an undone action" by construction — the clone predates
+  the tap, the mana, any replacement that applied to it and any trigger it
+  queued, which item 40 keeps on `GameState` — and the RNG rewinds with it,
+  which is the right reading. Two things stay live across the restore: the
+  retry loop's locals, which are about the offer list and sit outside
+  `GameState` on purpose (item 140), and the `Diagnostics` cells, which
+  counted work that happened. *Reverse some* is not possible: the tap, the
+  mana and a sacrificed Ironworks artifact all went through the chokepoint as
+  performed events, and the engine has no per-event undo — selective
+  reversal is an undo log or a re-simulation of the window's activations from
+  the snapshot minus the reversed ones, a facility and not thirty lines, and
+  Arena offers undo-all only. So the prompt is *keep* or *reverse all*, ~40
+  lines in the engine, with item 6 as CM-4 placed it. **A decorator may
+  answer it only under the same toggle as auto-yield.** On a human's seat it
+  is a prompt-skipping automation — *reverse all* when the solver made the
+  taps, since the taps a solver made are the ones it should unmake — and it
+  lives inside row 7; on a bot's seat it is a plain policy (`fuzz_games`:
+  keep, which is today's stream); **never silently on a human's**. Item 72's
+  placement with item 6 does not move, and the invariant it states — the
+  ability's cost and its mana undone together — is what the restore gives for
+  free.
 
 - **Not rows, named here so nobody files them as one.**
   - **(a) The `[Pass]`-only priority prompt is the engine's**, by rule 1, and
@@ -1462,29 +1531,39 @@ mechanic rather than a migration, which is why it is here and not in
   - **(e) Staged payment** — a client buffering its answers until the player
     confirms, which CM-3's deciding-before-performing already allows; not a
     decorator. §2.18 owns it.
-- **Sequence.** (1) **This PR**: row 2's retirement. (2) **Rows 3 and 4 in one
-  PR**, ~350–450 lines with tests — the toggle's first customer is auto-yield
-  and auto-yield's counterweight is the toggle, so neither ships alone
+- **Sequence.** (1) **This PR**: row 2's forced branch. (2) **Row 2's
+  remainder, alone**: the ordering elided in the engine and `AutoPayer`
+  deleted, ~20 lines and a restated test, its own `differ` A/B — the one
+  engine change the census owes, small and stream-moving, so it travels by
+  itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR**,
+  ~250–350 lines with tests — the toggle's first customer is auto-yield and
+  auto-yield's counterweight is the toggle, so neither ships alone
   (`engineering-practices.md` §4's consumer rule, applied to a toggle). Any
   time; before the GUI; commutes with A6, and its A/B is `IDENTICAL` by
-  construction since `fuzz_games` stacks neither. (3) **Row 5**, after or
-  inside (2). (4) **Row 6** as its own oracle PR any time, its affordability
-  customer with its own A/B; **row 7** after (2) and (4), read in the A/B as
+  construction since `fuzz_games` stacks neither. (4) **Row 5**, after or
+  inside (3). (5) **Row 6** as its own oracle PR any time, its affordability
+  customer with its own A/B; **row 7** after (3) and (5), read in the A/B as
   `Decisions` falling with the engine no faster — item 138's own warning.
-  (5) **Rows 8 and 9 with critical-path item 6**, the engine's elision
+  (6) **Rows 8 and 9 with critical-path item 6**, the engine's elision
   measured first. Every PR is one middleware and none is near §4's band.
 - **Size** — the census was this sitting and one code change. The rows: 0,
-  −50, ~200, ~100–150, ~60, ~150–250, ~60, ~70, ~15.
+  −50 then the module, ~100, ~100–150, ~60, ~150–250, ~60, ~70, ~40 + ~15.
 - **Blocks** — the GUI's ergonomics (rows 3–5, 7); the harness's raw mode,
   which rule 1 defines (an undecorated provider is handed nothing the engine
   could answer); §2.18's solver, framed here as policy so nobody writes the
-  matching to solve the preference.
+  matching to solve the preference; any client's own GUI, which the rows are
+  shaped to make possible and never to prescribe.
 - **Atoms** — none, and there will be none: the corpus is derived from the CR
   and the CR has nothing to say about interfaces (§2.21 says the same).
 - **Owner** — this entry, until each row graduates to its PR; **sequenced
   ahead of full control** by the owner (2026-09-08) so that full control is
   scheduled against the whole stack rather than against the one decorator
-  that happened to need it. Row A4k in `roadmap-v2.md` §3a.
+  that happened to need it. **Reviewed by the owner on PR #169 (2026-09-18)**,
+  with four amendments folded in above: rule 2's second kind struck and the
+  payer scheduled into the engine, full control a switch above the stack, the
+  solver's preference the client's in the client's own shape and both payment
+  prompts its, the reversal two options by a clone. Row A4k in
+  `roadmap-v2.md` §3a.
 - **The 24 asks, classified for the fork model** (pass 3 of
   the post-RE audit, 2026-09-15 — the handoff's §4 consequence 2 and §6
   decision 4; the handoff is deleted, its last text `git show

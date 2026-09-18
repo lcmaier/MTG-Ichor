@@ -7,7 +7,8 @@
 // stack.** The human seat takes `AutoPayer` over `ManaWindowStop`: it has no
 // payment policy of its own, so the reduction order is answered for it and CR
 // 601.2g's window closes once the cost is covered; the generic split is the
-// engine's when it is forced and the human's otherwise (`backlog.md` §2.22). It
+// engine's when it is forced and the wrapped provider's otherwise (`backlog.md`
+// §2.22) — the human here, an agent on any other stack. It
 // still *picks* which land to tap — `ManaWindowStop` only ever declines. The
 // bot seat takes the stop alone; `RandomDecisionProvider` has its own tap
 // preference and generic split and a payer answering those would be replacing
