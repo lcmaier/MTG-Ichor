@@ -109,7 +109,7 @@ impl GameState {
         // Nothing was announced for a bare effect — CR 615.5's rider, or a
         // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
         // clause off the tree (`DeclaredInstances::Effect`). The stack's path
-        // is [`Self::resolve_announced`].
+        // is [`Self::resolve_effect_with_announced_targets`].
         let mut cursor = 0usize;
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut cursor)
     }
@@ -119,7 +119,7 @@ impl GameState {
     /// `announced` is the entry's CR 601.2c record, so an atom finds its own
     /// targets by the index the announcement filled and nothing is derived
     /// from the tree — see `DeclaredInstances`.
-    pub fn resolve_announced(
+    pub fn resolve_effect_with_announced_targets(
         &mut self,
         effect: &Effect,
         announced: &[TargetInstance],

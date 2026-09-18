@@ -65,6 +65,25 @@ asked" but "is this thing in the set". → sense 1 is
 `engine/replacement/pipeline.rs`; sense 2 is `engine/layers/board.rs::membership`
 and `layers-architecture.md` §13b decision 2.
 
+**instance** — two, and they never meet: each subsystem counts a different
+thing. **(1)** CR 115.3's *instance* of the word "target": one clause of a
+spell or ability that asks for a choice — "target creature", printed once,
+however many atoms act on what was chosen for it. It is the unit CR 601.2c
+announces, CR 608.2b re-checks, and CR 115.3's "the same object can be chosen
+once for each instance" counts. `TargetInstance` is one with its choice;
+`AbilityDef::instances` and `CardData::spell_instances` are the printed-order
+list `Effect::instances` derives once, at `CardDataBuilder::build`;
+`EffectRecipient::SameInstanceAs` refers back to one by its position in that
+list; `DeclaredInstances` is where a resolution reads them from. Neither a
+*target* (CR 115.1's word for what was chosen) nor an *atom* (an effect, which
+may act on one instance twice — Act of Treason — or once each on three —
+Seeds of Strength). Added at A4i (2026-09-17), numbered at A4n's review.
+**(2)** `ReplacementInstance`, keyed by `ReplacementInstanceId`: one
+replacement *effect*, which is the granularity CR 614.5's "affects an event
+only once" is about. Not the object that generated it and not the card. →
+sense 1 is `engine/targeting.rs` and `types/effects.rs`; sense 2 is
+`engine/replacement/instance.rs`.
+
 **shield** — three, and RD-2 is where they meet. **(1)** CR 614.1's metaphor:
 every replacement and prevention effect "act[s] like a shield" around what it
 affects. That is `ReplacementDef`, and nothing in code borrows the word for it.
@@ -230,16 +249,11 @@ narrows candidates to the ladder's first non-empty step.
 
 **def** — a *definition*: the data a card author writes and the engine
 reads — `TokenDef`, `ReplacementDef`, `RestrictionDef`, `AbilityDef`. Not
-an **instance** (a def on a board, with a source and a controller) and not
+an **instance** (sense 2: a def on a board, with a source and a controller) and not
 an object; a `TokenDef` in particular is the description a token is created
 *from*, which is why a creation's kind is asked of the def and never of an
 object (`EventPattern::CreateTokens`). → `types/effects.rs`,
 `types/replacement.rs`.
-
-**instance** — `ReplacementInstance`, keyed by `ReplacementInstanceId`: one
-replacement *effect*, which is the granularity CR 614.5's "affects an event only
-once" is about. Not the object that generated it and not the card. →
-`engine/replacement/instance.rs`.
 
 **applied set** — the `ReplacementInstanceId`s already applied to this group,
 CR 614.5's memory for one event. Declining an optional effect is tracked

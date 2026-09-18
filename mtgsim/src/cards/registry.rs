@@ -1018,7 +1018,9 @@ mod instance_references {
         }
     }
 
-    /// The stored instance lists are the walk's, for every registered card.
+    /// For every registered card, the stored lists of instances of "target"
+    /// (CR 115.3) — `AbilityDef::instances` on each def, `CardData::spell_instances`
+    /// on the card — equal what `Effect::instances` derives from the effect tree.
     ///
     /// **The gate on a derived field.** `AbilityDef::instances` and
     /// `CardData::spell_instances` are written once by `CardDataBuilder::build`
@@ -1028,7 +1030,7 @@ mod instance_references {
     /// nested — is re-derived here and compared, and the spell-level list is
     /// re-derived by the Aura rule (CR 303.4a) independently of the builder.
     #[test]
-    fn every_stored_instance_list_is_the_walks() {
+    fn every_stored_instance_list_matches_the_walk() {
         use crate::types::effects::TargetCount;
 
         fn check(what: &str, def: &crate::objects::card_data::AbilityDef) {
