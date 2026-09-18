@@ -437,6 +437,13 @@ fn every_instance_has_a_choice(
     let feed_until = instances
         .iter()
         .rposition(crate::engine::targeting::clause_reads_earlier_instances);
+    // Where the fold below may look back from. Every clause past `feed_until`
+    // is past the last one that reads an earlier instance, so `earlier_targets`
+    // is not among the things its answer depends on — which is what makes two
+    // equal clauses in this range the same question. A clause *at* `feed_until`
+    // is counted rather than enumerated too, but reads the announcement to do
+    // it, so it neither reuses an earlier answer nor offers its own.
+    let reusable_from = feed_until.map_or(0, |last| last + 1);
     let mut earlier_targets = crate::engine::targeting::ChosenTargets::NONE;
     for (ix, recipient) in instances.iter().enumerate() {
         // **Every instance pushes, in order, whether or not it is checked.**
@@ -471,8 +478,21 @@ fn every_instance_has_a_choice(
                 if feed.len() < n {
                     return false;
                 }
-            } else if !game.has_legal_choices(f, None, player_id, n, view) {
-                return false;
+            } else {
+                // **Equal clauses in that range are one question, asked once.**
+                // Seeds of Strength prints "target creature" three times, and
+                // each ask is a `validate_selection` per candidate, which is a
+                // layer query — three battlefield scans per copy in hand per
+                // priority check for an answer that cannot differ between them.
+                // The whole recipient is compared rather than the filter alone:
+                // `Exactly(1)` and `Exactly(2)` over one filter are different
+                // questions. An earlier equal clause was answered `true`,
+                // because a `false` returns below rather than reaching here.
+                let already_answered =
+                    ix >= reusable_from && instances[reusable_from..ix].contains(recipient);
+                if !already_answered && !game.has_legal_choices(f, None, player_id, n, view) {
+                    return false;
+                }
             }
         }
         earlier_targets.push(feed);
