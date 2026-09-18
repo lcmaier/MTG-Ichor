@@ -1328,7 +1328,7 @@ mechanic rather than a migration, which is why it is here and not in
   | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | re-derived at review, below |
   | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **one PR with row 3** |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
-  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250 | §2.18; two customers, below |
+  | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
   | 8 | auto-order triggers | CR 603.3b's order, once it exists | engine elision for identical triggers; policy for the rest | human under the toggle / the agent's | ~40 + ~30 engine | with critical-path item 6; classified at birth below |
   | 9 | reversal policy | CR 732.1's offer, keep or reverse all (item 72) | policy | human under the toggle / a bot policy — never silent on a human's | ~15 in row 7; the prompt ~40 in the engine | with item 6 |
@@ -1462,8 +1462,40 @@ mechanic rather than a migration, which is why it is here and not in
   for**: the window's picks, and `GenericManaAllocation` when the pool has
   surplus (41 / 88 / 136 a game), because the same preference answers both
   and the second reaches a human as typed numbers today. Rule 3 holds — one
-  owner, two prompts. Nobody writes a solver here; this is its frame. Row 6
-  may land any time as an oracle PR; row 7 after rows 3 and 6.
+  owner, two prompts.
+
+  **This is the one row with algorithmic legwork, and the tree's own
+  heuristic shows where** (the owner's question at review, 2026-09-18).
+  Every other decorator is a `matches!` and a rule; this one is a graph
+  problem, and the size above is for its plainest shape.
+  `available_mana_sources` records one `ManaSource` per (permanent, ability,
+  type) and drops the amount, so Sol Ring's {C}{C} counts as one mana, and
+  `find_mana_sources` returns `None` on any hybrid, Phyrexian or X symbol —
+  the heuristic the matching replaces is a one-unit-per-source greedy that
+  gives up on half the symbol alphabet. What the matching must carry: a
+  producer of *k* units is a vertex of capacity *k*, which makes it a flow
+  rather than a matching; a hybrid pip is a vertex with edges to two types;
+  an any-color ability (§2.19, unbuilt) is a per-activation choice that
+  reaches every pip; and a producer of "*k* mana of any one color" is *k*
+  units that must agree, which no single flow expresses — enumerate its
+  color when such a source is on the board, since there are few. **Out of
+  the solver's scope and left to the window**: filter abilities that spend
+  mana to make mana, which are a search over activation sequences rather
+  than a graph — the chains `WINDOW_ACTIVATION_CAP` exists for. The
+  preference makes it a weighted problem, and the pragmatic first cut is the
+  shape the random agent already plays in ~60 lines of
+  `mana_window_preference`: a greedy over edges in preference order with a
+  feasibility check by augmenting path after each commitment, which is O(E)
+  matchings over at most a few dozen sources. **Two things the row owes
+  before its size is trusted.** A property test that every covering set the
+  solver returns, under the split it chooses, is one `ManaPool::pay` accepts
+  — a solver that says "covered" and a payment that refuses is
+  `codebase-state.md` 16c's rewind in a new place, and owning both prompts
+  (above) is what makes the two computations one. And a re-derivation of
+  the ~150–250 against a written algorithm, since that number is the plain
+  bipartite case with chains excluded. Nobody writes a solver here; this is
+  its frame. Row 6 may land any time as an oracle PR; row 7 after rows 3
+  and 6.
 
   **Row 8, classified at birth, since the prompt does not exist.** CR 603.3b's
   ordering is asked of each trigger's controller in APNAP order as the

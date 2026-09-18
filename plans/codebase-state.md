@@ -7588,7 +7588,13 @@ the file.
      harness does not count.
 
      **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
-     time; the affordability customer moves the random agent's stream and owes
+     time — **and that number is the plain bipartite case**, the one row with
+     algorithmic legwork (§2.22, rows 6 and 7): amounts as capacities, since
+     `available_mana_sources` drops them today and `find_mana_sources`
+     refuses hybrid, so a flow rather than a matching; mana-spending filter
+     chains out of scope and left to the window; a property test that every
+     covering set is one `ManaPool::pay` accepts (16c's class); re-derive
+     against a written algorithm before scheduling. The affordability customer moves the random agent's stream and owes
      an A/B with `differ` predicted on both pools, and a rewind counter first
      since `fuzz_games` prints none; the decorator ~60 lines after item 161,
      human under the toggle, a harness flag off by default, read in its A/B as
