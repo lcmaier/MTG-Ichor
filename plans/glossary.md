@@ -441,6 +441,19 @@ somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
 of this project's refactors are re-spellings: the behaviour is already right
 and the change is where a reader would look for it.
 
+**elision** — the engine declining to ask a prompt whose every legal answer
+leaves the same game, with the conditions under which that stops being true
+written beside it. The project's word, from `cost-architecture.md` §3.4 and
+`codebase-state.md` item 47 — `pipeline::ordering_cannot_change_outcome`
+skips CR 616.1's prompt when no order can change the outcome — and not
+Rust's, where it names the compiler filling in omitted lifetimes. Two things
+it is not: a *forced* prompt, which has one legal answer and which `ui::ask`
+declines under the same rule (A4e); and a decorator *answering* such a
+prompt, which is a second home for one fact (`backlog.md` §2.22, rule 1).
+An elision always carries its expiry conditions, because the theorem that
+licenses it is about the symbols the engine pays or the fields a filter
+reads today, and the phase that widens either owes the prompt back.
+
 **quadrant** — one of the four buckets CR 702's 189 keyword abilities fall
 into, on two axes: does the engine **branch** on the keyword or **execute** it,
 and does it take a **parameter**? The map decides what a keyword *is* in this
