@@ -49,7 +49,10 @@ fn cast_and_resolve_targeted_perm_spell(
     // is forced (CR 102.2) and no prompt is made.
     if let Some(alloc) = generic_allocation {
         decisions.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: mtgsim::types::mana::ManaCost::zero() },
+            ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: mtgsim::types::ids::ObjectId::UNASSIGNED,
+                mana_cost: mtgsim::types::mana::ManaCost::zero(),
+            },
             alloc,
         );
     }

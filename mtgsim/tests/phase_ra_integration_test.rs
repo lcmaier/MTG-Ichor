@@ -355,7 +355,10 @@ fn test_the_generic_split_cannot_be_put_on_a_color_its_pip_needs() {
 
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_allocation(
-        ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+        ChoiceKind::GenericManaAllocation {
+            spell_or_ability_id: ObjectId::UNASSIGNED,
+            mana_cost: ManaCost::zero(),
+        },
         // [Blue, Red, Green]: bucket 2 is the Green, and the {G} pip has it
         vec![0, 0, 1],
     );

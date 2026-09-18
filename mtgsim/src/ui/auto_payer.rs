@@ -173,7 +173,10 @@ mod tests {
 
     fn split_ctx() -> ChoiceContext {
         ChoiceContext {
-            kind: ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::build(&[], 2) },
+            kind: ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
+                mana_cost: ManaCost::build(&[], 2),
+            },
         }
     }
 
@@ -217,7 +220,10 @@ mod tests {
         let game = setup_two_player_game();
         let inner = ScriptedDecisionProvider::new();
         inner.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
+                mana_cost: ManaCost::zero(),
+            },
             vec![0, 2],
         );
         let dp = AutoPayer::new(inner);
@@ -231,7 +237,10 @@ mod tests {
         let game = setup_two_player_game();
         let inner = ScriptedDecisionProvider::new();
         inner.expect_allocation(
-            ChoiceKind::GenericManaAllocation { mana_cost: ManaCost::zero() },
+            ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
+                mana_cost: ManaCost::zero(),
+            },
             vec![1, 1],
         );
         let dp = AutoPayer::new(inner);

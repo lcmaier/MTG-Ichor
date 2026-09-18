@@ -1031,7 +1031,59 @@ mechanic rather than a migration, which is why it is here and not in
 
 ---
 
-### 2.21 Can a client render what it is being asked? — the decision boundary's other half
+### 2.21 Can a client render what it is being asked? — **shipped 2026-09-18 (A4j)**
+
+- **What shipped.** `ChoiceKind::subject() -> Option<ObjectId>`, matched
+  without a wildcard, so a new variant cannot compile without deciding which
+  object it is about. `tests/prompt_subject_test.rs` walks whole games at two
+  seats and four, each deck a different window of the registry, and checks
+  that every prompt raised carries a subject or is a declared `None`; a
+  second test builds one of each variant for the prompts no registered card
+  raises. `ui/cli.rs` renders its own strings behind one exhaustive
+  `prompt_line` with no `_ =>` arm, so a new variant must get a line there
+  too.
+- **Built and taken out in review (the owner, 2026-09-18).** A
+  `describe() -> PromptText { rule: &'static str, text: String }` on the
+  engine, per item 141's "the engine owns the text". Two objections, both
+  right: a rule citation riding on a decision is superfluous, since the
+  variant is already the stable handle and the number belongs in its doc;
+  and the strings are not the context — the context is the variant, its
+  typed fields, the options and the bounds, which serialized *is* the
+  literal-named enum a client keys on. Only a text client would ever consume
+  engine English; a GUI will not display it and an agent will not parse it.
+  The rendering went back to the CLI, and item 141's shape is amended: what
+  a boundary adapter sends is the variant, the subject id, the option ids
+  and the bounds, and each client renders.
+- **The gap, counted against the tree.** 18 of 25 variants carried an
+  `ObjectId` under five field names, which is why the contract is a method
+  and not a name. Three carried none and gained it: `ChooseAlternativeCost`
+  and `ChooseAdditionalCosts` were bare unit variants, so a client could not
+  tell which spell was asking, and `GenericManaAllocation` carried a
+  `ManaCost` and no id. **`LegendRule` was counted as the fourth and is not
+  one.** CR 704.5j singles out no member of the group; the options are the
+  whole subject, and a highlighted member would misstate the rule — it is
+  the fourth legitimate `None` beside `PriorityAction`, `DeclareAttackers`
+  and `DeclareBlockers`. Two more are runtime rather than shape:
+  `Discard { source: None }` is CR 514.1's cleanup discard, which the test
+  allows in that step only, and `ChooseReplacementEffect { affected_object:
+  None }` is an event about the choosing player. `Option<ObjectId>` held;
+  nothing argued for a richer `PromptSubject`.
+- **Found on the way.** `ChooseCopySource`'s doc cited CR 707.4, which in
+  the baseline is a copying permanent changing what it copies; Cytoshape's
+  choice is CR 608.2d's, announced while applying the effect. The doc says
+  so now. The check that found it read `MTG-Rules/`, which is gitignored,
+  so it failed CI; it went with `describe()`.
+- **Not started here, on purpose.** `SelectRecipients` still carries an
+  `EffectRecipient`; item 141's payload rule is the incoming contract for
+  new arms, and retiring the AST there is its own piece.
+- **The check.** Every gameplay counter `IDENTICAL` on both pools at two
+  seats and four, `Memo hits` included — the row adds one method and fills
+  three payloads, and decides nothing.
+- **The rest of this entry is the record as it was sized.** One name in it
+  had gone stale by the time the row ran and is corrected in place:
+  `DiscardToHandSize` is `Discard { source: None }`.
+
+#### 2.21 as sized (2026-09-08)
 
 - **Rules** — none. This is an engine-interface question, not a CR one, which
   is why it needs writing down: nothing in the CR will fail if we get it wrong.
@@ -1057,7 +1109,7 @@ mechanic rather than a migration, which is why it is here and not in
   every `ChoiceKind` answers, matched exhaustively so a new variant must
   decide, plus a test that walks a game and asserts every prompt raised carries
   one. The variants that legitimately have no subject — `PriorityAction`,
-  `DiscardToHandSize` — say `None` and say why, which is the same discipline
+  `Discard { source: None }` — say `None` and say why, which is the same discipline
   `ZoneChangeCause`'s no-catchall rule uses. ~1 small PR.
 - **Blocks** — the GUI half of v1, quietly. Not a rules bug and not something
   the fuzz harness can find, because `RandomDecisionProvider` picks by index
@@ -1664,6 +1716,61 @@ or the pool, and there should be.
 | **Blocks** | nothing today — zero cards. The first card with a non-targeting choice, and the Black Gate class that carries both timings in one ability. **And A6**: CR 603.3d hands `announce_targets` its clauses, so a triggered ability with a "choose" clause inherits whatever this decides. Pool scale (Scryfall, `game:paper`, 2026-09-18): `o:"choose a player"` 17, `o:"choose a creature type"` 91, `o:"as you cast this spell"` 37 |
 | **Atoms** | none filed under `Backlog`. CR 601.2b's seven atoms are cost and mode announcement and `ATOM-608.2c-001` is instruction order, so the question this entry asks has no atom — the survey's first output is whether it needs one |
 | **Owner** | — |
+### 2.34 A search over a cloned `GameState` sees its next draw — determinization, and what §2.9 does not do
+
+**The surface that cannot express it.** Phase 10's AI harness is search: clone
+the game at a priority prompt, try a line, resume, compare. The fork exists —
+`Game::resume_turn_at_priority`, `tests/priority_fork_test.rs`,
+`codebase-state.md` items 41 and 140 — and it clones everything: every library
+in its shuffled order, every hand, every face-down card. A search that reads
+the clone knows what it will draw next turn and what its opponents are
+holding, and a look-ahead that simulates to its next draw is not looking
+ahead, it is looking at the answer.
+
+**§2.9 cannot prevent it, as planned.** §2.9 is a *query* — "may player N see
+this object?" — consumed by a renderer or an observation builder that asks
+before showing. A search does not ask; it holds the state. Item 41 says the
+re-randomization is "§2.9's per-viewer question", and that is half of it: the
+query decides *which* cards are unknown, but nothing in §2.9 builds a state in
+which they are. That is a second facility — determinization, in the
+information-set-search sense: before each branch, rebuild the clone from the
+searcher's information set — shuffle the unknown portion of every library,
+redeal each opponent's unknown hand cards from that opponent's unknown library
+cards, leave every card the searcher knows where it is — and search over
+several such samples rather than the true state. Both halves are needed. With
+the query and no redeal the search is omniscient; with a redeal and no query
+the redeal cannot tell a scried top card from an unknown one.
+
+**Knowledge is more than zone visibility.** CR 400.2's public/hidden split is
+per zone; what a player *knows* is per card and per player: the top card after
+a scry (CR 701.22a), a card revealed (CR 701.20), a card looked at, an
+opponent's hand seen through a discard spell, a face-down permanent's identity
+known to its controller alone. The redeal must keep every known card in place
+and the query must answer "known", not "in a public zone". So the information
+model needs a per-viewer *knowledge* record that events write — a reveal, a
+look, a scry — rather than a predicate over zones alone; §2.9's "reveal versus
+look at" line is this in one sentence.
+
+**And the opponents' providers in a rollout.** A branch plays the other seats
+too, with some provider. Handed the true clone, the opponent model plays with
+the searcher's knowledge of the searcher's hand; handed the determinized
+clone, it plays with the searcher's uncertainty about its own hand, which is
+also wrong — an opponent knows what it holds. The honest shape is one
+determinized state per branch, every seat's hidden information sampled from
+the searcher's point of view, and the searcher accepting an imperfect
+opponent model; per-seat redeals inside one rollout are not a single game and
+the engine should refuse to represent them. Recorded so that Phase 10 does not
+discover this one training run at a time.
+
+| Field | |
+|---|---|
+| **Rules** | CR 400.2 (public and hidden zones), 401.2 (a library's order is hidden), 402.3 (a player can't look at another's hand), 103.3 (the shuffle), 701.20 (reveal), 701.22a (scry: looked at). No rule stops an engine from reading its own state; the obligation is the harness's |
+| **Verdict** | `GameState::clone` is the fork and is complete by design (item 41's premise). No facility rebuilds a clone from one player's information set, and nothing records what a player knows beyond `PermanentState.face_down` (§2.9's verdict) |
+| **Size** | medium, after §2.9: a per-viewer knowledge record written by the reveal, look and scry paths; a redeal from a viewer that shuffles each library's unknown portion and swaps unknown hand cards with unknown library cards, drawing on `GameState.rng` so a determinized branch is itself seeded and replayable; and a test that a searcher over many samples predicts its next draw no better than chance |
+| **Blocks** | Phase 10's search harness — any look-ahead past what the searcher knows, and any training signal from self-play, which otherwise learns to play against known draws. Nothing on the spine |
+| **Atoms** | none; the CR does not speak to a harness's honesty, and none should be written |
+| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.

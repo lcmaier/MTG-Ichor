@@ -101,7 +101,7 @@ impl GameState {
 
         // --- 601.2b: Choose alternative cost, additional costs, X value ---
         let chosen_alt_cost_idx = if !card_data.alternative_costs.is_empty() {
-            ask_choose_alternative_cost(decisions, self, player_id, &card_data.alternative_costs)
+            ask_choose_alternative_cost(decisions, self, player_id, card_id, &card_data.alternative_costs)
         } else {
             None
         };
@@ -132,7 +132,7 @@ impl GameState {
                 .iter()
                 .map(|&i| card_data.additional_costs[i].clone())
                 .collect();
-            ask_choose_additional_costs(decisions, self, player_id, &offered)
+            ask_choose_additional_costs(decisions, self, player_id, card_id, &offered)
         } else {
             Vec::new()
         };
@@ -1074,7 +1074,7 @@ mod tests {
 
         let decisions = ScriptedDecisionProvider::new();
         // Options: [NormalCost, AlternativeCost(Custom(...))] — index 1 = first alt cost
-        decisions.expect_pick_n(ChoiceKind::ChooseAlternativeCost, vec![1]);
+        decisions.expect_pick_n(ChoiceKind::ChooseAlternativeCost { spell_id: card_id }, vec![1]);
 
         game.cast_spell(0, card_id, &decisions).unwrap();
 
@@ -1112,7 +1112,7 @@ mod tests {
 
         let decisions = ScriptedDecisionProvider::new();
         // Options: [AdditionalCost::Kicker(...)] — index 0 = first (only) additional cost
-        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts, vec![0]);
+        decisions.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: card_id }, vec![0]);
         // No split to script: one type in the pool can take the generic mana,
         // so CR 102.2 makes the answer forced and `ask_choose_generic_mana_
         // allocation` gives it without a prompt (`ui::ask::forced_allocation`).

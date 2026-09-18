@@ -511,6 +511,7 @@ pub fn ask_choose_alternative_cost(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
+    spell_id: ObjectId,
     available: &[AlternativeCost],
 ) -> Option<usize> {
     if available.is_empty() {
@@ -522,7 +523,7 @@ pub fn ask_choose_alternative_cost(
         options.push(ChoiceOption::AlternativeCost(cost.clone()));
     }
     let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAlternativeCost,
+        kind: ChoiceKind::ChooseAlternativeCost { spell_id },
     };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, options.len(), (1, 1), "choose_alternative_cost", &game.diagnostics);
@@ -540,6 +541,7 @@ pub fn ask_choose_additional_costs(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
+    spell_id: ObjectId,
     available: &[AdditionalCost],
 ) -> Vec<usize> {
     if available.is_empty() {
@@ -550,7 +552,7 @@ pub fn ask_choose_additional_costs(
         .map(|cost| ChoiceOption::AdditionalCost(cost.clone()))
         .collect();
     let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseAdditionalCosts,
+        kind: ChoiceKind::ChooseAdditionalCosts { spell_id },
     };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, available.len()));
     validate_pick_n(
@@ -722,6 +724,7 @@ pub fn ask_choose_generic_mana_allocation(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
+    spell_or_ability_id: ObjectId,
     mana_cost: &ManaCost,
     available_types: &[(ManaType, u64)],
     generic_count: u64,
@@ -735,6 +738,7 @@ pub fn ask_choose_generic_mana_allocation(
         .collect();
     let ctx = ChoiceContext {
         kind: ChoiceKind::GenericManaAllocation {
+            spell_or_ability_id,
             mana_cost: mana_cost.clone(),
         },
     };
@@ -1368,7 +1372,7 @@ mod tests {
         // Buckets are `ManaType`-ordered: Blue, Red, Green. Bucket 2 is the Green.
         let available = [(ManaType::Blue, 1), (ManaType::Red, 1), (ManaType::Green, 1)];
 
-        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, ObjectId::UNASSIGNED, &cost, &available, 1);
 
         assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
@@ -1385,7 +1389,7 @@ mod tests {
         // The surplus Green is the only bucket with room, so this is the forced
         // answer rather than a scripted one.
 
-        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, ObjectId::UNASSIGNED, &cost, &available, 1);
 
         assert_eq!(alloc, HashMap::from([(ManaType::Green, 1)]));
     }
@@ -1406,7 +1410,7 @@ mod tests {
         // Red, then Colorless. Bucket 1 is the Colorless, and the {C} pip has it.
         let available = [(ManaType::Red, 1), (ManaType::Colorless, 1)];
 
-        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+        let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, ObjectId::UNASSIGNED, &cost, &available, 1);
 
         assert_eq!(alloc, HashMap::from([(ManaType::Red, 1)]));
     }
@@ -1434,7 +1438,7 @@ mod tests {
         ]);
         for seed in 0..50u64 {
             let dp = RandomDecisionProvider::seeded(seed);
-            let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, &cost, &available, 1);
+            let alloc = ask_choose_generic_mana_allocation(&dp, &game, 0, ObjectId::UNASSIGNED, &cost, &available, 1);
             assert_eq!(alloc.values().sum::<u64>(), 1, "seed {seed}");
             for (mana_type, amount) in &alloc {
                 assert!(amount <= &surplus[mana_type], "seed {seed}: {mana_type:?} over surplus");

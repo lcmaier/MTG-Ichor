@@ -269,7 +269,7 @@ impl GameState {
                 .collect();
             available.sort_by_key(|(mt, _)| *mt as u8);
             ask_choose_generic_mana_allocation(
-                ctx.dp, self, player_id, &mana_cost, &available,
+                ctx.dp, self, player_id, source_id, &mana_cost, &available,
                 mana_cost.generic_count() as u64,
             )
         };
@@ -533,14 +533,17 @@ mod tests {
         // the choice is the plan's, not the payment's.
         let cost = ManaCost::build(&[ManaType::Green], 1);
         let dp = crate::ui::decision::ScriptedDecisionProvider::new();
+        let source = crate::types::ids::new_object_id();
         dp.expect_allocation(
-            crate::ui::choice_types::ChoiceKind::GenericManaAllocation { mana_cost: cost.clone() },
+            crate::ui::choice_types::ChoiceKind::GenericManaAllocation {
+                spell_or_ability_id: source,
+                mana_cost: cost.clone(),
+            },
             // Buckets are the pool's types sorted by discriminant — Red, then
             // Green — so this spends the Red on the generic.
             vec![1, 0],
         );
         let ctx = crate::engine::actions::ActionContext::new(&dp);
-        let source = crate::types::ids::new_object_id();
         let costs = [Cost::Mana(cost)];
         let plan = game.plan_payment(&costs, 0, source, &ctx).unwrap();
         game.pay_costs(&plan, 0, source, &ctx).unwrap();

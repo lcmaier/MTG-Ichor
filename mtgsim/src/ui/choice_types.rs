@@ -5,6 +5,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, EffectRecipient};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
+use crate::types::zones::Zone;
 
 use super::decision::PriorityAction;
 
@@ -14,7 +15,18 @@ use super::decision::PriorityAction;
 /// type is introduced — no trait methods or impl changes.
 ///
 /// Exhaustive matching is intentional: single-crate project, compiler flags
-/// every match site when a variant is added.
+/// every match site when a variant is added. **One of those sites is the
+/// variant's own contract**: [`Self::subject`] matches without a wildcard, so
+/// a new variant decides at birth which object it is about (`backlog.md`
+/// §2.21). What it *shows* is each client's own — `ui/cli.rs`'s `prompt_line`
+/// is exhaustive for the same reason — and never the engine's.
+///
+/// **A payload names things by id and in the CR's vocabulary, never by an
+/// engine AST** — `codebase-state.md` item 141. What a client needs is what
+/// the engine already computed: the options are the legality, the subject is
+/// which object is asking, and the variant with its fields is the question.
+/// `SelectRecipients`' `EffectRecipient` predates the rule and is its own
+/// piece of work.
 ///
 /// Only variants that correspond to currently-implemented engine decisions
 /// are included. New variants are added as the engine grows — the exhaustive
@@ -32,12 +44,23 @@ pub enum ChoiceKind {
 
     // --- Casting Pipeline (601.2) ---
     ChooseXValue { spell_id: ObjectId, x_count: u64 },
-    ChooseAlternativeCost,
-    ChooseAdditionalCosts,
+    /// CR 601.2b / 118.9 — whether to cast `spell_id` for its mana cost or
+    /// for one of its alternative costs. The options are `NormalCost` first,
+    /// then the alternatives in printed order.
+    ChooseAlternativeCost { spell_id: ObjectId },
+    /// CR 601.2b / 118.8 — which of `spell_id`'s *optional* additional costs
+    /// (kicker) the player intends to pay, any number of them; a mandatory
+    /// one is in the total and is not offered. Printed order.
+    ChooseAdditionalCosts { spell_id: ObjectId },
     /// Select recipients for an effect (covers both MTG "target" and non-targeting
     /// "choose" — the `EffectRecipient` field distinguishes them).
     SelectRecipients { recipient: EffectRecipient, spell_id: ObjectId },
-    GenericManaAllocation { mana_cost: ManaCost },
+    /// CR 601.2h — how the generic part of `mana_cost` is split across the
+    /// types in the payer's pool, each pip's own type reserved first. The
+    /// buckets are the pool's types; asked only when the split is not forced
+    /// (`ui::ask::forced_allocation`). `spell_or_ability_id` is what is being
+    /// paid for.
+    GenericManaAllocation { spell_or_ability_id: ObjectId, mana_cost: ManaCost },
     /// CR 601.2f — "if multiple cost reductions apply, the player may apply
     /// them in any order." Asked only with two or more; the options are the
     /// reductions' *sources*, in battlefield timestamp order, and the answer
@@ -175,12 +198,12 @@ pub enum ChoiceKind {
     ChooseAuxiliaryZoneChange {
         entering: ObjectId,
         source: ObjectId,
-        to: crate::types::zones::Zone,
+        to: Zone,
     },
 
     // --- Copy effects (CR 707) ---
-    /// CR 707.4 — a resolving copy effect must **choose** the permanent whose
-    /// copiable values it captures. Cytoshape's "Choose a nonlegendary creature
+    /// CR 608.2d — a resolving copy effect must **choose** the permanent whose
+    /// copiable values (CR 707.2) it captures. Cytoshape's "Choose a nonlegendary creature
     /// on the battlefield". The options are permanents.
     ///
     /// **Not `SelectRecipients`.** There the chosen object is what the effect
@@ -236,12 +259,79 @@ pub enum ChoiceKind {
     ScryOrder { source: Option<ObjectId>, bottom: bool },
 
     // --- State-Based & Cleanup ---
+    /// CR 704.5j — which of two or more legendary permanents named
+    /// `legend_name` under one controller stays; the rest go to their owners'
+    /// graveyards. The options are those permanents, in battlefield order,
+    /// **and they are the whole subject**: the rule singles out none of them,
+    /// so [`Self::subject`] is `None` rather than one member the rule does not
+    /// name. The name is the group's key, which is why it is here.
     LegendRule { legend_name: String },
 }
 
-/// Wrapper carrying the semantic kind. No display text — each DP impl formats
-/// its own prompts by matching on `kind`. This keeps choice types pure (no
-/// presentation leakage into the engine boundary).
+impl ChoiceKind {
+    /// The object this question is about — the spell or ability asking, or
+    /// the permanent it concerns — when there is exactly one.
+    ///
+    /// **This method is the contract, not a field name.** The variants carry
+    /// it as `spell_id`, `spell_or_ability_id`, `source`, `object`,
+    /// `commander`, `attacker_id` or `affected_object`, and a client that
+    /// looked for one of those names would miss the rest.
+    ///
+    /// `None` is a decision, never a default, and each says why:
+    /// - `PriorityAction`, `DeclareAttackers`, `DeclareBlockers` — the turn
+    ///   asks (CR 117.1, 508.1a, 509.1a); no object does.
+    /// - `LegendRule` — CR 704.5j names no member of the group; the options
+    ///   are the subject.
+    /// - `Discard { source: None }` — CR 514.1's turn-based discard; one a
+    ///   spell or ability causes carries it.
+    /// - `ChooseReplacementEffect { affected_object: None }` — the event is
+    ///   about the choosing player, not an object.
+    /// - `Scry`/`ScryOrder { source: None }` — only a test builds one; every
+    ///   scry a game asks comes from a resolving spell or ability.
+    ///
+    /// Where a prompt carries both an effect's source and the object it
+    /// affects, the source is the subject: "why am I being asked" is answered
+    /// by the effect offering itself (`ApplyOptionalReplacement`,
+    /// `ChooseAuxiliaryZoneChange`).
+    pub fn subject(&self) -> Option<ObjectId> {
+        match self {
+            ChoiceKind::PriorityAction => None,
+            ChoiceKind::DeclareAttackers => None,
+            ChoiceKind::DeclareBlockers => None,
+            ChoiceKind::AssignCombatDamage { attacker_id } => Some(*attacker_id),
+            ChoiceKind::AssignTrampleDamage { attacker_id, .. } => Some(*attacker_id),
+            ChoiceKind::ChooseXValue { spell_id, .. } => Some(*spell_id),
+            ChoiceKind::ChooseAlternativeCost { spell_id } => Some(*spell_id),
+            ChoiceKind::ChooseAdditionalCosts { spell_id } => Some(*spell_id),
+            ChoiceKind::SelectRecipients { spell_id, .. } => Some(*spell_id),
+            ChoiceKind::GenericManaAllocation { spell_or_ability_id, .. } => {
+                Some(*spell_or_ability_id)
+            }
+            ChoiceKind::OrderCostReductions { spell_id } => Some(*spell_id),
+            ChoiceKind::ManaAbilityWindow { spell_or_ability_id, .. } => Some(*spell_or_ability_id),
+            ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, .. } => {
+                Some(*spell_or_ability_id)
+            }
+            ChoiceKind::ChooseReplacementEffect { affected_object } => *affected_object,
+            ChoiceKind::ApplyOptionalReplacement { source, .. } => Some(*source),
+            ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
+            ChoiceKind::ChooseDamageSource { source } => Some(*source),
+            ChoiceKind::ChooseEnteringController { object } => Some(*object),
+            ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
+            ChoiceKind::ChooseCopySource { spell_id } => Some(*spell_id),
+            ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
+            ChoiceKind::Discard { source } => *source,
+            ChoiceKind::Scry { source, .. } => *source,
+            ChoiceKind::ScryOrder { source, .. } => *source,
+            ChoiceKind::LegendRule { .. } => None,
+        }
+    }
+
+}
+
+/// Wrapper carrying the semantic kind. No display text — each provider
+/// renders its own prompts by matching on `kind`, exhaustively (`ui/cli.rs`'s
+/// `prompt_line`), which keeps presentation out of the engine boundary.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
     pub kind: ChoiceKind,
