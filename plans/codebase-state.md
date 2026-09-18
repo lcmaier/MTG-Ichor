@@ -2808,6 +2808,13 @@ games; with Humility forced beside her, both are on the board in 52%.
     question is where the surviving Scrap Trawler trigger lands; shipping the
     prompt before that is shipping it against a board the engine cannot
     finish.
+    **Answered by a middleware? Decided 2026-09-18 (A4k, `backlog.md` §2.22
+    row 9): only under the same toggle as auto-yield.** On a human's seat it
+    is a prompt-skipping automation — reverse what the solver tapped, keep
+    what the hand tapped — inside the tap solver's decorator (main item 162);
+    on a bot's seat a plain policy, `fuzz_games` keeping the taps as today's
+    stream does; never silently on a human's. The placement here does not
+    move.
     **The invariant it must keep:** a taken reversal undoes the ability's
     cost and its mana together — one without the other is infinite colorless
     mana from Ironworks and Mind Stone alone (`cost-architecture.md` §3.11).
@@ -3272,7 +3279,14 @@ offer, which is item 70. If it ever matters, its owner is item 77.
     not wrong code. They belong to combat and a combat phase should decide
     whether a DP still wants a default damage assignment offered to it.
 
-    **Sized:** two deletions or two callers, ~20 lines either way.
+    **Sized:** ~~two deletions or two callers, ~20 lines either way~~ —
+    **decided 2026-09-18 (A4k): two callers.** The helpers are the body of
+    `backlog.md` §2.22 row 5, a `CombatDefaults<D>` decorator answering the
+    two division prompts for a human under the full-control toggle, ~60 lines
+    after main item 161. Before they become a body they owe one CR read: the
+    trample helper's deathtouch branch treats a blocker with damage already
+    marked as needing nothing, and CR 702.2c says any *nonzero* amount is
+    lethal, so such a blocker still needs one.
 
     **And the design question the deletions answered**, recorded because it
     will be asked again when the enumeration cost is noticed: reviving
@@ -7026,8 +7040,11 @@ owner decided it the same day.
      reached from a game. It keeps `OrderCostReductions`, and it keeps the
      thing §3.4 built it for: never taking a split while the pool has surplus,
      which is what leaves `{U}{U}` up for Counterspell. Whether the dead branch
-     retires is the census's — `backlog.md` §2.22, which owns the middleware
-     stack; `cost-architecture.md` §3.4 carries a note and no more. The line
+     retired was the census's — **retired 2026-09-18 (A4k, `backlog.md` §2.22
+     row 2)**: the branch, `split_is_forced` and the bucket walk are gone with
+     six tests, one test in (a forced split reaches the wrapped provider), and
+     `AutoPayer` answers `OrderCostReductions` alone; `cost-architecture.md`
+     §3.4's note records it. The line
      worth keeping: **a prompt with one legal answer belongs to the engine, not
      to a middleware** — a decorator can only spare a round trip the engine had
      already decided to spend.
@@ -7487,6 +7504,113 @@ place.
      **Reachability (2026-09-18):** closed — landed; the stream moved at four
      seats on both pools and at neither pool at two, and every diverging game
      is one where the offer list changed.
+
+### Found by A4k — the middleware census (2026-09-18)
+
+**The census is `backlog.md` §2.22**, rewritten this day: three rules, nine
+rows sized and sequenced, five things named as not rows. What is recorded here
+is the debt — one line per middleware the census names and defers, so the
+target system's prerequisites are where this section's readers look for them.
+Items 72 (CR 732.1's reversal), 84 (the two combat helpers) and 145 (the
+payer's dead branch) are updated in place; the one code change, the payer's
+forced branch retired, is recorded on item 145. One thing the census read on
+the way and did not fix, because the ticket touched no engine file but the
+payer: `ui/ask.rs`'s module doc, `forced_allocation`'s doc and item 145 cite
+"CR 102.2" for "a forced choice is not made", and in `tmnt.txt` 102.2 is the
+two-player-opponent rule — the CR states the general form nowhere, and the
+anchors the tree actually rests on are CR 616.1's "two or more" and 601.2f's
+"if multiple". A comment fix, next time a hand is in the file.
+
+161. **Full control and auto-yield — sized, sequenced, not built.** The
+     toggle is a `FullControl` handle every `ui::` decorator checks and
+     passes through when it is off, plus a `CliDecisionProvider` command
+     intercepted before an index is parsed; auto-yield is `AutoYield<D>`,
+     answering `PriorityAction` with `Pass` while one of three yield
+     conditions holds, read off the `&GameState` every prompt carries.
+     **Neither ships without the other** (§2.22 rows 3 and 4): auto-yield
+     makes the tell — a fast-forwarded turn says the player holds nothing at
+     instant speed — and the toggle is what puts the prompts back. Human seats
+     only; a bot's non-forced pass is its agent's decision. The yield command
+     must ride in the recorded input stream or a CLI game stops replaying.
+
+     **Reachability (2026-09-18):** unreachable — a facility that does not
+     exist; nothing wrong today, since nothing auto-passes.
+
+     **Sized:** one PR, ~350–450 lines with tests — the toggle ~200 plus ~90
+     (2026-09-08's sizing, re-derived and holding), auto-yield ~100–150. A/B
+     `IDENTICAL` by construction: `fuzz_games` stacks neither. Any time,
+     before the GUI; §2.22's sequence step 2.
+
+162. **The tap solver's two halves — the matching and its two customers.**
+     §2.18's oracle half is a bipartite matching from the pips
+     `remaining_cost_after_pool` still owes to the mana abilities
+     `available_mana_sources` offers, in `oracle/`; the decorator picks in CR
+     601.2g's window while the component is uncovered, disjoint from
+     `ManaWindowStop`'s predicate. The second customer is
+     `castable_spells`' affordability, a heuristic overapproximation today
+     (`find_mana_sources`), whose over-offers are the CR 732.1 rewinds A4h made
+     the retry loop state-dependent for (item 139) and the enumeration lever 4
+     prices at 19.2% (item 138). **The Arena problem is the preference, not
+     the matching**: which covering set is an order over sources the client
+     supplies, defaulting to the random agent's least-flexible-first policy.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost. 194 window
+     prompts a game at four seats, 60% of inner prompts, and the rewinds the
+     harness does not count.
+
+     **Sized:** the matching ~150–250 lines with tests, its own oracle PR any
+     time; the affordability customer moves the random agent's stream and owes
+     an A/B with `differ` predicted on both pools, and a rewind counter first
+     since `fuzz_games` prints none; the decorator ~60 lines after item 161,
+     human under the toggle, a harness flag off by default, read in its A/B as
+     `Decisions` falling with the engine no faster. §2.22 rows 6 and 7.
+
+163. **CR 603.3b's ordering prompt, classified before it exists — and the
+     reversal's answer placed with it.** In §2.22's fork-model table the
+     ordering is a **C** row and part of the residual: asked of each trigger's
+     controller in APNAP order, mid-step, of a seat that did not act. Two
+     halves. The engine's, by §2.22's rule 1: two triggers that are copies of
+     one ability under one controller with no targets give the same game in
+     either order, so the engine declines to ask — measured first, then elided
+     with expiry conditions, item 47's precedent for CR 616.1's prompt. The
+     decorator's, for the rest: timestamp order for a human under the toggle,
+     the agent's own for a bot. **Item 72's reversal (CR 732.1), decided
+     2026-09-18:** a decorator may answer it only under the same toggle as
+     auto-yield — reverse what the solver tapped and keep what the hand
+     tapped, on a human's seat; a plain policy on a bot's (`fuzz_games`: keep,
+     today's stream); never silently on a human's. It lives inside item 162's
+     decorator, since the taps a solver made are the ones it should unmake.
+
+     **Reachability (2026-09-18):** unreachable — neither prompt exists; the
+     dispatcher stub places nothing ("Before Triggered abilities" item 1).
+
+     **Sized:** the elision ~30 lines and a probe, the decorator ~40, the
+     reversal arm ~15; all inside critical-path item 6's doc and PRs, which
+     inherit the classification rather than deriving it. §2.22 rows 8 and 9.
+
+164. **The `[Pass]`-only priority prompt is still asked of the provider.**
+     `candidate_priority_actions` always offers `Pass`, and 91.5% of priority
+     prompts at four seats offer nothing else (item 138) — over two thousand
+     round trips a game for an answer the engine has, item 145's class exactly:
+     a prompt with one legal answer belongs to the engine (§2.22's rule 1),
+     and out of process it is CPU and a round trip spent against the ratchet's
+     numerator without a decision to count. Not middleware: a decorator can
+     only spare a round trip the engine had already decided to spend.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost. Every game,
+     every seat.
+
+     **Sized:** ~10 lines at `run_priority_round`, taking `Pass` without
+     asking when the list is `[Pass]` alone. No counter moves —
+     `Priority decisions` already excludes the one-option prompt — and the
+     random agent's stream does not either, since a one-option `pick_n` draws
+     nothing (item 145, lever 10); so the A/B prediction is `IDENTICAL` and
+     the whole cost is the fixture migration: **148 scripted
+     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
+     in `src` unit tests**, an upper bound because some answer a longer list.
+     Size the migration by running it before scheduling; if most of the 148
+     are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
+     was not, and cheap.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).

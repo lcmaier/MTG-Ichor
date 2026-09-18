@@ -4,6 +4,7 @@
 > Status: Design sketch — not scheduled for implementation
 > Context: Arose during SPECIAL-1c (engine call site migration) when discovering that `ask_*` functions require option enumeration that the engine doesn't currently perform.
 > Related: `decision-provider-refactor.md` (parent design), SPECIAL-1c (current ticket)
+> Superseded in part (2026-09-18): §4's middleware pattern and §6's wrapper questions are re-derived against the two built decorators by `backlog.md` §2.22, the census — read that first; §2 and §3 here are still current.
 
 ---
 
