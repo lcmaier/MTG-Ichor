@@ -1858,3 +1858,78 @@ the entry as it stood when the work was sized.*
      that half. The measurement the fix is read against is
      `tests/priority_fork_test.rs`' 192-game sweep and the A4h block of
      `fuzz-record.md`.
+
+### Item 159 — closed 2026-09-18 by A4o (PR #163)
+
+**What closed it.** The fix the item sized, at the three sites it named, with
+the predicate in one place rather than three: `GameState::is_spell_on_stack`,
+which the `Spell` arms now ask and the CR 609.7a `DamageSource` arms ask
+instead of their three inline copies. That is the item's open decision
+answered the smaller way — six copies of one question would have been the
+shape that cost main item 8 a redesign — and it leaves the complement
+("counter target activated or triggered ability", `Primitive::CounterAbility`
+with no filter to reach it) as a negation of one function.
+
+**The predicate is the entry, not the stack.** An ability on the stack is a
+`GameObject` like any other (CR 113.7a) and nothing about the object says
+which it is; `StackEntry::is_spell` does, and it is the field the resolution
+and the fizzle already branch on. The one object the new predicate declines is
+the spell *currently resolving*, whose entry `resolve_top_of_stack` has
+already taken — the same object the `DamageSource` arm had always declined,
+and unreachable either way, since CR 601.2c and CR 603.3d both choose before a
+resolution starts.
+
+**What the item did not predict: how loud it was.** The item said "in every
+`performance` and `stress` game that lines the two cards up" and sized the
+A/B's prediction as `differ`. Both held, and the dumps put numbers on them:
+11 of 200 games diverge at two seats on `performance`, 10 on `stress`, 14 and
+21 at four seats, and in `main` those runs manufactured 26 phantom cards over
+25 games from nine different sources — not only the Merfolk Thaumaturgist the
+fixture used, but Chainbreaker, Bonesplitter, Samite Healer, Mind Stone, Words
+of Worship, Deep Water, Circle of Protection: Red and Aggravated Assault. Every
+diverging game is a game where this filter's answer changed, in all four arms,
+which is the containment the A/B exists to show; the converse does not hold,
+because a shorter option list the agent would have passed on anyway leaves the
+stream where it was. `fuzz-record.md`, the A4o block.
+
+**And a second changed answer the sizing had folded into the first.** The item
+counted three sites and they are three, but they do not all change the same
+thing: the count arm withdraws the *offer* (no legal target, so CR 601.2c
+forbids the cast), while the enumeration arm only shortens the *candidate
+list* — which is the whole difference whenever a real spell sits on the stack
+beside the ability, where the count is ≥ 1 either way. A probe of the count
+arm alone left one diverging game unexplained; both together leave none.
+
+*Original entry:*
+
+159. **`SelectionFilter::Spell` accepts an activated ability on the stack, and
+     `Primitive::CounterSpell` then puts the ephemeral ability object into a
+     graveyard as a card (found by A4i's audit, 2026-09-17).**
+     `validate_spell_target` checks `stack.contains` and nothing else, the
+     enumeration's `stack()` closure yields every stack id, and A4i's
+     `has_legal_choices` `Spell` arm counts every stack id; only the sibling
+     `DamageSource` arm filters on `is_spell`. An activated ability on the
+     stack is a `GameObject` carrying a clone of its source's `CardData`
+     (`put_on_stack.rs::activate_ability`), so "counter target spell" can name
+     it, and the counter primitive's `change_zone` to the graveyard lands that
+     clone in the owner's graveyard as a second copy of the card.
+
+     **Reproduced with a fixture (2026-09-17), and it is in the measured
+     games.** Counterspell and Merfolk Thaumaturgist's activated ability are
+     both in `PERFORMANCE_POOL`. Thaumaturgist on the battlefield under player
+     1, Counterspell in player 0's hand with {U}{U}; player 1 activates, player
+     0 casts — `castable_spells` offers it, and the target is forced with no
+     prompt since the ability is the only other stack object — and the stack
+     resolves to **two Merfolk Thaumaturgist objects, one on the battlefield
+     and one in the graveyard**. Nothing panics, which is why no fuzz run
+     noticed.
+
+     **Reachability (2026-09-17):** reachable — wrong today, in every
+     `performance` and `stress` game that lines the two cards up. Row A4o.
+
+     **Sized:** ~20 lines and a regression that casts from hand. The `is_spell`
+     filter the `DamageSource` arm already has, in three places — the
+     validator, the enumeration arm, the count arm. It changes what
+     `castable_spells` offers whenever an ability is on the stack, so it moves
+     the random agent's stream and owes its own A/B and a `fuzz-record.md`
+     block, with `differ` the honest prediction on both pools.

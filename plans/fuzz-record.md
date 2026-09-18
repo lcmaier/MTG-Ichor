@@ -37,6 +37,132 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-18 for A4o** ("counter target spell" may not name an
+activated ability — `codebase-state.md` item 159, struck; `roadmap-v2.md` row
+A4o). **No pool change**: `performance` 91 and `stress` 166, the cards A4i left,
+so every column here is comparable to the block below. The record exists anyway
+because the fix moves the random agent's stream — it changes what
+`castable_spells` offers and what CR 601.2c enumerates whenever an activated
+ability is on the stack, and both halves of that are in the pool.
+
+**Four arms — two trees, two seat counts.** `main` (8e5a8d8, post-#162) and
+`fix` (2613f77), each at `--players 2` and `--players 4`, both pools,
+`--rounds 3 --games 200`.
+
+| | fix vs main |
+|---|---|
+| every counter, both pools, **two** seats | **differ** — predicted, and attributed below |
+| every counter, both pools, **four** seats | **differ** — same |
+| `µs / decision`, `performance`, two seats | 28.5 → 28.7, **+0.5%** |
+| `µs / decision`, `performance`, four seats | 51.5 → 49.3, **−4.2%** |
+| CPU/game median, two seats / four seats | 6.36 → 6.39 ms / 22.81 → 21.80 ms |
+| deterministic across rounds, three hasher seeds | yes / yes |
+
+**`differ` is the finding, not a failure**, and it is the one case §3.1's
+`IDENTICAL` prediction does not apply to: the fix removes a *candidate action*
+from a priority window, so the agent's `random_range(0..n)` draws against a
+shorter list and every game that reaches such a window forks. Both µs/decision
+readings sit inside the sitting's own ~2–6% spread and neither is a cost; the
+four-seat −4.2% is spread, not a speedup.
+
+**Attributed game by game rather than assumed.** Both arms dumped 200 games per
+pool per seat count (`--dump-events --threads 1`), diffed per game; then a probe
+build of the `fix` tree — a `println!` at each of the two changed answers, the
+count arm and the enumeration arm, returning the fixed value either way so the
+probe plays the fix arm's line — replayed all 200 games one at a time by their
+per-game seeds.
+
+| | diverging games | games where a `Spell` answer changed | phantom cards `main` made |
+|---|---|---|---|
+| two seats, `performance` | 11 of 200 | 22 | 10, over 9 games |
+| two seats, `stress` | 10 of 200 | 20 | 6, over 6 games |
+| four seats, `performance` | 14 of 200 | 58 | 3, over 3 games |
+| four seats, `stress` | 21 of 200 | 53 | 7, over 7 games |
+
+**Every diverging game is a game where the filter's answer changed**, in all
+four arms, with no diverging game left over. The converse does not hold and
+should not: a shorter option list the agent would have passed on anyway leaves
+the stream where it was, which is why 22 changed answers produce 11 forks.
+**Both** changed answers had to be probed to get the containment — the count
+arm alone leaves four-seat `stress` game 124 unexplained, because with a real
+spell on the stack beside the ability the count is ≥ 1 either way and only the
+announcement's candidate list shrinks.
+
+**The defect was live in the measured games, and this is what it cost.** In
+`main`, 26 stack objects across the four arms were countered without ever having
+been cast — an activated ability's ephemeral object moved to a graveyard by
+`Primitive::CounterSpell`, landing there as a second copy of its source's card
+while the source stood on the battlefield. Chainbreaker, Bonesplitter, Merfolk
+Thaumaturgist, Samite Healer, Mind Stone, Words of Worship, Deep Water,
+Circle of Protection: Red, Aggravated Assault. The `fix` arm manufactures **zero**
+in all four arms, which is the same claim `tests/phase_a4o_integration_test.rs`
+makes on one board.
+
+**The §3 fixture rows, as shipped** (50 games / seed 12345, both pools):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 16 (32.0%) / 34 (68.0%) | 27 (54.0%) / 23 (46.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 28.3 | 28.1 |
+| Spells cast | 22.1 | 19.2 |
+| Lands played | 16.8 | 17.0 |
+| Combat w/ atk | 9.8 | 7.3 |
+| Creatures died | 6.5 | 4.3 |
+| Damage events | 22.3 | 15.8 |
+| Total damage | 59.9 | 44.1 |
+| Life changes | 14.5 | 11.7 |
+| **Layer walks** | **339** | **414** |
+| **Board walks** | **228** | **243** |
+| **Memo hits** | **56,661** | **63,025** |
+| **Layer frames** | **4,162** | **4,382** |
+| **Frames/walk** | **12.29** | **10.58** |
+| **Dependency checks** | **21** | **26** |
+| **Replacement gathers** | **1029** | **1037** |
+| **Restriction queries** | **1031** | **1039** |
+| Mana productions | 82 | 104 |
+| Prevention allocations | 0.02 | 0.04 |
+| Replacement prompts | 0.14 | 0.56 |
+| Max batch depth | 4 | 5 |
+| Decisions | 225 | 279 |
+| Priority decisions | 84 | 112 |
+
+**And the four-player table** (50 games / seed 12345):
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 23 (46.0%) / 16 (32.0%) / 9 (18.0%) / 2 (4.0%) | 14 (28.0%) / 18 (36.0%) / 12 (24.0%) / 6 (12.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 59.6 | 65.1 |
+| Spells cast | 43.7 | 43.4 |
+| Lands played | 35.5 | 37.7 |
+| Combat w/ atk | 25.2 | 23.8 |
+| Creatures died | 14.4 | 11.6 |
+| Damage events | 55.0 | 54.3 |
+| Total damage | 154.2 | 159.5 |
+| Life changes | 40.0 | 42.8 |
+| Turns after a departure | 20.2 | 18.4 |
+| Departed-owned permanents | 0.0 | 0.0 |
+| **Layer walks** | **780** | **1,152** |
+| **Board walks** | **505** | **632** |
+| **Memo hits** | **183,848** | **266,714** |
+| **Layer frames** | **15,168** | **20,383** |
+| **Frames/walk** | **19.45** | **17.69** |
+| **Dependency checks** | **115** | **132** |
+| **Replacement gathers** | **2227** | **2601** |
+| **Restriction queries** | **2231** | **2606** |
+| Mana productions | 160 | 247 |
+| Prevention allocations | 0.00 | 0.02 |
+| Replacement prompts | 1.52 | 2.52 |
+| Max batch depth | 5 | 5 |
+| Decisions | 456 | 694 |
+| Priority decisions | 169 | 273 |
+
+Errors, panics and turn-limit hits are 0 on every arm and every run but one:
+four-seat `stress` **game 159 (seed 12503)**, which both arms hit at the cap and
+which is the long game RF's block already identified — 246 turns at
+`--max-turns 600`, not a loop.
+
 **Re-recorded 2026-09-17 for A4i** (CR 601.2c's instances of "target" —
 `backlog.md` §2.20, graduated; `codebase-state.md` items 152–156).
 **Pool change**: `performance` 90 → **91** (Seeds of Strength) and `stress`

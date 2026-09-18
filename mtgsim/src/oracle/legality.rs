@@ -234,11 +234,14 @@ pub fn enumerate_legal_selections_upto(
             .into_iter()
             .filter(move |&id| Some(id) != exclude_id)
     };
-    let stack = || {
+    // CR 112.1 — a *spell* on the stack, which the activated ability sharing
+    // the zone with it is not. Both arms that read the stack want exactly this
+    // set, so the predicate sits in the closure rather than on each of them.
+    let spells_on_stack = || {
         game.stack
             .iter()
             .copied()
-            .filter(move |&id| Some(id) != exclude_id)
+            .filter(move |&id| Some(id) != exclude_id && game.is_spell_on_stack(id))
     };
     let passes = |id: ObjectId| {
         let candidate = RT::Object(id);
@@ -256,7 +259,7 @@ pub fn enumerate_legal_selections_upto(
             .take(limit)
             .collect(),
 
-        SelectionFilter::Spell => stack().map(RT::Object).take(limit).collect(),
+        SelectionFilter::Spell => spells_on_stack().map(RT::Object).take(limit).collect(),
 
         // CR 609.7a — permanents first, then spells on the stack. Both halves
         // are enumerated rather than validated one by one, because
@@ -269,11 +272,7 @@ pub fn enumerate_legal_selections_upto(
         // process-independent.
         SelectionFilter::DamageSource => battlefield()
             .map(RT::Object)
-            .chain(
-                stack()
-                    .filter(|id| game.stack_entries.get(id).is_some_and(|e| e.is_spell))
-                    .map(RT::Object),
-            )
+            .chain(spells_on_stack().map(RT::Object))
             .take(limit)
             .collect(),
 
