@@ -42,6 +42,7 @@ use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 fn static_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect,
@@ -53,6 +54,7 @@ fn static_ability(effect: Effect) -> AbilityDef {
 fn spell_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Spell,
         costs: Vec::new(),
         effect,

@@ -127,6 +127,7 @@ fn mind_control() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

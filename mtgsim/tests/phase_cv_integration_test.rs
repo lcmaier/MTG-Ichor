@@ -821,6 +821,7 @@ fn restriction_creature() -> Arc<CardData> {
         .power_toughness(3, 3)
         .ability(AbilityDef {
             id: new_ability_id(),
+            instances: Vec::new(),
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             ability_type: AbilityType::Static,

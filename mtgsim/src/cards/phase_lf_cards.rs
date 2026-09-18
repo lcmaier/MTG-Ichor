@@ -54,6 +54,7 @@ pub fn humility() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -105,6 +106,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Mana,
         costs: vec![Cost::Tap],
         effect: Effect::Atom(
@@ -126,6 +128,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

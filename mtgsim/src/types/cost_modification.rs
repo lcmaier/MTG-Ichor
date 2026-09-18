@@ -68,6 +68,7 @@ impl CostModificationDef {
         let body = Effect::CostModification(Box::new(self));
         AbilityDef {
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: match condition {

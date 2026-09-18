@@ -8,7 +8,6 @@ use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
 use crate::types::costs::Cost;
-use crate::engine::targeting::spell_instances;
 use crate::types::effects::{EffectRecipient, TargetCount};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
@@ -173,7 +172,7 @@ pub fn castable_spells(
         // requires targets if no legal target exists. Asked of the card, not
         // the spell ability — an Aura's target is its enchant ability
         // (CR 303.4a) and it has no spell ability to ask.
-        if !every_instance_has_a_choice(game, &spell_instances(&obj.card_data), player_id) {
+        if !every_instance_has_a_choice(game, &obj.card_data.spell_instances, player_id) {
             continue;
         }
 
@@ -394,11 +393,7 @@ pub fn activatable_abilities(
             // make it illegal. Provably illegal from a static read, which is
             // what the oracle may filter on
             // (`dp-middleware-and-candidate-enumeration.md` §2).
-            if !every_instance_has_a_choice(
-                game,
-                &crate::engine::targeting::effect_instances(&ability.effect),
-                player_id,
-            ) {
+            if !every_instance_has_a_choice(game, &ability.instances, player_id) {
                 continue;
             }
 
@@ -635,6 +630,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -667,6 +663,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -699,6 +696,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Mana,
                 costs: vec![Cost::SacrificeSelf],
                 effect: Effect::Atom(
@@ -781,6 +779,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -813,6 +812,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(

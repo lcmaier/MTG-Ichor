@@ -106,10 +106,10 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
-        // The instances this effect declares, in the order `effect_instances`
+        // The instances this effect declares, in the order `Effect::instances`
         // numbered them at CR 601.2c — so an atom finds its own targets by the
         // same index the announcement filled.
-        let declared = crate::engine::targeting::effect_instances(effect);
+        let declared = effect.instances();
         let mut cursor = 0usize;
         self.resolve_effect_at(effect, ctx, dp, &declared, &mut cursor)
     }

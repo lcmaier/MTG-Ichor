@@ -75,6 +75,7 @@ fn mana_land(name: &str, output: ManaOutput) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
@@ -147,6 +148,7 @@ fn plain_rock() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(
@@ -166,6 +168,7 @@ fn static_enchantment(name: &str, def: ReplacementDef) -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(def)),

@@ -175,7 +175,7 @@ impl GameState {
                     && has_subtype(self, object_id, &Subtype::Enchantment(EnchantmentType::Aura));
                 if is_aura {
                     // Instance 0 is the enchant clause (CR 303.4a) — the only
-                    // instance `spell_instances` gives an Aura.
+                    // instance `CardData::spell_instances` gives an Aura.
                     let host_id = match entry
                         .chosen_targets
                         .first()
@@ -282,6 +282,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -305,8 +306,10 @@ mod tests {
             .find(|a| a.ability_type == AbilityType::Spell)
             .unwrap();
         let effect = ability.effect.clone();
-        let recipient = crate::engine::targeting::spell_instances(&card_data)
-            .pop()
+        let recipient = card_data
+            .spell_instances
+            .last()
+            .cloned()
             .expect("the helper's cards all announce one instance");
 
         let obj = GameObject::new(card_data, controller, Zone::Stack);
@@ -563,8 +566,10 @@ mod tests {
         controller: usize,
         targets: Vec<ResolvedTarget>,
     ) -> crate::types::ids::ObjectId {
-        let recipient = crate::engine::targeting::spell_instances(&card_data)
-            .pop()
+        let recipient = card_data
+            .spell_instances
+            .last()
+            .cloned()
             .expect("the helper's cards all announce one instance");
         let obj = GameObject::new(card_data, controller, Zone::Stack);
         let id = game.add_object(obj);

@@ -1,11 +1,10 @@
 use crate::engine::resolve::ResolvedTarget;
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::{AbilityType, CardData};
 use crate::oracle::characteristics::{has_type};
 use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{Effect, ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
+use crate::types::effects::{ObjectFilter, EffectRecipient, SelectionFilter, TargetCount};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// One instance of the word "target" (CR 115.3) — the clause it was chosen
@@ -136,64 +135,6 @@ impl<I: IntoIterator<Item = ResolvedTarget>> FromIterator<I> for ChosenTargets {
             out.push(instance);
         }
         out
-    }
-}
-
-/// The instances of "target" a spell announces at CR 601.2c, in printed order,
-/// read off the card.
-///
-/// **An Aura spell's target is defined by its enchant ability (CR 303.4a), not
-/// by a spell ability, and an Aura has none.** One function, one rule: the
-/// castability pre-check, the target selection and the fizzle all read this, so
-/// all three see `enchant_filter`.
-///
-/// PRE-LAYER ZONE: printed abilities, on a card in hand. The resolution does
-/// not call this — it reads the entry.
-pub fn spell_instances(card: &CardData) -> Vec<EffectRecipient> {
-    // CR 702.5a — only an Aura carries an enchant ability.
-    if let Some(filter) = &card.enchant_filter {
-        return vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))];
-    }
-    match card.abilities.iter().find(|a| a.ability_type == AbilityType::Spell) {
-        Some(spell) => effect_instances(&spell.effect),
-        None => Vec::new(),
-    }
-}
-
-/// The instances of "target" an effect tree announces, in printed order
-/// (CR 601.2c). Shared by [`spell_instances`] and `activate_ability`, and the
-/// same walk CR 603.3d will want for a triggered ability.
-///
-/// Each `Target`/`Choose` atom **declares** an instance; an
-/// `EffectRecipient::SameInstanceAs` atom refers back to one and declares
-/// nothing. That is what separates Ensoul Artifact's two atoms — one instance,
-/// acted on twice — from Seeds of Strength's three clauses, which are three;
-/// written without the back-reference the two cards are the same shape, and
-/// `EffectRecipient::SameInstanceAs`'s doc has the worked comparison.
-///
-/// **`Atom` and `Sequence` only** — the scope the one-recipient rule this
-/// replaced also had. `Modal` is the one that will need more than a wider walk:
-/// CR 601.2b chooses modes *before* 601.2c, so an unchosen mode announces no
-/// targets, and a walk that descended into every branch would announce all of
-/// them. It resolves to an error today (`resolve_effect`), and
-/// `codebase-state.md` carries the item.
-pub fn effect_instances(effect: &Effect) -> Vec<EffectRecipient> {
-    let mut out = Vec::new();
-    collect_instances(effect, &mut out);
-    out
-}
-
-fn collect_instances(effect: &Effect, out: &mut Vec<EffectRecipient>) {
-    match effect {
-        Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
-            out.push(recipient.clone());
-        }
-        Effect::Sequence(effects) => {
-            for sub in effects {
-                collect_instances(sub, out);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -368,7 +309,7 @@ impl GameState {
             EffectRecipient::SameInstanceAs(ix) => Err(format!(
                 "EffectRecipient::SameInstanceAs({ix}) is a back-reference to an instance of \
                  \"target\", not a clause to validate against (CR 115.3). Validate the \
-                 clause `targeting::effect_instances` returned at that index."
+                 clause `Effect::instances` lists at that index."
             )),
 
             // Target and Choose validate identically: hexproof, shroud and

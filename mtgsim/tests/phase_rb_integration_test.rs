@@ -74,6 +74,7 @@ fn undying_probe(name: &str) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -316,6 +317,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -775,6 +777,7 @@ fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Replacement(Box::new(def)),

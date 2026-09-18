@@ -5,7 +5,7 @@ use crate::types::card_types::{CardType, Supertype, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::cost_modification::{CostChange, CostModificationDef};
-use crate::types::effects::{AmountExpr, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, EffectRecipient, SelectionFilter, Selector};
+use crate::types::effects::{AmountExpr, Effect, ManaOutput, ObjectFilter, PlayerRef, Primitive, EffectRecipient, SelectionFilter, Selector, TargetCount};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::ids::AbilityId;
@@ -40,6 +40,18 @@ pub struct CardData {
     /// What this Aura can legally enchant (rule 303.4).
     /// None for non-Aura cards.
     pub enchant_filter: Option<SelectionFilter>,
+    /// CR 601.2c's instances of "target" for this card cast as a spell, in
+    /// printed order: the spell ability's [`AbilityDef::instances`] — except for
+    /// an Aura, whose one instance is its enchant ability (CR 303.4a) and sits
+    /// in no effect tree. One field, one rule: the castability pre-check, the
+    /// announcement and CR 608.2b's re-check all read this, so all three see
+    /// `enchant_filter`.
+    ///
+    /// Written by `CardDataBuilder::build` and nothing else. A `CardData` is
+    /// built once and shared behind an `Arc`, so this is computed once per card
+    /// rather than once per card in hand per priority pass, which is what it
+    /// replaced (`roadmap-v2.md` row A4n).
+    pub spell_instances: Vec<EffectRecipient>,
     /// Alternative costs this card can be cast for (rule 118.9).
     /// A player may choose at most one when casting.
     pub alternative_costs: Vec<AlternativeCost>,
@@ -96,6 +108,19 @@ pub struct AbilityDef {
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
+    /// CR 601.2c's instances of "target" that `effect` declares, in printed
+    /// order — [`Effect::instances`], stored.
+    ///
+    /// **A struct literal writes `Vec::new()` here, and `CardDataBuilder::build`
+    /// overwrites it** on every def it can reach from the card, the way it
+    /// stamps `id`: the printed list, then every def nested in an effect. A
+    /// def that never meets the builder keeps the empty list, which is the
+    /// right answer for every one that exists — CR 305.6's synthesized mana
+    /// ability and the static abilities the test helpers build announce
+    /// nothing. A runtime-built def with a targeting effect would announce
+    /// nothing too, silently: `cards::registry`'s test is the gate for every
+    /// def a card carries, and a new runtime birth site owes the same check.
+    pub instances: Vec<EffectRecipient>,
     /// CR 602.5d. Meaningful only when `ability_type` is `Activated`; every
     /// other kind carries `None`.
     pub activation_restriction: ActivationRestriction,
@@ -169,6 +194,7 @@ impl CardDataBuilder {
                 keyword_flags: HashSet::new(),
                 color_indicator: None,
                 enchant_filter: None,
+                spell_instances: Vec::new(),
                 alternative_costs: Vec::new(),
                 additional_costs: Vec::new(),
             },
@@ -268,6 +294,7 @@ impl CardDataBuilder {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Mana,
             costs: vec![Cost::Tap],
             effect: Effect::Atom(
@@ -309,7 +336,8 @@ impl CardDataBuilder {
         self
     }
 
-    /// Finish the card, giving every ability def reachable from it an id.
+    /// Finish the card, giving every ability def reachable from it an id and
+    /// its instances of "target".
     ///
     /// A def still carrying `AbilityId::UNASSIGNED` — what every card file
     /// writes — gets `AbilityId::printed(name, ordinal)`. The printed list
@@ -319,6 +347,11 @@ impl CardDataBuilder {
     /// abilities) follow from `n`, in `Effect::for_each_ability_def_mut`'s
     /// order. A def that already has an id keeps it, which is what lets a
     /// test author one and read it back through the card.
+    ///
+    /// `AbilityDef::instances` is overwritten on every def reached, id or no
+    /// id, and `CardData::spell_instances` is filled last: from the enchant
+    /// ability for an Aura (CR 303.4a), otherwise from the printed spell
+    /// ability, otherwise empty — a permanent spell announces nothing.
     pub fn build(mut self) -> Arc<CardData> {
         let name = self.data.name.clone();
         let mut ordinal = 0u32;
@@ -327,6 +360,7 @@ impl CardDataBuilder {
                 def.id = AbilityId::printed(&name, ordinal);
             }
             ordinal += 1;
+            def.instances = def.effect.instances();
         };
         let abilities = Arc::make_mut(&mut self.data.abilities);
         for def in abilities.iter_mut() {
@@ -335,6 +369,16 @@ impl CardDataBuilder {
         for def in abilities.iter_mut() {
             def.effect.for_each_ability_def_mut(&mut stamp);
         }
+        // CR 702.5a — only an Aura carries an enchant ability, and CR 303.4a
+        // makes it the spell's one instance of "target".
+        self.data.spell_instances = match &self.data.enchant_filter {
+            Some(filter) => vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))],
+            None => abilities
+                .iter()
+                .find(|a| a.ability_type == AbilityType::Spell)
+                .map(|spell| spell.instances.clone())
+                .unwrap_or_default(),
+        };
         Arc::new(self.data)
     }
 }

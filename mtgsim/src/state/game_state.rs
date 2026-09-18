@@ -62,7 +62,7 @@ pub struct StackEntry {
     /// **Each instance records its own clause** rather than the entry recording
     /// one, and for the reason the single `recipient` field had: the two must be
     /// the same question at CR 601.2c and at CR 608.2b, and an Aura's comes from
-    /// its enchant ability (`targeting::spell_instances`), which `effect` cannot
+    /// its enchant ability (`CardData::spell_instances`), which `effect` cannot
     /// show.
     pub chosen_targets: Vec<crate::engine::targeting::TargetInstance>,
     /// Modes chosen at cast time (for modal spells, future-proofed)
@@ -2104,6 +2104,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Static,
                 costs: Vec::new(),
                 effect,

@@ -77,6 +77,7 @@ pub fn holy_strength() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -113,6 +114,7 @@ pub fn equip(costs: Vec<Cost>) -> AbilityDef {
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::OnlyAsSorcery,
         id: AbilityId::UNASSIGNED,
+        instances: Vec::new(),
         ability_type: AbilityType::Activated,
         costs,
         effect: Effect::Atom(
@@ -173,6 +175,7 @@ Equip {1}")
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -218,6 +221,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(

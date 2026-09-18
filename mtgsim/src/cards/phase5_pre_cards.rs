@@ -33,6 +33,7 @@ pub fn nights_whisper() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -61,6 +62,7 @@ pub fn doom_blade() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -86,6 +88,7 @@ pub fn angels_mercy() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(7)), EffectRecipient::Controller)
@@ -105,6 +108,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -135,6 +139,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -174,6 +179,7 @@ pub fn inside_out() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Sequence(vec![
@@ -202,6 +208,7 @@ pub fn bull_rush() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(
@@ -228,6 +235,7 @@ pub fn dark_ritual() -> Arc<CardData> {
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
             effect: Effect::Atom(

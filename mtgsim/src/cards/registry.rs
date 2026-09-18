@@ -979,12 +979,12 @@ mod instance_references {
     /// `Instance(1)` where its effect declares one clause resolves to an error
     /// deep inside `resolve_effect` — at the moment the spell is already on the
     /// stack and paid for. Caught here it is a typo; caught there it is a game
-    /// that cannot finish. The walk is `effect_instances`' own, so the two
+    /// that cannot finish. The walk is `Effect::instances`' own, so the two
     /// cannot disagree about what counts as a declaration.
     #[test]
     fn every_instance_back_reference_names_a_declared_clause() {
         fn check(what: &str, effect: &Effect) {
-            let declared = crate::engine::targeting::effect_instances(effect).len();
+            let declared = effect.instances().len();
             let mut stack = vec![effect];
             while let Some(e) = stack.pop() {
                 match e {
@@ -1015,6 +1015,63 @@ mod instance_references {
             for (i, ability) in card.abilities.iter().enumerate() {
                 check(&format!("{name} ability #{i}"), &ability.effect);
             }
+        }
+    }
+
+    /// The stored instance lists are the walk's, for every registered card.
+    ///
+    /// **The gate on a derived field.** `AbilityDef::instances` and
+    /// `CardData::spell_instances` are written once by `CardDataBuilder::build`
+    /// and read on every castability check; a def that reached a card by some
+    /// route the builder does not walk would carry an empty list and announce
+    /// nothing, silently. So every def a registered card carries — printed and
+    /// nested — is re-derived here and compared, and the spell-level list is
+    /// re-derived by the Aura rule (CR 303.4a) independently of the builder.
+    #[test]
+    fn every_stored_instance_list_is_the_walks() {
+        use crate::types::effects::TargetCount;
+
+        fn check(what: &str, def: &crate::objects::card_data::AbilityDef) {
+            assert_eq!(
+                def.instances,
+                def.effect.instances(),
+                "{what}: the stored instance list is not the walk's"
+            );
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            for (i, ability) in card.abilities.iter().enumerate() {
+                check(&format!("{name} ability #{i}"), ability);
+            }
+            // The nested defs — `for_each_ability_def_mut` is the only walk over
+            // them, so it runs over a copy.
+            let mut nested = 0usize;
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                ability.effect.for_each_ability_def_mut(&mut |def| {
+                    check(&format!("{name} ability #{i}, nested def #{nested}"), def);
+                    nested += 1;
+                });
+            }
+            let expected = match &card.enchant_filter {
+                Some(filter) => {
+                    vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))]
+                }
+                None => card
+                    .abilities
+                    .iter()
+                    .find(|a| a.ability_type == crate::objects::card_data::AbilityType::Spell)
+                    .map(|spell| spell.effect.instances())
+                    .unwrap_or_default(),
+            };
+            assert_eq!(
+                card.spell_instances, expected,
+                "{name}: the stored spell-level instance list is not the card's"
+            );
         }
     }
 }

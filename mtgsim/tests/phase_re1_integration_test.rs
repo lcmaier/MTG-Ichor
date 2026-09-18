@@ -611,6 +611,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
             .rules_text("At the beginning of your draw step, draw an additional card.")
             .ability(AbilityDef {
                 id: new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Triggered,
                 costs: Vec::new(),
                 effect: Effect::Atom(

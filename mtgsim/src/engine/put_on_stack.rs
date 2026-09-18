@@ -18,7 +18,7 @@ use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
 use crate::types::card_types::CardType;
-use crate::engine::targeting::{effect_instances, spell_instances, TargetInstance};
+use crate::engine::targeting::TargetInstance;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -71,9 +71,9 @@ impl GameState {
         // Find the spell ability on the card.
         // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
         // may not have a spell ability — they resolve by entering the
-        // battlefield. Use an empty Sequence as a no-op effect. The recipient
-        // is a separate question (CR 303.4a: an Aura's is its enchant
-        // ability), asked of the card by `spell_recipient`.
+        // battlefield. Use an empty Sequence as a no-op effect. The instances
+        // of "target" are a separate question (CR 303.4a: an Aura's is its
+        // enchant ability), answered by `CardData::spell_instances`.
         let effect = if let Some(spell_ability) = card_data.abilities.iter()
             .find(|a| a.ability_type == AbilityType::Spell)
         {
@@ -83,7 +83,7 @@ impl GameState {
         } else {
             return Err(format!("Card '{}' has no spell ability", card_data.name));
         };
-        let instances = spell_instances(&card_data);
+        let instances = &card_data.spell_instances;
 
         // --- 601.2a: Move to stack ---
         // Capture the origin first: once the card is on the stack its `zone`
@@ -163,7 +163,7 @@ impl GameState {
         // `OtherThanInstance` clause reads the instances already announced —
         // Incremental Growth's second creature has to know the first.
         let targets = match self.announce_targets(
-            player_id, card_id, &instances, decisions,
+            player_id, card_id, instances, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -302,7 +302,7 @@ impl GameState {
             let (EffectRecipient::Target(filter, count) | EffectRecipient::Choose(filter, count)) =
                 recipient
             else {
-                // `effect_instances` yields only targeting clauses, so this is
+                // `Effect::instances` yields only targeting clauses, so this is
                 // unreachable rather than a case with a sensible default.
                 return Err(format!(
                     "{:?} is not an instance of \"target\" (CR 601.2c)",
@@ -401,7 +401,9 @@ impl GameState {
             source: source_id,
             ability: ability.id,
         };
-        let instances = effect_instances(&effect);
+        // Off the def the effective list carries, never `card_data.abilities`:
+        // a granted ability exists in no `CardData` (CLAUDE.md).
+        let instances = &ability.instances;
 
         // Create a new object on the stack representing the ability (rule 602.2a)
         // Abilities on the stack are not cards — they have no CardData.
@@ -416,7 +418,7 @@ impl GameState {
         // CR 602.2b routes an activation through 601.2c, so an ability
         // announces its instances exactly as a spell does.
         let targets = match self.announce_targets(
-            player_id, ability_obj_id, &instances, decisions,
+            player_id, ability_obj_id, instances, decisions,
         ) {
             Ok(targets) => targets,
             Err(e) => {
@@ -893,6 +895,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -933,6 +936,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
@@ -1049,6 +1053,7 @@ mod tests {
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
+                instances: Vec::new(),
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Sequence(Vec::new()),

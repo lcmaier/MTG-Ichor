@@ -229,6 +229,7 @@ mod tests {
     fn cda(primitive: Primitive) -> AbilityDef {
         AbilityDef {
             id: new_ability_id(),
+            instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
             effect: Effect::Atom(primitive, EffectRecipient::Implicit),
