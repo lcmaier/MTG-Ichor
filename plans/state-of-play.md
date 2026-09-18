@@ -89,7 +89,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 166 |
 | …of them in `PERFORMANCE_POOL` | 91 |
-| `#[test]` functions | 1594 |
+| `#[test]` functions | 1596 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -97,15 +97,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 7261 of 7472 lines (97%) |
+| Section size | 7254 of 7465 lines (97%) |
 | Numbered items | 210 |
-| …closed, still recorded | 59 |
+| …closed, still recorded | 60 |
 | …open — unreachable, and says why | 92 |
-| **…open — reachable, wrong today** | **5** |
+| **…open — reachable, wrong today** | **4** |
 | …open — reachable, not wrong (perf, a name, a harness) | 26 |
 | …open — nothing to build, a record for a later phase | 27 |
 | **…open — reachability *not* stated** | **1** |
-| …open, carrying an explicit `**Sized:**` | 146 of 151 |
+| …open, carrying an explicit `**Sized:**` | 145 of 150 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong
@@ -139,7 +139,7 @@ discipline. → `engineering-practices.md` §5.
 is an open plate.
 
 - `plans/handoffs/a4i-review.md`
-- `plans/handoffs/a4o-brief.md`
+- `plans/handoffs/a4p-brief.md`
 
 ## What this file deliberately does not know
 

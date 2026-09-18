@@ -7406,37 +7406,30 @@ are ones the diff cannot answer. Open review findings, triaged:
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
 
-159. **`SelectionFilter::Spell` accepts an activated ability on the stack, and
-     `Primitive::CounterSpell` then puts the ephemeral ability object into a
-     graveyard as a card (found by A4i's audit, 2026-09-17).**
-     `validate_spell_target` checks `stack.contains` and nothing else, the
-     enumeration's `stack()` closure yields every stack id, and A4i's
-     `has_legal_choices` `Spell` arm counts every stack id; only the sibling
-     `DamageSource` arm filters on `is_spell`. An activated ability on the
-     stack is a `GameObject` carrying a clone of its source's `CardData`
-     (`put_on_stack.rs::activate_ability`), so "counter target spell" can name
-     it, and the counter primitive's `change_zone` to the graveyard lands that
-     clone in the owner's graveyard as a second copy of the card.
+159. **~~`SelectionFilter::Spell` accepts an activated ability on the stack,
+     and `Primitive::CounterSpell` then puts the ephemeral ability object into
+     a graveyard as a card~~ ✅ CLOSED 2026-09-18 (A4o, PR #163) — the filter
+     asks `is_spell_on_stack`, at all three sites.** CR 112.1's "a spell is a
+     card on the stack", asked of the `StackEntry` rather than of stack
+     membership, by the validator, the count arm and the enumeration arm; the
+     sibling `DamageSource` arms, which already carried three inline copies of
+     the same predicate, call the one function now. **It was live in the
+     measured games:** `main` countered 26 ability objects into graveyards
+     across the four A/B arms — Chainbreaker, Bonesplitter, Merfolk
+     Thaumaturgist, Samite Healer, Mind Stone, Words of Worship, Deep Water,
+     Circle of Protection: Red, Aggravated Assault — and the fixed arm none.
+     **A6 inherits the fix and should keep the shape it rests on:** a
+     triggered ability on the stack will be the same ephemeral object with
+     `is_spell: false`, so "counter target spell" cannot name one as long as
+     that stays true, and the complement filter Stifle's class wants
+     (`Primitive::CounterAbility`, built, no registered card) negates exactly
+     this predicate.
+     → `plans/archive/codebase-state-closed.md`;
+     `fuzz-record.md`, the A4o block.
 
-     **Reproduced with a fixture (2026-09-17), and it is in the measured
-     games.** Counterspell and Merfolk Thaumaturgist's activated ability are
-     both in `PERFORMANCE_POOL`. Thaumaturgist on the battlefield under player
-     1, Counterspell in player 0's hand with {U}{U}; player 1 activates, player
-     0 casts — `castable_spells` offers it, and the target is forced with no
-     prompt since the ability is the only other stack object — and the stack
-     resolves to **two Merfolk Thaumaturgist objects, one on the battlefield
-     and one in the graveyard**. Nothing panics, which is why no fuzz run
-     noticed.
-
-     **Reachability (2026-09-17):** reachable — wrong today, in every
-     `performance` and `stress` game that lines the two cards up. Row A4o.
-
-     **Sized:** ~20 lines and a regression that casts from hand. The `is_spell`
-     filter the `DamageSource` arm already has, in three places — the
-     validator, the enumeration arm, the count arm. It changes what
-     `castable_spells` offers whenever an ability is on the stack, so it moves
-     the random agent's stream and owes its own A/B and a `fuzz-record.md`
-     block, with `differ` the honest prediction on both pools.
+     **Reachability (2026-09-18):** closed — landed; the stream moved, and
+     every diverging game in all four A/B arms is one where this filter's
+     answer changed.
 
 160. **The `Player` and `Any` selection arms count and offer seats that have
      left the game (found by A4i's audit, 2026-09-17; pre-existing, inherited
