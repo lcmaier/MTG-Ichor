@@ -7310,6 +7310,17 @@ are ones the diff cannot answer. Open review findings, triaged:
      a handful of instances, which is small but is a different kind of code
      from what is there.
 
+     **Sharpened at the audit (2026-09-17): the condition is monotone widening,
+     not one filter.** Greedy is exact as long as no later clause is *narrower*
+     than an earlier clause it excludes. The shape that fails is "target
+     creature" followed by "another target creature you control" on a board
+     where the caster's only creature is first in timestamp order: greedy takes
+     it for the first clause and finds nothing for the second, when swapping
+     would work. `o:/target creature[^.]*another target creature you control/`
+     returns one card, Combine Guildmage, and it reuses one filter — so the
+     reachability line above stands. This is the sentence a card author checks
+     a new "another target" card against.
+
 156. **The rulings gate has a same-day blind spot: a card registered on the
      day the ledger was created escapes `--check` unless someone stamps it
      `read`.** Scope is `read` or `first_seen != created`
@@ -7394,6 +7405,66 @@ are ones the diff cannot answer. Open review findings, triaged:
      **Sized:** the modal axis is item 154's ~60 lines (move the exclusion from
      the `ObjectFilter` leaf to the clause, so a `Player` or `Any` filter can
      carry it) plus §2.7's mode work. The copy axis is CV's and is sized there.
+
+159. **`SelectionFilter::Spell` accepts an activated ability on the stack, and
+     `Primitive::CounterSpell` then puts the ephemeral ability object into a
+     graveyard as a card (found by A4i's audit, 2026-09-17).**
+     `validate_spell_target` checks `stack.contains` and nothing else, the
+     enumeration's `stack()` closure yields every stack id, and A4i's
+     `has_legal_choices` `Spell` arm counts every stack id; only the sibling
+     `DamageSource` arm filters on `is_spell`. An activated ability on the
+     stack is a `GameObject` carrying a clone of its source's `CardData`
+     (`put_on_stack.rs::activate_ability`), so "counter target spell" can name
+     it, and the counter primitive's `change_zone` to the graveyard lands that
+     clone in the owner's graveyard as a second copy of the card.
+
+     **Reproduced with a fixture (2026-09-17), and it is in the measured
+     games.** Counterspell and Merfolk Thaumaturgist's activated ability are
+     both in `PERFORMANCE_POOL`. Thaumaturgist on the battlefield under player
+     1, Counterspell in player 0's hand with {U}{U}; player 1 activates, player
+     0 casts — `castable_spells` offers it, and the target is forced with no
+     prompt since the ability is the only other stack object — and the stack
+     resolves to **two Merfolk Thaumaturgist objects, one on the battlefield
+     and one in the graveyard**. Nothing panics, which is why no fuzz run
+     noticed.
+
+     **Reachability (2026-09-17):** reachable — wrong today, in every
+     `performance` and `stress` game that lines the two cards up. Row A4o.
+
+     **Sized:** ~20 lines and a regression that casts from hand. The `is_spell`
+     filter the `DamageSource` arm already has, in three places — the
+     validator, the enumeration arm, the count arm. It changes what
+     `castable_spells` offers whenever an ability is on the stack, so it moves
+     the random agent's stream and owes its own A/B and a `fuzz-record.md`
+     block, with `differ` the honest prediction on both pools.
+
+160. **The `Player` and `Any` selection arms count and offer seats that have
+     left the game (found by A4i's audit, 2026-09-17; pre-existing, inherited
+     by A4i's count logic).** `GameState::num_players()` is the player
+     vector's length, which CR 800.4a never shrinks; `enumerate_legal_selections_upto`'s
+     `players()` closure yields `0..num_players()` for `Player` and `Any`, and
+     `has_legal_choices` counts `players.len()` for `Player` and seeds `Any`'s
+     count with it. `validate_player_target` refuses a departed seat under
+     CR 800.4a and its comment says such a seat is "not offered at CR 601.2c",
+     which the enumeration contradicts; `validate_any_target` never asks
+     `in_game` at all.
+
+     **Reproduced with a fixture (2026-09-17)** at four seats with seat 3
+     departed: both filters offer `Player(3)`; `validate_targets` refuses it
+     for `Player` — a cast the oracle offered and the engine rewinds, item
+     139's class — and **accepts it for `Any`**, so "any target" damage
+     resolves against a player who is not in the game.
+
+     **Reachability (2026-09-17):** reachable — wrong today at four seats, in
+     `fuzz_games --players 4` from the first elimination on, and v1 is four
+     seats. Unreachable at two, where a departure ends the game (CR 104.2a), so
+     every recorded two-seat table is untouched. Row A4p.
+
+     **Sized:** three edits, ~15 lines, and two fixtures at four seats. The
+     player iterator filters on `in_game`; the two count arms count in-game
+     seats; `validate_any_target` gains the check the `Player` validator has.
+     A/B prediction: `IDENTICAL` on both pools at two seats; the four-seat
+     `stress` arm differs, and that is the finding the arm exists to show.
 
 - Every new forward-looking stub, TODO, or half-wired abstraction gets a line here at commit time — unless its fix is under about thirty lines with a fixture, in which case it is fixed instead; the rule is at the head of this section, "What does not belong here".
 - When a migration is completed, strike the line (keep it visible in history for a few revisions, then remove).
