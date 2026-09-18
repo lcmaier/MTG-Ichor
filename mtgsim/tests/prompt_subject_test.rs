@@ -1,21 +1,19 @@
-//! Every prompt a game raises says what it is about, and renders.
+//! Every prompt a game raises says which object it is about.
 //!
 //! `backlog.md` §2.21: a `ChoiceContext` is supposed to carry enough that a
-//! client can say *why* a player is being asked and highlight *what* the
-//! question is about, and until this test nothing enforced it. The discipline
-//! lived in prose on each variant; the one consumer in the tree, `ui/cli.rs`,
-//! is omniscient; and `RandomDecisionProvider` picks by index without asking
-//! what a prompt means, so the fuzz harness cannot notice a variant that
-//! dropped its source. `ChoiceKind::subject` and `ChoiceKind::describe` are
-//! the contract (`codebase-state.md` item 141's payload rule): their
-//! exhaustive matches make a new variant decide at compile time, and this
-//! file checks the runtime half — whole games at two seats and four, each
-//! deck a different sixty-card window of the registry, plus one of each
-//! variant built by hand for the prompts no registered card raises.
+//! client can highlight *what* the question is about, and until this test
+//! nothing enforced it. The discipline lived in prose on each variant; the one
+//! consumer in the tree, `ui/cli.rs`, is omniscient; and
+//! `RandomDecisionProvider` picks by index without asking what a prompt means,
+//! so the fuzz harness cannot notice a variant that dropped its source.
+//! `ChoiceKind::subject` is the contract (`codebase-state.md` item 141's
+//! payload rule): its exhaustive match makes a new variant decide at compile
+//! time, and this file checks the runtime half — whole games at two seats and
+//! four, each deck a different sixty-card window of the registry, plus one of
+//! each variant built by hand for the prompts no registered card raises.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::OnceLock;
 
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::DamageTarget;
@@ -36,32 +34,13 @@ use mtgsim::ui::random::RandomDecisionProvider;
 /// doc is the same list with the reasons. `Discard` is not here: its `None` is
 /// allowed only in the cleanup step, which the recorder checks.
 const SUBJECT_LESS: &[(&str, &str)] = &[
-    ("PriorityAction", "117.1"),
-    ("DeclareAttackers", "508.1a"),
-    ("DeclareBlockers", "509.1a"),
-    ("LegendRule", "704.5j"),
+    ("PriorityAction", "CR 117.1"),
+    ("DeclareAttackers", "CR 508.1a"),
+    ("DeclareBlockers", "CR 509.1a"),
+    ("LegendRule", "CR 704.5j"),
     // `affected_object: None` — the event is about the choosing player.
-    ("ChooseReplacementEffect", "616.1"),
+    ("ChooseReplacementEffect", "CR 616.1"),
 ];
-
-/// The rules text the engine targets, read once.
-fn baseline() -> &'static str {
-    static CR: OnceLock<String> = OnceLock::new();
-    CR.get_or_init(|| {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../MTG-Rules/versions/tmnt.txt");
-        std::fs::read_to_string(path).expect("the CR baseline is checked in beside the crate")
-    })
-}
-
-/// Whether `rule` — `"601.2c"`, `"616.1"` — heads a line of the baseline. A
-/// top-level rule prints with a trailing period and a lettered one with a
-/// space, and neither prefix reaches a neighbor: `"117.1."` is not a prefix
-/// of `"117.10."`.
-fn cr_has_rule(rule: &str) -> bool {
-    let dotted = format!("{rule}.");
-    let spaced = format!("{rule} ");
-    baseline().lines().any(|line| line.starts_with(&dotted) || line.starts_with(&spaced))
-}
 
 /// The variant's name, off `Debug` — `ChoiceKind` is not `PartialEq` (its
 /// `SelectRecipients` carries filters), and reading the rendering is the idiom
@@ -71,57 +50,28 @@ fn variant_name(kind: &ChoiceKind) -> String {
     debug.split([' ', '{', '(']).next().unwrap_or("").to_string()
 }
 
-/// One prompt as the engine raised it: what `subject()` and `describe()`
-/// said, and whether the game was in its cleanup step — the one place a
-/// `Discard` may have no source (CR 514.1).
+/// One prompt as the engine raised it: what `subject()` said, and whether the
+/// game was in its cleanup step — the one place a `Discard` may have no
+/// source (CR 514.1).
 struct Raised {
     variant: String,
-    subject: Option<String>,
-    rule: &'static str,
-    text: String,
+    subject: Option<ObjectId>,
     at_cleanup: bool,
 }
 
 impl Raised {
     fn of(kind: &ChoiceKind, at_cleanup: bool) -> Self {
-        let described = kind.describe();
-        Raised {
-            variant: variant_name(kind),
-            subject: kind.subject().map(|id| id.to_string()),
-            rule: described.rule,
-            text: described.text,
-            at_cleanup,
-        }
+        Raised { variant: variant_name(kind), subject: kind.subject(), at_cleanup }
     }
 
     /// What every prompt must satisfy, whichever way it was built.
     fn check(&self) {
-        assert!(!self.text.is_empty(), "{}: describe() rendered nothing", self.variant);
-        assert!(
-            cr_has_rule(self.rule),
-            "{}: describe() cites CR {}, which the baseline does not have",
-            self.variant,
-            self.rule
-        );
-        match &self.subject {
-            Some(id) => assert!(
-                self.text.contains(id.as_str()),
-                "{}: the line does not name its subject {id}: {}",
-                self.variant,
-                self.text
-            ),
-            None => {
-                let allowed = SUBJECT_LESS.iter().any(|(name, _)| *name == self.variant)
-                    || (self.variant == "Discard" && self.at_cleanup);
-                assert!(
-                    allowed,
-                    "{} (CR {}) was asked without a subject: {}",
-                    self.variant,
-                    self.rule,
-                    self.text
-                );
-            }
+        if self.subject.is_some() {
+            return;
         }
+        let allowed = SUBJECT_LESS.iter().any(|(name, _)| *name == self.variant)
+            || (self.variant == "Discard" && self.at_cleanup);
+        assert!(allowed, "{} was asked without a subject", self.variant);
     }
 }
 
@@ -226,8 +176,7 @@ fn walk(seed: u64, players: usize, turns: usize, window: usize) -> Vec<Raised> {
 }
 
 /// Whole games, two seats and four: nothing the engine raises is without a
-/// subject it did not declare, every line names its subject, and every rule
-/// cited is in the baseline.
+/// subject it did not declare.
 #[test]
 fn every_prompt_a_game_raises_says_what_it_is_about() {
     let mut seen: BTreeMap<String, usize> = BTreeMap::new();
@@ -262,7 +211,7 @@ fn every_prompt_a_game_raises_says_what_it_is_about() {
 /// commander SBA, the replacement and copy prompts. The count at the end is
 /// what tells the author of a new variant to add its fixture here.
 #[test]
-fn every_variant_decides_its_subject_and_renders() {
+fn every_variant_decides_its_subject() {
     let id = ObjectId::UNASSIGNED;
     let kinds = vec![
         ChoiceKind::PriorityAction,
@@ -275,10 +224,6 @@ fn every_variant_decides_its_subject_and_renders() {
         ChoiceKind::ChooseAdditionalCosts { spell_id: id },
         ChoiceKind::SelectRecipients {
             recipient: EffectRecipient::Target(SelectionFilter::Creature, TargetCount::UpTo(2)),
-            spell_id: id,
-        },
-        ChoiceKind::SelectRecipients {
-            recipient: EffectRecipient::Choose(SelectionFilter::Creature, TargetCount::Exactly(1)),
             spell_id: id,
         },
         ChoiceKind::GenericManaAllocation { spell_or_ability_id: id, mana_cost: ManaCost::build(&[], 2) },

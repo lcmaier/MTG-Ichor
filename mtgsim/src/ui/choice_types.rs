@@ -2,7 +2,7 @@ use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
-use crate::types::effects::{CounterType, EffectRecipient, TargetCount};
+use crate::types::effects::{CounterType, EffectRecipient};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::Zone;
@@ -15,16 +15,18 @@ use super::decision::PriorityAction;
 /// type is introduced — no trait methods or impl changes.
 ///
 /// Exhaustive matching is intentional: single-crate project, compiler flags
-/// every match site when a variant is added. **Two of those sites are the
-/// variant's own contract**: [`Self::subject`] and [`Self::describe`] match
-/// without a wildcard, so a new variant decides at birth which object it is
-/// about and what a client shows for it (`backlog.md` §2.21).
+/// every match site when a variant is added. **One of those sites is the
+/// variant's own contract**: [`Self::subject`] matches without a wildcard, so
+/// a new variant decides at birth which object it is about (`backlog.md`
+/// §2.21). What it *shows* is each client's own — `ui/cli.rs`'s `prompt_line`
+/// is exhaustive for the same reason — and never the engine's.
 ///
 /// **A payload names things by id and in the CR's vocabulary, never by an
 /// engine AST** — `codebase-state.md` item 141. What a client needs is what
 /// the engine already computed: the options are the legality, the subject is
-/// which object is asking, and `describe` says why. `SelectRecipients`'
-/// `EffectRecipient` predates the rule and is its own piece of work.
+/// which object is asking, and the variant with its fields is the question.
+/// `SelectRecipients`' `EffectRecipient` predates the rule and is its own
+/// piece of work.
 ///
 /// Only variants that correspond to currently-implemented engine decisions
 /// are included. New variants are added as the engine grows — the exhaustive
@@ -266,22 +268,6 @@ pub enum ChoiceKind {
     LegendRule { legend_name: String },
 }
 
-/// What [`ChoiceKind::describe`] renders: the rule the question is asked
-/// under, as the stable handle a client keys on, and one line of text.
-///
-/// Text and ids, never engine structure (`codebase-state.md` item 141). A
-/// client that wants more than the line is asking an oracle question, not
-/// reading a prompt field.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PromptText {
-    /// The CR rule — `"601.2c"`, `"704.5j"` — as the baseline numbers it,
-    /// without a "CR" prefix. `tests/prompt_subject_test.rs` checks every one
-    /// against `MTG-Rules/versions/tmnt.txt`.
-    pub rule: &'static str,
-    /// One line in the CR's words, naming objects by id.
-    pub text: String,
-}
-
 impl ChoiceKind {
     /// The object this question is about — the spell or ability asking, or
     /// the permanent it concerns — when there is exactly one.
@@ -341,214 +327,11 @@ impl ChoiceKind {
         }
     }
 
-    /// One line a client can show, under the rule that asks it.
-    ///
-    /// Rendered by the engine so that every client shows the same question
-    /// and none has to know the card: objects by id, the rest in the CR's
-    /// words. The options are not repeated — they are the `ChoiceOption`s
-    /// beside the prompt — and the bounds are the call's.
-    pub fn describe(&self) -> PromptText {
-        let (rule, text) = match self {
-            ChoiceKind::PriorityAction => {
-                ("117.1", "Take an action, or pass priority".to_string())
-            }
-            ChoiceKind::DeclareAttackers => (
-                "508.1a",
-                "Declare attackers, each with the player or permanent it attacks".to_string(),
-            ),
-            ChoiceKind::DeclareBlockers => (
-                "509.1a",
-                "Declare blockers, each with the attacking creature it blocks".to_string(),
-            ),
-            ChoiceKind::AssignCombatDamage { attacker_id } => (
-                "510.1c",
-                format!("Assign {attacker_id}'s combat damage among the creatures blocking it"),
-            ),
-            ChoiceKind::AssignTrampleDamage { attacker_id, defending_target } => (
-                "702.19b",
-                format!(
-                    "Assign {attacker_id}'s combat damage among the creatures blocking it, the rest to {}",
-                    damage_target(defending_target)
-                ),
-            ),
-            ChoiceKind::ChooseXValue { spell_id, x_count } => (
-                "601.2b",
-                if *x_count > 1 {
-                    format!("Choose the value of X for {spell_id}, which its cost names {x_count} times")
-                } else {
-                    format!("Choose the value of X for {spell_id}")
-                },
-            ),
-            ChoiceKind::ChooseAlternativeCost { spell_id } => (
-                "601.2b",
-                format!("Choose whether to cast {spell_id} for its mana cost or for an alternative cost"),
-            ),
-            ChoiceKind::ChooseAdditionalCosts { spell_id } => (
-                "601.2b",
-                format!("Choose which optional additional costs of {spell_id} to pay"),
-            ),
-            ChoiceKind::SelectRecipients { recipient, spell_id } => match recipient {
-                EffectRecipient::Target(_, count) => (
-                    "601.2c",
-                    format!("Choose {} for {spell_id}", how_many(count, "a target", "targets")),
-                ),
-                EffectRecipient::Choose(_, count) => (
-                    "608.2d",
-                    format!(
-                        "Choose {} for {spell_id}; not a target",
-                        how_many(count, "an object or player", "objects or players")
-                    ),
-                ),
-                EffectRecipient::Implicit
-                | EffectRecipient::Controller
-                | EffectRecipient::SameInstanceAs(_)
-                | EffectRecipient::FilteredPermanents(_)
-                | EffectRecipient::FilteredObjectsIn(_, _)
-                | EffectRecipient::Host => {
-                    ("608.2d", format!("Choose for {spell_id}"))
-                }
-            },
-            ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => (
-                "601.2h",
-                format!(
-                    "Choose which mana in your pool pays the generic part of {mana_cost} for {spell_or_ability_id}"
-                ),
-            ),
-            ChoiceKind::OrderCostReductions { spell_id } => (
-                "601.2f",
-                format!("Order the cost reductions that apply to {spell_id}; the first applies first"),
-            ),
-            ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => (
-                "601.2g",
-                format!(
-                    "Activate a mana ability toward the {remaining_cost} still owed for {spell_or_ability_id}, or stop"
-                ),
-            ),
-            ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count } => (
-                "601.2h",
-                format!("Choose {count} permanent(s) to sacrifice to pay for {spell_or_ability_id}"),
-            ),
-            ChoiceKind::ChooseReplacementEffect { affected_object } => (
-                "616.1",
-                match affected_object {
-                    Some(id) => format!(
-                        "Choose which replacement or prevention effect applies to the event affecting {id}"
-                    ),
-                    None => "Choose which replacement or prevention effect applies to the event affecting you"
-                        .to_string(),
-                },
-            ),
-            ChoiceKind::ApplyOptionalReplacement { affected_object, source } => (
-                "614.1a",
-                match affected_object {
-                    Some(id) => format!(
-                        "Choose whether {source}'s replacement effect applies to the event affecting {id}"
-                    ),
-                    None => format!(
-                        "Choose whether {source}'s replacement effect applies to the event affecting you"
-                    ),
-                },
-            ),
-            ChoiceKind::AllocateNextDamage { source, remaining } => (
-                "615.7",
-                format!(
-                    "Choose which damage {source}'s effect prevents, of the {remaining} it can still prevent"
-                ),
-            ),
-            ChoiceKind::ChooseDamageSource { source } => {
-                ("609.7a", format!("Choose a source of damage for {source}'s effect"))
-            }
-            ChoiceKind::ChooseEnteringController { object } => (
-                "614.12a",
-                format!("Choose the opponent under whose control {object} enters the battlefield"),
-            ),
-            ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => (
-                "614.13a",
-                format!(
-                    "Choose any number of objects to put into {} as {source}'s effect modifies how {entering} enters the battlefield",
-                    zone_name(to)
-                ),
-            ),
-            ChoiceKind::ChooseCopySource { spell_id } => {
-                ("608.2d", format!("Choose the permanent for {spell_id}'s effect to copy"))
-            }
-            ChoiceKind::CommanderToCommandZoneSba { commander } => {
-                ("704.6d", format!("Choose whether {commander} goes to the command zone"))
-            }
-            ChoiceKind::Discard { source } => (
-                "701.9b",
-                match source {
-                    Some(id) => format!("Choose the cards to discard for {id}"),
-                    None => "Choose the cards to discard down to your maximum hand size".to_string(),
-                },
-            ),
-            ChoiceKind::Scry { source, n } => (
-                "701.22a",
-                match source {
-                    Some(id) => format!(
-                        "Scry {n} for {id}: choose which of the cards looked at go on the bottom of your library"
-                    ),
-                    None => format!(
-                        "Scry {n}: choose which of the cards looked at go on the bottom of your library"
-                    ),
-                },
-            ),
-            ChoiceKind::ScryOrder { source, bottom } => {
-                let pile = if *bottom { "going to the bottom" } else { "staying on top" };
-                (
-                    "701.22a",
-                    match source {
-                        Some(id) => format!(
-                            "Scry for {id}: order the cards {pile} of your library, top-most first"
-                        ),
-                        None => format!("Scry: order the cards {pile} of your library, top-most first"),
-                    },
-                )
-            }
-            ChoiceKind::LegendRule { legend_name } => (
-                "704.5j",
-                format!(
-                    "Choose which permanent named {legend_name} to keep; the rest go to their owners' graveyards"
-                ),
-            ),
-        };
-        PromptText { rule, text }
-    }
 }
 
-/// A count of targets in words — "a target", "two targets", "up to two
-/// targets" — with `one` for exactly one and `many` as the plural noun.
-fn how_many(count: &TargetCount, one: &str, many: &str) -> String {
-    match count {
-        TargetCount::Exactly(1) => one.to_string(),
-        TargetCount::Exactly(n) => format!("{n} {many}"),
-        TargetCount::UpTo(n) => format!("up to {n} {many}"),
-    }
-}
-
-fn damage_target(target: &DamageTarget) -> String {
-    match target {
-        DamageTarget::Player(player) => format!("player {player}"),
-        DamageTarget::Object(id) => id.to_string(),
-    }
-}
-
-/// CR 400.1's zones, as a sentence says them.
-fn zone_name(zone: &Zone) -> &'static str {
-    match zone {
-        Zone::Library => "the library",
-        Zone::Hand => "the hand",
-        Zone::Battlefield => "the battlefield",
-        Zone::Graveyard => "the graveyard",
-        Zone::Stack => "the stack",
-        Zone::Exile => "exile",
-        Zone::Command => "the command zone",
-    }
-}
-
-/// Wrapper carrying the semantic kind. The display text is
-/// [`ChoiceKind::describe`]'s, so that every client shows the same question;
-/// a provider that wants its own wording matches on `kind`.
+/// Wrapper carrying the semantic kind. No display text — each provider
+/// renders its own prompts by matching on `kind`, exhaustively (`ui/cli.rs`'s
+/// `prompt_line`), which keeps presentation out of the engine boundary.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
     pub kind: ChoiceKind,
