@@ -662,6 +662,8 @@ The replacement pipeline is designed to sit inside `execute_action` at `engine/a
    2026-09-11 — the four loops become CR 704.3 batch members); the detach
    pair lands with Equip.
 
+   **Phase (2026-09-19):** the counter half — CR 704.5q's annihilation — is TR-5's: two `RemoveCounters` proposals in the state-based batch, `CountersAnnihilated` deleted (`triggers-architecture.md` §3.3, §12); Protean Hydra's rulings are why it is a removal event. The detach and the token halves stay here.
+
 7. **The early stack pop — ✅ DELETED 2026-09-01 (phase RC-1).** — archived.
     **Reachability (2026-09-03):** closed — RC-1, PR #80 (093e12a).
     Full entry: `plans/archive/codebase-state-closed.md`, "Before Replacement
@@ -5601,7 +5603,7 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     frame typed as *characteristics* should carry status is the doc's, and
     CR 603.10's word is "appearance".
 
-    **Phase (2026-09-18):** TR-4 — the frame becomes `Appearance { characteristics, status }`, CR 603.10's word; `triggers-architecture.md` §3.11.
+    **Phase (2026-09-18):** TR-4 — the frame becomes `LastKnownInformation { characteristics, status }`, CR 113.7a's phrase and the tree's `lki`; `triggers-architecture.md` §3.11.
 
 15. **The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).** CR 603.10a names three look-back classes and the

@@ -290,7 +290,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
-| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, occurrence }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/exiled/countered by `cause`; "from anywhere" `from: None` | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` (CR 603.10a's three classes; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
+| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, occurrence }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/exiled/countered by `cause`; "from anywhere" `from: None` | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
 | `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, occurrence }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2 |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
@@ -308,24 +308,25 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PlayerLost` | `PlayerLoses { player, reason: Option<LossReason> }` — 603.9's "unless as the result of a draw": a draw is `GameResult::Draw`, not a `PlayerLost` | yes (603.10f) | TR-4 |
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
-| `LibraryShuffled` | `ShufflesLibrary { player }` | no | TR-5 (fixture) |
-| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, occurrence }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`) | no | TR-5 |
-| `CountersAnnihilated` | **no arm** — CR 704.5q is a state-based action that announces the pair; no card watches it | — | — |
+| `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2 |
+| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, occurrence }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count and `OncePerEvent` is Simic Ascendancy's "one or more" | no | TR-5 |
+| `CountersAnnihilated` | **no arm, and the variant goes** — CR 704.5q's annihilation *is* a removal of counters: Protean Hydra's ruling has a -1/-1 counter meeting a +1/+1 counter trigger "whenever a +1/+1 counter is removed". Today the state-based sweep writes both kinds directly and announces this variant (Deferred Migrations item 6's counter half, `sba.rs:484`); TR-5 routes it through two `RemoveCounters` proposals in the state-based batch, so the annihilation is two `CountersChanged` records the removal arm reads, and the variant is deleted with item 18's three | — | TR-5 |
 | `Attached` | `BecomesAttached { attachment: Option<ObjectFilter>, host: Option<ObjectFilter> }` — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002) | no | TR-4 |
 | `EquipmentDetached` → **`Unattached`** | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's three routes (question 5), replacing `EquipmentDetached` | yes (603.10c): the frame is the attachment's, with `attached_to` from item 14 | TR-4 |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
 | `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, occurrence }` — keyed here and never on `is_token` at entry (item 8; CR 111.13) | no | TR-5 (fixture) |
-| `TokenCeasedToExist` | **no arm** — a state-based action with no printed watcher | — | — |
+| `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
 | *new* `Targeted` (item 12) | `BecomesTarget { subject: TargetRef (object or player), by: Option<TargetingFilter> (a spell, an ability, "an opponent controls", "an Aura spell"), first_time_each_turn }` — once per spell or ability, however many instances (question 11) | no | TR-5 |
 | *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "loses control", "an opponent gains control of a permanent you own" | yes (603.10d), with the caveat in §15 item 4 | TR-4 |
 | *new* `DamagePrevented` (item 16) | `DamageIsPrevented { target: DamageRecipient, occurrence }` — one record per prevention applied per subject group (CR 615.13) | no | TR-5 |
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), of: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
 
-Thirty-four variants, three deleted, four added (three from the survey's
-gaps and `AbilityTriggered`), one renamed: **thirty-five performed kinds
-after TR-5, thirty with an arm and five with none, each of the five named
-above with the reason.** Two kinds carry two arms each — life and
+Thirty-four variants, four deleted (three never emitted, and
+`CountersAnnihilated` once CR 704.5q proposes), four added (three from the
+survey's gaps and `AbilityTriggered`), one renamed: **thirty-four performed
+kinds after TR-5, thirty with an arm and four with none, each of the four
+named above with the reason.** Two kinds carry two arms each — life and
 counters, where a signed field splits two printed families — which is the
 one place the projection is not one-to-one, and it is a property of the
 record, not a second axis. `PhaseType` and `StepType` are
@@ -341,49 +342,61 @@ creature's power". CR 608.2k says the reference survives characteristic
 changes; CR 603.6 says a zone-change trigger looks for the object in the
 zone it moved to and finds nothing if it left; CR 113.7a and 608.2h say
 information about an object that is gone is its last known information.
-The engine's answer is one struct, filled at dispatch and carried on the
-`PendingTrigger` and then the `StackEntry`:
+The engine's answer is a struct that **points at the records and copies
+nothing they hold**, filled at dispatch and carried on the `PendingTrigger`
+and then the `StackEntry`:
 
 ```rust
 pub struct TriggerBinding {
-    /// The record that matched — its index in the log, so the resolution
-    /// can re-read any field; and its `EventStamp`, which is what the
+    /// The records that matched: one for a `PerOccurrence` trigger, every
+    /// matching record of the window for a `OncePerEvent` one. By stable
+    /// id, never by `Vec` index — `EventSeq` is the log's monotonic
+    /// sequence number (today the index; the trace's `seq` already), and
+    /// `EventLog::record(seq)` is the read. Their `EventStamp` is what the
     /// reflexive check and CR 603.7h's "this ability" read.
-    pub record: usize,
-    pub stamp: EventStamp,
-    /// "That object": the record's subject, with the `zone_change_epoch`
-    /// it had when the event was performed (CR 400.7 — a later move makes
-    /// it a new object the reference cannot find; `codebase-state.md`
-    /// item 10's field). `None` for an event about no object.
+    pub records: Vec<EventSeq>,
+    /// Which arm of the condition matched — the `TriggerEvent` whose
+    /// projections (below) say what "that object", "that player" and
+    /// "that many" are for these records.
+    pub arm: ArmIndex,
+    /// The one fact a record does not carry and the resolution needs: the
+    /// subject's `zone_change_epoch` at dispatch (CR 400.7 — a later move
+    /// makes it a new object the reference cannot find;
+    /// `codebase-state.md` item 10's field). `None` for an event about no
+    /// object.
     pub object: Option<ObjectRef>,
-    /// "That player": the record's player, for a draw, a life change, a
-    /// player attacked, a token's owner.
-    pub player: Option<PlayerId>,
-    /// "That many" / "that much": the amount the record carried — life
-    /// gained, damage dealt, counters put on, cards looked at, damage
-    /// prevented.
-    pub amount: Option<u64>,
-    /// CR 603.10 — the object as it last existed, for a look-back trigger:
-    /// the frame the record carries (§3.11). Read by anything that asks a
-    /// characteristic or a status of an object that has moved.
-    pub appearance: Option<Arc<Appearance>>,
     /// The ability whose triggering this is (CR 603.3b's second tier), or
     /// for a reflexive trigger, the action within the resolution.
     pub triggered: Option<TriggerSeq>,
 }
 ```
 
-The effect tree reads it through three leaves, all shipped in TR-1 because
-the type that carries them opens there: `EffectRecipient::TriggeringObject`
-("that creature"; resolves to `ObjectRef`, and to nothing if the object has
-changed zones since — CR 603.6's "unable to be found" and CR 400.7 in one
-comparison), `EffectRecipient::TriggeringPlayer`, and
-`AmountExpr::TriggeringAmount`. Characteristics of the bound object —
-"damage equal to that creature's power" — are `AmountExpr::TriggeringPower`
-reading the live object when it is where the event left it and the
-`appearance` otherwise (CR 608.2h). Nothing is cloned onto the binding that
-the log already holds; `record` is an index and the log is unbounded on
-purpose (item 42's window question stays open and is not this phase's).
+**The projections live on the arm, and they are exhaustive matches.**
+`TriggerEvent` carries four methods — `subject_of(&GameEvent) ->
+Option<ObjectId>`, `player_of(..) -> Option<PlayerId>`, `amount_of(..) ->
+Option<u64>`, `occurrences_of(..) -> u32` — each a `match` over the arms
+with no wildcard, so a new arm must say what its "that many" is (damage
+dealt, cards looked at, counters put on, damage prevented) or fail to
+compile, and must say what an occurrence is (a record for most kinds; a
+counter for the counter arms, per Protean Hydra's ruling; an attacker for
+the attack shapes). The readers resolve through them at resolution:
+`EffectRecipient::TriggeringObject` is `object` checked against the live
+object's epoch — CR 603.6's "unable to be found" and CR 400.7 in one
+comparison; `EffectRecipient::TriggeringPlayer` is `player_of` on the
+records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
+(Simic Ascendancy's "that many" across a batch); and
+`AmountExpr::TriggeringPower` reads the live object when it is where the
+event left it and the record's `lki` frame otherwise (CR 608.2h). All
+three leaves ship in TR-1 because the type that carries them opens there.
+
+**Why no stored amount.** A single `Option<u64>` on the binding would mean
+a different field per arm with nothing forcing a new arm to declare which,
+and a number copied at dispatch is a second copy of a fact the record
+already materializes. Pointing at the record keeps one copy, and the frame
+comes with it. The cost is one constraint on item 42's future window: **no
+record a pending or stacked trigger references may be evicted** — the
+window's floor is the oldest referenced `EventSeq`, which a trigger holds
+for at most the few batches between its dispatch and its resolution.
 
 ### 3.5 `TriggerLimit` — the two once-per-turn gates, and "first time"
 
@@ -433,11 +446,16 @@ pub struct AbilityIdentity {
     pub zone_change_epoch: u64,
     pub ability: AbilityId,
     /// The k-th instance of `ability` on `source`, in effective-list order.
-    /// Two Citanul Hierophants grant one `AbilityId` twice (item 149) and
-    /// CR 113.10b calls those two instances of one ability; each triggers,
-    /// each is placed, and each is its own gate — but CR 603.7h counts the
-    /// ABILITY, not the instance (§6.5), so the counters key on the pair
-    /// and ignore this field.
+    /// A4g made an `AbilityId` per definition, so two sources granting one
+    /// ability put it on an object twice under one id (item 149). For a
+    /// mana ability nothing tells the two apart in outcome; for a TRIGGERED
+    /// one the outcome differs — Diffusion Sliver's ruling: the abilities
+    /// Slivers grant "are cumulative", so a Sliver under two Diffusion
+    /// Slivers triggers twice and the opponent pays twice — and a
+    /// dispatcher keyed on `(source, ability)` alone would fold the two
+    /// into one trigger. Each instance triggers, is placed, and is its own
+    /// gate; CR 603.7h counts the ABILITY (§6.5), so the counters key on
+    /// the pair and ignore this field.
     pub instance: u32,
 }
 ```
@@ -473,9 +491,14 @@ pub struct PendingTrigger {
     /// (CR 113.7a — "exists on the stack independently of its source"
     /// begins at the trigger for everything but the text's own reading).
     pub def: Arc<TriggerDef>,
-    /// What the ability is, for the stack object's characteristics (603.3:
-    /// "the text of the ability that created it, and no other").
-    pub card: Arc<CardData>,
+    /// What `GameObject::new` needs to build the stack object — the name and
+    /// display the source's card gives it, as `activate_ability` clones the
+    /// source's `card_data` today. Held here, behind an `Arc`, because the
+    /// source may be gone by placement: a dies trigger's source is in the
+    /// graveyard and a `LeftTheGame` source is not in the object map at all.
+    /// CR 603.3 gives the object "the text of the ability that created it,
+    /// and no other characteristics", and nothing reads this card's types.
+    pub source_card: Arc<CardData>,
     pub binding: TriggerBinding,
     /// CR 603.3b's tier: 1 unless the condition is another ability triggering.
     pub tier: Tier,
@@ -621,16 +644,18 @@ too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
 (the variant, the `holds` arm, the `condition_reads` arm, which for a
 summary read is "nothing" — no frame is read).
 
-### 3.11 `Appearance` — the LKI frame, widened (items 14, 15)
+### 3.11 `LastKnownInformation` — the LKI frame, widened (items 14, 15)
 
-CR 603.10's word is "the appearance of objects immediately prior to the
-event", and persist, undying, an Aura's 603.6e trigger and the four
-"becomes unattached" Equipment each read a **status**, which
-`EffectiveCharacteristics` deliberately does not carry (it is the layer
-walk's output). So the frame is a pair:
+CR 603.10 says "the appearance of objects immediately prior to the
+event"; CR 113.7a and 608.2h call the same fact "last known information",
+and the tree has called the field `lki` since RA — so the type takes the
+rules' name for the fact rather than for the look. Persist, undying, an
+Aura's 603.6e trigger and the four "becomes unattached" Equipment each
+read a **status**, which `EffectiveCharacteristics` deliberately does not
+carry (it is the layer walk's output). So the frame is a pair:
 
 ```rust
-pub struct Appearance {
+pub struct LastKnownInformation {
     pub characteristics: EffectiveCharacteristics,
     /// `None` for an object that was not a permanent. CR 110.5's four
     /// statuses plus the two facts the four printed families read.
@@ -646,19 +671,19 @@ pub struct Status {
 ```
 
 `ZoneChange.lki`, `LeftTheGame.lki` and the new `ControlChanged.lki` carry
-`Option<Box<Appearance>>` in place of `Option<Box<EffectiveCharacteristics>>`
+`Option<Box<LastKnownInformation>>` in place of `Option<Box<EffectiveCharacteristics>>`
 — three field sites, seven literal sites — and the capture in
 `perform_zone_change` and `owned_objects_leave` copies the status off
 `PermanentState` beside the uncached walk it already makes (~15 lines, item
 14's size). **The capture condition widens to CR 603.10a's three classes**
 (item 15): `from == Battlefield` (today), `from == Graveyard`, and `to ∈
-{Hand, Library}` from a public zone — a departure from a hidden zone has
-nothing to look back at and stays `None`. The **reader** is
-`engine::lki::LastKnown`, a view over a `TriggerBinding` or a record: `fn
-power(&self) -> Option<i32>`, `fn had_counters(&self, kind) -> bool`, `fn
-host(&self) -> Option<ObjectId>`, each answering live when the object is
-still where the event left it and from the frame otherwise (CR 608.2h,
-113.7a). Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
+{Hand, Library}` from a zone all players could see — CR 603.10a's own
+words for the third class; a Brainstorm put-back from a hand was never a
+shared fact, so it has nothing to look back at and stays `None`. **The
+reader methods live on the type** — `power()`, `had_counters(kind)`,
+`host()`, `controller()` — and `TriggerBinding`'s readers answer live when
+the object is still where the event left it and from the frame otherwise
+(CR 608.2h, 113.7a); there is no second view type. Item 3's "three ad-hoc reads in `sba.rs`" are two existence probes
 today (`sba.rs:327`, `:425`, both `?` ahead of a subtype read) and not
 frames; the item closes on the reader existing, not on those lines.
 
@@ -672,11 +697,11 @@ Each of the survey's nine gaps, absorbed or declined:
 | **11** — `AttackersDeclared` carries no defender | absorbed: `attackers: Vec<(ObjectId, AttackTarget)>` at the one emit site; `BlockersDeclared` becomes **one record per declaration step** carrying every defending player's pairs, because 509.3g's "attacks and isn't blocked" is a fact about the whole declaration and several defenders declare in turn | TR-5 |
 | **12** — no event announces a target being chosen | absorbed: `GameEvent::Targeted { target: TargetRef, by: ObjectId, controller: PlayerId, instances: u32 }`, one record per (spell or ability, distinct target), emitted where CR 601.2c's announcement completes — `cast_spell` (ahead of `SpellCast`, both at 601.2i), `activate_ability`, and placement's 603.3d | TR-5 |
 | **13** — no event announces a control change | absorbed as **a sweep, not a write hook**: control is a computed value and "gains control" is a "becomes" on the walk's output, so the dispatcher's state check (§4.5) compares every permanent's effective controller against `PermanentState.announced_controller` — a materialized field with one meaning, the controller the stream last announced — gated on `RegistryScopeSummary.any_control_changing`, and emits `ControlChanged { object, from, to, lki }` per change. Every route lands there: the registry write, its expiry at cleanup, a stripped granting ability, a conditional row flipping | TR-4 |
-| **14** — the frame carries no status | absorbed: `Appearance` (§3.11) | TR-4 |
+| **14** — the frame carries no status | absorbed: `LastKnownInformation` (§3.11) | TR-4 |
 | **15** — the frame is captured for battlefield departures only | absorbed: the three classes (§3.11) | TR-4 |
 | **16** — no event for a prevention applying | absorbed: `GameEvent::DamagePrevented { source, target, amount, by: ReplacementInstanceId }`, emitted by `apply_rewrite`'s prevention leg once per prevention instance per subject group (CR 615.13's "each time a prevention effect is applied to one or more simultaneous damage events"); inside the batch, ahead of the `DamageDealt` it reduced. Not a performer emitting — the application is the event | TR-5 |
 | **17** — entry counters announce nothing | absorbed, the survey's question 4 decided: the `EnterBattlefield` performer announces one `CountersChanged` per `EntryCounters` row after `PermanentEnteredBattlefield`, inside the batch, with a new `by: Option<PlayerId>` on the record (CR 122.6a's putter, which the proposal has and the record dropped). Announced, never proposed, so CR 614.16's doublers see nothing twice; CR 122.7's "before" reads the live count minus `added`, which for an entry is zero | TR-5 |
-| **18** — three variants never emitted | absorbed: `PhaseEnd`, `StepEnd`, `TurnEnd` deleted with their `format_event` arms. No printed trigger reads an end (511.2, 513.1a), and an arm the stream cannot carry misleads the reader | TR-1 |
+| **18** — three variants never emitted | absorbed: `PhaseEnd`, `StepEnd`, `TurnEnd` deleted with their `format_event` arms. No printed trigger reads an end (511.2, 513.1a), and an arm the stream cannot carry misleads the reader. `CountersAnnihilated` is the fourth deletion, in TR-5, once CR 704.5q proposes (§3.3) | TR-1 |
 
 Plus one record this design adds for its own use: **`AbilityTriggered {
 seq, identity: TriggerOrigin, controller, caused_by: usize }`**, the event
@@ -841,20 +866,26 @@ the object (persist's "if it had no -1/-1 counters", off `Status.counters`).
 
 ### 4.4 Occurrence: per record, per window, and the multiplier
 
-- **`PerOccurrence`** (the default): one trigger per matching record. A wipe
-  of three lands is three `ZoneChange`s in one batch and three triggers
-  (ATOM-603.2c-001); Soul Warden entering beside two creatures triggers
-  twice (its ruling).
+- **`PerOccurrence`** (the default): one trigger per occurrence, and the
+  arm's `occurrences_of` says what an occurrence is — a record for most
+  kinds, a counter for the counter arms (Protean Hydra's ruling: several
+  removed at once trigger that many times), an attacker for the attack
+  shapes. A wipe of three lands is three `ZoneChange`s in one batch and
+  three triggers (ATOM-603.2c-001); Soul Warden entering beside two
+  creatures triggers twice (its ruling).
 - **`OncePerEvent`** ("one or more"): one trigger per window in which any
-  record matches; the binding's `amount` is the sum and `object` is `None`.
+  record matches; the binding holds every matching record,
+  `TriggeringAmount` is `amount_of` summed over them, and `object` is `None`.
   CR 603.2c's boundary is the `BatchId`, which the envelope was built to
   carry (`events/event.rs` says so in as many words).
 - **The join** for `EntersBattlefield { from, cast }`: the entry record and
   the same object's `ZoneChange` or `TokenCreated` are both in the window;
   the matcher reads `from` off the zone change and "cast" off
-  `PermanentState.cast_by` (main item 9, CR 400.7d — a fact the permanent
-  keeps, recorded by the entry performer off the proposal's zone change),
-  and a token has neither. No field is added to the entry record (question 9).
+  `PermanentState.cast` (main item 9, CR 400.7d — who cast it and from
+  which zone, two facts the permanent keeps, recorded by the entry
+  performer off the stack entry the proposal's zone change came from;
+  Coal Stoker reads "from your hand", Prized Amalgam "from your
+  graveyard"), and a token has neither. No field is added to the entry record (question 9).
 - **CR 603.2d's count modifier** is a static ability, discovered off the
   effective list at dispatch behind the same gate: `Effect::TriggerMultiplier
   (TriggerMultiplierDef { caused_by: TriggerEvent, of: ObjectFilter,
@@ -881,6 +912,11 @@ performed: it is this schedule); and inside the cleanup step's CR 514.3a
 probe, so "at the beginning of the next cleanup step" and a state that
 became true when "until end of turn" ended both reach the second cleanup.
 CR 702.131d is free: each schedule reads frames the epoch invalidated.
+The predicate is the same `Condition` a static's "as long as" and a
+trigger's intervening "if" use, leaf for leaf: threshold's "seven or more
+cards in your graveyard" is one `CardsInGraveyard` count whether it makes
+an effect exist or a trigger fire; what differs is the instant it is asked
+and what a true answer does.
 
 **One-shot** (603.8's last sentences): a state trigger that has triggered is
 in `state_triggers_armed_off: IdSet<AbilityIdentity>` until its stack
@@ -1038,6 +1074,12 @@ their relative order") is this procedure's other name. CR 101.4d's restart
 is not implemented, on the pipeline's precedent: placement creates no new
 choice for an earlier player.
 
+**The drain removes each entry from `pending_triggers` as it places it**,
+and that is a design statement rather than a detail: the queue is then the
+placement's progress record, so a `GameState` cloned at the ordering prompt
+resumes by running `place_pending_triggers` again — item 40's invariant met
+by construction, at the fork model's own boundary, a priority grant.
+
 **The ordering prompt is `ChoiceKind::OrderTriggers { player, tier }`**,
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
 through `choose_ordering` with the pending entries as `ChoiceOption`s in
@@ -1100,7 +1142,7 @@ At resolution, `resolve_taken` evaluates it again before anything else
 doing nothing if it is false (-003). The evaluator is `settled_holds` for a
 condition about the board, and a `TriggerContext` variant of it for a
 condition about the bound facts — persist's "if it had no -1/-1 counters
-on it" reads the binding's `appearance` at both instants, since the
+on it" reads the record's `lki` frame at both instants, since the
 creature is in the graveyard at both. `Condition` is one enum for the
 static "as long as", the intervening "if" and the state trigger, as
 `layers-architecture.md` §13b decision 5 planned; a leaf is three edits.
@@ -1128,7 +1170,7 @@ object and the recipient resolves to nothing — the atom "put a +1/+1 counter
 on it" after a bounce (ATOM-603.6-001) and CR 603.6c's "checks for it only
 in the first zone that it went to" (-001/-002), which is the same
 comparison read the other way. `AmountExpr::TriggeringPower` and its
-siblings read `LastKnown` (§3.11): live if the object is where the event
+siblings read `LastKnownInformation` (§3.11): live if the object is where the event
 left it, the frame otherwise. Nothing the effect reads is copied at
 dispatch that the record does not already hold — the binding is indices
 and one `Arc`.
@@ -1151,6 +1193,17 @@ plus a count condition. The instance field is ignored by the count. A copy
 of an ability (CV-4) carries the original's identity on its stack entry
 and advances the same key — CR 707.10b's "the same ability" — and that
 sentence is what this document owes CV-4.
+
+**"If this is the Nth time this ability has resolved this turn"** — Omnath,
+Locus of Creation's three branches, Ashling the Pilgrim's third — is not a
+`TriggerLimit` but a branch inside the effect,
+`Effect::Conditional(Condition::ResolvedThisTurn(n), ..)`, read at
+resolution against the same field. Because the record that advances the
+count is emitted as the resolution's last step (CR 608.2n), the leaf reads
+count + 1 == n: Ashling's ruling counts the times the ability "has already
+resolved", and Omnath's says it counts resolutions and not triggers and
+has no effect past the third. Three edits for the leaf, in TR-2 with the
+count.
 
 ### 6.6 CR 121.2c — each player, in APNAP order (S2; item 122)
 
@@ -1185,11 +1238,11 @@ field with one writer:
 | a state trigger is on the stack (603.8) | `state_triggers_armed_off: IdSet<AbilityIdentity>` | the dispatcher (arm off), `trigger_left_stack` (re-arm) | the state check |
 | resolutions per ability per turn (603.7h) | `TurnSummary.abilities_resolved` | the dispatcher, off `AbilityResolved` | the count condition |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
-| who cast this permanent (400.7d; main item 9) | `PermanentState.cast_by: Option<PlayerId>` | the entry performer, off the proposal's zone change | `EntersBattlefield { cast }`, "if you cast it" |
+| who cast this permanent, and from which zone (400.7d; main item 9) | `PermanentState.cast: Option<CastFacts { by: PlayerId, from: Zone }>` | the entry performer, off the stack entry (`controller`, `cast_from`) the proposal's zone change came from | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer | the delayed check, the resolution |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
-| the trigger's event, subject, amount, appearance | `TriggerBinding` (indices and one `Arc`) | the dispatcher | the resolution |
+| the trigger's event, subject, amount, frame | `TriggerBinding` (record ids, the matched arm, the subject's epoch — nothing the records hold) | the dispatcher | the resolution, through the arm's projections |
 
 The pending queue, the delayed registry, the histories and the four sets
 are `GameState` fields, cloned with a fork. The window (`records_from`) is
@@ -1218,11 +1271,12 @@ unblocked by this — nothing here reads further back than one batch.
 | `engine/turns.rs::begin_step` / `begin_phase` | propose with `player` | the record carries it (item 10) | TR-1 |
 | `actions.rs`' `DealDamage`, `LoseLife` performers | drop `is_combat`, `cause` | carry them (item 10) | TR-1 |
 | `mana.rs::activate_mana_ability` → `resolve_mana_effect` | activated mana abilities | the same path for a triggered one, entered from dispatch | TR-1 |
-| `engine/zones.rs::perform_zone_change`, `leaving.rs::owned_objects_leave` | capture `EffectiveCharacteristics` for a battlefield departure | capture `Appearance`; widen the condition | TR-4 |
+| `engine/zones.rs::perform_zone_change`, `leaving.rs::owned_objects_leave` | capture `EffectiveCharacteristics` for a battlefield departure | capture `LastKnownInformation`; widen the condition to the three classes, the third for a visible object only | TR-4 |
 | `engine/combat/steps.rs` (`:86`, `:177`) | attackers, per-defender blockers | defenders on the record; one blockers record | TR-5 |
 | `replacement/pipeline.rs::apply_rewrite` | prevention leg | announce `DamagePrevented` | TR-5 |
 | `actions.rs` `EnterBattlefield` performer | announces the entry | one `CountersChanged` per entry row after it | TR-5 |
 | `sba.rs` (`:439`, `:480`), `GameState::attach`, the zone-change performers | `EquipmentDetached` at two sites | `announce_unattached` at three | TR-4 |
+| `sba.rs` (`:484`–`:503`), CR 704.5q | writes both counter kinds directly, announces `CountersAnnihilated` | two `RemoveCounters` proposals in the state-based batch; the variant deleted | TR-5 |
 | `resolve.rs` `Primitive::GainControl` | writes the Layer 2 row | unchanged — the sweep detects it | TR-4 |
 | `ui/choice_types.rs`, `ui/ask.rs`, `ui/cli.rs`, `trace_records.rs`, `sba.rs` | five exhaustive `ChoiceKind` matches in `src`, four test files | one arm each per new kind (§9) | per phase |
 | `ui/display.rs::format_event` | 34 arms | −3, +4, one renamed | TR-1, TR-4, TR-5 |
@@ -1267,7 +1321,7 @@ permanent — CR 729.2a gives a merged permanent one set of characteristics
 (its topmost component's, or what the merging effect says: mutate's is
 every component's abilities), so the effective list is the permanent's,
 `instance` indexes that list, and a component's own ordinal is not a thing
-this design knows; `cast_by`, `announced_controller`, the gates, the
+this design knows; `cast`, `announced_controller`, the gates, the
 counters in `Status` and the histories key on the permanent;
 `zone_change_epoch` is the permanent's, since CR 729.2c makes a merged
 permanent "the same object that it was before". **One read is a
@@ -1275,7 +1329,7 @@ component's**: when a merged permanent leaves the battlefield "one
 permanent leaves" and each component is put into its zone (CR 729.3), and
 an effect that can find the new object "finds all of those objects"
 (729.3c) — so a `TriggerBinding.object` for "return it to the battlefield"
-names *N* new objects, and `Appearance`, one frame, the permanent's, must
+names *N* new objects, and `LastKnownInformation`, one frame, the permanent's, must
 let CV-7 say which component's card each lookup means. That is CV-7's to
 design; this document names it and keys nothing on it.
 
@@ -1283,7 +1337,9 @@ design; this document names it and keys nothing on it.
 
 ## 11. Performance — the sweep, the gate, the memo, and what each PR predicts
 
-**The cost model.** A dispatch is: five set probes (the gate); if any is
+**The cost model.** A dispatch is: five set probes — a probe being one
+hash-set `is_empty` or `contains`, nanoseconds and no allocation — for the
+gate; if any is
 non-empty, one `get_effective_abilities` per candidate (a memo hit for
 every object the batch did not touch; one board pass for the rest, which
 the SBA check after the batch shares), one `matches` per triggered def per
@@ -1332,11 +1388,11 @@ detector reads every prompt the earlier phases add.
 
 | Piece | Measured | ~additions |
 |---|---|---|
-| `TriggerDef`, `TriggerCondition`, `TriggerEvent` with the arms its cards need (`ZoneChange` for the battlefield classes, `EntersBattlefield`, `StepBegins`/`PhaseBegins`/`TurnBegins`, `ManaAdded`, `DamageDealt`, `BecomesTapped`/`Untapped`, `AbilityTriggers`), `Occurrence`, `TriggerBinding`, `PendingTrigger`, `TriggerOrigin::Object`, `Tier`, the three bound-fact leaves, `ObjectFilter::NotSource`, `Effect::Triggered`, `AbilityIdentity`'s two fields | 13 `(source, ability)` sites; `Effect::instances` +1 arm; 5 `EffectRecipient` exhaustive matches, 2 `AmountExpr` | ~420 |
-| `AbilityTriggered`; item 10's three fields; item 18's deletion; `cast_by` | 34 emit sites read, 3 performers; literal sites `StepBegin {` 5/12, `DamageDealt {` 10/7, `LifeChanged {` 10/9; `format_event` −3 +1 | ~120 |
+| `TriggerDef`, `TriggerCondition`, `TriggerEvent` with the arms its cards need (`ZoneChange` for the battlefield classes, `EntersBattlefield`, `StepBegins`/`PhaseBegins`/`TurnBegins`, `ManaAdded`, `DamageDealt`, `BecomesTapped`/`Untapped`, `AbilityTriggers`), `Occurrence`, `TriggerBinding` with `EventSeq` on `EventLog` and the four arm projections, `PendingTrigger`, `TriggerOrigin::Object`, `Tier`, the three bound-fact leaves, `ObjectFilter::NotSource`, `Effect::Triggered`, `AbilityIdentity`'s two fields | 13 `(source, ability)` sites; `Effect::instances` +1 arm; 5 `EffectRecipient` exhaustive matches, 2 `AmountExpr` | ~420 |
+| `AbilityTriggered`; item 10's three fields; item 18's deletion; `PermanentState.cast` (who, from where) | 34 emit sites read, 3 performers; literal sites `StepBegin {` 5/12, `DamageDealt {` 10/7, `LifeChanged {` 10/9; `format_event` −3 +1 | ~120 |
 | the dispatcher: the window at both doors, the candidate set (legs 1, 2, 4), the gate (`trigger_sources`, the summary's two zone fields, `puts_a_triggered_ability`), the visibility predicate, look-back off `from`/`to`, `OncePerEvent`, the entry join, 605.1b's immediate resolution, the two trace records | `gather.rs`' shape, 1,222 lines, as the template; `register_static_effects` +2 doors | ~520 |
 | placement: the state-check stub (a no-op until TR-6), 800.4d, tiers, APNAP, `OrderTriggers` and its elision, `announce_targets`, the stack object, `StackEntry.trigger` | 13 + 5 `StackEntry` literals; `put_on_stack.rs:437`'s twin | ~260 |
-| resolution: 608.2a's check, `Effect::Conditional`, the binding on `ResolutionContext`, `LastKnown` | `resolve.rs:220`; `ResolutionContext`'s 48-site `Option` pair (item 137) untouched | ~180 |
+| resolution: 608.2a's check, `Effect::Conditional`, the binding on `ResolutionContext`, `LastKnownInformation`'s readers | `resolve.rs:220`; `ResolutionContext`'s 48-site `Option` pair (item 137) untouched | ~180 |
 | cards: **Soul Warden** (603.6a's "another", the batch), **Blood Artist** (dies incl. itself — 603.10a look-back; a target chosen at placement), **Verdant Force** (each upkeep, a token), **Wild Growth** (605.1b, an Aura's `Host`), **Felidar Sovereign** (603.4 at both instants, `WinGame`); Soul Warden, Blood Artist and Wild Growth into `PERFORMANCE_POOL` (91 → 94: the matcher, the placement prompt, the stackless path) | rulings read: Soul Warden (1), Blood Artist (1), Verdant Force (2), Wild Growth (1), Felidar (via 603.4's atoms) | ~300 |
 | tests: §13's TR-1 atoms, Eon Hub's two (item 121), the 800.4d four-player fixture, the Humility-beside-a-creature entry, Guile's two boards with Yixlid Jailer, the elision's expiry conditions, a fixture "whenever damage is dealt to you" that closes four partials | `phase_tr1_integration_test.rs` | ~700 |
 | docs: this section's stub, `codebase-state.md` items 1, 3, 7, 9, 10, 18 closed, the ledger, `fuzz-record.md` | | ~250 |
@@ -1350,10 +1406,10 @@ Blood Artist in a wipe, and Wild Growth inside the mana window.
 
 | Piece | ~additions |
 |---|---|
-| `TurnSummary`, `PlayerHistory`, `own_turns`, the record-by-record advance, the four `Condition` leaves (three edits each), `FirstTimeEachTurn`, the two gate sets and their two writers, `TriggerLimit` on the def, the 603.7h count off `AbilityResolved` and its condition, the arms `DrawsCard`, `GainsLife`, `LosesLife`, `CastsSpell`, `AbilityResolves` | ~480 |
+| `TurnSummary`, `PlayerHistory`, `own_turns`, the record-by-record advance, the four `Condition` leaves (three edits each), `FirstTimeEachTurn`, the two gate sets and their two writers, `TriggerLimit` on the def, the 603.7h count off `AbilityResolved` and its condition, the arms `DrawsCard`, `GainsLife`, `LosesLife`, `CastsSpell`, `AbilityResolves`, `ShufflesLibrary`; `Condition::ResolvedThisTurn(n)` (§6.5) | ~500 |
 | `Effect::Optional` with `OptionalEffect`, `last_optional_taken` for "if you do" (main item 24), 118.12's cost-object check | ~120 |
 | `EffectRecipient::EachPlayer(PlayerSet)` in APNAP order (S2, item 122); Alms Collector's rider re-encoded | ~80 |
-| cards: **Paladin of Atonement** (last turn, whoever's; `AmountExpr::TriggeringToughness` off the frame), **Vengeful Warchief** ("for the first time each turn"), **Elvish Warmaster** ("one or more", "triggers only once each turn"), **Nykthos Paragon** (603.2h, "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Temple Bell** (each player draws); Warchief, Warmaster and Crawler pooled (the histories, the gate, `EachPlayer`) | ~360 |
+| cards: **Paladin of Atonement** (last turn, whoever's; `AmountExpr::TriggeringToughness` off the frame), **Vengeful Warchief** ("for the first time each turn"), **Elvish Warmaster** ("one or more", "triggers only once each turn"), **Nykthos Paragon** (603.2h, "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Temple Bell** (each player draws), **Cosi's Trickster** ("whenever an opponent shuffles", "may"; its three rulings); Warchief, Warmaster, Crawler and Trickster pooled (the histories, the gate, `EachPlayer`, the shuffle arm) | ~400 |
 | tests: §13's TR-2 atoms; Nykthos Paragon's six rulings as six tests; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 603.1b's fixture in Avatar Aang's shape; 121.2c against Alms Collector; the pregame-sweep question measured (a probe, recorded) | ~700 |
 | docs, ledger, record | ~260 |
 
@@ -1371,7 +1427,7 @@ Blood Artist in a wipe, and Wild Growth inside the mana window.
 
 | Piece | ~additions |
 |---|---|
-| `Appearance` and `Status` (3 field sites, 7 literals), the widened capture (item 15), `LastKnown`'s status readers, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~480 |
+| `LastKnownInformation` and `Status` (3 field sites, 7 literals), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~480 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
 | tests: §13's TR-4 atoms; Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); 122.8 and 122.9 off the frame | ~700 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |
@@ -1380,8 +1436,8 @@ Blood Artist in a wipe, and Wild Growth inside the mana window.
 
 | Piece | ~additions |
 |---|---|
-| `AttackShape` and `BlockShape` over item 11's records (one blockers record per declaration), `Targeted` at three emit sites, `DamagePrevented` from the prevention leg, entry `CountersChanged` with `by`, the arms `Attacks`, `Blocks`, `BecomesTarget`, `DamageIsPrevented`, `CountersPutOn`/`RemovedFrom` with `nth`, `ActivatesAbility`, `CreatesToken`, `Scries`, `ShufflesLibrary`; `Effect::TriggerMultiplier` behind the gate | ~520 |
-| cards: **Hellrider** (508.3a's defender), **Loyal Sentry** (509.3b), **Cephalid Aristocrat** (item 12, mills), **Simic Ascendancy** (122.6 entry counters, "one or more", 603.4 at upkeep, `WinGame`), **Selfless Squire** (item 16 — its second ruling: any prevention, not only its own), **Panharmonicon** (603.2d, its ten rulings); Hellrider, Simic Ascendancy and Panharmonicon pooled | ~400 |
+| `AttackShape` and `BlockShape` over item 11's records (one blockers record per declaration), `Targeted` at three emit sites, `DamagePrevented` from the prevention leg, entry `CountersChanged` with `by`, the arms `Attacks`, `Blocks`, `BecomesTarget`, `DamageIsPrevented`, `CountersPutOn`/`RemovedFrom` with `nth` and per-counter occurrences, `ActivatesAbility`, `CreatesToken`, `Scries`; `Effect::TriggerMultiplier` behind the gate; CR 704.5q routed through two `RemoveCounters` proposals in the state-based batch (Deferred Migrations item 6's counter half; `CountersAnnihilated` deleted) | ~560 |
+| cards: **Hellrider** (508.3a's defender), **Loyal Sentry** (509.3b), **Cephalid Aristocrat** (item 12, mills), **Simic Ascendancy** (122.6 entry counters, "one or more", 603.4 at upkeep, `WinGame`), **Selfless Squire** (item 16 — its second ruling: any prevention, not only its own), **Panharmonicon** (603.2d, its ten rulings), **Protean Hydra** (CR 704.5q's removal is a removal — its six rulings; X entry counters through RC-5's dynamic amount, RD's rider for "remove that many", TR-3's delayed trigger, so the routing's fixture if any of the three refuses it); Hellrider, Simic Ascendancy and Panharmonicon pooled | ~440 |
 | tests: §13's TR-5 atoms; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; 509.3a–g's seven readings; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays"); Panharmonicon's edges | ~750 |
 | docs, ledger, record | ~250 |
 
@@ -1547,6 +1603,21 @@ Recorded here at authoring; a finding that becomes a code item moves to
     and Anurid Brushhopper was not TR-3's delayed consumer. Neither is this
     phase's to build — a cost is `cost-architecture.md`'s — and both are
     recorded there when the first card wants one.
+12. **`backlog.md` §2.2 (linked abilities, CR 607) is unscheduled and
+    shares one piece with this design.** None of TR-3's four consumers is a
+    linked ability — Banishing Light's "until" is CR 610.3, the template
+    printed to avoid the old O-Ring linkage; Flickerwisp's "that card" is
+    603.7c's object reference — but `ObjectRef` (an object remembered by id
+    and epoch) is the per-ability memory 607.2c's "the exiled card" needs,
+    and §2.2 should reuse it rather than mint a second one. Miracle's
+    603.11 shape waits there (§16).
+13. **Prompts inside a resolution or a batch are not fork points, and this
+    design adds none.** Placement's prompts run at a priority grant with
+    the queue on `GameState` (§5.2); a vote or a CR 616.1 choice keeps its
+    continuation on the native stack (item 40's two violators), so the fork
+    model as decided answers them with a policy inside a rollout, in APNAP
+    order as the engine asks. Branching a search on one needs the resumable
+    resolution, Phase 10's, and nothing here makes it harder.
 
 ---
 
@@ -1584,7 +1655,7 @@ Recorded here at authoring; a finding that becomes a code item moves to
 - `roadmap-v2.md` row A6 carries this document's date and the six phases;
   §8's sizing row for item 6 reads six.
 - `codebase-state.md` "Before Triggered abilities" items 1, 3, 6, 7, 9 and
-  10–18 each point at their TR phase in one line; main items 9 (`cast_by`),
+  10–18 each point at their TR phase in one line; main items 9 (`PermanentState.cast`),
   11 (605.1b), 122 (S2), 149 (S3), 163 (the elision) and 121 (Eon Hub) are
   cited above and get their pointer when their phase lands.
 - `copy-effects-architecture.md` owes nothing new; §6.5 is the sentence
@@ -1595,7 +1666,7 @@ Recorded here at authoring; a finding that becomes a code item moves to
   registers (a graveyard target compared against the trigger's source:
   `ObjectFilter::ManaValueLessThanSource`, three edits).
 - `plans/glossary.md` gains *dispatch*, *window*, *binding*, *tier* and
-  *appearance* when TR-1 lands, and `check_glossary.py --suggest` at each
+  *probe* when TR-1 lands, and `check_glossary.py --suggest` at each
   close is the gate on the rest.
 - `plans/references/trigger-survey.py` deletes with the survey when TR-6
   closes, per its own docstring.
