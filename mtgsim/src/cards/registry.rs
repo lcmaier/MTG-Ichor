@@ -20,6 +20,7 @@ use super::phase_rb_cards;
 use super::phase_rc_cards;
 use super::phase_rd_cards;
 use super::phase_a4i_cards;
+use super::phase_tr1_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -50,7 +51,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 91] = [
+const PERFORMANCE_POOL: [&str; 94] = [
     "Plains",
     "Island",
     "Swamp",
@@ -425,6 +426,15 @@ const PERFORMANCE_POOL: [&str; 91] = [
     // first two walk this same loop and the third wants a board a random game
     // does not assemble.
     "Seeds of Strength",
+    // The trigger spine's three, one per engine path (TR-1). Soul Warden is
+    // the matcher at a batch's close: every creature entering asks it, and
+    // two entering together are one window. Blood Artist is a placement
+    // target chosen at CR 603.3d, and a look-back off the CR 603.10a frame
+    // when it dies with the rest. Wild Growth is CR 605.1b's stackless path:
+    // resolved at dispatch inside the mana window, never queued.
+    "Soul Warden",
+    "Blood Artist",
+    "Wild Growth",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -724,6 +734,13 @@ impl CardRegistry {
         registry.register("Daunting Defender", phase_rd_cards::daunting_defender);
         registry.register("Pyroclasm", phase_rd_cards::pyroclasm);
         registry.register("Fog", phase_rd_cards::fog);
+
+        // Triggered abilities (CR 603), TR-1: the five cards of the spine.
+        registry.register("Soul Warden", phase_tr1_cards::soul_warden);
+        registry.register("Blood Artist", phase_tr1_cards::blood_artist);
+        registry.register("Verdant Force", phase_tr1_cards::verdant_force);
+        registry.register("Wild Growth", phase_tr1_cards::wild_growth);
+        registry.register("Felidar Sovereign", phase_tr1_cards::felidar_sovereign);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

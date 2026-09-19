@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-17",
+  "fetched": "2026-09-19",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -121,6 +121,13 @@
       "rulings": [
         {"n": 1, "published_at": "2008-10-01", "comment": "This has the mana abilities associated with both of its basic land types."},
         {"n": 2, "published_at": "2008-10-01", "comment": "This has basic land types, but it isn't a basic land. Things that affect basic lands don't affect it. Things that affect basic land types do."}
+      ]
+    },
+    "Blood Artist": {
+      "first_seen": "2026-09-19",
+      "read": "2026-09-19",
+      "rulings": [
+        {"n": 1, "published_at": "2016-06-08", "comment": "If Blood Artist and one or more other creatures die at the same time, its ability will trigger for each of those creatures."}
       ]
     },
     "Blood Moon": {
@@ -340,6 +347,14 @@
         {"n": 6, "published_at": "2017-02-09", "comment": "For your life total to become your starting life total (normally 20), you gain or lose the appropriate amount of life. For example, if your life total is -4 when Exquisite Archangel’s ability applies, it will cause you to gain 24 life; alternatively, if your life total is 40 when it applies, it will cause you to lose 20 life. Other cards that interact with life gain or life loss will interact with this effect accordingly."},
         {"n": 7, "published_at": "2017-02-09", "comment": "If an effect states that an opponent wins the game, Exquisite Archangel’s ability doesn’t apply."},
         {"n": 8, "published_at": "2017-02-09", "comment": "In a Two-Headed Giant game, Exquisite Archangel’s ability causes the team’s life total to become the team’s starting life total (normally 30), but only you actually gain or lose life."}
+      ]
+    },
+    "Felidar Sovereign": {
+      "first_seen": "2026-09-19",
+      "read": "2026-09-19",
+      "rulings": [
+        {"n": 1, "published_at": "2015-08-25", "comment": "Felidar Sovereign's triggered ability checks to see if you have 40 or more life as your upkeep begins. If you don't, the ability won't trigger at all. If you do, the ability will check again as it tries to resolve. If you don't have 40 or more life at that time, the ability won't do anything."},
+        {"n": 2, "published_at": "2015-08-25", "comment": "In a Two-Headed Giant game, your life total is the same as your team's life total. As such, the ability triggers if your team has 40 or more life.", "disposition": {"kind": "format-variant", "format": "Two-Headed Giant"}}
       ]
     },
     "Fog": {
@@ -886,6 +901,13 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Soul Warden": {
+      "first_seen": "2026-09-19",
+      "read": "2026-09-19",
+      "rulings": [
+        {"n": 1, "published_at": "2025-01-24", "comment": "If this creature enters at the same time as one or more other creatures, its ability will trigger for each of those other creatures. "}
+      ]
+    },
     "Stunning Reversal": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1041,6 +1063,14 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Verdant Force": {
+      "first_seen": "2026-09-19",
+      "read": "2026-09-19",
+      "rulings": [
+        {"n": 1, "published_at": "2018-04-27", "comment": "Verdant Force’s ability triggers at the beginning of each upkeep, not just each of your upkeeps."},
+        {"n": 2, "published_at": "2006-05-01", "comment": "In Two-Headed Giant, triggers only once per upkeep, not once for each player.", "disposition": {"kind": "format-variant", "format": "Two-Headed Giant"}}
+      ]
+    },
     "Volcanic Island": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1067,6 +1097,13 @@
     "War Mammoth": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Wild Growth": {
+      "first_seen": "2026-09-19",
+      "read": "2026-09-19",
+      "rulings": [
+        {"n": 1, "published_at": "2004-10-04", "comment": "The additional mana is not an ability of the land and is not something the land can produce."}
+      ]
     },
     "Winding Constrictor": {
       "first_seen": "2026-09-17",
