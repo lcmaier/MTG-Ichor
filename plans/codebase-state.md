@@ -5380,20 +5380,19 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    copy tracks each got a doc before a line, and this one has none yet. Write
    the doc first.
 
-2. **Event shape audit.** Every `events.emit(...)` call site is a potential trigger source. Before wiring triggers, audit that:
-
-   **Known missing already (found 2026-08-24, registering the first activated ability):** `GameEvent` has no variant for an activated ability being put on the stack or resolving. `put_on_stack.rs::activate_ability` pushes the ability object onto the stack without `move_object`, so not even a `ZoneChange` is emitted, and the resolution emits nothing either — an activation is completely invisible in the event log. `AbilityCountered` exists, which is the whole of the vocabulary. Triggers that watch activations ("Whenever a player activates an ability…") have nothing to watch, and the event log cannot be used to audit activation behavior at all — measuring how often Merfolk Thaumaturgist's ability resolved needed a temporary probe in `resolve.rs`. Fix as part of the event-stream refit (Replacement item 3): the fork was resolved 2026-08-24 — `AbilityActivated` plus an identity-bearing `AbilityResolved` (source + ability, for CR 603.7h counting), emitted from the chokepoint.
-
-   - Events are emitted at the correct granularity (e.g., `PermanentEnteredBattlefield` fires per-permanent, not per-batch).
-   - Event timing is post-action, not pre-action, so triggers observe the completed state change.
-   - Events carry enough context for trigger predicates (controller, source, type filters).
-
-   **Reachability (2026-09-03):** nothing owed to correctness — a checklist for
-   critical-path item 6; the "known missing" half closed with RA-2
-   (`AbilityActivated` and the identity-bearing `AbilityResolved`, PR #59).
-
-   **Sized:** a half-day read of the emit sites (42 at RA's census)
-   against the three bullets, inside item 6's first PR.
+2. **~~Event shape audit.~~ — ✅ CLOSED 2026-09-18 (A6 step 1, the trigger
+   survey).** — archived. Run as `plans/references/trigger-survey.md`, with
+   `plans/references/trigger-survey.py` regenerating every count: each event
+   CR 603.1b–603.12a names against the corpus and the printed population, and
+   the printed distribution against the performed event that would carry it.
+   The three bullets held — per-permanent granularity with the batch as the
+   one-or-more boundary, post-action timing with CR 603.2g's prevented events
+   never reaching the stream, and context — except where a performer drops a
+   field the proposal had, which is item 10's shape; the nine gaps are items
+   10–18 below, and sixteen corner cases are kept as the doc's questions.
+   **Reachability (2026-09-18):** closed — A6 step 1, the survey.
+   Full entry: `plans/archive/codebase-state-closed.md`, "Before Triggered
+   abilities (CR 603)" item 2.
 
 4. **~~The entry hop: Containment Priest's substitute leaves a permanent's
     worth of zone changes in the log for a card the CR says never entered~~ — ✅
@@ -5498,6 +5497,152 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** ~40 lines at the two sites the dispatcher adds, inside
    critical-path item 6's first PR; the viewer's two arms ~20.
+
+10. **Three performers drop a proposal field the record needs (the trigger
+    survey, 2026-09-18).** `GameAction::BeginStep` and `BeginPhase` carry
+    `player`; `GameEvent::StepBegin` and `PhaseBegin` do not, and "at the
+    beginning of your upkeep" (1,167 cards), "your end step" (976), "combat"
+    (313) and every delayed "at the beginning of the next" (391) read whose
+    turn it is. `DealDamage` carries `is_combat`; `DamageDealt` does not, and
+    804 cards say "combat damage". `LoseLife` carries a `LifeLossCause`;
+    `LifeChanged` does not, and CR 727.1a's "from radiation" reads it (one
+    card). The first is live-derivable at dispatch — the active player owns
+    every step — and the second is not: a triggered ability resolving during
+    the combat damage step deals noncombat damage in that step, so the step
+    cannot say. `plans/references/trigger-survey.md` §5.
+
+    **Reachability (2026-09-18):** unreachable — no dispatcher reads any
+    event; a record that cannot say is wrong only once something reads it,
+    and the trace's `event` line is the only reader it has today.
+
+    **Sized:** three fields, three performers and `format_event`'s three
+    arms, plus the literal sites that name the shapes (`StepBegin {` at 5 in
+    `src` and 12 in `tests`, `DamageDealt {` 10 and 7, `LifeChanged {` 10 and
+    9), ~40 lines; each field's shape is the triggers doc's. It changes no
+    decision and does change the dump's text, so it rides a stream-neutral PR
+    whose A/B prediction is `IDENTICAL`.
+
+11. **`AttackersDeclared` carries no defender (the trigger survey,
+    2026-09-18).** CR 508.3a's "attacks [a player, planeswalker, or battle]",
+    508.3b's "is attacked" and 508.3e's "attacks another player" read whom
+    each creature was declared against; the record is the attacker list, and
+    the defender sits on `AttackingInfo.target` — live at dispatch, and absent
+    from the trace A4c built to answer "why did this fire". 1,695 cards carry
+    an attack trigger.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** `Vec<(ObjectId, AttackTarget)>` at the one emit site in
+    `engine/combat/steps.rs` and its `format_event` arm, ~10 lines.
+
+12. **No event announces a target being chosen (the trigger survey,
+    2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
+    that trigger on the cast trigger then, and nothing between them emits:
+    "becomes the target" is 117 cards and ward (CR 702.21a, "whenever this
+    permanent becomes the target of a spell or ability an opponent controls")
+    is 195 more — the largest printed population with no record at all. The
+    stack entry knows (`chosen_targets`, A4i); the stream does not.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** a variant carrying the targeting object, its controller and
+    the target, emitted where `cast_spell` and `activate_ability` announce
+    themselves and where CR 603.3d puts a trigger on the stack, ~30 lines.
+    Whether one spell naming one permanent twice is one event or two
+    (CR 115.9a counts instances) is the survey's question 11, the doc's.
+
+13. **No event announces a control change (the trigger survey,
+    2026-09-18).** CR 603.10d's look-back triggers (126 cards) watch an event
+    the engine performs as a Layer 2 registry row: `Primitive::GainControl`
+    writes it and `get_effective_controller` answers differently from then
+    on, and the row expiring at cleanup changes control back with no proposal
+    anywhere. Not a field: control is a computed value, and "gains control"
+    is a "becomes" on the layer walk's output, the shape CR 603.2e gives
+    tapping.
+
+    **Reachability (2026-09-18):** unreachable — no reader; the change itself
+    happens in measured games, since Act of Treason is registered (LG).
+
+    **Sized:** unknown until the doc says whether a change in a computed
+    value is detected at the registry write and its expiry, by the walk, or
+    as a state trigger's cousin; the doc's.
+
+14. **The LKI frame carries characteristics and no status (the trigger
+    survey, 2026-09-18).** `EffectiveCharacteristics` is the CR 603.10a frame
+    on `ZoneChange` and `LeftTheGame`, and it has no counters, no attachment
+    link and no tapped bit. Persist (CR 702.79a) and undying (702.93a) are
+    dies-triggers with an intervening-if on the counters the permanent
+    *had*; an Aura's CR 603.6e trigger reads what it enchanted; the four
+    "becomes unattached" Equipment (603.10c) read the host they left — 109
+    cards on the survey's query.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** three fields copied from `PermanentState` at the capture in
+    `perform_zone_change` and in `owned_objects_leave`, ~15 lines; whether a
+    frame typed as *characteristics* should carry status is the doc's, and
+    CR 603.10's word is "appearance".
+
+15. **The frame is captured only for a battlefield departure (the trigger
+    survey, 2026-09-18).** CR 603.10a names three look-back classes and the
+    engine captures one: a card leaving a graveyard (38 cards) and a visible
+    object put into a hand or library (8) get `lki: None`. A continuous effect's
+    filter can reach a graveyard (`ZoneSet`, `layers-architecture.md` §13c;
+    Yixlid Jailer is registered since LJ), so under it a "when this card
+    leaves your graveyard" ability must not trigger, and only the frame from
+    before the move can say.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** the capture condition widened from `from == Battlefield` to
+    the three classes, ~10 lines, once the doc says which zones the frame is
+    computed for.
+
+16. **No event for a prevention effect applying (the trigger survey,
+    2026-09-18).** CR 615.13: "such an ability triggers each time a
+    prevention effect is applied to one or more simultaneous damage events"
+    — 15 cards, Selfless Squire the plain one. The pipeline knows: A4c's
+    `pipeline` record is written at that CR 616.1 iteration. The stream does
+    not.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** an event emitted by RD-2's shield path, one per prevention
+    applied, ~10 lines; its fields are the doc's.
+
+17. **Counters a permanent enters with announce nothing, and the entry
+    record carries no `mods` (the trigger survey, 2026-09-18).** CR 122.6:
+    counters "being put on an object … refers to putting counters on that
+    object while it's on the battlefield and also to an object that's given
+    counters as it enters the battlefield" — so "whenever one or more +1/+1
+    counters are put on a creature you control" (72 cards on the survey's
+    query) triggers for a creature entering with them. Today the entry
+    announces no `CountersChanged` — by design on the replacement side, where
+    CR 614.16's doublers replace the `EnterMods` rather than an event — and
+    `PermanentEnteredBattlefield` carries no `mods`. Live-derivable at the
+    entry's dispatch, since every counter on it then is an entry counter; not
+    from the record.
+
+    **Reachability (2026-09-18):** unreachable — no reader.
+
+    **Sized:** the counter rows on the entry event, or a `CountersChanged`
+    per row announced after the entry inside its batch, ~10 lines; which is
+    the survey's question 4 — CR 122.7's "the Nth counter" and the
+    replacement side read the two differently.
+
+18. **Three `GameEvent` variants are never emitted (the trigger survey,
+    2026-09-18).** `PhaseEnd`, `StepEnd` and `TurnEnd` are declared and
+    written by no performer; no trigger reads an end — "at end of combat" is
+    the end-of-combat step beginning (CR 511.2) and "at end of turn" was
+    errata'd to "at the beginning of the end step" (CR 513.1a). Emit or
+    delete; delete, since an arm the stream cannot carry misleads the reader
+    the way `replacement-architecture.md` §3.2a's unapplied pattern arm does.
+
+    **Reachability (2026-09-18):** nothing owed to correctness — dead
+    vocabulary, and the survey's stream table counts it.
+
+    **Sized:** three variants and their `format_event` arms, ~15 lines, any
+    time.
 
 ### Before Commander (CR 903)
 

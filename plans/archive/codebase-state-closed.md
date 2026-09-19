@@ -1520,6 +1520,32 @@ The original entry, as it stood on 2026-09-04:
    held: a sink generates a spine, and "off" is one branch with the payload
    behind it, `IDENTICAL` to `main` compiled in and off, and on.
 
+2. **~~Event shape audit.~~ — ✅ CLOSED 2026-09-18 (A6 step 1, the trigger
+   survey).** What closed it: `plans/references/trigger-survey.md`, with
+   `plans/references/trigger-survey.py` regenerating every count — each event
+   CR 603.1b–603.12a names against the corpus and the printed population
+   (14,149 paper cards carry a trigger), and the printed distribution against
+   the performed event that would carry it. Each of the three bullets below
+   got its answer: granularity is per permanent and per occurrence, with the
+   batch as the one-or-more boundary; timing is post-action, and CR 603.2g's
+   prevented events never reach the stream; context is where the gaps were —
+   nine, filed as "Before Triggered abilities" items 10–18. The item as
+   written follows.
+
+   Every `events.emit(...)` call site is a potential trigger source. Before wiring triggers, audit that:
+
+   **Known missing already (found 2026-08-24, registering the first activated ability):** `GameEvent` has no variant for an activated ability being put on the stack or resolving. `put_on_stack.rs::activate_ability` pushes the ability object onto the stack without `move_object`, so not even a `ZoneChange` is emitted, and the resolution emits nothing either — an activation is completely invisible in the event log. `AbilityCountered` exists, which is the whole of the vocabulary. Triggers that watch activations ("Whenever a player activates an ability…") have nothing to watch, and the event log cannot be used to audit activation behavior at all — measuring how often Merfolk Thaumaturgist's ability resolved needed a temporary probe in `resolve.rs`. Fix as part of the event-stream refit (Replacement item 3): the fork was resolved 2026-08-24 — `AbilityActivated` plus an identity-bearing `AbilityResolved` (source + ability, for CR 603.7h counting), emitted from the chokepoint.
+
+   - Events are emitted at the correct granularity (e.g., `PermanentEnteredBattlefield` fires per-permanent, not per-batch).
+   - Event timing is post-action, not pre-action, so triggers observe the completed state change.
+   - Events carry enough context for trigger predicates (controller, source, type filters).
+
+   **Reachability (2026-09-03):** nothing owed to correctness — a checklist for
+   critical-path item 6; the "known missing" half closed with RA-2
+   (`AbilityActivated` and the identity-bearing `AbilityResolved`, PR #59).
+
+   **Sized:** a half-day read of the emit sites (42 at RA's census)
+   against the three bullets, inside item 6's first PR.
 
 ## Before Commander (CR 903)
 
