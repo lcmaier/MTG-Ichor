@@ -386,6 +386,26 @@ print no copy clause at all, which is why §2.2's population table exists.
 
 ---
 
+## Part 6: Triggered Abilities (Phases TR-1–TR-6)
+
+Ticket ids are the `TR` phases of `plans/triggers-architecture.md` §12.
+Reachability is `fuzz_games --require` on the shipped arm, `performance`, 200
+games at seed 12345 — resolutions, the games they resolved in, and **copies
+per deck**, which a count is only comparable per (`engineering-practices.md`
+§3). `Triggers placed` is the row the phase added; a triggered mana ability
+never reaches it (CR 605.4a).
+
+| Ticket | Cards Unlocked | Example Cards | Status |
+|---|---|---|---|
+| TR-1 | **The spine** — any card whose trigger reads an entry, a battlefield departure, a step or phase beginning, a tap or untap, damage dealt, mana added, life gained, an attack declared, or another ability triggering, with no once-per-turn gate, no "may", no delayed trigger and no modes | **Soul Warden** 🃏 (216 resolved in 135 of 200 games at two seats, 1.43 copies/deck; 143 / 118 / 2.83 at four), **Blood Artist** 🃏 (209 / 136 / 1.45; 151 / 124 / 2.87), **Wild Growth** 🃏 (202 / 131 / 1.42; 124 / 105 / 2.85), **Verdant Force** 🃏, **Felidar Sovereign** 🃏 — the last two registered, not pooled. `Triggers placed` with the three forced: 4.8 a game at two seats, 13.5 at four | ✅ **2026-09-19** — 50 tests 🧪, `PERFORMANCE_POOL` 91 → 94; rulings: Soul Warden 1/1 tested, Blood Artist 1/1, Verdant Force 1/2 (the other Two-Headed Giant), Wild Growth 1/1, Felidar Sovereign 1/2 (the other Two-Headed Giant) |
+| TR-2 | The per-player histories, the two once-per-turn gates, "may", each player in APNAP order | Paladin of Atonement, Vengeful Warchief, Elvish Warmaster, Nykthos Paragon, Psychosis Crawler, Temple Bell, Cosi's Trickster | 📋 designed 2026-09-18 |
+| TR-3 | Delayed, reflexive and "until" triggers (CR 603.7, 603.12, 610.3) | Final Fortune, Flickerwisp, Cornered Crook, Banishing Light | 📋 designed 2026-09-18 |
+| TR-4 | The look-back list and the widened frame; unattach; control changes | Grafted Wargear, Strangleroot Geist, Rancor, Multani's Presence, Golgari Brownscale | 📋 designed 2026-09-18 |
+| TR-5 | Combat's shapes, targeting, counters, prevention, the multiplier | Hellrider, Loyal Sentry, Cephalid Aristocrat, Simic Ascendancy, Selfless Squire, Panharmonicon, Protean Hydra | 📋 designed 2026-09-18 |
+| TR-6 | State triggers and the loop detector's first tier | Emperor Crocodile; Immortal Coil as a fixture | 📋 designed 2026-09-18 |
+
+---
+
 ## Card Registry Expansion Tracker
 
 Cards currently in registry (24): 5 basic lands, 5 spells (alpha.rs), 4 vanilla creatures, 11 keyword creatures.

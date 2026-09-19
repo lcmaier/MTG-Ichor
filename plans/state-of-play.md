@@ -29,7 +29,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
+   Sized in `triggers-architecture.md` §12 as TR-1–TR-6; `roadmap-v2.md` A6 carries the route
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
 then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time) and the
 information model (`backlog.md` §2.9 — before Phase 8's reveal cards and before Phase 10). Then Phase 8
@@ -83,14 +83,15 @@ says nothing about progress, so there is one answer and it is derived.
 - `RE-9` — plans/replacement-architecture.md
 - `RF` — plans/replacement-architecture.md
 - `RS-1` — plans/cant-effects-architecture.md
+- `TR-1` — plans/triggers-architecture.md
 
 ## Counts
 
 | | |
 |---|---:|
-| Cards registered | 166 |
-| …of them in `PERFORMANCE_POOL` | 91 |
-| `#[test]` functions | 1609 |
+| Cards registered | 171 |
+| …of them in `PERFORMANCE_POOL` | 94 |
+| `#[test]` functions | 1659 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -98,15 +99,15 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 7656 of 7867 lines (97%) |
-| Numbered items | 226 |
-| …closed, still recorded | 65 |
-| …open — unreachable, and says why | 103 |
-| **…open — reachable, wrong today** | **3** |
-| …open — reachable, not wrong (perf, a name, a harness) | 28 |
+| Section size | 7648 of 7859 lines (97%) |
+| Numbered items | 232 |
+| …closed, still recorded | 74 |
+| …open — unreachable, and says why | 98 |
+| **…open — reachable, wrong today** | **4** |
+| …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 27 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 157 of 161 |
+| …open, carrying an explicit `**Sized:**` | 152 of 158 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

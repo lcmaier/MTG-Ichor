@@ -37,6 +37,104 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-19 for TR-1** (the trigger spine — `triggers-architecture.md`
+§12, TR-1; `codebase-state.md` "Before Triggered abilities" items 1, 3, 7, 9,
+10 and 18 closed). **Pool change**: `performance` 91 → 94 (Soul Warden, Blood
+Artist, Wild Growth) and `stress` 166 → 171 (plus Verdant Force and Felidar
+Sovereign), so the shipped columns are a new baseline and the engine column
+is the one comparable to A4c's.
+
+**Three arms, two seat counts.** `main` (bec4c04); **engine** — this tree
+with the pools exactly as `main` has them (the five cards unregistered, the
+pool array at 91), which is the arm §11's prediction was written about;
+**shipped** — the tree as merged. Each at `--players 2` and `--players 4`,
+both pools, `--rounds 3 --games 200`.
+
+**The probe first, as the brief asked: is the gate really empty on the old
+pools?** A fourth binary — the engine arm plus a `panic!` the moment a
+dispatch passes the gate and reaches the matcher — ran 200 games on each pool
+at each seat count: no panic, `Triggers placed 0.0` on all four. So on the old
+pools every dispatch is the five set probes plus the per-departure frame scan
+(`archive/triggers-architecture-landed.md`, TR-1 note 4), and nothing else.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| engine vs `main`, every counter, both pools | **IDENTICAL** | **IDENTICAL** |
+| `µs / decision`, engine vs `main` — §3.1's budget | 27.5 → 27.8, **+1.0%** | 46.8 → 47.4, **+1.5%** |
+| shipped vs `main`, both pools | differ | differ |
+| `Triggers placed`, shipped, `performance` / `stress` | 1.5 / 1.0 | 4.2 / 3.7 |
+| `Decisions`, `main` → shipped, `performance` | 223 → 235 | 440 → 469 |
+| `µs / decision`, shipped vs `main` — recorded, a pool change | +6.2% | +4.6% |
+| `Wins by effect`, shipped | 1 (`performance`), 1 (`stress`) | 0, 4 |
+| deterministic across rounds, three hasher seeds | yes / yes / yes | yes / yes / yes |
+
+**The engine arm is inside the budget and the counters say why.** At
+identical counters — every gameplay counter and every engine-work counter
+`IDENTICAL` on all four pool-and-seat cells — the cost is the gate and the
+scan, +1.0% and +1.5% CPU per decision against a run-to-run spread §3.1 puts
+at ~2.4%. `Layer walks`, `Board walks` and `Memo hits` did not move, which is
+the cost model's claim in §11: with no trigger source no candidate is walked.
+
+**The shipped arm is a pool change and is not budgeted; its numbers are the
+new fixture.** `Triggers placed` is the phase's own row: Soul Warden, Blood
+Artist and Wild Growth between them put 1.5 abilities a game on the stack at
+two seats and 4.2 at four, and Wild Growth's resolutions never reach the row —
+CR 605.4a keeps them off the stack. `Wins by effect` is Felidar Sovereign
+(registered, not pooled, in `stress`) and Blood Artist's drain at two seats.
+`Replacement prompts` on four-seat `stress` went 3.40 → 9.55 because Blood
+Artist's "target player loses 1 life" and Rest in Peace share boards; a
+reading, not a regression. `main`'s one `Hit turn limit` on four-seat `stress`
+is `main`'s (A4c's block reads the same game).
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Soul Warden — cast / resolved / games / copies per deck | 216 / 216 / 135 (68%) / 1.43 | 143 / 143 / 118 (59%) / 2.83 |
+| Blood Artist | 212 / 209 / 136 (68%) / 1.45 | 151 / 151 / 124 (62%) / 2.87 |
+| Wild Growth | 204 / 202 / 131 (66%) / 1.42 | 126 / 124 / 105 (52%) / 2.85 |
+| `Triggers placed`, with the three forced | 4.8 | 13.5 |
+| board diversity | 197 of 200 (98%) | 195 of 200 (98%) |
+
+`Triggers placed` is the placement count and Wild Growth's stackless
+resolutions are not in it; per-card trigger counts are the ledger's next
+instrument, not this one's.
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 27 (54.0%) / 22 (44.0%) | 26 (52.0%) / 24 (48.0%) |
+| Wins by effect | 1 | 0 |
+| Avg turns | 30.4 | 28.7 |
+| Spells cast | 23.1 | 20.8 |
+| Lands played | 18.1 | 17.2 |
+| Combat w/ atk | 10.6 | 8.7 |
+| Creatures died | 6.9 | 4.9 |
+| Damage events | 22.1 | 19.7 |
+| Total damage | 62.3 | 54.4 |
+| Life changes | 15.9 | 16.8 |
+| **Layer walks** | **351** | **428** |
+| **Board walks** | **238** | **274** |
+| **Memo hits** | **62,059** | **69,977** |
+| **Layer frames** | **4,632** | **4,957** |
+| **Frames/walk** | **13.20** | **11.59** |
+| **Dependency checks** | **14** | **9** |
+| **Replacement gathers** | **1107** | **1097** |
+| **Restriction queries** | **1110** | **1100** |
+| Mana productions | 82 | 114 |
+| Prevention allocations | 0.02 | 0.02 |
+| Replacement prompts | 0.22 | 1.26 |
+| Max batch depth | 4 | 5 |
+| Decisions | 221 | 314 |
+| Priority decisions | 83 | 124 |
+| Triggers placed | 1.9 | 0.7 |
+
+The four-seat fixture rows are in the sitting's output (`--players 4`,
+shipped): `Layer walks` 813 / 1,186, `Memo hits` 195,321 / 316,833,
+`Decisions` 455 / 798, `Triggers placed` 4.4 / 2.8, `Turns after a departure`
+21.0 / 20.7, `Departed-owned permanents` 0.0 / 0.0.
+
 **Re-recorded 2026-09-18 for A4c** (the trace sink — `roadmap-v2.md` row
 A4c; `codebase-state.md` "Before Triggered abilities" item 5 closed). **No pool
 change**: `performance` 91 and `stress` 166, as A4q left them, so every column

@@ -145,7 +145,7 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   **Unsized — write its doc first**; what that doc must carry is `roadmap-v2.md` A6
+   Sized in `triggers-architecture.md` §12 as TR-1–TR-6; `roadmap-v2.md` A6 carries the route
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
 then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time) and the
 information model (`backlog.md` §2.9 — before Phase 8's reveal cards and before Phase 10). Then Phase 8
