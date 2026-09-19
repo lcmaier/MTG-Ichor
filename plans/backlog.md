@@ -654,6 +654,7 @@ critical path, which lists neither; that is the owner's line to add.
   *without being revealed* (`codebase-state.md`, "Found by RE-8", item 130);
   Kenessos, Priest of Thassa's second ability, which is why that card is a
   fixture here and not a registration; and §2.24's "draw and reveal" four.
+- **The trigger survey's customer (2026-09-18, `plans/references/trigger-survey.md`, table one's 603.2f row):** the dispatcher's visibility gate. CR 603.2f is "visible to all players" at the instant after the event — a *global* bit, a subset of this entry's per-viewer query — and until a reveal exists no hidden-zone object is visible, so `Zone::is_public()` is exact and the triggers doc names the predicate per object for this entry to fill. The survey read it as no reason to move this entry up, the RE-8 answer above standing; the owner decides whether the GUI's nearness does.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

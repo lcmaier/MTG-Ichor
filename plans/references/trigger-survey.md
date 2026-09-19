@@ -132,10 +132,10 @@ and provenance rules, which the CR names and the axis did not.
 | 603.2c | one event with several occurrences -- once per occurrence, or once for "one or more" -- the batch (`BatchId`) is the boundary | one-or-more | 603.2c-001 | 443 | `o:"whenever" o:"one or more"` |
 | 603.2d | a triggered ability triggers additional times -- not an event: a multiplier read as the ability triggers. Panharmonicon's ruling draws its edges -- the object's own triggered abilities only, never CR 603.6d's "enters" statics or a replacement effect; the rule's last sentence excludes the delayed and reflexive triggers those abilities create; and an ability that "triggers only once each turn" is not doubled (the row below 603.2h) | count modifier | 603.2d-001 | 37 | `o:"triggers an additional time"` |
 | 603.2e | "becomes" -- tapped, untapped, attached, blocked: the transition only -- "becomes the target" and "becomes unattached" have rows of their own below | per transition | 603.2e-001, 603.2e-002 | 328 | `(o:"becomes tapped" or o:"becomes untapped" or o:"becomes attached" or o:"becomes blocked")` |
-| 603.2f | the object with the ability is at no time visible to all players -- it does not trigger -- not an event; a gate on every row. It answers `atomic-tests/supplemental-docs/603-2f-complexity.md`: Guerrilla Tactics discarded onto the library under Library of Leng is never visible and does not trigger, and under Future Sight the top card is revealed and it does -- visibility is per object, not per zone (S1, `backlog.md` §2.9), and `Zone::is_public()` is the base case only | visibility gate | 603.2f-001 | -- | not searched |
+| 603.2f | the object with the ability is at no time visible to all players -- it does not trigger -- not an event; a gate on every row. It answers `atomic-tests/supplemental-docs/603-2f-complexity.md`: Guerrilla Tactics discarded onto the library under Library of Leng is never visible and does not trigger, and under Future Sight the top card is revealed and it does -- visibility is per object, not per zone (S1). The gate is a *global* bit, "visible to all players" at the instant after the event, a subset of `backlog.md` §2.9's per-viewer query; that entry weighed moving up at RE-8's close and stayed as `roadmap-v2.md` B4 (1-2 PRs, anywhere in A or B, back-stopped before Phase 8's reveal cards), and until a reveal exists no hidden-zone object is visible, so `Zone::is_public()` is exact today and the doc names the predicate per object for B4 to fill | visibility gate | 603.2f-001 | -- | not searched |
 | 603.2g | a prevented or replaced event never happened -- why the matcher reads the *performed* stream and nothing upstream of it | stream property | 603.2g-001 | -- | not searched |
 | 603.2h | "Do this only once each turn" -- the action-taken gate, per source object: Nykthos Paragon's rulings have every life gain trigger it until the action is taken, one of two instances on the stack act (ATOM-603.2h-002), and two Paragons act twice; Panharmonicon can double it, since the extra instance just does nothing | per-turn action gate | 603.2h-001, 603.2h-002 | 34 | `o:"do this only once each turn"` |
-| (no rule; CR 702.179d's speed is the baseline CR's one use) | "This ability triggers only once each turn" -- a cap on triggering, per source object -- no rule of its own in the baseline CR; the rulings (Jin-Gitaxias: once, not once per opponent; Tyvar: once per creature it is granted to; Fang and Stonebinder's Familiar: once for a batch) and the judge literature read it as a flag set when the ability triggers, which Panharmonicon cannot double. A second tracker beside 603.2h's, written by the dispatcher rather than by the resolution -- question 16 | per-turn trigger gate | none | 128 | `o:"triggers only once each turn"` |
+| (no rule; CR 702.179d's speed is the baseline CR's one use) | "This ability triggers only once each turn" -- a cap on triggering, per source object -- no rule of its own in the baseline CR, so the earliest printing's ruling is the definition -- Elvish Warmaster (Kaldheim, found with `order:released direction:asc`): "Once the triggered ability has triggered once during a turn, it can't trigger again, even if the triggered ability is still on the stack, has been countered, or has otherwise left the stack." The later rulings fill in the edges (Jin-Gitaxias: once, not once per opponent; Tyvar: once per creature it is granted to; Fang and Stonebinder's Familiar: once for a batch) and the judge literature adds that Panharmonicon cannot double it. A flag set as the ability triggers: a second tracker beside 603.2h's, written by the dispatcher rather than by the resolution -- question 16 | per-turn trigger gate | none | 128 | `o:"triggers only once each turn"` |
 | 603.3b | another ability triggering -- the second APNAP tier -- Strict Proctor's shape: the trigger event is a trigger | per event | 603.3b-001, 603.3b-002 | 1 | `o:"causes a triggered ability to trigger"` |
 | 603.4 | intervening "if" -- the condition read as the event happens and again at resolution -- a comma-if anywhere behind a trigger word; the regex reading is §7's pair 6 | intervening-if | 603.4-001, 603.4-002, 603.4-003 | 1,338 | `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "` |
 | 603.5 | "may" and "unless" -- the choice is made at resolution, the ability stacks regardless -- not an event; a `ChoiceKind` the phase adds (A4j) | optional | 603.5-001 | -- | not searched |
@@ -532,15 +532,33 @@ records the rule and the row rather than an answer.
     already carries. And a card-registered counter: a tracker the ability
     declares the way a trigger declares its event (a filter, a scope, a key),
     fed by the same matcher, for a quantity no summary anticipated. The sink
-    stays outside the engine under all three.
+    stays outside the engine under all three. **A fourth, the owner's
+    (2026-09-18), is a decider over the three rather than a mechanism**: read
+    every card that can enter the game before it starts and switch on only
+    the counters those cards read — the "pregame sweep" that
+    `state-tracking-architecture.md` already records with its failure mode
+    (conjure, wishes, Momir-shaped formats: fall back to track everything).
+    What it fixes is the third shape's real weakness: a counter registered
+    when its card first appears has no past, and a "this game" quantity
+    counts from turn one. And its holes close if the sweep is taken over the
+    **registry** rather than the decklists: every card this engine can ever
+    play is a registered card, conjured and wished ones included, and a
+    custom card joins the registry at load, before any game — so the union
+    of counters any registered card reads is a static property of the
+    build, the decklist sweep is an optimization over it that pays only if
+    measured, and Momir is just a deck that draws from the whole registry.
 16. **Two once-per-turn gates, not one.** CR 603.2h's "Do this only once
     each turn" is an *action-taken* gate: the ability keeps triggering until
     the action is taken, only one of several instances on the stack acts, and
     Panharmonicon can double it (Nykthos Paragon's rulings). "This ability
     triggers only once each turn" — 128 cards and no rule of its own in the
-    baseline CR — is a *triggered* gate: set as the ability triggers, once per
-    source object, once for a batch, and not doubled (Jin-Gitaxias, Tyvar,
-    Fang, Stonebinder's Familiar; the judge literature). The first is written
+    baseline CR — is a *triggered* gate. Its definition is the earliest
+    printing's ruling, Elvish Warmaster's: "Once the triggered ability has
+    triggered once during a turn, it can't trigger again, even if the
+    triggered ability is still on the stack, has been countered, or has
+    otherwise left the stack" — set as the ability triggers, once per source
+    object, once for a batch, and not doubled (Jin-Gitaxias, Tyvar, Fang,
+    Stonebinder's Familiar; the judge literature). The first is written
     by the resolution and read at trigger time and again at resolution; the
     second is written by the dispatcher and read before CR 603.2d's
     multiplier applies. The doc names both trackers and where each is written.
