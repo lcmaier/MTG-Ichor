@@ -39,7 +39,8 @@ AI games over the CLI. Two-player Standard is a checkpoint, not the target — s
 
 ## Phases their architecture doc records as landed
 
-A `###`/`####` heading carrying ✅, in any of the five architecture docs.
+A `###`/`####` heading carrying ✅, in any of the architecture docs
+(`plans/*-architecture.md`, globbed — this file never counts them).
 **This is where landed status lives** — `CLAUDE.md` owns the ordering and
 says nothing about progress, so there is one answer and it is derived.
 
@@ -97,7 +98,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 7626 of 7837 lines (97%) |
+| Section size | 7654 of 7865 lines (97%) |
 | Numbered items | 226 |
 | …closed, still recorded | 65 |
 | …open — unreachable, and says why | 103 |

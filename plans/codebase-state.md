@@ -5380,6 +5380,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    copy tracks each got a doc before a line, and this one has none yet. Write
    the doc first.
 
+   **Phase (2026-09-18):** TR-1 — the stub becomes `place_pending_triggers`, drained inside `perform_sba_and_triggers` in APNAP order over the seat list with CR 603.3b's two tiers; `triggers-architecture.md` §5, §12.
+
 2. **~~Event shape audit.~~ — ✅ CLOSED 2026-09-18 (A6 step 1, the trigger
    survey).** — archived. Run as `plans/references/trigger-survey.md`, with
    `plans/references/trigger-survey.py` regenerating every count: each event
@@ -5422,6 +5424,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    `lki` frame, retiring the three ad-hoc reads, ~100–150 lines, inside
    critical-path item 6.
 
+   **Phase (2026-09-18):** TR-1 — the reader is `engine::lki::LastKnown` over the record's frame; the two probes left in `sba.rs` (`:327`, `:425`) are existence checks ahead of a subtype read, not frames, and the item closes on the reader; `triggers-architecture.md` §3.11.
+
 6. **CR 603.6c's *phased-in* qualifier has no implementation, and the matcher
    will need it.** The rule names CR 800.4a's departure in as many words —
    "leaves-the-battlefield abilities trigger when a permanent moves from the
@@ -5441,6 +5445,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** one predicate at the frame's `if` in `owned_objects_leave`,
    ~5 lines, inside whichever of the two arrives second.
+
+   **Phase (2026-09-18):** not this phase's — the matcher (TR-1) reads `LeftTheGame` unconditionally and the qualifier lands with phasing, which arrives second; `triggers-architecture.md` §3.3's `LeftTheGame` row and §16.
 
 8. **"Whenever you create one or more tokens" has one key, and CR 111.13 is
    where it stops (recorded 2026-09-13, RE-4).** `GameEvent::TokenCreated {
@@ -5479,6 +5485,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
    **Sized:** one `in_game` read at the dispatcher's put-on-stack site,
    ~5 lines and a four-player fixture, inside critical-path item 6.
 
+   **Phase (2026-09-18):** TR-1 — one `in_game` read at the head of `place_pending_triggers`, Astral Slide's shape as the four-player fixture; `triggers-architecture.md` §5.3.
+
 9. **The dispatcher is the trace sink's sixth emit point, and it does not
    exist yet (A4c, 2026-09-18).** The five item 5 named are built — the batch,
    the CR 616.1 iteration, the layer walk, the decision boundary, the
@@ -5497,6 +5505,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
    **Sized:** ~40 lines at the two sites the dispatcher adds, inside
    critical-path item 6's first PR; the viewer's two arms ~20.
+
+   **Phase (2026-09-18):** TR-1 — the `trigger` and `pending` records, and the viewer's two arms; `triggers-architecture.md` §4.8.
 
 10. **Three performers drop a proposal field the record needs (the trigger
     survey, 2026-09-18).** `GameAction::BeginStep` and `BeginPhase` carry
@@ -5522,6 +5532,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     decision and does change the dump's text, so it rides a stream-neutral PR
     whose A/B prediction is `IDENTICAL`.
 
+    **Phase (2026-09-18):** TR-1 — all three fields, a stream-neutral change whose A/B prediction is `IDENTICAL`; `triggers-architecture.md` §3.12.
+
 11. **`AttackersDeclared` carries no defender (the trigger survey,
     2026-09-18).** CR 508.3a's "attacks [a player, planeswalker, or battle]",
     508.3b's "is attacked" and 508.3e's "attacks another player" read whom
@@ -5534,6 +5546,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
     **Sized:** `Vec<(ObjectId, AttackTarget)>` at the one emit site in
     `engine/combat/steps.rs` and its `format_event` arm, ~10 lines.
+
+    **Phase (2026-09-18):** TR-5 — the defender on the record, and `BlockersDeclared` becomes one record per declaration step; `triggers-architecture.md` §3.12.
 
 12. **No event announces a target being chosen (the trigger survey,
     2026-09-18).** CR 601.2c chooses targets, CR 601.2i says the abilities
@@ -5551,6 +5565,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     Whether one spell naming one permanent twice is one event or two
     (CR 115.9a counts instances) is the survey's question 11, the doc's.
 
+    **Phase (2026-09-18):** TR-5 — `GameEvent::Targeted`, one record per (spell or ability, target) at three emit sites; question 11 decided as once per spell (Frost Titan's ruling); `triggers-architecture.md` §3.12, §14.
+
 13. **No event announces a control change (the trigger survey,
     2026-09-18).** CR 603.10d's look-back triggers (126 cards) watch an event
     the engine performs as a Layer 2 registry row: `Primitive::GainControl`
@@ -5566,6 +5582,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     **Sized:** unknown until the doc says whether a change in a computed
     value is detected at the registry write and its expiry, by the walk, or
     as a state trigger's cousin; the doc's.
+
+    **Phase (2026-09-18):** TR-4 — decided: a sweep at the state check, gated on `any_control_changing`, against a materialized `PermanentState.announced_controller`, emitting `ControlChanged`; `triggers-architecture.md` §3.12, §4.5.
 
 14. **The LKI frame carries characteristics and no status (the trigger
     survey, 2026-09-18).** `EffectiveCharacteristics` is the CR 603.10a frame
@@ -5583,6 +5601,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     frame typed as *characteristics* should carry status is the doc's, and
     CR 603.10's word is "appearance".
 
+    **Phase (2026-09-18):** TR-4 — the frame becomes `Appearance { characteristics, status }`, CR 603.10's word; `triggers-architecture.md` §3.11.
+
 15. **The frame is captured only for a battlefield departure (the trigger
     survey, 2026-09-18).** CR 603.10a names three look-back classes and the
     engine captures one: a card leaving a graveyard (38 cards) and a visible
@@ -5598,6 +5618,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     the three classes, ~10 lines, once the doc says which zones the frame is
     computed for.
 
+    **Phase (2026-09-18):** TR-4 — the capture widens to CR 603.10a's three classes; `triggers-architecture.md` §3.11.
+
 16. **No event for a prevention effect applying (the trigger survey,
     2026-09-18).** CR 615.13: "such an ability triggers each time a
     prevention effect is applied to one or more simultaneous damage events"
@@ -5609,6 +5631,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
     **Sized:** an event emitted by RD-2's shield path, one per prevention
     applied, ~10 lines; its fields are the doc's.
+
+    **Phase (2026-09-18):** TR-5 — `GameEvent::DamagePrevented`, announced by the prevention leg once per instance per subject group; Selfless Squire is the card; `triggers-architecture.md` §3.12.
 
 17. **Counters a permanent enters with announce nothing, and the entry
     record carries no `mods` (the trigger survey, 2026-09-18).** CR 122.6:
@@ -5630,6 +5654,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
     the survey's question 4 — CR 122.7's "the Nth counter" and the
     replacement side read the two differently.
 
+    **Phase (2026-09-18):** TR-5 — question 4 decided: one `CountersChanged` per entry row, announced after the entry inside its batch and never proposed, with `by` on the record; `triggers-architecture.md` §3.12.
+
 18. **Three `GameEvent` variants are never emitted (the trigger survey,
     2026-09-18).** `PhaseEnd`, `StepEnd` and `TurnEnd` are declared and
     written by no performer; no trigger reads an end — "at end of combat" is
@@ -5643,6 +5669,8 @@ The trigger dispatcher's designated insertion point is `engine/priority.rs:234-2
 
     **Sized:** three variants and their `format_event` arms, ~15 lines, any
     time.
+
+    **Phase (2026-09-18):** TR-1 — deleted; `triggers-architecture.md` §3.12.
 
 ### Before Commander (CR 903)
 
