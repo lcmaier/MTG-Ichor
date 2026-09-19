@@ -94,6 +94,10 @@ ROWS = [
     # timing table's `µs / decision` divides CPU/game by.
     ("Decisions", r"^\s+Decisions:\s+(\d+)"),
     ("Priority decisions", r"^\s+Priority decisions:\s+(\d+)"),
+    # Triggered abilities put onto the stack, per game (TR-1): zero until a
+    # trigger source is in the pool, then the row that says the dispatcher
+    # and the drain both ran.
+    ("Triggers placed", r"^\s+Triggers placed:\s+([\d.]+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can

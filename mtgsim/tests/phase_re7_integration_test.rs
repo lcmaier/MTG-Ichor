@@ -88,6 +88,7 @@ fn resolve_with(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
     source
@@ -200,6 +201,7 @@ fn stack_object_with(
         additional_costs_paid: Vec::new(),
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
         ability_identity: None,
+        trigger: None,
     });
     id
 }

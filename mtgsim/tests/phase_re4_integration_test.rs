@@ -79,6 +79,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
@@ -747,6 +748,7 @@ fn amount_over_a_creation_admits_a_multiplier_and_refuses_the_rest() {
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     let effect = raise_the_alarm().abilities[0].effect.clone();
 

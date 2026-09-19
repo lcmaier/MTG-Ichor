@@ -57,6 +57,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
@@ -120,6 +121,7 @@ fn resolve_from(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }

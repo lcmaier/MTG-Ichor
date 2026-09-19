@@ -245,6 +245,7 @@ fn resolve_dark_ritual(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("resolving Dark Ritual");
     source
@@ -264,6 +265,7 @@ fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn Decision
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).expect("activating Deep Water");
     id
@@ -755,6 +757,7 @@ fn pale_moon_retypes_any_players_nonbasic_land_and_leaves_a_basic_alone() {
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving Pale Moon");
 

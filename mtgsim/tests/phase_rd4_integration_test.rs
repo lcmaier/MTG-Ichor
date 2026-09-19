@@ -121,6 +121,7 @@ fn resolve_spell_with(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
     id
@@ -249,6 +250,7 @@ fn a_static_players_cant_gain_life_refuses_the_gain_while_its_source_is_there() 
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&gain, &ctx, &ScriptedDecisionProvider::new()).unwrap();
     assert_eq!(life(&game, 1), before, "CR 101.2 refuses the proposal");

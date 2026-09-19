@@ -650,6 +650,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
+        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
@@ -668,7 +669,28 @@ impl GameState {
         self.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
         self.events.close_batch(previous);
-        result
+        // CR 603.2, at the close of the *outermost* batch and after its riders:
+        // the window is the event, so two permanents entering together each
+        // see the other's static abilities before either is checked (603.6a),
+        // and a "one or more" trigger reads the batch (603.2c). A nested call
+        // joined this window and dispatches nothing of its own.
+        self.dispatch_after_batch(result, mark, window, ctx)
+    }
+
+    /// The dispatch at a batch door: the window, when this was the outermost
+    /// batch and it performed. `triggers-architecture.md` §4.1.
+    fn dispatch_after_batch(
+        &mut self,
+        result: Result<Vec<GameAction>, String>,
+        mark: usize,
+        window: Option<crate::events::event::BatchId>,
+        ctx: &ActionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        let performed = result?;
+        if self.batch_depth == 0 {
+            self.dispatch_batch(mark, window, ctx)?;
+        }
+        Ok(performed)
     }
 
     /// [`Self::execute_actions`], but the batch's CR 616.1 loop starts from
@@ -714,12 +736,13 @@ impl GameState {
             inherited.len()
         );
         let previous = self.events.open_batch(ctx.resolution_stamp());
+        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
         self.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, inherited);
         self.batch_depth -= 1;
         self.events.close_batch(previous);
         self.decomposition_depth -= 1;
-        result
+        self.dispatch_after_batch(result, mark, window, ctx)
     }
 
     /// [`Self::execute_actions`], but the batch gets a **new** id instead of
@@ -745,6 +768,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_new_batch(ctx.resolution_stamp());
+        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.decomposition_depth, 0);
         self.batch_depth += 1;
@@ -752,7 +776,13 @@ impl GameState {
         self.batch_depth -= 1;
         self.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
-        result
+        // Its own window, dispatched at its own close, mid-phase-1 of the
+        // enclosing batch — CR 614.13's moves are not a result of the entry
+        // they are nested inside, so a devoured creature's death triggers
+        // before the entry's ETB (§4.1).
+        let performed = result?;
+        self.dispatch_batch(mark, window, ctx)?;
+        Ok(performed)
     }
 
     /// The three phases of one batch — decide, perform, riders.
@@ -1007,6 +1037,7 @@ impl GameState {
             }]),
             replaced_amount: rider.replaced_amount,
             damage_prevented: Some(rider.prevented),
+            trigger: None,
         };
         let outer = self.rider_lineage.replace(rider.lineage);
         let result = self.resolve_effect(&rider.effect, &rctx, ctx.dp);
@@ -1126,6 +1157,7 @@ impl GameState {
                     source_id: source,
                     target,
                     amount,
+                    is_combat,
                 });
 
                 // > 120.3a Damage dealt to a player causes that player to lose
@@ -1224,6 +1256,7 @@ impl GameState {
                     old: old_life,
                     new: new_life,
                     source: Some(source),
+                    cause: None,
                 });
 
                 Ok(())
@@ -1252,6 +1285,7 @@ impl GameState {
                         LifeLossCause::Damage { source } => Some(source),
                         LifeLossCause::Effect | LifeLossCause::Cost => None,
                     },
+                    cause: Some(cause),
                 });
 
                 Ok(())
@@ -1476,18 +1510,18 @@ impl GameState {
                 Ok(())
             }
 
-            GameAction::BeginPhase { phase, player: _ } => {
+            GameAction::BeginPhase { phase, player } => {
                 // `Phase::new` would fill in the phase's first step; the step is
                 // its own proposal, and a phase whose first step is skipped
                 // must not look as though that step is happening.
                 self.phase = Phase { phase_type: phase, step: None };
-                self.emit_event(GameEvent::PhaseBegin { phase });
+                self.emit_event(GameEvent::PhaseBegin { phase, player });
                 Ok(())
             }
 
-            GameAction::BeginStep { step, player: _ } => {
+            GameAction::BeginStep { step, player } => {
                 self.phase.step = Some(step);
-                self.emit_event(GameEvent::StepBegin { step });
+                self.emit_event(GameEvent::StepBegin { step, player });
                 Ok(())
             }
 
@@ -2111,7 +2145,7 @@ mod tests {
 
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
         let life_events: Vec<_> = game.events.events().filter_map(|e| {
-            if let GameEvent::LifeChanged { player_id, old, new, source } = e {
+            if let GameEvent::LifeChanged { player_id, old, new, source, .. } = e {
                 Some((*player_id, *old, *new, *source))
             } else {
                 None

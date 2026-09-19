@@ -71,6 +71,7 @@ fn resolve_with(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }
@@ -86,6 +87,7 @@ fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId)
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving");
     id
@@ -122,6 +124,7 @@ fn stage_spell_with(
         additional_costs_paid: Vec::new(),
         cast_from: Some(Zone::Hand),
         ability_identity: None,
+        trigger: None,
     });
     id
 }

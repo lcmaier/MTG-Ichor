@@ -64,6 +64,7 @@ fn resolve_spell(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
     id
@@ -119,7 +120,7 @@ fn steps_begun(game: &GameState) -> Vec<StepType> {
     game.events
         .events()
         .filter_map(|e| match e {
-            GameEvent::StepBegin { step } => Some(*step),
+            GameEvent::StepBegin { step, .. } => Some(*step),
             _ => None,
         })
         .collect()
@@ -130,7 +131,7 @@ fn phases_begun(game: &GameState) -> Vec<PhaseType> {
     game.events
         .events()
         .filter_map(|e| match e {
-            GameEvent::PhaseBegin { phase } => Some(*phase),
+            GameEvent::PhaseBegin { phase, .. } => Some(*phase),
             _ => None,
         })
         .collect()
@@ -351,7 +352,7 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
-            GameEvent::StepBegin { step: StepType::Draw }
+            GameEvent::StepBegin { step: StepType::Draw, .. }
         )),
         "the draw step did not begin, so it announced nothing"
     );
@@ -380,7 +381,7 @@ fn eon_hub_takes_the_turn_from_the_untap_step_to_the_draw_step() {
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::StepBegin { step } => Some(*step),
+            GameEvent::StepBegin { step, .. } => Some(*step),
             _ => None,
         })
         .collect();
@@ -407,7 +408,7 @@ fn eon_hub_skips_every_players_upkeep_on_a_four_player_table() {
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
-            GameEvent::StepBegin { step: StepType::Upkeep }
+            GameEvent::StepBegin { step: StepType::Upkeep, .. }
         )),
         "no player's upkeep step began"
     );
@@ -452,7 +453,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     assert!(
         !game.events.records_from(before).iter().any(|r| matches!(
             r.event,
-            GameEvent::StepBegin { step: StepType::Draw }
+            GameEvent::StepBegin { step: StepType::Draw, .. }
         )),
         "and it was not re-proposed on its way out"
     );
@@ -470,7 +471,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     assert!(
         !game.events.records_from(before).iter().any(|r| matches!(
             r.event,
-            GameEvent::StepBegin { step: StepType::Draw }
+            GameEvent::StepBegin { step: StepType::Draw, .. }
         )),
         "the draw step of the next occurrence did not begin (CR 614.10)"
     );
@@ -509,7 +510,7 @@ fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::StepBegin { step } => Some(*step),
+            GameEvent::StepBegin { step, .. } => Some(*step),
             _ => None,
         })
         .collect();
@@ -538,7 +539,7 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     assert!(
         game.events.records_from(before).iter().any(|r| matches!(
             r.event,
-            GameEvent::PhaseBegin { phase: PhaseType::Combat }
+            GameEvent::PhaseBegin { phase: PhaseType::Combat, .. }
         )),
         "player 0's combat phase began"
     );
@@ -579,7 +580,7 @@ fn a_skipped_phase_proposes_none_of_its_steps() {
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
-            GameEvent::PhaseBegin { phase: PhaseType::Combat }
+            GameEvent::PhaseBegin { phase: PhaseType::Combat, .. }
         )),
         "and the phase announced nothing"
     );
@@ -727,6 +728,7 @@ fn pump_until_your_next_turn(game: &mut GameState, creature: ObjectId, controlle
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(creature)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
 }
@@ -757,7 +759,7 @@ fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
     let phases: Vec<PhaseType> = records
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::PhaseBegin { phase } => Some(*phase),
+            GameEvent::PhaseBegin { phase, .. } => Some(*phase),
             _ => None,
         })
         .collect();
@@ -775,7 +777,7 @@ fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
     let steps: Vec<StepType> = records
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::StepBegin { step } => Some(*step),
+            GameEvent::StepBegin { step, .. } => Some(*step),
             _ => None,
         })
         .collect();
@@ -821,7 +823,7 @@ fn steps_begun_from(game: &GameState, from: usize) -> Vec<StepType> {
         .records_from(from)
         .iter()
         .filter_map(|r| match &r.event {
-            GameEvent::StepBegin { step } => Some(*step),
+            GameEvent::StepBegin { step, .. } => Some(*step),
             _ => None,
         })
         .collect()
@@ -908,7 +910,7 @@ fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
         .events
         .records_from(before)
         .iter()
-        .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup }))
+        .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup, .. }))
         .count();
     assert_eq!(cleanups, 1, "CR 514.3a — the second cleanup step begins, and says so");
 }

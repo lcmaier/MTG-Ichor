@@ -136,6 +136,7 @@ fn resolve_edict(
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).unwrap();
 }
@@ -175,6 +176,7 @@ fn resolve_edict_effect(
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(victim)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).unwrap();
 }
@@ -645,6 +647,7 @@ fn test_primitive_restrict_takes_its_affected_set_from_the_resolution() {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(a), ResolvedTarget::Object(b)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new()).unwrap();
 
@@ -679,7 +682,7 @@ fn test_a_restriction_written_as_a_resolving_effect_is_rejected_loudly() {
         affected_players: PlayerSet::Nobody,
         by: Some(SourceFilter::ControlledBy(PlayerRef::Opponent)),
     })));
-    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None };
+    let ctx = ResolutionContext { source, ability_source: None, controller: 0, targets: ChosenTargets::NONE, replaced_amount: None, damage_prevented: None, trigger: None };
 
     let err = game
         .resolve_effect(&effect, &ctx, &ScriptedDecisionProvider::new())

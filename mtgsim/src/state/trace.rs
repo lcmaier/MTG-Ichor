@@ -483,8 +483,23 @@ impl GameState {
     /// `--dump-events` writes, so the dump is a projection of the trace and
     /// not a second rendering that could drift from it.
     pub(crate) fn emit_event(&mut self, event: GameEvent) {
+        self.emit_record(event, false);
+    }
+
+    /// The same door for a record that carries no batch and no resolution
+    /// whatever is ambient — `GameEvent::AbilityTriggered`, a consequence of
+    /// an event rather than part of it (`triggers-architecture.md` §4.8).
+    pub(crate) fn emit_event_unstamped(&mut self, event: GameEvent) {
+        self.emit_record(event, true);
+    }
+
+    fn emit_record(&mut self, event: GameEvent, unstamped: bool) {
+        let stamp = if unstamped {
+            crate::events::event::EventStamp::default()
+        } else {
+            self.events.current_stamp()
+        };
         self.trace(|| {
-            let stamp = self.events.current_stamp();
             let mut r = Record::new("event");
             r.field_u64("index", self.events.len() as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
@@ -492,7 +507,18 @@ impl GameState {
             r.field_str("text", &crate::ui::display::format_event(self, &event));
             r
         });
-        self.events.emit(event);
+        let seq = self.events.next_seq();
+        if unstamped {
+            self.events.emit_unstamped(event);
+        } else {
+            self.events.emit(event);
+        }
+        // CR 603.2 — an event outside any batch is its own window, and the
+        // matcher runs before this returns (§4.1). A batched record waits for
+        // its batch's close in `execute_actions`.
+        if stamp.batch.is_none() {
+            self.dispatch_unbatched(seq);
+        }
     }
 }
 

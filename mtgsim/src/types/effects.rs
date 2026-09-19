@@ -53,6 +53,11 @@ pub enum AmountExpr {
     /// evaluator both refuse it rather than guessing at a source they were not
     /// given.
     SourcePower,
+    /// "That many" on a triggered ability — the amount the matched records
+    /// carry, summed over them (`triggers-architecture.md` §3.4): the damage
+    /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
+    /// with no quantity refuses rather than answering 0.
+    TriggeringAmount,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
@@ -566,6 +571,14 @@ pub enum EffectRecipient {
     /// the instance declared at 0", which is what a card author needs to see
     /// without opening this file.
     SameInstanceAs(usize),
+    /// "That creature", "it" on a triggered ability — the record's subject,
+    /// found by id **and** epoch (CR 603.6's "unable to be found", CR 400.7 in
+    /// one comparison): a creature that died and was returned before the
+    /// trigger resolves is a new object and this resolves to nothing.
+    TriggeringObject,
+    /// "That player" on a triggered ability — the arm's `player_of` on the
+    /// matched records.
+    TriggeringPlayer,
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,
@@ -1496,9 +1509,21 @@ pub enum Effect {
     /// this carries none of (`cost-architecture.md` §3.10).
     CostModification(Box<crate::types::cost_modification::CostModificationDef>),
 
+    /// CR 603 — this ability is a triggered ability: a condition, an optional
+    /// intervening "if", an optional once-per-turn limit, and the effect.
+    ///
+    /// The fourth arm-in-the-tree shape, on an `AbilityDef` whose
+    /// `ability_type` is `Triggered`. It produces no layer rows and is never
+    /// resolved as written: the dispatcher reads it off the source's
+    /// *effective* ability list as a batch closes (`engine::triggers`), and
+    /// what reaches the stack is the def's inner `effect` with the binding
+    /// beside it. Reaching this arm in `resolve_effect` is a wiring error.
+    ///
+    /// Boxed because `TriggerDef` carries an `Effect` of its own.
+    Triggered(Box<crate::types::triggers::TriggerDef>),
+
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
-    // CreateDelayedTrigger(TriggerCondition, Box<Effect>, Duration),
     // Custom(CardId),  // escape hatch
 }
 
@@ -1550,6 +1575,7 @@ impl Effect {
                     then.for_each_ability_def_mut(f);
                 }
             }
+            Effect::Triggered(def) => def.effect.for_each_ability_def_mut(f),
         }
     }
 
@@ -1611,6 +1637,9 @@ impl Effect {
                 f(recipient)
             }
             Effect::Sequence(effects) => effects.iter().all(|sub| sub.for_each_instance(f)),
+            // CR 603.3d — a trigger's targets are its effect's, announced at
+            // placement; item 153's note said this walk would want the arm.
+            Effect::Triggered(def) => def.effect.for_each_instance(f),
             _ => true,
         }
     }

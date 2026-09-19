@@ -133,6 +133,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(
         &Effect::Atom(Primitive::Mill(AmountExpr::Fixed(3)), EffectRecipient::Controller),

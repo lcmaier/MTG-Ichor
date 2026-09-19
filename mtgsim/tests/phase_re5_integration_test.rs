@@ -75,6 +75,7 @@ fn resolve_targeting(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }

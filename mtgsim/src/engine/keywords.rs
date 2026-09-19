@@ -174,7 +174,7 @@ mod tests {
         // quietly undone.
         let emitted: Vec<&GameEvent> = game.events.events().collect();
         match emitted.as_slice() {
-            [GameEvent::LifeChanged { player_id, old, new, source: src }] => {
+            [GameEvent::LifeChanged { player_id, old, new, source: src, .. }] => {
                 assert_eq!(*player_id, 0);
                 assert_eq!((*old, *new), (20, 22));
                 assert_eq!(*src, Some(source), "CR 702.15b attributes the gain to the lifelinker");

@@ -53,6 +53,7 @@ pub struct Diagnostics {
     mana_productions: Cell<u64>,
     decisions: Cell<u64>,
     priority_decisions: Cell<u64>,
+    triggers_placed: Cell<u64>,
 }
 
 impl Diagnostics {
@@ -261,6 +262,16 @@ impl Diagnostics {
 
     pub fn decisions(&self) -> u64 {
         self.decisions.get()
+    }
+
+    /// A triggered ability put onto the stack (CR 603.3) — the
+    /// `fuzz_games` row that says the dispatcher and the drain both ran.
+    pub fn record_trigger_placed(&self) {
+        self.triggers_placed.set(self.triggers_placed.get() + 1);
+    }
+
+    pub fn triggers_placed(&self) -> u64 {
+        self.triggers_placed.get()
     }
 
     pub fn priority_decisions(&self) -> u64 {

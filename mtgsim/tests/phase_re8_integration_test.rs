@@ -160,6 +160,7 @@ fn resolve_spell_at(
         targets: ChosenTargets::one(vec![ResolvedTarget::Player(target_player)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolving");
     source
@@ -182,6 +183,7 @@ fn resolve_spell(
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, dp).expect("resolving");
     source

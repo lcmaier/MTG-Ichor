@@ -112,6 +112,11 @@ pub struct StackEntry {
     /// *this* ability of *this* permanent (Ashling the Pilgrim), and neither
     /// half can be recovered from the ephemeral.
     pub ability_identity: Option<AbilityIdentity>,
+    /// For a triggered ability: the def and the bound facts of its event
+    /// (`triggers-architecture.md` §3.13). `None` for a spell and for an
+    /// activated ability; the resolution reads the intervening "if" and
+    /// "that object" off it.
+    pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
 
 /// The stack object currently resolving, and the one thing about it that does
@@ -128,17 +133,33 @@ pub struct ResolvingObject {
     /// theirs. The distinction is invisible until the effect ends, which is
     /// CR 800.4c and therefore 4-player Commander.
     pub default_controller: PlayerId,
+    /// `StackEntry::cast_from`, carried the same way for the same reason:
+    /// `place_on_battlefield` writes CR 400.7d's `PermanentState::cast` off
+    /// it, and the entry is gone by then. `None` for an ability.
+    pub cast_from: Option<Zone>,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
 /// as opposed to the ephemeral stack object representing one activation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AbilityIdentity {
     /// The permanent the ability was activated from.
     pub source: ObjectId,
+    /// CR 400.7 — which existence of `source` this is, off
+    /// `GameObject::zone_change_epoch`: two activations across a bounce are
+    /// two abilities' worth of counting (`triggers-architecture.md` §3.6).
+    pub zone_change_epoch: u64,
     /// Which of its abilities. Stable across activations; see
     /// `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
+    /// The k-th instance of `ability` on `source` among same-id defs in
+    /// effective-list order. A4g made an id per definition, so two sources
+    /// granting one ability put it on an object twice under one id (item
+    /// 149); for a triggered ability the two instances each trigger
+    /// (Diffusion Sliver's ruling). An ordinal among same-id instances rather
+    /// than an index into the whole list, so a later grant does not renumber
+    /// an earlier instance. CR 603.7h counts the ability and ignores this.
+    pub instance: u32,
 }
 
 /// The complete state of a game of Magic.
@@ -496,6 +517,34 @@ pub struct GameState {
     /// never be offered its command zone at all.
     pub(crate) last_sba_check_epoch: u64,
 
+    // --- Triggered abilities (CR 603) ---
+    /// Abilities that have triggered and not yet been put onto the stack
+    /// (CR 117.2a). Written by the dispatcher at a batch's close, drained by
+    /// `place_pending_triggers` inside `perform_sba_and_triggers`. On the
+    /// state and nowhere else (item 40): the drain removes each entry as it
+    /// places it, so a clone taken at the ordering prompt resumes by running
+    /// the drain again.
+    pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
+    pub(crate) next_trigger_seq: u64,
+    /// Permanents that *printed* a triggered ability — the dispatcher's
+    /// fast-path gate, `replacement_ability_sources`' twin: inserted by
+    /// `register_static_effects` from `place_on_battlefield`, removed by
+    /// `cleanup_zone_state`, over-approximating in one direction only. A
+    /// triggered ability an object has without having printed one reaches
+    /// the sweep through `RegistryScopeSummary::granted_trigger_zones` and
+    /// `copied_trigger_zones`.
+    pub trigger_sources: IdSet<ObjectId>,
+    /// Objects off the battlefield with a printed triggered ability that
+    /// functions where they are (CR 113.6k, derived by
+    /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
+    /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
+    pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
+    /// Dispatches nested inside dispatches — a tier-2 trigger's
+    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
+    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
+    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
+    pub(crate) dispatch_depth: usize,
+
     // --- Event log ---
     pub events: EventLog,
 
@@ -752,6 +801,11 @@ impl GameState {
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
+            pending_triggers: Vec::new(),
+            next_trigger_seq: 0,
+            trigger_sources: IdSet::default(),
+            zone_trigger_sources: IdMap::default(),
+            dispatch_depth: 0,
             events: EventLog::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
@@ -1147,6 +1201,14 @@ impl GameState {
         let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
+        // CR 400.7d — who cast it and from where, off the resolving spell's
+        // entry; a permanent that arrives any other way was not cast.
+        entry.cast = match self.resolving {
+            Some(r) if r.id == id => r
+                .cast_from
+                .map(|from| crate::state::battlefield::CastFacts { by: r.default_controller, from }),
+            _ => None,
+        };
         self.insert_battlefield_entity(id, entry);
         self.bump_layer_epoch();
 
@@ -1494,6 +1556,24 @@ impl GameState {
         let card_name = card.name.as_str();
 
         for ability in card.abilities.iter() {
+            // CR 603 — a triggered ability generates no row either; what the
+            // dispatcher needs is to know this object is worth asking about,
+            // filed by where it will look (`engine::triggers::dispatch`):
+            // the battlefield set, or the zone map when CR 113.6k puts the
+            // ability's function somewhere else. The same CR 113.6 gate as
+            // the static path below, on printed types for the same reason.
+            if ability.ability_type == AbilityType::Triggered {
+                if matches!(ability.effect, Effect::Triggered(_))
+                    && crate::engine::zone_function::functions_in(ability, &card.types, zone)
+                {
+                    if zone == Zone::Battlefield {
+                        self.trigger_sources.insert(id);
+                    } else {
+                        self.zone_trigger_sources.entry(id).or_default().push(ability.id);
+                    }
+                }
+                continue;
+            }
             if ability.ability_type != AbilityType::Static {
                 continue;
             }
@@ -1771,6 +1851,9 @@ impl GameState {
             // `engine::cost_determination::cost_modifications_for` reads it off this object's
             // *effective* ability list when a cost is determined.
             Effect::CostModification(_) => Vec::new(),
+            // CR 603 — the fourth static shape with no rows; the dispatcher
+            // reads it off the effective list.
+            Effect::Triggered(_) => Vec::new(),
 
             Effect::Sequence(effects) => {
                 let mut atoms = Vec::with_capacity(effects.len());
@@ -2318,6 +2401,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 };
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());

@@ -72,6 +72,7 @@ impl GameState {
         self.resolving = Some(ResolvingObject {
             id: object_id,
             default_controller,
+            cast_from: entry.cast_from,
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -92,6 +93,22 @@ impl GameState {
         controller: crate::types::ids::PlayerId,
         dp: &dyn DecisionProvider,
     ) -> Result<(), String> {
+        // --- The intervening "if" (rule 608.2a) ---
+        // First, ahead of 608.2b's target check: a triggered ability whose
+        // clause is false "is removed from the stack and does nothing" — no
+        // fizzle, no resolution, no `AbilityResolved`. "You" is the source's
+        // controller, read off the source (CR 109.5).
+        if let Some(binding) = &entry.trigger
+            && let Some(condition) = &binding.def.intervening_if
+        {
+            let source = entry.ability_identity.map(|i| i.source).unwrap_or(object_id);
+            if !crate::engine::layers::condition::settled_holds(condition, self, source) {
+                self.stack.retain(|&x| x != object_id);
+                self.remove_object(object_id);
+                return Ok(());
+            }
+        }
+
         // --- Re-validate targets (rule 608.2b; 608.3b for a permanent spell) ---
         // Against what they were chosen against, which each instance recorded:
         // an Aura's is its enchant ability, and nothing in `entry.effect`
@@ -119,6 +136,7 @@ impl GameState {
             // "that much" has no answer here — see `ResolutionContext`.
             replaced_amount: None,
             damage_prevented: None,
+            trigger: entry.trigger.clone(),
         };
         self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
 
@@ -327,6 +345,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
         id
     }
@@ -453,6 +472,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
         id
     }
@@ -529,6 +549,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
         id
     }
@@ -586,6 +607,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
         id
     }
@@ -694,6 +716,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
             cast_from: Some(Zone::Hand),
             ability_identity: None,
+            trigger: None,
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());
         assert_eq!(game.resolving, None, "cleared even when resolution errors out");

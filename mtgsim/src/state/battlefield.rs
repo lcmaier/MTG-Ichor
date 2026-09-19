@@ -99,6 +99,21 @@ pub struct PermanentState {
     pub attached_to: Option<ObjectId>,
     /// Permanents attached to this one (Auras, Equipment, Fortifications targeting this).
     pub attached_by: Vec<ObjectId>,
+
+    /// CR 400.7d — who cast this permanent and from which zone, kept because
+    /// the spell that became it is gone: `EntersBattlefield { cast }`, "if
+    /// you cast it", Coal Stoker's "from your hand" read it. `None` for a
+    /// permanent that was not cast — a land drop, a token, an effect's
+    /// entry. Written once, by the entry performer, off the stack entry the
+    /// proposal's zone change came from (`codebase-state.md` main item 9).
+    pub cast: Option<CastFacts>,
+}
+
+/// CR 400.7d's two facts about a permanent that was cast.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CastFacts {
+    pub by: PlayerId,
+    pub from: crate::types::zones::Zone,
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +158,7 @@ impl PermanentState {
             x_value: None,
             attached_to: None,
             attached_by: Vec::new(),
+            cast: None,
         }
     }
 

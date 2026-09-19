@@ -158,6 +158,9 @@ fn prompt_line(kind: &ChoiceKind) -> String {
         ChoiceKind::LegendRule { legend_name } => {
             format!("Legend rule: choose which '{legend_name}' to keep:")
         }
+        ChoiceKind::OrderTriggers { player, .. } => {
+            format!("Player {player}: order your triggered abilities (first listed goes on the stack first):")
+        }
     }
 }
 

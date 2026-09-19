@@ -1000,6 +1000,7 @@ mod instance_references {
                     | Effect::Optional(inner)
                     | Effect::ForEach(_, inner)
                     | Effect::Repeat(_, inner) => stack.push(inner),
+                    Effect::Triggered(def) => stack.push(&def.effect),
                     Effect::Replacement(_)
                     | Effect::Restriction(_)
                     | Effect::CostModification(_) => {}

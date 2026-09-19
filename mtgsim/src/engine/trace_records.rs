@@ -16,9 +16,13 @@
 use crate::engine::actions::GameAction;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::replacement::EventSubject;
-use crate::state::game_state::GameState;
+use crate::engine::targeting::TargetInstance;
+use crate::events::event::EventSeq;
+use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::state::trace::{render_debug, Record};
 use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::triggers::{PendingTrigger, Tier, TriggerOrigin};
+use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::PriorityAction;
 
@@ -175,7 +179,66 @@ fn choice_kind_name(kind: &ChoiceKind) -> &'static str {
         ChoiceKind::Scry { .. } => "Scry",
         ChoiceKind::ScryOrder { .. } => "ScryOrder",
         ChoiceKind::LegendRule { .. } => "LegendRule",
+        ChoiceKind::OrderTriggers { .. } => "OrderTriggers",
     }
+}
+
+/// `trigger` — one matcher decision (`codebase-state.md` "Before Triggered
+/// abilities" item 9): the record asked about, the candidate's identity and
+/// zone, whether it matched, and which predicate refused it when it did not.
+/// `mana` says the match resolved at dispatch and never reached the queue
+/// (CR 605.4a).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn trigger(
+    game: &GameState,
+    record: EventSeq,
+    identity: &AbilityIdentity,
+    zone: Zone,
+    matched: bool,
+    refused_by: Option<&str>,
+    mana: bool,
+) -> Record {
+    let mut r = Record::new("trigger");
+    r.field_u64("record", record.0 as u64);
+    r.field_u64("source", identity.source.raw());
+    r.field_str("name", &crate::ui::display::card_name(game, identity.source));
+    r.field_str("ability", &identity.ability.to_string());
+    r.field_u64("instance", identity.instance as u64);
+    r.field_str("zone", &format!("{:?}", zone));
+    r.field_bool("matched", matched);
+    r.field_opt_str("refused_by", refused_by);
+    r.field_bool("mana", mana);
+    r
+}
+
+/// `pending` — one entry leaving the queue at placement (CR 603.3): onto
+/// the stack as `object`, with the targets it announced, or refused with
+/// the reason — CR 800.4d's departed controller, or CR 603.3d's "no legal
+/// choices".
+pub(crate) fn pending(
+    game: &GameState,
+    entry: &PendingTrigger,
+    object: Option<ObjectId>,
+    refused_by: Option<&str>,
+    targets: &[TargetInstance],
+) -> Record {
+    let TriggerOrigin::Object(identity) = entry.origin;
+    let mut r = Record::new("pending");
+    r.field_u64("seq", entry.seq.0);
+    r.field_u64("tier", match entry.tier { Tier::First => 1, Tier::Second => 2 });
+    r.field_u64("controller", entry.controller as u64);
+    r.field_u64("source", identity.source.raw());
+    r.field_str("name", &crate::ui::display::card_name(game, identity.source));
+    let records: Vec<u64> = entry.binding.records.iter().map(|s| s.0 as u64).collect();
+    r.field_u64s("records", &records);
+    r.field_opt_u64("object", object.map(|id| id.raw()));
+    r.field_opt_str("refused_by", refused_by);
+    let rendered: Vec<String> = targets
+        .iter()
+        .flat_map(|t| t.chosen.iter().map(render_debug))
+        .collect();
+    r.field_strs("targets", &rendered);
+    r
 }
 
 /// One option as the record spells it: an object by `#id`, a player by

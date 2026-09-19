@@ -339,6 +339,12 @@ impl GameState {
             // An instance is validated against the clause that *declared* it;
             // a back-reference never reaches here, because the CR 601.2c loop
             // walks the declared clauses rather than the atoms.
+            // A trigger's bound fact is announced by nothing (CR 608.2k — it is
+            // "a specific untargeted object"), so there is no clause here.
+            EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer => Err(format!(
+                "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
+            )),
+
             EffectRecipient::SameInstanceAs(ix) => Err(format!(
                 "EffectRecipient::SameInstanceAs({ix}) is a back-reference to an instance of \
                  \"target\", not a clause to validate against (CR 115.3). Validate the \

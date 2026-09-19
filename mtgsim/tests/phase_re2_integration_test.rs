@@ -80,6 +80,7 @@ fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn Dec
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     let effect = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(n)),
@@ -98,6 +99,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(effect, &ctx, dp).expect("resolving");
 }

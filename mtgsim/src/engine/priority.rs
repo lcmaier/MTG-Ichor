@@ -282,13 +282,21 @@ impl GameState {
     /// 2. Put triggered abilities on the stack (603.3).
     /// 3. If any triggers were placed, go back to step 1.
     /// 4. Otherwise, the player who would receive priority does so.
-    fn perform_sba_and_triggers(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
+    ///
+    /// Step 2 is where CR 603.8's state check will run first (TR-6); until
+    /// then the queue holds only what a dispatch put there.
+    pub fn perform_sba_and_triggers(&mut self, decisions: &dyn DecisionProvider) -> Result<(), String> {
         loop {
             // Step 1: Exhaust all SBAs (rule 704.3)
             self.check_state_based_actions_loop(decisions)?;
 
+            // CR 104.1 — a game that has ended places nothing.
+            if self.result.is_some() {
+                break;
+            }
+
             // Step 2: Place triggered abilities on the stack (rule 603.3)
-            let triggers_placed = false; // Phase 7 stub
+            let triggers_placed = self.place_pending_triggers(decisions)?;
 
             // Step 3: If no triggers were placed, we're stable
             if !triggers_placed {

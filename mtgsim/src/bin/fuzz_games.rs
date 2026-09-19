@@ -576,6 +576,7 @@ struct GameStats {
     mana_productions: u64,
     decisions: u64,
     priority_decisions: u64,
+    triggers_placed: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -814,6 +815,7 @@ struct AggregateStats {
     total_mana_productions: u64,
     total_decisions: u64,
     total_priority_decisions: u64,
+    total_triggers_placed: u64,
     games_counted: u64,
     /// `(name, cast, resolved, games_in_which_it_resolved)`.
     reach: Vec<(String, u64, u64, u64)>,
@@ -850,6 +852,7 @@ impl AggregateStats {
         self.total_mana_productions += game.mana_productions;
         self.total_decisions += game.decisions;
         self.total_priority_decisions += game.priority_decisions;
+        self.total_triggers_placed += game.triggers_placed;
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -1125,6 +1128,7 @@ fn run_one_game(
                 s.mana_productions = c.mana_productions();
                 s.decisions = c.decisions();
                 s.priority_decisions = c.priority_decisions();
+                s.triggers_placed = c.triggers_placed();
                 s
             },
         ))
@@ -1633,6 +1637,10 @@ fn main() {
         // the first one's priority share, `backlog.md` §2.22's B boundary.
         println!("  Decisions:        {:>8.0}", agg_stats.avg(agg_stats.total_decisions));
         println!("  Priority decisions: {:>6.0}", agg_stats.avg(agg_stats.total_priority_decisions));
+        // Triggered abilities put onto the stack (CR 603.3), per game: the
+        // dispatcher matched and the drain placed. Zero on a pool with no
+        // trigger source, which is what the pools were before TR-1.
+        println!("  Triggers placed:  {:>8.1}", agg_stats.avg(agg_stats.total_triggers_placed));
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`

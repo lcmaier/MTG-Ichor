@@ -415,6 +415,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),
+        AbilityTriggered { seq, origin, controller, .. } => format!(
+            "AbilityTriggered: {} [P{}] #{}", obj_name(game, origin.source()), controller, seq.0),
         AbilityResolved { identity, controller } => format!(
             "AbilityResolved: {} [P{}]", obj_name(game, identity.source), controller),
         Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
@@ -434,23 +436,26 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
                 if *tapped_for_mana { " tapped for mana" } else { "" },
             )
         }
-        DamageDealt { source_id, target, amount } => {
+        DamageDealt { source_id, target, amount, is_combat } => {
             let target_str = match target {
                 crate::events::event::DamageTarget::Player(pid) => format!("P{}", pid),
                 crate::events::event::DamageTarget::Object(oid) => obj_name(game, *oid),
             };
-            format!("DamageDealt: {} -> {} for {}", obj_name(game, *source_id), target_str, amount)
+            format!(
+                "DamageDealt: {} -> {} for {}{}",
+                obj_name(game, *source_id),
+                target_str,
+                amount,
+                if *is_combat { " (combat)" } else { "" },
+            )
         }
-        PhaseBegin { phase } => format!("PhaseBegin: {:?}", phase),
-        PhaseEnd { phase } => format!("PhaseEnd: {:?}", phase),
-        StepBegin { step } => format!("StepBegin: {:?}", step),
-        StepEnd { step } => format!("StepEnd: {:?}", step),
+        PhaseBegin { phase, player } => format!("PhaseBegin: {:?} [P{}]", phase, player),
+        StepBegin { step, player } => format!("StepBegin: {:?} [P{}]", step, player),
         TurnBegin { player, turn_number } => format!("TurnBegin: P{} turn {}", player, turn_number),
-        TurnEnd { player, turn_number } => format!("TurnEnd: P{} turn {}", player, turn_number),
         PermanentEnteredBattlefield { object_id, controller } => {
             format!("ETB: {} [P{}]", obj_name(game, *object_id), controller)
         }
-        LifeChanged { player_id, old, new, source } => {
+        LifeChanged { player_id, old, new, source, .. } => {
             let src = match source {
                 Some(id) => format!(" (source: {})", obj_name(game, *id)),
                 None => String::new(),
@@ -667,6 +672,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
 
         let output = format_stack(&game);
@@ -698,6 +704,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
 
         let recall = CardDataBuilder::new("Ancestral Recall")
@@ -718,6 +725,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
+    trigger: None,
 });
 
         let output = format_stack(&game);

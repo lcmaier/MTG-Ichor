@@ -55,6 +55,7 @@ fn act_of_treason(game: &mut GameState, thief: PlayerId, victim: ObjectId) {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(victim)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp())
         .expect("Act of Treason resolves");
@@ -85,6 +86,7 @@ fn gain_control(
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp())
         .expect("GainControl resolves");
@@ -105,6 +107,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         additional_costs_paid: Vec::new(),
         cast_from: Some(Zone::Hand),
         ability_identity: None,
+        trigger: None,
     }
 }
 
