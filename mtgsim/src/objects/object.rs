@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, PlayerId, Timestamp, ZoneChangeEpoch};
 use crate::types::zones::Zone;
 
 use super::card_data::CardData;
@@ -56,7 +56,7 @@ pub struct GameObject {
     /// as "did this move since the effect was created" rather than "since the
     /// last check". It does **not** implement 400.7, which also needs the
     /// 400.7a–c exception list.
-    pub zone_change_epoch: u64,
+    pub zone_change_epoch: ZoneChangeEpoch,
 
     /// The CR 613.7 timestamp.
     ///
@@ -86,7 +86,7 @@ pub struct GameObject {
     ///
     /// `0` until `add_object` stamps it, which is the only door into the
     /// store — so an object the game can see always carries a real one.
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
 }
 
 impl GameObject {

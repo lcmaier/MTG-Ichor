@@ -19,7 +19,7 @@ use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
 use crate::types::mana::ManaType;
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -370,7 +370,7 @@ pub struct TriggerSeq(pub u64);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ObjectRef {
     pub id: ObjectId,
-    pub zone_change_epoch: u64,
+    pub zone_change_epoch: ZoneChangeEpoch,
 }
 
 /// The bound facts of a trigger, filled at dispatch and carried onto the

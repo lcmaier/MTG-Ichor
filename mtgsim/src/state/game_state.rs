@@ -17,7 +17,7 @@ use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId, Timestamp, ZoneChangeEpoch};
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
 
@@ -148,7 +148,7 @@ pub struct AbilityIdentity {
     /// CR 400.7 — which existence of `source` this is, off
     /// `GameObject::zone_change_epoch`: two activations across a bounce are
     /// two abilities' worth of counting (`triggers-architecture.md` §3.6).
-    pub zone_change_epoch: u64,
+    pub zone_change_epoch: ZoneChangeEpoch,
     /// Which of its abilities. Stable across activations; see
     /// `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
@@ -290,7 +290,7 @@ pub struct GameState {
     // --- Timestamp counter for layer system (rule 613.7) ---
     /// Monotonically increasing counter. Each permanent that enters the
     /// battlefield gets the current value, then the counter increments.
-    pub next_timestamp: u64,
+    pub next_timestamp: Timestamp,
 
     /// The next `ObjectId`, stamped by `add_object` beside the timestamp —
     /// the one door into the store. Starts at one so that
@@ -505,7 +505,7 @@ pub struct GameState {
     /// Starts at 1 so that a pregame object's `0` is strictly earlier than any
     /// move. Allocated by `move_object`, which is the engine's one performer of
     /// zone changes.
-    pub(crate) next_zone_change_epoch: u64,
+    pub(crate) next_zone_change_epoch: ZoneChangeEpoch,
 
     /// The tick as of the **start of the previous** state-based-action check.
     ///
@@ -515,7 +515,7 @@ pub struct GameState {
     /// does so during a check, so an end-of-check boundary would place the move
     /// before the boundary it is supposed to be after, and the commander would
     /// never be offered its command zone at all.
-    pub(crate) last_sba_check_epoch: u64,
+    pub(crate) last_sba_check_epoch: ZoneChangeEpoch,
 
     // --- Triggered abilities (CR 603) ---
     /// Abilities that have triggered and not yet been put onto the stack
@@ -1072,7 +1072,7 @@ impl GameState {
     }
 
     /// Allocate and return the next timestamp value.
-    pub fn allocate_timestamp(&mut self) -> u64 {
+    pub fn allocate_timestamp(&mut self) -> Timestamp {
         let ts = self.next_timestamp;
         self.next_timestamp += 1;
         ts
@@ -1122,7 +1122,7 @@ impl GameState {
     /// ids off a collection the store also holds — and is `MAX` rather than 0
     /// so that a hypothetical unknown sorts last instead of silently claiming
     /// to be the oldest permanent on the battlefield.
-    pub fn object_timestamp(&self, id: ObjectId) -> u64 {
+    pub fn object_timestamp(&self, id: ObjectId) -> Timestamp {
         self.objects.get(&id).map(|obj| obj.timestamp).unwrap_or(u64::MAX)
     }
 

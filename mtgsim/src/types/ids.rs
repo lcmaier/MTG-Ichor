@@ -18,6 +18,29 @@ use std::sync::OnceLock;
 /// Player identifier — index into the players array
 pub type PlayerId = usize;
 
+/// CR 613.7's timestamp: the ordering key within one layer, and the key of
+/// every ordered battlefield sweep (CLAUDE.md, "Determinism at the decision
+/// boundary"). Allocated from `GameState::next_timestamp` by `add_object` and
+/// `move_object`, reassigned by 613.7e.
+///
+/// Here rather than in `engine::layers::types`, which re-exports it, for the
+/// reason `ObjectSet` sits in `types::effects`: `GameObject` carries one and
+/// `src/objects/` has no `crate::engine` edge to spend.
+pub type Timestamp = u64;
+
+/// CR 400.7's epoch: which existence of an object a reference means.
+///
+/// Allocated by `move_object`, the engine's one performer of zone changes, so
+/// a remembered `(id, epoch)` pair stops resolving the moment the object moves
+/// again — which is CR 603.6's "unable to be found in the zone it went to" and
+/// 400.7's new object in one comparison. Pregame objects carry `0`, strictly
+/// earlier than any move.
+///
+/// An alias and not a newtype, unlike the two ids above: those are newtypes
+/// because `ObjectId` and `AbilityId` meet as a pair at thirteen sites and
+/// could swap halves silently, and an epoch is paired with nothing.
+pub type ZoneChangeEpoch = u64;
+
 /// Unique identifier for a game object (card, token, copy, ability on stack, etc.)
 ///
 /// Stamped by `GameState::add_object` from the state's own counter — the one

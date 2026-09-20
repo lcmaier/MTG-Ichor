@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
@@ -298,7 +298,7 @@ impl GameState {
         // where they are (CR 113.6k, derived) — the record's own subject in a
         // graveyard is one of them — plus the zones a grant or copy reaches,
         // walked whole while such a row exists. In CR 613.7d order.
-        let mut elsewhere: Vec<(u64, ObjectId)> = self
+        let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
             .zone_trigger_sources
             .keys()
             .map(|&id| (self.object_timestamp(id), id))
