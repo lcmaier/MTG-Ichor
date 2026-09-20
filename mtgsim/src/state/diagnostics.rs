@@ -20,7 +20,9 @@
 //! No timers, no allocation counts, no per-call-site breakdown. Each of those is
 //! either machine-dependent (the first two) or a profiler's job (the third), and
 //! a diagnostic that cannot go in the fixtures table is a diagnostic nobody will
-//! look at twice. Each row names a decision the engine makes a lot.
+//! look at twice. Each row names a decision the engine makes a lot; in prose
+//! they are *diagnostics rows* and never *counters*, which CR 122 owns
+//! (`plans/glossary.md`).
 
 use std::cell::Cell;
 

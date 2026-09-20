@@ -90,6 +90,8 @@ WATCHLIST = [
     "queue", "reach", "registry", "retype", "rider", "schedule", "seed", "shield",
     "source", "spelled", "step",
     "subject", "subject group", "sweep", "unit", "walk", "working set",
+    # Added 2026-09-20, TR-1's review: two words a reader read as one.
+    "condition", "trigger condition", "diagnostics rows",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes

@@ -470,6 +470,25 @@ gate, each triggered def against each record, the queue written, `AbilityTrigger
 emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
 first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
 
+**trigger condition** / **condition** — CR 603.1's phrase and the engine's
+word are not the same thing. A **trigger condition** is a triggered ability's
+when-clause — "whenever a creature dies", the thing the dispatcher matches a
+record against (`TriggerCondition`, whose arms are `TriggerEvent`s). A
+**condition** is the engine's generic predicate over game state (`Condition`),
+which meets a trigger at exactly one place, CR 603.4's intervening "if". The
+two types keep their names: the clash is with the generic one, at 149
+occurrences in `mtgsim/src`, so the rename that would settle it is *that*
+type's to *Predicate* and its own PR. → `types/triggers.rs`,
+`types/effects.rs`; `triggers-architecture.md` §3.2.
+
+**diagnostics rows** — the counts `Diagnostics` keeps, when they are being
+written about rather than printed. *Row* and never *counter*, because CR 122's
+counter is an object on a permanent or a player and the struct was renamed out
+of that collision in `9486ccf` — which deliberately left the printed row names
+alone. So `fuzz-record.md`'s printed names and the "every counter" cells in
+its tables stay as they are, the record being keyed on them, and prose about
+the struct says rows. → `state/diagnostics.rs`.
+
 **binding** — what a pending or stacked trigger remembers about its event:
 the def, the records that matched (by `EventSeq`, never by copy), which of
 the condition's events matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
