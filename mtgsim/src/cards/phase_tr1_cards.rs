@@ -17,7 +17,7 @@
 //! A triggered ability is `AbilityType::Triggered` with `Effect::Triggered`,
 //! and a card touches nothing but this file: the arms it reads are
 //! `TriggerEvent`'s, the predicates are the filters the rest of the engine
-//! shares, and "another" is `EachOther` beside the type leaf.
+//! shares, and "another" is `NotSource` beside the type leaf.
 
 use std::sync::Arc;
 
@@ -54,10 +54,10 @@ pub fn whenever(event: TriggerEvent, effect: Effect) -> TriggerDef {
     TriggerDef { condition: TriggerCondition::Event(event), intervening_if: None, limit: None, effect }
 }
 
-/// "Another [filter]": the filter beside `EachOther`, which the matcher
+/// "Another [filter]": the filter beside `NotSource`, which the matcher
 /// reads as other than the ability's own source.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::EachOther))
+    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
 /// Soul Warden — {W}
@@ -65,7 +65,7 @@ pub fn another(filter: ObjectFilter) -> ObjectFilter {
 ///
 /// > Whenever another creature enters, you gain 1 life.
 ///
-/// The matcher's card: CR 603.6a's "another" is the `EachOther` leaf, and
+/// The matcher's card: CR 603.6a's "another" is the `NotSource` leaf, and
 /// the batch close is what makes two creatures entering together two
 /// triggers rather than one and none.
 ///

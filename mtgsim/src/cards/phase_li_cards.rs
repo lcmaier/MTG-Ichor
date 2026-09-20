@@ -117,7 +117,7 @@ pub fn urborg_tomb_of_yawgmoth() -> Arc<CardData> {
 /// Opalescence animated by another loses this ability in layer 6, and its
 /// 7b part still applies to the set it locked in layer 4.
 ///
-/// "Each other" is `ObjectFilter::EachOther`, the leaf this card is the first
+/// "Each other" is `ObjectFilter::NotSource`, the leaf this card is the first
 /// consumer of; its 2004-10-04 ruling is the leaf's test: "Does not animate
 /// itself. But can be animated by another Opalescence."
 ///
@@ -133,7 +133,7 @@ pub fn opalescence() -> Arc<CardData> {
                 Subtype::Enchantment(EnchantmentType::Aura),
             )))),
         )),
-        Box::new(ObjectFilter::EachOther),
+        Box::new(ObjectFilter::NotSource),
     ));
 
     CardDataBuilder::new("Opalescence")

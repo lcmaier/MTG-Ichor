@@ -499,7 +499,7 @@ fn a_once_redirect_to_a_player_who_has_left_the_game_keeps_its_row() {
 }
 
 /// "… and **other permanents you control**" — the object half, and the first
-/// card in the crate whose affected set needs `ObjectFilter::EachOther`.
+/// card in the crate whose affected set needs `ObjectFilter::NotSource`.
 #[test]
 fn palisade_giant_takes_the_damage_aimed_at_your_other_permanents() {
     let mut game = setup_two_player_game();

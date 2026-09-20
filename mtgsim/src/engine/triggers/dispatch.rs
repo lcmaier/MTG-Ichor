@@ -743,10 +743,10 @@ fn frame_card(frame: &EffectiveCharacteristics) -> CardData {
     Arc::try_unwrap(builder.build()).unwrap_or_else(|arc| (*arc).clone())
 }
 
-/// A filter's `EachOther` is what "another" is other than; exposed for the
+/// A filter's `NotSource` is what "another" excludes; exposed for the
 /// card files so "another creature" reads as one expression.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::EachOther))
+    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
 /// A tier-2 condition's tier, re-exported for the placement's drain.

@@ -1403,7 +1403,7 @@ deletions, `AbilityTriggered`, CR 113.6k derived in `functioning_zones`, the
 pooled (91 → 94). Fifty tests, §13's TR-1 row clean.
 
 **What moved on the way in** — the sizing's `ObjectFilter::NotSource` is
-`EachOther`; `Attacks` and `GainsLife` shipped narrow because §13 owed their
+`NotSource`; `Attacks` and `GainsLife` shipped narrow because §13 owed their
 atoms here; leg 3 is swept with leg 4 because they are one map; the gate has
 a sixth probe (the departure frames); the binding carries the def. A
 look-back arm on a surviving permanent reads its post-event list — main item

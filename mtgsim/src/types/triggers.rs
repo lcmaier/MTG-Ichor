@@ -115,7 +115,7 @@ pub enum TriggerSubject {
     /// "Enchanted land", "equipped creature": the source's host (CR 303.4m).
     Host,
     /// "A creature", "another creature you control". "Another" is
-    /// `And(filter, EachOther)`; the source is what `EachOther` is other than.
+    /// `And(filter, NotSource)`; `NotSource` excludes the ability's own source.
     Filter(ObjectFilter),
     Any,
 }

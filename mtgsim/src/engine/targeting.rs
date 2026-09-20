@@ -223,7 +223,7 @@ impl EarlierTargets<'_> {
 /// shape.
 #[derive(Clone, Copy)]
 pub(crate) struct FilterIdentity<'a> {
-    /// What [`ObjectFilter::EachOther`] is other than: the effect's own source.
+    /// The source [`ObjectFilter::NotSource`] excludes: the effect's own.
     /// `None` in a selection context, where the leaf is refused rather than
     /// answered.
     pub source: Option<ObjectId>,
@@ -671,8 +671,7 @@ impl GameState {
     }
 
     /// [`Self::object_matches_filter`] asked on behalf of an **effect**, which
-    /// has a source — so [`ObjectFilter::EachOther`] has something to be other
-    /// than.
+    /// has a source — so [`ObjectFilter::NotSource`] has one to exclude.
     ///
     /// The one caller is `replacement::gather::set_affects`, which is the one
     /// place a filter is asked "is this object inside this effect's affected
@@ -728,7 +727,7 @@ impl GameState {
     /// object is a legal selection, or inside a replacement's or restriction's
     /// `ObjectSet`, and resolves it against `you`.
     ///
-    /// `other_than` is what [`ObjectFilter::EachOther`] is other than — `None`
+    /// `other_than` is the source [`ObjectFilter::NotSource`] excludes — `None`
     /// in a selection context, where there is no such object and the leaf is
     /// refused rather than answered.
     fn object_matches_filter_with<'f>(
@@ -790,15 +789,15 @@ impl GameState {
             // Answered off the ids, like `compute::object_matches_filter`'s
             // identical arm: no layer can make an object something other than
             // itself, so this needs no frame.
-            ObjectFilter::EachOther => match identity.source {
+            ObjectFilter::NotSource => match identity.source {
                 Some(source) => Ok(id != source),
                 None => Err(format!(
-                    "ObjectFilter::EachOther on {} has no source to be other than in a selection context",
+                    "ObjectFilter::NotSource on {} has no source to be other than in a selection context",
                     id
                 )),
             },
             // CR 601.2c's "another target": answered off the ids, like
-            // `EachOther` above and for the same reason.
+            // `NotSource` above and for the same reason.
             //
             // **An instance that announced nothing excludes nothing**, which
             // is not a silent default: the only way to reach this leaf with an

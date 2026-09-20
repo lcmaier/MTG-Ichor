@@ -3744,12 +3744,12 @@ audit is at the end.
      frame and no-frame branches, which RD-4's fix collapsed into one call) and
      missed the two zone-change legs entirely, which is its own small lesson
      about counting call sites by reading rather than by grepping. The causes
-     were: an id with no object behind it, `ObjectFilter::EachOther`, and
+     were: an id with no object behind it, `ObjectFilter::NotSource`, and
      `PowerLE` against an object with no power. Every one of them reads as **a
      card that silently does nothing**, which is the failure mode this
      subsystem's own module doc names first.
 
-     **`EachOther` is off the list from RD-4 (2026-09-09), and it never
+     **`NotSource` is off the list from RD-4 (2026-09-09), and it never
      belonged on it.** Palisade Giant's "other permanents you control" made it
      live on its first board — the Giant redirected the damage aimed at *you*
      and none of the damage aimed at your other permanents, because a player
@@ -3763,7 +3763,7 @@ audit is at the end.
      **The general lesson is about the instrument, not the leaf.** The 600-game
      zero below is evidence about the **pool**, and a reachability zero can
      only retire a concern the pool could have exercised. No card in either
-     pool used `EachOther` in an affected set, so the measurement said nothing
+     pool used `NotSource` in an affected set, so the measurement said nothing
      about it. It still holds for the two remaining causes, which are genuine
      authoring errors.
 
@@ -3945,9 +3945,9 @@ audit is at the end.
      Full entry: `plans/archive/codebase-state-closed.md`, "Found by RD-4 —
      redirection and unpreventable damage (2026-09-09)" item 108.
 
-109. **The `EachOther` fix stopped one site short of the sites that have a
+109. **The `NotSource` fix stopped one site short of the sites that have a
      source, and the biggest one is `Primitive`'s filter recipient.** RD-4 gave
-     `set_affects` a source to answer `ObjectFilter::EachOther` against
+     `set_affects` a source to answer `ObjectFilter::NotSource` against
      (item 103). Four callers of `targeting::object_matches_filter` remain
      source-less, and **only two of them are genuine selections** —
      `validate_permanent_target` and `costs.rs`'s cost-candidate filter, which
@@ -3970,7 +3970,7 @@ audit is at the end.
      §8c already told RD-3 to record rather than build.
 
      **Reachability (2026-09-09):** unreachable — no registered card writes
-     `EachOther` into a `FilteredPermanents` recipient, which is exactly the
+     `NotSource` into a `FilteredPermanents` recipient, which is exactly the
      kind of zero item 103 has just been corrected for reading too broadly. It
      is evidence about the pool, and the pool has 85 printed candidates waiting
      outside it.

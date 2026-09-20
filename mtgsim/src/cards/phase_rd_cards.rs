@@ -1180,8 +1180,8 @@ pub fn pariah() -> Arc<CardData> {
 ///
 /// The first row in the crate carrying **both** a real object filter and a real
 /// player set, which is what decision 0's union was for — and the first card
-/// whose filter needs `ObjectFilter::EachOther`. "Other permanents you control"
-/// is `ByController(You) ∧ EachOther`, and without the second leg the Giant
+/// whose filter needs `ObjectFilter::NotSource`. "Other permanents you control"
+/// is `ByController(You) ∧ NotSource`, and without the second leg the Giant
 /// would redirect its own damage to itself.
 ///
 /// `RetargetSpec::ToEffectSource`, because "this creature" is the object whose
@@ -1213,7 +1213,7 @@ pub fn palisade_giant() -> Arc<CardData> {
         .ability(static_replacement(all_damage_to_you(
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByController(PlayerRef::You)),
-                    Box::new(ObjectFilter::EachOther),
+                    Box::new(ObjectFilter::NotSource),
                 )),
             RetargetSpec::ToEffectSource,
         )))
@@ -2296,7 +2296,7 @@ mod tests {
         );
     }
 
-    /// The word "other", which is the whole of `EachOther`: damage aimed at the
+    /// The word "other", which is the whole of `NotSource`: damage aimed at the
     /// Giant itself is not redirected onto the Giant.
     ///
     /// Vacuous on a tree where the filter matches nothing, which is why it is here

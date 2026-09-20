@@ -690,7 +690,7 @@ pub(crate) fn set_affects(
         ObjectSet::Host => {
             game.battlefield.get(&source).and_then(|e| e.attached_to) == Some(id)
         }
-        // On behalf of the effect, not a selection: `ObjectFilter::EachOther` is
+        // On behalf of the effect, not a selection: `ObjectFilter::NotSource` is
         // "other than the effect's `source`", which a selection has no source for —
         // Palisade Giant's "other permanents you control" (`codebase-state.md` item 103).
         ObjectSet::Filter { filter, zones } => {
