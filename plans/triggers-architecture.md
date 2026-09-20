@@ -1108,11 +1108,18 @@ Targets are CR 601.2c through `announce_targets`, exactly the call
 `activate_ability` makes, over `def.effect`'s stored instances (A4n's
 walk, descending into `Effect::Triggered`); item 12's `Targeted` record is
 emitted for each. "If a choice is required ... but no legal choices can be
-made ... the ability is simply removed from the stack": the engine never
-creates the object — the outcome is the same and there is no stack to
-remove it from — and announces nothing, because a trigger removed this way
-is not countered (CR 701.6a is about a spell or ability on the stack being
-canceled by something) and no printed trigger watches it. Modes (603.3c)
+made ... the ability is simply removed from the stack": the engine follows
+that order literally — `place_one` creates the object, pushes it, announces
+against it and undoes both when the announcement fails, the object having to
+exist because targeting legality reads the source. It is the same game as
+never creating it: nothing in between is proposed or emitted, and the writes
+are an id, a timestamp and two layer-epoch bumps, none of which reaches an
+outcome — while the two facts a removal could have disturbed were fixed
+before it, CR 603.3a's controller at dispatch and CR 603.3b's order before
+targets in the CR's own sequence, so a removed trigger consumed its slot as
+it does on paper. Nothing is announced on the way out, because a trigger
+removed this way is not countered (CR 701.6a is about a spell or ability on
+the stack being canceled by something) and no printed trigger watches it. Modes (603.3c)
 are `backlog.md` §2.7's: a `Modal` root on a trigger's effect resolves to
 `Err` today and a modal trigger is unregistrable until `backlog.md` §2.7
 lands; the removal rule for "no mode can be chosen" is that entry's to build on this

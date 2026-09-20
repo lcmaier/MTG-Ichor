@@ -117,9 +117,21 @@ impl GameState {
     ///
     /// CR 603.3d's removal — "if a choice is required ... but no legal
     /// choices can be made ... the ability is simply removed from the stack"
-    /// — never creates the object: the outcome is the same, there is no stack
-    /// to remove it from, and nothing is announced, because a trigger removed
-    /// this way is not countered (CR 701.6a).
+    /// — is the rule's own order, taken literally: the object is created,
+    /// pushed onto the stack, announced against, and both the push and the
+    /// object are undone when the announcement fails. It has to exist to be
+    /// announced against, because targeting legality reads the source.
+    ///
+    /// **Why that is the same game as never creating it.** Nothing between
+    /// the creation and the removal is proposed or emitted — no replacement
+    /// sees it, no trigger matches it, the log does not carry it — and the
+    /// writes are an object id, a timestamp and two layer-epoch bumps, none
+    /// of which reaches an outcome. The two facts a removal could have
+    /// disturbed were fixed earlier: CR 603.3a's controller at dispatch, and
+    /// CR 603.3b's order before targets in the CR's own sequence, so a
+    /// removed trigger consumed its slot in the order exactly as it does on
+    /// paper. Nothing is announced on the way out either, because a trigger
+    /// removed this way is not countered (CR 701.6a).
     fn place_one(&mut self, pending: PendingTrigger, dp: &dyn DecisionProvider) -> Result<bool, String> {
         let controller = pending.controller;
         let object = GameObject::new(Arc::clone(&pending.source_card), controller, Zone::Stack);

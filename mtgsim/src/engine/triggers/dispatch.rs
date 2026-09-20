@@ -85,7 +85,7 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 }
 
 /// One candidate ability, as the matcher sees it.
-struct Candidate<'a> {
+struct TriggerCandidate<'a> {
     id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
     /// frame's controller for a departed one.
@@ -100,7 +100,7 @@ struct Candidate<'a> {
 }
 
 /// A match the dispatcher will queue or resolve.
-struct Match {
+struct MatchedTrigger {
     identity: AbilityIdentity,
     controller: PlayerId,
     def: Arc<TriggerDef>,
@@ -182,6 +182,31 @@ impl GameState {
         result
     }
 
+    /// One dispatch, in five steps.
+    ///
+    /// 1. **The gate** — five probes (§4.2): the battlefield set, the zone
+    ///    map, the two unattributed zone sets off the registry summary, and
+    ///    whether any record of the window carries a CR 603.10a frame with a
+    ///    triggered ability in it. All empty, and a dispatch is the probes and
+    ///    nothing else.
+    /// 2. **The candidates** — `find_matches`' four legs: every object that
+    ///    may carry a triggered ability functioning where it is, in CR 613.7
+    ///    order, each with the effective ability list read once and the card a
+    ///    stack object would be built from.
+    /// 3. **The match** — every candidate's every triggered def against every
+    ///    record of the window. `match_def` answers with the event that
+    ///    matched and the subject of each occurrence, or with the predicate
+    ///    that refused; either way one `trigger` trace record is written.
+    /// 4. **Queue, or resolve** — a `PendingTrigger` per match onto
+    ///    `GameState` and nothing else (CR 603.2, 117.2a: nothing happens when
+    ///    an ability triggers), with the one exception the CR makes — a
+    ///    triggered mana ability, which CR 605.4a resolves here and never
+    ///    queues.
+    /// 5. **The tier-2 emission** — one unstamped `AbilityTriggered` per
+    ///    queued trigger, after the window has closed, each dispatched as it
+    ///    is emitted (§4.8). CR 603.3b's second tier is what watches that
+    ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
+    ///    bounds.
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- The gate: five probes, and on the old pools nothing else -------
         let summary = self.continuous_effects.summary();
@@ -260,7 +285,7 @@ impl GameState {
     /// record of the window, in window order then candidate order — the
     /// order the `OrderTriggers` prompt will offer, which has to be
     /// process-stable end to end (§15 item 1).
-    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<Match> {
+    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<MatchedTrigger> {
         // Leg 1: the battlefield, in CR 613.7 order, gated per permanent.
         let on_battlefield = unattributed.contains(Zone::Battlefield);
         let mut live: Vec<ObjectId> = self
@@ -294,7 +319,7 @@ impl GameState {
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
 
-        let mut matches: Vec<Match> = Vec::new();
+        let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, arm) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
@@ -311,12 +336,12 @@ impl GameState {
             })
             .collect();
 
-        let mut candidates: Vec<(Candidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
+        let mut candidates: Vec<(TriggerCandidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
         for id in live {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
             candidates.push((
-                Candidate {
+                TriggerCandidate {
                     id,
                     controller: controller_or_owner(self, id).unwrap_or(object.owner),
                     owner: object.owner,
@@ -338,7 +363,7 @@ impl GameState {
                 None => Arc::new(frame_card(frame)),
             };
             candidates.push((
-                Candidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
+                TriggerCandidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
                 Arc::clone(&frame.abilities),
                 card,
             ));
@@ -385,7 +410,7 @@ impl GameState {
                     match arm_event.multiplicity() {
                         Multiplicity::PerOccurrence => {
                             for subject in subjects {
-                                matches.push(Match {
+                                matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
                                     def: Arc::clone(&def_arc),
@@ -405,7 +430,7 @@ impl GameState {
                                 Some((_, at)) => matches[*at].records.push(*seq),
                                 None => {
                                     once.push(((identity, arm), matches.len()));
-                                    matches.push(Match {
+                                    matches.push(MatchedTrigger {
                                         identity,
                                         controller: candidate.controller,
                                         def: Arc::clone(&def_arc),
@@ -432,7 +457,7 @@ impl GameState {
     fn match_def(
         &self,
         def: &TriggerDef,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         seq: EventSeq,
         event: &GameEvent,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
@@ -475,10 +500,20 @@ impl GameState {
     /// The occurrences of `arm` in `event`, as the subject of each — one for
     /// every kind this phase ships, one per matching attacker for the attack
     /// shape. Empty when the arm's predicates refuse the record.
+    ///
+    /// One arm against one record, and every case has the same shape: the
+    /// `match` pairs the arm with the record kind it reads, and the arm's own
+    /// fields are the predicates over that record. **A field left `None` is
+    /// not asked** — every one of them is an `is_none_or` — which is how "any"
+    /// is spelled at the type, the convention the replacement patterns share.
+    /// `one` wraps a boolean as an occurrence: true is the single subject the
+    /// arm's `subject_of` projection names, false is no occurrence at all. The
+    /// only arm that does not go through it is `Attacks`, where CR 508.3a
+    /// makes each matching attacker an occurrence of its own.
     fn arm_occurrences(
         &self,
         arm: &TriggerEvent,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         seq: EventSeq,
         event: &GameEvent,
     ) -> Vec<Option<ObjectId>> {
@@ -612,7 +647,7 @@ impl GameState {
         &self,
         subject: &TriggerSubject,
         id: Option<ObjectId>,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         frame: Option<&EffectiveCharacteristics>,
     ) -> bool {
         match (subject, id) {
@@ -628,7 +663,7 @@ impl GameState {
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// candidate (CR 109.5's "you" is its controller).
-    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, candidate: &Candidate<'_>) -> bool {
+    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, candidate: &TriggerCandidate<'_>) -> bool {
         match who {
             PlayerRef::You => player == candidate.controller,
             PlayerRef::Opponent => player != candidate.controller,
