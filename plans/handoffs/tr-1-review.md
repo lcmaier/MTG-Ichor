@@ -30,7 +30,7 @@ does; theme D says what to re-count with.
 
 ---
 
-## A — names, shapes, comments · *mechanical, agreed*
+## A — names, shapes, comments · *closed 2026-09-20, [PR #174](https://github.com/lcmaier/MTG-Ichor/pull/174)*
 
 Rename sweeps anchored on the type's own methods, never on a bare word
 (`sizing-and-doing-a-rename-sweep`); the site counts below are `grep -rn` over
