@@ -21,22 +21,22 @@ impl GameState {
         (object.zone_change_epoch == reference.zone_change_epoch).then_some(reference.id)
     }
 
-    /// "That player" — the matched arm's `player_of` on the first record.
+    /// "That player" — the matched event's `player_of` on the first record.
     pub fn bound_player(&self, binding: &TriggerBinding) -> Option<PlayerId> {
         let first = binding.records.first()?;
         let record = self.events.record(*first)?;
-        binding.arm().player_of(&record.event)
+        binding.event().player_of(&record.event)
     }
 
     /// "That many" — the arm's `amount_of`, summed over the matched records
     /// (Simic Ascendancy's "that many" across a batch). `None` when the arm
     /// carries no quantity, so a card that asks is refused rather than told 0.
     pub fn bound_amount(&self, binding: &TriggerBinding) -> Option<u64> {
-        let arm = binding.arm();
+        let event = binding.event();
         let mut total: Option<u64> = None;
         for seq in &binding.records {
             let record = self.events.record(*seq)?;
-            let n = arm.amount_of(&record.event)?;
+            let n = event.amount_of(&record.event)?;
             total = Some(total.unwrap_or(0) + n);
         }
         total

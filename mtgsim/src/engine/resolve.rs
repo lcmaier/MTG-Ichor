@@ -1973,7 +1973,7 @@ impl GameState {
                     "TriggeringAmount has no meaning outside a triggered ability's resolution".to_string()
                 })?;
                 self.bound_amount(binding).ok_or_else(|| {
-                    format!("{:?} carries no amount for TriggeringAmount to read", binding.arm())
+                    format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
             }
             // "This creature's power" is a *replacement effect's* question: CR 614.12

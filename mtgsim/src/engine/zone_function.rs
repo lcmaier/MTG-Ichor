@@ -114,16 +114,16 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
 
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
 fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardType>) -> ZoneSet {
-    use crate::types::triggers::{Subject, TriggerEvent};
-    let arms = def.condition.arms();
+    use crate::types::triggers::{TriggerEvent, TriggerSubject};
+    let arms = def.condition.events();
     if arms.is_empty() {
         return default_zones(types);
     }
     let mut zones = ZoneSet::EMPTY;
     for arm in arms {
         zones |= match arm {
-            TriggerEvent::ZoneChange { subject: Subject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
-            TriggerEvent::ZoneChange { subject: Subject::This, from: None, .. } => ZoneSet::ALL,
+            TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
+            TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: None, .. } => ZoneSet::ALL,
             _ => default_zones(types),
         };
     }

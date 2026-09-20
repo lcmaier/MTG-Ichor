@@ -260,7 +260,7 @@ bending actions exist; the shape costs no arm of its own.
 
 **Shape is a property of the arm, not a wrapper.** "Whenever one or more
 creatures die" and "whenever a creature dies" differ in one field —
-`occurrence: Occurrence` on the arms that can carry a plural — and CR 603.2c
+`multiplicity: Multiplicity` on the arms that can carry a plural — and CR 603.2c
 says which is which: `PerOccurrence` triggers once per matching record in the
 window, `OncePerEvent` once per window (§4.4). Delayed and reflexive
 triggers are not conditions but *origins* (§3.8): a delayed trigger's
@@ -290,14 +290,14 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
-| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, occurrence }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/exiled/countered by `cause`; "from anywhere" `from: None` | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
+| `ZoneChange` | `ZoneChange { subject, from: Option<Zone>, to: Option<Zone>, cause: Option<ZoneChangeCause>, owner: Option<PlayerRef>, multiplicity }` — dies is `from: Battlefield, to: Graveyard`; "leaves the battlefield" `from: Battlefield, to: None`; sacrificed/discarded/milled/exiled/countered by `cause`; "from anywhere" `from: None` | iff `from == Some(Battlefield)`, `from == Some(Graveyard)`, or `to ∈ {Hand, Library}` from a zone all players can see (CR 603.10a's three classes, the third written about visibility; §4.3) | TR-1 (battlefield departures), TR-4 (the other two classes, item 15) |
 | `Tapped` / `Untapped` | `BecomesTapped { subject }` / `BecomesUntapped { subject }` — transition-only by the record's own contract (603.2e) | no | TR-1 (fixture), Phase 8 (card) |
-| `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, occurrence }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2 |
+| `CardDrawn` | `DrawsCard { player: Option<PlayerRef>, multiplicity }` — never a library-to-hand `ZoneChange` (121.5) | no | TR-2 |
 | `ManaAdded` | `ManaAdded { source: Option<ObjectFilter>, tapped_for_mana: Option<bool>, mana: Option<ManaType> }` — CR 106.12a's "tapped for mana" reads `tapped_for_mana` | no | TR-1 |
-| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, occurrence }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field | no | TR-1 |
+| `DamageDealt` | `DamageDealt { source: Option<SourcePattern>, recipient: DamageRecipient, combat: Option<bool>, multiplicity }` — "is dealt damage", "deals damage", "deals combat damage to a player"; `combat` is item 10's field | no | TR-1 |
 | `PhaseBegin` / `StepBegin` / `TurnBegin` | `PhaseBegins { phase, whose }` / `StepBegins { step, whose }` / `TurnBegins { whose }` — "your upkeep", "each upkeep", "the monarch's end step"; `whose` reads item 10's `player` | no | TR-1 |
-| `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, cast: Option<bool>, occurrence }` — `from` and `cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
-| `LifeChanged` | `GainsLife { player, occurrence }` / `LosesLife { player, cause: Option<LifeLossCause>, occurrence }` — two arms for one record because the sign decides which printed family reads it; per record (question 3) | no | TR-2 |
+| `PermanentEnteredBattlefield` | `EntersBattlefield { subject, controller: Option<PlayerRef>, from: Option<Zone>, cast: Option<bool>, multiplicity }` — `from` and `cast` are joined from the same object's `ZoneChange` or `TokenCreated` in the window (§4.4; question 9) | no (603.6a reads the board after, with 603.6b's effects applied) | TR-1 |
+| `LifeChanged` | `GainsLife { player, multiplicity }` / `LosesLife { player, cause: Option<LifeLossCause>, multiplicity }` — two arms for one record because the sign decides which printed family reads it; per record (question 3) | no | TR-2 |
 | `AttackersDeclared` | `Attacks { shape: AttackShape, attacker: Option<ObjectFilter>, attacking_player: Option<PlayerRef>, defender: Option<DefenderRef> }` — CR 508.3a–e's five shapes as one enum: `Creature`, `CreatureAgainst`, `PlayerIsAttacked`, `PlayerAttacksWith`, `PlayerAttacks`, `PlayerAttacksPlayer`, `Alone`; reads item 11's defender | no; 508.2a's snapshot is the dispatch instant | TR-5 |
 | `BlockersDeclared` | `Blocks { shape: BlockShape, .. }` — 509.3a–d and 509.3g's five readings of one pair list: `Blocks`, `BlocksACreature`, `BecomesBlocked`, `BecomesBlockedBy`, `AttacksAndIsntBlocked` | no | TR-5 |
 | `SpellCast` | `CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter>, from: Option<Zone> }` — the stack object is live at dispatch (types, colors, mana value through the layer walk; `cast_from` off its entry) | no | TR-2 |
@@ -309,17 +309,17 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2 |
-| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, occurrence }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count and `OncePerEvent` is Simic Ascendancy's "one or more" | no | TR-5 |
+| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, multiplicity }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count and `OncePerEvent` is Simic Ascendancy's "one or more" | no | TR-5 |
 | `CountersAnnihilated` | **no arm, and the variant goes** — CR 704.5q's annihilation *is* a removal of counters: Protean Hydra's ruling has a -1/-1 counter meeting a +1/+1 counter trigger "whenever a +1/+1 counter is removed". Today the state-based sweep writes both kinds directly and announces this variant (Deferred Migrations item 6's counter half, `sba.rs:484`); TR-5 routes it through two `RemoveCounters` proposals in the state-based batch, so the annihilation is two `CountersChanged` records the removal arm reads, and the variant is deleted with item 18's three | — | TR-5 |
 | `Attached` | `BecomesAttached { attachment: Option<ObjectFilter>, host: Option<ObjectFilter> }` — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002) | no | TR-4 |
 | `EquipmentDetached` → **`Unattached`** | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's three routes (question 5), replacing `EquipmentDetached` | yes (603.10c): the frame is the attachment's, with `attached_to` from item 14 | TR-4 |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
-| `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, occurrence }` — keyed here and never on `is_token` at entry (item 8; CR 111.13) | no | TR-5 (fixture) |
+| `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13) | no | TR-5 (fixture) |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
 | *new* `Targeted` (item 12) | `BecomesTarget { subject: TargetRef (object or player), by: Option<TargetingFilter> (a spell, an ability, "an opponent controls", "an Aura spell"), first_time_each_turn }` — once per spell or ability, however many instances (question 11) | no | TR-5 |
 | *new* `ControlChanged` (item 13) | `ControlChanges { subject, from: Option<PlayerRef>, to: Option<PlayerRef> }` — "loses control", "an opponent gains control of a permanent you own" | yes (603.10d), with the caveat in §15 item 4 | TR-4 |
-| *new* `DamagePrevented` (item 16) | `DamageIsPrevented { target: DamageRecipient, occurrence }` — one record per prevention applied per subject group (CR 615.13) | no | TR-5 |
+| *new* `DamagePrevented` (item 16) | `DamageIsPrevented { target: DamageRecipient, multiplicity }` — one record per prevention applied per subject group (CR 615.13) | no | TR-5 |
 | `AbilityTriggered` (new, §4.8) | `AbilityTriggers { caused_by: Option<TriggerEvent> (Strict Proctor's "a permanent entering causes"), of: Option<ObjectFilter> }` — **the arm that is CR 603.3b's second tier**: `TriggerCondition::tier()` reads it | no | TR-1 (the event and the tier), TR-5 (the arm's card) |
 
 Thirty-four variants, four deleted (three never emitted, and
@@ -355,10 +355,10 @@ pub struct TriggerBinding {
     /// `EventLog::record(seq)` is the read. Their `EventStamp` is what the
     /// reflexive check and CR 603.7h's "this ability" read.
     pub records: Vec<EventSeq>,
-    /// Which arm of the condition matched — the `TriggerEvent` whose
+    /// Which of the condition's events matched — the `TriggerEvent` whose
     /// projections (below) say what "that object", "that player" and
     /// "that many" are for these records.
-    pub arm: ArmIndex,
+    pub event: EventIndex,
     /// The one fact a record does not carry and the resolution needs: the
     /// subject's `zone_change_epoch` at dispatch (CR 400.7 — a later move
     /// makes it a new object the reference cannot find;
@@ -501,7 +501,7 @@ pub struct PendingTrigger {
     pub source_card: Arc<CardData>,
     pub binding: TriggerBinding,
     /// CR 603.3b's tier: 1 unless the condition is another ability triggering.
-    pub tier: Tier,
+    pub tier: TriggerTier,
     /// CR 605.1b — resolved at dispatch, never queued; here for the record.
     pub mana: bool,
     /// CR 603.8's one-shot: a state trigger stays armed-off until its stack

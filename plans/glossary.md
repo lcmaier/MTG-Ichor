@@ -128,8 +128,8 @@ ability window, `run_mana_ability_window`: the chance to activate mana
 abilities while a cost is being paid — the older sense, and the one "inside
 the mana window" means.
 
-**tier** — **(1)** CR 603.3b's two-part placement, `Tier::First` and
-`Tier::Second`: a trigger whose condition is another ability triggering goes
+**tier** — **(1)** CR 603.3b's two-part placement, `TriggerTier::First` and
+`TriggerTier::Second`: a trigger whose condition is another ability triggering goes
 on the stack after the ones that are not, whatever APNAP says
 (`TriggerCondition::tier`). **(2)** the trace practice's three tiers
 (`engineering-practices.md` §7, §7.1): hand-authored pages, the engine's
@@ -471,9 +471,9 @@ emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
 first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
 
 **binding** — what a pending or stacked trigger remembers about its event:
-the def, the records that matched (by `EventSeq`, never by copy), which arm
-matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
-player" and "that many" are read back through the arm's projections at
+the def, the records that matched (by `EventSeq`, never by copy), which of
+the condition's events matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
+player" and "that many" are read back through that event's projections at
 resolution, so there is one copy of every fact and the frame comes with the
 record. → `TriggerBinding`, `engine::triggers::binding`.
 

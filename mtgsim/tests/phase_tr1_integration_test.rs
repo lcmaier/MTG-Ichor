@@ -53,7 +53,8 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
-    DamageRecipient, Occurrence, Subject, Tier, TriggerCondition, TriggerDef, TriggerEvent,
+    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+    TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -78,34 +79,34 @@ fn a_creature() -> ObjectFilter {
 /// "Whenever a creature enters" — the plain ETB watcher, any creature.
 fn creature_enters() -> TriggerEvent {
     TriggerEvent::EntersBattlefield {
-        subject: Subject::Filter(a_creature()),
+        subject: TriggerSubject::Filter(a_creature()),
         controller: None,
         from: None,
         cast: None,
-        occurrence: Occurrence::PerOccurrence,
+        multiplicity: Multiplicity::PerOccurrence,
     }
 }
 
 /// "When this enters".
 fn this_enters() -> TriggerEvent {
     TriggerEvent::EntersBattlefield {
-        subject: Subject::This,
+        subject: TriggerSubject::This,
         controller: None,
         from: None,
         cast: None,
-        occurrence: Occurrence::PerOccurrence,
+        multiplicity: Multiplicity::PerOccurrence,
     }
 }
 
 /// "Whenever [subject] dies".
-fn dies(subject: Subject) -> TriggerEvent {
+fn dies(subject: TriggerSubject) -> TriggerEvent {
     TriggerEvent::ZoneChange {
         subject,
         from: Some(Zone::Battlefield),
         to: Some(Zone::Graveyard),
         cause: None,
         owner: None,
-        occurrence: Occurrence::PerOccurrence,
+        multiplicity: Multiplicity::PerOccurrence,
     }
 }
 
@@ -314,7 +315,7 @@ fn soul_warden_triggers_when_a_creature_spell_resolves_and_nothing_happens_yet()
     let entry = &game.pending_triggers[0];
     assert_eq!(entry.controller, 0);
     assert_eq!(entry.origin.source(), warden);
-    assert_eq!(entry.tier, Tier::First);
+    assert_eq!(entry.tier, TriggerTier::First);
 
     // CR 603.3b's record, and its stamp: a consequence of the entry, not part of it.
     let triggered = game
@@ -353,7 +354,7 @@ fn soul_warden_entering_beside_two_creatures_triggers_for_each_of_them() {
     assert_eq!(pending(&game), 2, "two other creatures, two triggers, none for itself");
     // Two bindings differ (two subjects), so the order is the player's.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![0, 1]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     place(&mut game, &dp);
     resolve_top(&mut game, &dp);
     resolve_top(&mut game, &dp);
@@ -400,7 +401,7 @@ fn blood_artist_dying_beside_two_creatures_triggers_three_times() {
 
     // Each is placed with its own target (CR 603.3d), then resolves.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![0, 1, 2]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1, 2]);
     for _ in 0..3 {
         expect_target_player(&dp, 1);
     }
@@ -423,7 +424,7 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
         &mut game,
         CardDataBuilder::new("Mourning Idol")
             .card_type(CardType::Artifact)
-            .ability(triggered_ability(whenever(dies(Subject::Filter(a_creature())), gain_one())))
+            .ability(triggered_ability(whenever(dies(TriggerSubject::Filter(a_creature())), gain_one())))
             .build(),
         0,
     );
@@ -436,7 +437,7 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
     assert_eq!(game.get_object(relic).unwrap().zone, Zone::Graveyard);
     assert_eq!(pending(&game), 2, "once per creature, off the frame");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![0, 1]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     place(&mut game, &dp);
     resolve_top(&mut game, &dp);
     resolve_top(&mut game, &dp);
@@ -454,7 +455,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
         &mut game,
         enchantment_watcher(
             "Landfall Lament",
-            triggered_ability(whenever(dies(Subject::Filter(ObjectFilter::ByType(CardType::Land))), draw_one())),
+            triggered_ability(whenever(dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Land))), draw_one())),
         ),
         0,
     );
@@ -472,12 +473,12 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
             "Landfall Dirge",
             triggered_ability(whenever(
                 TriggerEvent::ZoneChange {
-                    subject: Subject::Filter(ObjectFilter::ByType(CardType::Land)),
+                    subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Land)),
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Graveyard),
                     cause: None,
                     owner: None,
-                    occurrence: Occurrence::OncePerEvent,
+                    multiplicity: Multiplicity::OncePerEvent,
                 },
                 gain_one(),
             )),
@@ -573,7 +574,7 @@ fn a_player_with_two_different_triggers_chooses_their_order() {
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
     // Options in trigger order: [gainer, drawer]. Put the drawer's on first.
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![1, 0]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![1, 0]);
     place(&mut game, &dp);
 
     assert_eq!(stack_sources(&game), vec![drawer, gainer]);
@@ -609,7 +610,7 @@ fn two_triggers_with_targets_are_asked_their_order() {
     assert_eq!(pending(&game), 2);
 
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![0, 1]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     expect_target_player(&dp, 1);
     expect_target_player(&dp, 1);
     place(&mut game, &dp);
@@ -622,7 +623,7 @@ fn two_triggers_with_targets_are_asked_their_order() {
 #[test]
 fn identical_triggers_with_different_bindings_are_asked_their_order() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, watcher("Mourner", dies(Subject::Filter(a_creature())), gain_one()), 0);
+    put_on_battlefield(&mut game, watcher("Mourner", dies(TriggerSubject::Filter(a_creature())), gain_one()), 0);
     let a = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let b = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
@@ -630,7 +631,7 @@ fn identical_triggers_with_different_bindings_are_asked_their_order() {
     destroy_all(&mut game, &[a, b], source);
     assert_eq!(pending(&game), 2);
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: Tier::First }, vec![1, 0]);
+    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![1, 0]);
     place(&mut game, &dp);
     assert_eq!(game.stack.len(), 2);
 }
@@ -651,7 +652,7 @@ fn an_untap_step_trigger_is_held_until_the_upkeep() {
     fill_library(&mut game, 1, 5);
     let untapper = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: Subject::This }, draw_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::This }, draw_one()),
         1,
     );
     game.battlefield.get_mut(&untapper).unwrap().tapped = true;
@@ -703,7 +704,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
         enchantment_watcher(
             "War Drums",
             triggered_ability(whenever(
-                TriggerEvent::Attacks { attacker: Subject::Any, occurrence: Occurrence::PerOccurrence },
+                TriggerEvent::Attacks { attacker: TriggerSubject::Any, multiplicity: Multiplicity::PerOccurrence },
                 gain_one(),
             )),
         ),
@@ -741,7 +742,7 @@ fn entering_tapped_is_not_becoming_tapped() {
         &mut game,
         enchantment_watcher(
             "Tap Sentinel",
-            triggered_ability(whenever(TriggerEvent::BecomesTapped { subject: Subject::Any }, draw_one())),
+            triggered_ability(whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Any }, draw_one())),
         ),
         0,
     );
@@ -800,10 +801,10 @@ fn prevented_damage_triggers_nothing() {
             "Pain Diary",
             triggered_ability(whenever(
                 TriggerEvent::DamageDealt {
-                    source: Subject::Any,
+                    source: TriggerSubject::Any,
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
                     combat: None,
-                    occurrence: Occurrence::PerOccurrence,
+                    multiplicity: Multiplicity::PerOccurrence,
                 },
                 draw_one(),
             )),
@@ -827,10 +828,10 @@ fn prevented_damage_triggers_nothing() {
             "Pain Diary",
             triggered_ability(whenever(
                 TriggerEvent::DamageDealt {
-                    source: Subject::Any,
+                    source: TriggerSubject::Any,
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
                     combat: None,
-                    occurrence: Occurrence::PerOccurrence,
+                    multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
             )),
@@ -857,12 +858,12 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
             "Banishment Ledger",
             triggered_ability(whenever(
                 TriggerEvent::ZoneChange {
-                    subject: Subject::Filter(a_creature()),
+                    subject: TriggerSubject::Filter(a_creature()),
                     from: Some(Zone::Battlefield),
                     to: Some(Zone::Exile),
                     cause: None,
                     owner: None,
-                    occurrence: Occurrence::PerOccurrence,
+                    multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
             )),
@@ -892,10 +893,10 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
             "Wound Tally",
             triggered_ability(whenever(
                 TriggerEvent::DamageDealt {
-                    source: Subject::Any,
+                    source: TriggerSubject::Any,
                     recipient: DamageRecipient::Object(Some(a_creature())),
                     combat: None,
-                    occurrence: Occurrence::PerOccurrence,
+                    multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
             )),
@@ -963,7 +964,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
 fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject);
     let mut game = setup_two_player_game();
-    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(Subject::This), exile_it.clone()), 0);
+    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::This), exile_it.clone()), 0);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
     destroy_all(&mut game, &[restless], source);
     assert_eq!(pending(&game), 1);
@@ -975,7 +976,7 @@ fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let mut game = setup_two_player_game();
     let renewal = put_on_battlefield(
         &mut game,
-        enchantment_watcher("Renewal Vow", triggered_ability(whenever(dies(Subject::Filter(a_creature())), exile_it))),
+        enchantment_watcher("Renewal Vow", triggered_ability(whenever(dies(TriggerSubject::Filter(a_creature())), exile_it))),
         0,
     );
     let _ = renewal;
@@ -1049,11 +1050,11 @@ fn the_trigger_is_controlled_by_whoever_controlled_the_source_when_it_triggered(
         watcher(
             "Gate Sentinel",
             TriggerEvent::EntersBattlefield {
-                subject: Subject::Filter(another(a_creature())),
+                subject: TriggerSubject::Filter(another(a_creature())),
                 controller: None,
                 from: None,
                 cast: None,
-                occurrence: Occurrence::PerOccurrence,
+                multiplicity: Multiplicity::PerOccurrence,
             },
             gain_one(),
         ),
@@ -1102,8 +1103,8 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
     let scholar = put_on_battlefield(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 0);
 
     assert_eq!(pending(&game), 2);
-    let tiers: Vec<(ObjectId, Tier)> = game.pending_triggers.iter().map(|t| (t.origin.source(), t.tier)).collect();
-    assert_eq!(tiers, vec![(scholar, Tier::First), (proctor, Tier::Second)]);
+    let tiers: Vec<(ObjectId, TriggerTier)> = game.pending_triggers.iter().map(|t| (t.origin.source(), t.tier)).collect();
+    assert_eq!(tiers, vec![(scholar, TriggerTier::First), (proctor, TriggerTier::Second)]);
 
     place(&mut game, &test_dp());
     assert_eq!(stack_sources(&game), vec![scholar, proctor], "tier 1 below tier 2, whatever APNAP says");
@@ -1455,7 +1456,7 @@ fn each_source_of_simultaneous_life_gain_triggers_separately() {
         enchantment_watcher(
             "Vital Ledger",
             triggered_ability(whenever(
-                TriggerEvent::GainsLife { player: Some(PlayerRef::You), occurrence: Occurrence::PerOccurrence },
+                TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
         ),
@@ -1487,7 +1488,7 @@ fn gaining_zero_life_triggers_nothing() {
         enchantment_watcher(
             "Vital Ledger",
             triggered_ability(whenever(
-                TriggerEvent::GainsLife { player: Some(PlayerRef::You), occurrence: Occurrence::PerOccurrence },
+                TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
         ),
@@ -1552,12 +1553,12 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
             "Discard Diary",
             triggered_ability(whenever(
                 TriggerEvent::ZoneChange {
-                    subject: Subject::Any,
+                    subject: TriggerSubject::Any,
                     from: Some(Zone::Hand),
                     to: Some(Zone::Graveyard),
                     cause: Some(ZoneChangeCause::Discarded),
                     owner: Some(PlayerRef::You),
-                    occurrence: Occurrence::PerOccurrence,
+                    multiplicity: Multiplicity::PerOccurrence,
                 },
                 gain_one(),
             )),
@@ -1638,7 +1639,7 @@ fn under_eon_hub_an_untap_trigger_goes_on_the_stack_at_the_draw_step() {
     put_on_battlefield(&mut game, eon_hub(), 0);
     let watch = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: Subject::This }, gain_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::This }, gain_one()),
         1,
     );
     game.battlefield.get_mut(&watch).unwrap().tapped = true;
@@ -1660,12 +1661,12 @@ fn guile_shaped() -> Arc<CardData> {
     watcher(
         "Incarnate Echo",
         TriggerEvent::ZoneChange {
-            subject: Subject::This,
+            subject: TriggerSubject::This,
             from: None,
             to: Some(Zone::Graveyard),
             cause: None,
             owner: None,
-            occurrence: Occurrence::PerOccurrence,
+            multiplicity: Multiplicity::PerOccurrence,
         },
         gain_one(),
     )

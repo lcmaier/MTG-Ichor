@@ -14,7 +14,7 @@ use crate::engine::trace_records;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::triggers::{PendingTrigger, Tier, TriggerOrigin, TriggerSeq};
+use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerSeq, TriggerTier};
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
 use crate::ui::decision::DecisionProvider;
@@ -51,7 +51,7 @@ impl GameState {
             seats.sort_by_key(|&p| self.apnap_index(p));
             seats
         };
-        for tier in [Tier::First, Tier::Second] {
+        for tier in [TriggerTier::First, TriggerTier::Second] {
             for &player in &seats {
                 let mine: Vec<TriggerSeq> = self
                     .pending_triggers
@@ -101,7 +101,7 @@ impl GameState {
         let TriggerOrigin::Object(first_identity) = first.origin;
         entries.iter().all(|t| {
             let TriggerOrigin::Object(identity) = t.origin;
-            t.tier == Tier::First
+            t.tier == TriggerTier::First
                 && t.instances.is_empty()
                 && identity.ability == first_identity.ability
                 && t.def.effect == first.def.effect

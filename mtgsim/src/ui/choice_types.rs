@@ -126,7 +126,7 @@ pub enum ChoiceKind {
     /// lowest. **Asked only with two or more**, and not even then when no
     /// order can change the game — item 163's elision, whose expiry
     /// conditions are written beside the predicate in `engine::triggers`.
-    OrderTriggers { player: PlayerId, tier: crate::types::triggers::Tier },
+    OrderTriggers { player: PlayerId, tier: crate::types::triggers::TriggerTier },
 
     /// A "you **may** ... instead" replacement effect is offering itself
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.

@@ -31,8 +31,9 @@ use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::triggers::{
-    ArmIndex, DamageRecipient, Occurrence, ObjectRef, PendingTrigger, Subject, Tier,
-    TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq,
+    DamageRecipient, EventIndex, Multiplicity, ObjectRef, PendingTrigger, TriggerBinding,
+    TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
+    TriggerTier,
 };
 use crate::types::zones::{Zone, ZoneSet};
 
@@ -47,7 +48,7 @@ pub const DISPATCH_NESTING_LIMIT: usize = 16;
 /// the same sentence from the other side — a target or any other event
 /// makes it an ordinary triggered ability.
 pub fn is_mana_ability(def: &TriggerDef) -> bool {
-    let arms = def.condition.arms();
+    let arms = def.condition.events();
     !arms.is_empty()
         && arms.iter().all(|arm| matches!(arm, TriggerEvent::ManaAdded { .. }))
         && def.effect.instances().is_empty()
@@ -91,7 +92,7 @@ struct Candidate<'a> {
     controller: PlayerId,
     owner: PlayerId,
     zone: Zone,
-    /// The source's host (CR 303.4m), for `Subject::Host`.
+    /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
     host: Option<ObjectId>,
     /// `None` for a live object — its list is read fresh — and the CR 603.10a
     /// frame for a departed one, which is asked look-back conditions only.
@@ -105,7 +106,7 @@ struct Match {
     def: Arc<TriggerDef>,
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
-    arm: ArmIndex,
+    event: EventIndex,
     records: Vec<EventSeq>,
     object: Option<ObjectRef>,
     mana: bool,
@@ -211,7 +212,7 @@ impl GameState {
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
                 records: m.records.clone(),
-                arm: m.arm,
+                event: m.event,
                 object: m.object,
                 triggered: None,
             };
@@ -295,7 +296,7 @@ impl GameState {
 
         let mut matches: Vec<Match> = Vec::new();
         // "One or more" accumulates across the window: (identity, arm) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, ArmIndex), usize)> = Vec::new();
+        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // Leg 2: the frames the window carries (CR 603.10a) — each departed
         // object's list as it was, asked look-back conditions only.
@@ -379,10 +380,10 @@ impl GameState {
                         )
                     });
                     let Some(arm) = arm else { continue };
-                    let arm_event = &def.condition.arms()[arm.0];
+                    let arm_event = &def.condition.events()[arm.0];
                     let def_arc: Arc<TriggerDef> = Arc::new((**def).clone());
-                    match arm_event.occurrence() {
-                        Occurrence::PerOccurrence => {
+                    match arm_event.multiplicity() {
+                        Multiplicity::PerOccurrence => {
                             for subject in subjects {
                                 matches.push(Match {
                                     identity,
@@ -390,7 +391,7 @@ impl GameState {
                                     def: Arc::clone(&def_arc),
                                     source_card: Arc::clone(card),
                                     instances: ability.instances.clone(),
-                                    arm,
+                                    event: arm,
                                     records: vec![*seq],
                                     object: subject.and_then(|id| self.object_ref(id)),
                                     mana,
@@ -399,7 +400,7 @@ impl GameState {
                         }
                         // CR 603.2c's boundary is the window: one trigger, every
                         // matching record in its binding, no one object.
-                        Occurrence::OncePerEvent => {
+                        Multiplicity::OncePerEvent => {
                             match once.iter().find(|((i, a), _)| *i == identity && *a == arm) {
                                 Some((_, at)) => matches[*at].records.push(*seq),
                                 None => {
@@ -410,7 +411,7 @@ impl GameState {
                                         def: Arc::clone(&def_arc),
                                         source_card: Arc::clone(card),
                                         instances: ability.instances.clone(),
-                                        arm,
+                                        event: arm,
                                         records: vec![*seq],
                                         object: None,
                                         mana,
@@ -434,7 +435,7 @@ impl GameState {
         candidate: &Candidate<'_>,
         seq: EventSeq,
         event: &GameEvent,
-    ) -> Result<(ArmIndex, Vec<Option<ObjectId>>), Refusal> {
+    ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::State);
         }
@@ -443,8 +444,8 @@ impl GameState {
         if candidate.frame.is_none() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
-        let mut matched: Option<(ArmIndex, Vec<Option<ObjectId>>)> = None;
-        for (index, arm) in def.condition.arms().iter().enumerate() {
+        let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
+        for (index, arm) in def.condition.events().iter().enumerate() {
             // A frame is asked look-back conditions only (§4.2 leg 2); a live
             // object is asked everything, its look-back arms against the
             // list it has now.
@@ -456,7 +457,7 @@ impl GameState {
             }
             let subjects = self.arm_occurrences(arm, candidate, seq, event);
             if !subjects.is_empty() {
-                matched = Some((ArmIndex(index), subjects));
+                matched = Some((EventIndex(index), subjects));
                 break;
             }
         }
@@ -529,7 +530,7 @@ impl GameState {
                     (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
                         None => true,
                         Some(filter) => self.subject_matches(
-                            &Subject::Filter(filter.clone()),
+                            &TriggerSubject::Filter(filter.clone()),
                             Some(*id),
                             candidate,
                             None,
@@ -587,7 +588,7 @@ impl GameState {
                 let of_ok = match of {
                     None => true,
                     Some(filter) => self.subject_matches(
-                        &Subject::Filter(filter.clone()),
+                        &TriggerSubject::Filter(filter.clone()),
                         Some(origin.source()),
                         candidate,
                         None,
@@ -609,19 +610,19 @@ impl GameState {
     /// frame describes, and off the live board otherwise.
     fn subject_matches(
         &self,
-        subject: &Subject,
+        subject: &TriggerSubject,
         id: Option<ObjectId>,
         candidate: &Candidate<'_>,
         frame: Option<&EffectiveCharacteristics>,
     ) -> bool {
         match (subject, id) {
-            (Subject::Any, _) => true,
-            (Subject::This, Some(id)) => id == candidate.id,
-            (Subject::Host, Some(id)) => candidate.host == Some(id),
-            (Subject::Filter(filter), Some(id)) => self
+            (TriggerSubject::Any, _) => true,
+            (TriggerSubject::This, Some(id)) => id == candidate.id,
+            (TriggerSubject::Host, Some(id)) => candidate.host == Some(id),
+            (TriggerSubject::Filter(filter), Some(id)) => self
                 .object_matches_filter_of_source(id, filter, candidate.controller, candidate.id, frame)
                 .unwrap_or(false),
-            (Subject::This | Subject::Host | Subject::Filter(_), None) => false,
+            (TriggerSubject::This | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
         }
     }
 
@@ -749,6 +750,6 @@ pub fn another(filter: ObjectFilter) -> ObjectFilter {
 }
 
 /// A tier-2 condition's tier, re-exported for the placement's drain.
-pub fn tier_of(def: &TriggerDef) -> Tier {
+pub fn tier_of(def: &TriggerDef) -> TriggerTier {
     def.condition.tier()
 }

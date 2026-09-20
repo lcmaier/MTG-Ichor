@@ -31,7 +31,7 @@ use crate::types::effects::{
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Occurrence, Subject, TriggerCondition, TriggerDef, TriggerEvent};
+use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::Zone;
 use crate::state::game_state::StepType;
 
@@ -85,11 +85,11 @@ pub fn soul_warden() -> Arc<CardData> {
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability(whenever(
             TriggerEvent::EntersBattlefield {
-                subject: Subject::Filter(another(ObjectFilter::ByType(CardType::Creature))),
+                subject: TriggerSubject::Filter(another(ObjectFilter::ByType(CardType::Creature))),
                 controller: None,
                 from: None,
                 cast: None,
-                occurrence: Occurrence::PerOccurrence,
+                multiplicity: Multiplicity::PerOccurrence,
             },
             Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         )))
@@ -122,12 +122,12 @@ pub fn blood_artist() -> Arc<CardData> {
         .rules_text("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.")
         .ability(triggered_ability(whenever(
             TriggerEvent::ZoneChange {
-                subject: Subject::Filter(ObjectFilter::ByType(CardType::Creature)),
+                subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
                 cause: None,
                 owner: None,
-                occurrence: Occurrence::PerOccurrence,
+                multiplicity: Multiplicity::PerOccurrence,
             },
             Effect::Sequence(vec![
                 Effect::Atom(
@@ -220,7 +220,7 @@ pub fn wild_growth() -> Arc<CardData> {
         .rules_text("Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.")
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
         .ability(triggered_ability(whenever(
-            TriggerEvent::ManaAdded { source: Subject::Host, tapped_for_mana: Some(true), mana: None },
+            TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
             Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],

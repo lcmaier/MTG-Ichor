@@ -21,7 +21,7 @@ use crate::events::event::EventSeq;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::state::trace::{render_debug, Record};
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::triggers::{PendingTrigger, Tier, TriggerOrigin};
+use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerTier};
 use crate::types::zones::Zone;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::PriorityAction;
@@ -225,7 +225,7 @@ pub(crate) fn pending(
     let TriggerOrigin::Object(identity) = entry.origin;
     let mut r = Record::new("pending");
     r.field_u64("seq", entry.seq.0);
-    r.field_u64("tier", match entry.tier { Tier::First => 1, Tier::Second => 2 });
+    r.field_u64("tier", match entry.tier { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.raw());
     r.field_str("name", &crate::ui::display::card_name(game, identity.source));
