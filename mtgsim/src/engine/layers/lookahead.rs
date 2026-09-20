@@ -93,7 +93,7 @@ fn would_be_rows(
     game: &GameState,
     object: ObjectId,
     controller: PlayerId,
-    timestamp: u64,
+    timestamp: Timestamp,
 ) -> Vec<ContinuousEffect> {
     let Some(obj) = game.objects.get(&object) else {
         return Vec::new();

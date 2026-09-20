@@ -31,7 +31,7 @@
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::zone_function::functions_in;
 use crate::events::event::{CounterSubject, DamageTarget};
 use crate::objects::card_data::AbilityType;
@@ -332,7 +332,7 @@ pub(crate) fn gather(
     // source 1a's: it is read off CR 614.12's frame with that rule's narrower
     // scope, and reading it again here off its source zone would offer its
     // filter-scoped rows to its own entry, which 614.12's parenthesis forbids.
-    let mut elsewhere: Vec<(u64, ObjectId)> = Vec::new();
+    let mut elsewhere: Vec<(Timestamp, ObjectId)> = Vec::new();
     for (&id, printed) in game.zone_replacement_ability_sources.iter() {
         if printed.iter().any(|def| printed_could_apply(game, id, def, &proposal)) {
             elsewhere.push((game.object_timestamp(id), id));

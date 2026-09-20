@@ -17,7 +17,7 @@ use crate::engine::actions::{ActionContext, DestructionSource, GameAction, ZoneC
 use crate::engine::replacement::{subject_of, EventSubject};
 use crate::engine::resolve::ResolvedTarget;
 use crate::types::effects::CounterType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
 use crate::types::zones::Zone;
 use crate::ui::ask::{ask_choose_legend_to_keep, ask_commander_to_command_zone};
 use crate::ui::decision::DecisionProvider;
@@ -78,7 +78,7 @@ const MANDATORY_LOOP_CHECKS: usize = 500;
 /// so the filter discards every epoch-0 object and no tie survives it.
 fn moved_since(
     game: &GameState,
-    since: u64,
+    since: ZoneChangeEpoch,
 ) -> Vec<(ObjectId, &crate::objects::object::GameObject)> {
     let mut moved: Vec<(ObjectId, &crate::objects::object::GameObject)> = game
         .objects

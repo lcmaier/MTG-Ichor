@@ -7,7 +7,7 @@
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_abilities};
 use crate::state::game_state::GameState;
@@ -80,7 +80,7 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
         let candidates: Vec<ObjectId> = if widened {
             game.battlefield_ids_ordered()
         } else {
-            let mut pairs: Vec<(u64, ObjectId)> = game
+            let mut pairs: Vec<(Timestamp, ObjectId)> = game
                 .cost_modification_ability_sources
                 .iter()
                 .filter(|id| game.battlefield.contains_key(id))

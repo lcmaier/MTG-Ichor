@@ -166,6 +166,15 @@ pub struct AbilityIdentity {
 /// How deep inside itself the engine is: three counters that answer one
 /// question, so they are one field on `GameState` rather than three.
 ///
+/// **Two of them are caps and one is not**, which is what "guard" is covering.
+/// `batch_depth` and `dispatch_depth` are bounds in every build — the engine
+/// stops with an `Err` naming the invariant it thinks it has lost.
+/// `decomposition_depth` bounds nothing: CR 614.5's applied set already ends
+/// that loop, and this counts the consequence (`d <= inherited.len() + 1`) in a
+/// `debug_assert!`, so what it guards against is a *silent* lineage break —
+/// the failure it converts is a stack overflow that takes the test binary with
+/// it, into a red test that names the rule.
+///
 /// **On the state and not on a parameter**, all three, for `codebase-state.md`
 /// item 40's reason: a nested call re-enters through `emit_event` and the
 /// replacement pipeline, neither of which has a channel to thread a depth
@@ -1040,7 +1049,7 @@ impl GameState {
         // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
         // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
         // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
-        let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
+        let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
             .map(|(&id, e)| (e.timestamp, id))
             .collect();
@@ -1119,7 +1128,7 @@ impl GameState {
     /// second source of truth — see that field for why the copy exists at
     /// all. Its callers are CR 613.7d (`arrive_in_zone`, where there is no
     /// entry yet) and CR 613.7e (`attach`, where there is).
-    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: u64) {
+    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: Timestamp) {
         if let Some(obj) = self.objects.get_mut(&id) {
             obj.timestamp = timestamp;
         }
