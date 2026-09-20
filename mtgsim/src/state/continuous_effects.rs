@@ -162,6 +162,13 @@ pub struct RegistryScopeSummary {
     pub any_granted_cost_modification: bool,
     pub any_copied_cost_modification: bool,
 
+    /// Where an object may carry a triggered ability a Layer 6 row granted
+    /// it — the dispatcher's granted leg, `unattributed_replacement_zones`'
+    /// twin: a `Filter` row names zones, a named row the battlefield.
+    pub granted_trigger_zones: ZoneSet,
+    /// The same for a copy row (CR 707.2a) — the copied leg.
+    pub copied_trigger_zones: ZoneSet,
+
     /// The union of every row's [`ObjectSet::reachable_zones`] — which zones
     /// the registry can name an object in at all.
     ///
@@ -218,6 +225,10 @@ impl RegistryScopeSummary {
                     }
                 }
             }
+            let carries = match &effect.affected_objects {
+                ObjectSet::Filter { zones, .. } => *zones,
+                ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::BATTLEFIELD,
+            };
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {
@@ -226,6 +237,9 @@ impl RegistryScopeSummary {
                     }
                     if def.effect.as_cost_modification().is_some() {
                         summary.any_granted_cost_modification = true;
+                    }
+                    if matches!(def.effect, Effect::Triggered(_)) {
+                        summary.granted_trigger_zones |= carries;
                     }
                 }
                 // CR 707.2a — the captured list is scanned rather than counted,
@@ -238,6 +252,9 @@ impl RegistryScopeSummary {
                         }
                         if ability.effect.as_cost_modification().is_some() {
                             summary.any_copied_cost_modification = true;
+                        }
+                        if matches!(ability.effect, Effect::Triggered(_)) {
+                            summary.copied_trigger_zones |= carries;
                         }
                     }
                 }
@@ -255,6 +272,20 @@ impl RegistryScopeSummary {
 /// through it. Asked by the summary to say *where* such an object can be,
 /// and by `engine::replacement::gather`'s named leg to read the rows that
 /// say *which* object.
+/// Whether a row puts a triggered ability on the objects it reaches — the
+/// dispatcher's granted and copied legs, `puts_a_replacement_ability`'s twin.
+pub fn puts_a_triggered_ability(effect: &ContinuousEffect) -> bool {
+    use crate::engine::layers::types::EffectModification;
+    use crate::types::effects::Effect;
+    match &effect.modification {
+        EffectModification::GrantAbility(def) => matches!(def.effect, Effect::Triggered(_)),
+        EffectModification::CopyFrom(values) => {
+            values.abilities.iter().any(|a| matches!(a.effect, Effect::Triggered(_)))
+        }
+        _ => false,
+    }
+}
+
 pub fn puts_a_replacement_ability(effect: &ContinuousEffect) -> bool {
     use crate::engine::layers::types::EffectModification;
     match &effect.modification {

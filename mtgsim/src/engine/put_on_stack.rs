@@ -200,6 +200,7 @@ impl GameState {
             additional_costs_paid: chosen_additional.clone(),
             cast_from: Some(cast_from),
             ability_identity: None,
+            trigger: None,
         };
         self.set_stack_entry(entry);
 
@@ -289,7 +290,7 @@ impl GameState {
     /// shared rather than duplicated. The caller owns the rollback — CR 601.2e
     /// for a spell, `rollback_ability_activation` for an ability — because the
     /// two rewind different things.
-    fn announce_targets(
+    pub(crate) fn announce_targets(
         &mut self,
         player_id: PlayerId,
         source_id: ObjectId,
@@ -399,7 +400,10 @@ impl GameState {
         let ability_costs = ability.costs.clone();
         let identity = crate::state::game_state::AbilityIdentity {
             source: source_id,
+            zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
             ability: ability.id,
+            // The ordinal among same-id defs ahead of this one (item 149).
+            instance: abilities[..ability_index].iter().filter(|a| a.id == ability.id).count() as u32,
         };
         // Off the def the effective list carries, never `card_data.abilities`:
         // a granted ability exists in no `CardData` (CLAUDE.md).
@@ -441,6 +445,7 @@ impl GameState {
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,
             ability_identity: Some(identity),
+            trigger: None,
         };
         self.set_stack_entry(stack_entry);
 

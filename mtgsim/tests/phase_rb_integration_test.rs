@@ -1089,6 +1089,7 @@ fn regenerate(game: &mut GameState, source: ObjectId, target: ObjectId) {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(
         &Effect::Atom(Primitive::Regenerate, any_permanent()),
@@ -1295,6 +1296,7 @@ fn test_cant_be_regenerated_withholds_the_shield_without_destroying_it() {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(
         &Effect::Atom(cant_be_regenerated(), any_permanent()),
@@ -1334,6 +1336,7 @@ fn test_cant_be_regenerated_does_not_withhold_other_replacements() {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(bear)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(
         &Effect::Atom(cant_be_regenerated(), any_permanent()),

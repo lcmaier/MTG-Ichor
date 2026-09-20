@@ -1547,6 +1547,121 @@ The original entry, as it stood on 2026-09-04:
    **Sized:** a half-day read of the emit sites (42 at RA's census)
    against the three bullets, inside item 6's first PR.
 
+1. **~~Trigger dispatcher stub.~~ — ✅ CLOSED 2026-09-19 (TR-1).** The stub is `place_pending_triggers`, drained inside `perform_sba_and_triggers` in APNAP order over the seat list with CR 603.3b's two tiers; detection is `engine::triggers::dispatch`, at the close of the outermost batch and at an unbatched emission.
+   The record as found: `let triggers_placed = false; // Phase 7 stub` at `engine/priority.rs:235`. This is the single-point insertion — **for placement only** (2026-08-24): detection runs synchronously at event dispatch per the resolved Replacement item 4; this stub is where the pending queue drains onto the stack in APNAP order (CR 603.3b, over the full player set).
+
+   **Reachability (2026-09-03):** unreachable — no registered card has a
+   triggered ability (`AbilityType::Triggered` appears in no card file), and the
+   stub at `priority.rs:247` places nothing.
+
+   **Sized:** unknown until the triggers architecture doc exists.
+   `roadmap-v2.md` §8 gives critical-path item 6 4–6 PRs and calls it "unsized —
+   size first", the dominant route risk; the layers, replacement, "can't" and
+   copy tracks each got a doc before a line, and this one has none yet. Write
+   the doc first.
+
+   **Phase (2026-09-18):** TR-1 — the stub becomes `place_pending_triggers`, drained inside `perform_sba_and_triggers` in APNAP order over the seat list with CR 603.3b's two tiers; `triggers-architecture.md` §5, §12.
+
+3. **~~LKI formalization.~~ — ✅ CLOSED 2026-09-19 (TR-1).** The reader is `engine::triggers::binding` — `bound_object`, `bound_player` and `bound_amount` over the record through the matched arm's projections, CR 603.6's "unable to be found" and CR 400.7 as one epoch comparison. The frame's *status* half is TR-4's `LastKnownInformation`; the two `sba.rs` probes were existence checks, not frames, and stay.
+   The record as found: Several dies-handling sites already read `self.objects.get(&id)` *before* `move_object` to capture pre-move state (see `engine/sba.rs` dies handlers). This is ad-hoc LKI. Triggered abilities that reference "the creature that died" need a formalized `LastKnownInformation` snapshot mechanism, especially after layers land (LKI needs *post-layer* characteristics at moment-of-death, per rule 603.10 / 608.2h).
+
+   **Reachability (2026-09-03):** unreachable — no trigger reads LKI yet. RA-3
+   already captures the CR 603.10a frame on every battlefield-leaving
+   `ZoneChange`, so what remains ad hoc is the three `self.objects.get(&id)`
+   reads in `sba.rs` (`:356`, `:423`, `:454`).
+
+   **Sized:** a `LastKnownInformation` reader over the event's
+   `lki` frame, retiring the three ad-hoc reads, ~100–150 lines, inside
+   critical-path item 6.
+
+   **Phase (2026-09-18):** TR-1 — the reader is `engine::lki::LastKnown` over the record's frame; the two probes left in `sba.rs` (`:327`, `:425`) are existence checks ahead of a subtype read, not frames, and the item closes on the reader; `triggers-architecture.md` §3.11.
+
+7. **~~CR 800.4d's second sentence has no site until the dispatcher exists.~~ — ✅ CLOSED 2026-09-19 (TR-1).** One `in_game` read at the head of `place_pending_triggers`, with a `pending` trace record per refusal. The four-player fixture is a Blood Artist whose controller loses in the state-based check that kills another creature — its frame sees the death, the trigger queues under the departed player, placement refuses it (`a_trigger_a_departed_player_would_control_is_not_put_on_the_stack`); ATOM-800.4d-001 is `COVERS` there. Astral Slide's delayed shape is TR-3's.
+   The record as found: "If
+   a triggered ability that would be controlled by a player who has left the
+   game would be put onto the stack, it isn't put on the stack" — a refusal at
+   the moment CR 603.3 puts an ability on the stack, which is the one moment
+   this engine does not have. Its first sentence (an object owned by a departed
+   player is not created) landed with RE-7 at `Primitive::CreateToken`;
+   `ATOM-800.4d-001` is `COVERS-PARTIAL` on that test and names this half as
+   the reason. The rule's own example is Astral Slide's delayed trigger, which
+   is also the shape that will reach it first: a *delayed* trigger outlives the
+   departure that its source did not.
+
+   **Reachability (2026-09-13):** unreachable — no ability is put onto the
+   stack by a trigger, so there is nothing to refuse.
+
+   **Sized:** one `in_game` read at the dispatcher's put-on-stack site,
+   ~5 lines and a four-player fixture, inside critical-path item 6.
+
+   **Phase (2026-09-18):** TR-1 — one `in_game` read at the head of `place_pending_triggers`, Astral Slide's shape as the four-player fixture; `triggers-architecture.md` §5.3.
+
+9. **~~The dispatcher is the trace sink's sixth emit point, and it does not
+   exist yet (A4c, 2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** `trace_records::trigger` per matcher decision — the record, the identity with its instance, the zone, matched or the predicate that refused it, and whether it resolved as a mana ability — and `trace_records::pending` per placement or refusal, with the targets; `plans/traces/viewer.html` renders both kinds.
+   The record as found: The five item 5 named are built — the batch,
+   the CR 616.1 iteration, the layer walk, the decision boundary, the
+   performed event — and "why did this fire, or not" is answered by none of
+   them: whether a trigger matched an event is a read the matcher makes, and
+   a sink can only record what it is handed. Owed with the dispatcher: a
+   `trigger` record per matcher decision (the event, the ability's identity,
+   its source, matched or not and which predicate said so) and a `pending`
+   record when the queue drains onto the stack in APNAP order (CR 603.3b),
+   each written behind `game.trace` the way the five are, so a game nobody
+   traces pays one branch at each. `plans/traces/viewer.html` gets a summary
+   arm for both kinds in the same PR.
+
+   **Reachability (2026-09-18):** unreachable — no dispatcher, so no record it
+   could write.
+
+   **Sized:** ~40 lines at the two sites the dispatcher adds, inside
+   critical-path item 6's first PR; the viewer's two arms ~20.
+
+   **Phase (2026-09-18):** TR-1 — the `trigger` and `pending` records, and the viewer's two arms; `triggers-architecture.md` §4.8.
+
+10. **~~Three performers drop a proposal field the record needs (the trigger
+    survey, 2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** `StepBegin.player`, `PhaseBegin.player`, `DamageDealt.is_combat` and `LifeChanged.cause: Option<LifeLossCause>` (`None` for a gain) off the three performers, every literal site patched, and the engine arm read `IDENTICAL` on every counter as the item predicted (`fuzz-record.md`, TR-1).
+   The record as found: `GameAction::BeginStep` and `BeginPhase` carry
+    `player`; `GameEvent::StepBegin` and `PhaseBegin` do not, and "at the
+    beginning of your upkeep" (1,167 cards), "your end step" (976), "combat"
+    (313) and every delayed "at the beginning of the next" (391) read whose
+    turn it is. `DealDamage` carries `is_combat`; `DamageDealt` does not, and
+    804 cards say "combat damage". `LoseLife` carries a `LifeLossCause`;
+    `LifeChanged` does not, and CR 727.1a's "from radiation" reads it (one
+    card). The first is live-derivable at dispatch — the active player owns
+    every step — and the second is not: a triggered ability resolving during
+    the combat damage step deals noncombat damage in that step, so the step
+    cannot say. `plans/references/trigger-survey.md` §5.
+
+    **Reachability (2026-09-18):** unreachable — no dispatcher reads any
+    event; a record that cannot say is wrong only once something reads it,
+    and the trace's `event` line is the only reader it has today.
+
+    **Sized:** three fields, three performers and `format_event`'s three
+    arms, plus the literal sites that name the shapes (`StepBegin {` at 5 in
+    `src` and 12 in `tests`, `DamageDealt {` 10 and 7, `LifeChanged {` 10 and
+    9), ~40 lines; each field's shape is the triggers doc's. It changes no
+    decision and does change the dump's text, so it rides a stream-neutral PR
+    whose A/B prediction is `IDENTICAL`.
+
+    **Phase (2026-09-18):** TR-1 — all three fields, a stream-neutral change whose A/B prediction is `IDENTICAL`; `triggers-architecture.md` §3.12.
+
+18. **~~Three `GameEvent` variants are never emitted (the trigger survey,
+    2026-09-18).~~ — ✅ CLOSED 2026-09-19 (TR-1).** `PhaseEnd`, `StepEnd` and `TurnEnd` deleted with their `format_event` arms; `CountersAnnihilated` is TR-5's, once CR 704.5q proposes.
+   The record as found: `PhaseEnd`, `StepEnd` and `TurnEnd` are declared and
+    written by no performer; no trigger reads an end — "at end of combat" is
+    the end-of-combat step beginning (CR 511.2) and "at end of turn" was
+    errata'd to "at the beginning of the end step" (CR 513.1a). Emit or
+    delete; delete, since an arm the stream cannot carry misleads the reader
+    the way `replacement-architecture.md` §3.2a's unapplied pattern arm does.
+
+    **Reachability (2026-09-18):** nothing owed to correctness — dead
+    vocabulary, and the survey's stream table counts it.
+
+    **Sized:** three variants and their `format_event` arms, ~15 lines, any
+    time.
+
+    **Phase (2026-09-18):** TR-1 — deleted; `triggers-architecture.md` §3.12.
+
 ## Before Commander (CR 903)
 
 1. **Commander damage increment — ✅ done (2026-04-18).** `GameObject.is_commander: bool` added; `execute_action(DealDamage)` accumulates `commander_damage_taken[source]` when `is_combat && target == Player && source.is_commander`. 5 unit tests. The loss SBA (`engine/sba.rs:73`) now has a live writer.
@@ -2155,3 +2270,76 @@ so this PR has no `fuzz-record.md` block.
      precedent (`refactor/object-set-rename`): a rename does not ride inside
      a rules change. Proposed name `EngineMeters` / `game.meters`, a word the
      CR never uses and one that reads as measurement at every call site.
+
+## Found by RE's sizing (2026-09-11)
+
+### Item 121 — closed 2026-09-19 by TR-1
+
+Closed by the two tests the item asked for, in `tests/phase_tr1_integration_test.rs`: a skipped upkeep emits no `StepBegin` so Verdant Force never triggers, and a fixture's untap trigger is held through the skipped step and goes on the stack at the draw step's first grant. Both carry `// RULING: Eon Hub #2` and `#3`.
+
+*Original entry:*
+
+121. **Eon Hub's two trigger-shaped rulings have no test and cannot have one
+     until item 6.** *"Upkeep-triggered abilities don't trigger"* and *"any
+     triggered abilities that triggered during the untap step will go onto the
+     stack at the start of the draw step"* are the two halves of what a skipped
+     step does to CR 603, and RE-1 landed the events they read
+     (`GameEvent::StepBegin`) without anything to read them. The first falls
+     out — a step that does not begin emits nothing — and the second does not:
+     it says the *next* step that begins is where the waiting triggers go, and
+     nothing in RE-1 could assert that.
+
+     **Reachability (2026-09-15):** nothing owed — a record for item 6.
+     Eon Hub is in `PERFORMANCE_POOL`, so the board is in front of every
+     measured game already; what is missing is a trigger to watch. (The
+     2026-09-11 verdict said "nothing to build"; re-worded at the post-RE
+     audit so the board reads it.)
+
+     **Sized:** two integration tests in item 6's file, ~60 lines, on a board
+     `phase_re_cards::eon_hub` plus one upkeep trigger and one untap-step
+     trigger. **Item 6's own doc should list them** — the card file's module
+     doc records both rulings as "item 6's" and this is the line that says
+     where they land.
+
+## Found by A4g — process-stable ids (PR #158, 2026-09-16)
+
+### Item 149 — closed 2026-09-19 by TR-1
+
+Closed by `AbilityIdentity { source, zone_change_epoch, ability, instance }` (`triggers-architecture.md` §3.6): the instance is an ordinal among same-id defs so a later grant does not renumber an earlier one, and CR 603.7h's count (TR-2) ignores it. The window's pair sites were left as pairs on purpose — see the TR-1 archive's note 8.
+
+*Original entry:*
+
+149. **Two instances of one ability on one object are indistinguishable by
+     id, and the mana window lists them once.** Found by A4g's A/B. A printed
+     `AbilityId` is derived from the card name and the def's ordinal (item
+     144's decision), so two copies of Citanul Hierophants under one
+     controller grant every creature `{T}: Add {G}` under *one* id, where two
+     runs of the factory used to mint two. CR 113.10b calls those two
+     instances of one ability, and `LoseAbility` already removes both (phase
+     LF's test pins it); `enumerate_activatable_mana_abilities` dedupes by
+     `(ObjectId, AbilityId)` and offers one candidate where `main` offered
+     two, so the random agent's uniform pick lands on a different option in
+     the games where the board occurs — 1 of 200 two-seat `stress` games, 5
+     of 200 four-seat `performance`, 2 of 200 four-seat `stress`, none on
+     two-seat `performance`. Every one of the six shows two Hierophants under
+     the acting player at the divergence, and a probe that restored per-copy
+     uniqueness read `main` to the digit (`fuzz-record.md`, the A4g block).
+     Not an order leak: the hasher arm is identical to the swap arm on every
+     counter, under a different hasher seed per round.
+
+     **What it leaves open, for the triggers doc.** A rule that counts *per
+     instance* — CR 603.7h's "this ability has resolved for the third time",
+     which `AbilityIdentity { source, ability }` exists to carry — cannot
+     tell two instances apart by the pair. The index into the effective list
+     can, and whether CR 603.7h wants the instance or the ability is the
+     triggers doc's question — seam **S3** in `roadmap-v2.md` §3b and A6,
+     where the doc's prep will find it — not this item's.
+
+     **Reachability (2026-09-16):** reachable — a policy-visible difference
+     (which of two identical candidates the random agent is offered), never a
+     wrong answer: activating either instance taps the same creature for the
+     same mana, and a "loses" effect removes both, as the rule says.
+
+     **Sized:** nothing owed unless the triggers doc wants per-instance
+     identity; then `AbilityIdentity` gains the index (~10 lines) and the 13
+     pair sites are read once more.

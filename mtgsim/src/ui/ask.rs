@@ -789,6 +789,30 @@ pub fn ask_order_cost_reductions(
     order
 }
 
+/// CR 603.3b — the order a player puts their simultaneously triggered
+/// abilities of one tier onto the stack.
+///
+/// `sources` are the entries' sources in trigger order, so the permutation
+/// returned means the same thing in every process; the first index goes on
+/// the stack lowest. Two or more only, and the elision that keeps a
+/// same-outcome pair from reaching here is the placement's.
+pub fn ask_order_triggers(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    player: PlayerId,
+    tier: crate::types::triggers::Tier,
+    sources: &[ObjectId],
+) -> Vec<usize> {
+    debug_assert!(sources.len() >= 2, "CR 603.3b: one trigger has no order to choose");
+    let options: Vec<ChoiceOption> = sources.iter().map(|id| ChoiceOption::Object(*id)).collect();
+    let ctx = ChoiceContext {
+        kind: ChoiceKind::OrderTriggers { player, tier },
+    };
+    let order = dp.choose_ordering(game, player, &ctx, &options);
+    validate_ordering(&order, &options, "order_triggers", game, player, &ctx);
+    order
+}
+
 /// How many of `mana_cost`'s symbols must be paid with `mana_type` specifically.
 ///
 /// `ManaCost::build` writes `{C}` as `ManaSymbol::Colorless`, but

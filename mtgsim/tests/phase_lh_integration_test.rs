@@ -68,6 +68,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         additional_costs_paid: Vec::new(),
         cast_from: Some(Zone::Hand),
         ability_identity: None,
+        trigger: None,
     });
     id
 }

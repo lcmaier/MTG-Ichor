@@ -77,7 +77,7 @@ CR_DIR = ROOT / "MTG-Rules" / "versions"
 # Every word this project uses in a sense a reader cannot recover from ordinary
 # English plus one rule number. Adding one here is the whole cost of coining it.
 WATCHLIST = [
-    "elision",
+    "elision", "dispatch", "window", "binding", "tier", "probe",
     "trace", "sink", "emit point", "spine", "branch",
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "cell", "census", "chokepoint", "containment",
@@ -126,7 +126,7 @@ BRITISH = {
 POLYSEMOUS = {
     "source": 3, "shield": 3, "registry": 3, "queue": 3, "census": 2,
     "pool": 2, "step": 2, "blocked": 2, "gate": 2, "unit": 2, "schedule": 2,
-    "plan": 2, "splice": 2,
+    "plan": 2, "splice": 2, "window": 2, "tier": 2, "probe": 2,
     "member": 2,
     "instance": 2,
 }

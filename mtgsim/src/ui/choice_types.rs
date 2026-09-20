@@ -119,6 +119,15 @@ pub enum ChoiceKind {
     /// rather than about an object.
     ChooseReplacementEffect { affected_object: Option<ObjectId> },
 
+    // --- Triggered abilities (CR 603.3b) ---
+    /// The order `player` puts their simultaneously triggered abilities of
+    /// one tier onto the stack. The options are the entries' sources in
+    /// trigger order, and the answer is a permutation; the first goes on
+    /// lowest. **Asked only with two or more**, and not even then when no
+    /// order can change the game — item 163's elision, whose expiry
+    /// conditions are written beside the predicate in `engine::triggers`.
+    OrderTriggers { player: PlayerId, tier: crate::types::triggers::Tier },
+
     /// A "you **may** ... instead" replacement effect is offering itself
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
     ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
@@ -324,6 +333,8 @@ impl ChoiceKind {
             ChoiceKind::Scry { source, .. } => *source,
             ChoiceKind::ScryOrder { source, .. } => *source,
             ChoiceKind::LegendRule { .. } => None,
+            // Several objects at once, like `DeclareAttackers`: no one subject.
+            ChoiceKind::OrderTriggers { .. } => None,
         }
     }
 

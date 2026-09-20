@@ -10,3 +10,4 @@ pub mod effects;
 pub mod replacement;
 pub mod restriction;
 pub mod cost_modification;
+pub mod triggers;

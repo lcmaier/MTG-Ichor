@@ -463,6 +463,9 @@ impl GameState {
             self.restriction_ability_sources.remove(&id);
             // And the cost-effect sweep's, for the same reason again.
             self.cost_modification_ability_sources.remove(&id);
+            // And the trigger dispatcher's. Its look-back conditions read the
+            // CR 603.10a frame the record carries, never this set.
+            self.trigger_sources.remove(&id);
 
             // Collect attachment info before mutating
             let (attached_to, attached_by) = {
@@ -501,6 +504,7 @@ impl GameState {
             // The gather's zone-leg candidate set is per zone (CR 113.6): the object
             // stops being one here, and `arrive_in_zone` decides again where it lands.
             self.zone_replacement_ability_sources.remove(&id);
+            self.zone_trigger_sources.remove(&id);
         }
     }
 }

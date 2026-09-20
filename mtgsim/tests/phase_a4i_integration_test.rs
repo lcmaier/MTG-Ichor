@@ -195,6 +195,7 @@ fn make_black(game: &mut GameState, id: ObjectId, controller: PlayerId) {
         targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     let effect = Effect::Atom(
         Primitive::ChangeColor(

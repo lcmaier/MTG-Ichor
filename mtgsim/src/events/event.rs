@@ -2,9 +2,10 @@ use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
 use crate::types::mana::ManaType;
-use crate::engine::actions::ZoneChangeCause;
+use crate::engine::actions::{LifeLossCause, ZoneChangeCause};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
+use crate::types::triggers::{TriggerOrigin, TriggerSeq};
 
 
 /// Game events that can be observed by triggered abilities and logging systems.
@@ -93,25 +94,42 @@ pub enum GameEvent {
     },
 
     // --- Damage ---
+    /// `is_combat` is the proposal's, carried because it is not
+    /// live-derivable: a triggered ability resolving during the combat damage
+    /// step deals noncombat damage in that step (`codebase-state.md` "Before
+    /// Triggered abilities" item 10).
     DamageDealt {
         source_id: ObjectId,
         target: DamageTarget,
         amount: u64,
+        is_combat: bool,
     },
 
     // --- Turn structure ---
-    PhaseBegin { phase: PhaseType },
-    PhaseEnd { phase: PhaseType },
-    StepBegin { step: StepType },
-    StepEnd { step: StepType },
+    //
+    // `player` is whose phase or step it is — the proposal's field, which
+    // "at the beginning of your upkeep" reads (item 10). The three `*End`
+    // variants that stood here were never emitted and no printed trigger
+    // reads an end: "at end of combat" is the end-of-combat step beginning
+    // (CR 511.2) and "at end of turn" the end step's (CR 513.1a) — item 18.
+    PhaseBegin { phase: PhaseType, player: PlayerId },
+    StepBegin { step: StepType, player: PlayerId },
     TurnBegin { player: PlayerId, turn_number: u32 },
-    TurnEnd { player: PlayerId, turn_number: u32 },
 
     // --- Permanents ---
     PermanentEnteredBattlefield { object_id: ObjectId, controller: PlayerId },
 
     // --- Life ---
-    LifeChanged { player_id: PlayerId, old: i64, new: i64, source: Option<ObjectId> },
+    /// `cause` is `Some` for a loss — the proposal's `LifeLossCause`, which
+    /// CR 727.1a's "from radiation" reads (item 10) — and `None` for a gain,
+    /// which has no cause to name.
+    LifeChanged {
+        player_id: PlayerId,
+        old: i64,
+        new: i64,
+        source: Option<ObjectId>,
+        cause: Option<LifeLossCause>,
+    },
 
     // --- Combat ---
     AttackersDeclared { attackers: Vec<ObjectId> },
@@ -139,6 +157,19 @@ pub enum GameEvent {
     AbilityResolved { identity: AbilityIdentity, controller: PlayerId },
     /// An activated ability was put onto the stack (CR 602.2a).
     AbilityActivated { identity: AbilityIdentity, controller: PlayerId },
+    /// An ability triggered (CR 603.2) — the record CR 603.3b's second tier
+    /// watches, emitted by the dispatcher once per queued trigger after the
+    /// window it belongs to has closed (`triggers-architecture.md` §4.8).
+    /// **Unstamped**: it carries no batch and no resolution, because it is a
+    /// consequence of the event and not part of it, and the dispatcher reads
+    /// it like any unbatched record. `caused_by` is the record that matched
+    /// (the first of them, for a "one or more" trigger).
+    AbilityTriggered {
+        seq: TriggerSeq,
+        origin: TriggerOrigin,
+        controller: PlayerId,
+        caused_by: EventSeq,
+    },
     SpellCountered { spell_id: ObjectId, countered_by: ObjectId },
     AbilityCountered { ability_id: ObjectId, countered_by: ObjectId },
     /// Spell or ability fizzled (countered by game rules due to all targets
@@ -371,6 +402,16 @@ pub enum CounterSubject {
     Player(PlayerId),
 }
 
+/// A record's position in the log — its monotonic sequence number, which is
+/// today the index and is the trace's `seq`. What a [`TriggerBinding`]
+/// points at instead of copying the record: `EventLog::record(seq)` is the
+/// read, and no record a pending or stacked trigger references may be
+/// evicted (`triggers-architecture.md` §3.4).
+///
+/// [`TriggerBinding`]: crate::types::triggers::TriggerBinding
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct EventSeq(pub usize);
+
 /// Identifies a set of events performed as one.
 ///
 /// Three rules need an event *set* rather than an event: CR 704.3 ("performs
@@ -484,6 +525,23 @@ impl EventLog {
         self.records.push(EventRecord { event, stamp: self.stamp });
     }
 
+    /// Emit with no batch and no resolution whatever is ambient — for a
+    /// record that is a consequence of an event rather than part of it
+    /// (`GameEvent::AbilityTriggered`, §4.8).
+    pub(crate) fn emit_unstamped(&mut self, event: GameEvent) {
+        self.records.push(EventRecord { event, stamp: EventStamp::default() });
+    }
+
+    /// The record at `seq`, or `None` for a sequence the log does not hold.
+    pub fn record(&self, seq: EventSeq) -> Option<&EventRecord> {
+        self.records.get(seq.0)
+    }
+
+    /// The sequence number the next emitted record will carry.
+    pub fn next_seq(&self) -> EventSeq {
+        EventSeq(self.records.len())
+    }
+
     /// The stamp the next emitted event will carry — the trace sink's join
     /// key between a batch record and the events performed inside it.
     pub fn current_stamp(&self) -> EventStamp {
@@ -588,7 +646,7 @@ mod tests {
         assert!(log.is_empty());
 
         log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning });
+        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
 
         assert_eq!(log.len(), 2);
         assert!(!log.is_empty());
@@ -598,8 +656,8 @@ mod tests {
     fn test_event_log_since() {
         let mut log = EventLog::new();
         log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning });
-        log.emit(GameEvent::StepBegin { step: StepType::Untap });
+        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
+        log.emit(GameEvent::StepBegin { step: StepType::Untap, player: 0 });
 
         let since = log.records_from(1);
         assert_eq!(since.len(), 2);

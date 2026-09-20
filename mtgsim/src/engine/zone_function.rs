@@ -68,6 +68,19 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
         return ZoneSet::ALL;
     }
 
+    // CR 113.6k — "an ability whose cost or effect specifies that it
+    // functions only if its source is in a particular zone, or a trigger
+    // condition that can only happen from a particular zone, functions only
+    // in that zone" — **derived from the condition, not stated**: a condition
+    // about `This` moving from zone Z functions in Z ("when this card is
+    // discarded" in the hand); "from anywhere" functions everywhere it can
+    // be, which is CR 603.6c's point that it is never a leaves-the-battlefield
+    // ability (Guile triggers from the graveyard); a condition about other
+    // objects functions on the battlefield unless 113.6b states otherwise.
+    if let Effect::Triggered(def) = &ability.effect {
+        return trigger_zones(def, types);
+    }
+
     // CR 113.6d — "An object's ability that allows a player to pay an
     // alternative cost rather than its mana cost or otherwise modifies what
     // that particular object costs to cast functions on the stack."
@@ -97,6 +110,24 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
     }
 
     default_zones(types)
+}
+
+/// CR 113.6k's derivation for a triggered ability — see the arm above.
+fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardType>) -> ZoneSet {
+    use crate::types::triggers::{Subject, TriggerEvent};
+    let arms = def.condition.arms();
+    if arms.is_empty() {
+        return default_zones(types);
+    }
+    let mut zones = ZoneSet::EMPTY;
+    for arm in arms {
+        zones |= match arm {
+            TriggerEvent::ZoneChange { subject: Subject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
+            TriggerEvent::ZoneChange { subject: Subject::This, from: None, .. } => ZoneSet::ALL,
+            _ => default_zones(types),
+        };
+    }
+    zones
 }
 
 /// CR 113.6 as a caller asks it: does `ability` function *here*?

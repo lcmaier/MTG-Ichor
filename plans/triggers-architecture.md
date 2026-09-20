@@ -1384,23 +1384,38 @@ the spine every later phase reads; TR-2's histories are what TR-3's
 the frame TR-5's combat shapes never read; TR-6 is last because the loop
 detector reads every prompt the earlier phases add.
 
-### TR-1 — the spine: dispatch, the queue, placement, the stack object (~2,300)
+### TR-1 — the spine: dispatch, the queue, placement, the stack object — ✅ landed 2026-09-19
 
-| Piece | Measured | ~additions |
-|---|---|---|
-| `TriggerDef`, `TriggerCondition`, `TriggerEvent` with the arms its cards need (`ZoneChange` for the battlefield classes, `EntersBattlefield`, `StepBegins`/`PhaseBegins`/`TurnBegins`, `ManaAdded`, `DamageDealt`, `BecomesTapped`/`Untapped`, `AbilityTriggers`), `Occurrence`, `TriggerBinding` with `EventSeq` on `EventLog` and the four arm projections, `PendingTrigger`, `TriggerOrigin::Object`, `Tier`, the three bound-fact leaves, `ObjectFilter::NotSource`, `Effect::Triggered`, `AbilityIdentity`'s two fields | 13 `(source, ability)` sites; `Effect::instances` +1 arm; 5 `EffectRecipient` exhaustive matches, 2 `AmountExpr` | ~420 |
-| `AbilityTriggered`; item 10's three fields; item 18's deletion; `PermanentState.cast` (who, from where) | 34 emit sites read, 3 performers; literal sites `StepBegin {` 5/12, `DamageDealt {` 10/7, `LifeChanged {` 10/9; `format_event` −3 +1 | ~120 |
-| the dispatcher: the window at both doors, the candidate set (legs 1, 2, 4), the gate (`trigger_sources`, the summary's two zone fields, `puts_a_triggered_ability`), the visibility predicate, look-back off `from`/`to`, `OncePerEvent`, the entry join, 605.1b's immediate resolution, the two trace records | `gather.rs`' shape, 1,222 lines, as the template; `register_static_effects` +2 doors | ~520 |
-| placement: the state-check stub (a no-op until TR-6), 800.4d, tiers, APNAP, `OrderTriggers` and its elision, `announce_targets`, the stack object, `StackEntry.trigger` | 13 + 5 `StackEntry` literals; `put_on_stack.rs:437`'s twin | ~260 |
-| resolution: 608.2a's check, `Effect::Conditional`, the binding on `ResolutionContext`, `LastKnownInformation`'s readers | `resolve.rs:220`; `ResolutionContext`'s 48-site `Option` pair (item 137) untouched | ~180 |
-| cards: **Soul Warden** (603.6a's "another", the batch), **Blood Artist** (dies incl. itself — 603.10a look-back; a target chosen at placement), **Verdant Force** (each upkeep, a token), **Wild Growth** (605.1b, an Aura's `Host`), **Felidar Sovereign** (603.4 at both instants, `WinGame`); Soul Warden, Blood Artist and Wild Growth into `PERFORMANCE_POOL` (91 → 94: the matcher, the placement prompt, the stackless path) | rulings read: Soul Warden (1), Blood Artist (1), Verdant Force (2), Wild Growth (1), Felidar (via 603.4's atoms) | ~300 |
-| tests: §13's TR-1 atoms, Eon Hub's two (item 121), the 800.4d four-player fixture, the Humility-beside-a-creature entry, Guile's two boards with Yixlid Jailer, the elision's expiry conditions, a fixture "whenever damage is dealt to you" that closes four partials | `phase_tr1_integration_test.rs` | ~700 |
-| docs: this section's stub, `codebase-state.md` items 1, 3, 7, 9, 10, 18 closed, the ledger, `fuzz-record.md` | | ~250 |
+**What shipped.** `types/triggers.rs` (the def, the condition, fourteen
+`TriggerEvent` arms with the four projections, the binding, the queue's entry)
+and `engine/triggers/` — `dispatch.rs` at the two doors with the three-leg
+gate, the frames' look-back, CR 605.4a's immediate resolution and the
+`trigger` record; `placement.rs` with CR 800.4d's refusal, the two tiers over
+`apnap_index`, `OrderTriggers` and item 163's elision, CR 603.3d through
+`announce_targets`, the stack object and the `pending` record; `binding.rs`
+reading the bound facts back through the arm. `Effect::Triggered`,
+`EffectRecipient::{TriggeringObject, TriggeringPlayer}`,
+`AmountExpr::TriggeringAmount`, `StackEntry.trigger`,
+`ResolutionContext.trigger`, `AbilityIdentity`'s two fields,
+`PermanentState.cast`, `EventSeq`, item 10's three fields, item 18's three
+deletions, `AbilityTriggered`, CR 113.6k derived in `functioning_zones`, the
+`Triggers placed` row. Five cards; Soul Warden, Blood Artist and Wild Growth
+pooled (91 → 94). Fifty tests, §13's TR-1 row clean.
 
-**Trace page at close** (`engineering-practices.md` §7 names item 6): the
-dispatch changes *how* a read is answered — `tr-1-a-trigger-is-matched-at-
-the-close.html`, walking Soul Warden beside Humility entering together,
-Blood Artist in a wipe, and Wild Growth inside the mana window.
+**What moved on the way in** — the sizing's `ObjectFilter::NotSource` is
+`EachOther`; `Attacks` and `GainsLife` shipped narrow because §13 owed their
+atoms here; leg 3 is swept with leg 4 because they are one map; the gate has
+a sixth probe (the departure frames); the binding carries the def. A
+look-back arm on a surviving permanent reads its post-event list — main item
+167. The archive has the sizing table and the nine notes.
+
+**Measured** (`fuzz-record.md`, the TR-1 block): the probe found no dispatch
+passing the gate on the old pools; the engine arm `IDENTICAL` on every counter
+on both pools at two seats and four, +1.0% and +1.5% CPU per decision; the
+shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-1"; the trace page
+`plans/traces/tr-1-a-trigger-is-matched-at-the-close.html`.
 
 ### TR-2 — the histories, the gates, "may", and each player (~2,000)
 
@@ -1665,8 +1680,8 @@ Recorded here at authoring; a finding that becomes a code item moves to
   value" is the one selection leaf this document adds when Scrap Trawler
   registers (a graveyard target compared against the trigger's source:
   `ObjectFilter::ManaValueLessThanSource`, three edits).
-- `plans/glossary.md` gains *dispatch*, *window*, *binding*, *tier* and
-  *probe* when TR-1 lands, and `check_glossary.py --suggest` at each
+- `plans/glossary.md` gained *dispatch*, *window*, *binding*, *tier* and
+  *probe* with TR-1 (2026-09-19), and `check_glossary.py --suggest` at each
   close is the gate on the rest.
 - `plans/references/trigger-survey.py` deletes with the survey when TR-6
   closes, per its own docstring.

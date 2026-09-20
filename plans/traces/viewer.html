@@ -114,11 +114,12 @@
 <script id="trace" type="application/x-ndjson">/*__TRACE__*/</script>
 <script>
 (function () {
-  const KINDS = ["game", "fork", "batch", "pipeline", "layer_walk", "decision", "priority_rejected", "event", "batch_end", "object"];
+  const KINDS = ["game", "fork", "batch", "pipeline", "layer_walk", "trigger", "pending", "decision", "priority_rejected", "event", "batch_end", "object"];
   const DEFAULT_ON = new Set(["batch", "pipeline", "decision", "priority_rejected", "event", "fork"]);
   const FN = {
     game: "trace_game", fork: "GameState::clone", batch: "execute_batch_inner", batch_end: "execute_batch_inner",
     pipeline: "apply_replacements", layer_walk: "compute_characteristics", decision: "validate_*",
+    trigger: "dispatch", pending: "place_pending_triggers",
     priority_rejected: "run_priority_round", event: "emit_event", object: "trace_objects",
   };
   let records = [], names = new Map(), on = new Set(DEFAULT_ON), branch = "all", topOnly = false;
@@ -226,6 +227,10 @@
         return `P${r.player} asked ${esc(r.prompt)} for ${esc(r.choice)}${r.subject != null ? " on " + named("#" + r.subject) : ""}:${bounds} [${r.options.map(named).join(", ")}] → ${esc(ans)}`;
       }
       case "priority_rejected": return `P${r.player}'s ${named(r.action)} rejected — <em>${esc(r.error)}</em> — retry ${r.retry}, blacklist [${r.blacklist.map(named).join(", ")}]`;
+      case "trigger": return `record #${r.record} against ${named("#" + r.source)} <small>${esc(r.name)} ${esc(r.ability)}/${r.instance} in ${esc(r.zone)}</small> → ` +
+        (r.matched ? (r.mana ? "<b>matched</b>, a mana ability, resolved now" : "<b>matched</b>") : `no — ${esc(r.refused_by)}`);
+      case "pending": return `trigger ${r.seq} (tier ${r.tier}, P${r.controller}) from ${named("#" + r.source)} <small>${esc(r.name)}</small> on records [${r.records.join(", ")}] → ` +
+        (r.object != null ? `on the stack as ${named("#" + r.object)}${r.targets.length ? " targeting " + r.targets.map(named).join(", ") : ""}` : `<em>refused — ${esc(r.refused_by)}</em>`);
       case "event": return `${named(r.text)}` + (r.batch != null ? ` <small>batch ${r.batch}</small>` : "") + (r.resolution != null ? ` <small>resolving ${named("#" + r.resolution)}</small>` : "");
       case "object": return `#${r.id} ${esc(r.name)} (P${r.owner}${r.token ? ", token" : ""})`;
       default: return esc(JSON.stringify(r));

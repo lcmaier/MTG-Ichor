@@ -256,6 +256,7 @@ mod tests {
             additional_costs_paid: Vec::new(),
             cast_from: Some(Zone::Hand),
             ability_identity: None,
+            trigger: None,
         });
         assert_eq!(controller(&game, card), (Some(1), false));
         assert_eq!(controller(&game, card), (Some(1), true));

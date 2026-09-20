@@ -69,6 +69,7 @@ fn resolve_ability(
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp())
         .expect("resolving Aggravated Assault");
@@ -89,6 +90,7 @@ fn resolve_spell(
         targets: ChosenTargets::one(targets),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
 }
@@ -104,7 +106,7 @@ fn phases_begun_this_turn(game: &GameState, mark: usize) -> Vec<PhaseType> {
         .iter()
         .take_while(|r| !matches!(r.event, GameEvent::TurnBegin { .. }))
         .filter_map(|r| match &r.event {
-            GameEvent::PhaseBegin { phase } => Some(*phase),
+            GameEvent::PhaseBegin { phase, .. } => Some(*phase),
             _ => None,
         })
         .collect()

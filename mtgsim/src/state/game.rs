@@ -199,8 +199,14 @@ impl Game {
             );
 
             if is_cleanup {
-                // Rule 514.3a: repeat while SBAs fire during cleanup
-                while self.state.check_state_based_actions(decisions)? {
+                // Rule 514.3a: repeat while SBAs fire during cleanup — or
+                // while triggered abilities are waiting, which the rule names
+                // in the same breath ("and/or any triggered abilities are
+                // waiting to be put onto the stack"). A trigger from the
+                // step's own discard or damage removal is the reachable case.
+                while self.state.check_state_based_actions(decisions)?
+                    || !self.state.pending_triggers.is_empty()
+                {
                     self.state.check_state_based_actions_loop(decisions)?;
                     self.state.run_priority_loop(decisions)?;
 

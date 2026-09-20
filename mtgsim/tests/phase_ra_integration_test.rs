@@ -777,6 +777,7 @@ fn test_a_multi_target_destroy_is_one_event() {
         ]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     let dp = ScriptedDecisionProvider::new();
     // One instance of "target" holding three objects — "destroy three target

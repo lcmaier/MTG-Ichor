@@ -18,3 +18,4 @@ pub mod restriction;
 pub mod cost_determination;
 pub mod zone_function;
 pub mod trace_records;
+pub mod triggers;

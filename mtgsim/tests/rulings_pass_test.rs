@@ -148,6 +148,7 @@ fn cytoshape_onto(game: &mut GameState, target: ObjectId, donor: ObjectId) {
         targets: ChosenTargets::one(vec![mtgsim::engine::resolve::ResolvedTarget::Object(target)]),
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect.clone(), &ctx, &PickById(donor))
         .expect("Cytoshape resolves");

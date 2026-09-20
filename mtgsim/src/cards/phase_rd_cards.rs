@@ -1569,6 +1569,7 @@ mod tests {
             targets: ChosenTargets::one(targets),
             replaced_amount: None,
             damage_prevented: None,
+            trigger: None,
         };
         let dp = crate::test_support::test_dp();
         game.resolve_effect(&card.abilities[0].effect, &ctx, &dp).unwrap();
@@ -1746,6 +1747,7 @@ mod tests {
             targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
+            trigger: None,
         };
         game.resolve_effect(&card.abilities[0].effect, &ctx, dp).unwrap();
         permanent

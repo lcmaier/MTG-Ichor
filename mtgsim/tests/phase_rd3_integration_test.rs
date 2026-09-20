@@ -58,6 +58,7 @@ fn resolve_spell(game: &mut GameState, card: Arc<CardData>, controller: PlayerId
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).unwrap();
     id
@@ -456,6 +457,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
         targets: ChosenTargets::NONE,
         replaced_amount: None,
         damage_prevented: None,
+        trigger: None,
     };
     game.resolve_effect(&circle_of_protection_red().abilities[0].effect, &ctx, &dp)
         .unwrap();

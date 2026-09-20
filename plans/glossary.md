@@ -118,6 +118,30 @@ which RS-1 deleted; the mechanism is `engine::restriction::is_prohibited` asked
 with a `Query::Event`. Four pointers outlived the name, and a grep after one
 lands on sense 1.
 
+**window** — **(1)** the records one dispatch matches over: every record one
+batch stamped, read at the close of the outermost `execute_actions`, or the
+one record of an unbatched emission — `EventLog::records_from(mark)` filtered
+by the batch's id. CR 603.2c's "one or more" is one trigger per window; CR
+603.6a's "all permanents ... are checked" is why the window is the event and
+not the record (`triggers-architecture.md` §4.1). **(2)** CR 601.2g's mana
+ability window, `run_mana_ability_window`: the chance to activate mana
+abilities while a cost is being paid — the older sense, and the one "inside
+the mana window" means.
+
+**tier** — **(1)** CR 603.3b's two-part placement, `Tier::First` and
+`Tier::Second`: a trigger whose condition is another ability triggering goes
+on the stack after the ones that are not, whatever APNAP says
+(`TriggerCondition::tier`). **(2)** the trace practice's three tiers
+(`engineering-practices.md` §7, §7.1): hand-authored pages, the engine's
+sink, the codebase map.
+
+**probe** — **(1)** one read of a gate — a hash-set `is_empty` or `contains`,
+nanoseconds and no allocation — as in "a dispatch on today's pools is five
+probes and nothing else" (`triggers-architecture.md` §11). **(2)** a
+throwaway build or test that measures a claim before the claim is trusted —
+the panic-on-gate-pass binary TR-1's A/B ran first, the thread-local counters
+A4n and 7a were sized with — and is never merged.
+
 **gate** — **(1)** a cheap precondition deciding whether to do expensive work:
 "a gate, not an answer". It may over-approximate and cost a walk; it may never
 under-approximate, or the answer it guards is silently lost —
@@ -440,6 +464,18 @@ work a reviewer needs, because the two are not the same defect — a rule spelle
 somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
 of this project's refactors are re-spellings: the behaviour is already right
 and the change is where a reader would look for it.
+
+**dispatch** — the matcher's run over one window: the candidates behind the
+gate, each triggered def against each record, the queue written, `AbilityTriggered`
+emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
+first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
+
+**binding** — what a pending or stacked trigger remembers about its event:
+the def, the records that matched (by `EventSeq`, never by copy), which arm
+matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
+player" and "that many" are read back through the arm's projections at
+resolution, so there is one copy of every fact and the frame comes with the
+record. → `TriggerBinding`, `engine::triggers::binding`.
 
 **elision** — the engine declining to ask a prompt whose every legal answer
 leaves the same game, with the conditions under which that stops being true

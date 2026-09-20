@@ -62,6 +62,12 @@ pub struct ResolutionContext {
     /// equal to the damage prevented this way" needs there. `None` outside a
     /// rider, for `replaced_amount`'s reason.
     pub damage_prevented: Option<u64>,
+    /// A triggered ability's bound facts, for the resolution of one and for
+    /// nothing else (`triggers-architecture.md` §6.3): `TriggeringObject`,
+    /// `TriggeringPlayer` and `TriggeringAmount` read it, and refuse outside
+    /// a trigger rather than reading a default. One field, not a third
+    /// `Option` beside the rider pair (§15 item 8).
+    pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
 
 impl ResolutionContext {
@@ -79,6 +85,7 @@ impl ResolutionContext {
             targets: ChosenTargets::NONE,
             replaced_amount: None,
             damage_prevented: None,
+            trigger: None,
         }
     }
 }
@@ -145,6 +152,16 @@ impl GameState {
         cursor: &mut usize,
     ) -> Result<(), String> {
         match effect {
+            // "That creature", "that player": not an instance of "target" but
+            // a fact bound at dispatch, handed to the primitive as the target
+            // slice it already reads — empty when CR 603.6 finds nothing.
+            Effect::Atom(
+                primitive,
+                recipient @ (EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer),
+            ) => {
+                let bound = self.bound_targets(recipient, ctx)?;
+                self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
+            }
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, cursor) {
                     Some((ix, clause)) => {
@@ -217,10 +234,28 @@ impl GameState {
                     .to_string(),
             ),
 
-            Effect::Conditional(_condition, _inner) => {
-                // The intervening-if shape (CR 603.4) resolves with triggers — critical-path item 6.
-                Err("Conditional effects not yet implemented".to_string())
+            // "If [condition], [effect]" inside a resolving effect — CR 603.4's
+            // intervening "if" is the def's own field and is checked in
+            // `resolve_taken`; an `if` anywhere else is this, read against the
+            // board as the atom is reached (CR 608.2c's "in the order written").
+            Effect::Conditional(condition, inner) => {
+                let source = ctx.ability_source.unwrap_or(ctx.source);
+                if crate::engine::layers::condition::settled_holds(condition, self, source) {
+                    self.resolve_effect_at(inner, ctx, dp, declared, cursor)
+                } else {
+                    Ok(())
+                }
             }
+
+            // A triggered ability is never resolved as written: the
+            // dispatcher reads it off the effective list, and what reaches
+            // the stack is its inner effect with the binding beside it. A
+            // spell cannot carry one (CR 603.1 — a triggered ability is an
+            // ability of an object), so reaching here is a wiring error.
+            Effect::Triggered(_) => Err(format!(
+                "a triggered ability reached resolution as an effect of {:?}; `Effect::Triggered` belongs on an `AbilityType::Triggered` ability and is read by `engine::triggers`",
+                ctx.source
+            )),
 
             Effect::Optional(_inner) => {
                 // A yes/no ask — `codebase-state.md` main item 24.
@@ -1075,7 +1110,10 @@ impl GameState {
                     row
                 };
                 let rows: Vec<ReplacementDef> = match recipient {
-                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => {
+                    EffectRecipient::Target(..)
+                    | EffectRecipient::Choose(..)
+                    | EffectRecipient::TriggeringObject
+                    | EffectRecipient::TriggeringPlayer => {
                         debug_assert!(
                             authored_empty,
                             "a `Primitive::CreateReplacement` on {:?} with a targeting \
@@ -1371,7 +1409,10 @@ impl GameState {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
                     EffectRecipient::Implicit => vec![self.get_object(ctx.source)?.owner],
-                    EffectRecipient::Target(..) | EffectRecipient::Choose(..) => targets
+                    EffectRecipient::Target(..)
+                    | EffectRecipient::Choose(..)
+                    | EffectRecipient::TriggeringObject
+                    | EffectRecipient::TriggeringPlayer => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -1924,6 +1965,17 @@ impl GameState {
             AmountExpr::TargetPower => {
                 Err("TargetPower amount resolution not yet implemented".to_string())
             }
+            // "That many" on a triggered ability: the matched records' amount,
+            // through the arm's projection. Refused outside a trigger and for
+            // an arm that carries no quantity, rather than answering 0.
+            AmountExpr::TriggeringAmount => {
+                let binding = _ctx.trigger.as_ref().ok_or_else(|| {
+                    "TriggeringAmount has no meaning outside a triggered ability's resolution".to_string()
+                })?;
+                self.bound_amount(binding).ok_or_else(|| {
+                    format!("{:?} carries no amount for TriggeringAmount to read", binding.arm())
+                })
+            }
             // "This creature's power" is a *replacement effect's* question: CR 614.12
             // asks it of a permanent about to enter, and
             // `replacement::evaluate_enter_template` is the one evaluator that knows
@@ -2035,7 +2087,7 @@ impl GameState {
     ) -> PlayerId {
         match recipient {
             EffectRecipient::Implicit | EffectRecipient::Controller => ctx.controller,
-            EffectRecipient::Target(SelectionFilter::Player, _) => {
+            EffectRecipient::Target(SelectionFilter::Player, _) | EffectRecipient::TriggeringPlayer => {
                 for t in targets {
                     if let ResolvedTarget::Player(pid) = t {
                         return *pid;
@@ -2125,6 +2177,7 @@ mod tests {
             targets: ChosenTargets::one(targets),
             replaced_amount: None,
             damage_prevented: None,
+            trigger: None,
         }
     }
 
