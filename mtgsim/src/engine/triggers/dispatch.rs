@@ -316,7 +316,7 @@ impl GameState {
             .collect();
 
         let mut matches: Vec<MatchedTrigger> = Vec::new();
-        // "One or more" accumulates across the window: (identity, arm) -> index into `matches`.
+        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
         let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // Leg 2: the frames the window carries (CR 603.10a) — each departed
@@ -386,26 +386,26 @@ impl GameState {
                         instance,
                     };
                     let outcome = self.match_def(def, candidate, *seq, &record.event);
-                    let (arm, subjects, refusal) = match outcome {
-                        Ok((arm, subjects)) => (Some(arm), subjects, None),
+                    let (matched, subjects, refusal) = match outcome {
+                        Ok((event, subjects)) => (Some(event), subjects, None),
                         Err(refusal) => (None, Vec::new(), Some(refusal)),
                     };
-                    let mana = arm.is_some() && is_mana_ability(def);
+                    let mana = matched.is_some() && is_mana_ability(def);
                     self.trace(|| {
                         trace_records::trigger(
                             self,
                             *seq,
                             &identity,
                             candidate.zone,
-                            arm.is_some(),
+                            matched.is_some(),
                             refusal.map(Refusal::name),
                             mana,
                         )
                     });
-                    let Some(arm) = arm else { continue };
-                    let arm_event = &def.condition.events()[arm.0];
+                    let Some(matched) = matched else { continue };
+                    let arm = &def.condition.events()[matched.0];
                     let def_arc: Arc<TriggerDef> = Arc::new((**def).clone());
-                    match arm_event.multiplicity() {
+                    match arm.multiplicity() {
                         Multiplicity::PerOccurrence => {
                             for subject in subjects {
                                 matches.push(MatchedTrigger {
@@ -414,7 +414,7 @@ impl GameState {
                                     def: Arc::clone(&def_arc),
                                     source_card: Arc::clone(card),
                                     instances: ability.instances.clone(),
-                                    event: arm,
+                                    event: matched,
                                     records: vec![*seq],
                                     object: subject.and_then(|id| self.object_ref(id)),
                                     mana,
@@ -424,17 +424,17 @@ impl GameState {
                         // CR 603.2c's boundary is the window: one trigger, every
                         // matching record in its binding, no one object.
                         Multiplicity::OncePerEvent => {
-                            match once.iter().find(|((i, a), _)| *i == identity && *a == arm) {
+                            match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
                                 Some((_, at)) => matches[*at].records.push(*seq),
                                 None => {
-                                    once.push(((identity, arm), matches.len()));
+                                    once.push(((identity, matched), matches.len()));
                                     matches.push(MatchedTrigger {
                                         identity,
                                         controller: candidate.controller,
                                         def: Arc::clone(&def_arc),
                                         source_card: Arc::clone(card),
                                         instances: ability.instances.clone(),
-                                        event: arm,
+                                        event: matched,
                                         records: vec![*seq],
                                         object: None,
                                         mana,
@@ -484,7 +484,7 @@ impl GameState {
                 break;
             }
         }
-        let (arm, subjects) = matched.ok_or(Refusal::Condition)?;
+        let (event_index, subjects) = matched.ok_or(Refusal::Condition)?;
         // CR 603.4 at the trigger. "You" is the source's controller, read off
         // the source; a condition about the bound facts is TR-2's reader.
         if let Some(condition) = &def.intervening_if
@@ -492,7 +492,7 @@ impl GameState {
         {
             return Err(Refusal::InterveningIf);
         }
-        Ok((arm, subjects))
+        Ok((event_index, subjects))
     }
 
     /// The occurrences of `arm` in `event`, as the subject of each — one for
