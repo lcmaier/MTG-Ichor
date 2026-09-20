@@ -56,7 +56,7 @@ impl GameState {
                 let mine: Vec<TriggerSeq> = self
                     .pending_triggers
                     .iter()
-                    .filter(|t| t.tier == tier && t.controller == player)
+                    .filter(|t| t.tier() == tier && t.controller == player)
                     .map(|t| t.seq)
                     .collect();
                 if mine.is_empty() {
@@ -101,10 +101,10 @@ impl GameState {
         let TriggerOrigin::Object(first_identity) = first.origin;
         entries.iter().all(|t| {
             let TriggerOrigin::Object(identity) = t.origin;
-            t.tier == TriggerTier::First
+            t.tier() == TriggerTier::First
                 && t.instances.is_empty()
                 && identity.ability == first_identity.ability
-                && t.def.effect == first.def.effect
+                && t.binding.def.effect == first.binding.def.effect
                 && t.binding.records == first.binding.records
                 && t.binding.object == first.binding.object
         })
@@ -155,7 +155,7 @@ impl GameState {
             chosen_targets: targets,
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: pending.def.effect.clone(),
+            effect: pending.binding.def.effect.clone(),
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),

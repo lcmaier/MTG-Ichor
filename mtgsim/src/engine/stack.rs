@@ -101,7 +101,7 @@ impl GameState {
         if let Some(binding) = &entry.trigger
             && let Some(condition) = &binding.def.intervening_if
         {
-            let source = entry.ability_identity.map(|i| i.source).unwrap_or(object_id);
+            let source = entry.ability_identity.map(|i| i.source.id).unwrap_or(object_id);
             if !crate::engine::layers::condition::settled_holds(condition, self, source) {
                 self.stack.retain(|&x| x != object_id);
                 self.remove_object(object_id);
@@ -129,7 +129,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            ability_source: entry.ability_identity.map(|identity| identity.source),
+            ability_source: entry.ability_identity.map(|identity| identity.source.id),
             controller,
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's

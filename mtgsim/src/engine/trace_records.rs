@@ -36,7 +36,7 @@ pub(crate) fn batch(
 ) -> Record {
     let mut r = Record::new("batch");
     r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
-    r.field_u64("depth", game.batch_depth as u64);
+    r.field_u64("depth", game.nesting.batch_depth as u64);
     r.field_u64("inherited", inherited as u64);
     r.key("members").begin_array();
     for (i, action) in proposals.iter().enumerate() {
@@ -63,7 +63,7 @@ pub(crate) fn batch(
 pub(crate) fn batch_end(game: &GameState, decided: &[Option<String>], riders: usize) -> Record {
     let mut r = Record::new("batch_end");
     r.field_opt_u64("batch", game.events.current_stamp().batch.map(|b| b.0));
-    r.field_u64("depth", game.batch_depth as u64);
+    r.field_u64("depth", game.nesting.batch_depth as u64);
     r.key("members").begin_array();
     for (i, action) in decided.iter().enumerate() {
         r.begin_object();
@@ -200,8 +200,8 @@ pub(crate) fn trigger(
 ) -> Record {
     let mut r = Record::new("trigger");
     r.field_u64("record", record.0 as u64);
-    r.field_u64("source", identity.source.raw());
-    r.field_str("name", &crate::ui::display::card_name(game, identity.source));
+    r.field_u64("source", identity.source.id.raw());
+    r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
     r.field_u64("instance", identity.instance as u64);
     r.field_str("zone", &format!("{:?}", zone));
@@ -225,10 +225,10 @@ pub(crate) fn pending(
     let TriggerOrigin::Object(identity) = entry.origin;
     let mut r = Record::new("pending");
     r.field_u64("seq", entry.seq.0);
-    r.field_u64("tier", match entry.tier { TriggerTier::First => 1, TriggerTier::Second => 2 });
+    r.field_u64("tier", match entry.tier() { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
-    r.field_u64("source", identity.source.raw());
-    r.field_str("name", &crate::ui::display::card_name(game, identity.source));
+    r.field_u64("source", identity.source.id.raw());
+    r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
     let records: Vec<u64> = entry.binding.records.iter().map(|s| s.0 as u64).collect();
     r.field_u64s("records", &records);
     r.field_opt_u64("object", object.map(|id| id.raw()));

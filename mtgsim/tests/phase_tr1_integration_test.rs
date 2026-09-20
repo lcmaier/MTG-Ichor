@@ -145,7 +145,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 fn stack_sources(game: &GameState) -> Vec<ObjectId> {
     game.stack
         .iter()
-        .map(|id| game.stack_entries[id].ability_identity.expect("a trigger's entry").source)
+        .map(|id| game.stack_entries[id].ability_identity.expect("a trigger's entry").source.id)
         .collect()
 }
 
@@ -315,7 +315,7 @@ fn soul_warden_triggers_when_a_creature_spell_resolves_and_nothing_happens_yet()
     let entry = &game.pending_triggers[0];
     assert_eq!(entry.controller, 0);
     assert_eq!(entry.origin.source(), warden);
-    assert_eq!(entry.tier, TriggerTier::First);
+    assert_eq!(entry.tier(), TriggerTier::First);
 
     // CR 603.3b's record, and its stamp: a consequence of the entry, not part of it.
     let triggered = game
@@ -1103,7 +1103,7 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
     let scholar = put_on_battlefield(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 0);
 
     assert_eq!(pending(&game), 2);
-    let tiers: Vec<(ObjectId, TriggerTier)> = game.pending_triggers.iter().map(|t| (t.origin.source(), t.tier)).collect();
+    let tiers: Vec<(ObjectId, TriggerTier)> = game.pending_triggers.iter().map(|t| (t.origin.source(), t.tier())).collect();
     assert_eq!(tiers, vec![(scholar, TriggerTier::First), (proctor, TriggerTier::Second)]);
 
     place(&mut game, &test_dp());
@@ -1751,9 +1751,9 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     assert!(!entry.is_spell);
     assert_eq!(entry.cast_from, None);
     let identity = entry.ability_identity.unwrap();
-    assert_eq!(identity.source, warden);
+    assert_eq!(identity.source.id, warden);
     assert_eq!(identity.instance, 0);
-    assert_eq!(identity.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
+    assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
     let binding = entry.trigger.as_ref().unwrap();
     assert_eq!(binding.object.map(|o| o.id), Some(bear));
     assert_eq!(game.bound_object(binding), Some(bear));

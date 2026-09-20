@@ -136,7 +136,7 @@ on the stack after the ones that are not, whatever APNAP says
 sink, the codebase map.
 
 **probe** — **(1)** one read of a gate — a hash-set `is_empty` or `contains`,
-nanoseconds and no allocation — as in "a dispatch on today's pools is five
+nanoseconds and no allocation — as in "a dispatch on today's pools is four
 probes and nothing else" (`triggers-architecture.md` §11). **(2)** a
 throwaway build or test that measures a claim before the claim is trusted —
 the panic-on-gate-pass binary TR-1's A/B ran first, the thread-local counters

@@ -19,7 +19,7 @@ use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
-use crate::types::ids::{ObjectId, PlayerId, ZoneChangeEpoch};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -365,14 +365,6 @@ pub struct EventIndex(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TriggerSeq(pub u64);
 
-/// An object remembered by id **and** epoch (CR 400.7): a later move makes it
-/// a new object the reference cannot find.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ObjectRef {
-    pub id: ObjectId,
-    pub zone_change_epoch: ZoneChangeEpoch,
-}
-
 /// The bound facts of a trigger, filled at dispatch and carried onto the
 /// `PendingTrigger` and then the `StackEntry` (§3.4). **Indices and one
 /// `Arc`**: it points at the records and copies nothing they hold, so the
@@ -413,7 +405,7 @@ pub enum TriggerOrigin {
 impl TriggerOrigin {
     pub fn source(&self) -> ObjectId {
         match self {
-            TriggerOrigin::Object(identity) => identity.source,
+            TriggerOrigin::Object(identity) => identity.source.id,
         }
     }
 }
@@ -427,7 +419,6 @@ pub struct PendingTrigger {
     pub origin: TriggerOrigin,
     /// CR 603.3a — the player who controlled the source as it triggered.
     pub controller: PlayerId,
-    pub def: Arc<TriggerDef>,
     /// What the stack object is built from — the source's card, held here
     /// because the source may be gone by placement (a dies trigger's is in a
     /// graveyard; a `LeftTheGame` source is not in the store at all). CR 603.3
@@ -437,10 +428,17 @@ pub struct PendingTrigger {
     /// what placement announces (603.3d).
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
-    pub tier: TriggerTier,
-    /// CR 605.1b — a mana trigger is resolved at dispatch and never queued;
-    /// the flag exists for the trace record that says so.
-    pub mana: bool,
     /// CR 603.8's one-shot state trigger; armed by TR-6.
     pub state: bool,
+}
+
+impl PendingTrigger {
+    /// CR 603.3b's tier, derived from the def the binding carries.
+    ///
+    /// Not a field: `TriggerCondition::tier` is the only definition of the
+    /// answer, and a copy taken at dispatch is a second one that can only
+    /// ever agree or be wrong.
+    pub fn tier(&self) -> TriggerTier {
+        self.binding.def.condition.tier()
+    }
 }

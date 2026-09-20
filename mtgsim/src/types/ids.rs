@@ -8,6 +8,11 @@
 //! Two newtypes over one integer rather than two aliases of it, so that the
 //! thirteen `(ObjectId, AbilityId)` sites cannot swap their halves silently.
 //!
+//! Beside them, the scalars an object is *referred to* by rather than named
+//! by: CR 613.7's [`Timestamp`], CR 400.7's [`ZoneChangeEpoch`], and the pair
+//! of the two that every durable reference to an object is made of,
+//! [`ObjectRef`].
+//!
 //! The hasher at the bottom of this file, and why it is written here rather
 //! than taken from a crate, is `plans/id-hasher.md`.
 
@@ -275,6 +280,20 @@ impl Hasher for IdHasher {
     fn write_u8(&mut self, i: u8) {
         self.mix(i as u64);
     }
+}
+
+/// An object remembered by id **and** epoch (CR 400.7): a later move makes it
+/// a new object the reference cannot find.
+///
+/// The pair every durable reference to an object is made of — [`AbilityIdentity`]'s
+/// source, a trigger's bound subject, TR-3's delayed registry — so it lives
+/// beside the two halves rather than in the subsystem that needed it first.
+///
+/// [`AbilityIdentity`]: crate::state::game_state::AbilityIdentity
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ObjectRef {
+    pub id: ObjectId,
+    pub zone_change_epoch: ZoneChangeEpoch,
 }
 
 /// A `HashMap` keyed by an id or an id pair.

@@ -162,12 +162,15 @@ pub struct RegistryScopeSummary {
     pub any_granted_cost_modification: bool,
     pub any_copied_cost_modification: bool,
 
-    /// Where an object may carry a triggered ability a Layer 6 row granted
-    /// it — the dispatcher's granted leg, `unattributed_replacement_zones`'
-    /// twin: a `Filter` row names zones, a named row the battlefield.
-    pub granted_trigger_zones: ZoneSet,
-    /// The same for a copy row (CR 707.2a) — the copied leg.
-    pub copied_trigger_zones: ZoneSet,
+    /// Where an object may carry a triggered ability it did not print — a
+    /// Layer 6 grant, or a copy whose captured list carries one (CR 707.2a).
+    /// A `Filter` row names zones, a named row the battlefield.
+    ///
+    /// One field and not the granted and copied pair it was, for
+    /// `unattributed_replacement_zones`' reason: the dispatcher's gate only
+    /// ever reads the two OR-ed, so the split was a distinction no reader
+    /// made.
+    pub unattributed_trigger_zones: ZoneSet,
 
     /// The union of every row's [`ObjectSet::reachable_zones`] — which zones
     /// the registry can name an object in at all.
@@ -239,7 +242,7 @@ impl RegistryScopeSummary {
                         summary.any_granted_cost_modification = true;
                     }
                     if matches!(def.effect, Effect::Triggered(_)) {
-                        summary.granted_trigger_zones |= carries;
+                        summary.unattributed_trigger_zones |= carries;
                     }
                 }
                 // CR 707.2a — the captured list is scanned rather than counted,
@@ -254,7 +257,7 @@ impl RegistryScopeSummary {
                             summary.any_copied_cost_modification = true;
                         }
                         if matches!(ability.effect, Effect::Triggered(_)) {
-                            summary.copied_trigger_zones |= carries;
+                            summary.unattributed_trigger_zones |= carries;
                         }
                     }
                 }

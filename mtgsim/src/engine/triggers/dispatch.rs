@@ -29,11 +29,10 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-use crate::types::ids::{IdSet, ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, Multiplicity, ObjectRef, PendingTrigger, TriggerBinding,
+    DamageRecipient, EventIndex, Multiplicity, PendingTrigger, TriggerBinding,
     TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
-    TriggerTier,
 };
 use crate::types::zones::{Zone, ZoneSet};
 
@@ -169,23 +168,23 @@ impl GameState {
         if window.is_empty() || self.result.is_some() {
             return Ok(());
         }
-        if self.dispatch_depth >= DISPATCH_NESTING_LIMIT {
+        if self.nesting.dispatch_depth >= DISPATCH_NESTING_LIMIT {
             return Err(format!(
                 "trigger dispatches nested {} deep: an ability's triggering keeps triggering \
                  another, which no printed ability does",
-                self.dispatch_depth
+                self.nesting.dispatch_depth
             ));
         }
-        self.dispatch_depth += 1;
+        self.nesting.dispatch_depth += 1;
         let result = self.dispatch_inner(window, ctx);
-        self.dispatch_depth -= 1;
+        self.nesting.dispatch_depth -= 1;
         result
     }
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — five probes (§4.2): the battlefield set, the zone
-    ///    map, the two unattributed zone sets off the registry summary, and
+    /// 1. **The gate** — four probes (§4.2): the battlefield set, the zone
+    ///    map, the unattributed zone set off the registry summary, and
     ///    whether any record of the window carries a CR 603.10a frame with a
     ///    triggered ability in it. All empty, and a dispatch is the probes and
     ///    nothing else.
@@ -208,9 +207,9 @@ impl GameState {
     ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
     ///    bounds.
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
-        // --- The gate: five probes, and on the old pools nothing else -------
+        // --- The gate: four probes, and on the old pools nothing else -------
         let summary = self.continuous_effects.summary();
-        let unattributed = summary.granted_trigger_zones | summary.copied_trigger_zones;
+        let unattributed = summary.unattributed_trigger_zones;
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
@@ -247,12 +246,9 @@ impl GameState {
                 seq,
                 origin,
                 controller: m.controller,
-                def: Arc::clone(&m.def),
                 source_card: Arc::clone(&m.source_card),
                 instances: m.instances.clone(),
                 binding,
-                tier: m.def.condition.tier(),
-                mana: m.mana,
                 state: false,
             };
             if m.mana {
@@ -378,12 +374,14 @@ impl GameState {
                     }
                     let instance = abilities[..index].iter().filter(|a| a.id == ability.id).count() as u32;
                     let identity = AbilityIdentity {
-                        source: candidate.id,
-                        zone_change_epoch: self
-                            .objects
-                            .get(&candidate.id)
-                            .map(|o| o.zone_change_epoch)
-                            .unwrap_or(0),
+                        source: ObjectRef {
+                            id: candidate.id,
+                            zone_change_epoch: self
+                                .objects
+                                .get(&candidate.id)
+                                .map(|o| o.zone_change_epoch)
+                                .unwrap_or(0),
+                        },
                         ability: ability.id,
                         instance,
                     };
@@ -704,7 +702,7 @@ impl GameState {
     /// (Wild Growth's ruling — the mana is not the land's ability).
     fn resolve_triggered_mana(&mut self, pending: &PendingTrigger, ctx: &ActionContext) -> Result<(), String> {
         let source = pending.origin.source();
-        let effect = pending.def.effect.clone();
+        let effect = pending.binding.def.effect.clone();
         self.resolve_mana_trigger_effect(&effect, pending, source, ctx)
     }
 
@@ -784,7 +782,3 @@ pub fn another(filter: ObjectFilter) -> ObjectFilter {
     ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
-/// A tier-2 condition's tier, re-exported for the placement's drain.
-pub fn tier_of(def: &TriggerDef) -> TriggerTier {
-    def.condition.tier()
-}

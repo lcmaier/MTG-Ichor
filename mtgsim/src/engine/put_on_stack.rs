@@ -399,8 +399,10 @@ impl GameState {
         let effect = ability.effect.clone();
         let ability_costs = ability.costs.clone();
         let identity = crate::state::game_state::AbilityIdentity {
-            source: source_id,
-            zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
+            source: crate::types::ids::ObjectRef {
+                id: source_id,
+                zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
+            },
             ability: ability.id,
             // The ordinal among same-id defs ahead of this one (item 149).
             instance: abilities[..ability_index].iter().filter(|a| a.id == ability.id).count() as u32,
@@ -786,7 +788,7 @@ mod tests {
         // half survives in the ephemeral id.
         assert_eq!(activated.len(), 1);
         assert_eq!(resolved.len(), 1);
-        assert_eq!(activated[0].source, thaum);
+        assert_eq!(activated[0].source.id, thaum);
         assert_eq!(activated[0].ability, ability_id);
         assert_eq!(resolved[0], activated[0], "same identity across activation and resolution");
 

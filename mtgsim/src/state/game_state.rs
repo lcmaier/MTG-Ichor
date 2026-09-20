@@ -17,7 +17,9 @@ use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId, Timestamp, ZoneChangeEpoch};
+use crate::types::ids::{
+    AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+};
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
 
@@ -143,12 +145,11 @@ pub struct ResolvingObject {
 /// as opposed to the ephemeral stack object representing one activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AbilityIdentity {
-    /// The permanent the ability was activated from.
-    pub source: ObjectId,
-    /// CR 400.7 — which existence of `source` this is, off
-    /// `GameObject::zone_change_epoch`: two activations across a bounce are
-    /// two abilities' worth of counting (`triggers-architecture.md` §3.6).
-    pub zone_change_epoch: ZoneChangeEpoch,
+    /// The permanent the ability was activated from, and which existence of
+    /// it (CR 400.7): two activations across a bounce are two abilities'
+    /// worth of counting (`triggers-architecture.md` §3.6). The same pair
+    /// spelled once, since `ObjectRef` is that pair.
+    pub source: ObjectRef,
     /// Which of its abilities. Stable across activations; see
     /// `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
@@ -160,6 +161,51 @@ pub struct AbilityIdentity {
     /// than an index into the whole list, so a later grant does not renumber
     /// an earlier instance. CR 603.7h counts the ability and ignores this.
     pub instance: u32,
+}
+
+/// How deep inside itself the engine is: three counters that answer one
+/// question, so they are one field on `GameState` rather than three.
+///
+/// **On the state and not on a parameter**, all three, for `codebase-state.md`
+/// item 40's reason: a nested call re-enters through `emit_event` and the
+/// replacement pipeline, neither of which has a channel to thread a depth
+/// through, and a clone taken at a prompt has to resume with the same answer.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct NestingGuards {
+    /// How many batches are nested inside one another right now — one per
+    /// `execute_batch_inner` on the call stack, kept by its three wrappers.
+    ///
+    /// **A guard against the engine, not a rule.** Once every nested batch
+    /// carries its lineage, CR 614.5 bounds every replacement chain (each level
+    /// spends an instance), so a chain that nests without bound has lost a
+    /// lineage and `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather
+    /// than answering with a rule. `decomposition_depth` is the per-lineage
+    /// invariant asserted in debug builds; this is the whole-stack bound in
+    /// every build, and `fuzz_games` reports the deepest nesting a run reached.
+    pub(crate) batch_depth: usize,
+
+    /// How many decomposing calls (`replacement-architecture.md` §3.2d) are on
+    /// the stack — CR 121.2's draws inside draws, and nothing else today.
+    ///
+    /// **Not a cap.** CR 614.5's applied set is the loop's termination argument;
+    /// this counts the invariant that set implies — a decomposing call at depth
+    /// `d` exists because `d - 1` substitutions above it each inserted an
+    /// instance, so `d <= inherited.len() + 1` — and
+    /// `execute_actions_decomposing` asserts it in debug builds, turning a stack
+    /// overflow into a red test that names the rule.
+    ///
+    /// **Per lineage, not per call stack.** A fresh-set batch (`execute_actions`,
+    /// which a rider's proposal and every contained event go through) is a new
+    /// lineage and zeroes this for its extent; counted across a rider the
+    /// assertion fires on a legal board, while the loop it exists for is
+    /// `batch_depth`'s.
+    pub(crate) decomposition_depth: usize,
+
+    /// Dispatches nested inside dispatches — a tier-2 trigger's
+    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
+    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
+    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
+    pub(crate) dispatch_depth: usize,
 }
 
 /// The complete state of a game of Magic.
@@ -459,34 +505,9 @@ pub struct GameState {
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
 
-    /// How many decomposing calls (§3.2d) are on the stack — CR 121.2's draws
-    /// inside draws, and nothing else today.
-    ///
-    /// **Not a cap.** CR 614.5's applied set is the loop's termination argument;
-    /// this counts the invariant that set implies — a decomposing call at depth
-    /// `d` exists because `d - 1` substitutions above it each inserted an
-    /// instance, so `d <= inherited.len() + 1` — and
-    /// `execute_actions_decomposing` asserts it in debug builds, turning a stack
-    /// overflow into a red test that names the rule.
-    ///
-    /// **Per lineage, not per call stack.** A fresh-set batch (`execute_actions`,
-    /// which a rider's proposal and every contained event go through) is a new
-    /// lineage and zeroes this for its extent; counted across a rider the
-    /// assertion fires on a legal board, while the loop it exists for is
-    /// `batch_depth`'s.
-    pub(crate) decomposition_depth: usize,
-
-    /// How many batches are nested inside one another right now — one per
-    /// `execute_batch_inner` on the call stack, kept by its three wrappers.
-    ///
-    /// **A guard against the engine, not a rule.** Once every nested batch
-    /// carries its lineage, CR 614.5 bounds every replacement chain (each level
-    /// spends an instance), so a chain that nests without bound has lost a
-    /// lineage and `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather
-    /// than answering with a rule. `decomposition_depth` is the per-lineage
-    /// invariant asserted in debug builds; this is the whole-stack bound in
-    /// every build, and `fuzz_games` reports the deepest nesting a run reached.
-    pub(crate) batch_depth: usize,
+    /// How deep inside itself the engine is right now, on three axes
+    /// ([`NestingGuards`]).
+    pub(crate) nesting: NestingGuards,
 
     /// The applied set a rider's proposals start from, for the extent of
     /// `resolve_rider` — CR 614.5's "any modified events that may replace that
@@ -531,19 +552,13 @@ pub struct GameState {
     /// `register_static_effects` from `place_on_battlefield`, removed by
     /// `cleanup_zone_state`, over-approximating in one direction only. A
     /// triggered ability an object has without having printed one reaches
-    /// the sweep through `RegistryScopeSummary::granted_trigger_zones` and
-    /// `copied_trigger_zones`.
+    /// the sweep through `RegistryScopeSummary::unattributed_trigger_zones`.
     pub trigger_sources: IdSet<ObjectId>,
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
     /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
     pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
-    /// Dispatches nested inside dispatches — a tier-2 trigger's
-    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
-    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
-    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
-    pub(crate) dispatch_depth: usize,
 
     // --- Event log ---
     pub events: EventLog,
@@ -795,8 +810,7 @@ impl GameState {
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
             entry_selection: EntrySelectionScope::default(),
-            decomposition_depth: 0,
-            batch_depth: 0,
+            nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
@@ -805,7 +819,6 @@ impl GameState {
             next_trigger_seq: 0,
             trigger_sources: IdSet::default(),
             zone_trigger_sources: IdMap::default(),
-            dispatch_depth: 0,
             events: EventLog::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),

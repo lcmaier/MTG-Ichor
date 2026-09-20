@@ -439,11 +439,11 @@ CR 400.7 — starts clean, and both cleared by the `BeginTurn` performer.
 
 ```rust
 pub struct AbilityIdentity {
-    pub source: ObjectId,
-    /// CR 400.7 — which existence of `source` this is. Stamped by
-    /// `move_object` today (item 10's field); two activations across a
-    /// bounce are two abilities' worth of counting.
-    pub zone_change_epoch: u64,
+    /// The object, and which existence of it (CR 400.7 — the epoch
+    /// `move_object` stamps, item 10's field): two activations across a
+    /// bounce are two abilities' worth of counting. One `ObjectRef`, since
+    /// that type is exactly this pair (`types/ids.rs`).
+    pub source: ObjectRef,
     pub ability: AbilityId,
     /// The k-th instance of `ability` on `source`, in effective-list order.
     /// A4g made an `AbilityId` per definition, so two sources granting one
@@ -485,12 +485,6 @@ pub struct PendingTrigger {
     /// CR 603.3a — the player who controlled the source as it triggered,
     /// locked here; for a delayed trigger, 603.7d–g's.
     pub controller: PlayerId,
-    /// The def, shared: the source's effective list is an `Arc<Vec<..>>`
-    /// and the def is cloned out of it once, here, so a Humility that
-    /// lands between triggering and placement cannot un-trigger it
-    /// (CR 113.7a — "exists on the stack independently of its source"
-    /// begins at the trigger for everything but the text's own reading).
-    pub def: Arc<TriggerDef>,
     /// What `GameObject::new` needs to build the stack object — the name and
     /// display the source's card gives it, as `activate_ability` clones the
     /// source's `card_data` today. Held here, behind an `Arc`, because the
@@ -499,11 +493,12 @@ pub struct PendingTrigger {
     /// CR 603.3 gives the object "the text of the ability that created it,
     /// and no other characteristics", and nothing reads this card's types.
     pub source_card: Arc<CardData>,
+    /// The bound facts, and the def: shared out of the source's effective
+    /// list once, at dispatch, so a Humility that lands between triggering
+    /// and placement cannot un-trigger it (CR 113.7a). CR 603.3b's tier is
+    /// read off it (`PendingTrigger::tier`) rather than stored beside it,
+    /// and so is CR 605.1b's mana class (`is_mana_ability`).
     pub binding: TriggerBinding,
-    /// CR 603.3b's tier: 1 unless the condition is another ability triggering.
-    pub tier: TriggerTier,
-    /// CR 605.1b — resolved at dispatch, never queued; here for the record.
-    pub mana: bool,
     /// CR 603.8's one-shot: a state trigger stays armed-off until its stack
     /// object leaves (§4.5).
     pub state: bool,
@@ -815,11 +810,12 @@ because `CLAUDE.md` says a new reader of the effective list is dead on every
 board a gate skips: `trigger_sources: IdSet<ObjectId>` — permanents that
 *printed* a triggered ability or a trigger multiplier, inserted by
 `place_on_battlefield`, removed by `cleanup_zone_state`, over-approximating
-in one direction only; `RegistryScopeSummary.granted_trigger_zones` (Layer
-6); `copied_trigger_zones` (a copy, `copy-effects-architecture.md` §4.7's
-leg); and the zone set above. `puts_a_triggered_ability(def)` is the
+in one direction only; `RegistryScopeSummary.unattributed_trigger_zones`,
+one field for the Layer 6 grant and the copy (`copy-effects-architecture.md`
+§4.7's leg) because the gate only ever reads them OR-ed; and the zone set
+above. `puts_a_triggered_ability(def)` is the
 predicate beside `puts_a_replacement_ability`. A dispatch on a board where
-every set is empty and the delayed registry is empty returns after five
+every set is empty and the delayed registry is empty returns after four
 probes — the whole of what today's pools pay.
 
 **S1 — visibility (CR 603.2f).** "The object with that triggered ability is
@@ -1249,7 +1245,7 @@ field with one writer:
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer | the delayed check, the resolution |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
-| the trigger's event, subject, amount, frame | `TriggerBinding` (record ids, the matched arm, the subject's epoch — nothing the records hold) | the dispatcher | the resolution, through the arm's projections |
+| the trigger's event, subject, amount, frame | `TriggerBinding` (record ids, the matched event, the subject's epoch — nothing the records hold) | the dispatcher | the resolution, through the arm's projections |
 
 The pending queue, the delayed registry, the histories and the four sets
 are `GameState` fields, cloned with a fork. The window (`records_from`) is
@@ -1274,7 +1270,7 @@ unblocked by this — nothing here reads further back than one batch.
 | `oracle/characteristics.rs::get_effective_abilities` | three index readers | a fourth reader, the dispatcher, indexing by `instance` ordinal | TR-1 |
 | `zone_function::functioning_zones` | six of fourteen subrules | the `Triggered` arm (113.6k, derived) | TR-1 |
 | `register_static_effects` / `cleanup_zone_state` / `place_on_battlefield` | maintain the replacement gate sets | maintain `trigger_sources` and `zone_trigger_sources` beside them | TR-1 |
-| `RegistryScopeSummary` | nine fields | `granted_trigger_zones`, `copied_trigger_zones` | TR-1 |
+| `RegistryScopeSummary` | nine fields | `unattributed_trigger_zones` | TR-1 |
 | `engine/turns.rs::begin_step` / `begin_phase` | propose with `player` | the record carries it (item 10) | TR-1 |
 | `actions.rs`' `DealDamage`, `LoseLife` performers | drop `is_combat`, `cause` | carry them (item 10) | TR-1 |
 | `mana.rs::activate_mana_ability` → `resolve_mana_effect` | activated mana abilities | the same path for a triggered one, entered from dispatch | TR-1 |
@@ -1353,7 +1349,7 @@ the SBA check after the batch shares), one `matches` per triggered def per
 record in the window, one `settled_holds` per intervening "if" that
 reached it. About 313 batches and ~700 records a game today, ~16
 permanents a board, and — on the pools as they are — zero trigger sources,
-so the pools measure the five probes and nothing else. **The lever**,
+so the pools measure the four probes and nothing else. **The lever**,
 pre-approved and not built until a reading asks: a per-source
 `EventKindMask` on `trigger_sources` so a record of one kind visits only
 the objects whose conditions read it.
