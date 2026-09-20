@@ -92,6 +92,7 @@ WATCHLIST = [
     "subject", "subject group", "sweep", "unit", "walk", "working set",
     # Added 2026-09-20, TR-1's review: two words a reader read as one.
     "condition", "trigger condition", "diagnostics rows",
+    "multiplicity",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes

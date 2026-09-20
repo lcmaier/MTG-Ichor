@@ -470,6 +470,18 @@ gate, each triggered def against each record, the queue written, `AbilityTrigger
 emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
 first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
 
+**multiplicity** — CR 603.2c's question about one arm: does it trigger once
+per matching record, or once per window in which any record matched? The rule
+is "an ability triggers only once each time its trigger event occurs. However,
+it can trigger repeatedly if one event contains multiple occurrences", so a
+wipe of three lands is three triggers for "whenever a land is put into a
+graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
+(`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
+arm says one of its events is (`TriggerEvent::occurrences_of`: a record for
+most kinds, an attacker for the attack shape, a counter for the counter arms).
+The CR gives the occurrence a name and the choice between the two none, so this
+one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
+
 **trigger condition** / **condition** — CR 603.1's phrase and the engine's
 word are not the same thing. A **trigger condition** is a triggered ability's
 when-clause — "whenever a creature dies", the thing the dispatcher matches a

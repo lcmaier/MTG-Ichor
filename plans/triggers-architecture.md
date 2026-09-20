@@ -287,6 +287,9 @@ source), `Filter(ObjectFilter)` ("whenever a creature you control ..."), or
 sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 `Opponent`, `Player(_)`, and `Each` for "each player's", "a player") and
 `None` for "any". `Option` on a field means the arm does not ask.
+`multiplicity` is CR 603.2c's question — one trigger per matching record
+(`PerOccurrence`) or one per window in which any matched (`OncePerEvent`),
+§4.4 — and it is on the arms that can carry a plural.
 
 | `GameEvent` variant | `TriggerEvent` arm and its fields | Look-back? | Lands |
 |---|---|---|---|
@@ -818,6 +821,27 @@ predicate beside `puts_a_replacement_ability`. A dispatch on a board where
 every set is empty and the delayed registry is empty returns after four
 probes — the whole of what today's pools pay.
 
+**Why those four, and why four is enough.** A trigger can only come from a
+triggered ability on some object's *effective* list, and an ability reaches
+one of those by three routes — printed, granted, copied (`CLAUDE.md`'s three
+legs) — on an object that is either still findable or gone inside this very
+window. Cross the routes with the locations and every candidate falls in
+exactly one probe: printed and on the battlefield is `trigger_sources`;
+printed and functioning where it is off the battlefield (CR 113.6k) is
+`zone_trigger_sources`; granted or copied is the summary's zone set, because
+neither printed set has ever heard of that object; and **departed** is the
+frames the records carry, the one leg the other three cannot cover —
+`cleanup_zone_state` took the object out of both sets as it left, so a board
+whose only source just died would return at the gate and CR 603.10a's dies
+trigger would be lost. Each is necessary by its own board (Soul Warden; Guile
+in a graveyard; a Layer 6 grant of a triggered ability; any dies trigger), and
+together they are sufficient **for the origins TR-1 ships** — `TriggerOrigin`
+has one built arm. The two unbuilt ones are the gate's next legs, named here
+so a later phase cannot forget them: the delayed registry (TR-3, §4.6) and the
+state check (TR-6, §4.5), which has no event and so no window to gate on at
+all. Over-approximation runs one way only — a probe may pass on a board where
+nothing matches, which costs a walk that finds nothing.
+
 **S1 — visibility (CR 603.2f).** "The object with that triggered ability is
 at no time visible to all players" is asked per candidate, at the dispatch
 instant, of the object as the event left it: `oracle::visible_to_all(game,
@@ -860,7 +884,11 @@ For a look-back candidate the ability's controller (603.3a's "you") is the
 frame's `controller`, and the "if" clause reads the frame where it names
 the object (persist's "if it had no -1/-1 counters", off `Status.counters`).
 
-### 4.4 Occurrence: per record, per window, and the multiplier
+### 4.4 Multiplicity: per record, per window, and the multiplier
+
+CR 603.2c's two answers, and the `multiplicity` field is which one an arm
+gives. The *occurrence* it counts is `occurrences_of`'s, below; the word is
+the project's, and `plans/glossary.md` carries it.
 
 - **`PerOccurrence`** (the default): one trigger per occurrence, and the
   arm's `occurrences_of` says what an occurrence is — a record for most
@@ -1340,7 +1368,7 @@ design; this document names it and keys nothing on it.
 
 ## 11. Performance — the sweep, the gate, the memo, and what each PR predicts
 
-**The cost model.** A dispatch is: five set probes — a probe being one
+**The cost model.** A dispatch is: four set probes — a probe being one
 hash-set `is_empty` or `contains`, nanoseconds and no allocation — for the
 gate; if any is
 non-empty, one `get_effective_abilities` per candidate (a memo hit for
