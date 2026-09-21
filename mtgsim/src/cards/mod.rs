@@ -1,3 +1,4 @@
+pub mod authoring;
 pub mod registry;
 pub mod basic_lands;
 pub mod dual_lands;
