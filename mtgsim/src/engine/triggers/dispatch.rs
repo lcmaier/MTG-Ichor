@@ -28,7 +28,7 @@ use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEve
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
-use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
+use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DamageRecipient, EventIndex, Multiplicity, PendingTrigger, TriggerBinding,
@@ -774,11 +774,5 @@ fn frame_card(frame: &EffectiveCharacteristics) -> CardData {
         builder = builder.ability(ability.clone());
     }
     Arc::try_unwrap(builder.build()).unwrap_or_else(|arc| (*arc).clone())
-}
-
-/// A filter's `NotSource` is what "another" excludes; exposed for the
-/// card files so "another creature" reads as one expression.
-pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 

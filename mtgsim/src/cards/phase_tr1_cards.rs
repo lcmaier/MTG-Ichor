@@ -21,44 +21,18 @@
 
 use std::sync::Arc;
 
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use crate::cards::authoring::{another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose};
+use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerRef, Primitive,
+    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, Primitive,
     SelectionFilter, TargetCount, TokenDef,
 };
-use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
-use crate::types::zones::Zone;
+use crate::types::triggers::{TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use crate::state::game_state::StepType;
-
-/// A triggered ability: no cost, the def as its effect.
-pub fn triggered_ability(def: TriggerDef) -> AbilityDef {
-    AbilityDef {
-        id: AbilityId::UNASSIGNED,
-        instances: Vec::new(),
-        ability_type: AbilityType::Triggered,
-        costs: Vec::new(),
-        effect: Effect::Triggered(Box::new(def)),
-        is_characteristic_defining: false,
-        activation_restriction: ActivationRestriction::None,
-    }
-}
-
-/// "Whenever [event], [effect]" with no "if" and no limit — the shape four
-/// of the five print.
-pub fn whenever(event: TriggerEvent, effect: Effect) -> TriggerDef {
-    TriggerDef { condition: TriggerCondition::Event(event), intervening_if: None, limit: None, effect }
-}
-
-/// "Another [filter]": the filter beside `NotSource`, which the matcher
-/// reads as other than the ability's own source.
-pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
-}
 
 /// Soul Warden — {W}
 /// Creature — Human Cleric 1/1
@@ -84,13 +58,7 @@ pub fn soul_warden() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability(whenever(
-            TriggerEvent::EntersBattlefield {
-                subject: TriggerSubject::Filter(another(ObjectFilter::ByType(CardType::Creature))),
-                controller: None,
-                from: None,
-                cast: None,
-                multiplicity: Multiplicity::PerOccurrence,
-            },
+            enters(another(ObjectFilter::ByType(CardType::Creature))),
             Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         )))
         .build()
@@ -121,14 +89,7 @@ pub fn blood_artist() -> Arc<CardData> {
         .power_toughness(0, 1)
         .rules_text("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.")
         .ability(triggered_ability(whenever(
-            TriggerEvent::ZoneChange {
-                subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
-                from: Some(Zone::Battlefield),
-                to: Some(Zone::Graveyard),
-                cause: None,
-                owner: None,
-                multiplicity: Multiplicity::PerOccurrence,
-            },
+            dies(ObjectFilter::ByType(CardType::Creature)),
             Effect::Sequence(vec![
                 Effect::Atom(
                     Primitive::LoseLife(AmountExpr::Fixed(1)),
@@ -163,7 +124,7 @@ pub fn saproling_token() -> TokenDef {
 ///
 /// > At the beginning of each upkeep, create a 1/1 green Saproling creature token.
 ///
-/// "Each upkeep" is `whose: None`: the step's record carries whose it is
+/// "Each upkeep" is `Whose::Each`: the step's record carries whose it is
 /// (item 10) and this ability does not ask.
 ///
 /// # The rulings, and where each is tested
@@ -182,7 +143,7 @@ pub fn verdant_force() -> Arc<CardData> {
         .power_toughness(7, 7)
         .rules_text("At the beginning of each upkeep, create a 1/1 green Saproling creature token.")
         .ability(triggered_ability(whenever(
-            TriggerEvent::StepBegins { step: StepType::Upkeep, whose: None },
+            at_beginning_of(StepType::Upkeep, Whose::Each),
             Effect::Atom(
                 Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(1)),
                 EffectRecipient::Controller,
@@ -240,7 +201,7 @@ pub fn wild_growth() -> Arc<CardData> {
 /// > At the beginning of your upkeep, if you have 40 or more life, you win the game.
 ///
 /// CR 603.4's intervening "if": checked as the upkeep begins, and again as
-/// the ability resolves (608.2a). "Your upkeep" is `whose: Some(You)`.
+/// the ability resolves (608.2a). "Your upkeep" is `Whose::Yours`.
 ///
 /// # The rulings, and where each is tested
 ///
@@ -266,10 +227,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Vigilance\nLifelink\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
         .ability(triggered_ability(TriggerDef {
-            condition: TriggerCondition::Event(TriggerEvent::StepBegins {
-                step: StepType::Upkeep,
-                whose: Some(PlayerRef::You),
-            }),
+            condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: Some(Condition::LifeAtLeast(AmountExpr::Fixed(40))),
             limit: None,
             effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
