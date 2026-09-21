@@ -61,6 +61,9 @@ fifty of them.
    from the object id — and a second leaf would have given one quality two
    spellings, the rule `ObjectFilter::Token`'s doc already applies. "Another"
    is `And(filter, EachOther)`; `phase_tr1_cards::another` spells it once.
+   *Repointed: theme A renamed the leaf `NotSource`; theme B moved the
+   helper to `cards::authoring::another` and deleted a second copy that
+   had been sitting unread in `dispatch.rs`.*
 2. **Two arms shipped early and narrow, because §13's TR-1 row owed their
    atoms.** `Attacks { attacker, occurrence }` for ATOM-508.1m-001 (TR-5
    widens it to the five shapes with item 11's defender) and `GainsLife {
