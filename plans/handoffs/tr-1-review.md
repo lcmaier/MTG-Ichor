@@ -68,7 +68,7 @@ door and is named so the exemption is greppable. #32 `TriggerSeq` pairs with
 
 ---
 
-## B — the authoring surface · *small; TR-2's cards use it*
+## B — the authoring surface · *closed 2026-09-20, [PR #175](https://github.com/lcmaier/MTG-Ichor/pull/175)*
 
 **#5, #6, #7, #36.** A card file spells `TriggerEvent::ZoneChange { subject,
 from: Some(Battlefield), to: Some(Graveyard), cause: None, owner: None,
