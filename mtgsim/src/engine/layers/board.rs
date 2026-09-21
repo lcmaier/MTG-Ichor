@@ -517,7 +517,7 @@ fn filter_reads(filter: &ObjectFilter, out: &mut Reads, you_channel: Channels) {
         // source's is touched.
         ObjectFilter::All
         | ObjectFilter::Token
-        | ObjectFilter::EachOther
+        | ObjectFilter::NotSource
         | ObjectFilter::OtherThanInstance(_) => {}
         ObjectFilter::ByType(_) => out.members |= Channels::TYPES,
         ObjectFilter::BySubtype(_) => out.members |= Channels::SUBTYPES,

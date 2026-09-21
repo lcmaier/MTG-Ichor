@@ -17,7 +17,7 @@
 //! A triggered ability is `AbilityType::Triggered` with `Effect::Triggered`,
 //! and a card touches nothing but this file: the arms it reads are
 //! `TriggerEvent`'s, the predicates are the filters the rest of the engine
-//! shares, and "another" is `EachOther` beside the type leaf.
+//! shares, and "another" is `NotSource` beside the type leaf.
 
 use std::sync::Arc;
 
@@ -31,7 +31,7 @@ use crate::types::effects::{
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::triggers::{Occurrence, Subject, TriggerCondition, TriggerDef, TriggerEvent};
+use crate::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use crate::types::zones::Zone;
 use crate::state::game_state::StepType;
 
@@ -54,10 +54,10 @@ pub fn whenever(event: TriggerEvent, effect: Effect) -> TriggerDef {
     TriggerDef { condition: TriggerCondition::Event(event), intervening_if: None, limit: None, effect }
 }
 
-/// "Another [filter]": the filter beside `EachOther`, which the matcher
+/// "Another [filter]": the filter beside `NotSource`, which the matcher
 /// reads as other than the ability's own source.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::EachOther))
+    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
 /// Soul Warden — {W}
@@ -65,7 +65,7 @@ pub fn another(filter: ObjectFilter) -> ObjectFilter {
 ///
 /// > Whenever another creature enters, you gain 1 life.
 ///
-/// The matcher's card: CR 603.6a's "another" is the `EachOther` leaf, and
+/// The matcher's card: CR 603.6a's "another" is the `NotSource` leaf, and
 /// the batch close is what makes two creatures entering together two
 /// triggers rather than one and none.
 ///
@@ -85,11 +85,11 @@ pub fn soul_warden() -> Arc<CardData> {
         .rules_text("Whenever another creature enters, you gain 1 life.")
         .ability(triggered_ability(whenever(
             TriggerEvent::EntersBattlefield {
-                subject: Subject::Filter(another(ObjectFilter::ByType(CardType::Creature))),
+                subject: TriggerSubject::Filter(another(ObjectFilter::ByType(CardType::Creature))),
                 controller: None,
                 from: None,
                 cast: None,
-                occurrence: Occurrence::PerOccurrence,
+                multiplicity: Multiplicity::PerOccurrence,
             },
             Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         )))
@@ -122,12 +122,12 @@ pub fn blood_artist() -> Arc<CardData> {
         .rules_text("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.")
         .ability(triggered_ability(whenever(
             TriggerEvent::ZoneChange {
-                subject: Subject::Filter(ObjectFilter::ByType(CardType::Creature)),
+                subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Creature)),
                 from: Some(Zone::Battlefield),
                 to: Some(Zone::Graveyard),
                 cause: None,
                 owner: None,
-                occurrence: Occurrence::PerOccurrence,
+                multiplicity: Multiplicity::PerOccurrence,
             },
             Effect::Sequence(vec![
                 Effect::Atom(
@@ -220,7 +220,7 @@ pub fn wild_growth() -> Arc<CardData> {
         .rules_text("Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.")
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
         .ability(triggered_ability(whenever(
-            TriggerEvent::ManaAdded { source: Subject::Host, tapped_for_mana: Some(true), mana: None },
+            TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
             Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],

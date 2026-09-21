@@ -326,8 +326,8 @@ pub(crate) fn base_controller(
 pub(super) struct FilterPlayers<'a, 'l> {
     effect: Option<&'a ContinuousEffect>,
     /// The object the filter is relative to — the row's source, or the
-    /// object whose CDA is counting — which is what `ObjectFilter::EachOther`
-    /// is other than.
+    /// object whose CDA is counting — the source `ObjectFilter::NotSource`
+    /// excludes.
     source: ObjectId,
     game: &'a GameState,
     board: &'a Board<'l>,
@@ -357,8 +357,8 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
 
     /// The players of a *condition*'s filter (CR 604.2's "as long as", read
     /// through CR 109.5): "you" is the source's current controller off its
-    /// live frame, exactly as a static row's is, and the source is what
-    /// `ObjectFilter::EachOther` is other than. Both are resolved up
+    /// live frame, exactly as a static row's is, and the source is the one
+    /// `ObjectFilter::NotSource` excludes. Both are resolved up
     /// front, since there is no row to re-derive them from.
     pub(super) fn for_source(
         source: ObjectId,
@@ -567,7 +567,7 @@ pub(super) fn object_matches_filter(
         }
         // Identity, off the ids: Opalescence does not animate itself, and no
         // layer can make an object something other than itself.
-        ObjectFilter::EachOther => id != players.source,
+        ObjectFilter::NotSource => id != players.source,
         // CR 601.2c's "another target" is a question about a *spell's
         // announcement*, and a continuous effect's affected set is not one:
         // there is no instance list on this side to be other than. Refused

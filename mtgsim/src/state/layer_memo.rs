@@ -94,7 +94,7 @@ mod tests {
         (frame.map(|f| f.controller), hit)
     }
 
-    fn pump(id: ObjectId, timestamp: u64) -> crate::engine::layers::types::ContinuousEffect {
+    fn pump(id: ObjectId, timestamp: crate::types::ids::Timestamp) -> crate::engine::layers::types::ContinuousEffect {
         registered(
             id,
             Layer::Layer7cModifyPT,

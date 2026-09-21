@@ -800,7 +800,7 @@ pub fn ask_order_triggers(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
-    tier: crate::types::triggers::Tier,
+    tier: crate::types::triggers::TriggerTier,
     sources: &[ObjectId],
 ) -> Vec<usize> {
     debug_assert!(sources.len() >= 2, "CR 603.3b: one trigger has no order to choose");

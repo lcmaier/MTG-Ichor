@@ -1886,7 +1886,7 @@ the set is right:
   zone is already carried by `SelectionFilter`'s own variant —
   `Creature` is the battlefield, `SpellOnStack` the stack. A leaf would oblige
   all five matchers to answer a question four of them have already answered,
-  and `ObjectFilter::EachOther`'s precedent is that a matcher which cannot
+  and `ObjectFilter::NotSource`'s precedent is that a matcher which cannot
   answer a leaf must *refuse* it rather than guess.
 
 And the objection worth stating out loud, because the tree records it:

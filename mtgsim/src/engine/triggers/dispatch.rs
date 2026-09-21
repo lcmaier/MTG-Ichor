@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
-use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
@@ -29,10 +29,10 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive};
-use crate::types::ids::{IdSet, ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    ArmIndex, DamageRecipient, Occurrence, ObjectRef, PendingTrigger, Subject, Tier,
-    TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq,
+    DamageRecipient, EventIndex, Multiplicity, PendingTrigger, TriggerBinding,
+    TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneSet};
 
@@ -47,7 +47,7 @@ pub const DISPATCH_NESTING_LIMIT: usize = 16;
 /// the same sentence from the other side — a target or any other event
 /// makes it an ordinary triggered ability.
 pub fn is_mana_ability(def: &TriggerDef) -> bool {
-    let arms = def.condition.arms();
+    let arms = def.condition.events();
     !arms.is_empty()
         && arms.iter().all(|arm| matches!(arm, TriggerEvent::ManaAdded { .. }))
         && def.effect.instances().is_empty()
@@ -84,14 +84,14 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 }
 
 /// One candidate ability, as the matcher sees it.
-struct Candidate<'a> {
+struct TriggerCandidate<'a> {
     id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
     /// frame's controller for a departed one.
     controller: PlayerId,
     owner: PlayerId,
     zone: Zone,
-    /// The source's host (CR 303.4m), for `Subject::Host`.
+    /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
     host: Option<ObjectId>,
     /// `None` for a live object — its list is read fresh — and the CR 603.10a
     /// frame for a departed one, which is asked look-back conditions only.
@@ -99,13 +99,13 @@ struct Candidate<'a> {
 }
 
 /// A match the dispatcher will queue or resolve.
-struct Match {
+struct MatchedTrigger {
     identity: AbilityIdentity,
     controller: PlayerId,
     def: Arc<TriggerDef>,
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
-    arm: ArmIndex,
+    event: EventIndex,
     records: Vec<EventSeq>,
     object: Option<ObjectRef>,
     mana: bool,
@@ -168,23 +168,48 @@ impl GameState {
         if window.is_empty() || self.result.is_some() {
             return Ok(());
         }
-        if self.dispatch_depth >= DISPATCH_NESTING_LIMIT {
+        if self.nesting.dispatch_depth >= DISPATCH_NESTING_LIMIT {
             return Err(format!(
                 "trigger dispatches nested {} deep: an ability's triggering keeps triggering \
                  another, which no printed ability does",
-                self.dispatch_depth
+                self.nesting.dispatch_depth
             ));
         }
-        self.dispatch_depth += 1;
+        self.nesting.dispatch_depth += 1;
         let result = self.dispatch_inner(window, ctx);
-        self.dispatch_depth -= 1;
+        self.nesting.dispatch_depth -= 1;
         result
     }
 
+    /// One dispatch, in five steps.
+    ///
+    /// 1. **The gate** — four probes (§4.2): the battlefield set, the zone
+    ///    map, the unattributed zone set off the registry summary, and
+    ///    whether any record of the window carries a CR 603.10a frame with a
+    ///    triggered ability in it. All empty, and a dispatch is the probes and
+    ///    nothing else.
+    /// 2. **The candidates** — `find_matches`' four legs: every object that
+    ///    may carry a triggered ability functioning where it is, in CR 613.7
+    ///    order, each with the effective ability list read once and the card a
+    ///    stack object would be built from.
+    /// 3. **The match** — every candidate's every triggered def against every
+    ///    record of the window. `match_def` answers with the event that
+    ///    matched and the subject of each occurrence, or with the predicate
+    ///    that refused; either way one `trigger` trace record is written.
+    /// 4. **Queue, or resolve** — a `PendingTrigger` per match onto
+    ///    `GameState` and nothing else (CR 603.2, 117.2a: nothing happens when
+    ///    an ability triggers), with the one exception the CR makes — a
+    ///    triggered mana ability, which CR 605.4a resolves here and never
+    ///    queues.
+    /// 5. **The tier-2 emission** — one unstamped `AbilityTriggered` per
+    ///    queued trigger, after the window has closed, each dispatched as it
+    ///    is emitted (§4.8). CR 603.3b's second tier is what watches that
+    ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
+    ///    bounds.
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
-        // --- The gate: five probes, and on the old pools nothing else -------
+        // --- The gate: four probes, and on the old pools nothing else -------
         let summary = self.continuous_effects.summary();
-        let unattributed = summary.granted_trigger_zones | summary.copied_trigger_zones;
+        let unattributed = summary.unattributed_trigger_zones;
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
@@ -211,7 +236,7 @@ impl GameState {
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
                 records: m.records.clone(),
-                arm: m.arm,
+                event: m.event,
                 object: m.object,
                 triggered: None,
             };
@@ -221,12 +246,9 @@ impl GameState {
                 seq,
                 origin,
                 controller: m.controller,
-                def: Arc::clone(&m.def),
                 source_card: Arc::clone(&m.source_card),
                 instances: m.instances.clone(),
                 binding,
-                tier: m.def.condition.tier(),
-                mana: m.mana,
                 state: false,
             };
             if m.mana {
@@ -259,7 +281,7 @@ impl GameState {
     /// record of the window, in window order then candidate order — the
     /// order the `OrderTriggers` prompt will offer, which has to be
     /// process-stable end to end (§15 item 1).
-    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<Match> {
+    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<MatchedTrigger> {
         // Leg 1: the battlefield, in CR 613.7 order, gated per permanent.
         let on_battlefield = unattributed.contains(Zone::Battlefield);
         let mut live: Vec<ObjectId> = self
@@ -272,7 +294,7 @@ impl GameState {
         // where they are (CR 113.6k, derived) — the record's own subject in a
         // graveyard is one of them — plus the zones a grant or copy reaches,
         // walked whole while such a row exists. In CR 613.7d order.
-        let mut elsewhere: Vec<(u64, ObjectId)> = self
+        let mut elsewhere: Vec<(Timestamp, ObjectId)> = self
             .zone_trigger_sources
             .keys()
             .map(|&id| (self.object_timestamp(id), id))
@@ -293,9 +315,9 @@ impl GameState {
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
 
-        let mut matches: Vec<Match> = Vec::new();
-        // "One or more" accumulates across the window: (identity, arm) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, ArmIndex), usize)> = Vec::new();
+        let mut matches: Vec<MatchedTrigger> = Vec::new();
+        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
+        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // Leg 2: the frames the window carries (CR 603.10a) — each departed
         // object's list as it was, asked look-back conditions only.
@@ -310,12 +332,12 @@ impl GameState {
             })
             .collect();
 
-        let mut candidates: Vec<(Candidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
+        let mut candidates: Vec<(TriggerCandidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
         for id in live {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
             candidates.push((
-                Candidate {
+                TriggerCandidate {
                     id,
                     controller: controller_or_owner(self, id).unwrap_or(object.owner),
                     owner: object.owner,
@@ -337,7 +359,7 @@ impl GameState {
                 None => Arc::new(frame_card(frame)),
             };
             candidates.push((
-                Candidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
+                TriggerCandidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
                 Arc::clone(&frame.abilities),
                 card,
             ));
@@ -352,45 +374,47 @@ impl GameState {
                     }
                     let instance = abilities[..index].iter().filter(|a| a.id == ability.id).count() as u32;
                     let identity = AbilityIdentity {
-                        source: candidate.id,
-                        zone_change_epoch: self
-                            .objects
-                            .get(&candidate.id)
-                            .map(|o| o.zone_change_epoch)
-                            .unwrap_or(0),
+                        source: ObjectRef {
+                            id: candidate.id,
+                            zone_change_epoch: self
+                                .objects
+                                .get(&candidate.id)
+                                .map(|o| o.zone_change_epoch)
+                                .unwrap_or(0),
+                        },
                         ability: ability.id,
                         instance,
                     };
                     let outcome = self.match_def(def, candidate, *seq, &record.event);
-                    let (arm, subjects, refusal) = match outcome {
-                        Ok((arm, subjects)) => (Some(arm), subjects, None),
+                    let (matched, subjects, refusal) = match outcome {
+                        Ok((event, subjects)) => (Some(event), subjects, None),
                         Err(refusal) => (None, Vec::new(), Some(refusal)),
                     };
-                    let mana = arm.is_some() && is_mana_ability(def);
+                    let mana = matched.is_some() && is_mana_ability(def);
                     self.trace(|| {
                         trace_records::trigger(
                             self,
                             *seq,
                             &identity,
                             candidate.zone,
-                            arm.is_some(),
+                            matched.is_some(),
                             refusal.map(Refusal::name),
                             mana,
                         )
                     });
-                    let Some(arm) = arm else { continue };
-                    let arm_event = &def.condition.arms()[arm.0];
+                    let Some(matched) = matched else { continue };
+                    let arm = &def.condition.events()[matched.0];
                     let def_arc: Arc<TriggerDef> = Arc::new((**def).clone());
-                    match arm_event.occurrence() {
-                        Occurrence::PerOccurrence => {
+                    match arm.multiplicity() {
+                        Multiplicity::PerOccurrence => {
                             for subject in subjects {
-                                matches.push(Match {
+                                matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
                                     def: Arc::clone(&def_arc),
                                     source_card: Arc::clone(card),
                                     instances: ability.instances.clone(),
-                                    arm,
+                                    event: matched,
                                     records: vec![*seq],
                                     object: subject.and_then(|id| self.object_ref(id)),
                                     mana,
@@ -399,18 +423,18 @@ impl GameState {
                         }
                         // CR 603.2c's boundary is the window: one trigger, every
                         // matching record in its binding, no one object.
-                        Occurrence::OncePerEvent => {
-                            match once.iter().find(|((i, a), _)| *i == identity && *a == arm) {
+                        Multiplicity::OncePerEvent => {
+                            match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
                                 Some((_, at)) => matches[*at].records.push(*seq),
                                 None => {
-                                    once.push(((identity, arm), matches.len()));
-                                    matches.push(Match {
+                                    once.push(((identity, matched), matches.len()));
+                                    matches.push(MatchedTrigger {
                                         identity,
                                         controller: candidate.controller,
                                         def: Arc::clone(&def_arc),
                                         source_card: Arc::clone(card),
                                         instances: ability.instances.clone(),
-                                        arm,
+                                        event: matched,
                                         records: vec![*seq],
                                         object: None,
                                         mana,
@@ -431,10 +455,10 @@ impl GameState {
     fn match_def(
         &self,
         def: &TriggerDef,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         seq: EventSeq,
         event: &GameEvent,
-    ) -> Result<(ArmIndex, Vec<Option<ObjectId>>), Refusal> {
+    ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::State);
         }
@@ -443,8 +467,8 @@ impl GameState {
         if candidate.frame.is_none() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
-        let mut matched: Option<(ArmIndex, Vec<Option<ObjectId>>)> = None;
-        for (index, arm) in def.condition.arms().iter().enumerate() {
+        let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
+        for (index, arm) in def.condition.events().iter().enumerate() {
             // A frame is asked look-back conditions only (§4.2 leg 2); a live
             // object is asked everything, its look-back arms against the
             // list it has now.
@@ -456,11 +480,11 @@ impl GameState {
             }
             let subjects = self.arm_occurrences(arm, candidate, seq, event);
             if !subjects.is_empty() {
-                matched = Some((ArmIndex(index), subjects));
+                matched = Some((EventIndex(index), subjects));
                 break;
             }
         }
-        let (arm, subjects) = matched.ok_or(Refusal::Condition)?;
+        let (event_index, subjects) = matched.ok_or(Refusal::Condition)?;
         // CR 603.4 at the trigger. "You" is the source's controller, read off
         // the source; a condition about the bound facts is TR-2's reader.
         if let Some(condition) = &def.intervening_if
@@ -468,16 +492,26 @@ impl GameState {
         {
             return Err(Refusal::InterveningIf);
         }
-        Ok((arm, subjects))
+        Ok((event_index, subjects))
     }
 
     /// The occurrences of `arm` in `event`, as the subject of each — one for
     /// every kind this phase ships, one per matching attacker for the attack
     /// shape. Empty when the arm's predicates refuse the record.
+    ///
+    /// One arm against one record, and every case has the same shape: the
+    /// `match` pairs the arm with the record kind it reads, and the arm's own
+    /// fields are the predicates over that record. **A field left `None` is
+    /// not asked** — every one of them is an `is_none_or` — which is how "any"
+    /// is spelled at the type, the convention the replacement patterns share.
+    /// `one` wraps a boolean as an occurrence: true is the single subject the
+    /// arm's `subject_of` projection names, false is no occurrence at all. The
+    /// only arm that does not go through it is `Attacks`, where CR 508.3a
+    /// makes each matching attacker an occurrence of its own.
     fn arm_occurrences(
         &self,
         arm: &TriggerEvent,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         seq: EventSeq,
         event: &GameEvent,
     ) -> Vec<Option<ObjectId>> {
@@ -529,7 +563,7 @@ impl GameState {
                     (DamageRecipient::Object(filter), DamageTarget::Object(id)) => match filter {
                         None => true,
                         Some(filter) => self.subject_matches(
-                            &Subject::Filter(filter.clone()),
+                            &TriggerSubject::Filter(filter.clone()),
                             Some(*id),
                             candidate,
                             None,
@@ -587,7 +621,7 @@ impl GameState {
                 let of_ok = match of {
                     None => true,
                     Some(filter) => self.subject_matches(
-                        &Subject::Filter(filter.clone()),
+                        &TriggerSubject::Filter(filter.clone()),
                         Some(origin.source()),
                         candidate,
                         None,
@@ -609,25 +643,25 @@ impl GameState {
     /// frame describes, and off the live board otherwise.
     fn subject_matches(
         &self,
-        subject: &Subject,
+        subject: &TriggerSubject,
         id: Option<ObjectId>,
-        candidate: &Candidate<'_>,
+        candidate: &TriggerCandidate<'_>,
         frame: Option<&EffectiveCharacteristics>,
     ) -> bool {
         match (subject, id) {
-            (Subject::Any, _) => true,
-            (Subject::This, Some(id)) => id == candidate.id,
-            (Subject::Host, Some(id)) => candidate.host == Some(id),
-            (Subject::Filter(filter), Some(id)) => self
+            (TriggerSubject::Any, _) => true,
+            (TriggerSubject::This, Some(id)) => id == candidate.id,
+            (TriggerSubject::Host, Some(id)) => candidate.host == Some(id),
+            (TriggerSubject::Filter(filter), Some(id)) => self
                 .object_matches_filter_of_source(id, filter, candidate.controller, candidate.id, frame)
                 .unwrap_or(false),
-            (Subject::This | Subject::Host | Subject::Filter(_), None) => false,
+            (TriggerSubject::This | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
         }
     }
 
     /// "Whose" — a `PlayerRef` against a record's player, read for the
     /// candidate (CR 109.5's "you" is its controller).
-    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, candidate: &Candidate<'_>) -> bool {
+    fn player_ref_is(&self, who: &PlayerRef, player: PlayerId, candidate: &TriggerCandidate<'_>) -> bool {
         match who {
             PlayerRef::You => player == candidate.controller,
             PlayerRef::Opponent => player != candidate.controller,
@@ -668,7 +702,7 @@ impl GameState {
     /// (Wild Growth's ruling — the mana is not the land's ability).
     fn resolve_triggered_mana(&mut self, pending: &PendingTrigger, ctx: &ActionContext) -> Result<(), String> {
         let source = pending.origin.source();
-        let effect = pending.def.effect.clone();
+        let effect = pending.binding.def.effect.clone();
         self.resolve_mana_trigger_effect(&effect, pending, source, ctx)
     }
 
@@ -742,13 +776,9 @@ fn frame_card(frame: &EffectiveCharacteristics) -> CardData {
     Arc::try_unwrap(builder.build()).unwrap_or_else(|arc| (*arc).clone())
 }
 
-/// A filter's `EachOther` is what "another" is other than; exposed for the
+/// A filter's `NotSource` is what "another" excludes; exposed for the
 /// card files so "another creature" reads as one expression.
 pub fn another(filter: ObjectFilter) -> ObjectFilter {
-    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::EachOther))
+    ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
-/// A tier-2 condition's tier, re-exported for the placement's drain.
-pub fn tier_of(def: &TriggerDef) -> Tier {
-    def.condition.tier()
-}

@@ -128,15 +128,15 @@ ability window, `run_mana_ability_window`: the chance to activate mana
 abilities while a cost is being paid — the older sense, and the one "inside
 the mana window" means.
 
-**tier** — **(1)** CR 603.3b's two-part placement, `Tier::First` and
-`Tier::Second`: a trigger whose condition is another ability triggering goes
+**tier** — **(1)** CR 603.3b's two-part placement, `TriggerTier::First` and
+`TriggerTier::Second`: a trigger whose condition is another ability triggering goes
 on the stack after the ones that are not, whatever APNAP says
 (`TriggerCondition::tier`). **(2)** the trace practice's three tiers
 (`engineering-practices.md` §7, §7.1): hand-authored pages, the engine's
 sink, the codebase map.
 
 **probe** — **(1)** one read of a gate — a hash-set `is_empty` or `contains`,
-nanoseconds and no allocation — as in "a dispatch on today's pools is five
+nanoseconds and no allocation — as in "a dispatch on today's pools is four
 probes and nothing else" (`triggers-architecture.md` §11). **(2)** a
 throwaway build or test that measures a claim before the claim is trusted —
 the panic-on-gate-pass binary TR-1's A/B ran first, the thread-local counters
@@ -470,10 +470,41 @@ gate, each triggered def against each record, the queue written, `AbilityTrigger
 emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
 first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
 
+**multiplicity** — CR 603.2c's question about one arm: does it trigger once
+per matching record, or once per window in which any record matched? The rule
+is "an ability triggers only once each time its trigger event occurs. However,
+it can trigger repeatedly if one event contains multiple occurrences", so a
+wipe of three lands is three triggers for "whenever a land is put into a
+graveyard" (`PerOccurrence`) and one for "whenever one or more lands are put"
+(`OncePerEvent`). Distinct from the **occurrence** it counts, which is what the
+arm says one of its events is (`TriggerEvent::occurrences_of`: a record for
+most kinds, an attacker for the attack shape, a counter for the counter arms).
+The CR gives the occurrence a name and the choice between the two none, so this
+one is the project's. → `Multiplicity`, `triggers-architecture.md` §4.4.
+
+**trigger condition** / **condition** — CR 603.1's phrase and the engine's
+word are not the same thing. A **trigger condition** is a triggered ability's
+when-clause — "whenever a creature dies", the thing the dispatcher matches a
+record against (`TriggerCondition`, whose arms are `TriggerEvent`s). A
+**condition** is the engine's generic predicate over game state (`Condition`),
+which meets a trigger at exactly one place, CR 603.4's intervening "if". The
+two types keep their names: the clash is with the generic one, at 149
+occurrences in `mtgsim/src`, so the rename that would settle it is *that*
+type's to *Predicate* and its own PR. → `types/triggers.rs`,
+`types/effects.rs`; `triggers-architecture.md` §3.2.
+
+**diagnostics rows** — the counts `Diagnostics` keeps, when they are being
+written about rather than printed. *Row* and never *counter*, because CR 122's
+counter is an object on a permanent or a player and the struct was renamed out
+of that collision in `9486ccf` — which deliberately left the printed row names
+alone. So `fuzz-record.md`'s printed names and the "every counter" cells in
+its tables stay as they are, the record being keyed on them, and prose about
+the struct says rows. → `state/diagnostics.rs`.
+
 **binding** — what a pending or stacked trigger remembers about its event:
-the def, the records that matched (by `EventSeq`, never by copy), which arm
-matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
-player" and "that many" are read back through the arm's projections at
+the def, the records that matched (by `EventSeq`, never by copy), which of
+the condition's events matched, and the subject's `ObjectRef` (id and epoch). "That creature", "that
+player" and "that many" are read back through that event's projections at
 resolution, so there is one copy of every fact and the frame comes with the
 record. → `TriggerBinding`, `engine::triggers::binding`.
 

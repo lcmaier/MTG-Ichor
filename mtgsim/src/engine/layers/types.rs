@@ -31,8 +31,9 @@ pub use crate::types::effects::ObjectSet;
 /// Unique identifier for a registered continuous effect.
 pub type EffectId = u64;
 
-/// Timestamp for ordering effects within a layer (CR 613.7).
-pub type Timestamp = u64;
+/// Timestamp for ordering effects within a layer (CR 613.7) — defined beside
+/// the ids for `ObjectSet`'s reason above, since `GameObject` carries one.
+pub use crate::types::ids::Timestamp;
 
 /// CR 613 layers, including sublayers. The derived `Ord` gives correct
 /// application order: effects are sorted by layer first, then by timestamp

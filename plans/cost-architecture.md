@@ -313,7 +313,7 @@ counted 2026-09-07, 275 occurrences in 25 `src/` files, 119 in 18 test files,
 56 in live plan documents — a mechanical sweep with `cargo build` as the
 check and no behaviour to test. The matcher that answers it,
 `targeting::permanent_matches_filter_in_frame`, keeps its body and becomes
-`object_matches_filter_in_frame`; `EachOther` and `PowerLE` answer for a spell as for any object;
+`object_matches_filter_in_frame`; `NotSource` and `PowerLE` answer for a spell as for any object;
 `Token` and `ByOwner` read the `GameObject`, which a spell also is. The
 **zone leaf** item 9 wants on the same type is not part of CM-0 — a rename
 with a semantic change in it is two PRs wearing one name.

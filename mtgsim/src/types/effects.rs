@@ -179,7 +179,7 @@ pub enum DiscardChooser {
 
 /// A filter over an object's characteristics — type, subtype, supertype,
 /// color, controller — plus the two object facts no layer reaches (`Token`,
-/// `ByOwner`) and one relation to the filter's source (`EachOther`).
+/// `ByOwner`) and one relation to the filter's source (`NotSource`).
 ///
 /// Named for what it matches: creature cards in a graveyard, cards in
 /// libraries and spells on the stack, none of which is a permanent
@@ -230,7 +230,15 @@ pub enum ObjectFilter {
     /// object id and no layer can change it. Meaningful only where the filter
     /// has a source — a static ability's affected set, a CDA's count — and
     /// the selection-side matcher refuses it rather than guessing one.
-    EachOther,
+    ///
+    /// **The source is the object that *has* the ability, never the one that
+    /// granted it** (CR 113.7 — "the object whose ability triggered"). A
+    /// granted or copied "another creature" is other than its *carrier*: the
+    /// trigger matcher answers this leaf against the candidate it is asking
+    /// about (`dispatch::subject_matches` passes `candidate.id`), so a Layer 6
+    /// grant of Soul Warden's ability excludes the creature that has it and
+    /// never the object that granted it.
+    NotSource,
     /// CR 601.2c — "**another** target creature", "a **third** target
     /// creature": not what an earlier instance of "target" on this same spell
     /// took.
@@ -241,7 +249,7 @@ pub enum ObjectFilter {
     /// `Creature`, `And(Creature, OtherThanInstance(0))` and that filter with
     /// `OtherThanInstance(1)` as well.
     ///
-    /// [`EachOther`](Self::EachOther)'s sibling, and answered the same way:
+    /// [`NotSource`](Self::NotSource)'s sibling, and answered the same way:
     /// identity is not a characteristic, so no layer can change it and no
     /// frame is read. Meaningful only where the asker holds the instances
     /// chosen so far — the CR 601.2c loop and the CR 608.2b re-check — and

@@ -25,7 +25,7 @@ use crate::ui::decision::DecisionProvider;
 pub use crate::types::zones::{DestructionSource, DrawCause, LifeLossCause, ZoneChangeCause};
 
 /// How many batches may nest before the engine calls it a loop of its own
-/// making — see `GameState::batch_depth`.
+/// making — see `NestingGuards::batch_depth`.
 ///
 /// **An engine invariant, not a rule.** With every nested batch carrying its
 /// lineage, CR 614.5 bounds every replacement chain, so a chain deeper than
@@ -662,11 +662,11 @@ impl GameState {
         // draw inside a doubled draw starts counting from zero, or the
         // invariant `execute_actions_decomposing` asserts — depth bounded by
         // the inherited set — would be asked across two lineages at once.
-        let outer_depth = std::mem::replace(&mut self.decomposition_depth, 0);
-        self.batch_depth += 1;
+        let outer_depth = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
+        self.nesting.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, inherited);
-        self.batch_depth -= 1;
-        self.decomposition_depth = outer_depth;
+        self.nesting.batch_depth -= 1;
+        self.nesting.decomposition_depth = outer_depth;
         self.rider_lineage = rider_lineage;
         self.events.close_batch(previous);
         // CR 603.2, at the close of the *outermost* batch and after its riders:
@@ -687,7 +687,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let performed = result?;
-        if self.batch_depth == 0 {
+        if self.nesting.batch_depth == 0 {
             self.dispatch_batch(mark, window, ctx)?;
         }
         Ok(performed)
@@ -726,22 +726,22 @@ impl GameState {
         ctx: &ActionContext,
         inherited: &HashSet<ReplacementInstanceId>,
     ) -> Result<Vec<GameAction>, String> {
-        self.decomposition_depth += 1;
+        self.nesting.decomposition_depth += 1;
         debug_assert!(
-            self.decomposition_depth <= inherited.len() + 1,
+            self.nesting.decomposition_depth <= inherited.len() + 1,
             "a decomposed event at depth {} inherited only {} applied effects: \
              CR 614.5's set is what bounds the nesting, so the lineage is broken \
              (replacement-architecture.md section 3.2d)",
-            self.decomposition_depth,
+            self.nesting.decomposition_depth,
             inherited.len()
         );
         let previous = self.events.open_batch(ctx.resolution_stamp());
         let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
-        self.batch_depth += 1;
+        self.nesting.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, inherited);
-        self.batch_depth -= 1;
+        self.nesting.batch_depth -= 1;
         self.events.close_batch(previous);
-        self.decomposition_depth -= 1;
+        self.nesting.decomposition_depth -= 1;
         self.dispatch_after_batch(result, mark, window, ctx)
     }
 
@@ -770,11 +770,11 @@ impl GameState {
         let previous = self.events.open_new_batch(ctx.resolution_stamp());
         let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
         // A new lineage, as in `execute_actions`.
-        let outer_lineage = std::mem::replace(&mut self.decomposition_depth, 0);
-        self.batch_depth += 1;
+        let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
+        self.nesting.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, &HashSet::new());
-        self.batch_depth -= 1;
-        self.decomposition_depth = outer_lineage;
+        self.nesting.batch_depth -= 1;
+        self.nesting.decomposition_depth = outer_lineage;
         self.events.close_batch(previous);
         // Its own window, dispatched at its own close, mid-phase-1 of the
         // enclosing batch — CR 614.13's moves are not a result of the entry
@@ -832,13 +832,13 @@ impl GameState {
         // Loud rather than a draw: a nesting this deep is a lost lineage, the
         // engine's mistake (`BATCH_NESTING_LIMIT`), and a rules answer would hide
         // it. The `Err` unwinds to the harness, which counts it as an error.
-        self.diagnostics.record_batch_depth(self.batch_depth as u64);
-        if self.batch_depth > BATCH_NESTING_LIMIT {
+        self.diagnostics.record_batch_depth(self.nesting.batch_depth as u64);
+        if self.nesting.batch_depth > BATCH_NESTING_LIMIT {
             return Err(format!(
                 "batches nested {} deep, past the {} any legitimate chain reaches: a proposal \
                  loop the applied set did not end (CR 614.5), so a nested batch lost its \
                  lineage or a rider re-proposes its own event",
-                self.batch_depth, BATCH_NESTING_LIMIT
+                self.nesting.batch_depth, BATCH_NESTING_LIMIT
             ));
         }
 
@@ -2375,7 +2375,7 @@ mod tests {
     #[test]
     fn a_batch_nested_past_the_limit_is_an_error_not_a_draw() {
         let (mut game, bears) = setup_game_with_creature();
-        game.batch_depth = BATCH_NESTING_LIMIT;
+        game.nesting.batch_depth = BATCH_NESTING_LIMIT;
 
         let err = game
             .execute_action(GameAction::Tap { object: bears }, &test_ctx())

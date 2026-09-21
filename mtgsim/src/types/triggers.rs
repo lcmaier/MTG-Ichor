@@ -19,7 +19,7 @@ use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::mana::ManaType;
 use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -54,29 +54,29 @@ pub enum TriggerCondition {
 }
 
 impl TriggerCondition {
-    /// The event arms, in printed order. A state trigger has none.
-    pub fn arms(&self) -> &[TriggerEvent] {
+    /// The condition's events, in printed order. A state trigger has none.
+    pub fn events(&self) -> &[TriggerEvent] {
         match self {
-            TriggerCondition::Event(arm) => std::slice::from_ref(arm),
-            TriggerCondition::AnyOf(arms) => arms,
+            TriggerCondition::Event(event) => std::slice::from_ref(event),
+            TriggerCondition::AnyOf(events) => events,
             TriggerCondition::State(_) => &[],
         }
     }
 
     /// CR 603.3b's tier: second iff the condition is another ability
     /// triggering.
-    pub fn tier(&self) -> Tier {
-        if self.arms().iter().any(|arm| matches!(arm, TriggerEvent::AbilityTriggers { .. })) {
-            Tier::Second
+    pub fn tier(&self) -> TriggerTier {
+        if self.events().iter().any(|e| matches!(e, TriggerEvent::AbilityTriggers { .. })) {
+            TriggerTier::Second
         } else {
-            Tier::First
+            TriggerTier::First
         }
     }
 }
 
 /// CR 603.3b's two-part placement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Tier {
+pub enum TriggerTier {
     /// A trigger condition that isn't another ability triggering.
     First,
     /// The remaining triggered abilities.
@@ -102,20 +102,20 @@ pub enum TriggerLimit {
 /// CR 603.2c — one trigger per matching record, or one per window in which
 /// any record matches ("one or more").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Occurrence {
+pub enum Multiplicity {
     PerOccurrence,
     OncePerEvent,
 }
 
 /// "Which object" an arm is about, read against the ability's own source.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Subject {
+pub enum TriggerSubject {
     /// CR 603.6a's "[this object]": the record's subject is the source itself.
     This,
     /// "Enchanted land", "equipped creature": the source's host (CR 303.4m).
     Host,
     /// "A creature", "another creature you control". "Another" is
-    /// `And(filter, EachOther)`; the source is what `EachOther` is other than.
+    /// `And(filter, NotSource)`; `NotSource` excludes the ability's own source.
     Filter(ObjectFilter),
     Any,
 }
@@ -140,28 +140,28 @@ pub enum TriggerEvent {
     /// `from: Battlefield, to: None`; "from anywhere" is `from: None`, which
     /// CR 603.6c makes *not* a leaves-the-battlefield ability.
     ZoneChange {
-        subject: Subject,
+        subject: TriggerSubject,
         from: Option<Zone>,
         to: Option<Zone>,
         cause: Option<ZoneChangeCause>,
         owner: Option<PlayerRef>,
-        occurrence: Occurrence,
+        multiplicity: Multiplicity,
     },
     /// Transition-only by the record's own contract (CR 603.2e).
-    BecomesTapped { subject: Subject },
-    BecomesUntapped { subject: Subject },
+    BecomesTapped { subject: TriggerSubject },
+    BecomesUntapped { subject: TriggerSubject },
     /// CR 106.12a's "tapped for mana" reads `tapped_for_mana`.
     ManaAdded {
-        source: Subject,
+        source: TriggerSubject,
         tapped_for_mana: Option<bool>,
         mana: Option<ManaType>,
     },
     /// "Is dealt damage", "deals damage", "deals combat damage to a player".
     DamageDealt {
-        source: Subject,
+        source: TriggerSubject,
         recipient: DamageRecipient,
         combat: Option<bool>,
-        occurrence: Occurrence,
+        multiplicity: Multiplicity,
     },
     /// "At the beginning of [your/each] [phase]". `whose: None` is each.
     PhaseBegins { phase: PhaseType, whose: Option<PlayerRef> },
@@ -173,20 +173,20 @@ pub enum TriggerEvent {
     /// gain its own event, and the record is per source; a 0 gain is no event
     /// (119.10) and never reaches the log. One of two arms over `LifeChanged`,
     /// split by the sign; `LosesLife` is TR-2's.
-    GainsLife { player: Option<PlayerRef>, occurrence: Occurrence },
+    GainsLife { player: Option<PlayerRef>, multiplicity: Multiplicity },
     /// CR 603.6a. `from` and `cast` are joined from the same object's zone
     /// change in the window and from `PermanentState.cast` (§4.4).
     EntersBattlefield {
-        subject: Subject,
+        subject: TriggerSubject,
         controller: Option<PlayerRef>,
         from: Option<Zone>,
         cast: Option<bool>,
-        occurrence: Occurrence,
+        multiplicity: Multiplicity,
     },
     /// CR 508.3a's plain shape, "whenever a creature attacks" — one attacker
     /// is one occurrence. TR-5 widens this to the five shapes with item 11's
     /// defender on the record.
-    Attacks { attacker: Subject, occurrence: Occurrence },
+    Attacks { attacker: TriggerSubject, multiplicity: Multiplicity },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, of: Option<ObjectFilter> },
@@ -234,21 +234,21 @@ impl TriggerEvent {
         )
     }
 
-    /// The arm's occurrence field, for the arms that carry one.
-    pub fn occurrence(&self) -> Occurrence {
+    /// The arm's multiplicity field, for the arms that carry one.
+    pub fn multiplicity(&self) -> Multiplicity {
         match self {
-            TriggerEvent::ZoneChange { occurrence, .. }
-            | TriggerEvent::DamageDealt { occurrence, .. }
-            | TriggerEvent::GainsLife { occurrence, .. }
-            | TriggerEvent::EntersBattlefield { occurrence, .. }
-            | TriggerEvent::Attacks { occurrence, .. } => *occurrence,
+            TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DamageDealt { multiplicity, .. }
+            | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::EntersBattlefield { multiplicity, .. }
+            | TriggerEvent::Attacks { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
             | TriggerEvent::ManaAdded { .. }
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
-            | TriggerEvent::AbilityTriggers { .. } => Occurrence::PerOccurrence,
+            | TriggerEvent::AbilityTriggers { .. } => Multiplicity::PerOccurrence,
         }
     }
 
@@ -355,23 +355,15 @@ impl TriggerEvent {
     }
 }
 
-/// Which arm of a condition matched — an index into
-/// [`TriggerCondition::arms`].
+/// Which of a condition's events matched — an index into
+/// [`TriggerCondition::events`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ArmIndex(pub usize);
+pub struct EventIndex(pub usize);
 
 /// Monotonic per game: the order key within one player's triggers and the
 /// handle a tier-2 trigger's "that ability" resolves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TriggerSeq(pub u64);
-
-/// An object remembered by id **and** epoch (CR 400.7): a later move makes it
-/// a new object the reference cannot find.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ObjectRef {
-    pub id: ObjectId,
-    pub zone_change_epoch: u64,
-}
 
 /// The bound facts of a trigger, filled at dispatch and carried onto the
 /// `PendingTrigger` and then the `StackEntry` (§3.4). **Indices and one
@@ -386,8 +378,8 @@ pub struct TriggerBinding {
     /// The records that matched: one for a `PerOccurrence` trigger, every
     /// matching record of the window for a `OncePerEvent` one.
     pub records: Vec<EventSeq>,
-    /// Which arm matched — whose projections say what the bound facts are.
-    pub arm: ArmIndex,
+    /// Which event matched — whose projections say what the bound facts are.
+    pub event: EventIndex,
     /// The subject's epoch at dispatch. `None` for an event about no object
     /// and for a `OncePerEvent` binding.
     pub object: Option<ObjectRef>,
@@ -396,9 +388,9 @@ pub struct TriggerBinding {
 }
 
 impl TriggerBinding {
-    /// The arm the binding's projections read through.
-    pub fn arm(&self) -> &TriggerEvent {
-        &self.def.condition.arms()[self.arm.0]
+    /// The event the binding's projections read through.
+    pub fn event(&self) -> &TriggerEvent {
+        &self.def.condition.events()[self.event.0]
     }
 }
 
@@ -413,7 +405,7 @@ pub enum TriggerOrigin {
 impl TriggerOrigin {
     pub fn source(&self) -> ObjectId {
         match self {
-            TriggerOrigin::Object(identity) => identity.source,
+            TriggerOrigin::Object(identity) => identity.source.id,
         }
     }
 }
@@ -427,7 +419,6 @@ pub struct PendingTrigger {
     pub origin: TriggerOrigin,
     /// CR 603.3a — the player who controlled the source as it triggered.
     pub controller: PlayerId,
-    pub def: Arc<TriggerDef>,
     /// What the stack object is built from — the source's card, held here
     /// because the source may be gone by placement (a dies trigger's is in a
     /// graveyard; a `LeftTheGame` source is not in the store at all). CR 603.3
@@ -437,10 +428,17 @@ pub struct PendingTrigger {
     /// what placement announces (603.3d).
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
-    pub tier: Tier,
-    /// CR 605.1b — a mana trigger is resolved at dispatch and never queued;
-    /// the flag exists for the trace record that says so.
-    pub mana: bool,
     /// CR 603.8's one-shot state trigger; armed by TR-6.
     pub state: bool,
+}
+
+impl PendingTrigger {
+    /// CR 603.3b's tier, derived from the def the binding carries.
+    ///
+    /// Not a field: `TriggerCondition::tier` is the only definition of the
+    /// answer, and a copy taken at dispatch is a second one that can only
+    /// ever agree or be wrong.
+    pub fn tier(&self) -> TriggerTier {
+        self.binding.def.condition.tier()
+    }
 }

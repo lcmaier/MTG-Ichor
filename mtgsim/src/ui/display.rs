@@ -414,11 +414,11 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
                     obj_name(game, *object_id), was, owner, from, to, cause)
         }
         AbilityActivated { identity, controller } => format!(
-            "AbilityActivated: {} [P{}]", obj_name(game, identity.source), controller),
+            "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
         AbilityTriggered { seq, origin, controller, .. } => format!(
             "AbilityTriggered: {} [P{}] #{}", obj_name(game, origin.source()), controller, seq.0),
         AbilityResolved { identity, controller } => format!(
-            "AbilityResolved: {} [P{}]", obj_name(game, identity.source), controller),
+            "AbilityResolved: {} [P{}]", obj_name(game, identity.source.id), controller),
         Tapped { object_id } => format!("Tapped: {}", obj_name(game, *object_id)),
         Untapped { object_id } => format!("Untapped: {}", obj_name(game, *object_id)),
         CardDrawn { player_id, card_id } => {

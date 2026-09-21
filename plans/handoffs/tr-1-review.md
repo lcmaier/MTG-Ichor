@@ -21,7 +21,7 @@ over the same lines. Comments are numbered in the order they were asked
 |---|---|---|---|---|
 | 1 | **A — names, shapes, comments** | #1 #4 #11 #12 #13 #14 #17 #22 #24 #26 #27 #28 #29 #30 #33 #34, F2 | Mechanical and agreed; everything after it — and every site TR-2 adds — is written against the final names, so it happens first and once | `cargo test`, zero warnings, the six gates, three hasher seeds; `fuzz_ab.py` engine vs `main` `IDENTICAL` on every row (a rename cannot move a counter; the fold and the field cuts are real edits) |
 | 2 | **B — the authoring surface** | #5 #6 #7 #36 | Small, and TR-2's seven cards are written through it; after A so the constructors are born under the final names | the same, plus `check_rulings --check` (five cards re-expressed, texts unchanged) |
-| 3 | **C — the matcher** | F1 #16 #38 | Two edits to one function and one test; F1 is a wrong answer the day TR-4 registers a mixed-zone card | the fixture red before the fix and green after; `fuzz_ab.py` `IDENTICAL` (no pooled card has a mixed-zone trigger, and the flatten is a refactor) |
+| 3 | **C — the matcher** | F1 #16 #38, §11's kind mask | Three edits to one function and one test; F1 is a wrong answer the day TR-4 registers a mixed-zone card, and the mask is the lever §11 pre-approved, whose reading was taken 2026-09-20 (the note under C) | the fixture red before the fix and green after; `fuzz_ab.py` `IDENTICAL` (no pooled card has a mixed-zone trigger, the flatten is a refactor, a mask skips only visits that would not have matched); the trigger-heavy probe re-run and recorded |
 | 4 | **D — the docs, and three decisions** | #2 #3 #8 #10 #21 #23 #31 #35 #37, the keeps | No code. Item 167 restated, the band said, three owner's calls written down with a recommendation each; TR-2's brief reads this theme before it is written | the six gates (`check_state_of_play --write`) |
 | 5 | **E — the decided engine work before TR-2** | what D decides of #2 and #23 | The two edits TR-2's gates and TR-4's frame would otherwise build on top of | `fuzz_ab.py` with the cost measured — the snapshot adds work at a batch's open on boards with rows, and Humility is pooled |
 
@@ -30,7 +30,7 @@ does; theme D says what to re-count with.
 
 ---
 
-## A — names, shapes, comments · *mechanical, agreed*
+## A — names, shapes, comments · *closed 2026-09-20, [PR #174](https://github.com/lcmaier/MTG-Ichor/pull/174)*
 
 Rename sweeps anchored on the type's own methods, never on a bare word
 (`sizing-and-doing-a-rename-sweep`); the site counts below are `grep -rn` over
@@ -104,7 +104,7 @@ Size ~120 lines. Gate: the A gate plus `check_rulings --check`.
 
 ---
 
-## C — the matcher · *two edits to one function, one test*
+## C — the matcher · *three edits to one function, one test, and §11's lever*
 
 **F1 — the dispatcher does not apply CR 113.6 per ability for an off-battlefield
 source.** `register_static_effects` puts into `zone_trigger_sources` only the
@@ -152,7 +152,80 @@ the queue is empty at every priority prompt (CR 117.5's claim, the thing the
 test's doc comment says it checks), and a name that says so. Or drop it and
 lean on the fork test; the owner decides, keep-and-tighten recommended.
 
-Gate: the fixture red then green; `fuzz_ab.py` engine vs `main` `IDENTICAL`.
+**The reading §11 was waiting for — the dispatcher on a trigger-heavy board
+(2026-09-20, post-merge).** §11 named one lever and said it would not be built
+until a reading asked: a per-source mask of the event kinds its triggers read,
+so a window visits only the sources that read it. The reading was taken on the
+merged tree with a probe build of `fuzz_games` — `--stuff N` forces N copies
+each of Soul Warden, Blood Artist and Wild Growth into every deck (24 of 36
+nonland slots at 8), and an `Instant` around `GameState::dispatch` at the outer
+depth. The unflagged probe read `IDENTICAL` to the shipped binary on every
+counter, so the knob is inert when unset. Raw outputs: the session scratchpad,
+`ab2/`.
+
+*The A/B* — `fuzz_ab.py`, performance pool, 200 games, seed 12345, medians of
+three interleaved rounds, `--threads 1`:
+
+| copies each | seats | triggers placed / game | CPU / game | turns / game | CPU / turn, p50 | µs / decision |
+|---|---|---|---|---|---|---|
+| 0 (shipped) | 2 | 1.5 | 7.8 ms | 31 | 0.22 ms | 33 |
+| 1 | 2 | 4.8 | 9.1 ms | 32 | 0.23 ms | 38 |
+| 4 | 2 | 16.5 | 9.8 ms | 34 | 0.25 ms | 41 |
+| 8 | 2 | 47.5 | 15.4 ms | 43 | 0.30 ms | 52 |
+| 0 (shipped) | 4 | 4.2 | 27.4 ms | 62 | 0.41 ms | 58 |
+| 1 | 4 | 13.5 | 31.5 ms | 65 | 0.44 ms | 65 |
+| 4 | 4 | 52.4 | 41.3 ms | 73 | 0.52 ms | 78 |
+| 8 | 4 | 149.6 | 63.9 ms | 91 | 0.65 ms | 99 |
+
+*The probe's split* — the same boards, 200 games, `--threads 1`:
+
+| copies each | seats | dispatch ms / game | share of CPU | past the gate / game | candidates / game | matches / game |
+|---|---|---|---|---|---|---|
+| 0 | 2 | 0.51 | 6% | 243 | 297 | 2.7 |
+| 1 | 2 | 1.26 | 13% | 565 | 994 | 8.7 |
+| 4 | 2 | 1.69 | 18% | 877 | 3,267 | 26.5 |
+| 8 | 2 | 3.10 | 20% | 1,252 | 10,131 | 66.1 |
+| 0 | 4 | 1.90 | 7% | 660 | 888 | 6.1 |
+| 1 | 4 | 4.25 | 14% | 1,418 | 3,052 | 20.2 |
+| 4 | 4 | 7.05 | 18% | 2,102 | 11,358 | 72.2 |
+| 8 | 4 | 12.39 | 21% | 2,913 | 32,311 | 183.2 |
+
+*What it says.* On the heaviest board the dispatcher is a fifth of all CPU and
+40–50% of the added cost per turn; the rest is the triggers' placement, prompts
+and resolutions, and wider boards (frames per walk 13 → 21 at two seats, 21 →
+33 at four). The driver is one ratio: a dispatch past the gate visits 8
+candidates at two seats and 11 at four, and **fewer than 1% of the visits
+match**. The gate asks "is any source present", so once one Soul Warden is out
+every batch close builds the ordered battlefield list, looks every source up in
+the memo and asks each def whether it reads the record — about 0.3 µs a visit,
+10,000 visits a game at two seats and 32,000 at four. On the shipped pool 27%
+of batches already pass the gate for 1.2 candidates, which is the 6–7%.
+Healthy: memo hits scale ×2.6 while layer walks rise 64%, and board walks per
+gather move 0.22 → 0.27, so the dispatch forces no walk the state-based check
+would not have paid; deterministic under three hasher seeds; no errors, no
+turn-limit hits. Heavy in count, not in kind — three trigger shapes; a
+Commander table's cast, attack, end-step and counter watchers raise the mask's
+payoff, not the per-visit cost.
+
+*Action, in this theme's PR.* `trigger_sources: IdSet<ObjectId>` becomes a map
+from source to the mask of event kinds its printed triggered defs read
+(`TriggerEvent::reads` is the per-record test; the mask is its per-kind union,
+written where the set is written today). The window's kinds are OR-ed once; a
+source is a candidate only if the masks intersect; a dispatch whose window no
+source reads returns at the gate, before the battlefield list is built.
+Over-approximate in one direction only: the granted and copied legs and the
+departure frames keep their whole-list walk. About 60 lines, in the same
+pre-pass as the flatten. **Gate:** `fuzz_ab.py` engine vs `main` `IDENTICAL` on
+every counter — a mask skips only a visit that would not have matched — and
+the probe re-run on the eight-copy boards, with the sitting above and the
+after-arm recorded as a post-merge reading in `fuzz-record.md`. If the
+trigger-heavy fixture is to be repeatable, `--require` gains a `--copies N`
+companion in the same PR (the probe's `--stuff` hard-codes the three names);
+the owner's call. Expected: most of the dispatcher's share on the eight-copy
+board and nearly all of it on the shipped pool — an estimate until the arm runs.
+
+Gate: the fixture red then green; `fuzz_ab.py` engine vs `main` `IDENTICAL`;
+the probe re-run and the record.
 
 ---
 
@@ -394,3 +467,4 @@ heading, PR #173's body, `roadmap-v2.md` row A6's landed note.
 | 38 | whole-games test | keep and tighten the assertion | C |
 | F1 | `find_matches` | no CR 113.6 check per def off the battlefield — proved | C |
 | F2 | `place_one`'s comment | says "never creates"; the code creates and removes | A |
+| — | the dispatcher on a trigger-heavy board | §11's kind mask; the reading taken 2026-09-20, a fifth of CPU at eight sources | C |

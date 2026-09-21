@@ -59,7 +59,7 @@ pub struct PermanentState {
     /// `codebase-state.md` item 77 is what deletes it: a *maintained* order
     /// vector needs no timestamp here at all, and that item already says to
     /// fold itself into whatever next touches `place_on_battlefield`.
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
 
     // Permanent state
     pub tapped: bool,

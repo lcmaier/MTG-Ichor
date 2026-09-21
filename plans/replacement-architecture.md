@@ -2146,7 +2146,7 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 
 #### RD-4 — redirection and unpreventable damage — ✅ landed 2026-09-09
 
-**Shipped.** `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` and `Restriction::ApplyReplacement { Prevention }` meeting at one predicate where a prevention arm applies; `ToFixed` cut on "an arm the pipeline cannot apply is worse than a missing one". Pariah (pooled), Palisade Giant, Pinpoint Avalanche, Reflect Damage; the `EachOther` fix (`codebase-state.md` item 103); RD-5's gate closed and Harm's Way sent to `backlog.md` §2.25.
+**Shipped.** `Rewrite::Retarget(RetargetSpec)` with CR 614.9's re-check at application, `DealDamage.unpreventable` and `Restriction::ApplyReplacement { Prevention }` meeting at one predicate where a prevention arm applies; `ToFixed` cut on "an arm the pipeline cannot apply is worse than a missing one". Pariah (pooled), Palisade Giant, Pinpoint Avalanche, Reflect Damage; the `NotSource` fix (`codebase-state.md` item 103); RD-5's gate closed and Harm's Way sent to `backlog.md` §2.25.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RD-4" (evicted 2026-09-11).
 
@@ -3137,7 +3137,7 @@ the bug.
 
 37. **The gate that decides an arm ships fired against `RetargetSpec`, and caught the arm §9 named.** → archive
 
-38. **`ObjectFilter::EachOther` was refused in an affected set, and the instrument that measured it as harmless measured the wrong thing.** → archive
+38. **`ObjectFilter::NotSource` was refused in an affected set, and the instrument that measured it as harmless measured the wrong thing.** → archive
 
 ### Found by the RD-4 review (2026-09-09)
 

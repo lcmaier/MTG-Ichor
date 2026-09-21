@@ -374,7 +374,7 @@ fn test_two_opalescences_and_humility_per_the_2006_ruling() {
     all(&game, &[o1, o2, h], 4);
 }
 
-/// `ObjectFilter::EachOther` and the Aura exclusion: Blood Moon becomes a
+/// `ObjectFilter::NotSource` and the Aura exclusion: Blood Moon becomes a
 /// 3/3 enchantment creature, an Aura does not, Opalescence itself does not.
 #[test]
 fn test_opalescence_animates_each_other_non_aura_enchantment() {

@@ -17,7 +17,9 @@ use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
-use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
+use crate::types::ids::{
+    AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+};
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
 
@@ -143,12 +145,11 @@ pub struct ResolvingObject {
 /// as opposed to the ephemeral stack object representing one activation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AbilityIdentity {
-    /// The permanent the ability was activated from.
-    pub source: ObjectId,
-    /// CR 400.7 — which existence of `source` this is, off
-    /// `GameObject::zone_change_epoch`: two activations across a bounce are
-    /// two abilities' worth of counting (`triggers-architecture.md` §3.6).
-    pub zone_change_epoch: u64,
+    /// The permanent the ability was activated from, and which existence of
+    /// it (CR 400.7): two activations across a bounce are two abilities'
+    /// worth of counting (`triggers-architecture.md` §3.6). The same pair
+    /// spelled once, since `ObjectRef` is that pair.
+    pub source: ObjectRef,
     /// Which of its abilities. Stable across activations; see
     /// `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
@@ -160,6 +161,60 @@ pub struct AbilityIdentity {
     /// than an index into the whole list, so a later grant does not renumber
     /// an earlier instance. CR 603.7h counts the ability and ignores this.
     pub instance: u32,
+}
+
+/// How deep inside itself the engine is: three counters that answer one
+/// question, so they are one field on `GameState` rather than three.
+///
+/// **Two of them are caps and one is not**, which is what "guard" is covering.
+/// `batch_depth` and `dispatch_depth` are bounds in every build — the engine
+/// stops with an `Err` naming the invariant it thinks it has lost.
+/// `decomposition_depth` bounds nothing: CR 614.5's applied set already ends
+/// that loop, and this counts the consequence (`d <= inherited.len() + 1`) in a
+/// `debug_assert!`, so what it guards against is a *silent* lineage break —
+/// the failure it converts is a stack overflow that takes the test binary with
+/// it, into a red test that names the rule.
+///
+/// **On the state and not on a parameter**, all three, for `codebase-state.md`
+/// item 40's reason: a nested call re-enters through `emit_event` and the
+/// replacement pipeline, neither of which has a channel to thread a depth
+/// through, and a clone taken at a prompt has to resume with the same answer.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct NestingGuards {
+    /// How many batches are nested inside one another right now — one per
+    /// `execute_batch_inner` on the call stack, kept by its three wrappers.
+    ///
+    /// **A guard against the engine, not a rule.** Once every nested batch
+    /// carries its lineage, CR 614.5 bounds every replacement chain (each level
+    /// spends an instance), so a chain that nests without bound has lost a
+    /// lineage and `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather
+    /// than answering with a rule. `decomposition_depth` is the per-lineage
+    /// invariant asserted in debug builds; this is the whole-stack bound in
+    /// every build, and `fuzz_games` reports the deepest nesting a run reached.
+    pub(crate) batch_depth: usize,
+
+    /// How many decomposing calls (`replacement-architecture.md` §3.2d) are on
+    /// the stack — CR 121.2's draws inside draws, and nothing else today.
+    ///
+    /// **Not a cap.** CR 614.5's applied set is the loop's termination argument;
+    /// this counts the invariant that set implies — a decomposing call at depth
+    /// `d` exists because `d - 1` substitutions above it each inserted an
+    /// instance, so `d <= inherited.len() + 1` — and
+    /// `execute_actions_decomposing` asserts it in debug builds, turning a stack
+    /// overflow into a red test that names the rule.
+    ///
+    /// **Per lineage, not per call stack.** A fresh-set batch (`execute_actions`,
+    /// which a rider's proposal and every contained event go through) is a new
+    /// lineage and zeroes this for its extent; counted across a rider the
+    /// assertion fires on a legal board, while the loop it exists for is
+    /// `batch_depth`'s.
+    pub(crate) decomposition_depth: usize,
+
+    /// Dispatches nested inside dispatches — a tier-2 trigger's
+    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
+    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
+    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
+    pub(crate) dispatch_depth: usize,
 }
 
 /// The complete state of a game of Magic.
@@ -290,7 +345,7 @@ pub struct GameState {
     // --- Timestamp counter for layer system (rule 613.7) ---
     /// Monotonically increasing counter. Each permanent that enters the
     /// battlefield gets the current value, then the counter increments.
-    pub next_timestamp: u64,
+    pub next_timestamp: Timestamp,
 
     /// The next `ObjectId`, stamped by `add_object` beside the timestamp —
     /// the one door into the store. Starts at one so that
@@ -459,34 +514,9 @@ pub struct GameState {
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
 
-    /// How many decomposing calls (§3.2d) are on the stack — CR 121.2's draws
-    /// inside draws, and nothing else today.
-    ///
-    /// **Not a cap.** CR 614.5's applied set is the loop's termination argument;
-    /// this counts the invariant that set implies — a decomposing call at depth
-    /// `d` exists because `d - 1` substitutions above it each inserted an
-    /// instance, so `d <= inherited.len() + 1` — and
-    /// `execute_actions_decomposing` asserts it in debug builds, turning a stack
-    /// overflow into a red test that names the rule.
-    ///
-    /// **Per lineage, not per call stack.** A fresh-set batch (`execute_actions`,
-    /// which a rider's proposal and every contained event go through) is a new
-    /// lineage and zeroes this for its extent; counted across a rider the
-    /// assertion fires on a legal board, while the loop it exists for is
-    /// `batch_depth`'s.
-    pub(crate) decomposition_depth: usize,
-
-    /// How many batches are nested inside one another right now — one per
-    /// `execute_batch_inner` on the call stack, kept by its three wrappers.
-    ///
-    /// **A guard against the engine, not a rule.** Once every nested batch
-    /// carries its lineage, CR 614.5 bounds every replacement chain (each level
-    /// spends an instance), so a chain that nests without bound has lost a
-    /// lineage and `execute_batch_inner` errors at `BATCH_NESTING_LIMIT` rather
-    /// than answering with a rule. `decomposition_depth` is the per-lineage
-    /// invariant asserted in debug builds; this is the whole-stack bound in
-    /// every build, and `fuzz_games` reports the deepest nesting a run reached.
-    pub(crate) batch_depth: usize,
+    /// How deep inside itself the engine is right now, on three axes
+    /// ([`NestingGuards`]).
+    pub(crate) nesting: NestingGuards,
 
     /// The applied set a rider's proposals start from, for the extent of
     /// `resolve_rider` — CR 614.5's "any modified events that may replace that
@@ -505,7 +535,7 @@ pub struct GameState {
     /// Starts at 1 so that a pregame object's `0` is strictly earlier than any
     /// move. Allocated by `move_object`, which is the engine's one performer of
     /// zone changes.
-    pub(crate) next_zone_change_epoch: u64,
+    pub(crate) next_zone_change_epoch: ZoneChangeEpoch,
 
     /// The tick as of the **start of the previous** state-based-action check.
     ///
@@ -515,7 +545,7 @@ pub struct GameState {
     /// does so during a check, so an end-of-check boundary would place the move
     /// before the boundary it is supposed to be after, and the commander would
     /// never be offered its command zone at all.
-    pub(crate) last_sba_check_epoch: u64,
+    pub(crate) last_sba_check_epoch: ZoneChangeEpoch,
 
     // --- Triggered abilities (CR 603) ---
     /// Abilities that have triggered and not yet been put onto the stack
@@ -531,19 +561,13 @@ pub struct GameState {
     /// `register_static_effects` from `place_on_battlefield`, removed by
     /// `cleanup_zone_state`, over-approximating in one direction only. A
     /// triggered ability an object has without having printed one reaches
-    /// the sweep through `RegistryScopeSummary::granted_trigger_zones` and
-    /// `copied_trigger_zones`.
+    /// the sweep through `RegistryScopeSummary::unattributed_trigger_zones`.
     pub trigger_sources: IdSet<ObjectId>,
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
     /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
     pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
-    /// Dispatches nested inside dispatches — a tier-2 trigger's
-    /// `AbilityTriggered` dispatched from the dispatch that queued it. Bounded
-    /// by the abilities present; past `engine::triggers::DISPATCH_NESTING_LIMIT`
-    /// the dispatcher stops, which is the engine's mistake and not a rules answer.
-    pub(crate) dispatch_depth: usize,
 
     // --- Event log ---
     pub events: EventLog,
@@ -795,8 +819,7 @@ impl GameState {
             restriction_ability_sources: IdSet::default(),
             cost_modification_ability_sources: IdSet::default(),
             entry_selection: EntrySelectionScope::default(),
-            decomposition_depth: 0,
-            batch_depth: 0,
+            nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
             next_zone_change_epoch: 1,
@@ -805,7 +828,6 @@ impl GameState {
             next_trigger_seq: 0,
             trigger_sources: IdSet::default(),
             zone_trigger_sources: IdMap::default(),
-            dispatch_depth: 0,
             events: EventLog::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
@@ -1027,7 +1049,7 @@ impl GameState {
         // 2026-08-25), and this runs eight times per SBA sweep. Stable, keyed on
         // timestamp alone — tiebreaking on a v4 `ObjectId` would be the exact
         // non-determinism the ordered sweeps exist to avoid (`CLAUDE.md`).
-        let mut pairs: Vec<(u64, ObjectId)> = self.battlefield
+        let mut pairs: Vec<(Timestamp, ObjectId)> = self.battlefield
             .iter()
             .map(|(&id, e)| (e.timestamp, id))
             .collect();
@@ -1072,7 +1094,7 @@ impl GameState {
     }
 
     /// Allocate and return the next timestamp value.
-    pub fn allocate_timestamp(&mut self) -> u64 {
+    pub fn allocate_timestamp(&mut self) -> Timestamp {
         let ts = self.next_timestamp;
         self.next_timestamp += 1;
         ts
@@ -1106,7 +1128,7 @@ impl GameState {
     /// second source of truth — see that field for why the copy exists at
     /// all. Its callers are CR 613.7d (`arrive_in_zone`, where there is no
     /// entry yet) and CR 613.7e (`attach`, where there is).
-    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: u64) {
+    pub(crate) fn set_object_timestamp(&mut self, id: ObjectId, timestamp: Timestamp) {
         if let Some(obj) = self.objects.get_mut(&id) {
             obj.timestamp = timestamp;
         }
@@ -1122,7 +1144,7 @@ impl GameState {
     /// ids off a collection the store also holds — and is `MAX` rather than 0
     /// so that a hypothetical unknown sorts last instead of silently claiming
     /// to be the oldest permanent on the battlefield.
-    pub fn object_timestamp(&self, id: ObjectId) -> u64 {
+    pub fn object_timestamp(&self, id: ObjectId) -> Timestamp {
         self.objects.get(&id).map(|obj| obj.timestamp).unwrap_or(u64::MAX)
     }
 

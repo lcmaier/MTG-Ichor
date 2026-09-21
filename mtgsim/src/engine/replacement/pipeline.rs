@@ -1319,7 +1319,7 @@ fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
         | ObjectFilter::ByController(_)
         | ObjectFilter::Token
         | ObjectFilter::ByOwner(_)
-        | ObjectFilter::EachOther
+        | ObjectFilter::NotSource
         // Identity, which no `EnterMods` field feeds.
         | ObjectFilter::OtherThanInstance(_) => true,
         ObjectFilter::PowerLE(_) => false,
