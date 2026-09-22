@@ -104,7 +104,7 @@ Size ~120 lines. Gate: the A gate plus `check_rulings --check`.
 
 ---
 
-## C — the matcher · *three edits to one function, one test, and §11's lever*
+## C — the matcher · *closed 2026-09-22, [PR #NNN](https://github.com/lcmaier/MTG-Ichor/pull/NNN)*
 
 **F1 — the dispatcher does not apply CR 113.6 per ability for an off-battlefield
 source.** `register_static_effects` puts into `zone_trigger_sources` only the
@@ -226,6 +226,19 @@ board and nearly all of it on the shipped pool — an estimate until the arm run
 
 Gate: the fixture red then green; `fuzz_ab.py` engine vs `main` `IDENTICAL`;
 the probe re-run and the record.
+
+*Closed 2026-09-22.* Three things a later reader needs from this theme.
+**`IDENTICAL` on every counter was unmeetable and the gate should not have
+asked it**: six rows are `state/diagnostics.rs`'s cost model, the mask exists
+to stop asking a source that cannot match, and both cannot hold. A third arm
+at F1-plus-flatten alone carries "no behavior moved" and is byte-identical on
+both pools at two seats and four; `fuzz-record.md`'s 2026-09-22 block has the
+numbers. **The owner took both calls**: `--copies N` shipped (it reproduces
+the retired `--stuff` probe's count columns exactly), and #38 was kept and
+tightened — where it turned out to be vacuous twice over, since the deck had
+no mana base and placed **zero** triggers in 12 turns at either seat count.
+**D.5's `#25` keep needs a word changed**: "the value F1 says the dispatcher
+never read" is past tense now.
 
 ---
 

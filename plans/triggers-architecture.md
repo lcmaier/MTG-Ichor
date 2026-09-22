@@ -808,12 +808,23 @@ For each record, the candidates are the union of:
 5. **The delayed registry** (§4.6) and **rule-owned abilities** (§3.8, none
    built).
 
+**CR 113.6 is asked per ability, not per candidate.** A candidate is in a
+sweep because *one* of its abilities functions where it is, so the matcher
+asks `functions_in` of each triggered def before asking it about a record —
+Ichorid in a graveyard is a candidate for its "from anywhere" half and must
+not be asked its dies-trigger there. On every leg, including the
+battlefield, so the rule has one home, which is `replacement::gather`'s
+reason for asking it the same way. (Found in review as F1, fixed 2026-09-22;
+the dispatcher read the zone map's *keys* and then the whole effective
+list.)
+
 **The gate, three legs on each of two sets**, mirroring `gather` exactly
 because `CLAUDE.md` says a new reader of the effective list is dead on every
-board a gate skips: `trigger_sources: IdSet<ObjectId>` — permanents that
-*printed* a triggered ability or a trigger multiplier, inserted by
-`place_on_battlefield`, removed by `cleanup_zone_state`, over-approximating
-in one direction only; `RegistryScopeSummary.unattributed_trigger_zones`,
+board a gate skips: `trigger_sources: IdMap<ObjectId, EventKindMask>` —
+permanents that *printed* a triggered ability or a trigger multiplier, each
+against the record kinds its printed defs read (§11's lever, built
+2026-09-22), written by `place_on_battlefield`, removed by
+`cleanup_zone_state`, over-approximating in one direction only; `RegistryScopeSummary.unattributed_trigger_zones`,
 one field for the Layer 6 grant and the copy (`copy-effects-architecture.md`
 §4.7's leg) because the gate only ever reads them OR-ed; and the zone set
 above. `puts_a_triggered_ability(def)` is the
@@ -826,7 +837,9 @@ triggered ability on some object's *effective* list, and an ability reaches
 one of those by three routes — printed, granted, copied (`CLAUDE.md`'s three
 legs) — on an object that is either still findable or gone inside this very
 window. Cross the routes with the locations and every candidate falls in
-exactly one probe: printed and on the battlefield is `trigger_sources`;
+exactly one probe: printed and on the battlefield is `trigger_sources`,
+whose probe is the mask's — not "is any source present" but "does any source
+read a kind this window carries";
 printed and functioning where it is off the battlefield (CR 113.6k) is
 `zone_trigger_sources`; granted or copied is the summary's zone set, because
 neither printed set has ever heard of that object; and **departed** is the
@@ -1377,10 +1390,67 @@ the SBA check after the batch shares), one `matches` per triggered def per
 record in the window, one `settled_holds` per intervening "if" that
 reached it. About 313 batches and ~700 records a game today, ~16
 permanents a board, and — on the pools as they are — zero trigger sources,
-so the pools measure the four probes and nothing else. **The lever**,
-pre-approved and not built until a reading asks: a per-source
-`EventKindMask` on `trigger_sources` so a record of one kind visits only
-the objects whose conditions read it.
+so the pools measure the four probes and nothing else.
+
+**The lever, built 2026-09-22** (the TR-1 review, theme C, after the reading
+below asked for it): `trigger_sources` carries a per-source `EventKindMask`,
+so a window of one kind visits only the objects whose printed conditions read
+it. The window's kinds are OR-ed once; a source is a candidate only if the
+masks intersect; a window whose kinds no source reads returns before the
+ordered battlefield list is built. It narrows the battlefield leg and nothing
+else — the granted and copied legs and the departure frames read a list no
+registration saw, so they keep their whole-list walk, and the zone map is
+keyed by ability rather than by kind and keeps its `is_empty` probe.
+`TriggerEvent::reads` is now written *from* the mask's table rather than
+beside it, because a second table that had to agree with it is the bug this
+lever would otherwise have shipped with.
+
+### 11.1 The reading that asked for it, and what it bought
+
+**The sitting, 2026-09-20 (before) and 2026-09-22 (after)** — `fuzz_games`
+with an `Instant` around `GameState::dispatch` at the outer depth and three
+diagnostics rows beside it, which is a throwaway build both times because §3
+refuses to store a timer. The boards are `--require "Soul Warden,Blood
+Artist,Wild Growth" --copies N`, which is what `--copies` exists for; at 8 it
+is 24 of 36 nonland slots. `performance`, 200 games, seed 12345,
+`--threads 1`, medians of three interleaved rounds for the milliseconds, and
+the counters are exact.
+
+| copies | seats | dispatch ms/game | share of CPU | past the gate | candidate visits | matches |
+|---|---|---|---|---|---|---|
+| 0 | 2 | 0.443 → **0.114** | 6% → **2%** | 243 → **25** | 297 → **30** | 2.7 → 2.7 |
+| 8 | 2 | 2.878 → **1.209** | 20% → **10%** | 1,252 → **189** | 10,131 → **707** | 66.1 → 66.1 |
+| 0 | 4 | 1.734 → **0.500** | 7% → **2%** | 660 → **71** | 888 → **106** | 6.1 → 6.1 |
+| 8 | 4 | 10.963 → **4.583** | 21% → **10%** | 2,913 → **421** | 32,311 → **2,150** | 183.2 → 183.2 |
+
+**Matches and `Triggers placed` are unchanged on every board**, which is the
+claim that matters: the mask skipped nothing that could have matched. What it
+skipped is what `match_def` would have refused with `Refusal::Condition`
+after paying for a layer walk — the driver the reading named, fewer than 1%
+of visits matching, and a gate that asked "is any source present" rather
+than "does any source read this".
+
+Whole-game CPU on the same sitting: 14.07 → 12.55 ms at eight copies and two
+seats (**−11%**), 52.10 → 46.13 at four seats (**−11%**), and −0.4% / −2.7%
+on the shipped pool, which is inside the sitting's spread. **The before-arm
+numbers reproduce the 2026-09-20 reading's count columns exactly** — 243 /
+297 / 2.7 at zero copies, 1,252 / 10,131 / 66.1 at eight — so the shipped
+`--copies` is the retired `--stuff` probe's equal and the two readings are
+one sitting.
+
+**What the A/B says, and the one row of the gate that could not be met.**
+`fuzz_ab.py` against `main`, both pools, two seats and four: every gameplay
+counter, `Triggers placed`, `Decisions`, `Replacement gathers` and
+`Restriction queries` are **IDENTICAL**, and so is an arm built at F1 plus
+the flatten alone — byte-identical outside `=== Timing ===` on all four
+combinations. The mask's arm moves six rows and only six: `Layer walks`,
+`Board walks`, `Memo hits`, `Layer frames`, `Frames/walk`, `Dependency
+checks`, all **down** (372 → 366, 64,786 → 64,524, 4,861 → 4,748 on
+`performance` at two seats). Those are the cost-model rows
+(`state/diagnostics.rs`), and a lever whose whole purpose is to stop asking a
+source cannot leave them where they were — "IDENTICAL on every counter" is
+unmeetable by construction for this change, and the F1-only arm is what
+carries that claim instead.
 
 **A/B predictions, per phase**, in `engineering-practices.md` §3.1's terms —
 three arms where a pool changes (`main`, the engine with pools unchanged,
@@ -1613,7 +1683,9 @@ Recorded here at authoring; a finding that becomes a code item moves to
    dispatch order, which is window order, which is
    `battlefield_ids_ordered` order for a batch of entries — process-stable
    end to end. A `HashMap` reaching the queue would be a determinism bug;
-   `trigger_sources` is an `IdSet` and is never iterated for order.
+   `trigger_sources` is an `IdMap` and is iterated only for the gate's
+   `any`, which is a boolean fold and order-independent. The candidate list
+   is still built by walking `battlefield_ids_ordered` and filtering.
 2. **The `AbilityTriggered` record and CR 603.2d.** A multiplied trigger
    queues N entries and emits N records, so Strict Proctor under
    Panharmonicon triggers twice, which is the CR's answer (each instance is

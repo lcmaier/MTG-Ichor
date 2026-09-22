@@ -37,6 +37,51 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-22 for the TR-1 review, theme C** (the matcher — F1's
+CR 113.6 fix, #16's flatten, `triggers-architecture.md` §11's kind mask, #38,
+and `fuzz_games --copies N`). **No pool change**, so there is no new fixture
+table: `performance` stays at 94 and `stress` at 171, and every row of the
+2026-09-19 tables above still reads. What this block records is a cost
+reading and one row of a gate that could not be met.
+
+**The A/B, three arms, `fuzz_ab.py` against `main` at #175's head.** Both
+pools, two seats and four, 200 games, seed 12345.
+
+| arm | vs `main`, counters |
+|---|---|
+| F1 + #16's flatten (`d39b9ae`) | **IDENTICAL** on both pools at two seats and four |
+| plus §11's mask (shipped) | every gameplay counter identical; **six engine-work rows move, all down** |
+
+The six are `Layer walks`, `Board walks`, `Memo hits`, `Layer frames`,
+`Frames/walk` and `Dependency checks` — on `performance` at two seats
+372 → 366, 251 → 245, 64,786 → 64,524, 4,861 → 4,748, 13.08 → 12.96,
+31 → 30; the same shape on `stress` and at four seats.
+`Triggers placed`, `Decisions`, `Priority decisions`, `Replacement gathers`,
+`Restriction queries`, `Mana productions` and every game-content row are
+identical everywhere. **This is the one gate row the phase could not meet and
+should not have been asked to**: those six rows are `state/diagnostics.rs`'s
+cost model, the mask exists to stop asking a source that cannot match, and
+the two cannot both hold. The F1-only arm is what carries "no behavior
+moved", and it carries it byte for byte.
+
+**The dispatcher's own sitting** is `triggers-architecture.md` §11.1 — a
+throwaway `Instant` build, before and after, on the `--copies` boards the
+2026-09-20 reading used. The headline: candidate visits per game 297 → 30 on
+the shipped pool and 10,131 → 707 with eight copies each of the three, with
+`matches` and `Triggers placed` unchanged on every board. Whole-game CPU on
+the heavy boards −11% at both seat counts; on the shipped pool −0.4% and
+−2.7%, inside the sitting's spread.
+
+**The instrument is now in the tree.** `--copies N` reproduces the retired
+`--stuff N` probe's count columns exactly (243 / 297 / 2.7 at zero copies,
+1,252 / 10,131 / 66.1 at eight, two seats), so the 2026-09-20 reading and
+this one are one sitting rather than two builds that no longer exist. The
+`Instant` half is still a throwaway; §3 refuses to store a timer and is
+right to.
+
+**Determinism** holds under three `MTGSIM_HASH_SEED`s, line for line outside
+`=== Timing ===`, `stress`, 60 games, seed 99.
+
 **Re-recorded 2026-09-19 for TR-1** (the trigger spine — `triggers-architecture.md`
 §12, TR-1; `codebase-state.md` "Before Triggered abilities" items 1, 3, 7, 9,
 10 and 18 closed). **Pool change**: `performance` 91 → 94 (Soul Warden, Blood
