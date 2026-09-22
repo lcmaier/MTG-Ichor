@@ -254,7 +254,16 @@ never read" is past tense now.
 
 ---
 
-## D — the docs, and three decisions · *no code; TR-2's brief reads this*
+## D — the docs, and three decisions · *closed 2026-09-22, [PR #177](https://github.com/lcmaier/MTG-Ichor/pull/177)*
+
+*Decided by the owner 2026-09-22, every one as recommended: D.1 (a), the
+snapshot, in E; D.2 provenance ids, in E; D.3 CR 104.4b's draw at the bound,
+in TR-6. One correction to D.1, from the owner's question on its Bridge
+board: the rules answer below was right (no trigger — CR 603.10 sees
+Jailer's effect), but the engine claim was not — Bridge never triggers from
+a graveyard at all, because a triggered ability's CR 113.6b statement in an
+intervening "if" is not derived. Filed as `codebase-state.md` main item 173;
+Bridge's fixture waits for it, and E builds the Humility one.*
 
 ### D.1 Item 167, restated (#2) — *decision: snapshot now, or TR-4's frame*
 
@@ -431,8 +440,10 @@ atoms, TR-3 20, TR-4 14, TR-5 4, TR-6 2) and their own named ruling tests, at
 Whatever D decides: **provenance ids** (~60 lines: the id constructor, the Layer
 6 grant site, the elision's key, item 149's closure; a test with two grants of
 one def under one controller, the first ending mid-turn) and **item 167's
-snapshot** (~80 lines, the two fixtures in D.1, item 167 closed by the eviction
-rule). One PR each or one PR both, sized in D. Gate: `fuzz_ab.py` three arms
+snapshot** (~80 lines, D.1's Humility fixture — Bridge's waits for main item
+173 — item 167 closed by the eviction rule). Sized in D: one PR for both,
+~140 code and ~250 with the tests, far under the band, in two commits so the
+three arms attribute each — `main`, provenance, both. Gate: `fuzz_ab.py` three arms
 with the cost recorded in `fuzz-record.md` — the snapshot's probe runs on every
 board with a registry row, and the pools have Humility.
 
