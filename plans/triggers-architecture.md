@@ -477,6 +477,23 @@ are two triggers, and for the gates. The `(source, ability)` pair sites —
 than an index into the whole list, so a Layer 6 grant later in the turn
 does not renumber an earlier instance's gate.
 
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): provenance
+ids replace the ordinal, built in the review's theme E before TR-2 keys a
+gate on the identity.** The ordinal is stable under a later grant but not
+under an earlier grant *ending*: if the first of two Diffusion Slivers
+leaves mid-turn, the survivor's instance 1 becomes instance 0, and a
+once-per-turn gate keyed on instance 1 is orphaned while instance 0's reads
+as unused. So the Layer 6 grant site (`compute.rs:962`, where
+`is_characteristic_defining` is already cleared) mints the granted def's id
+from the granting row's source and epoch, an id constructor beside
+`AbilityId::derived_on` (`types/ids.rs:140`). Two grants carry two ids, stable
+while each grant exists and gone with it, so the "one or more" fold's
+`(identity, arm)` key (`dispatch.rs:519`) tells them apart with no ordinal.
+The elision (`placement.rs:106`) is re-keyed on def equality rather than id
+equality, and item 149's closure is amended. "Loses all abilities" goes by
+list, so CR 113.10b is unaffected. Diffusion Sliver itself waits for TR-5's
+target event, so nothing printed reads the field yet.
+
 ### 3.7 `PendingTrigger` and the queue
 
 ```rust
@@ -1061,10 +1078,19 @@ stack *after* the ability that caused it. The matcher dispatches it like
 any unbatched record; a trigger watching it is tier 2 by construction
 (`TriggerCondition::tier()`); a trigger watching a tier-2 trigger's
 triggering is tier 2 too, ordered within the tier by APNAP and its
-controller. The recursion is bounded by the abilities present — no
-registered or printed ability watches its own kind — and a depth past
-`BATCH_NESTING_LIMIT` is an `Err`, the engine's mistake, not a rules
-answer.
+controller. No printed ability watches its own kind, which is necessary
+and not sufficient once custom cards exist: a trigger watching abilities
+triggering, whose own triggering it then watches, recurses synchronously
+inside one dispatch, where TR-6's loop detector — which counts decisions —
+cannot see it, so the nesting bound is the only guard for that loop.
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): at the bound
+the answer is CR 104.4b's draw, not an `Err`.** TR-6 settles
+`GameResult::Draw` through the same settlement §4.9's detector uses, and
+`DISPATCH_NESTING_LIMIT` (16 today, `dispatch.rs:44`, an `Err` until then)
+becomes that detector's threshold knob rather than a second number.
+`BATCH_NESTING_LIMIT` (32, `actions.rs:38`) is the same pattern but a
+genuine engine invariant — CR 614.5 bounds every replacement chain — so it
+stays an `Err`.
 
 ### 4.9 The mandatory loop (CR 104.4b, 731; P5; `backlog.md` §2.28)
 
