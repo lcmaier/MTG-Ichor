@@ -104,7 +104,7 @@ Size ~120 lines. Gate: the A gate plus `check_rulings --check`.
 
 ---
 
-## C — the matcher · *closed 2026-09-22, [PR #NNN](https://github.com/lcmaier/MTG-Ichor/pull/NNN)*
+## C — the matcher · *closed 2026-09-22, [PR #176](https://github.com/lcmaier/MTG-Ichor/pull/176)*
 
 **F1 — the dispatcher does not apply CR 113.6 per ability for an off-battlefield
 source.** `register_static_effects` puts into `zone_trigger_sources` only the
