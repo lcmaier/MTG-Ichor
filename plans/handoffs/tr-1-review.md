@@ -104,7 +104,7 @@ Size ~120 lines. Gate: the A gate plus `check_rulings --check`.
 
 ---
 
-## C — the matcher · *three edits to one function, one test, and §11's lever*
+## C — the matcher · *closed 2026-09-22, [PR #176](https://github.com/lcmaier/MTG-Ichor/pull/176)*
 
 **F1 — the dispatcher does not apply CR 113.6 per ability for an off-battlefield
 source.** `register_static_effects` puts into `zone_trigger_sources` only the
@@ -115,15 +115,27 @@ The replacement gather makes exactly this check per def
 (`gather.rs:535`, `functions_in(ability, &chars.types, zone)`); the dispatcher
 has no such line.
 
-*Proved 2026-09-20 with a throwaway fixture (deleted):* an Ichorid-shaped
-creature card — "when this card is put into a graveyard from anywhere" beside
+*Proved 2026-09-20 with a throwaway fixture (deleted):* a creature card
+— "when this card is put into a graveyard from anywhere" beside
 "whenever a creature dies" — in a graveyard, and a creature dies: **pending 1,
 where the answer is 0**; the same card on the battlefield: 1, correct.
 
 *Reachability:* no registered card has a trigger that functions in one zone
 beside one that functions in another, so unreachable today; wrong the day TR-4
 registers Bloodghast or Ichorid, and TR-4's own row names neither, so this file
-is the only thing holding it. **If C has not landed when this file is next
+is the only thing holding it.
+
+*Corrected 2026-09-22 (owner's review of PR #176):* neither card is shaped
+the way this section said, and "Ichorid-shaped" above was never checked
+against the card. **Ichorid** has no "from anywhere" clause; its F1 exposure
+is "at the beginning of the end step, sacrifice this creature", asked from
+the graveyard its upkeep return functions in — and that return is CR
+113.6m's (an effect that moves its object out of a zone), which
+`zone_function` does not derive. **Bloodghast** has one triggered ability
+and was never F1-shaped. The card with the fixture's actual shape is
+**Dread** (Scryfall, 2026-09-22) — "whenever a creature deals damage to you"
+beside "when Dread is put into a graveyard from anywhere" — expressible
+today, and PR #176's fixture is Dread's. **If C has not landed when this file is next
 touched, file it as a `codebase-state.md` item under "Found by TR-1" with this
 text.**
 
@@ -226,6 +238,19 @@ board and nearly all of it on the shipped pool — an estimate until the arm run
 
 Gate: the fixture red then green; `fuzz_ab.py` engine vs `main` `IDENTICAL`;
 the probe re-run and the record.
+
+*Closed 2026-09-22.* Three things a later reader needs from this theme.
+**`IDENTICAL` on every counter was unmeetable and the gate should not have
+asked it**: six rows are `state/diagnostics.rs`'s cost model, the mask exists
+to stop asking a source that cannot match, and both cannot hold. A third arm
+at F1-plus-flatten alone carries "no behavior moved" and is byte-identical on
+both pools at two seats and four; `fuzz-record.md`'s 2026-09-22 block has the
+numbers. **The owner took both calls**: `--copies N` shipped (it reproduces
+the retired `--stuff` probe's count columns exactly), and #38 was kept and
+tightened — where it turned out to be vacuous twice over, since the deck had
+no mana base and placed **zero** triggers in 12 turns at either seat count.
+**D.5's `#25` keep needs a word changed**: "the value F1 says the dispatcher
+never read" is past tense now.
 
 ---
 

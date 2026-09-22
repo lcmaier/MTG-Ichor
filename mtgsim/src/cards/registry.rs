@@ -982,6 +982,41 @@ mod tests {
             "the stress pool has stopped being a strict superset"
         );
     }
+
+    /// `AbilityType::Triggered` and `Effect::Triggered` are one fact written
+    /// twice: the tag is what priority and display key on, the effect is what
+    /// the trigger dispatcher reads. `authoring::triggered_ability` writes both
+    /// and is the only constructor of either, so the dispatcher asks only the
+    /// effect. This is what makes that safe for every card, printed or nested.
+    #[test]
+    fn a_triggered_tag_and_a_triggered_effect_always_come_together() {
+        use crate::objects::card_data::{AbilityDef, AbilityType};
+        use crate::types::effects::Effect;
+
+        fn check(what: &str, def: &AbilityDef) {
+            assert_eq!(
+                def.ability_type == AbilityType::Triggered,
+                matches!(def.effect, Effect::Triggered(_)),
+                "{what}: the ability's tag and its effect disagree"
+            );
+        }
+
+        let registry = CardRegistry::default_registry();
+        let mut names: Vec<String> = registry.cards.keys().cloned().collect();
+        names.sort();
+        for name in names {
+            let card = (registry.cards[name.as_str()])();
+            let mut copy = (*card).clone();
+            for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
+                check(&format!("{name} ability #{i}"), ability);
+                let mut nested = 0usize;
+                ability.effect.for_each_ability_def_mut(&mut |def| {
+                    check(&format!("{name} ability #{i}, nested def #{nested}"), def);
+                    nested += 1;
+                });
+            }
+        }
+    }
 }
 
 #[cfg(test)]

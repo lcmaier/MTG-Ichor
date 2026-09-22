@@ -21,7 +21,7 @@ use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
     another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::basic_lands::forest;
+use mtgsim::cards::basic_lands::{forest, plains, swamp};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::phase_lf_cards::humility;
@@ -61,6 +61,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1709,6 +1710,148 @@ fn a_from_anywhere_trigger_is_stopped_by_yixlid_jailer() {
     assert_eq!(pending(&game), 1);
 }
 
+/// Dread's two triggers (Lorwyn): "Whenever a creature deals damage to you,
+/// destroy it" and "When Dread is put into a graveyard from anywhere, shuffle
+/// it into its owner's library". The effects are stand-ins; the tests count
+/// triggers.
+///
+/// The first functions on the battlefield only (CR 113.6's default) and the
+/// second everywhere (CR 113.6k, derived). The board that tells the two apart
+/// is the card in a graveyard with the second one still waiting — or never
+/// resolved, if it is countered.
+fn dread_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Incarnate Menace")
+        .card_type(CardType::Creature)
+        .power_toughness(6, 6)
+        .rules_text("Whenever a creature deals damage to you, destroy it.")
+        .ability(triggered_ability(whenever(
+            TriggerEvent::DamageDealt {
+                source: a_creature().into(),
+                recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                combat: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            gain_one(),
+        )))
+        .ability(triggered_ability(whenever(
+            TriggerEvent::ZoneChange {
+                subject: TriggerSubject::This,
+                from: None,
+                to: Some(Zone::Graveyard),
+                cause: None,
+                owner: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            gain_one(),
+        )))
+        .build()
+}
+
+/// F1 — CR 113.6 is asked of each **ability**, not of the object.
+///
+/// Dread in a graveyard is a trigger candidate because its "from anywhere"
+/// ability functions there. Its damage trigger does not, so a creature
+/// dealing damage to its owner must not trigger it. Registration already
+/// knew — `zone_trigger_sources` holds the one ability id — and the matcher
+/// read only the map's keys.
+#[test]
+fn a_battlefield_only_trigger_is_not_asked_from_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let dread = put_on_battlefield(&mut game, dread_shaped(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    // Dread dies: "from anywhere" is read after the move (CR 603.6c).
+    destroy_all(&mut game, &[dread], source);
+    assert_eq!(pending(&game), 1, "the from-anywhere trigger, once");
+
+    // A creature deals damage to Dread's owner while Dread is in the graveyard.
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(
+        pending(&game),
+        1,
+        "CR 113.6 — the damage trigger functions on the battlefield, and Dread is in a graveyard"
+    );
+}
+
+/// The same ability from the zone it does function in — so the test above is
+/// CR 113.6 being applied and not the ability being lost.
+#[test]
+fn the_same_trigger_is_asked_from_the_battlefield() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, dread_shaped(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(pending(&game), 1, "a creature dealt damage to Dread's controller");
+}
+
+/// CR 113.6k's second sentence: "Other trigger conditions of the same
+/// triggered ability may function in different zones." One ability with two
+/// conditions — "from anywhere" functions everywhere, "a creature deals
+/// damage to you" on the battlefield only. Absolver Thrull is the CR's own
+/// example of the structure; its haunt condition is not expressible yet, and
+/// the rule does not wait for a printed card.
+fn one_ability_two_zones() -> Arc<CardData> {
+    creature_with_ability(
+        "Split Vigil",
+        1,
+        1,
+        triggered_ability(TriggerDef {
+            condition: TriggerCondition::AnyOf(vec![
+                TriggerEvent::ZoneChange {
+                    subject: TriggerSubject::This,
+                    from: None,
+                    to: Some(Zone::Graveyard),
+                    cause: None,
+                    owner: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                },
+                TriggerEvent::DamageDealt {
+                    source: a_creature().into(),
+                    recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                    combat: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                },
+            ]),
+            intervening_if: None,
+            limit: None,
+            effect: gain_one(),
+        }),
+    )
+}
+
+/// The ability functions in the graveyard, because one of its conditions
+/// does; the other condition still does not, and is not asked there.
+#[test]
+fn a_trigger_condition_is_asked_only_where_it_functions() {
+    let mut game = setup_two_player_game();
+    let vigil = put_on_battlefield(&mut game, one_ability_two_zones(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[vigil], source);
+    assert_eq!(pending(&game), 1, "the from-anywhere condition, once");
+
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(
+        pending(&game),
+        1,
+        "CR 113.6k — the damage condition functions on the battlefield only"
+    );
+}
+
+/// Its control: the same condition, from the battlefield.
+#[test]
+fn both_conditions_function_on_the_battlefield() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, one_ability_two_zones(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(pending(&game), 1, "the damage condition, from the battlefield");
+}
+
 // ---------------------------------------------------------------------------
 // The trace's sixth emit point (item 9)
 // ---------------------------------------------------------------------------
@@ -1730,6 +1873,37 @@ fn the_dispatcher_writes_a_trigger_record_per_decision_and_a_pending_record_per_
     let pending_records = buf.of_kind("pending");
     assert_eq!(pending_records.len(), 1);
     assert!(pending_records[0].contains("\"refused_by\":null"));
+}
+
+
+/// §11's lever, observed: a source is visited only when the window carries a
+/// kind its printed defs read.
+///
+/// The trace's `trigger` record is written per decision, so "no record" is
+/// "not asked" — which before the mask was "asked and refused by
+/// `Refusal::Condition`". Soul Warden reads an entry and nothing else; a tap
+/// is a window it cannot match, and the dispatch returns at the gate.
+#[test]
+fn a_window_no_source_reads_is_refused_at_the_gate() {
+    let mut game = setup_two_player_game();
+    let buf = install_trace(&mut game, "tr-1");
+    put_on_battlefield(&mut game, soul_warden(), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let entries = buf.of_kind("trigger").len();
+
+    game.execute_action(GameAction::Tap { object: bear }, &test_ctx()).unwrap();
+    assert_eq!(
+        buf.of_kind("trigger").len(),
+        entries,
+        "a Tapped window meets no mask, so Soul Warden is never asked"
+    );
+
+    // The control: a kind it does read puts it back in the candidate set.
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    assert!(
+        buf.of_kind("trigger").len() > entries,
+        "an entry is the kind Soul Warden reads"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1772,15 +1946,23 @@ fn a_permanent_remembers_whether_it_was_cast() {
     assert_eq!(game.battlefield[&placed].cast, None);
 }
 
-/// A whole game with the three pooled cards forced into both decks, at two
-/// seats and four, ends without an error — and every trigger placed is on
-/// `GameState` between its dispatch and its placement.
+/// CR 117.5 — "each time a player would get priority, [...] triggered
+/// abilities that are waiting to be put onto the stack are put onto the
+/// stack." So the queue is empty at every priority prompt, and this plays
+/// whole games with the three pooled cards forced into every deck, at two
+/// seats and four, to say so.
+///
+/// **The assertion is the provider's, not the loop's.** What stood here was
+/// `pending_triggers.is_empty() || !g.is_over()`, which holds trivially
+/// until the game ends and then holds for the other reason; the claim the
+/// doc comment made was never checked. `PriorityQueueWatcher` checks it at
+/// the one instant CR 117.5 names, which is also the only instant a
+/// `DecisionProvider` can see.
 #[test]
-fn the_pooled_cards_play_whole_games() {
+fn no_player_receives_priority_with_a_trigger_still_queued() {
     use mtgsim::cards::registry::CardRegistry;
     use mtgsim::state::game::Game;
     use mtgsim::state::game_config::GameConfig;
-    use mtgsim::ui::random::RandomDecisionProvider;
 
     for players in [2usize, 4] {
         let registry = CardRegistry::performance_pool();
@@ -1788,20 +1970,119 @@ fn the_pooled_cards_play_whole_games() {
             .card_names()
             .iter()
             .cycle()
-            .take(50)
+            .take(30)
             .filter_map(|n| registry.create(n).ok())
             .collect();
         deck.extend([soul_warden(), soul_warden(), blood_artist(), blood_artist(), wild_growth(), wild_growth()]);
+        // A mana base the three can actually be cast off. Without one the
+        // agent never casts them and the test is vacuous twice over, which is
+        // how it stood: 212 priority prompts at two seats and not one trigger
+        // placed. `random_deck` makes the same guarantee for the fuzz harness
+        // and for the same reason.
+        for _ in 0..8 {
+            deck.extend([plains(), swamp(), forest()]);
+        }
         let mut g = Game::new(GameConfig::test(), vec![deck; players]).unwrap();
         g.reseed(603);
-        let dp = RandomDecisionProvider::seeded(603 + players as u64);
+        let dp = PriorityQueueWatcher::seeded(603 + players as u64);
         g.setup(&dp).unwrap();
-        for _ in 0..12 {
+        for _ in 0..20 {
             if g.is_over() {
                 break;
             }
             g.run_turn(&dp).unwrap();
         }
-        assert!(g.state.pending_triggers.is_empty() || !g.is_over());
+        // The guard that keeps the claim from being vacuous a third way:
+        // a board where nothing triggers proves nothing about CR 117.5.
+        assert!(
+            g.state.diagnostics.triggers_placed() > 0,
+            "{players} seats: the forced cards must actually trigger"
+        );
+        assert!(dp.prompts.get() > 0, "{players} seats: the game reached priority at all");
+    }
+}
+
+/// A `RandomDecisionProvider` that asserts CR 117.5 at every priority
+/// prompt: nothing is waiting to be put onto the stack by the time anyone is
+/// asked what to do.
+///
+/// A wrapper rather than a change to the random agent — the assertion is
+/// this test's claim, and a provider that panicked inside `fuzz_games` would
+/// turn a rules bug into a harness crash.
+struct PriorityQueueWatcher {
+    inner: RandomDecisionProvider,
+    prompts: std::cell::Cell<usize>,
+}
+
+impl PriorityQueueWatcher {
+    fn seeded(seed: u64) -> Self {
+        PriorityQueueWatcher {
+            inner: RandomDecisionProvider::seeded(seed),
+            prompts: std::cell::Cell::new(0),
+        }
+    }
+
+    fn check(&self, game: &GameState, context: &ChoiceContext) {
+        if !matches!(context.kind, ChoiceKind::PriorityAction) {
+            return;
+        }
+        self.prompts.set(self.prompts.get() + 1);
+        assert!(
+            game.pending_triggers.is_empty(),
+            "CR 117.5 — {} trigger(s) still queued as a player receives priority",
+            game.pending_triggers.len()
+        );
+    }
+}
+
+impl DecisionProvider for PriorityQueueWatcher {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.check(game, context);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        self.check(game, context);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.check(game, context);
+        self.inner
+            .allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        self.check(game, context);
+        self.inner.choose_ordering(game, player, context, items)
     }
 }

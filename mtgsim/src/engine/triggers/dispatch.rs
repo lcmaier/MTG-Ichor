@@ -24,14 +24,15 @@ use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
+use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
+use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, Multiplicity, PendingTrigger, TriggerBinding,
+    DamageRecipient, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger, TriggerBinding,
     TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneSet};
@@ -83,7 +84,8 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
     !game.battlefield.get(&id).is_some_and(|entry| entry.face_down)
 }
 
-/// One candidate ability, as the matcher sees it.
+/// One object the matcher asks: a live source, or a departed one read off
+/// the CR 603.10a frame its record carries.
 struct TriggerCandidate<'a> {
     id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
@@ -93,9 +95,42 @@ struct TriggerCandidate<'a> {
     zone: Zone,
     /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
     host: Option<ObjectId>,
-    /// `None` for a live object — its list is read fresh — and the CR 603.10a
-    /// frame for a departed one, which is asked look-back conditions only.
-    frame: Option<&'a EffectiveCharacteristics>,
+    frame: TriggerCandidateFrame<'a>,
+    /// What a stack object is built from (CR 603.3's "text of the ability").
+    card: Arc<CardData>,
+}
+
+/// Where a candidate's abilities and types are read from.
+enum TriggerCandidateFrame<'a> {
+    /// A live object's effective frame, off the layer memo.
+    Live(Arc<EffectiveCharacteristics>),
+    /// A departed object's CR 603.10a frame, off its record — asked
+    /// look-back conditions only (§4.2 leg 2).
+    Departed(&'a EffectiveCharacteristics),
+}
+
+impl TriggerCandidateFrame<'_> {
+    fn chars(&self) -> &EffectiveCharacteristics {
+        match self {
+            TriggerCandidateFrame::Live(chars) => chars,
+            TriggerCandidateFrame::Departed(frame) => frame,
+        }
+    }
+
+    fn is_departed(&self) -> bool {
+        matches!(self, TriggerCandidateFrame::Departed(_))
+    }
+}
+
+/// One triggered ability of one candidate, with the facts that do not depend
+/// on the record answered once: CR 113.6, the instance ordinal and the
+/// identity.
+struct TriggerCandidateDef<'a> {
+    /// Index into the candidate list.
+    candidate: usize,
+    identity: AbilityIdentity,
+    def: &'a TriggerDef,
+    instances: &'a [EffectRecipient],
 }
 
 /// A match the dispatcher will queue or resolve.
@@ -183,11 +218,12 @@ impl GameState {
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — four probes (§4.2): the battlefield set, the zone
-    ///    map, the unattributed zone set off the registry summary, and
-    ///    whether any record of the window carries a CR 603.10a frame with a
-    ///    triggered ability in it. All empty, and a dispatch is the probes and
-    ///    nothing else.
+    /// 1. **The gate** — four probes (§4.2): the permanents whose printed
+    ///    triggers read a kind this window carries (§11's mask, source
+    ///    first), the zone map, the unattributed zone set off the registry
+    ///    summary, and whether any record of the window carries a CR 603.10a
+    ///    frame with a triggered ability in it. All empty, and a dispatch is
+    ///    the probes and nothing else.
     /// 2. **The candidates** — `find_matches`' four legs: every object that
     ///    may carry a triggered ability functioning where it is, in CR 613.7
     ///    order, each with the effective ability list read once and the card a
@@ -208,14 +244,32 @@ impl GameState {
     ///    bounds.
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- The gate: four probes, and on the old pools nothing else -------
+        //
+        // The window's kinds first, OR-ed once (§11). A window no arm can
+        // read — a spell cast, an activation, a shuffle — would be refused by
+        // `match_def` for every candidate on every leg; this is that answer
+        // without the walk.
+        let window_kinds = window.iter().fold(EventKindMask::EMPTY, |mask, seq| {
+            match self.events.record(*seq).and_then(|r| EventKind::from_record(&r.event)) {
+                Some(kind) => mask.with(kind),
+                None => mask,
+            }
+        });
+        if window_kinds.is_empty() {
+            return Ok(());
+        }
         let summary = self.continuous_effects.summary();
         let unattributed = summary.unattributed_trigger_zones;
+        let readers = self.battlefield_readers(window_kinds);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
             })
         });
-        if self.trigger_sources.is_empty()
+        // Only the battlefield probe reads the mask. The zone map is keyed by
+        // ability, and the granted, copied and departed legs read lists no
+        // registration saw, so they keep their whole walk.
+        if readers.is_empty()
             && self.zone_trigger_sources.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
@@ -223,7 +277,7 @@ impl GameState {
             return Ok(());
         }
 
-        let matches = self.find_matches(window, unattributed);
+        let matches = self.find_matches(window, readers, unattributed);
         if matches.is_empty() {
             return Ok(());
         }
@@ -277,18 +331,38 @@ impl GameState {
         Ok(())
     }
 
+    /// Leg 1, source first: the permanents whose printed triggers read a kind
+    /// `window_kinds` carries, in CR 613.7 order. Sorted on the key
+    /// `battlefield_ids_ordered` sorts on, so the candidate order — which the
+    /// `OrderTriggers` prompt offers — is the whole-battlefield walk's.
+    fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+        let mut readers: Vec<(Timestamp, ObjectId)> = self
+            .trigger_sources
+            .iter()
+            .filter(|(_, kinds)| kinds.intersects(window_kinds))
+            .filter_map(|(&id, _)| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
+            .collect();
+        readers.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+        readers.into_iter().map(|(_, id)| id).collect()
+    }
+
     /// The matcher's read-only half: every candidate ability against every
     /// record of the window, in window order then candidate order — the
     /// order the `OrderTriggers` prompt will offer, which has to be
     /// process-stable end to end (§15 item 1).
-    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<MatchedTrigger> {
-        // Leg 1: the battlefield, in CR 613.7 order, gated per permanent.
-        let on_battlefield = unattributed.contains(Zone::Battlefield);
-        let mut live: Vec<ObjectId> = self
-            .battlefield_ids_ordered()
-            .into_iter()
-            .filter(|id| on_battlefield || self.trigger_sources.contains(id))
-            .collect();
+    fn find_matches(
+        &self,
+        window: &[EventSeq],
+        readers: Vec<ObjectId>,
+        unattributed: ZoneSet,
+    ) -> Vec<MatchedTrigger> {
+        // Leg 1: the battlefield — the gate's readers, or every permanent
+        // when a granted or copied trigger may be on any of them.
+        let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
+            self.battlefield_ids_ordered()
+        } else {
+            readers
+        };
 
         // Legs 3 and 4: objects off the battlefield whose ability functions
         // where they are (CR 113.6k, derived) — the record's own subject in a
@@ -332,22 +406,19 @@ impl GameState {
             })
             .collect();
 
-        let mut candidates: Vec<(TriggerCandidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
+        let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
         for id in live {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
-            candidates.push((
-                TriggerCandidate {
-                    id,
-                    controller: controller_or_owner(self, id).unwrap_or(object.owner),
-                    owner: object.owner,
-                    zone: object.zone,
-                    host: self.battlefield.get(&id).and_then(|e| e.attached_to),
-                    frame: None,
-                },
-                Arc::clone(&chars.abilities),
-                Arc::clone(&object.card_data),
-            ));
+            candidates.push(TriggerCandidate {
+                id,
+                controller: controller_or_owner(self, id).unwrap_or(object.owner),
+                owner: object.owner,
+                zone: object.zone,
+                host: self.battlefield.get(&id).and_then(|e| e.attached_to),
+                frame: TriggerCandidateFrame::Live(chars),
+                card: Arc::clone(&object.card_data),
+            });
         }
         for (id, owner, from, frame) in frames {
             // A departed object's card: still in the store for a zone change,
@@ -358,88 +429,108 @@ impl GameState {
                 Some(object) => Arc::clone(&object.card_data),
                 None => Arc::new(frame_card(frame)),
             };
-            candidates.push((
-                TriggerCandidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
-                Arc::clone(&frame.abilities),
+            candidates.push(TriggerCandidate {
+                id,
+                controller: frame.controller,
+                owner,
+                zone: from,
+                host: None,
+                frame: TriggerCandidateFrame::Departed(frame),
                 card,
-            ));
+            });
+        }
+
+        // One row per triggered ability, so the records loop below pays
+        // only for what depends on the record (§4.2).
+        let mut defs: Vec<TriggerCandidateDef<'_>> = Vec::new();
+        for (index, candidate) in candidates.iter().enumerate() {
+            let chars = candidate.frame.chars();
+            let epoch = self.objects.get(&candidate.id).map(|o| o.zone_change_epoch).unwrap_or(0);
+            for (position, ability) in chars.abilities.iter().enumerate() {
+                let Effect::Triggered(def) = &ability.effect else { continue };
+                // CR 113.6 is asked of each ability: the object is here
+                // because *some* ability of its functions here (§4.2).
+                if !functions_in(ability, &chars.types, candidate.zone) {
+                    continue;
+                }
+                defs.push(TriggerCandidateDef {
+                    candidate: index,
+                    identity: AbilityIdentity {
+                        source: ObjectRef { id: candidate.id, zone_change_epoch: epoch },
+                        ability: ability.id,
+                        instance: chars.abilities[..position]
+                            .iter()
+                            .filter(|a| a.id == ability.id)
+                            .count() as u32,
+                    },
+                    def,
+                    instances: &ability.instances,
+                });
+            }
         }
 
         for (seq, record) in &records {
-            for (candidate, abilities, card) in &candidates {
-                for (index, ability) in abilities.iter().enumerate() {
-                    let Effect::Triggered(def) = &ability.effect else { continue };
-                    if ability.ability_type != AbilityType::Triggered {
-                        continue;
+            for row in &defs {
+                let candidate = &candidates[row.candidate];
+                let identity = row.identity;
+                let def = row.def;
+                let outcome = self.match_def(def, candidate, *seq, &record.event);
+                let (matched, subjects, refusal) = match outcome {
+                    Ok((event, subjects)) => (Some(event), subjects, None),
+                    Err(refusal) => (None, Vec::new(), Some(refusal)),
+                };
+                let mana = matched.is_some() && is_mana_ability(def);
+                self.trace(|| {
+                    trace_records::trigger(
+                        self,
+                        *seq,
+                        &identity,
+                        candidate.zone,
+                        matched.is_some(),
+                        refusal.map(Refusal::name),
+                        mana,
+                    )
+                });
+                let Some(matched) = matched else { continue };
+                let arm = &def.condition.events()[matched.0];
+                // Cloned here rather than in the pre-pass: a match is under 1%
+                // of visits, so one clone per matching record is cheaper than
+                // one per candidate def whether or not it ever matches.
+                let def_arc: Arc<TriggerDef> = Arc::new(def.clone());
+                match arm.multiplicity() {
+                    Multiplicity::PerOccurrence => {
+                        for subject in subjects {
+                            matches.push(MatchedTrigger {
+                                identity,
+                                controller: candidate.controller,
+                                def: Arc::clone(&def_arc),
+                                source_card: Arc::clone(&candidate.card),
+                                instances: row.instances.to_vec(),
+                                event: matched,
+                                records: vec![*seq],
+                                object: subject.and_then(|id| self.object_ref(id)),
+                                mana,
+                            });
+                        }
                     }
-                    let instance = abilities[..index].iter().filter(|a| a.id == ability.id).count() as u32;
-                    let identity = AbilityIdentity {
-                        source: ObjectRef {
-                            id: candidate.id,
-                            zone_change_epoch: self
-                                .objects
-                                .get(&candidate.id)
-                                .map(|o| o.zone_change_epoch)
-                                .unwrap_or(0),
-                        },
-                        ability: ability.id,
-                        instance,
-                    };
-                    let outcome = self.match_def(def, candidate, *seq, &record.event);
-                    let (matched, subjects, refusal) = match outcome {
-                        Ok((event, subjects)) => (Some(event), subjects, None),
-                        Err(refusal) => (None, Vec::new(), Some(refusal)),
-                    };
-                    let mana = matched.is_some() && is_mana_ability(def);
-                    self.trace(|| {
-                        trace_records::trigger(
-                            self,
-                            *seq,
-                            &identity,
-                            candidate.zone,
-                            matched.is_some(),
-                            refusal.map(Refusal::name),
-                            mana,
-                        )
-                    });
-                    let Some(matched) = matched else { continue };
-                    let arm = &def.condition.events()[matched.0];
-                    let def_arc: Arc<TriggerDef> = Arc::new((**def).clone());
-                    match arm.multiplicity() {
-                        Multiplicity::PerOccurrence => {
-                            for subject in subjects {
+                    // CR 603.2c's boundary is the window: one trigger, every
+                    // matching record in its binding, no one object.
+                    Multiplicity::OncePerEvent => {
+                        match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
+                            Some((_, at)) => matches[*at].records.push(*seq),
+                            None => {
+                                once.push(((identity, matched), matches.len()));
                                 matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
                                     def: Arc::clone(&def_arc),
-                                    source_card: Arc::clone(card),
-                                    instances: ability.instances.clone(),
+                                    source_card: Arc::clone(&candidate.card),
+                                    instances: row.instances.to_vec(),
                                     event: matched,
                                     records: vec![*seq],
-                                    object: subject.and_then(|id| self.object_ref(id)),
+                                    object: None,
                                     mana,
                                 });
-                            }
-                        }
-                        // CR 603.2c's boundary is the window: one trigger, every
-                        // matching record in its binding, no one object.
-                        Multiplicity::OncePerEvent => {
-                            match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
-                                Some((_, at)) => matches[*at].records.push(*seq),
-                                None => {
-                                    once.push(((identity, matched), matches.len()));
-                                    matches.push(MatchedTrigger {
-                                        identity,
-                                        controller: candidate.controller,
-                                        def: Arc::clone(&def_arc),
-                                        source_card: Arc::clone(card),
-                                        instances: ability.instances.clone(),
-                                        event: matched,
-                                        records: vec![*seq],
-                                        object: None,
-                                        mana,
-                                    });
-                                }
                             }
                         }
                     }
@@ -464,7 +555,7 @@ impl GameState {
         }
         // CR 603.2f, per candidate, of the object as the event left it. A frame
         // candidate was a permanent, which is visible.
-        if candidate.frame.is_none() && !visible_to_all(self, candidate.id) {
+        if !candidate.frame.is_departed() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
         let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
@@ -472,10 +563,15 @@ impl GameState {
             // A frame is asked look-back conditions only (§4.2 leg 2); a live
             // object is asked everything, its look-back arms against the
             // list it has now.
-            if candidate.frame.is_some() && !arm.looks_back() {
+            if candidate.frame.is_departed() && !arm.looks_back() {
                 continue;
             }
             if !arm.reads(event) {
+                continue;
+            }
+            // CR 113.6k asks each trigger condition where it functions; the
+            // pre-pass asked the ability, which is their union.
+            if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
             let subjects = self.arm_occurrences(arm, candidate, seq, event);
@@ -754,7 +850,7 @@ impl GameState {
 }
 
 fn is_triggered(def: &AbilityDef) -> bool {
-    def.ability_type == AbilityType::Triggered && matches!(def.effect, Effect::Triggered(_))
+    matches!(def.effect, Effect::Triggered(_))
 }
 
 /// The CR 603.10a frame a record carries, if it carries one.

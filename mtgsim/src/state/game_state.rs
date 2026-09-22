@@ -22,6 +22,7 @@ use crate::types::ids::{
 };
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
+use crate::types::triggers::EventKindMask;
 
 /// The outcome of a game that has ended (CR 104).
 ///
@@ -556,13 +557,21 @@ pub struct GameState {
     /// the drain again.
     pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
-    /// Permanents that *printed* a triggered ability — the dispatcher's
-    /// fast-path gate, `replacement_ability_sources`' twin: inserted by
+    /// Permanents that *printed* a triggered ability, each against the
+    /// record kinds its printed defs read — the dispatcher's fast-path gate,
+    /// `replacement_ability_sources`' twin: written by
     /// `register_static_effects` from `place_on_battlefield`, removed by
     /// `cleanup_zone_state`, over-approximating in one direction only. A
     /// triggered ability an object has without having printed one reaches
     /// the sweep through `RegistryScopeSummary::unattributed_trigger_zones`.
-    pub trigger_sources: IdSet<ObjectId>,
+    ///
+    /// **The mask is `triggers-architecture.md` §11's lever**, and it is a
+    /// mask of the *printed* defs for the same reason the set was of printed
+    /// abilities: a granted or copied trigger is the summary's leg, which
+    /// keeps its whole-list walk. A window whose kinds no source's mask
+    /// meets is a dispatch that returns before the battlefield list is
+    /// built.
+    pub trigger_sources: IdMap<ObjectId, EventKindMask>,
     /// Objects off the battlefield with a printed triggered ability that
     /// functions where they are (CR 113.6k, derived by
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
@@ -826,7 +835,7 @@ impl GameState {
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
-            trigger_sources: IdSet::default(),
+            trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             events: EventLog::new(),
             trace: None,
@@ -1585,11 +1594,14 @@ impl GameState {
             // ability's function somewhere else. The same CR 113.6 gate as
             // the static path below, on printed types for the same reason.
             if ability.ability_type == AbilityType::Triggered {
-                if matches!(ability.effect, Effect::Triggered(_))
+                if let Effect::Triggered(def) = &ability.effect
                     && crate::engine::zone_function::functions_in(ability, &card.types, zone)
                 {
                     if zone == Zone::Battlefield {
-                        self.trigger_sources.insert(id);
+                        // Accumulated, not replaced: a permanent with two
+                        // triggered abilities is one entry reading both
+                        // kinds.
+                        *self.trigger_sources.entry(id).or_default() |= def.record_kinds();
                     } else {
                         self.zone_trigger_sources.entry(id).or_default().push(ability.id);
                     }

@@ -8,6 +8,7 @@
 //        cargo run --bin fuzz_games -- --pool stress                (every card)
 //        cargo run --bin fuzz_games -- --require "Cytoshape,Mirrorweave"
 //        cargo run --bin fuzz_games -- -r "Opt" -r "Eligeth, Crossroads Augur"
+//        cargo run --bin fuzz_games -- -r "Soul Warden" --copies 8   (a heavy board)
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
@@ -22,6 +23,14 @@
 // changes nothing: every RNG draw it adds is guarded, so a `--require` run and
 // a timing run come from the same binary without the first perturbing the
 // second.
+//
+// `--copies N` is the *cost* half of the same flag: N copies of each required
+// nonland instead of one, so a board heavy in one mechanic can be built by
+// anyone who knows the card names. It exists because the reading
+// `triggers-architecture.md` Â§11 was waiting for was taken with a throwaway
+// build that hard-coded three names, and a reading nobody can re-take is a
+// number with a footnote. The default is 1, and `--copies` without
+// `--require` requires nothing N times, which is still nothing.
 //
 // **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast`
 // events; `resolved` counts stack departures a spell's *own resolution*
@@ -121,6 +130,9 @@ struct Args {
     /// resolutions are counted and reported. Empty by default, and an empty
     /// list must change nothing — see `random_deck`.
     require: Vec<String>,
+    /// Copies of each required **nonland** card per deck (`--copies`). 1 by
+    /// default, which is the shape every recorded `--require` row was taken at.
+    copies: usize,
     /// Stack `ui::ManaWindowStop` under the random agent (the default).
     ///
     /// With it, the agent declines CR 601.2g's window once the locked mana
@@ -202,6 +214,7 @@ fn parse_args() -> Args {
             .unwrap_or(1),
         pool: CardPool::Performance,
         require: Vec::new(),
+        copies: 1,
         auto_pay: true,
         players: 2,
         deck_size: 60,
@@ -272,6 +285,18 @@ fn parse_args() -> Args {
                             result.require.push(n.to_string());
                         }
                     }
+                }
+            }
+            "--copies" => {
+                i += 1;
+                if i < args.len() {
+                    result.copies = match args[i].parse::<usize>() {
+                        Ok(n) if n >= 1 => n,
+                        _ => {
+                            eprintln!("--copies wants a number of at least 1, not {:?}", args[i]);
+                            std::process::exit(2);
+                        }
+                    };
                 }
             }
             "--pool" | "-p" => {
@@ -409,6 +434,12 @@ const NONBASIC_LANDS_PER_DECK: usize = 5;
 /// the `performance` one, and what the 100-card board is here for is the length
 /// and the object count, not the deck-building law.
 ///
+/// `copies` is `--copies`: how many of each required nonland the deck gets.
+/// It multiplies the slot fill below and nothing else â the deck size, the
+/// land count and every RNG draw are what they were, so a heavy board differs
+/// from a one-copy one in the required cards' share of the 36 nonland slots
+/// and in no other way. 1 reproduces every recorded `--require` row.
+///
 /// `required` is `--require`'s list, and **an empty list must leave this
 /// function exactly as it was**: every RNG draw below is guarded so that the
 /// stream, the deck and therefore every recorded number are unchanged when the
@@ -418,6 +449,7 @@ fn random_deck(
     registry: &CardRegistry,
     rng: &mut StdRng,
     required: &[Arc<CardData>],
+    copies: usize,
     deck_size: usize,
 ) -> Vec<Arc<CardData>> {
     let build = |name: &str| registry.create(name).ok();
@@ -454,12 +486,15 @@ fn random_deck(
             required_lands.push(card);
             continue;
         }
-        if slot < deck.len() {
-            deck[slot] = card.clone();
-        } else {
-            deck.push(card.clone());
+        // `--copies` multiplies here and only here.
+        for _ in 0..copies {
+            if slot < deck.len() {
+                deck[slot] = card.clone();
+            } else {
+                deck.push(card.clone());
+            }
+            slot += 1;
         }
-        slot += 1;
     }
 
     // Pad remaining nonland slots with lands if card pool is too small
@@ -997,6 +1032,8 @@ struct TableConfig {
     players: usize,
     deck_size: usize,
     life: i64,
+    /// `--copies`, on the way to `random_deck`.
+    required_copies: usize,
 }
 
 /// Where a traced game's lines go, and which games are traced.
@@ -1048,7 +1085,7 @@ fn run_one_game(
     // two-player run draws exactly the two decks it always drew.
     let decks: Vec<Vec<Arc<CardData>>> =
         (0..table.players)
-            .map(|_| random_deck(registry, &mut deck_rng, required, table.deck_size))
+            .map(|_| random_deck(registry, &mut deck_rng, required, table.required_copies, table.deck_size))
             .collect();
     let copies: Vec<u32> = require_names
         .iter()
@@ -1370,6 +1407,7 @@ fn main() {
             players: args.players,
             deck_size: args.deck_size,
             life: args.life,
+            required_copies: args.copies,
         },
         &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
     );
@@ -1741,8 +1779,8 @@ mod tests {
             // Two decks per game, so the check has to survive the second draw:
             // a stray RNG call in the first deck moves the second one too.
             for _ in 0..2 {
-                let deck = random_deck(&registry, &mut a, &[], 60);
-                let same = random_deck(&registry, &mut b, &[], 60);
+                let deck = random_deck(&registry, &mut a, &[], 1, 60);
+                let same = random_deck(&registry, &mut b, &[], 1, 60);
                 let names: Vec<&str> = deck.iter().map(|c| c.name.as_str()).collect();
                 let same_names: Vec<&str> = same.iter().map(|c| c.name.as_str()).collect();
                 assert_eq!(names, same_names, "seed {seed}");
@@ -1762,8 +1800,8 @@ mod tests {
         let mut with = StdRng::seed_from_u64(3);
         let mut without = StdRng::seed_from_u64(3);
         for _ in 0..10 {
-            let a = random_deck(&registry, &mut with, std::slice::from_ref(&tundra), 60);
-            let b = random_deck(&registry, &mut without, &[], 60);
+            let a = random_deck(&registry, &mut with, std::slice::from_ref(&tundra), 1, 60);
+            let b = random_deck(&registry, &mut without, &[], 1, 60);
             let lands = |d: &[std::sync::Arc<mtgsim::objects::card_data::CardData>]| {
                 d.iter().filter(|c| c.types.contains(&CardType::Land)).count()
             };
@@ -1783,12 +1821,36 @@ mod tests {
         let cytoshape = registry.create("Cytoshape").expect("in the performance pool");
         let mut rng = StdRng::seed_from_u64(7);
         for _ in 0..25 {
-            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&cytoshape), 60);
+            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&cytoshape), 1, 60);
             assert_eq!(deck.len(), 60);
             assert!(
                 deck.iter().any(|c| c.name == "Cytoshape"),
                 "every deck contains the required card"
             );
+        }
+    }
+
+    /// `--copies N` puts N of each required nonland in, and takes all N out of
+    /// the nonland slots â the deck size and the land count are the ones every
+    /// recorded baseline was measured at, or a heavy board is measuring two
+    /// things at once. The RNG stream is untouched: the same seed draws the
+    /// same deck at every `copies`, bar the slots the required cards overwrote.
+    #[test]
+    fn copies_multiplies_the_required_card_and_nothing_else() {
+        use mtgsim::types::card_types::CardType;
+        let registry = CardRegistry::performance_pool();
+        let warden = registry.create("Soul Warden").expect("in the performance pool");
+        for copies in [1usize, 4, 8] {
+            let mut rng = StdRng::seed_from_u64(29);
+            let deck = random_deck(&registry, &mut rng, std::slice::from_ref(&warden), copies, 60);
+            assert_eq!(deck.len(), 60, "{copies} copies");
+            assert_eq!(
+                deck.iter().filter(|c| c.name == "Soul Warden").count(),
+                copies,
+                "{copies} copies"
+            );
+            let lands = deck.iter().filter(|c| c.types.contains(&CardType::Land)).count();
+            assert_eq!(lands, 24, "the land count does not move: {copies} copies");
         }
     }
 
@@ -1801,7 +1863,7 @@ mod tests {
         for registry in [CardRegistry::performance_pool(), CardRegistry::default_registry()] {
             let mut rng = StdRng::seed_from_u64(11);
             for _ in 0..10 {
-                let deck = random_deck(&registry, &mut rng, &[], 60);
+                let deck = random_deck(&registry, &mut rng, &[], 1, 60);
                 let lands: Vec<&CardData> =
                     deck.iter().map(|c| c.as_ref()).filter(|c| is_land(c)).collect();
                 assert_eq!(lands.len(), 24, "36 nonlands, 24 lands");
@@ -1832,7 +1894,7 @@ mod tests {
         let registry = CardRegistry::performance_pool();
         let mut rng = StdRng::seed_from_u64(5);
         for _ in 0..10 {
-            let deck = random_deck(&registry, &mut rng, &[], 60);
+            let deck = random_deck(&registry, &mut rng, &[], 1, 60);
             let colors: std::collections::HashSet<_> = deck
                 .iter()
                 .filter(|c| !is_land(c))
@@ -1853,11 +1915,11 @@ mod tests {
         let mut a = StdRng::seed_from_u64(7);
         let mut b = StdRng::seed_from_u64(7);
         assert_eq!(
-            random_deck(&registry, &mut a, &[], 60)
+            random_deck(&registry, &mut a, &[], 1, 60)
                 .iter()
                 .map(|c| c.name.clone())
                 .collect::<Vec<_>>(),
-            random_deck(&registry, &mut b, &[], 60)
+            random_deck(&registry, &mut b, &[], 1, 60)
                 .iter()
                 .map(|c| c.name.clone())
                 .collect::<Vec<_>>(),
@@ -1865,7 +1927,7 @@ mod tests {
 
         let mut rng = StdRng::seed_from_u64(7);
         for (size, nonlands) in [(60usize, 36usize), (100, 60)] {
-            let deck = random_deck(&registry, &mut rng, &[], size);
+            let deck = random_deck(&registry, &mut rng, &[], 1, size);
             assert_eq!(deck.len(), size);
             assert_eq!(deck.iter().filter(|c| !is_land(c)).count(), nonlands);
             let lands: Vec<&CardData> =

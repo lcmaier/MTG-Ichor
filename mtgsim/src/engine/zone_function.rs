@@ -35,6 +35,7 @@ use std::collections::HashSet;
 use crate::objects::card_data::AbilityDef;
 use crate::types::card_types::CardType;
 use crate::types::effects::{Condition, Effect};
+use crate::types::triggers::{TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet};
 
 /// The zones in which `ability` functions (CR 113.6), for an object whose
@@ -68,15 +69,18 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
         return ZoneSet::ALL;
     }
 
-    // CR 113.6k — "an ability whose cost or effect specifies that it
-    // functions only if its source is in a particular zone, or a trigger
-    // condition that can only happen from a particular zone, functions only
-    // in that zone" — **derived from the condition, not stated**: a condition
-    // about `This` moving from zone Z functions in Z ("when this card is
-    // discarded" in the hand); "from anywhere" functions everywhere it can
-    // be, which is CR 603.6c's point that it is never a leaves-the-battlefield
-    // ability (Guile triggers from the graveyard); a condition about other
-    // objects functions on the battlefield unless 113.6b states otherwise.
+    // CR 113.6k — "A trigger condition that can't trigger from the
+    // battlefield functions in all zones it can trigger from. Other trigger
+    // conditions of the same triggered ability may function in different
+    // zones." **Derived from the condition, not stated**: a condition about
+    // `This` moving from zone Z functions in Z ("when this card is discarded"
+    // in the hand); "from anywhere" functions everywhere it can be, which is
+    // CR 603.6c's point that it is never a leaves-the-battlefield ability
+    // (Guile triggers from the graveyard); a condition about other objects
+    // functions on the battlefield. The ability's zones are its conditions'
+    // together, and the dispatcher asks each condition again
+    // ([`condition_functions_in`]) for the second sentence. What an ability's
+    // *effect* says about a zone is CR 113.6m's and is not derived (below).
     if let Effect::Triggered(def) = &ability.effect {
         return trigger_zones(def, types);
     }
@@ -114,26 +118,40 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
 
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
 fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardType>) -> ZoneSet {
-    use crate::types::triggers::{TriggerEvent, TriggerSubject};
     let arms = def.condition.events();
     if arms.is_empty() {
         return default_zones(types);
     }
     let mut zones = ZoneSet::EMPTY;
     for arm in arms {
-        zones |= match arm {
-            TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
-            TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: None, .. } => ZoneSet::ALL,
-            _ => default_zones(types),
-        };
+        zones |= condition_zones(arm, types);
     }
     zones
 }
 
+/// CR 113.6k for one trigger condition.
+fn condition_zones(arm: &TriggerEvent, types: &HashSet<CardType>) -> ZoneSet {
+    match arm {
+        TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
+        TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: None, .. } => ZoneSet::ALL,
+        _ => default_zones(types),
+    }
+}
+
+/// CR 113.6k's second sentence as the dispatcher asks it: does this one
+/// trigger condition function *here*? An ability functions where any of its
+/// conditions does, so [`functions_in`] can say yes for the ability while
+/// this says no for one condition of it — Absolver Thrull's "enters" in the
+/// exile its haunt condition functions in, which is the CR's own example.
+/// `contains` for [`functions_in`]'s reason.
+pub fn condition_functions_in(arm: &TriggerEvent, types: &HashSet<CardType>, zone: Zone) -> bool {
+    condition_zones(arm, types).contains(zone)
+}
+
 /// CR 113.6 as a caller asks it: does `ability` function *here*?
 ///
-/// **A one-line wrapper with one caller (`register_static_effects`), and the
-/// justification is not that it reads better**: the obvious hand-written
+/// **A one-line wrapper, and the justification is not that it reads
+/// better**: the obvious hand-written
 /// form is wrong in a way that compiles:
 ///
 /// ```ignore
