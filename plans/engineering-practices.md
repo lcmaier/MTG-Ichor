@@ -1025,6 +1025,12 @@ first: RA was split into three because someone counted call sites and wrote a
 *Measured size* column, and RB got nine bullets and no measurement, so it ran
 until it was done.
 
+**The band counts code plus tests** (`mtgsim/src` and `mtgsim/tests`), with the
+docs reported beside it — what the phases before TR-1 were held to (RE-8 2,225,
+RE-9 1,797, A4i 2,463, each 3,000–3,300 whole), since a phase's docs figure
+follows from its trace page and the eviction rule below, not from its design
+(the TR-1 review, 2026-09-22).
+
 Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
 
 - **Every PR in a split carries at least one consumer of what it builds.** The
