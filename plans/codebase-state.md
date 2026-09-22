@@ -7236,6 +7236,12 @@ owner decided it the same day.
      `(ObjectId, AbilityId)` sites stayed a pair: they are the mana window's
      keys, and §3.6 says why a mana ability's two instances need no telling
      apart (`archive/triggers-architecture-landed.md`, TR-1 note 8).
+     **Amended 2026-09-22 (the TR-1 review, theme E):** the ordinal is gone.
+     A granted instance's `AbilityId` carries the granting row's `EffectId`
+     (§3.6's provenance amendment), so the identity is `{ source, ability }`
+     and each grant's instance keeps its id for as long as the grant lasts;
+     the window dedupes on `AbilityId::definition()`, and so lists what it
+     listed, and `LoseAbility` removes by definition.
      **Reachability (2026-09-19):** closed — TR-1.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 149".
 

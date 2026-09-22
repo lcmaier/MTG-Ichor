@@ -112,6 +112,11 @@ impl<T: DurationRow> DurationRegistry<T> {
         self.generation
     }
 
+    /// The id the next [`Self::add`] will stamp, read without advancing it.
+    pub fn next_id(&self) -> RowId {
+        self.next_id
+    }
+
     /// Store a row, stamping it with a fresh id. Returns that id.
     ///
     /// The id is allocated *before* the insertion point is chosen, because the

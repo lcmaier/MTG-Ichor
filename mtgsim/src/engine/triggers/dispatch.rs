@@ -446,7 +446,7 @@ impl GameState {
         for (index, candidate) in candidates.iter().enumerate() {
             let chars = candidate.frame.chars();
             let epoch = self.objects.get(&candidate.id).map(|o| o.zone_change_epoch).unwrap_or(0);
-            for (position, ability) in chars.abilities.iter().enumerate() {
+            for ability in chars.abilities.iter() {
                 let Effect::Triggered(def) = &ability.effect else { continue };
                 // CR 113.6 is asked of each ability: the object is here
                 // because *some* ability of its functions here (§4.2).
@@ -458,10 +458,6 @@ impl GameState {
                     identity: AbilityIdentity {
                         source: ObjectRef { id: candidate.id, zone_change_epoch: epoch },
                         ability: ability.id,
-                        instance: chars.abilities[..position]
-                            .iter()
-                            .filter(|a| a.id == ability.id)
-                            .count() as u32,
                     },
                     def,
                     instances: &ability.instances,

@@ -335,6 +335,13 @@ impl ContinuousEffectRegistry {
         self.effects.generation()
     }
 
+    /// The id the next [`Self::add`] will assign, read without advancing it:
+    /// CR 614.12's look-ahead names its would-be rows by it, so a grant among
+    /// them mints the id its registration will (`AbilityId::granted_by`).
+    pub fn next_id(&self) -> EffectId {
+        self.effects.next_id()
+    }
+
     /// Run a mutation against the rows, then rebuild the summary.
     ///
     /// Every mutating method funnels through here. The summary is derived

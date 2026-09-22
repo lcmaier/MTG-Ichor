@@ -1163,7 +1163,7 @@ fn observe(game: &GameState, board: &Board<'_>, layer_index: usize, app: &Applic
         }
         for &target in &affected {
             let outcome = match resolve_modification(modification, game, board, target, layer_index, origin) {
-                Resolved::AsIs(_) => continue,
+                Resolved::AsIs(_) | Resolved::Grant(..) => continue,
                 Resolved::Controller(c) => Outcome::Controller(c),
                 Resolved::SetPt(pt) => Outcome::SetPt(pt),
                 Resolved::ModifyPt(p, t) => Outcome::ModifyPt(p, t),

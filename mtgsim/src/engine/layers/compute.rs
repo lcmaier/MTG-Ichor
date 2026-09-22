@@ -18,9 +18,9 @@ use crate::engine::layers::board::{compute_board, compute_board_to, membership, 
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
-use crate::objects::card_data::CardData;
+use crate::objects::card_data::{AbilityDef, CardData};
 use crate::state::game_state::GameState;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
 /// The layers, in application order (CR 613.1). Index into this array is the
 /// "layer ceiling" a non-member walk stops at: ceiling `n` means layers
@@ -796,9 +796,10 @@ pub fn settled_amount(
 /// A modification with its reads already made, ready to be written to a
 /// frame without touching the board again.
 ///
-/// Only three arms read anything: `SetController` asks who "you" is, and the
-/// two P/T arms evaluate their amounts. Everything else carries its own
-/// answer and is applied as it is. The split exists so a pass can resolve
+/// Only four arms read anything: `SetController` asks who "you" is, the
+/// two P/T arms evaluate their amounts, and `GrantAbility` mints its
+/// instance's id from the row. Everything else carries its own answer and
+/// is applied as it is. The split exists so a pass can resolve
 /// against every member's live frame — including the one about to be
 /// mutated — and only then take that frame mutably.
 pub(super) enum Resolved<'m> {
@@ -809,6 +810,8 @@ pub(super) enum Resolved<'m> {
     SetPt(Option<(i32, i32)>),
     /// Layer 7c, each side independently.
     ModifyPt(Option<i32>, Option<i32>),
+    /// Layer 6: the def, and the id its instance carries on the object.
+    Grant(&'m AbilityDef, AbilityId),
 }
 
 /// Make a modification's reads against the board.
@@ -864,6 +867,13 @@ pub(super) fn resolve_modification<'m>(
             let dt = evaluate_pt_value(toughness, game, &chars, object_id, layer_index, board, origin);
             Resolved::ModifyPt(dp, dt)
         }
+        EffectModification::GrantAbility(def) => {
+            let Some(effect) = origin else {
+                debug_assert!(false, "a grant reached the walk with no registry row; no CDA grants");
+                return Resolved::Grant(def, def.id);
+            };
+            Resolved::Grant(def, def.id.granted_by(effect.id))
+        }
         other => Resolved::AsIs(other),
     }
 }
@@ -907,6 +917,22 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
             }
             return;
         }
+        // Layer 6
+        Resolved::Grant(def, id) => {
+            // CR 604.3a(2) — an ability that reached an object by being granted is
+            // never a characteristic-defining ability, however its text reads. The
+            // flag on `AbilityDef` asserts only the criteria that are properties of
+            // the text; provenance is maintained by whoever writes the ability onto an
+            // object, and this is that place (`CLAUDE.md`). Copy (Layer 1) and
+            // text-changing (Layer 3) effects hand the def over whole and keep the
+            // flag, the *other* half of 604.3a(2). The id is provenance too: it
+            // names the grant, so two grants of one ability are two instances.
+            let mut granted = (*def).clone();
+            granted.id = *id;
+            granted.is_characteristic_defining = false;
+            Arc::make_mut(&mut chars.abilities).push(granted);
+            return;
+        }
         Resolved::AsIs(modification) => *modification,
     };
 
@@ -918,7 +944,8 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
 
         EffectModification::SetController(_)
         | EffectModification::SetPowerToughness { .. }
-        | EffectModification::ModifyPowerToughness { .. } => {
+        | EffectModification::ModifyPowerToughness { .. }
+        | EffectModification::GrantAbility(_) => {
             unreachable!("resolved above")
         }
 
@@ -950,24 +977,13 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         // it". For a keyword flag that is structural: a `HashSet` never held
         // more than one.
         EffectModification::RemoveKeywordFlag(kw) => { chars.keyword_flags.remove(kw); }
-        EffectModification::GrantAbility(def) => {
-            // CR 604.3a(2) — an ability that reached an object by being granted is
-            // never a characteristic-defining ability, however its text reads. The
-            // flag on `AbilityDef` asserts only the criteria that are properties of
-            // the text; provenance is maintained by whoever writes the ability onto an
-            // object, and this is that place (`CLAUDE.md`). Copy (Layer 1) and
-            // text-changing (Layer 3) effects hand the def over whole and keep the
-            // flag, the *other* half of 604.3a(2).
-            let mut granted = (**def).clone();
-            granted.is_characteristic_defining = false;
-            Arc::make_mut(&mut chars.abilities).push(granted);
-        }
         // CR 113.10b again, and here it is *not* structural: `abilities` is a
         // `Vec` and the same ability can genuinely appear twice — printed on
         // the card and granted on top of it. `retain`, never "remove the first
-        // match".
+        // match", and by definition, since each grant's instance has its own id.
         EffectModification::LoseAbility(ability_id) => {
-            Arc::make_mut(&mut chars.abilities).retain(|a| a.id != *ability_id);
+            Arc::make_mut(&mut chars.abilities)
+                .retain(|a| a.id.definition() != ability_id.definition());
         }
         EffectModification::LoseAllAbilities => {
             chars.keyword_flags.clear();

@@ -103,7 +103,9 @@ fifty of them.
    §3.6 says why a mana ability's two instances need no telling apart. Giving
    them the instance would have re-offered the second Citanul Hierophants
    the window used to list and moved the random agent's stream, which §11's
-   `IDENTICAL` prediction for the engine arm forbids.
+   `IDENTICAL` prediction for the engine arm forbids. *Amended 2026-09-22
+   (theme E):* the ids in those pairs now carry a granted instance's grant,
+   and the dedupe keys on `AbilityId::definition()` — the same answer.
 9. **Line counts.** `types/triggers.rs` 446, `engine/triggers/` 1,015
    (`dispatch.rs` 754 of them), the cards 278, the tests 1,807 — the sizing's
    700 was well under half: fifty tests, each a board — and the docs above

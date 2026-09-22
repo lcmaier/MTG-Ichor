@@ -607,7 +607,6 @@ mod tests {
         let identity = AbilityIdentity {
             source: ObjectRef { id, zone_change_epoch: 0 },
             ability: AbilityId::printed("x", 0),
-            instance: 0,
         };
         vec![
             ("ZoneChange", GameEvent::ZoneChange {

@@ -2307,6 +2307,8 @@ Closed by the two tests the item asked for, in `tests/phase_tr1_integration_test
 
 Closed by `AbilityIdentity { source, zone_change_epoch, ability, instance }` (`triggers-architecture.md` §3.6): the instance is an ordinal among same-id defs so a later grant does not renumber an earlier one, and CR 603.7h's count (TR-2) ignores it. The window's pair sites were left as pairs on purpose — see the TR-1 archive's note 8.
 
+*Amended 2026-09-22 (the TR-1 review, theme E).* The ordinal renumbered when an earlier grant ended, so provenance ids replaced it: `AbilityId` became `{ definition, grant }`, a granted instance's grant the granting row's `EffectId`, and the identity `{ source, ability }`. The mana window dedupes on the definition and lists what it listed; `LoseAbility` and CR 603.7h's count key on the definition too.
+
 *Original entry:*
 
 149. **Two instances of one ability on one object are indistinguishable by

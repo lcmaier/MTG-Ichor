@@ -88,7 +88,9 @@ impl Lookahead {
 /// The loud arms of the lowering are left to the performer, which runs the
 /// real registration a moment later on the same card and asserts there. A
 /// card that lowers to nothing contributes nothing here, which is also what it
-/// will contribute once it has entered.
+/// will contribute once it has entered. Each row carries the id that
+/// registration will give it, read off the registry as the timestamp is read
+/// off its counter, because a grant mints its instance's id from its row.
 fn would_be_rows(
     game: &GameState,
     object: ObjectId,
@@ -99,6 +101,7 @@ fn would_be_rows(
         return Vec::new();
     };
     let card = &obj.card_data;
+    let first_id = game.continuous_effects.next_id();
     let mut rows = Vec::new();
 
     for ability in card.abilities.iter() {
@@ -118,7 +121,7 @@ fn would_be_rows(
             };
             for (layer, modification) in GameState::static_primitive_rows(primitive) {
                 rows.push(ContinuousEffect {
-                    id: 0,
+                    id: first_id + rows.len() as u64,
                     source: object,
                     origin: EffectOrigin::StaticAbility { ability: ability.id },
                     layer,

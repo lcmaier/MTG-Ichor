@@ -151,17 +151,11 @@ pub struct AbilityIdentity {
     /// worth of counting (`triggers-architecture.md` §3.6). The same pair
     /// spelled once, since `ObjectRef` is that pair.
     pub source: ObjectRef,
-    /// Which of its abilities. Stable across activations; see
-    /// `oracle::characteristics::get_effective_abilities`.
+    /// Which of its abilities, and for a granted one which grant
+    /// (`AbilityId::granted_by`): two grants of one ability are two
+    /// identities, each as long-lived as its grant (§3.6). Stable across
+    /// activations; see `oracle::characteristics::get_effective_abilities`.
     pub ability: AbilityId,
-    /// The k-th instance of `ability` on `source` among same-id defs in
-    /// effective-list order. A4g made an id per definition, so two sources
-    /// granting one ability put it on an object twice under one id (item
-    /// 149); for a triggered ability the two instances each trigger
-    /// (Diffusion Sliver's ruling). An ordinal among same-id instances rather
-    /// than an index into the whole list, so a later grant does not renumber
-    /// an earlier instance. CR 603.7h counts the ability and ignores this.
-    pub instance: u32,
 }
 
 /// How deep inside itself the engine is: three counters that answer one
