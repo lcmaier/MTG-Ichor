@@ -53,6 +53,17 @@ pub enum TriggerCondition {
     AnyOf(Vec<TriggerEvent>),
 }
 
+impl TriggerDef {
+    /// The record kinds any arm of this def can read. A state trigger reads
+    /// none (CR 603.8), and a def whose mask is empty can match no record.
+    pub fn kinds(&self) -> EventKindMask {
+        self.condition
+            .events()
+            .iter()
+            .fold(EventKindMask::EMPTY, |mask, arm| mask | arm.kinds())
+    }
+}
+
 impl TriggerCondition {
     /// The condition's events, in printed order. A state trigger has none.
     pub fn events(&self) -> &[TriggerEvent] {
@@ -128,6 +139,107 @@ pub enum DamageRecipient {
     Player(Option<PlayerRef>),
     /// A permanent; `None` is any permanent.
     Object(Option<ObjectFilter>),
+}
+
+/// The kind of record a trigger arm reads - one variant per `GameEvent`
+/// variant any [`TriggerEvent`] can match, and no variant for the records
+/// none of them can (a draw, a shuffle, a spell cast).
+///
+/// **The discriminant half of the matcher, factored out.** It used to be a
+/// 13-arm `matches!` inside [`TriggerEvent::reads`]; a mask of these is
+/// what lets the dispatcher skip a source without asking it
+/// (`triggers-architecture.md` §11), and two tables that had to agree is
+/// the bug that lever would otherwise ship with. So `reads` is now written
+/// in terms of this one, and an arm added to [`TriggerEvent::kinds`] is an
+/// arm added to both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventKind {
+    ZoneChange,
+    LeftTheGame,
+    Tapped,
+    Untapped,
+    ManaAdded,
+    DamageDealt,
+    PhaseBegin,
+    StepBegin,
+    TurnBegin,
+    LifeChanged,
+    EnteredBattlefield,
+    AttackersDeclared,
+    AbilityTriggered,
+}
+
+impl EventKind {
+    /// The record's kind, or `None` for a record no trigger arm can read.
+    pub fn of(record: &GameEvent) -> Option<EventKind> {
+        Some(match record {
+            GameEvent::ZoneChange { .. } => EventKind::ZoneChange,
+            GameEvent::LeftTheGame { .. } => EventKind::LeftTheGame,
+            GameEvent::Tapped { .. } => EventKind::Tapped,
+            GameEvent::Untapped { .. } => EventKind::Untapped,
+            GameEvent::ManaAdded { .. } => EventKind::ManaAdded,
+            GameEvent::DamageDealt { .. } => EventKind::DamageDealt,
+            GameEvent::PhaseBegin { .. } => EventKind::PhaseBegin,
+            GameEvent::StepBegin { .. } => EventKind::StepBegin,
+            GameEvent::TurnBegin { .. } => EventKind::TurnBegin,
+            GameEvent::LifeChanged { .. } => EventKind::LifeChanged,
+            GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
+            GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
+            GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
+            _ => return None,
+        })
+    }
+
+    const fn bit(self) -> u16 {
+        1 << (self as u16)
+    }
+}
+
+/// A set of [`EventKind`]s - §11's lever, pre-approved there and built when
+/// the reading asked for it.
+///
+/// A hand-rolled bitmask following [`crate::types::zones::ZoneSet`], for the
+/// same reason it is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct EventKindMask(u16);
+
+impl EventKindMask {
+    pub const EMPTY: EventKindMask = EventKindMask(0);
+
+    pub const fn of(kind: EventKind) -> EventKindMask {
+        EventKindMask(kind.bit())
+    }
+
+    pub const fn with(self, kind: EventKind) -> EventKindMask {
+        EventKindMask(self.0 | kind.bit())
+    }
+
+    pub fn contains(self, kind: EventKind) -> bool {
+        self.0 & kind.bit() != 0
+    }
+
+    /// Whether the two sets share a kind - the dispatcher's whole question of
+    /// a source: could anything it printed read anything this window carries?
+    pub fn intersects(self, other: EventKindMask) -> bool {
+        self.0 & other.0 != 0
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl std::ops::BitOr for EventKindMask {
+    type Output = EventKindMask;
+    fn bitor(self, other: EventKindMask) -> EventKindMask {
+        EventKindMask(self.0 | other.0)
+    }
+}
+
+impl std::ops::BitOrAssign for EventKindMask {
+    fn bitor_assign(&mut self, other: EventKindMask) {
+        self.0 |= other.0;
+    }
 }
 
 /// One arm per performed event kind, in `GameEvent`'s declaration order
@@ -213,25 +325,38 @@ impl TriggerEvent {
         }
     }
 
+    /// The record kinds this arm can read - the discriminant half of the
+    /// matcher, and the table [`Self::reads`] and the dispatcher's source
+    /// mask are both written from.
+    ///
+    /// CR 603.6c is why `ZoneChange` names two: a leaves-the-battlefield
+    /// ability reads the departure a player leaving the game causes, and
+    /// that record is `LeftTheGame` rather than a zone change (§4.2 leg 2).
+    pub fn kinds(&self) -> EventKindMask {
+        match self {
+            TriggerEvent::ZoneChange { .. } => {
+                EventKindMask::of(EventKind::ZoneChange).with(EventKind::LeftTheGame)
+            }
+            TriggerEvent::BecomesTapped { .. } => EventKindMask::of(EventKind::Tapped),
+            TriggerEvent::BecomesUntapped { .. } => EventKindMask::of(EventKind::Untapped),
+            TriggerEvent::ManaAdded { .. } => EventKindMask::of(EventKind::ManaAdded),
+            TriggerEvent::DamageDealt { .. } => EventKindMask::of(EventKind::DamageDealt),
+            TriggerEvent::PhaseBegins { .. } => EventKindMask::of(EventKind::PhaseBegin),
+            TriggerEvent::StepBegins { .. } => EventKindMask::of(EventKind::StepBegin),
+            TriggerEvent::TurnBegins { .. } => EventKindMask::of(EventKind::TurnBegin),
+            TriggerEvent::GainsLife { .. } => EventKindMask::of(EventKind::LifeChanged),
+            TriggerEvent::EntersBattlefield { .. } => {
+                EventKindMask::of(EventKind::EnteredBattlefield)
+            }
+            TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
+            TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
+        }
+    }
+
     /// Whether `record` is the kind of event this arm reads at all — the
     /// discriminant test the predicates follow.
     pub fn reads(&self, record: &GameEvent) -> bool {
-        matches!(
-            (self, record),
-            (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
-                | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
-                | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
-                | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
-                | (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { .. })
-                | (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { .. })
-                | (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
-                | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
-                | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
-                | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
-                | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
-                | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
-                | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. })
-        )
+        EventKind::of(record).is_some_and(|kind| self.kinds().contains(kind))
     }
 
     /// The arm's multiplicity field, for the arms that carry one.
@@ -440,5 +565,154 @@ impl PendingTrigger {
     /// ever agree or be wrong.
     pub fn tier(&self) -> TriggerTier {
         self.binding.def.condition.tier()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::game_state::AbilityIdentity;
+    use crate::types::ids::ObjectRef;
+
+    /// Every (arm, record) pair `reads` matched before `EventKind` existed,
+    /// spelled out. The point of the test is that it is **not** derived from
+    /// `kinds()`: an arm dropped from that table, or a record kind mapped to
+    /// the wrong variant, changes an answer here.
+    #[test]
+    fn the_kind_mask_reproduces_the_pairs_reads_matched() {
+        let subject = TriggerSubject::This;
+        let arms = [
+            TriggerEvent::ZoneChange {
+                subject: subject.clone(),
+                from: None,
+                to: None,
+                cause: None,
+                owner: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            TriggerEvent::BecomesTapped { subject: subject.clone() },
+            TriggerEvent::BecomesUntapped { subject: subject.clone() },
+            TriggerEvent::ManaAdded {
+                source: subject.clone(),
+                tapped_for_mana: None,
+                mana: None,
+            },
+            TriggerEvent::DamageDealt {
+                source: subject.clone(),
+                recipient: DamageRecipient::Any,
+                combat: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            TriggerEvent::PhaseBegins { phase: PhaseType::Precombat, whose: None },
+            TriggerEvent::StepBegins { step: StepType::Upkeep, whose: None },
+            TriggerEvent::TurnBegins { whose: None },
+            TriggerEvent::GainsLife { player: None, multiplicity: Multiplicity::PerOccurrence },
+            TriggerEvent::EntersBattlefield {
+                subject: subject.clone(),
+                controller: None,
+                from: None,
+                cast: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            TriggerEvent::Attacks { attacker: subject, multiplicity: Multiplicity::PerOccurrence },
+            TriggerEvent::AbilityTriggers { caused_by: None, of: None },
+        ];
+        let id = ObjectId::UNASSIGNED;
+        let identity = AbilityIdentity {
+            source: ObjectRef { id, zone_change_epoch: 0 },
+            ability: crate::types::ids::AbilityId::printed("x", 0),
+            instance: 0,
+        };
+        let records = [
+            GameEvent::ZoneChange {
+                object_id: id,
+                owner: 0,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                cause: ZoneChangeCause::Destroyed,
+                lki: None,
+            },
+            GameEvent::LeftTheGame { object_id: id, owner: 0, from: Zone::Battlefield, lki: None },
+            GameEvent::Tapped { object_id: id },
+            GameEvent::Untapped { object_id: id },
+            GameEvent::ManaAdded {
+                player_id: 0,
+                source_id: id,
+                mana: Vec::new(),
+                tapped_for_mana: false,
+            },
+            GameEvent::DamageDealt {
+                source_id: id,
+                target: DamageTarget::Player(0),
+                amount: 1,
+                is_combat: false,
+            },
+            GameEvent::PhaseBegin { phase: PhaseType::Precombat, player: 0 },
+            GameEvent::StepBegin { step: StepType::Upkeep, player: 0 },
+            GameEvent::TurnBegin { player: 0, turn_number: 1 },
+            GameEvent::LifeChanged { player_id: 0, old: 20, new: 21, source: None, cause: None },
+            GameEvent::PermanentEnteredBattlefield { object_id: id, controller: 0 },
+            GameEvent::AttackersDeclared { attackers: vec![id] },
+            GameEvent::AbilityTriggered {
+                seq: TriggerSeq(0),
+                origin: TriggerOrigin::Object(identity),
+                controller: 0,
+                caused_by: EventSeq(0),
+            },
+            // A record no arm reads, so its column is all false.
+            GameEvent::CardDrawn { player_id: 0, card_id: id },
+        ];
+        // Row per arm, column per record, in the two orders above.
+        let expected: [[bool; 14]; 12] = [
+            [true, true, false, false, false, false, false, false, false, false, false, false, false, false],
+            [false, false, true, false, false, false, false, false, false, false, false, false, false, false],
+            [false, false, false, true, false, false, false, false, false, false, false, false, false, false],
+            [false, false, false, false, true, false, false, false, false, false, false, false, false, false],
+            [false, false, false, false, false, true, false, false, false, false, false, false, false, false],
+            [false, false, false, false, false, false, true, false, false, false, false, false, false, false],
+            [false, false, false, false, false, false, false, true, false, false, false, false, false, false],
+            [false, false, false, false, false, false, false, false, true, false, false, false, false, false],
+            [false, false, false, false, false, false, false, false, false, true, false, false, false, false],
+            [false, false, false, false, false, false, false, false, false, false, true, false, false, false],
+            [false, false, false, false, false, false, false, false, false, false, false, true, false, false],
+            [false, false, false, false, false, false, false, false, false, false, false, false, true, false],
+        ];
+        for (arm, row) in arms.iter().zip(expected.iter()) {
+            for (record, want) in records.iter().zip(row.iter()) {
+                assert_eq!(arm.reads(record), *want, "{arm:?} vs {record:?}");
+                // And the mask, which is what the dispatcher's gate asks.
+                assert_eq!(
+                    EventKind::of(record).is_some_and(|k| arm.kinds().contains(k)),
+                    *want,
+                    "{arm:?} vs {record:?}"
+                );
+            }
+            assert!(!arm.kinds().is_empty(), "every arm reads something: {arm:?}");
+        }
+    }
+
+    /// A def's mask is the union of its arms', and a state trigger's is
+    /// empty — the shape `register_static_effects` writes.
+    #[test]
+    fn a_defs_mask_is_the_union_of_its_arms() {
+        let tapped = TriggerEvent::BecomesTapped { subject: TriggerSubject::This };
+        let untapped = TriggerEvent::BecomesUntapped { subject: TriggerSubject::This };
+        let def = TriggerDef {
+            condition: TriggerCondition::AnyOf(vec![tapped, untapped]),
+            intervening_if: None,
+            limit: None,
+            effect: Effect::Sequence(Vec::new()),
+        };
+        assert!(def.kinds().contains(EventKind::Tapped));
+        assert!(def.kinds().contains(EventKind::Untapped));
+        assert!(!def.kinds().contains(EventKind::ZoneChange));
+
+        let state = TriggerDef {
+            condition: TriggerCondition::State(Condition::SpellWasKicked),
+            intervening_if: None,
+            limit: None,
+            effect: Effect::Sequence(Vec::new()),
+        };
+        assert!(state.kinds().is_empty(), "CR 603.8 reads no record");
     }
 }

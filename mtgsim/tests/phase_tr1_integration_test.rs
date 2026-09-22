@@ -1797,6 +1797,37 @@ fn the_dispatcher_writes_a_trigger_record_per_decision_and_a_pending_record_per_
     assert!(pending_records[0].contains("\"refused_by\":null"));
 }
 
+
+/// §11's lever, observed: a source is visited only when the window carries a
+/// kind its printed defs read.
+///
+/// The trace's `trigger` record is written per decision, so "no record" is
+/// "not asked" — which before the mask was "asked and refused by
+/// `Refusal::Condition`". Soul Warden reads an entry and nothing else; a tap
+/// is a window it cannot match, and the dispatch returns at the gate.
+#[test]
+fn a_window_no_source_reads_is_refused_at_the_gate() {
+    let mut game = setup_two_player_game();
+    let buf = install_trace(&mut game, "tr-1");
+    put_on_battlefield(&mut game, soul_warden(), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let entries = buf.of_kind("trigger").len();
+
+    game.execute_action(GameAction::Tap { object: bear }, &test_ctx()).unwrap();
+    assert_eq!(
+        buf.of_kind("trigger").len(),
+        entries,
+        "a Tapped window meets no mask, so Soul Warden is never asked"
+    );
+
+    // The control: a kind it does read puts it back in the candidate set.
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    assert!(
+        buf.of_kind("trigger").len() > entries,
+        "an entry is the kind Soul Warden reads"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // The identity, and the pool's cards through a whole game
 // ---------------------------------------------------------------------------

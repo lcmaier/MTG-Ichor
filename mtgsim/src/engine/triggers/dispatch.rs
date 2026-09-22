@@ -32,7 +32,7 @@ use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, Multiplicity, PendingTrigger, TriggerBinding,
+    DamageRecipient, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger, TriggerBinding,
     TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
 use crate::types::zones::{Zone, ZoneSet};
@@ -214,11 +214,13 @@ impl GameState {
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — four probes (§4.2): the battlefield set, the zone
+    /// 1. **The gate** — four probes (§4.2): the battlefield map, the zone
     ///    map, the unattributed zone set off the registry summary, and
     ///    whether any record of the window carries a CR 603.10a frame with a
     ///    triggered ability in it. All empty, and a dispatch is the probes and
-    ///    nothing else.
+    ///    nothing else. The battlefield probe is §11's mask: not "is any
+    ///    source present" but "does any source read a kind this window
+    ///    carries".
     /// 2. **The candidates** — `find_matches`' four legs: every object that
     ///    may carry a triggered ability functioning where it is, in CR 613.7
     ///    order, each with the effective ability list read once and the card a
@@ -239,6 +241,20 @@ impl GameState {
     ///    bounds.
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- The gate: four probes, and on the old pools nothing else -------
+        //
+        // The window's kinds first, OR-ed once (§11). A window carrying no
+        // kind any arm can read — a draw, a shuffle, a counter added — is
+        // refused by `match_def` for every candidate on every leg, so
+        // answering it here is the same answer, cheaper.
+        let window_kinds = window.iter().fold(EventKindMask::EMPTY, |mask, seq| {
+            match self.events.record(*seq).and_then(|r| EventKind::of(&r.event)) {
+                Some(kind) => mask.with(kind),
+                None => mask,
+            }
+        });
+        if window_kinds.is_empty() {
+            return Ok(());
+        }
         let summary = self.continuous_effects.summary();
         let unattributed = summary.unattributed_trigger_zones;
         let any_frame_source = window.iter().any(|seq| {
@@ -246,7 +262,12 @@ impl GameState {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
             })
         });
-        if self.trigger_sources.is_empty()
+        // The battlefield probe is the mask's, and the other three are not:
+        // the zone map is keyed by ability rather than by kind, and the
+        // granted, copied and departed legs read a list no registration saw.
+        // Over-approximating in one direction only means the mask narrows the
+        // leg it was written for and leaves the rest alone.
+        if !self.trigger_sources.values().any(|mask| mask.intersects(window_kinds))
             && self.zone_trigger_sources.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
@@ -254,7 +275,7 @@ impl GameState {
             return Ok(());
         }
 
-        let matches = self.find_matches(window, unattributed);
+        let matches = self.find_matches(window, window_kinds, unattributed);
         if matches.is_empty() {
             return Ok(());
         }
@@ -312,13 +333,24 @@ impl GameState {
     /// record of the window, in window order then candidate order — the
     /// order the `OrderTriggers` prompt will offer, which has to be
     /// process-stable end to end (§15 item 1).
-    fn find_matches(&self, window: &[EventSeq], unattributed: ZoneSet) -> Vec<MatchedTrigger> {
-        // Leg 1: the battlefield, in CR 613.7 order, gated per permanent.
+    fn find_matches(
+        &self,
+        window: &[EventSeq],
+        window_kinds: EventKindMask,
+        unattributed: ZoneSet,
+    ) -> Vec<MatchedTrigger> {
+        // Leg 1: the battlefield, in CR 613.7 order, gated per permanent —
+        // by §11's mask, so a permanent whose printed defs read none of this
+        // window's kinds is not walked, not looked up in the memo and not
+        // asked. It would have refused every record with `Refusal::Condition`.
         let on_battlefield = unattributed.contains(Zone::Battlefield);
         let mut live: Vec<ObjectId> = self
             .battlefield_ids_ordered()
             .into_iter()
-            .filter(|id| on_battlefield || self.trigger_sources.contains(id))
+            .filter(|id| {
+                on_battlefield
+                    || self.trigger_sources.get(id).is_some_and(|mask| mask.intersects(window_kinds))
+            })
             .collect();
 
         // Legs 3 and 4: objects off the battlefield whose ability functions
