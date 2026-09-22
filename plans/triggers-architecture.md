@@ -811,8 +811,9 @@ For each record, the candidates are the union of:
 **CR 113.6 is asked per ability, not per candidate.** A candidate is in a
 sweep because *one* of its abilities functions where it is, so the matcher
 asks `functions_in` of each triggered def before asking it about a record —
-Ichorid in a graveyard is a candidate for its "from anywhere" half and must
-not be asked its dies-trigger there. On every leg, including the
+Dread in a graveyard is a candidate for "when Dread is put into a graveyard
+from anywhere" and must not be asked "whenever a creature deals damage to
+you" there. On every leg, including the
 battlefield, so the rule has one home, which is `replacement::gather`'s
 reason for asking it the same way. (Found in review as F1, fixed 2026-09-22;
 the dispatcher read the zone map's *keys* and then the whole effective

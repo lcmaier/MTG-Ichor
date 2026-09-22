@@ -1710,15 +1710,29 @@ fn a_from_anywhere_trigger_is_stopped_by_yixlid_jailer() {
     assert_eq!(pending(&game), 1);
 }
 
-/// Ichorid's shape: one trigger CR 113.6k reads in every zone beside one it
-/// reads only on the battlefield. **CR 113.6 is a question about an ability,
-/// not about an object**, and an object off the battlefield is the board that
-/// tells the two apart.
-fn ichorid_shaped() -> Arc<CardData> {
-    CardDataBuilder::new("Ichor Shade")
+/// Dread's two triggers (Lorwyn): "Whenever a creature deals damage to you,
+/// destroy it" and "When Dread is put into a graveyard from anywhere, shuffle
+/// it into its owner's library". The effects are stand-ins; the tests count
+/// triggers.
+///
+/// The first functions on the battlefield only (CR 113.6's default) and the
+/// second everywhere (CR 113.6k, derived). The board that tells the two apart
+/// is the card in a graveyard with the second one still waiting — or never
+/// resolved, if it is countered.
+fn dread_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Incarnate Menace")
         .card_type(CardType::Creature)
-        .power_toughness(1, 1)
-        .rules_text("When this card is put into a graveyard from anywhere, you gain 1 life.")
+        .power_toughness(6, 6)
+        .rules_text("Whenever a creature deals damage to you, destroy it.")
+        .ability(triggered_ability(whenever(
+            TriggerEvent::DamageDealt {
+                source: a_creature().into(),
+                recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                combat: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            gain_one(),
+        )))
         .ability(triggered_ability(whenever(
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::This,
@@ -1730,49 +1744,46 @@ fn ichorid_shaped() -> Arc<CardData> {
             },
             gain_one(),
         )))
-        .ability(triggered_ability(whenever(dies(another(a_creature())), draw_one())))
         .build()
 }
 
-/// F1 — the dispatcher asks CR 113.6 per **ability**, not per object.
+/// F1 — CR 113.6 is asked of each **ability**, not of the object.
 ///
-/// The card in a graveyard is a candidate because one of its two abilities
-/// functions there; the other functions only on the battlefield and must not
-/// be asked. Registration already knows this — `zone_trigger_sources` holds
-/// the one ability id — and the matcher read the map's keys.
+/// Dread in a graveyard is a trigger candidate because its "from anywhere"
+/// ability functions there. Its damage trigger does not, so a creature
+/// dealing damage to its owner must not trigger it. Registration already
+/// knew — `zone_trigger_sources` holds the one ability id — and the matcher
+/// read only the map's keys.
 #[test]
 fn a_battlefield_only_trigger_is_not_asked_from_the_graveyard() {
     let mut game = setup_two_player_game();
-    let shade = put_on_battlefield(&mut game, ichorid_shaped(), 0);
-    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let dread = put_on_battlefield(&mut game, dread_shaped(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
 
-    // The shade dies: its "from anywhere" trigger is read after the move
-    // (CR 603.6c), and "another creature dies" is not about itself.
-    destroy_all(&mut game, &[shade], source);
-    assert_eq!(pending(&game), 1, "the from-anywhere half, once");
+    // Dread dies: "from anywhere" is read after the move (CR 603.6c).
+    destroy_all(&mut game, &[dread], source);
+    assert_eq!(pending(&game), 1, "the from-anywhere trigger, once");
 
-    // Now another creature dies while the shade is in the graveyard. Its
-    // dies-trigger does not function there, so nothing is added.
-    destroy_all(&mut game, &[bear], source);
+    // A creature deals damage to Dread's owner while Dread is in the graveyard.
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
     assert_eq!(
         pending(&game),
         1,
-        "CR 113.6k — the dies half functions on the battlefield, and the shade is in a graveyard"
+        "CR 113.6 — the damage trigger functions on the battlefield, and Dread is in a graveyard"
     );
 }
 
-/// The same ability on the same card, from the zone it does function in — so
-/// the test above is CR 113.6 being applied and not the ability being lost.
+/// The same ability from the zone it does function in — so the test above is
+/// CR 113.6 being applied and not the ability being lost.
 #[test]
 fn the_same_trigger_is_asked_from_the_battlefield() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, ichorid_shaped(), 0);
-    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
-    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+    put_on_battlefield(&mut game, dread_shaped(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
 
-    destroy_all(&mut game, &[bear], source);
-    assert_eq!(pending(&game), 1, "another creature died and the shade is on the battlefield");
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(pending(&game), 1, "a creature dealt damage to Dread's controller");
 }
 
 // ---------------------------------------------------------------------------

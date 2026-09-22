@@ -115,15 +115,27 @@ The replacement gather makes exactly this check per def
 (`gather.rs:535`, `functions_in(ability, &chars.types, zone)`); the dispatcher
 has no such line.
 
-*Proved 2026-09-20 with a throwaway fixture (deleted):* an Ichorid-shaped
-creature card — "when this card is put into a graveyard from anywhere" beside
+*Proved 2026-09-20 with a throwaway fixture (deleted):* a creature card
+— "when this card is put into a graveyard from anywhere" beside
 "whenever a creature dies" — in a graveyard, and a creature dies: **pending 1,
 where the answer is 0**; the same card on the battlefield: 1, correct.
 
 *Reachability:* no registered card has a trigger that functions in one zone
 beside one that functions in another, so unreachable today; wrong the day TR-4
 registers Bloodghast or Ichorid, and TR-4's own row names neither, so this file
-is the only thing holding it. **If C has not landed when this file is next
+is the only thing holding it.
+
+*Corrected 2026-09-22 (owner's review of PR #176):* neither card is shaped
+the way this section said, and "Ichorid-shaped" above was never checked
+against the card. **Ichorid** has no "from anywhere" clause; its F1 exposure
+is "at the beginning of the end step, sacrifice this creature", asked from
+the graveyard its upkeep return functions in — and that return is CR
+113.6m's (an effect that moves its object out of a zone), which
+`zone_function` does not derive. **Bloodghast** has one triggered ability
+and was never F1-shaped. The card with the fixture's actual shape is
+**Dread** (Scryfall, 2026-09-22) — "whenever a creature deals damage to you"
+beside "when Dread is put into a graveyard from anywhere" — expressible
+today, and PR #176's fixture is Dread's. **If C has not landed when this file is next
 touched, file it as a `codebase-state.md` item under "Found by TR-1" with this
 text.**
 

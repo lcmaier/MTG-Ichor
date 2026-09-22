@@ -7794,8 +7794,11 @@ only the ability ids that function in the object's zone, and `find_matches`
 read the map's keys and then asked the whole effective list, so a card in a
 graveyard for its "from anywhere" half was also asked its battlefield-only
 half. `functions_in` is now asked per def, on every leg, as
-`replacement::gather` has always asked it. Unreachable on the pools and
-wrong the day TR-4 registers Bloodghast or Ichorid. **#16**: the records x
+`replacement::gather` has always asked it. Unreachable on the pools; wrong
+the day Dread is registered (its damage trigger would fire from the
+graveyard), and the day CR 113.6m is derived for Ichorid, whose end-step
+sacrifice would then be asked from the graveyard its upkeep return works in.
+**#16**: the records x
 candidates x abilities loop is two loops over a pre-pass that answers CR
 113.6, the instance ordinal and the identity once per def. **§11's lever**:
 `trigger_sources` is an `IdMap<ObjectId, EventKindMask>` and the gate asks
