@@ -21,7 +21,7 @@ use mtgsim::cards::artifacts::sol_ring;
 use mtgsim::cards::authoring::{
     another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose,
 };
-use mtgsim::cards::basic_lands::forest;
+use mtgsim::cards::basic_lands::{forest, plains, swamp};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_ld_cards::march_of_the_machines;
 use mtgsim::cards::phase_lf_cards::humility;
@@ -61,6 +61,7 @@ use mtgsim::types::triggers::{
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1868,15 +1869,23 @@ fn a_permanent_remembers_whether_it_was_cast() {
     assert_eq!(game.battlefield[&placed].cast, None);
 }
 
-/// A whole game with the three pooled cards forced into both decks, at two
-/// seats and four, ends without an error — and every trigger placed is on
-/// `GameState` between its dispatch and its placement.
+/// CR 117.5 — "each time a player would get priority, [...] triggered
+/// abilities that are waiting to be put onto the stack are put onto the
+/// stack." So the queue is empty at every priority prompt, and this plays
+/// whole games with the three pooled cards forced into every deck, at two
+/// seats and four, to say so.
+///
+/// **The assertion is the provider's, not the loop's.** What stood here was
+/// `pending_triggers.is_empty() || !g.is_over()`, which holds trivially
+/// until the game ends and then holds for the other reason; the claim the
+/// doc comment made was never checked. `PriorityQueueWatcher` checks it at
+/// the one instant CR 117.5 names, which is also the only instant a
+/// `DecisionProvider` can see.
 #[test]
-fn the_pooled_cards_play_whole_games() {
+fn no_player_receives_priority_with_a_trigger_still_queued() {
     use mtgsim::cards::registry::CardRegistry;
     use mtgsim::state::game::Game;
     use mtgsim::state::game_config::GameConfig;
-    use mtgsim::ui::random::RandomDecisionProvider;
 
     for players in [2usize, 4] {
         let registry = CardRegistry::performance_pool();
@@ -1884,20 +1893,119 @@ fn the_pooled_cards_play_whole_games() {
             .card_names()
             .iter()
             .cycle()
-            .take(50)
+            .take(30)
             .filter_map(|n| registry.create(n).ok())
             .collect();
         deck.extend([soul_warden(), soul_warden(), blood_artist(), blood_artist(), wild_growth(), wild_growth()]);
+        // A mana base the three can actually be cast off. Without one the
+        // agent never casts them and the test is vacuous twice over, which is
+        // how it stood: 212 priority prompts at two seats and not one trigger
+        // placed. `random_deck` makes the same guarantee for the fuzz harness
+        // and for the same reason.
+        for _ in 0..8 {
+            deck.extend([plains(), swamp(), forest()]);
+        }
         let mut g = Game::new(GameConfig::test(), vec![deck; players]).unwrap();
         g.reseed(603);
-        let dp = RandomDecisionProvider::seeded(603 + players as u64);
+        let dp = PriorityQueueWatcher::seeded(603 + players as u64);
         g.setup(&dp).unwrap();
-        for _ in 0..12 {
+        for _ in 0..20 {
             if g.is_over() {
                 break;
             }
             g.run_turn(&dp).unwrap();
         }
-        assert!(g.state.pending_triggers.is_empty() || !g.is_over());
+        // The guard that keeps the claim from being vacuous a third way:
+        // a board where nothing triggers proves nothing about CR 117.5.
+        assert!(
+            g.state.diagnostics.triggers_placed() > 0,
+            "{players} seats: the forced cards must actually trigger"
+        );
+        assert!(dp.prompts.get() > 0, "{players} seats: the game reached priority at all");
+    }
+}
+
+/// A `RandomDecisionProvider` that asserts CR 117.5 at every priority
+/// prompt: nothing is waiting to be put onto the stack by the time anyone is
+/// asked what to do.
+///
+/// A wrapper rather than a change to the random agent — the assertion is
+/// this test's claim, and a provider that panicked inside `fuzz_games` would
+/// turn a rules bug into a harness crash.
+struct PriorityQueueWatcher {
+    inner: RandomDecisionProvider,
+    prompts: std::cell::Cell<usize>,
+}
+
+impl PriorityQueueWatcher {
+    fn seeded(seed: u64) -> Self {
+        PriorityQueueWatcher {
+            inner: RandomDecisionProvider::seeded(seed),
+            prompts: std::cell::Cell::new(0),
+        }
+    }
+
+    fn check(&self, game: &GameState, context: &ChoiceContext) {
+        if !matches!(context.kind, ChoiceKind::PriorityAction) {
+            return;
+        }
+        self.prompts.set(self.prompts.get() + 1);
+        assert!(
+            game.pending_triggers.is_empty(),
+            "CR 117.5 — {} trigger(s) still queued as a player receives priority",
+            game.pending_triggers.len()
+        );
+    }
+}
+
+impl DecisionProvider for PriorityQueueWatcher {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.check(game, context);
+        self.inner.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        min: u64,
+        max: u64,
+    ) -> u64 {
+        self.check(game, context);
+        self.inner.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.check(game, context);
+        self.inner
+            .allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        items: &[ChoiceOption],
+    ) -> Vec<usize> {
+        self.check(game, context);
+        self.inner.choose_ordering(game, player, context, items)
     }
 }
