@@ -26,7 +26,7 @@ use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
 use crate::engine::zone_function::functions_in;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
-use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
+use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
@@ -84,7 +84,8 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
     !game.battlefield.get(&id).is_some_and(|entry| entry.face_down)
 }
 
-/// One candidate ability, as the matcher sees it.
+/// One object the matcher asks: a live source, or a departed one read off
+/// the CR 603.10a frame its record carries.
 struct TriggerCandidate<'a> {
     id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
@@ -94,35 +95,38 @@ struct TriggerCandidate<'a> {
     zone: Zone,
     /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
     host: Option<ObjectId>,
-    /// `None` for a live object — its list is read fresh — and the CR 603.10a
-    /// frame for a departed one, which is asked look-back conditions only.
-    frame: Option<&'a EffectiveCharacteristics>,
+    frame: TriggerCandidateFrame<'a>,
+    /// What a stack object is built from (CR 603.3's "text of the ability").
+    card: Arc<CardData>,
 }
 
-/// Where a candidate's abilities and types are read from: an `Arc` off the
-/// layer memo for a live object, the record's own CR 603.10a frame for a
-/// departed one. Held for the whole match so the per-def rows below can
-/// borrow it — the frame is read once per candidate, never per record.
-enum CandidateFrame<'a> {
+/// Where a candidate's abilities and types are read from.
+enum TriggerCandidateFrame<'a> {
+    /// A live object's effective frame, off the layer memo.
     Live(Arc<EffectiveCharacteristics>),
+    /// A departed object's CR 603.10a frame, off its record — asked
+    /// look-back conditions only (§4.2 leg 2).
     Departed(&'a EffectiveCharacteristics),
 }
 
-impl CandidateFrame<'_> {
-    fn get(&self) -> &EffectiveCharacteristics {
+impl TriggerCandidateFrame<'_> {
+    fn chars(&self) -> &EffectiveCharacteristics {
         match self {
-            CandidateFrame::Live(chars) => chars,
-            CandidateFrame::Departed(frame) => frame,
+            TriggerCandidateFrame::Live(chars) => chars,
+            TriggerCandidateFrame::Departed(frame) => frame,
         }
+    }
+
+    fn is_departed(&self) -> bool {
+        matches!(self, TriggerCandidateFrame::Departed(_))
     }
 }
 
-/// One triggered ability on one candidate, with every fact that does not
-/// depend on the record already answered: CR 113.6, the instance ordinal and
-/// the identity. The records loop reads these and asks `match_def`.
-struct CandidateDef<'a> {
-    /// Index into the candidate list, which holds the object facts its defs
-    /// share.
+/// One triggered ability of one candidate, with the facts that do not depend
+/// on the record answered once: CR 113.6, the instance ordinal and the
+/// identity.
+struct TriggerCandidateDef<'a> {
+    /// Index into the candidate list.
     candidate: usize,
     identity: AbilityIdentity,
     def: &'a TriggerDef,
@@ -395,22 +399,19 @@ impl GameState {
             })
             .collect();
 
-        let mut candidates: Vec<(TriggerCandidate<'_>, CandidateFrame<'_>, Arc<CardData>)> = Vec::new();
+        let mut candidates: Vec<TriggerCandidate<'_>> = Vec::new();
         for id in live {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
-            candidates.push((
-                TriggerCandidate {
-                    id,
-                    controller: controller_or_owner(self, id).unwrap_or(object.owner),
-                    owner: object.owner,
-                    zone: object.zone,
-                    host: self.battlefield.get(&id).and_then(|e| e.attached_to),
-                    frame: None,
-                },
-                CandidateFrame::Live(chars),
-                Arc::clone(&object.card_data),
-            ));
+            candidates.push(TriggerCandidate {
+                id,
+                controller: controller_or_owner(self, id).unwrap_or(object.owner),
+                owner: object.owner,
+                zone: object.zone,
+                host: self.battlefield.get(&id).and_then(|e| e.attached_to),
+                frame: TriggerCandidateFrame::Live(chars),
+                card: Arc::clone(&object.card_data),
+            });
         }
         for (id, owner, from, frame) in frames {
             // A departed object's card: still in the store for a zone change,
@@ -421,36 +422,31 @@ impl GameState {
                 Some(object) => Arc::clone(&object.card_data),
                 None => Arc::new(frame_card(frame)),
             };
-            candidates.push((
-                TriggerCandidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
-                CandidateFrame::Departed(frame),
+            candidates.push(TriggerCandidate {
+                id,
+                controller: frame.controller,
+                owner,
+                zone: from,
+                host: None,
+                frame: TriggerCandidateFrame::Departed(frame),
                 card,
-            ));
+            });
         }
 
-        // The pre-pass: one row per triggered ability, built once. What used
-        // to sit in the innermost of three loops is a fact about the def and
-        // not about the record — the instance ordinal was recounted by
-        // scanning the list prefix and the identity rebuilt on every record
-        // (#16).
-        let mut defs: Vec<CandidateDef<'_>> = Vec::new();
-        for (index, (candidate, frame, _)) in candidates.iter().enumerate() {
-            let chars = frame.get();
+        // One row per triggered ability, so the records loop below pays
+        // only for what depends on the record (§4.2).
+        let mut defs: Vec<TriggerCandidateDef<'_>> = Vec::new();
+        for (index, candidate) in candidates.iter().enumerate() {
+            let chars = candidate.frame.chars();
             let epoch = self.objects.get(&candidate.id).map(|o| o.zone_change_epoch).unwrap_or(0);
             for (position, ability) in chars.abilities.iter().enumerate() {
                 let Effect::Triggered(def) = &ability.effect else { continue };
-                if ability.ability_type != AbilityType::Triggered {
-                    continue;
-                }
-                // CR 113.6 asks about an **ability**, and a candidate got
-                // here because *one* of its abilities functions where it is
-                // — Ichorid is in the graveyard sweep for its "from
-                // anywhere" half. `replacement::gather` makes the same check
-                // per def, on every leg, for the same reason.
+                // CR 113.6 is asked of each ability: the object is here
+                // because *some* ability of its functions here (§4.2).
                 if !functions_in(ability, &chars.types, candidate.zone) {
                     continue;
                 }
-                defs.push(CandidateDef {
+                defs.push(TriggerCandidateDef {
                     candidate: index,
                     identity: AbilityIdentity {
                         source: ObjectRef { id: candidate.id, zone_change_epoch: epoch },
@@ -468,7 +464,7 @@ impl GameState {
 
         for (seq, record) in &records {
             for row in &defs {
-                let (candidate, _, card) = &candidates[row.candidate];
+                let candidate = &candidates[row.candidate];
                 let identity = row.identity;
                 let def = row.def;
                 let outcome = self.match_def(def, candidate, *seq, &record.event);
@@ -501,7 +497,7 @@ impl GameState {
                                 identity,
                                 controller: candidate.controller,
                                 def: Arc::clone(&def_arc),
-                                source_card: Arc::clone(card),
+                                source_card: Arc::clone(&candidate.card),
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![*seq],
@@ -521,7 +517,7 @@ impl GameState {
                                     identity,
                                     controller: candidate.controller,
                                     def: Arc::clone(&def_arc),
-                                    source_card: Arc::clone(card),
+                                    source_card: Arc::clone(&candidate.card),
                                     instances: row.instances.to_vec(),
                                     event: matched,
                                     records: vec![*seq],
@@ -552,7 +548,7 @@ impl GameState {
         }
         // CR 603.2f, per candidate, of the object as the event left it. A frame
         // candidate was a permanent, which is visible.
-        if candidate.frame.is_none() && !visible_to_all(self, candidate.id) {
+        if !candidate.frame.is_departed() && !visible_to_all(self, candidate.id) {
             return Err(Refusal::Visibility);
         }
         let mut matched: Option<(EventIndex, Vec<Option<ObjectId>>)> = None;
@@ -560,7 +556,7 @@ impl GameState {
             // A frame is asked look-back conditions only (§4.2 leg 2); a live
             // object is asked everything, its look-back arms against the
             // list it has now.
-            if candidate.frame.is_some() && !arm.looks_back() {
+            if candidate.frame.is_departed() && !arm.looks_back() {
                 continue;
             }
             if !arm.reads(event) {
@@ -842,7 +838,7 @@ impl GameState {
 }
 
 fn is_triggered(def: &AbilityDef) -> bool {
-    def.ability_type == AbilityType::Triggered && matches!(def.effect, Effect::Triggered(_))
+    matches!(def.effect, Effect::Triggered(_))
 }
 
 /// The CR 603.10a frame a record carries, if it carries one.
