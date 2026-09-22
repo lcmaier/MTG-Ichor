@@ -7830,11 +7830,42 @@ re-takable without a throwaway build, and the pooled-cards game asserts CR
      and a creature while Blood Artist lives is the board. Rare, and the
      answer is one extra trigger.
 
-     **Sized:** ~60 lines: when the outermost batch is a battlefield departure
-     and `trigger_sources` is non-empty, snapshot each source's look-back defs
-     (an `Arc` clone per source) at the batch's open and match those; or TR-4's
-     `LastKnownInformation` grows a per-window frame for every source the
-     batch touched. Which is the review's, with its cost measured.
+     **Sized:** decided 2026-09-22 by the owner (the TR-1 review, theme D): a
+     snapshot at the batch's open, built in the review's theme E. The fix as
+     first filed was too narrow on two axes.
+
+     - **Sources.** A surviving source can be off the battlefield. Bridge
+       from Below in a graveyard under Yixlid Jailer, and one wipe takes
+       Jailer and an opponent's creature: neither of Bridge's abilities
+       triggers, because CR 603.10 looks back to "the existence of those
+       abilities ... immediately prior to the event", and Jailer's effect
+       applied then. A read after the wipe finds them restored. So the
+       snapshot covers `zone_trigger_sources` as well as the battlefield.
+       That half has no board today: Bridge never triggers from a graveyard
+       at all (item 173), so its fixture lands with item 173. The sign runs
+       both ways — a look-back ability *granted* by a row whose source leaves
+       in the same batch existed before the event and not after, and a live
+       read misses it.
+     - **Events.** CR 603.10a has three classes, and TR-4 adds cards leaving
+       a graveyard and visible cards going to hand or library, so "a
+       battlefield departure" is today's one class, not the rule.
+
+     **The trigger** is not `trigger_sources` being non-empty — that is an
+     `IdMap<ObjectId, EventKindMask>` now, and whether a source's mask meets
+     the window is the close's question. It is **the batch departs a
+     permanent that carries a registry row** (Layer 1, 3 or 6), decided at the
+     batch's open against the registry: the lists before and after the event
+     differ only when such a row arrived or left in the same batch, so a
+     board without one pays a probe and nothing else.
+
+     **The design:** for every source in both maps, an `Arc` clone of its
+     look-back defs when the registry holds a row that can reach a departing
+     permanent, matched at the close in place of the live list. ~80 lines;
+     the fixture is Humility beside Blood Artist in one wipe; an A/B, because
+     it adds work at the open on boards with rows and Humility is pooled.
+     Not chosen: TR-4's `LastKnownInformation` growing a per-window frame
+     for every source the batch touched, which makes a frame carry a list for
+     an object that did not move.
 
 168. **A frame candidate's identity carries the post-move epoch, or 0 for an
      object that left the game.** `AbilityIdentity.zone_change_epoch` is read
@@ -7893,3 +7924,29 @@ re-takable without a throwaway build, and the pooled-cards game asserts CR
 
      **Reachability (2026-09-19):** nothing owed — a record for TR-2, whose
      `TriggeringToughness` is the same leaf with the other box.
+
+173. **A triggered ability's CR 113.6b zone statement is never read, so
+     Bridge from Below would do nothing anywhere.** `functioning_zones`
+     returns `trigger_zones` for a triggered ability (`zone_function.rs:85`),
+     which derives each condition's zones (CR 113.6k) and never reads
+     `TriggerDef.intervening_if`; `stated_zones` is asked only of a static's
+     `Effect::Conditional`, though its own doc names Bridge's intervening
+     "if" as a statement, and so does `layers-architecture.md` §13d's table.
+     A Bridge-shaped def therefore functions on the battlefield only: in a
+     graveyard it is never filed in `zone_trigger_sources` and never asked,
+     and on the battlefield its "if this card is in your graveyard" is
+     false. Found 2026-09-22 answering the owner's question on item 167's
+     Jailer board, where the engine's "no trigger" is right by accident.
+
+     **Reachability (2026-09-22):** unreachable — no registered card states
+     its zone in an intervening "if". Wrong the day one registers:
+     `o:"if this card is in your graveyard" (o:whenever or o:"at the beginning" or o:"when ")`
+     is 18 cards on Scryfall (2026-09-22), Bridge from Below, Ichorid, Blood
+     Operative, Skyclave Shade and Vengeful Pharaoh among them.
+
+     **Sized:** ~20 lines: the intervening "if"'s stated zones replace the
+     derived ones (113.6b's "only") in `trigger_zones`, and
+     `condition_functions_in` answers the same, since the dispatcher asks
+     each condition and would refuse Bridge's from a graveyard otherwise.
+     The test is Bridge in a graveyard triggering; item 167's Jailer
+     fixture follows it.
