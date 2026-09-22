@@ -7830,6 +7830,20 @@ that had to agree is what that lever would otherwise have shipped with.
 re-takable without a throwaway build, and the pooled-cards game asserts CR
 117.5 at every priority prompt on a deck that can actually cast the three.
 
+**The review's five themes, and where each went.** The handoff file was
+deleted with theme E (2026-09-22) under its own eviction contract, so this is
+the index. **A** (names, shapes and comments, and F2) is in the code,
+`plans/glossary.md` and F2's two comments (PR #174); its three keeps sit in
+the TR-1 archive beside theme D's. **B** (the authoring surface) is
+`cards::authoring`, whose module carries CR 700.4's `dies` for a land (PR
+#175). **C** (the matcher) is the paragraph above and `fuzz-record.md`'s
+theme C block (PR #176). **D** (the docs and three decisions) is item 167's
+restatement, `engineering-practices.md` §4's band sentence,
+`triggers-architecture.md` §3.3, §4.8 and §12, main item 9's `CastFacts`
+paragraph, item 173, and four keeps in the TR-1 archive (PR #177). **E** is
+§3.6's provenance ids as built, item 167 closed by §4.3's snapshot, item 149
+amended, and `fuzz-record.md`'s theme E block (PR #178).
+
 167. **~~A look-back arm on a *surviving* permanent reads its post-event
      ability list.~~ — ✅ CLOSED 2026-09-22 (the TR-1 review, theme E).** — archived.
      A batch whose decided members depart an ability list's source keeps

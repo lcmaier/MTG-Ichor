@@ -99,7 +99,7 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Section size | 7715 of 7926 lines (97%) |
+| Section size | 7729 of 7940 lines (97%) |
 | Numbered items | 233 |
 | …closed, still recorded | 75 |
 | …open — unreachable, and says why | 99 |
@@ -140,7 +140,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- `plans/handoffs/tr-1-review.md`
+- (none — nothing half-finished)
 
 ## What this file deliberately does not know
 
