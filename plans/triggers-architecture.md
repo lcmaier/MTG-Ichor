@@ -1664,6 +1664,22 @@ Recorded here at authoring; a finding that becomes a code item moves to
     model as decided answers them with a policy inside a rollout, in APNAP
     order as the engine asks. Branching a search on one needs the resumable
     resolution, Phase 10's, and nothing here makes it harder.
+14. **The card-authoring builder waits for its first caller** (the TR-1
+    review, theme B, 2026-09-20). `cards::authoring::triggers` gives the
+    printed shapes their words — `dies`, `enters`,
+    `leaves_the_battlefield`, `at_beginning_of(step, Whose)` — and
+    `CountableEvent::once_per_event` for CR 603.2c. The two methods the
+    design also sketched, `.caused_by(ZoneChangeCause)` and
+    `.owned_by(PlayerRef)`, are **not written**: no card among TR-1's five
+    prints either, and none of TR-2's seven is a zone-change trigger at
+    all. They are one method each on `CountableEvent`, whose only
+    constructors already build an arm carrying both fields, so the first
+    card that prints "whenever a creature an opponent controls is put into
+    a graveyard from the battlefield" adds them in the PR that adds the
+    card. Until then a card that asks writes the arm out — which is what
+    the one fixture that asks (a discard, `cause: Some(Discarded)`) does,
+    and it reads correctly, because its fields are `Some`: it was `None`
+    standing for "any" that the review objected to, not `Some`.
 
 ---
 

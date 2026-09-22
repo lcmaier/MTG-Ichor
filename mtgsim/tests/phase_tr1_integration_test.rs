@@ -18,6 +18,9 @@ use std::sync::Arc;
 
 use mtgsim::cards::alpha::lightning_bolt;
 use mtgsim::cards::artifacts::sol_ring;
+use mtgsim::cards::authoring::{
+    another, at_beginning_of, dies, enters, triggered_ability, whenever, Whose,
+};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_ld_cards::march_of_the_machines;
@@ -28,8 +31,7 @@ use mtgsim::cards::phase_rb_cards::rest_in_peace;
 use mtgsim::cards::phase_rd_cards::fog;
 use mtgsim::cards::phase_re_cards::eon_hub;
 use mtgsim::cards::phase_tr1_cards::{
-    another, blood_artist, felidar_sovereign, saproling_token, soul_warden, triggered_ability,
-    verdant_force, whenever, wild_growth,
+    blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
 };
 use mtgsim::engine::actions::{DestructionSource, GameAction};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
@@ -76,46 +78,8 @@ fn a_creature() -> ObjectFilter {
     ObjectFilter::ByType(CardType::Creature)
 }
 
-/// "Whenever a creature enters" — the plain ETB watcher, any creature.
-fn creature_enters() -> TriggerEvent {
-    TriggerEvent::EntersBattlefield {
-        subject: TriggerSubject::Filter(a_creature()),
-        controller: None,
-        from: None,
-        cast: None,
-        multiplicity: Multiplicity::PerOccurrence,
-    }
-}
-
-/// "When this enters".
-fn this_enters() -> TriggerEvent {
-    TriggerEvent::EntersBattlefield {
-        subject: TriggerSubject::This,
-        controller: None,
-        from: None,
-        cast: None,
-        multiplicity: Multiplicity::PerOccurrence,
-    }
-}
-
-/// "Whenever [subject] dies".
-fn dies(subject: TriggerSubject) -> TriggerEvent {
-    TriggerEvent::ZoneChange {
-        subject,
-        from: Some(Zone::Battlefield),
-        to: Some(Zone::Graveyard),
-        cause: None,
-        owner: None,
-        multiplicity: Multiplicity::PerOccurrence,
-    }
-}
-
-fn at_upkeep(whose: Option<PlayerRef>) -> TriggerEvent {
-    TriggerEvent::StepBegins { step: StepType::Upkeep, whose }
-}
-
 /// A 1/1 creature fixture carrying one triggered ability.
-fn watcher(name: &str, event: TriggerEvent, effect: Effect) -> Arc<CardData> {
+fn watcher(name: &str, event: impl Into<TriggerEvent>, effect: Effect) -> Arc<CardData> {
     creature_with_ability(name, 1, 1, triggered_ability(whenever(event, effect)))
 }
 
@@ -369,7 +333,11 @@ fn the_newcomers_own_etb_triggers_beside_soul_wardens() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 1, 3);
     put_on_battlefield(&mut game, soul_warden(), 0);
-    let comer = put_on_battlefield(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 1);
+    let comer = put_on_battlefield(
+        &mut game,
+        watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()),
+        1,
+    );
 
     assert_eq!(pending(&game), 2);
     let sources: Vec<ObjectId> = game.pending_triggers.iter().map(|t| t.origin.source()).collect();
@@ -424,7 +392,7 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
         &mut game,
         CardDataBuilder::new("Mourning Idol")
             .card_type(CardType::Artifact)
-            .ability(triggered_ability(whenever(dies(TriggerSubject::Filter(a_creature())), gain_one())))
+            .ability(triggered_ability(whenever(dies(a_creature()), gain_one())))
             .build(),
         0,
     );
@@ -455,7 +423,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
         &mut game,
         enchantment_watcher(
             "Landfall Lament",
-            triggered_ability(whenever(dies(TriggerSubject::Filter(ObjectFilter::ByType(CardType::Land))), draw_one())),
+            triggered_ability(whenever(dies(ObjectFilter::ByType(CardType::Land)), draw_one())),
         ),
         0,
     );
@@ -472,14 +440,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
         enchantment_watcher(
             "Landfall Dirge",
             triggered_ability(whenever(
-                TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::Filter(ObjectFilter::ByType(CardType::Land)),
-                    from: Some(Zone::Battlefield),
-                    to: Some(Zone::Graveyard),
-                    cause: None,
-                    owner: None,
-                    multiplicity: Multiplicity::OncePerEvent,
-                },
+                dies(ObjectFilter::ByType(CardType::Land)).once_per_event(),
                 gain_one(),
             )),
         ),
@@ -503,7 +464,11 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
 #[test]
 fn an_upkeep_trigger_fires_as_the_upkeep_begins_and_is_placed_before_priority() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, watcher("Dawn Chanter", at_upkeep(Some(PlayerRef::You)), gain_one()), 0);
+    put_on_battlefield(
+        &mut game,
+        watcher("Dawn Chanter", at_beginning_of(StepType::Upkeep, Whose::Yours), gain_one()),
+        0,
+    );
 
     advance_to(&mut game, 0, StepType::Upkeep);
 
@@ -544,8 +509,16 @@ fn verdant_force_triggers_at_an_opponents_upkeep_too() {
 fn apnap_puts_the_active_players_trigger_on_the_stack_first() {
     let mut game = setup_two_player_game();
     let chanters = [
-        put_on_battlefield(&mut game, watcher("Dawn Chanter", at_upkeep(None), gain_one()), 0),
-        put_on_battlefield(&mut game, watcher("Dusk Chanter", at_upkeep(None), gain_one()), 1),
+        put_on_battlefield(
+            &mut game,
+            watcher("Dawn Chanter", at_beginning_of(StepType::Upkeep, Whose::Each), gain_one()),
+            0,
+        ),
+        put_on_battlefield(
+            &mut game,
+            watcher("Dusk Chanter", at_beginning_of(StepType::Upkeep, Whose::Each), gain_one()),
+            1,
+        ),
     ];
 
     let active = next_upkeep(&mut game);
@@ -567,8 +540,16 @@ fn apnap_puts_the_active_players_trigger_on_the_stack_first() {
 fn a_player_with_two_different_triggers_chooses_their_order() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 5);
-    let gainer = put_on_battlefield(&mut game, watcher("Dawn Chanter", at_upkeep(None), gain_one()), 0);
-    let drawer = put_on_battlefield(&mut game, watcher("Dawn Scholar", at_upkeep(None), draw_one()), 0);
+    let gainer = put_on_battlefield(
+        &mut game,
+        watcher("Dawn Chanter", at_beginning_of(StepType::Upkeep, Whose::Each), gain_one()),
+        0,
+    );
+    let drawer = put_on_battlefield(
+        &mut game,
+        watcher("Dawn Scholar", at_beginning_of(StepType::Upkeep, Whose::Each), draw_one()),
+        0,
+    );
 
     next_upkeep(&mut game);
     assert_eq!(pending(&game), 2);
@@ -586,8 +567,16 @@ fn a_player_with_two_different_triggers_chooses_their_order() {
 #[test]
 fn two_identical_triggers_are_placed_without_an_ordering_prompt() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, watcher("Dawn Chanter", at_upkeep(None), gain_one()), 0);
-    put_on_battlefield(&mut game, watcher("Dawn Chanter", at_upkeep(None), gain_one()), 0);
+    put_on_battlefield(
+        &mut game,
+        watcher("Dawn Chanter", at_beginning_of(StepType::Upkeep, Whose::Each), gain_one()),
+        0,
+    );
+    put_on_battlefield(
+        &mut game,
+        watcher("Dawn Chanter", at_beginning_of(StepType::Upkeep, Whose::Each), gain_one()),
+        0,
+    );
 
     next_upkeep(&mut game);
     assert_eq!(pending(&game), 2);
@@ -623,7 +612,7 @@ fn two_triggers_with_targets_are_asked_their_order() {
 #[test]
 fn identical_triggers_with_different_bindings_are_asked_their_order() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, watcher("Mourner", dies(TriggerSubject::Filter(a_creature())), gain_one()), 0);
+    put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), gain_one()), 0);
     let a = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let b = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
@@ -656,7 +645,11 @@ fn an_untap_step_trigger_is_held_until_the_upkeep() {
         1,
     );
     game.battlefield.get_mut(&untapper).unwrap().tapped = true;
-    let upkeeper = put_on_battlefield(&mut game, watcher("Dusk Chanter", at_upkeep(Some(PlayerRef::You)), gain_one()), 1);
+    let upkeeper = put_on_battlefield(
+        &mut game,
+        watcher("Dusk Chanter", at_beginning_of(StepType::Upkeep, Whose::Yours), gain_one()),
+        1,
+    );
     game.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::End) });
 
     advance_to(&mut game, 1, StepType::Untap);
@@ -681,7 +674,7 @@ fn an_end_of_combat_trigger_fires_as_the_end_of_combat_step_begins() {
     let mut game = setup_two_player_game();
     put_on_battlefield(
         &mut game,
-        watcher("Combat Medic", TriggerEvent::StepBegins { step: StepType::EndCombat, whose: None }, gain_one()),
+        watcher("Combat Medic", at_beginning_of(StepType::EndCombat, Whose::Each), gain_one()),
         0,
     );
 
@@ -773,7 +766,7 @@ fn entering_tapped_is_not_becoming_tapped() {
 #[test]
 fn a_card_in_a_library_does_not_trigger() {
     let mut game = setup_two_player_game();
-    let hidden = put_in_library(&mut game, watcher("Buried Warden", creature_enters(), gain_one()), 0);
+    let hidden = put_in_library(&mut game, watcher("Buried Warden", enters(a_creature()), gain_one()), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
 
     assert_eq!(pending(&game), 0);
@@ -938,7 +931,11 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     );
     // Control: still there, it gets the counter.
     let mut game = setup_two_player_game();
-    let grower = put_on_battlefield(&mut game, watcher("Sprouting Sapling", this_enters(), counter_on_it.clone()), 0);
+    let grower = put_on_battlefield(
+        &mut game,
+        watcher("Sprouting Sapling", enters(TriggerSubject::This), counter_on_it.clone()),
+        0,
+    );
     assert_eq!(pending(&game), 1);
     place(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
@@ -946,7 +943,11 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
 
     // Bounced between trigger and resolution: nothing.
     let mut game = setup_two_player_game();
-    let grower = put_on_battlefield(&mut game, watcher("Sprouting Sapling", this_enters(), counter_on_it), 0);
+    let grower = put_on_battlefield(
+        &mut game,
+        watcher("Sprouting Sapling", enters(TriggerSubject::This), counter_on_it),
+        0,
+    );
     game.change_zone(grower, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1, "the ability still goes on the stack");
@@ -976,7 +977,7 @@ fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let mut game = setup_two_player_game();
     let renewal = put_on_battlefield(
         &mut game,
-        enchantment_watcher("Renewal Vow", triggered_ability(whenever(dies(TriggerSubject::Filter(a_creature())), exile_it))),
+        enchantment_watcher("Renewal Vow", triggered_ability(whenever(dies(a_creature()), exile_it))),
         0,
     );
     let _ = renewal;
@@ -1014,14 +1015,14 @@ fn a_permanent_animated_as_it_enters_is_a_creature_to_an_etb_trigger() {
 fn humility_strips_an_etb_before_it_can_trigger() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, humility(), 1);
-    put_on_battlefield(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 0);
+    put_on_battlefield(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()), 0);
     assert_eq!(pending(&game), 0);
 
     // Together, in one window: Humility has no ETB of its own, and the
     // creature's is gone by the time the window closes.
     let mut game = setup_two_player_game();
     let hum = put_in_hand(&mut game, humility(), 1);
-    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 0);
+    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()), 0);
     let entry = |_game: &GameState, object: ObjectId, controller: PlayerId| GameAction::EnterBattlefield {
         object,
         from: Some(Zone::Hand),
@@ -1049,13 +1050,7 @@ fn the_trigger_is_controlled_by_whoever_controlled_the_source_when_it_triggered(
         &mut game,
         watcher(
             "Gate Sentinel",
-            TriggerEvent::EntersBattlefield {
-                subject: TriggerSubject::Filter(another(a_creature())),
-                controller: None,
-                from: None,
-                cast: None,
-                multiplicity: Multiplicity::PerOccurrence,
-            },
+            enters(another(a_creature())),
             gain_one(),
         ),
         0,
@@ -1100,7 +1095,11 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
         ),
         1,
     );
-    let scholar = put_on_battlefield(&mut game, watcher("Arriving Scholar", this_enters(), draw_one()), 0);
+    let scholar = put_on_battlefield(
+        &mut game,
+        watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()),
+        0,
+    );
 
     assert_eq!(pending(&game), 2);
     let tiers: Vec<(ObjectId, TriggerTier)> = game.pending_triggers.iter().map(|t| (t.origin.source(), t.tier())).collect();
@@ -1120,7 +1119,7 @@ fn a_trigger_with_no_legal_target_is_removed_and_never_reaches_the_stack() {
         &mut game,
         watcher(
             "Shattering Herald",
-            this_enters(),
+            enters(TriggerSubject::This),
             Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(
@@ -1224,7 +1223,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
             1,
             1,
             triggered_ability(TriggerDef {
-                condition: TriggerCondition::Event(at_upkeep(Some(PlayerRef::You))),
+                condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(Condition::LifeAtLeast(AmountExpr::Fixed(20))),
                 limit: None,
                 effect: Effect::Atom(
@@ -1309,7 +1308,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
         enchantment_watcher(
             "Growth Ledger",
             triggered_ability(whenever(
-                creature_enters(),
+                enters(a_creature()),
                 Effect::Atom(
                     Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
                     EffectRecipient::TriggeringObject,
@@ -1420,7 +1419,7 @@ fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
         Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Green, AmountExpr::Fixed(1))], special: vec![] }),
         EffectRecipient::Controller,
     );
-    let from_entry = whenever(creature_enters(), produce.clone());
+    let from_entry = whenever(enters(a_creature()), produce.clone());
     assert!(!is_mana_ability(&from_entry), "triggers from a creature entering");
     let Effect::Triggered(wild) = &wild_growth().abilities[0].effect else { panic!() };
     assert!(is_mana_ability(wild));

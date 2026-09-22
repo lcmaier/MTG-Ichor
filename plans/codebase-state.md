@@ -5242,6 +5242,16 @@ first.
     a helper here returns an `AbilityDef` and nothing else. Best done as its own
     mechanical PR before the first Phase 8 card file, not folded into one.
 
+    **The module exists and is named (2026-09-20, the TR-1 review, theme
+    B).** `src/cards/authoring/` — a directory rather than the single file
+    this entry imagined, because the vocabulary splits by subsystem, and
+    `authoring/triggers.rs` is the first tenant with CR 603's words. **The
+    31 static-ability sites and the two private wrappers are untouched**:
+    theme B was the trigger vocabulary, sized at ~120 lines. What is closed
+    is the question this entry framed as open — there is now a place that
+    is neither a phase file nor `test_support`, so the rest is a move into
+    it and no longer a design.
+
     **What the transition to a real card list looks like — asked on review
     2026-09-08 and then measured, because both of us were arguing from
     impressions.** The measurement changed one of the answers.
