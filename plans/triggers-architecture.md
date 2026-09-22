@@ -337,6 +337,18 @@ the engine's own; "at end of combat" is `StepBegins { step: EndCombat }`
 (511.2) and "at end of turn" is `StepBegins { step: End }` (513.1a), which
 is why the three `*End` variants die.
 
+**Not one enum with `EventPattern`** (the TR-1 review, 2026-09-22). The two
+watch different streams: an `EventPattern` reads a *proposal*, before it
+happens and rewritable by the closed `Rewrite` algebra; a `TriggerEvent` arm
+reads a *performed* record, after, with frames, look-back and multiplicity.
+Ten of TR-1's twelve arms have a sibling in shape (`Attacks` and
+`AbilityTriggers` have none), and the vocabulary is already shared at the
+leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeCause`. What is
+worth sharing is a *field struct* — a `ZoneChangePattern { from, to, cause }`
+both `ZoneChange` arms hold, and `SourcePattern` for damage where the trigger
+arm has a `TriggerSubject` — and TR-4's widening of `ZoneChange` is the
+moment. Never a shared enum. Layers watch nothing.
+
 ### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
 
 A trigger's effect refers back to its event: "that creature", "that player",

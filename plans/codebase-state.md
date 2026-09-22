@@ -781,6 +781,16 @@ here. None is blocking RB.
    as an intervening "if" is a `Condition` leaf for the first card that
    prints it.
 
+   **The struct is CR 400.7d's home** (the TR-1 review, 2026-09-22): in
+   `tmnt.txt` that is the rule letting a permanent's ability read the spell
+   it was, "including what costs were paid to cast that spell or what mana
+   was spent". It is built at one site (`game_state.rs:1240`) off the
+   resolving object, and a fact joins it when a card reads one. X, kicked
+   (an additional cost) and the alternative cost are each one constructor
+   site plus the carry off the `StackEntry`, which holds all three already;
+   mana spent is recorded nowhere yet, so that one needs its capture at
+   payment first.
+
    **Reachability (2026-09-19):** closed — TR-1; the rule itself closed 2026-08-26.
 
 10. **CR 400.7 is unimplemented: an object keeps its identity across zones (found
