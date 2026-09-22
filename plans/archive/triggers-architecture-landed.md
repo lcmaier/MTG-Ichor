@@ -111,6 +111,27 @@ fifty of them.
    and the peel-off point the doc named (605.1b with Wild Growth) is about
    200 of those lines, so it was not taken; the reviewer decides.
 
+**Asked at the review and kept** (the TR-1 review, 2026-09-22, theme D),
+so they are not asked again:
+
+- **#9, `could_add_mana` on `Modal`:** a modal trigger with one mana mode is a
+  mana ability by CR 605.1b's "could add mana" — 605.2 keeps the class when
+  the state cannot produce it, and the class must be knowable before modes
+  are chosen because a mana ability never reaches the stack. Modal triggers
+  are `backlog.md` §2.7's, and the mana resolver refuses a `Modal` root with
+  an `Err`, so nothing misresolves quietly.
+- **#15, the timestamp sort:** no determinism problem — every object in the
+  store carries a unique timestamp from one monotonic counter, so the keys
+  never tie.
+- **#18, CR 603.3d's equivalence:** it holds; F2's rewrite of `place_one`'s
+  comment says why.
+- **#25, the two source sets:** they mirror the replacement pair for its
+  stated reason — leg 1 probes a membership (a kind mask per source since
+  theme C) while walking the ordered battlefield, leg 3 iterates a map whose
+  value is the functioning-ability list. That value was the one F1 found the
+  dispatcher never read; theme C asks CR 113.6 of each def and each
+  condition instead.
+
 **Measured.** `plans/fuzz-record.md`, the TR-1 block: the probe found no
 dispatch passing the gate on the old pools at two seats or four; the engine
 arm read `IDENTICAL` on every counter on both pools at both seat counts; the

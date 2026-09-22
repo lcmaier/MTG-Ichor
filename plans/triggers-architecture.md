@@ -337,6 +337,18 @@ the engine's own; "at end of combat" is `StepBegins { step: EndCombat }`
 (511.2) and "at end of turn" is `StepBegins { step: End }` (513.1a), which
 is why the three `*End` variants die.
 
+**Not one enum with `EventPattern`** (the TR-1 review, 2026-09-22). The two
+watch different streams: an `EventPattern` reads a *proposal*, before it
+happens and rewritable by the closed `Rewrite` algebra; a `TriggerEvent` arm
+reads a *performed* record, after, with frames, look-back and multiplicity.
+Ten of TR-1's twelve arms have a sibling in shape (`Attacks` and
+`AbilityTriggers` have none), and the vocabulary is already shared at the
+leaf: `ObjectFilter`, `PlayerRef`, `Condition`, `ZoneChangeCause`. What is
+worth sharing is a *field struct* — a `ZoneChangePattern { from, to, cause }`
+both `ZoneChange` arms hold, and `SourcePattern` for damage where the trigger
+arm has a `TriggerSubject` — and TR-4's widening of `ZoneChange` is the
+moment. Never a shared enum. Layers watch nothing.
+
 ### 3.4 Subjects, "you", and the bound facts — `TriggerBinding`
 
 A trigger's effect refers back to its event: "that creature", "that player",
@@ -476,6 +488,23 @@ are two triggers, and for the gates. The `(source, ability)` pair sites —
 `AbilityResolved` carry them. An ordinal among same-id instances rather
 than an index into the whole list, so a Layer 6 grant later in the turn
 does not renumber an earlier instance's gate.
+
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): provenance
+ids replace the ordinal, built in the review's theme E before TR-2 keys a
+gate on the identity.** The ordinal is stable under a later grant but not
+under an earlier grant *ending*: if the first of two Diffusion Slivers
+leaves mid-turn, the survivor's instance 1 becomes instance 0, and a
+once-per-turn gate keyed on instance 1 is orphaned while instance 0's reads
+as unused. So the Layer 6 grant site (`compute.rs:962`, where
+`is_characteristic_defining` is already cleared) mints the granted def's id
+from the granting row's source and epoch, an id constructor beside
+`AbilityId::derived_on` (`types/ids.rs:140`). Two grants carry two ids, stable
+while each grant exists and gone with it, so the "one or more" fold's
+`(identity, arm)` key (`dispatch.rs:519`) tells them apart with no ordinal.
+The elision (`placement.rs:106`) is re-keyed on def equality rather than id
+equality, and item 149's closure is amended. "Loses all abilities" goes by
+list, so CR 113.10b is unaffected. Diffusion Sliver itself waits for TR-5's
+target event, so nothing printed reads the field yet.
 
 ### 3.7 `PendingTrigger` and the queue
 
@@ -1061,10 +1090,19 @@ stack *after* the ability that caused it. The matcher dispatches it like
 any unbatched record; a trigger watching it is tier 2 by construction
 (`TriggerCondition::tier()`); a trigger watching a tier-2 trigger's
 triggering is tier 2 too, ordered within the tier by APNAP and its
-controller. The recursion is bounded by the abilities present — no
-registered or printed ability watches its own kind — and a depth past
-`BATCH_NESTING_LIMIT` is an `Err`, the engine's mistake, not a rules
-answer.
+controller. No printed ability watches its own kind, which is necessary
+and not sufficient once custom cards exist: a trigger watching abilities
+triggering, whose own triggering it then watches, recurses synchronously
+inside one dispatch, where TR-6's loop detector — which counts decisions —
+cannot see it, so the nesting bound is the only guard for that loop.
+**Amended 2026-09-22 by the owner (the TR-1 review, theme D): at the bound
+the answer is CR 104.4b's draw, not an `Err`.** TR-6 settles
+`GameResult::Draw` through the same settlement §4.9's detector uses, and
+`DISPATCH_NESTING_LIMIT` (16 today, `dispatch.rs:44`, an `Err` until then)
+becomes that detector's threshold knob rather than a second number.
+`BATCH_NESTING_LIMIT` (32, `actions.rs:38`) is the same pattern but a
+genuine engine invariant — CR 614.5 bounds every replacement chain — so it
+stays an `Err`.
 
 ### 4.9 The mandatory loop (CR 104.4b, 731; P5; `backlog.md` §2.28)
 
@@ -1594,7 +1632,7 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 → `plans/archive/triggers-architecture-landed.md`, "TR-1"; the trace page
 `plans/traces/tr-1-a-trigger-is-matched-at-the-close.html`.
 
-### TR-2 — the histories, the gates, "may", and each player (~2,000)
+### TR-2 — the histories, the gates, "may", and each player (~2,150)
 
 | Piece | ~additions |
 |---|---|
@@ -1602,18 +1640,38 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 | `Effect::Optional` with `OptionalEffect`, `last_optional_taken` for "if you do" (main item 24), 118.12's cost-object check | ~120 |
 | `EffectRecipient::EachPlayer(PlayerSet)` in APNAP order (S2, item 122); Alms Collector's rider re-encoded | ~80 |
 | cards: **Paladin of Atonement** (last turn, whoever's; `AmountExpr::TriggeringToughness` off the frame), **Vengeful Warchief** ("for the first time each turn"), **Elvish Warmaster** ("one or more", "triggers only once each turn"), **Nykthos Paragon** (603.2h, "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Temple Bell** (each player draws), **Cosi's Trickster** ("whenever an opponent shuffles", "may"; its three rulings); Warchief, Warmaster, Crawler and Trickster pooled (the histories, the gate, `EachPlayer`, the shuffle arm) | ~400 |
-| tests: §13's TR-2 atoms; Nykthos Paragon's six rulings as six tests; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 603.1b's fixture in Avatar Aang's shape; 121.2c against Alms Collector; the pregame-sweep question measured (a probe, recorded) | ~700 |
+| tests, 21: §13's 8 TR-2 atoms (603.1b's fixture in Avatar Aang's shape is one); Nykthos Paragon's six rulings as six tests; Cosi's Trickster's three; Elvish Warmaster's once each turn; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 121.2c against Alms Collector; the elision's binding-read board (below). The pregame-sweep question is measured too, a probe recorded and not a test | ~800 |
 | docs, ledger, record | ~260 |
 
-### TR-3 — delayed, reflexive, and "until" (~1,900)
+**Carried in from the TR-1 review** (2026-09-22):
+
+- **Before it:** the review's theme E — provenance ids (§3.6's amendment),
+  which TR-2's gates key on, and item 167's snapshot.
+- **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
+  `phase_tr1_integration_test.rs` today, and every trigger phase asks
+  "before priority".
+- **Beside its binding reader:** item 163's elision compares only the bound
+  facts the effect *reads* (walk it for the three `Triggering*` leaves), so
+  two landfall triggers from two lands stop prompting when the effect
+  ignores the land. Tireless Provisioner is correct today: its
+  Food-or-Treasure choice is CR 608.2d's, made as the effect applies (no
+  bulleted modes, CR 700.2), so two identical stack objects give the same
+  game in either order.
+
+### TR-3 — delayed, reflexive, and "until" (~2,300)
 
 | Piece | ~additions |
 |---|---|
 | the registry, `DelayedTrigger`, `DelayedSource`, `DelayedDuration`, `ObjectRef`, `Instant`, `ExtraTurnId` on `turn_queue` and `current_turn_origin`, `Primitive::CreateDelayedTrigger`, provenance from `ResolutionContext` and from a rider, 107.3n's X, `ChooseDelayedTriggerEvent`, cleanup expiry of `ThisTurn`; `Effect::Reflexive` and the immediate check; `UntilEvent` resolved at dispatch (610.3) | ~520 |
 | `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm at `resolve.rs:1417`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser | ~120 |
 | cards: **Final Fortune** (603.7d, a named extra turn; its ruling — a skipped extra turn loses nothing — is the `ExtraTurnId` test), **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) | ~320 |
-| tests: §13's TR-3 atoms; Tatsumasa's simultaneous choice as a fixture; 513.2 both ways; 603.7f through a rider fixture; 603.7g's fixture; Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b) | ~650 |
+| tests, 29: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura | ~1,100 |
 | docs, ledger, record | ~250 |
+
+**Candidate seam**, taken only if the brief's re-count puts code plus tests
+past 2,500 (the re-count below reads 2,060–2,530): the registry and
+reflexive with Final Fortune, Flickerwisp and Cornered Crook, then "until"
+(610.3) with Banishing Light. Each half carries its consumer.
 
 ### TR-4 — the look-back list, the frame, unattach, control (~2,200)
 
@@ -1621,25 +1679,35 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 |---|---|
 | `LastKnownInformation` and `Status` (3 field sites, 7 literals), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~480 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
-| tests: §13's TR-4 atoms; Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); 122.8 and 122.9 off the frame | ~700 |
+| tests, 27: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards) | ~1,000 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |
 
-### TR-5 — combat's shapes, targeting, counters, prevention, the multiplier (~2,200)
+**Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
+themselves from a graveyard, which CR 113.6m places in that zone and
+`zone_function` does not derive (Ichorid's intervening "if" is also main
+item 173's 113.6b statement).
+
+### TR-5 — combat's shapes, targeting, counters, prevention, the multiplier (~2,350)
 
 | Piece | ~additions |
 |---|---|
 | `AttackShape` and `BlockShape` over item 11's records (one blockers record per declaration), `Targeted` at three emit sites, `DamagePrevented` from the prevention leg, entry `CountersChanged` with `by`, the arms `Attacks`, `Blocks`, `BecomesTarget`, `DamageIsPrevented`, `CountersPutOn`/`RemovedFrom` with `nth` and per-counter occurrences, `ActivatesAbility`, `CreatesToken`, `Scries`; `Effect::TriggerMultiplier` behind the gate; CR 704.5q routed through two `RemoveCounters` proposals in the state-based batch (Deferred Migrations item 6's counter half; `CountersAnnihilated` deleted) | ~560 |
 | cards: **Hellrider** (508.3a's defender), **Loyal Sentry** (509.3b), **Cephalid Aristocrat** (item 12, mills), **Simic Ascendancy** (122.6 entry counters, "one or more", 603.4 at upkeep, `WinGame`), **Selfless Squire** (item 16 — its second ruling: any prevention, not only its own), **Panharmonicon** (603.2d, its ten rulings), **Protean Hydra** (CR 704.5q's removal is a removal — its six rulings; X entry counters through RC-5's dynamic amount, RD's rider for "remove that many", TR-3's delayed trigger, so the routing's fixture if any of the three refuses it); Hellrider, Simic Ascendancy and Panharmonicon pooled | ~440 |
-| tests: §13's TR-5 atoms; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; 509.3a–g's seven readings; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays"); Panharmonicon's edges | ~750 |
+| tests, 30: §13's 4 TR-5 atoms; 509.3a–g's seven readings; Panharmonicon's ten rulings (its edges); Protean Hydra's six; Selfless Squire's second; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays") | ~1,100 |
 | docs, ledger, record | ~250 |
 
-### TR-6 — state triggers, the loop, and the rule-owned arm (~1,300)
+**Candidate seam**, on TR-3's terms (the re-count below reads 2,100–2,600):
+combat's shapes and targeting with Hellrider, Loyal Sentry and Cephalid
+Aristocrat, then counters, prevention and the multiplier with Simic
+Ascendancy, Selfless Squire, Panharmonicon and Protean Hydra.
+
+### TR-6 — state triggers, the loop, and the rule-owned arm (~1,150)
 
 | Piece | ~additions |
 |---|---|
-| the state check at its three schedules, `state_triggers_armed_off`, `trigger_left_stack` at four sites, `TriggerCondition::State` matched; `Condition::Not` (Emperor Crocodile's "no other creatures" is its first card — LI-3's rule for when the enum grows); `LoopDetector` (Tier 1) on `GameState` reading A4e's decision counter, `GameResult::Draw` through the settlement; `TriggerOrigin::Rule` declared with `InherentAbility` empty | ~300 |
+| the state check at its three schedules, `state_triggers_armed_off`, `trigger_left_stack` at four sites, `TriggerCondition::State` matched; `Condition::Not` (Emperor Crocodile's "no other creatures" is its first card — LI-3's rule for when the enum grows); `LoopDetector` (Tier 1) on `GameState` reading A4e's decision counter, `GameResult::Draw` through the settlement; the same draw at `DISPATCH_NESTING_LIMIT`, which becomes the threshold knob (§4.8), with its two doc comments (`dispatch.rs:40`, `game_state.rs:214`); `TriggerOrigin::Rule` declared with `InherentAbility` empty | ~320 |
 | cards: **Emperor Crocodile** (603.8, its two rulings), pooled. Immortal Coil is the CR 104.4b board — its third ability beside Platinum Angel is "an involuntary infinite loop ... the game will end in a draw" by its own ruling — and it is a **fixture**, not a registration: its first ability's `Cost::ExileFromGraveyard` is a validation and payment stub today (`engine/costs.rs`), and a card wearing a real name with a dead ability is what `engineering-practices.md` §3 forbids | ~120 |
-| tests: §13's TR-6 atoms; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the ratchet's reading at the phase's close (§9 of the practices) | ~450 |
+| tests, 9: §13's 2 TR-6 atoms; Emperor Crocodile's two rulings; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the draw at the nesting bound (§4.8). The ratchet's reading at the phase's close (§9 of the practices) is a reading, not a test | ~300 |
 | docs, the close-out, §16's deferrals re-read, ledger, record | ~400 |
 
 **Not five and not seven.** TR-1 and TR-2 sum past the band and their
@@ -1651,6 +1719,27 @@ loop detector are the two things most likely to surprise a measurement and
 are cheapest to revert alone. Every number above is a starting point: the
 phase re-counts against the tree before it starts, and A4n's rider is the
 precedent for a count being wrong by a factor.
+
+**Re-counted 2026-09-22 (the TR-1 review, theme D).** TR-1 missed on two
+rows: the dispatcher (~520 sized, ~970 landed, 1.9×) and the tests (~700
+sized, 1,871 landed — fifty tests at 37 lines each, for §13's 46 atoms plus
+the cards' rulings and the named fixtures, none of which a flat row
+counted). So each test row above states its count: §13's atoms, re-read
+from `spec.sqlite` on this date and unchanged, plus the ruling and fixture
+tests the row names, at 37 lines a test. The band is code plus tests
+(`engineering-practices.md` §4):
+
+| Phase | code rows | largest row ×1.9 | tests (count) | code + tests |
+|---|---|---|---|---|
+| TR-2 | 1,100 | 1,550 | ~800 (21) | 1,900–2,350 |
+| TR-3 | 960 | 1,430 | ~1,100 (29) | 2,060–2,530 |
+| TR-4 | 900 | 1,330 | ~1,000 (27) | 1,900–2,330 |
+| TR-5 | 1,000 | 1,500 | ~1,100 (30) | 2,100–2,600 |
+| TR-6 | 440 | 730 | ~300 (9) | 740–1,030 |
+
+No re-plan. TR-3 and TR-5 are the two whose top end passes 2,500, and each
+names a candidate seam under its table, used only if its brief's re-count
+says so.
 
 ---
 
