@@ -24,6 +24,7 @@ use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
+use crate::engine::zone_function::functions_in;
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -96,6 +97,36 @@ struct TriggerCandidate<'a> {
     /// `None` for a live object — its list is read fresh — and the CR 603.10a
     /// frame for a departed one, which is asked look-back conditions only.
     frame: Option<&'a EffectiveCharacteristics>,
+}
+
+/// Where a candidate's abilities and types are read from: an `Arc` off the
+/// layer memo for a live object, the record's own CR 603.10a frame for a
+/// departed one. Held for the whole match so the per-def rows below can
+/// borrow it — the frame is read once per candidate, never per record.
+enum CandidateFrame<'a> {
+    Live(Arc<EffectiveCharacteristics>),
+    Departed(&'a EffectiveCharacteristics),
+}
+
+impl CandidateFrame<'_> {
+    fn get(&self) -> &EffectiveCharacteristics {
+        match self {
+            CandidateFrame::Live(chars) => chars,
+            CandidateFrame::Departed(frame) => frame,
+        }
+    }
+}
+
+/// One triggered ability on one candidate, with every fact that does not
+/// depend on the record already answered: CR 113.6, the instance ordinal and
+/// the identity. The records loop reads these and asks `match_def`.
+struct CandidateDef<'a> {
+    /// Index into the candidate list, which holds the object facts its defs
+    /// share.
+    candidate: usize,
+    identity: AbilityIdentity,
+    def: &'a TriggerDef,
+    instances: &'a [EffectRecipient],
 }
 
 /// A match the dispatcher will queue or resolve.
@@ -332,7 +363,7 @@ impl GameState {
             })
             .collect();
 
-        let mut candidates: Vec<(TriggerCandidate<'_>, Arc<Vec<AbilityDef>>, Arc<CardData>)> = Vec::new();
+        let mut candidates: Vec<(TriggerCandidate<'_>, CandidateFrame<'_>, Arc<CardData>)> = Vec::new();
         for id in live {
             let Some(object) = self.objects.get(&id) else { continue };
             let Some(chars) = compute_characteristics(self, id) else { continue };
@@ -345,7 +376,7 @@ impl GameState {
                     host: self.battlefield.get(&id).and_then(|e| e.attached_to),
                     frame: None,
                 },
-                Arc::clone(&chars.abilities),
+                CandidateFrame::Live(chars),
                 Arc::clone(&object.card_data),
             ));
         }
@@ -360,86 +391,111 @@ impl GameState {
             };
             candidates.push((
                 TriggerCandidate { id, controller: frame.controller, owner, zone: from, host: None, frame: Some(frame) },
-                Arc::clone(&frame.abilities),
+                CandidateFrame::Departed(frame),
                 card,
             ));
         }
 
-        for (seq, record) in &records {
-            for (candidate, abilities, card) in &candidates {
-                for (index, ability) in abilities.iter().enumerate() {
-                    let Effect::Triggered(def) = &ability.effect else { continue };
-                    if ability.ability_type != AbilityType::Triggered {
-                        continue;
-                    }
-                    let instance = abilities[..index].iter().filter(|a| a.id == ability.id).count() as u32;
-                    let identity = AbilityIdentity {
-                        source: ObjectRef {
-                            id: candidate.id,
-                            zone_change_epoch: self
-                                .objects
-                                .get(&candidate.id)
-                                .map(|o| o.zone_change_epoch)
-                                .unwrap_or(0),
-                        },
+        // The pre-pass: one row per triggered ability, built once. What used
+        // to sit in the innermost of three loops is a fact about the def and
+        // not about the record — the instance ordinal was recounted by
+        // scanning the list prefix and the identity rebuilt on every record
+        // (#16).
+        let mut defs: Vec<CandidateDef<'_>> = Vec::new();
+        for (index, (candidate, frame, _)) in candidates.iter().enumerate() {
+            let chars = frame.get();
+            let epoch = self.objects.get(&candidate.id).map(|o| o.zone_change_epoch).unwrap_or(0);
+            for (position, ability) in chars.abilities.iter().enumerate() {
+                let Effect::Triggered(def) = &ability.effect else { continue };
+                if ability.ability_type != AbilityType::Triggered {
+                    continue;
+                }
+                // CR 113.6 asks about an **ability**, and a candidate got
+                // here because *one* of its abilities functions where it is
+                // — Ichorid is in the graveyard sweep for its "from
+                // anywhere" half. `replacement::gather` makes the same check
+                // per def, on every leg, for the same reason.
+                if !functions_in(ability, &chars.types, candidate.zone) {
+                    continue;
+                }
+                defs.push(CandidateDef {
+                    candidate: index,
+                    identity: AbilityIdentity {
+                        source: ObjectRef { id: candidate.id, zone_change_epoch: epoch },
                         ability: ability.id,
-                        instance,
-                    };
-                    let outcome = self.match_def(def, candidate, *seq, &record.event);
-                    let (matched, subjects, refusal) = match outcome {
-                        Ok((event, subjects)) => (Some(event), subjects, None),
-                        Err(refusal) => (None, Vec::new(), Some(refusal)),
-                    };
-                    let mana = matched.is_some() && is_mana_ability(def);
-                    self.trace(|| {
-                        trace_records::trigger(
-                            self,
-                            *seq,
-                            &identity,
-                            candidate.zone,
-                            matched.is_some(),
-                            refusal.map(Refusal::name),
-                            mana,
-                        )
-                    });
-                    let Some(matched) = matched else { continue };
-                    let arm = &def.condition.events()[matched.0];
-                    let def_arc: Arc<TriggerDef> = Arc::new((**def).clone());
-                    match arm.multiplicity() {
-                        Multiplicity::PerOccurrence => {
-                            for subject in subjects {
+                        instance: chars.abilities[..position]
+                            .iter()
+                            .filter(|a| a.id == ability.id)
+                            .count() as u32,
+                    },
+                    def,
+                    instances: &ability.instances,
+                });
+            }
+        }
+
+        for (seq, record) in &records {
+            for row in &defs {
+                let (candidate, _, card) = &candidates[row.candidate];
+                let identity = row.identity;
+                let def = row.def;
+                let outcome = self.match_def(def, candidate, *seq, &record.event);
+                let (matched, subjects, refusal) = match outcome {
+                    Ok((event, subjects)) => (Some(event), subjects, None),
+                    Err(refusal) => (None, Vec::new(), Some(refusal)),
+                };
+                let mana = matched.is_some() && is_mana_ability(def);
+                self.trace(|| {
+                    trace_records::trigger(
+                        self,
+                        *seq,
+                        &identity,
+                        candidate.zone,
+                        matched.is_some(),
+                        refusal.map(Refusal::name),
+                        mana,
+                    )
+                });
+                let Some(matched) = matched else { continue };
+                let arm = &def.condition.events()[matched.0];
+                // Cloned here rather than in the pre-pass: a match is under 1%
+                // of visits, so one clone per matching record is cheaper than
+                // one per candidate def whether or not it ever matches.
+                let def_arc: Arc<TriggerDef> = Arc::new(def.clone());
+                match arm.multiplicity() {
+                    Multiplicity::PerOccurrence => {
+                        for subject in subjects {
+                            matches.push(MatchedTrigger {
+                                identity,
+                                controller: candidate.controller,
+                                def: Arc::clone(&def_arc),
+                                source_card: Arc::clone(card),
+                                instances: row.instances.to_vec(),
+                                event: matched,
+                                records: vec![*seq],
+                                object: subject.and_then(|id| self.object_ref(id)),
+                                mana,
+                            });
+                        }
+                    }
+                    // CR 603.2c's boundary is the window: one trigger, every
+                    // matching record in its binding, no one object.
+                    Multiplicity::OncePerEvent => {
+                        match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
+                            Some((_, at)) => matches[*at].records.push(*seq),
+                            None => {
+                                once.push(((identity, matched), matches.len()));
                                 matches.push(MatchedTrigger {
                                     identity,
                                     controller: candidate.controller,
                                     def: Arc::clone(&def_arc),
                                     source_card: Arc::clone(card),
-                                    instances: ability.instances.clone(),
+                                    instances: row.instances.to_vec(),
                                     event: matched,
                                     records: vec![*seq],
-                                    object: subject.and_then(|id| self.object_ref(id)),
+                                    object: None,
                                     mana,
                                 });
-                            }
-                        }
-                        // CR 603.2c's boundary is the window: one trigger, every
-                        // matching record in its binding, no one object.
-                        Multiplicity::OncePerEvent => {
-                            match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
-                                Some((_, at)) => matches[*at].records.push(*seq),
-                                None => {
-                                    once.push(((identity, matched), matches.len()));
-                                    matches.push(MatchedTrigger {
-                                        identity,
-                                        controller: candidate.controller,
-                                        def: Arc::clone(&def_arc),
-                                        source_card: Arc::clone(card),
-                                        instances: ability.instances.clone(),
-                                        event: matched,
-                                        records: vec![*seq],
-                                        object: None,
-                                        mana,
-                                    });
-                                }
                             }
                         }
                     }

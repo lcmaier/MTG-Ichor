@@ -1709,6 +1709,71 @@ fn a_from_anywhere_trigger_is_stopped_by_yixlid_jailer() {
     assert_eq!(pending(&game), 1);
 }
 
+/// Ichorid's shape: one trigger CR 113.6k reads in every zone beside one it
+/// reads only on the battlefield. **CR 113.6 is a question about an ability,
+/// not about an object**, and an object off the battlefield is the board that
+/// tells the two apart.
+fn ichorid_shaped() -> Arc<CardData> {
+    CardDataBuilder::new("Ichor Shade")
+        .card_type(CardType::Creature)
+        .power_toughness(1, 1)
+        .rules_text("When this card is put into a graveyard from anywhere, you gain 1 life.")
+        .ability(triggered_ability(whenever(
+            TriggerEvent::ZoneChange {
+                subject: TriggerSubject::This,
+                from: None,
+                to: Some(Zone::Graveyard),
+                cause: None,
+                owner: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+            gain_one(),
+        )))
+        .ability(triggered_ability(whenever(dies(another(a_creature())), draw_one())))
+        .build()
+}
+
+/// F1 — the dispatcher asks CR 113.6 per **ability**, not per object.
+///
+/// The card in a graveyard is a candidate because one of its two abilities
+/// functions there; the other functions only on the battlefield and must not
+/// be asked. Registration already knows this — `zone_trigger_sources` holds
+/// the one ability id — and the matcher read the map's keys.
+#[test]
+fn a_battlefield_only_trigger_is_not_asked_from_the_graveyard() {
+    let mut game = setup_two_player_game();
+    let shade = put_on_battlefield(&mut game, ichorid_shaped(), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    // The shade dies: its "from anywhere" trigger is read after the move
+    // (CR 603.6c), and "another creature dies" is not about itself.
+    destroy_all(&mut game, &[shade], source);
+    assert_eq!(pending(&game), 1, "the from-anywhere half, once");
+
+    // Now another creature dies while the shade is in the graveyard. Its
+    // dies-trigger does not function there, so nothing is added.
+    destroy_all(&mut game, &[bear], source);
+    assert_eq!(
+        pending(&game),
+        1,
+        "CR 113.6k — the dies half functions on the battlefield, and the shade is in a graveyard"
+    );
+}
+
+/// The same ability on the same card, from the zone it does function in — so
+/// the test above is CR 113.6 being applied and not the ability being lost.
+#[test]
+fn the_same_trigger_is_asked_from_the_battlefield() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, ichorid_shaped(), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[bear], source);
+    assert_eq!(pending(&game), 1, "another creature died and the shade is on the battlefield");
+}
+
 // ---------------------------------------------------------------------------
 // The trace's sixth emit point (item 9)
 // ---------------------------------------------------------------------------
