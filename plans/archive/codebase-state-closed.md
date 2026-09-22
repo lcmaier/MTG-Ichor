@@ -2345,3 +2345,64 @@ Closed by `AbilityIdentity { source, zone_change_epoch, ability, instance }` (`t
      **Sized:** nothing owed unless the triggers doc wants per-instance
      identity; then `AbilityIdentity` gains the index (~10 lines) and the 13
      pair sites are read once more.
+
+## Found by TR-1 — the trigger spine (2026-09-19)
+
+### Item 167 — closed 2026-09-22 by the TR-1 review, theme E
+
+Closed by `engine::triggers::LookBackSnapshot` (`triggers-architecture.md` §4.3): a batch whose decided members depart the source of a row that writes ability lists keeps each look-back reader's frame from before it performs, and the close asks look-back arms of that frame and every other arm of the live list. Both signs are fixtures in `phase_tr1_integration_test.rs` — Humility beside a surviving Blood Artist, and a grant whose source dies in the wipe — each red on the pre-fix tree. The snapshot reads the zone map too, so Bridge from Below's graveyard half is covered the day item 173 files Bridge there; its fixture lands with 173. `fuzz-record.md`'s theme E block has the cost and the reachability.
+
+*Original entry:*
+
+167. **A look-back arm on a *surviving* permanent reads its post-event
+     ability list.** CR 603.10 looks back "using the existence of those
+     abilities ... immediately prior to the event", and the dispatcher does so
+     off the CR 603.10a frame for a permanent that *left* (§4.2 leg 2). A
+     permanent that stays reads the list it has after the window closed: a
+     Blood Artist surviving the wipe that took Humility triggers on the
+     deaths, where before the event it had no abilities and should not. The
+     frames a record carries cannot answer this — nothing about a survivor is
+     recorded — and the memo's stale entry is a cache, not a record
+     (`triggers-architecture.md` §15 item 4).
+
+     **Reachability (2026-09-19):** reachable — wrong today: Humility and Blood
+     Artist are both pooled, and one state-based check that kills Humility
+     and a creature while Blood Artist lives is the board. Rare, and the
+     answer is one extra trigger.
+
+     **Sized:** decided 2026-09-22 by the owner (the TR-1 review, theme D): a
+     snapshot at the batch's open, built in the review's theme E. The fix as
+     first filed was too narrow on two axes.
+
+     - **Sources.** A surviving source can be off the battlefield. Bridge
+       from Below in a graveyard under Yixlid Jailer, and one wipe takes
+       Jailer and an opponent's creature: neither of Bridge's abilities
+       triggers, because CR 603.10 looks back to "the existence of those
+       abilities ... immediately prior to the event", and Jailer's effect
+       applied then. A read after the wipe finds them restored. So the
+       snapshot covers `zone_trigger_sources` as well as the battlefield.
+       That half has no board today: Bridge never triggers from a graveyard
+       at all (item 173), so its fixture lands with item 173. The sign runs
+       both ways — a look-back ability *granted* by a row whose source leaves
+       in the same batch existed before the event and not after, and a live
+       read misses it.
+     - **Events.** CR 603.10a has three classes, and TR-4 adds cards leaving
+       a graveyard and visible cards going to hand or library, so "a
+       battlefield departure" is today's one class, not the rule.
+
+     **The trigger** is not `trigger_sources` being non-empty — that is an
+     `IdMap<ObjectId, EventKindMask>` now, and whether a source's mask meets
+     the window is the close's question. It is **the batch departs a
+     permanent that carries a registry row** (Layer 1, 3 or 6), decided at the
+     batch's open against the registry: the lists before and after the event
+     differ only when such a row arrived or left in the same batch, so a
+     board without one pays a probe and nothing else.
+
+     **The design:** for every source in both maps, an `Arc` clone of its
+     look-back defs when the registry holds a row that can reach a departing
+     permanent, matched at the close in place of the live list. ~80 lines;
+     the fixture is Humility beside Blood Artist in one wipe; an A/B, because
+     it adds work at the open on boards with rows and Humility is pooled.
+     Not chosen: TR-4's `LastKnownInformation` growing a per-window frame
+     for every source the batch touched, which makes a frame carry a list for
+     an object that did not move.

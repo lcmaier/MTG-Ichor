@@ -972,6 +972,29 @@ For a look-back candidate the ability's controller (603.3a's "you") is the
 frame's `controller`, and the "if" clause reads the frame where it names
 the object (persist's "if it had no -1/-1 counters", off `Status.counters`).
 
+**A source that survives the event** (main item 167, built 2026-09-22 in
+the TR-1 review's theme E). CR 603.10's "existence of those abilities ...
+immediately prior to the event" holds for every look-back source, not only
+one that left: a Blood Artist that survives the wipe that took Humility had
+no abilities before it, and triggers on none of the deaths. A survivor's
+list can differ across the event only if the batch departs the source of a
+row that writes ability lists — a copy, or a Layer 6 grant or removal
+(`RegistryScopeSummary::ability_list_sources`) — so that is the trigger,
+asked of the batch's *decided* members between deciding and performing:
+replacement decides whether anything departs, and the lists are still the
+ones before. The batch then keeps each look-back reader's frame, an `Arc`
+off the memo, as a `LookBackSnapshot` over the records it performs — legs 1,
+3 and 4, read before a departure can end the grant leg 4 walks for — and the
+close asks look-back arms of those frames and every other arm of the live
+list. **A nested batch that joins the window takes its own**, and a record
+reads the outermost snapshot whose batch performed it, since a nested batch
+inside a performer is the enclosing event at finer grain (CR 704.3's one
+event); else the first taken after it, since no list changed in between;
+else the live list, which is then also the list before it. Both signs are
+fixtures: Humility beside a surviving Blood Artist, and a grant whose source
+dies in the wipe, whose carrier triggers for each death. Bridge from Below's
+graveyard half is the zone map's, and waits for main item 173.
+
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm
@@ -1648,7 +1671,8 @@ pooled (91 → 94). Fifty tests, §13's TR-1 row clean.
 atoms here; leg 3 is swept with leg 4 because they are one map; the gate has
 a sixth probe (the departure frames); the binding carries the def. A
 look-back arm on a surviving permanent reads its post-event list — main item
-167. The archive has the sizing table and the nine notes.
+167, closed by the review's theme E (§4.3). The archive has the sizing table
+and the nine notes.
 
 **Measured** (`fuzz-record.md`, the TR-1 block): the probe found no dispatch
 passing the gate on the old pools; the engine arm `IDENTICAL` on every counter
@@ -1672,7 +1696,8 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 **Carried in from the TR-1 review** (2026-09-22):
 
 - **Before it:** the review's theme E — provenance ids (§3.6's amendment),
-  which TR-2's gates key on, and item 167's snapshot.
+  which TR-2's gates key on, and item 167's snapshot (§4.3). Both landed
+  2026-09-22.
 - **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
   `phase_tr1_integration_test.rs` today, and every trigger phase asks
   "before priority".

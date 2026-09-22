@@ -6,7 +6,7 @@
 use crate::engine::layers::types::{ContinuousEffect, EffectId, EffectOrigin, Layer, Timestamp};
 use crate::state::duration_registry::{DurationRegistry, DurationRow, RowId};
 use crate::types::effects::{Duration, ObjectSet};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::zones::ZoneSet;
 
 /// CR 613.7's storage order: layer first, then timestamp, with the registry's
@@ -172,6 +172,14 @@ pub struct RegistryScopeSummary {
     /// made.
     pub unattributed_trigger_zones: ZoneSet,
 
+    /// The sources of every row that writes an ability list — a copy (Layer
+    /// 1), or a Layer 6 grant or removal of an ability. A batch that departs
+    /// one of them can leave a surviving object with one list before the
+    /// event and another after it, and CR 603.10 reads the one before
+    /// (`codebase-state.md` item 167). Empty on a board with no such row,
+    /// which is then one probe per batch.
+    pub ability_list_sources: IdSet<ObjectId>,
+
     /// The union of every row's [`ObjectSet::reachable_zones`] — which zones
     /// the registry can name an object in at all.
     ///
@@ -232,6 +240,15 @@ impl RegistryScopeSummary {
                 ObjectSet::Filter { zones, .. } => *zones,
                 ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => ZoneSet::BATTLEFIELD,
             };
+            if matches!(
+                effect.modification,
+                EffectModification::CopyFrom(_)
+                    | EffectModification::GrantAbility(_)
+                    | EffectModification::LoseAbility(_)
+                    | EffectModification::LoseAllAbilities
+            ) {
+                summary.ability_list_sources.insert(effect.source);
+            }
             match &effect.modification {
                 EffectModification::SetController(_) => summary.any_control_changing = true,
                 EffectModification::GrantAbility(def) => {

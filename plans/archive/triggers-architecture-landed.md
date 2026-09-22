@@ -91,6 +91,7 @@ fifty of them.
    wipe that took Humility reads the list it has after the wipe, where
    CR 603.10 wants the one before. Filed as `codebase-state.md` main item
    167; the frames a record carries were never going to answer it.
+   *Closed 2026-09-22 by the review's theme E: §4.3's look-back snapshot.*
 7. **The dispatch is where `test_support::put_on_battlefield`'s direct
    writes became visible.** The helper wrote `entered_battlefield_turn` and
    `controller_since_turn` after `place_on_battlefield` had walked nothing;

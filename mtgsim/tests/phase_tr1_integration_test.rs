@@ -416,6 +416,56 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
     assert_eq!(life(&game, 0), 22);
 }
 
+/// Item 167: CR 603.10 looks back to "the existence of those abilities ...
+/// immediately prior to the event" for a source that *survives* it too. One
+/// wipe takes Humility and a creature while Blood Artist lives: before the
+/// wipe Blood Artist had no abilities, so nothing triggers, though its
+/// ability is back by the time anything is checked.
+// COVERS-PARTIAL: ATOM-603.10a-001
+#[test]
+fn a_survivor_looks_back_to_the_abilities_it_had_before_the_wipe() {
+    let mut game = setup_two_player_game();
+    let artist = put_on_battlefield(&mut game, blood_artist(), 0);
+    let enchantment = put_on_battlefield(&mut game, humility(), 1);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[enchantment, bear], source);
+
+    assert_eq!(game.get_object(artist).unwrap().zone, Zone::Battlefield);
+    assert_eq!(pending(&game), 0, "no ability before the event, so no trigger");
+}
+
+/// Item 167's other sign: a look-back ability *granted* by a row whose source
+/// leaves in the same event existed before it and not after, so it triggers —
+/// for the granter's own death too, which is another creature dying.
+// COVERS-PARTIAL: ATOM-603.10a-001
+#[test]
+fn a_grant_ending_in_the_wipe_still_sees_the_creatures_die() {
+    let mut game = setup_two_player_game();
+    let carrier = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let granter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let mut granted = triggered_ability(whenever(dies(another(a_creature())), gain_one()));
+    granted.id = new_ability_id();
+    game.continuous_effects.add(ContinuousEffect {
+        duration: Duration::WhileSourceOnBattlefield,
+        affected_objects: ObjectSet::Fixed(vec![carrier]),
+        ..registered(
+            granter,
+            Layer::Layer6Ability,
+            100,
+            EffectModification::GrantAbility(Box::new(granted)),
+        )
+    });
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[granter, bear], source);
+
+    assert_eq!(pending(&game), 2, "the granter and the bear, off the list from before");
+    assert!(game.pending_triggers.iter().all(|t| t.origin.source() == carrier));
+}
+
 /// CR 603.2c — one trigger per occurrence: three lands destroyed as one
 /// event are three triggers, not one for the batch.
 // COVERS: ATOM-603.2c-001
