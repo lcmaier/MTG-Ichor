@@ -5,6 +5,12 @@ fuzz_ab - one sitting of the fuzz A/B, sized to what each number needs.
     python plans/fuzz_ab.py --arm main=../mtgsim_v2_main/mtgsim/target/release/fuzz_games.exe \
                             --arm new=mtgsim/target/release/fuzz_games.exe [--require "Cytoshape"]
 
+A heavy board â the whole sitting on N copies of each named card, which is how
+a mechanic-heavy reading is re-taken without a throwaway build:
+
+    python plans/fuzz_ab.py --arm main=... --arm new=... \r
+                            --require "Soul Warden,Blood Artist,Wild Growth" --copies 8
+
 Three kinds of number come out of `fuzz_games`, and they cost different
 amounts to get right. This script runs each at the cheapest setting that is
 still the same number, which is what makes a sitting fit in a few minutes
@@ -240,6 +246,11 @@ def main():
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 8,
                     help="for the counter and fixture runs; timing is always --threads 1")
     ap.add_argument("--require", default=None, help="also run --require NAMES on every arm (performance, threaded)")
+    ap.add_argument("--copies", type=int, default=None,
+                    help="with --require, run the WHOLE sitting on that board with N copies of each "
+                         "required nonland per deck (fuzz_games --copies). This is the cost instrument: "
+                         "counters, timing and fixtures are then the heavy board's and are not comparable "
+                         "with a recorded baseline taken without it. IDENTICAL still means IDENTICAL")
     ap.add_argument("--no-fixtures", action="store_true", help="skip the 50-game §3 rows")
     ap.add_argument("--players", type=int, default=None,
                     help="seats at the table, passed to every run (default: the binary's, two). "
@@ -269,6 +280,13 @@ def main():
     out = args.out or tempfile.mkdtemp(prefix="fuzz_ab_")
     os.makedirs(out, exist_ok=True)
     common = ["--seed", str(args.seed)]
+    # `--copies` without `--require` requires nothing N times, which is a run
+    # that looks heavy in the header and is the shipped pool underneath â the
+    # exact way to publish a number nobody can reproduce. Fatal instead.
+    if args.copies is not None:
+        if not args.require:
+            sys.exit("--copies needs --require: it multiplies the required cards and nothing else")
+        common += ["--require", args.require, "--copies", str(args.copies)]
     if args.players is not None:
         common += ["--players", str(args.players)]
     if args.deck_size is not None:
