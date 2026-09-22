@@ -218,13 +218,12 @@ impl GameState {
 
     /// One dispatch, in five steps.
     ///
-    /// 1. **The gate** — four probes (§4.2): the battlefield map, the zone
-    ///    map, the unattributed zone set off the registry summary, and
-    ///    whether any record of the window carries a CR 603.10a frame with a
-    ///    triggered ability in it. All empty, and a dispatch is the probes and
-    ///    nothing else. The battlefield probe is §11's mask: not "is any
-    ///    source present" but "does any source read a kind this window
-    ///    carries".
+    /// 1. **The gate** — four probes (§4.2): the permanents whose printed
+    ///    triggers read a kind this window carries (§11's mask, source
+    ///    first), the zone map, the unattributed zone set off the registry
+    ///    summary, and whether any record of the window carries a CR 603.10a
+    ///    frame with a triggered ability in it. All empty, and a dispatch is
+    ///    the probes and nothing else.
     /// 2. **The candidates** — `find_matches`' four legs: every object that
     ///    may carry a triggered ability functioning where it is, in CR 613.7
     ///    order, each with the effective ability list read once and the card a
@@ -246,10 +245,10 @@ impl GameState {
     fn dispatch_inner(&mut self, window: &[EventSeq], ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- The gate: four probes, and on the old pools nothing else -------
         //
-        // The window's kinds first, OR-ed once (§11). A window carrying no
-        // kind any arm can read — a draw, a shuffle, a counter added — is
-        // refused by `match_def` for every candidate on every leg, so
-        // answering it here is the same answer, cheaper.
+        // The window's kinds first, OR-ed once (§11). A window no arm can
+        // read — a spell cast, an activation, a shuffle — would be refused by
+        // `match_def` for every candidate on every leg; this is that answer
+        // without the walk.
         let window_kinds = window.iter().fold(EventKindMask::EMPTY, |mask, seq| {
             match self.events.record(*seq).and_then(|r| EventKind::of(&r.event)) {
                 Some(kind) => mask.with(kind),
@@ -261,17 +260,16 @@ impl GameState {
         }
         let summary = self.continuous_effects.summary();
         let unattributed = summary.unattributed_trigger_zones;
+        let readers = self.battlefield_readers(window_kinds);
         let any_frame_source = window.iter().any(|seq| {
             self.events.record(*seq).is_some_and(|r| {
                 frame_of(&r.event).is_some_and(|f| f.abilities.iter().any(is_triggered))
             })
         });
-        // The battlefield probe is the mask's, and the other three are not:
-        // the zone map is keyed by ability rather than by kind, and the
-        // granted, copied and departed legs read a list no registration saw.
-        // Over-approximating in one direction only means the mask narrows the
-        // leg it was written for and leaves the rest alone.
-        if !self.trigger_sources.values().any(|mask| mask.intersects(window_kinds))
+        // Only the battlefield probe reads the mask. The zone map is keyed by
+        // ability, and the granted, copied and departed legs read lists no
+        // registration saw, so they keep their whole walk.
+        if readers.is_empty()
             && self.zone_trigger_sources.is_empty()
             && unattributed.is_empty()
             && !any_frame_source
@@ -279,7 +277,7 @@ impl GameState {
             return Ok(());
         }
 
-        let matches = self.find_matches(window, window_kinds, unattributed);
+        let matches = self.find_matches(window, readers, unattributed);
         if matches.is_empty() {
             return Ok(());
         }
@@ -333,6 +331,21 @@ impl GameState {
         Ok(())
     }
 
+    /// Leg 1, source first: the permanents whose printed triggers read a kind
+    /// `window_kinds` carries, in CR 613.7 order. Sorted on the key
+    /// `battlefield_ids_ordered` sorts on, so the candidate order — which the
+    /// `OrderTriggers` prompt offers — is the whole-battlefield walk's.
+    fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
+        let mut readers: Vec<(Timestamp, ObjectId)> = self
+            .trigger_sources
+            .iter()
+            .filter(|(_, kinds)| kinds.intersects(window_kinds))
+            .filter_map(|(&id, _)| self.battlefield.get(&id).map(|entry| (entry.timestamp, id)))
+            .collect();
+        readers.sort_unstable_by_key(|&(timestamp, _)| timestamp);
+        readers.into_iter().map(|(_, id)| id).collect()
+    }
+
     /// The matcher's read-only half: every candidate ability against every
     /// record of the window, in window order then candidate order — the
     /// order the `OrderTriggers` prompt will offer, which has to be
@@ -340,22 +353,16 @@ impl GameState {
     fn find_matches(
         &self,
         window: &[EventSeq],
-        window_kinds: EventKindMask,
+        readers: Vec<ObjectId>,
         unattributed: ZoneSet,
     ) -> Vec<MatchedTrigger> {
-        // Leg 1: the battlefield, in CR 613.7 order, gated per permanent —
-        // by §11's mask, so a permanent whose printed defs read none of this
-        // window's kinds is not walked, not looked up in the memo and not
-        // asked. It would have refused every record with `Refusal::Condition`.
-        let on_battlefield = unattributed.contains(Zone::Battlefield);
-        let mut live: Vec<ObjectId> = self
-            .battlefield_ids_ordered()
-            .into_iter()
-            .filter(|id| {
-                on_battlefield
-                    || self.trigger_sources.get(id).is_some_and(|mask| mask.intersects(window_kinds))
-            })
-            .collect();
+        // Leg 1: the battlefield — the gate's readers, or every permanent
+        // when a granted or copied trigger may be on any of them.
+        let mut live: Vec<ObjectId> = if unattributed.contains(Zone::Battlefield) {
+            self.battlefield_ids_ordered()
+        } else {
+            readers
+        };
 
         // Legs 3 and 4: objects off the battlefield whose ability functions
         // where they are (CR 113.6k, derived) — the record's own subject in a
