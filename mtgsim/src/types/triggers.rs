@@ -120,15 +120,6 @@ pub enum TriggerSubject {
     Any,
 }
 
-/// So a card file can write `dies(a_creature())` where a subject is wanted.
-/// Declared beside the type rather than in `cards::authoring` so a reader of
-/// the enum finds it; nothing in the engine converts one.
-impl From<ObjectFilter> for TriggerSubject {
-    fn from(filter: ObjectFilter) -> Self {
-        TriggerSubject::Filter(filter)
-    }
-}
-
 /// Whom damage was dealt to, for "is dealt damage" and "deals damage to".
 #[derive(Debug, Clone, PartialEq)]
 pub enum DamageRecipient {

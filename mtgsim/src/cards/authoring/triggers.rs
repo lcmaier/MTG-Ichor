@@ -49,6 +49,16 @@ pub fn another(filter: ObjectFilter) -> ObjectFilter {
     ObjectFilter::And(Box::new(filter), Box::new(ObjectFilter::NotSource))
 }
 
+/// So a card writes `dies(a_creature())` where the arm wants a subject.
+/// Nothing in the engine converts one — this is the authoring surface's
+/// sugar and lives with it, and rustdoc still lists the impl on
+/// [`TriggerSubject`] for a reader who starts at the type.
+impl From<ObjectFilter> for TriggerSubject {
+    fn from(filter: ObjectFilter) -> Self {
+        TriggerSubject::Filter(filter)
+    }
+}
+
 /// Whose step or phase a card means — the word for the one `Option` on a
 /// [`TriggerEvent`] where `None` is a *distributive* reading rather than an
 /// unasked question. "At the beginning of each upkeep" is `whose: None` at
