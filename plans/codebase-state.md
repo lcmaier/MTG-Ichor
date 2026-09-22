@@ -7798,13 +7798,16 @@ half. `functions_in` is now asked per def, on every leg, as
 the day Dread is registered (its damage trigger would fire from the
 graveyard), and the day CR 113.6m is derived for Ichorid, whose end-step
 sacrifice would then be asked from the graveyard its upkeep return works in.
-**#16**: the records x
+Review round 1 took it one level down: tmnt's 113.6k lets one ability's
+conditions function in different zones, so `match_def` asks each condition
+too (`condition_functions_in`). **#16**: the records x
 candidates x abilities loop is two loops over a pre-pass that answers CR
 113.6, the instance ordinal and the identity once per def. **§11's lever**:
 `trigger_sources` is an `IdMap<ObjectId, EventKindMask>` and the gate asks
 whether any source reads a kind this window carries, which took candidate
 visits per game from 297 to 30 on the shipped pool and from 10,131 to 707
-on a board with eight copies each of the three; `TriggerEvent::reads` is
+on a board with eight copies each of the three, and the sources are
+selected before they are ordered; `TriggerEvent::reads` is
 written from the mask's table rather than beside it, because two tables
 that had to agree is what that lever would otherwise have shipped with.
 **#38**: `fuzz_games` gained `--copies N` so a mechanic-heavy board is

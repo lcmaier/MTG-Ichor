@@ -82,6 +82,25 @@ right to.
 **Determinism** holds under three `MTGSIM_HASH_SEED`s, line for line outside
 `=== Timing ===`, `stress`, 60 games, seed 99.
 
+**Review round 1, same PR** (the owner's review of #176: Dread for the
+invented "Ichorid" fixture, the candidate types renamed and folded, the dead
+tag guard removed for a registry invariant, the mask selecting sources before
+ordering them, the mask API renamed, and CR 113.6k asked per condition). No
+pool change and nothing a pooled card can reach, so the claim is the
+strongest one there is: the round's head against the previous head
+(`f88d421`) is **IDENTICAL on every row, diagnostics included**, on both
+pools at two seats and four and on the eight-copy board; against `main` the
+same six cost rows move as above. Determinism holds under three hasher seeds
+at four seats, which is the case that iterates `trigger_sources` to select
+readers.
+
+**The Commander-scale sitting** is `triggers-architecture.md` §11.2 — the
+probe widened to time the replacement gather and the restriction check. At
+four seats, 100 cards and 40 life the dispatcher is 2% of CPU on the shipped
+pool and 7–9% with the three forced; **the replacement gather is 14–16% on
+every board and passes its gate on 90–99% of calls**, which makes it the
+next lever of the three sweeps. It is not this PR's.
+
 **Re-recorded 2026-09-19 for TR-1** (the trigger spine — `triggers-architecture.md`
 §12, TR-1; `codebase-state.md` "Before Triggered abilities" items 1, 3, 7, 9,
 10 and 18 closed). **Pool change**: `performance` 91 → 94 (Soul Warden, Blood
