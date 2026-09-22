@@ -250,7 +250,7 @@ impl GameState {
         // `match_def` for every candidate on every leg; this is that answer
         // without the walk.
         let window_kinds = window.iter().fold(EventKindMask::EMPTY, |mask, seq| {
-            match self.events.record(*seq).and_then(|r| EventKind::of(&r.event)) {
+            match self.events.record(*seq).and_then(|r| EventKind::from_record(&r.event)) {
                 Some(kind) => mask.with(kind),
                 None => mask,
             }

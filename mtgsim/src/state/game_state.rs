@@ -1601,7 +1601,7 @@ impl GameState {
                         // Accumulated, not replaced: a permanent with two
                         // triggered abilities is one entry reading both
                         // kinds.
-                        *self.trigger_sources.entry(id).or_default() |= def.kinds();
+                        *self.trigger_sources.entry(id).or_default() |= def.record_kinds();
                     } else {
                         self.zone_trigger_sources.entry(id).or_default().push(ability.id);
                     }
