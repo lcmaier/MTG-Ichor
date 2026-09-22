@@ -1786,6 +1786,72 @@ fn the_same_trigger_is_asked_from_the_battlefield() {
     assert_eq!(pending(&game), 1, "a creature dealt damage to Dread's controller");
 }
 
+/// CR 113.6k's second sentence: "Other trigger conditions of the same
+/// triggered ability may function in different zones." One ability with two
+/// conditions — "from anywhere" functions everywhere, "a creature deals
+/// damage to you" on the battlefield only. Absolver Thrull is the CR's own
+/// example of the structure; its haunt condition is not expressible yet, and
+/// the rule does not wait for a printed card.
+fn one_ability_two_zones() -> Arc<CardData> {
+    creature_with_ability(
+        "Split Vigil",
+        1,
+        1,
+        triggered_ability(TriggerDef {
+            condition: TriggerCondition::AnyOf(vec![
+                TriggerEvent::ZoneChange {
+                    subject: TriggerSubject::This,
+                    from: None,
+                    to: Some(Zone::Graveyard),
+                    cause: None,
+                    owner: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                },
+                TriggerEvent::DamageDealt {
+                    source: a_creature().into(),
+                    recipient: DamageRecipient::Player(Some(PlayerRef::You)),
+                    combat: None,
+                    multiplicity: Multiplicity::PerOccurrence,
+                },
+            ]),
+            intervening_if: None,
+            limit: None,
+            effect: gain_one(),
+        }),
+    )
+}
+
+/// The ability functions in the graveyard, because one of its conditions
+/// does; the other condition still does not, and is not asked there.
+#[test]
+fn a_trigger_condition_is_asked_only_where_it_functions() {
+    let mut game = setup_two_player_game();
+    let vigil = put_on_battlefield(&mut game, one_ability_two_zones(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[vigil], source);
+    assert_eq!(pending(&game), 1, "the from-anywhere condition, once");
+
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(
+        pending(&game),
+        1,
+        "CR 113.6k — the damage condition functions on the battlefield only"
+    );
+}
+
+/// Its control: the same condition, from the battlefield.
+#[test]
+fn both_conditions_function_on_the_battlefield() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, one_ability_two_zones(), 0);
+    let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+
+    deal(&mut game, attacker, DamageTarget::Player(0), 2, true);
+    assert_eq!(pending(&game), 1, "the damage condition, from the battlefield");
+}
+
 // ---------------------------------------------------------------------------
 // The trace's sixth emit point (item 9)
 // ---------------------------------------------------------------------------

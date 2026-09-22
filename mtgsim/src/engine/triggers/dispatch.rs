@@ -24,7 +24,7 @@ use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
-use crate::engine::zone_function::functions_in;
+use crate::engine::zone_function::{condition_functions_in, functions_in};
 use crate::events::event::{BatchId, DamageTarget, EventRecord, EventSeq, GameEvent};
 use crate::objects::card_data::{AbilityDef, CardData};
 use crate::oracle::characteristics::controller_or_owner;
@@ -567,6 +567,11 @@ impl GameState {
                 continue;
             }
             if !arm.reads(event) {
+                continue;
+            }
+            // CR 113.6k asks each trigger condition where it functions; the
+            // pre-pass asked the ability, which is their union.
+            if !condition_functions_in(arm, &candidate.frame.chars().types, candidate.zone) {
                 continue;
             }
             let subjects = self.arm_occurrences(arm, candidate, seq, event);
