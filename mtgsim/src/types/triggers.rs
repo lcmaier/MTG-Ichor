@@ -208,7 +208,7 @@ impl EventKind {
             | GameEvent::SpellCast { .. }
             | GameEvent::SpellCountered { .. }
             | GameEvent::SpellFizzled { .. }
-            | GameEvent::StateBasedActionPerformed { .. }
+            | GameEvent::StateBasedActionPerformed
             | GameEvent::TokenCeasedToExist { .. }
             | GameEvent::TokenCreated { .. } => return None,
         })
