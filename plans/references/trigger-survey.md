@@ -25,7 +25,7 @@ doc quietly wrong. The prose outside the markers is authored: the decisions,
 the gap list and the questions.
 
 <!-- trigger-survey: begin DATE -->
-Counted 2026-09-18 (Scryfall fetch date from the cache; the tree and the corpus as of the run).
+Counted 2026-09-23 (Scryfall fetch date from the cache; the tree and the corpus as of the run).
 <!-- trigger-survey: end DATE -->
 
 ---
@@ -77,19 +77,22 @@ tree; the corpus side is `plans/atomic-tests/spec.sqlite`, which
 <!-- trigger-survey: begin STREAM -->
 | what | count | reproduced by |
 |---|---:|---|
-| `GameEvent` variants | 34 | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |
-| ... emitted somewhere | 31 | an `emit_event(` call naming the variant within four lines |
-| ... never emitted | 3 | `PhaseEnd`, `StepEnd`, `TurnEnd` |
-| `emit_event` call sites | 34 | `emit_event(` in `mtgsim/src`, the definition and comment lines excluded |
+| `GameEvent` variants | 32 | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |
+| ... emitted somewhere | 32 | an emit call naming the variant within four lines |
+| ... never emitted | 0 |  |
+| emit call sites | 35 | `emit_event(` and `emit_event_unstamped(` in `mtgsim/src`, the definitions and comment lines excluded |
 | `GameAction` variants | 23 | `pub enum GameAction` in `mtgsim/src/engine/actions.rs`, parsed |
 | `ZoneChangeCause` arms | 22 | `pub enum ZoneChangeCause` in `mtgsim/src/types/zones.rs`, parsed |
-| registered cards with a triggered ability | 0 | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |
+| registered cards with a triggered ability | 3 | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |
 <!-- trigger-survey: end STREAM -->
 
-Three variants — `PhaseEnd`, `StepEnd`, `TurnEnd` — are declared and emitted
-nowhere. No printed trigger reads an end: "at end of combat" is the end-of-
-combat step *beginning* (CR 511.2) and "at end of turn" was errata'd to "at the
-beginning of the end step" (CR 513.1a). Item 18 below.
+On 2026-09-18 three variants — `PhaseEnd`, `StepEnd`, `TurnEnd` — were
+declared and emitted nowhere. No printed trigger reads an end: "at end of
+combat" is the end-of-combat step *beginning* (CR 511.2) and "at end of turn"
+was errata'd to "at the beginning of the end step" (CR 513.1a). TR-1 deleted
+the three (item 18 below) and added `AbilityTriggered`, the one record emitted
+through the second door, `emit_event_unstamped`, which the site count reads
+since 2026-09-23.
 
 <!-- trigger-survey: begin CORPUS -->
 | what | count | reproduced by |
@@ -97,19 +100,18 @@ beginning of the end step" (CR 513.1a). Item 18 below.
 | Phase 7 atoms | 133 | `SELECT COUNT(*) FROM atoms WHERE phase='Phase 7'` |
 | ... CR sections they span | 36 | `COUNT(DISTINCT substr(rule_num,1,3))`, same filter |
 | ... under CR 603 | 52 | `rule_num LIKE '603%'`, same filter (54 in the corpus at any phase) |
-| ... fully covered | 0 | `coverage.partial = 0` |
-| ... partially covered, by a test that does not build the atom | 6 | `coverage.partial = 1` and no full row |
-| | | `ATOM-106.12a-001` -- `the_event_says_whether_the_permanent_was_tapped_for_mana` |
+| ... fully covered | 44 | `coverage.partial = 0` |
+| ... partially covered, by a test that does not build the atom | 2 | `coverage.partial = 1` and no full row |
 | | | `ATOM-121.5-001` -- `test_library_to_hand_without_drawing_is_not_a_draw` |
-| | | `ATOM-603.10a-002` -- `test_the_lki_frame_is_the_permanent_as_it_last_existed` |
 | | | `ATOM-608.2d-001` -- `test_a_player_with_no_creatures_is_asked_nothing_and_no_error_is_raised` |
-| | | `ATOM-614.6-001` -- `test_a_static_replacement_ability_prevents_the_event` |
-| | | `ATOM-615.6-001` -- `prevented_damage_never_happens_and_the_trigger_half_is_item_6s` |
 <!-- trigger-survey: end CORPUS -->
 
-No Phase 7 atom is fully covered, and the six partials are each a test that
-proves the *event* half of an atom whose trigger half is critical-path item
-6's — the `ATOM-615.6-001` test's name says so in as many words.
+On 2026-09-18 no Phase 7 atom was fully covered, and the six partials were
+each a test that proved the *event* half of an atom whose trigger half is
+critical-path item 6's — the `ATOM-615.6-001` test's name says so in as many
+words. TR-1 took four of the six to full; the two left are TR-2's
+(`ATOM-121.5-001`) and a deferral (`ATOM-608.2d-001`,
+`triggers-architecture.md` §13).
 
 ---
 
@@ -195,21 +197,21 @@ shape every event can wear.
 | casts a spell | 601.2i | 1,546 | `SpellCast` | the spell: `SpellCast.spell_id`; who cast it: `SpellCast.caster`; creature spell, mana value, colors: live (the stack object); the zone it was cast from: live (the stack entry's `cast_from`); first / second spell this turn: a turn tracker (item 42) | carried; a copy is not cast (CR 707.10) and CV's copy path must emit no `SpellCast` |
 | dies | 700.4 / 603.6c | 1,241 | `ZoneChange` | from the battlefield to a graveyard: `ZoneChange.from`; why: `ZoneChange.cause`; what it was, and whose (603.10a): `ZoneChange.lki` | carried; the frame is CR 603.10a's look-back, captured before CR 611.2a drops the registry rows |
 | draws a card | 121.1 | 1,216 | `CardDrawn` | who: `CardDrawn.player_id`; which card: `CardDrawn.card_id`; first or second card this turn (miracle, 702.94a): a turn tracker (item 42) | carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and "if you draw one or more cards this way" reads the count the performed draws returned, not the stream |
-| at the beginning of upkeep | 603.2b / 500.6 | 1,167 | `StepBegin` | which step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`); whose turn (today): live (the active player) | **field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- "your upkeep" and "each opponent's upkeep" read it |
-| deals damage / deals combat damage | 120.4b | 1,127 | `DamageDealt` | the source: `DamageDealt.source_id`; the recipient: `DamageDealt.target`; how much: `DamageDealt.amount`; combat or not: **not on the record** (`DamageDealt` has no `is_combat`); the source's controller and types: live (the source, still on the battlefield until SBAs) | **field gap**: `GameAction::DealDamage` carries `is_combat` and the performer drops it; the next row is the share that reads it |
-| deals combat damage | 510.2 / 120.4b | 804 | `DamageDealt` | combat or not: **not on the record** (`DamageDealt` has no `is_combat`) | the share of the row above that cannot be matched off the record |
-| at the beginning of the end step | 513.1 / 513.2 | 976 | `StepBegin` | which step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`) | the upkeep row's gap again; CR 513.2's next-turn rule is a question for the doc |
+| at the beginning of upkeep | 603.2b / 500.6 | 1,167 | `StepBegin` | which step: `StepBegin.step`; whose turn: `StepBegin.player` | carried since TR-1 (item 10): the performer writes the `player` `GameAction::BeginStep` carries -- "your upkeep" and "each opponent's upkeep" read it |
+| deals damage / deals combat damage | 120.4b | 1,127 | `DamageDealt` | the source: `DamageDealt.source_id`; the recipient: `DamageDealt.target`; how much: `DamageDealt.amount`; combat or not: `DamageDealt.is_combat`; the source's controller and types: live (the source, still on the battlefield until SBAs) | carried since TR-1 (item 10); the next row is the share that reads `is_combat` |
+| deals combat damage | 510.2 / 120.4b | 804 | `DamageDealt` | combat or not: `DamageDealt.is_combat` | the share of the row above that reads the field item 10 added |
+| at the beginning of the end step | 513.1 / 513.2 | 976 | `StepBegin` | which step: `StepBegin.step`; whose turn: `StepBegin.player` | carried, as the upkeep row is; CR 513.2's next-turn rule is §14's question 1 |
 | intervening "if" | 603.4 | 1,338 | (any) | the condition, as the event is performed: live (the board then); the condition again, as the ability resolves (608.2a): live (the board then) | no event of its own: a predicate the matcher evaluates twice |
 | sacrifices | 701.17 | 555 | `ZoneChange` | that it was a sacrifice: `ZoneChange.cause`; who sacrificed it: `ZoneChange.lki` | carried; `ZoneChangeCause::Sacrificed`, and the frame's `controller` is the player who sacrificed |
 | one or more (a batch) | 603.2c | 443 | (any) | the events performed as one: the `EventStamp` envelope | carried by the envelope: every record in a batch carries one `BatchId` |
 | discards | 701.8 | 436 | `ZoneChange` | that it was a discard: `ZoneChange.cause`; who: `ZoneChange.owner` | carried; "cycles or discards" (702.29d) waits for cycling |
-| at the beginning of the next ... (delayed) | 603.7 | 391 | `StepBegin`, `PhaseBegin`, `TurnBegin` | the step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`); "next" -- not this one (513.2): live (when the ability was created) | carried by the step rows, with their gap; the creation instant is the delayed ability's own field |
+| at the beginning of the next ... (delayed) | 603.7 | 391 | `StepBegin`, `PhaseBegin`, `TurnBegin` | the step: `StepBegin.step`; whose turn: `StepBegin.player`; "next" -- not this one (513.2): live (when the ability was created) | carried by the step rows; the creation instant is the delayed ability's own field |
 | dies with or without counters, or while attached -- the frame's status | 702.79a / 702.93a / 603.6e / 603.10c | 109 | `ZoneChange` | what it was, and whose: `ZoneChange.lki`; the counters it had, what it was attached to, whether it was tapped: **not on the record** (`EffectiveCharacteristics` carries characteristics and the controller, no status) | **field gap**: persist's and undying's intervening-if read the counters the permanent had as it died; an Aura's 603.6e trigger reads what it enchanted |
 | leaves the battlefield | 603.6c | 330 | `ZoneChange`, `LeftTheGame` | from the battlefield: `ZoneChange.from`; what it was (603.10a): `ZoneChange.lki`; left the game with its owner: `LeftTheGame.lki` | carried on both routes; the phased-in qualifier is item 6 |
-| at the beginning of combat | 603.2b / 506.1 | 313 | `StepBegin`, `PhaseBegin` | the step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`) | the upkeep row's gap; "at end of combat" (511.2) is the end-of-combat step beginning |
+| at the beginning of combat | 603.2b / 506.1 | 313 | `StepBegin`, `PhaseBegin` | the step: `StepBegin.step`; whose turn: `StepBegin.player` | carried, as the upkeep row is; "at end of combat" (511.2) is the end-of-combat step beginning |
 | blocks / blocks a creature / becomes blocked / becomes blocked by | 509.3a-d | 210 | `BlockersDeclared` | the (blocker, attacker) pairs: `BlockersDeclared.blockers` | carried; the four shapes are four readings of one list (CR 700.1's example: one event or two) |
 | gains life | 119.9 | 140 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.old`; the source: `LifeChanged.source` | carried; one record per source event, which is CR 702.15e's two lifelink triggers |
-| loses life | 120.3a | 51 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.new`; from damage, a payment or an effect (727.1a): **not on the record** (`LifeChanged` has no `cause`) | carried; one record per `LoseLife` proposal -- combat damage from two attackers is two, a question for the doc; the proposal's `LifeLossCause` is dropped by the performer and one printed phrase reads it |
+| loses life | 120.3a | 51 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.new`; from damage, a payment or an effect (727.1a): `LifeChanged.cause` | carried; one record per `LoseLife` proposal -- combat damage from two attackers is two (§14's question 3: per record); `cause` since TR-1 (item 10) |
 | becomes the target | 115.1 / 603.2e | 117 | **none** | the object targeted: no event; by which spell or ability, whose: no event | **no event**: targets are chosen at CR 601.2c and announced to nothing |
 | ward -- becomes the target of an opponent's spell or ability | 702.21a | 195 | **none** | the object targeted, and who controls the targeting spell: no event | **no event**: the same gap, with a keyword's population behind it |
 | becomes tapped | 603.2e | 114 | `Tapped` | the permanent: `Tapped.object_id` | carried; emitted on the transition only (CR 603.2e), never for a redundant tap or an entry |
@@ -312,7 +314,8 @@ take a new event kind without a redesign.
 ## 5. The gaps — filed as `codebase-state.md` "Before Triggered abilities" items 10–18
 
 Each is a row in table two and an item there, with the item's reachability
-line and size. None is built here (decision 2). The reachability verdict is
+line and size. None is built here (decision 2); `triggers-architecture.md`
+§3.12 decides each and schedules it, and TR-1 closed items 10 and 18. The reachability verdict is
 the same for all nine — **unreachable**: no dispatcher reads any event, so no
 fuzz game can produce a wrong answer from a missing field today — and it
 stops being so the day the matcher lands, which is why each is filed before

@@ -201,7 +201,8 @@ def parse_enum(path, name):
 
 
 def emit_sites():
-    """Every `emit_event(` call in `mtgsim/src`, with the variant it emits."""
+    """Every call through either door -- `emit_event(` and, since TR-1,
+    `emit_event_unstamped(` -- in `mtgsim/src`, with the variant it emits."""
     sites = []
     for dirpath, _, files in os.walk(SRC):
         for f in files:
@@ -210,7 +211,7 @@ def emit_sites():
             p = os.path.join(dirpath, f)
             lines = open(p, encoding="utf-8").read().split("\n")
             for i, l in enumerate(lines):
-                if "emit_event(" not in l or "fn emit_event" in l or l.strip().startswith("//"):
+                if not re.search(r"emit_event(_unstamped)?\(", l) or "fn emit_event" in l or l.strip().startswith("//"):
                     continue
                 window = "\n".join(lines[i:i + 4])
                 mv = re.search(r"GameEvent::(\w+)", window)
@@ -395,18 +396,18 @@ T2 = [
      [("who", "CardDrawn.player_id"), ("which card", "CardDrawn.card_id"), ("first or second card this turn (miracle, 702.94a)", "tracker")],
      "carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and \"if you draw one or more cards this way\" reads the count the performed draws returned, not the stream"),
     ("at the beginning of upkeep", "603.2b / 500.6", 'o:"at the beginning of" o:"upkeep"', ["StepBegin"],
-     [("which step", "StepBegin.step"), ("whose turn", "!StepBegin.player"), ("whose turn (today)", "live: the active player")],
-     "**field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- \"your upkeep\" and \"each opponent's upkeep\" read it"),
+     [("which step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried since TR-1 (item 10): the performer writes the `player` `GameAction::BeginStep` carries -- \"your upkeep\" and \"each opponent's upkeep\" read it"),
     ("deals damage / deals combat damage", "120.4b", W + ' (o:"deals damage" or o:"deals combat damage")', ["DamageDealt"],
      [("the source", "DamageDealt.source_id"), ("the recipient", "DamageDealt.target"), ("how much", "DamageDealt.amount"),
-      ("combat or not", "!DamageDealt.is_combat"), ("the source's controller and types", "live: the source, still on the battlefield until SBAs")],
-     "**field gap**: `GameAction::DealDamage` carries `is_combat` and the performer drops it; the next row is the share that reads it"),
+      ("combat or not", "DamageDealt.is_combat"), ("the source's controller and types", "live: the source, still on the battlefield until SBAs")],
+     "carried since TR-1 (item 10); the next row is the share that reads `is_combat`"),
     ("deals combat damage", "510.2 / 120.4b", W + ' o:"deals combat damage"', ["DamageDealt"],
-     [("combat or not", "!DamageDealt.is_combat")],
-     "the share of the row above that cannot be matched off the record"),
+     [("combat or not", "DamageDealt.is_combat")],
+     "the share of the row above that reads the field item 10 added"),
     ("at the beginning of the end step", "513.1 / 513.2", 'o:"at the beginning of" o:"end step"', ["StepBegin"],
-     [("which step", "StepBegin.step"), ("whose turn", "!StepBegin.player")],
-     "the upkeep row's gap again; CR 513.2's next-turn rule is a question for the doc"),
+     [("which step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried, as the upkeep row is; CR 513.2's next-turn rule is §14's question 1"),
     ("intervening \"if\"", "603.4", TRIGGER + ' o:", if "', ["(any)"],
      [("the condition, as the event is performed", "live: the board then"), ("the condition again, as the ability resolves (608.2a)", "live: the board then")],
      "no event of its own: a predicate the matcher evaluates twice"),
@@ -420,8 +421,8 @@ T2 = [
      [("that it was a discard", "ZoneChange.cause"), ("who", "ZoneChange.owner")],
      "carried; \"cycles or discards\" (702.29d) waits for cycling"),
     ("at the beginning of the next ... (delayed)", "603.7", 'o:"at the beginning of the next"', ["StepBegin", "PhaseBegin", "TurnBegin"],
-     [("the step", "StepBegin.step"), ("whose turn", "!StepBegin.player"), ("\"next\" -- not this one (513.2)", "live: when the ability was created")],
-     "carried by the step rows, with their gap; the creation instant is the delayed ability's own field"),
+     [("the step", "StepBegin.step"), ("whose turn", "StepBegin.player"), ("\"next\" -- not this one (513.2)", "live: when the ability was created")],
+     "carried by the step rows; the creation instant is the delayed ability's own field"),
     ("dies with or without counters, or while attached -- the frame's status", "702.79a / 702.93a / 603.6e / 603.10c",
      '(kw:persist or kw:undying or o:"enchanted creature dies" or o:"becomes unattached")', ["ZoneChange"],
      [("what it was, and whose", "ZoneChange.lki"), ("the counters it had, what it was attached to, whether it was tapped",
@@ -431,8 +432,8 @@ T2 = [
      [("from the battlefield", "ZoneChange.from"), ("what it was (603.10a)", "ZoneChange.lki"), ("left the game with its owner", "LeftTheGame.lki")],
      "carried on both routes; the phased-in qualifier is item 6"),
     ("at the beginning of combat", "603.2b / 506.1", 'o:"beginning of combat"', ["StepBegin", "PhaseBegin"],
-     [("the step", "StepBegin.step"), ("whose turn", "!StepBegin.player")],
-     "the upkeep row's gap; \"at end of combat\" (511.2) is the end-of-combat step beginning"),
+     [("the step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried, as the upkeep row is; \"at end of combat\" (511.2) is the end-of-combat step beginning"),
     ("blocks / blocks a creature / becomes blocked / becomes blocked by", "509.3a-d", W + ' o:"blocks"', ["BlockersDeclared"],
      [("the (blocker, attacker) pairs", "BlockersDeclared.blockers")],
      "carried; the four shapes are four readings of one list (CR 700.1's example: one event or two)"),
@@ -440,8 +441,8 @@ T2 = [
      [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.old"), ("the source", "LifeChanged.source")],
      "carried; one record per source event, which is CR 702.15e's two lifelink triggers"),
     ("loses life", "120.3a", 'o:"whenever" (o:"lose life" or o:"loses life")', ["LifeChanged"],
-     [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.new"), ("from damage, a payment or an effect (727.1a)", "!LifeChanged.cause")],
-     "carried; one record per `LoseLife` proposal -- combat damage from two attackers is two, a question for the doc; the proposal's `LifeLossCause` is dropped by the performer and one printed phrase reads it"),
+     [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.new"), ("from damage, a payment or an effect (727.1a)", "LifeChanged.cause")],
+     "carried; one record per `LoseLife` proposal -- combat damage from two attackers is two (§14's question 3: per record); `cause` since TR-1 (item 10)"),
     ("becomes the target", "115.1 / 603.2e", 'o:"becomes the target"', [],
      [("the object targeted", "no event"), ("by which spell or ability, whose", "no event")],
      "**no event**: targets are chosen at CR 601.2c and announced to nothing"),
@@ -576,9 +577,9 @@ def render_stream(events, actions, causes, sites, ntrig):
     L.append("| what | count | reproduced by |")
     L.append("|---|---:|---|")
     L.append("| `GameEvent` variants | %d | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |" % len(events))
-    L.append("| ... emitted somewhere | %d | an `emit_event(` call naming the variant within four lines |" % (len(events) - len(never)))
+    L.append("| ... emitted somewhere | %d | an emit call naming the variant within four lines |" % (len(events) - len(never)))
     L.append("| ... never emitted | %d | %s |" % (len(never), ", ".join("`%s`" % v for v in never)))
-    L.append("| `emit_event` call sites | %d | `emit_event(` in `mtgsim/src`, the definition and comment lines excluded |" % len(sites))
+    L.append("| emit call sites | %d | `emit_event(` and `emit_event_unstamped(` in `mtgsim/src`, the definitions and comment lines excluded |" % len(sites))
     L.append("| `GameAction` variants | %d | `pub enum GameAction` in `mtgsim/src/engine/actions.rs`, parsed |" % len(actions))
     L.append("| `ZoneChangeCause` arms | %d | `pub enum ZoneChangeCause` in `mtgsim/src/types/zones.rs`, parsed |" % len(causes))
     L.append("| registered cards with a triggered ability | %d | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |" % ntrig)
