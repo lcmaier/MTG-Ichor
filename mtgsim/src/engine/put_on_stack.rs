@@ -198,6 +198,7 @@ impl GameState {
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
+            mana_spent: Default::default(),
             cast_from: Some(cast_from),
             ability_identity: None,
             trigger: None,
@@ -254,9 +255,17 @@ impl GameState {
         // payable — a generic split that spends a color a pip still needs —
         // and CR 601.2 rewinds the whole cast either way. A bare `?` here left
         // the card on the stack to resolve unpaid (`codebase-state.md` 16c).
-        if let Err(e) = self.pay_costs(&plan, player_id, card_id, &actx) {
-            self.rollback_cast_to_hand(card_id)?;
-            return Err(e);
+        let mana_spent = match self.pay_costs(&plan, player_id, card_id, &actx) {
+            Ok(spent) => spent,
+            Err(e) => {
+                self.rollback_cast_to_hand(card_id)?;
+                return Err(e);
+            }
+        };
+        // CR 400.7d's mana, written here because once paid the pool no longer
+        // knows what paid.
+        if let Some(entry) = self.stack_entries.get_mut(&card_id) {
+            entry.mana_spent = mana_spent;
         }
 
         // --- 601.2i: the spell becomes cast ---
@@ -441,6 +450,7 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: Default::default(),
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,

@@ -122,6 +122,7 @@ fn stage_spell_with(
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: Default::default(),
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,

@@ -154,6 +154,7 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: Default::default(),
             cast_from: None,
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),

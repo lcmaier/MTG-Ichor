@@ -199,6 +199,7 @@ fn stack_object_with(
         is_spell,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: Default::default(),
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
         ability_identity: None,
         trigger: None,

@@ -17,6 +17,7 @@ use crate::state::restrictions::RestrictionRegistry;
 use crate::state::player::PlayerState;
 use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
+use crate::types::mana::ManaSpent;
 use crate::types::ids::{
     AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
@@ -84,6 +85,11 @@ pub struct StackEntry {
     /// Additional costs that were paid for this spell (rule 118.8).
     /// Multiple additional costs can be paid (e.g. kicker + buyback).
     pub additional_costs_paid: Vec<AdditionalCost>,
+    /// The mana spent on this spell's total cost, written once CR 601.2h's
+    /// payment succeeds. Zero for an ability, and zero for a copy of a spell
+    /// that was not itself cast: mana is not an object, so CR 707.10 gives a
+    /// copy none of the original's (ATOM-707.10-003).
+    pub mana_spent: ManaSpent,
     /// The zone this spell was cast from (CR 601.2a), captured before the card
     /// moved to the stack.
     ///
@@ -122,9 +128,9 @@ pub struct StackEntry {
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
 }
 
-/// The stack object currently resolving, and the one thing about it that does
-/// not survive resolution on its own. See [`GameState::resolving`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The stack object currently resolving, and the things about it that do not
+/// survive resolution on their own. See [`GameState::resolving`].
+#[derive(Debug, Clone, PartialEq)]
 pub struct ResolvingObject {
     pub id: ObjectId,
     /// CR 110.2b's **default** controller: "the player who put that spell onto
@@ -136,10 +142,11 @@ pub struct ResolvingObject {
     /// theirs. The distinction is invisible until the effect ends, which is
     /// CR 800.4c and therefore 4-player Commander.
     pub default_controller: PlayerId,
-    /// `StackEntry::cast_from`, carried the same way for the same reason:
-    /// `place_on_battlefield` writes CR 400.7d's `PermanentState::cast` off
-    /// it, and the entry is gone by then. `None` for an ability.
-    pub cast_from: Option<Zone>,
+    /// CR 400.7d's facts about the spell, off its `StackEntry`, carried the
+    /// same way for the same reason: `place_on_battlefield` writes
+    /// `PermanentState::cast` off them, and the entry is gone by then. `None`
+    /// for an ability.
+    pub cast: Option<crate::state::battlefield::CastFacts>,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
@@ -1245,10 +1252,8 @@ impl GameState {
         entry.tapped = mods.tapped;
         // CR 400.7d — who cast it and from where, off the resolving spell's
         // entry; a permanent that arrives any other way was not cast.
-        entry.cast = match self.resolving {
-            Some(r) if r.id == id => r
-                .cast_from
-                .map(|from| crate::state::battlefield::CastFacts { by: r.default_controller, from }),
+        entry.cast = match &self.resolving {
+            Some(r) if r.id == id => r.cast.clone(),
             _ => None,
         };
         self.insert_battlefield_entity(id, entry);
@@ -1294,7 +1299,7 @@ impl GameState {
     /// CR 110.2b's answer has been taken by the time a permanent spell reaches
     /// the battlefield, so that field is how the answer survives the resolution.
     pub(crate) fn default_enter_controller(&self, id: ObjectId) -> Result<PlayerId, String> {
-        Ok(match self.resolving {
+        Ok(match &self.resolving {
             Some(r) if r.id == id => r.default_controller,
             _ => self.get_object(id)?.owner,
         })
@@ -2444,6 +2449,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: Default::default(),
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,

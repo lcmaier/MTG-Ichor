@@ -109,11 +109,20 @@ pub struct PermanentState {
     pub cast: Option<CastFacts>,
 }
 
-/// CR 400.7d's two facts about a permanent that was cast.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// CR 400.7d's facts about a permanent that was cast: who cast it, from
+/// where, and "what costs were paid to cast that spell or what mana was spent
+/// to pay those costs".
+#[derive(Debug, Clone, PartialEq)]
 pub struct CastFacts {
     pub by: PlayerId,
     pub from: crate::types::zones::Zone,
+    pub mana_spent: crate::types::mana::ManaSpent,
+    /// Kicked, bargained (CR 702.33d, 702.166b) — every additional cost paid,
+    /// in printed order.
+    pub additional_costs_paid: Vec<crate::types::costs::AdditionalCost>,
+    /// Evoked, prowled, dashed (CR 118.9) — the alternative cost it was cast
+    /// for, if any.
+    pub alternative_cost: Option<crate::types::costs::AlternativeCost>,
 }
 
 #[derive(Debug, Clone)]
