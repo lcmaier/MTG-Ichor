@@ -23,7 +23,7 @@ use crate::oracle::characteristics::has_summoning_sickness;
 use crate::state::game_state::GameState;
 use crate::types::effects::ObjectFilter;
 use crate::types::ids::{ObjectId, PlayerId};
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::ui::ask::{ask_choose_generic_mana_allocation, ask_choose_sacrifice_for_cost};
 use crate::types::zones::Zone;
 
@@ -309,17 +309,20 @@ impl GameState {
     /// back**: CR 732.1 would cancel them, and the engine does not build that
     /// cancellation because [`payment_order_rank`] makes it unreachable — see
     /// the debug assertion below, which is where that claim is enforced.
+    ///
+    /// Returns the mana spent, which only the pool knows once it has been paid.
     pub fn pay_costs(
         &mut self,
         plan: &PaymentPlan,
         player_id: PlayerId,
         source_id: ObjectId,
         ctx: &ActionContext,
-    ) -> Result<(), String> {
+    ) -> Result<ManaSpent, String> {
         let mut moved_an_object = false;
+        let mut spent = ManaSpent::default();
         for (idx, cost) in plan.ordered.iter().enumerate() {
             let result = self.pay_single_cost(
-                cost, player_id, source_id, plan, idx, ctx,
+                cost, player_id, source_id, plan, idx, &mut spent, ctx,
             );
             if let Err(e) = result {
                 // CR 732.1: "the entire action is reversed and any payments
@@ -340,7 +343,7 @@ impl GameState {
                 moved_an_object = true;
             }
         }
-        Ok(())
+        Ok(spent)
     }
 
     /// Pay a single cost from the plan. Internal helper.
@@ -354,6 +357,7 @@ impl GameState {
         source_id: ObjectId,
         plan: &PaymentPlan,
         idx: usize,
+        spent: &mut ManaSpent,
         ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
@@ -389,11 +393,13 @@ impl GameState {
             }
             Cost::Mana(mana_cost) => {
                 let player = self.get_player_mut(player_id)?;
-                if mana_cost.generic_count() == 0 {
+                let paid = if mana_cost.generic_count() == 0 {
                     player.mana_pool.pay_specific_only(mana_cost)
                 } else {
                     player.mana_pool.pay(mana_cost, &plan.generic_allocation)
-                }
+                }?;
+                spent.absorb(paid);
+                Ok(())
             }
             Cost::PayLife(amount) => {
                 // CR 119.4 gates the payment on the player's *current* life
@@ -467,7 +473,7 @@ mod tests {
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::GameState;
     use crate::types::card_types::*;
-    use crate::types::mana::{ManaCost, ManaType};
+    use crate::types::mana::{ManaCost, ManaSpent, ManaType};
     use crate::types::zones::Zone;
 
     /// Plan and pay in one step, for a board where the plan asks nothing.
@@ -481,7 +487,7 @@ mod tests {
         player: crate::types::ids::PlayerId,
         source: crate::types::ids::ObjectId,
         ctx: &crate::engine::actions::ActionContext,
-    ) -> Result<(), String> {
+    ) -> Result<ManaSpent, String> {
         let plan = game.plan_payment(costs, player, source, ctx)?;
         game.pay_costs(&plan, player, source, ctx)
     }
