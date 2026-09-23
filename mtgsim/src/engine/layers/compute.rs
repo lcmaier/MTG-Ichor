@@ -919,14 +919,16 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         }
         // Layer 6
         Resolved::Grant(def, id) => {
-            // CR 604.3a(2) — an ability that reached an object by being granted is
-            // never a characteristic-defining ability, however its text reads. The
-            // flag on `AbilityDef` asserts only the criteria that are properties of
-            // the text; provenance is maintained by whoever writes the ability onto an
-            // object, and this is that place (`CLAUDE.md`). Copy (Layer 1) and
-            // text-changing (Layer 3) effects hand the def over whole and keep the
-            // flag, the *other* half of 604.3a(2). The id is provenance too: it
-            // names the grant, so two grants of one ability are two instances.
+            // CR 604.3a(2) makes an ability characteristic-defining only if it is
+            // printed on the object, granted to a token by the effect that created
+            // the token, or acquired through a copy or text-changing effect. A Layer
+            // 6 grant is none of those, so it is never a CDA here, however its text
+            // reads. The flag on `AbilityDef` asserts only what the text satisfies,
+            // and this arm is where a Layer 6 grant writes the def onto an object
+            // (`CLAUDE.md`). A Clone that copies Tarmogoyf keeps Tarmogoyf's CDA:
+            // Layer 1 hands the def over whole, flag and all. The id is provenance
+            // too: it names the grant, so two grants of one ability are two
+            // instances.
             let mut granted = (*def).clone();
             granted.id = *id;
             granted.is_characteristic_defining = false;

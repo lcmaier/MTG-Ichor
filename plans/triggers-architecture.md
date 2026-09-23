@@ -1228,14 +1228,29 @@ by construction, at the fork model's own boundary, a priority grant.
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
 through `choose_ordering` with the pending entries as `ChoiceOption`s in
 `seq` order, two or more only. **Its elision is item 163's, inherited and
-not re-derived**: two entries that are instances of one ability under one
-controller with no targets and no modes and identical bindings give the
-same game in either order, so the engine does not ask — with the expiry
-conditions written beside the predicate the way `ordering_cannot_change_outcome`
-carries item 47's: a binding that differs, a target, a mode, or an effect
-that reads the stack (a tier-2 trigger) reopens the prompt. A decorator's
-timestamp order for a human under the toggle, and the agent's own for a
-bot, are `backlog.md` §2.22's rows 8 and 9 and not the engine's.
+not re-derived**: one player's entries give the same game in either order,
+and the engine does not ask, when every one of these holds — each the
+reason the prompt is asked otherwise:
+
+- **Equal defs.** Different abilities do different things. Compared as
+  defs, not ids, since the TR-1 review's theme E: two grants of one ability
+  carry two ids (§3.6), and are still one ability twice.
+- **Identical bindings** — the same records and the same subject — since
+  "that creature" or "that much" is otherwise a different object or number.
+- **No instance of "target".** CR 603.3d's choice is made per object as
+  each goes on the stack, so the order decides who chooses against what.
+- **No mode.** CR 603.3c's choice, the same way.
+- **Tier 1.** A tier-2 entry's effect reads the stack it is put onto
+  (CR 603.3b).
+
+`trigger_order_cannot_change_outcome` is these conditions' conjunction and
+says no more. They were written beside the predicate at first, on the
+precedent of `ordering_cannot_change_outcome`, whose "expiry conditions"
+are a different thing: the future code changes that break its proof, each
+one a compile error. These are the predicate itself, so its reasons live
+here (the owner's review of #178). A decorator's timestamp order for a
+human under the toggle, and the agent's own for a bot, are `backlog.md`
+§2.22's rows 8 and 9 and not the engine's.
 
 ### 5.3 CR 800.4d's second sentence (item 7)
 

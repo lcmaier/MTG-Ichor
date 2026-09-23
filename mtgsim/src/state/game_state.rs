@@ -571,9 +571,10 @@ pub struct GameState {
     /// `zone_function::functioning_zones`) — Guile's "from anywhere" in a
     /// graveyard. Kept by the same doors as `zone_replacement_ability_sources`.
     pub zone_trigger_sources: IdMap<ObjectId, Vec<AbilityId>>,
-    /// The frames CR 603.10 looks back to for a surviving source, taken by
-    /// each batch of the open windows that departs an ability list's source
-    /// (item 167), and taken by the window's dispatch.
+    /// Surviving objects' ability lists from before a batch that removed the
+    /// source of an effect that copies, grants or removes abilities: what CR
+    /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
+    /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
 
     // --- Event log ---

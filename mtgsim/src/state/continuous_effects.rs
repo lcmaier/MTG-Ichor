@@ -176,8 +176,8 @@ pub struct RegistryScopeSummary {
     /// 1), or a Layer 6 grant or removal of an ability. A batch that departs
     /// one of them can leave a surviving object with one list before the
     /// event and another after it, and CR 603.10 reads the one before
-    /// (`codebase-state.md` item 167). Empty on a board with no such row,
-    /// which is then one probe per batch.
+    /// (`engine::triggers::LookBackSnapshot`). Empty on a board with no such
+    /// row, which is then one probe per batch.
     pub ability_list_sources: IdSet<ObjectId>,
 
     /// The union of every row's [`ObjectSet::reachable_zones`] — which zones

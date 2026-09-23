@@ -936,11 +936,13 @@ impl GameState {
         self.prevention_allocations = outer_allocations;
         decided_ok?;
 
-        // CR 603.10 looks back to "the existence of those abilities ...
-        // immediately prior to the event", and a survivor's list differs after
-        // it only when the batch departs an ability list's source (item 167).
-        // Asked of the decided members, since replacement decides whether
-        // anything departs, and here, where the lists are still the ones before.
+        // CR 603.10 decides a leaves-the-battlefield trigger from "the existence
+        // of those abilities ... immediately prior to the event". A surviving
+        // object's abilities change across this batch only if it removes the
+        // source of an effect that copies, grants or removes abilities, and then
+        // the lists from before are saved now, while they still exist
+        // (`LookBackSnapshot`). Asked of the decided members, since replacement
+        // decides whether anything departs.
         let snapshot = self
             .departs_an_ability_list_source(&decided)
             .then(|| self.look_back_frames())

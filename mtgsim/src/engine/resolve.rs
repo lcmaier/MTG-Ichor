@@ -1552,10 +1552,11 @@ impl GameState {
             return;
         }
 
-        // Deliberately does NOT check `is_characteristic_defining`: CR 604.3a(2)
-        // makes a granted ability never a CDA, and `apply_modification` clears
-        // the flag as it lands, so the object holds an *ordinary* static ability
-        // and treating it as one is the only right answer (`CLAUDE.md`).
+        // Deliberately does NOT check `is_characteristic_defining`: a Layer 6
+        // grant is none of CR 604.3a(2)'s routes to a CDA, and the grant arm in
+        // `layers::compute` clears the flag as it lands, so the object holds an
+        // *ordinary* static ability and treating it as one is the only right
+        // answer (`CLAUDE.md`).
 
         // Same two helpers `register_static_effects` uses, for the reason
         // `static_primitive_rows`' doc gives: a granted "creatures you control

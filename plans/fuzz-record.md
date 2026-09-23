@@ -99,6 +99,22 @@ spread at both seat counts, so the id keeps its two halves.
 `=== Timing ===`: `stress`, 60 games, seed 99, at two seats and four, and on
 the forced Humility and Blood Artist board at four.
 
+**Review round 1, same PR** (the owner's review of #178). Two code changes,
+each its own arm against the one before. **A candidate is one ability list**
+(`42ccd0e`): a survivor's list from before is its own candidate beside its
+live one, rather than rows tagged with where they came from. It reads
+`IDENTICAL` to the previous head on every row, diagnostics included, on
+both pools at two seats and four and on the forced Humility and Blood
+Artist `stress` board at both seat counts, where snapshots are taken; CPU
++0.6% and +1.4%, inside the spread. **The snapshot reads every printed
+trigger source** (`6fdca3b`), not only those whose kinds a look-back arm
+reads, since that filter was a second table of `TriggerEvent::looks_back`
+that TR-4's new look-back classes would have fallen out of. Gameplay is
+identical everywhere, and only engine-work rows move, by one or two
+`Memo hits` a game on average and one `Layer frames` on `stress` at two
+seats. Determinism holds under three hasher seeds at four seats, on the
+shipped `stress` pool and on the forced board.
+
 **Re-recorded 2026-09-22 for the TR-1 review, theme C** (the matcher — F1's
 CR 113.6 fix, #16's flatten, `triggers-architecture.md` §11's kind mask, #38,
 and `fuzz_games --copies N`). **No pool change**, so there is no new fixture

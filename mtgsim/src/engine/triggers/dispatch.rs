@@ -13,10 +13,11 @@
 //! battlefield sweep behind `trigger_sources`, the zone sweep behind
 //! `zone_trigger_sources`, the granted and copied legs on
 //! `RegistryScopeSummary`, and the frames the window's departures carry
-//! (CR 603.10a) — plus, for a source that survives a batch departing an
-//! ability list's source, the frame it had before ([`LookBackSnapshot`]). On
-//! the pools as they stood before this phase every set is empty and a
-//! dispatch is the probes and nothing else.
+//! (CR 603.10a) — plus, for an object that survives a batch which removed
+//! the source of an effect copying, granting or removing abilities, the list
+//! it had before ([`LookBackSnapshot`]). On the pools as they stood before
+//! this phase every set is empty and a dispatch is the probes and nothing
+//! else.
 
 use std::sync::Arc;
 
@@ -424,10 +425,11 @@ impl GameState {
         Ok(())
     }
 
-    /// Leg 1, source first: the permanents whose printed triggers read a kind
-    /// `window_kinds` carries, in CR 613.7 order. Sorted on the key
-    /// `battlefield_ids_ordered` sorts on, so the candidate order — which the
-    /// `OrderTriggers` prompt offers — is the whole-battlefield walk's.
+    /// The permanents whose printed triggers read a kind `window_kinds`
+    /// carries, selected before they are ordered, in CR 613.7 order: sorted on
+    /// the key `battlefield_ids_ordered` sorts on, so the candidate order —
+    /// which the `OrderTriggers` prompt offers — is the whole-battlefield
+    /// walk's.
     fn battlefield_readers(&self, window_kinds: EventKindMask) -> Vec<ObjectId> {
         let mut readers: Vec<(Timestamp, ObjectId)> = self
             .trigger_sources
