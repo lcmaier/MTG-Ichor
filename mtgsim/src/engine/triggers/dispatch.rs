@@ -45,11 +45,6 @@ use crate::types::zones::{Zone, ZoneSet};
 /// kind); a depth past this is the engine's mistake (§4.8).
 pub const DISPATCH_NESTING_LIMIT: usize = 16;
 
-/// The record kinds a look-back arm reads (`TriggerEvent::looks_back`):
-/// a departure, and CR 603.6c's player leaving.
-const LOOK_BACK_KINDS: EventKindMask =
-    EventKindMask::of(EventKind::ZoneChange).with(EventKind::LeftTheGame);
-
 /// The ability lists surviving objects had just before a batch was
 /// performed: the survivor's counterpart of the CR 603.10a frame a departure
 /// record carries.
@@ -465,8 +460,8 @@ impl GameState {
     }
 
     /// The objects the dispatch at the window's close could ask a look-back
-    /// trigger of, each with the existence it has now and its frame: the
-    /// permanents whose printed triggers read a departure, the cards off the
+    /// trigger of, each with the existence it has now and its frame: every
+    /// permanent that printed a triggered ability, the cards off the
     /// battlefield whose triggered ability works in the zone they are in,
     /// and, while an effect grants or copies a triggered ability, every
     /// object in the zones that effect reaches. Read before the batch
@@ -475,7 +470,10 @@ impl GameState {
     /// began deciding.
     pub(crate) fn look_back_frames(&self) -> Vec<(ObjectRef, Arc<EffectiveCharacteristics>)> {
         let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
-        self.live_candidates(self.battlefield_readers(LOOK_BACK_KINDS), unattributed)
+        // Every printed source, not the ones whose kinds a look-back arm
+        // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
+        // and a kind filter here would be a second table of it.
+        self.live_candidates(self.battlefield_readers(EventKindMask::ALL), unattributed)
             .into_iter()
             .filter_map(|id| {
                 let zone_change_epoch = self.objects.get(&id)?.zone_change_epoch;

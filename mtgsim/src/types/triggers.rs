@@ -230,6 +230,8 @@ pub struct EventKindMask(u16);
 
 impl EventKindMask {
     pub const EMPTY: EventKindMask = EventKindMask(0);
+    /// Every kind: as a filter, it keeps every source that reads anything.
+    pub const ALL: EventKindMask = EventKindMask(u16::MAX);
 
     pub const fn of(kind: EventKind) -> EventKindMask {
         EventKindMask(kind.bit())
