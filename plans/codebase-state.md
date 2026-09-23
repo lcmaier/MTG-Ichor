@@ -7936,4 +7936,8 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      each condition and would refuse Bridge's from a graveyard otherwise.
      The test is Bridge in a graveyard triggering; item 167's Jailer
      fixture follows it, and needs no engine work of its own: 167's
-     snapshot (closed 2026-09-22) already reads the zone map.
+     snapshot (closed 2026-09-22) already reads the zone map. So does that
+     fixture's "from anywhere" twin (the owner's review of #178): the same
+     board with Bridge's zone change printed "from anywhere" *does* trigger,
+     since CR 603.6c's last sentence makes it no leaves-the-battlefield
+     ability, read after the wipe, with Jailer gone.

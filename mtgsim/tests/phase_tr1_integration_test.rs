@@ -1763,6 +1763,29 @@ fn a_from_anywhere_trigger_is_stopped_by_yixlid_jailer() {
     assert_eq!(pending(&game), 1);
 }
 
+/// CR 603.6c's last sentence when the same wipe also takes Yixlid Jailer: a
+/// "from anywhere" trigger is read after the whole event, so it triggers in
+/// either batch order. With the card first, it reaches the graveyard while
+/// Jailer is still on the battlefield, and a read at that move would find no
+/// ability. The board where a look-back trigger and a "from anywhere" one
+/// part ways across this event is a card already in the graveyard with a
+/// trigger about other cards — Bridge from Below's shape — which the engine
+/// cannot express until an intervening "if" can state the zone it works in.
+#[test]
+fn a_from_anywhere_trigger_reads_the_board_after_a_wipe_that_took_yixlid_jailer() {
+    for jailer_first in [true, false] {
+        let mut game = setup_two_player_game();
+        let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+        let echo = put_on_battlefield(&mut game, guile_shaped(), 0);
+        let source = put_on_battlefield(&mut game, sol_ring(), 1);
+        let order = if jailer_first { [jailer, echo] } else { [echo, jailer] };
+
+        destroy_all(&mut game, &order, source);
+
+        assert_eq!(pending(&game), 1, "read after the event, Jailer gone (jailer_first: {jailer_first})");
+    }
+}
+
 /// Dread's two triggers (Lorwyn): "Whenever a creature deals damage to you,
 /// destroy it" and "When Dread is put into a graveyard from anywhere, shuffle
 /// it into its owner's library". The effects are stand-ins; the tests count
