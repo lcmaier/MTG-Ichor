@@ -595,10 +595,9 @@ impl GameState {
         live
     }
 
-    /// The matcher's read-only half: every candidate ability against every
-    /// record of the window, in window order then candidate order — the
-    /// order the `OrderTriggers` prompt will offer, which has to be
-    /// process-stable end to end (§15 item 1).
+    /// The matcher's read-only half: the dispatcher's candidates for the
+    /// window — its four legs and the survivors' lists from before — asked
+    /// by [`Self::match_candidates`].
     fn find_matches(
         &self,
         window: &[EventSeq],
@@ -634,10 +633,6 @@ impl GameState {
             .iter()
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
-
-        let mut matches: Vec<MatchedTrigger> = Vec::new();
-        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // Leg 2: the frames the window carries (CR 603.10a) — each departed
         // object's list as it was, asked look-back conditions only.
@@ -699,6 +694,23 @@ impl GameState {
         }
 
         self.diagnostics.record_trigger_candidates(candidates.len() as u64);
+        self.match_candidates(&records, &candidates, snapshots)
+    }
+
+    /// Every candidate ability against every record of the window, in window
+    /// order then candidate order — the order the `OrderTriggers` prompt will
+    /// offer, which has to be process-stable end to end (§15 item 1). Which
+    /// candidates there are is the caller's: the dispatcher's legs, or the
+    /// audit's every object (`audit.rs`).
+    pub(super) fn match_candidates(
+        &self,
+        records: &[(EventSeq, &EventRecord)],
+        candidates: &[TriggerCandidate<'_>],
+        snapshots: &[LookBackSnapshot],
+    ) -> Vec<MatchedTrigger> {
+        let mut matches: Vec<MatchedTrigger> = Vec::new();
+        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
+        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).
@@ -725,7 +737,7 @@ impl GameState {
             }
         }
 
-        for (seq, record) in &records {
+        for (seq, record) in records {
             let looks_back_through = LookBackSnapshot::for_record(snapshots, seq.0);
             for row in &defs {
                 let candidate = &candidates[row.candidate];
