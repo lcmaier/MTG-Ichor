@@ -1734,7 +1734,7 @@ impl GameState {
             return Ok(());
         }
 
-        // CR 603.10a — the frame the batch's seam took, before any member moved
+        // CR 603.10a — the frame the batch took before any member moved
         // (`take_departure_frame`). A permanent, not merely an object in the
         // zone: a token whose entry is being decided has no entity and nothing
         // to look back at (`create_tokens`).

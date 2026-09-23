@@ -103,6 +103,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
+use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::types::card_types::{CardType, Supertype};
@@ -621,9 +622,7 @@ struct GameStats {
     decisions: u64,
     priority_decisions: u64,
     triggers_placed: u64,
-    trigger_windows: u64,
-    trigger_candidates: u64,
-    trigger_matches: u64,
+    trigger_dispatch: TriggerDispatchWork,
     /// `--audit`: dispatches answered twice and the triggers both answers
     /// agreed on. Zero without the flag.
     audited_dispatches: u64,
@@ -879,9 +878,7 @@ struct AggregateStats {
     total_departed_owned_permanents: u64,
     total_audited_dispatches: u64,
     total_audited_triggers: u64,
-    total_trigger_windows: u64,
-    total_trigger_candidates: u64,
-    total_trigger_matches: u64,
+    total_trigger_dispatch: TriggerDispatchWork,
 }
 
 impl AggregateStats {
@@ -909,9 +906,9 @@ impl AggregateStats {
         self.total_decisions += game.decisions;
         self.total_priority_decisions += game.priority_decisions;
         self.total_triggers_placed += game.triggers_placed;
-        self.total_trigger_windows += game.trigger_windows;
-        self.total_trigger_candidates += game.trigger_candidates;
-        self.total_trigger_matches += game.trigger_matches;
+        self.total_trigger_dispatch.windows += game.trigger_dispatch.windows;
+        self.total_trigger_dispatch.candidates += game.trigger_dispatch.candidates;
+        self.total_trigger_dispatch.matches += game.trigger_dispatch.matches;
         self.total_audited_dispatches += game.audited_dispatches;
         self.total_audited_triggers += game.audited_triggers;
         if self.reach.is_empty() {
@@ -1196,9 +1193,7 @@ fn run_one_game(
                 s.decisions = c.decisions();
                 s.priority_decisions = c.priority_decisions();
                 s.triggers_placed = c.triggers_placed();
-                s.trigger_windows = c.trigger_windows();
-                s.trigger_candidates = c.trigger_candidates();
-                s.trigger_matches = c.trigger_matches();
+                s.trigger_dispatch = c.trigger_dispatch();
                 let (dispatches, triggers) = game.state.dispatch_audit_counts().unwrap_or((0, 0));
                 s.audited_dispatches = dispatches;
                 s.audited_triggers = triggers;
@@ -1732,9 +1727,10 @@ fn main() {
         // The dispatcher's own work, per game (`triggers-architecture.md`
         // §4.10, decision 4): dispatches that passed the gate, the candidates
         // they asked, the triggers they matched. §11's probe columns, kept.
-        println!("  Windows past gate: {:>7.1}", agg_stats.avg(agg_stats.total_trigger_windows));
-        println!("  Candidate visits: {:>8.1}", agg_stats.avg(agg_stats.total_trigger_candidates));
-        println!("  Trigger matches:  {:>8.1}", agg_stats.avg(agg_stats.total_trigger_matches));
+        let work = agg_stats.total_trigger_dispatch;
+        println!("  Windows past gate: {:>7.1}", agg_stats.avg(work.windows));
+        println!("  Candidate visits: {:>8.1}", agg_stats.avg(work.candidates));
+        println!("  Trigger matches:  {:>8.1}", agg_stats.avg(work.matches));
     }
 
     // `--require`'s answer, and the reason the mode exists: `PERFORMANCE_POOL`

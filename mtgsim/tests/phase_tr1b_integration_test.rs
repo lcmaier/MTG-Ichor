@@ -3,9 +3,8 @@
 //!
 //! **Item 174 first.** CR 603.10a's frame is the permanent as it was
 //! immediately before the event, and one event can take several permanents.
-//! The frames are captured at the batch's seam, between deciding and
-//! performing, so no member's move shows another the board after an earlier
-//! member left. Each board runs in both batch orders, because the order is
+//! The frames are captured between deciding and performing, so no member's
+//! move shows another the board after an earlier member left. Each board runs in both batch orders, because the order is
 //! exactly what the frame must not depend on.
 //!
 //! **Then the audit**, on over one board per candidate set the dispatcher
@@ -390,8 +389,8 @@ fn an_audited_game_counts_and_traces_what_an_unaudited_one_does() {
 fn the_dispatchers_counts_are_windows_past_the_gate_candidates_and_matches() {
     let mut game = setup_two_player_game();
     let counts = |game: &GameState| {
-        let d = &game.diagnostics;
-        (d.trigger_windows(), d.trigger_candidates(), d.trigger_matches())
+        let work = game.diagnostics.trigger_dispatch();
+        (work.windows, work.candidates, work.matches)
     };
     assert_eq!(counts(&game), (0, 0, 0));
 

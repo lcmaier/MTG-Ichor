@@ -577,13 +577,13 @@ pub struct GameState {
     /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
     /// The CR 603.10a frames of the permanents the open batches decided to
-    /// take off the battlefield, taken at each batch's seam so no member's
-    /// frame sees an earlier member leave (item 174). A move takes its own;
+    /// take off the battlefield, taken before each batch performs so no
+    /// member's frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
     pub(crate) departure_frames: Vec<crate::engine::triggers::DepartureFrame>,
-    /// The dispatch audit's captures and counts, in a game that turned it on
+    /// The dispatch audit's snapshots and counts, in a game that turned it on
     /// (`enable_dispatch_audit`); `None` otherwise, which is all a dispatch
-    /// or a seam pays.
+    /// or a batch pays.
     pub(crate) dispatch_audit: Option<Box<crate::engine::triggers::DispatchAudit>>,
 
     // --- Event log ---

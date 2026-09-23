@@ -84,8 +84,8 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
 ///
 /// One reader bypasses the memo on purpose: the CR 614.12 look-ahead
 /// (`lookahead::compute_as_entering`) computes a hypothetical board. The CR
-/// 603.10a frame an event stores is read here, at the batch's seam, where
-/// nothing has changed since the batch began deciding (item 174).
+/// 603.10a frame an event stores is read here, before its batch performs,
+/// where nothing has changed since the batch began deciding (item 174).
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     let epoch = game.layer_epoch();
     if let Some(frame) = game.layer_memo.get(id, epoch) {
@@ -170,8 +170,8 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
 /// the walk `Diagnostics::layer_walks` counts. For a member that is a
 /// whole pass, of which one frame is kept.
 ///
-/// The CR 603.10a capture's fallback, for a departure no batch's seam framed
-/// (`take_departure_frame`), which a debug build refuses.
+/// The CR 603.10a capture's fallback, for a departure no batch framed before
+/// performing (`take_departure_frame`), which a debug build refuses.
 pub(crate) fn compute_characteristics_uncached(
     game: &GameState,
     id: ObjectId,
