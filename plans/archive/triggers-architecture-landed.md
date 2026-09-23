@@ -209,3 +209,23 @@ audit share. A window's departure frames and newcomers answer records from
 before and after their own existence: `codebase-state.md` main item 175
 (numbered 176 until the first was removed), unreachable on the pools and the
 audit's to report first.
+
+### Review round 1 (2026-09-23)
+
+The owner's review found the audit overbuilt: a second matcher
+(`reference_ask`, `pair`, its own CR 113.6 filter and fold), 555 lines against
+~250, and 11–19× the CPU per game from rebuilding a frame for every object in
+every zone twice a batch and discarding it. Rebuilt as the dispatcher with its
+shortcuts off, in four commits:
+
+| Commit | What |
+|---|---|
+| The loop takes its candidates | `find_matches` split into choosing the candidates and `match_candidates`; no behavior change |
+| CR 603.2c across two lists | one match per ability identity per record, the first arm; item 175 as filed deleted and the next renumbered; the fixture red before it (4 triggers, 2 right) |
+| The shortcuts-off audit | `audit.rs` rebuilt on `match_candidates` over every object that could carry a triggered ability and a `LookBackSnapshot` of them at every batch; `ObjectSnapshot`; the audit's snapshots reach the dispatch as one `Option` |
+| Tidy | item 174's capture in one pass; the three rows one `TriggerDispatchWork`; "seam" out of the code |
+
+The audit is 284 lines where it was 468 (28 and 48 of them unit tests), and costs
+2.2×, 2.3× and 2.7× the CPU per game at two seats, four and Commander scale
+where it cost 11×, 14× and 19×. What it gave up is checking the shared loop's
+rules on its own, so F1's demonstration no longer reproduces.

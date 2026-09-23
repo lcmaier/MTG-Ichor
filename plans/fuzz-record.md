@@ -48,7 +48,7 @@ attribution, the audit's sittings, what it costs, and a baseline.
 gameplay moving only where a batch departs Humility ahead of a creature whose
 look-back ability it had removed (or March ahead of an artifact it animated),
 each diverging game attributed; the cost rows moving down, since the frame
-became a memo read at the seam where it was an uncached board walk per
+became a memo read before the batch performs where it was an uncached board walk per
 departure. The audit arm unaudited against 174's: `IDENTICAL`. The audit arm
 audited against itself unaudited: `IDENTICAL` counters. The counts arm
 against the audit arm: the three new rows and nothing else. Every audited
@@ -122,7 +122,7 @@ release build, the tree restored after. **Item 167's snapshot off**
 (`departs_an_ability_list_source` answering false): the forced Humility
 board on `stress` panics in game 175 (seed 12519): Humility and Parallel
 Lives die in one state-based check, and the dispatcher triggers the surviving
-Blood Artist twice where the reference says none. **Item 174's seam capture
+Blood Artist twice where the reference says none. **Item 174's capture
 off** (the move walking the board it finds): the same board panics in game
 69 at two seats and game 158 at four, Humility moved ahead of a Blood Artist
 and the dispatcher triggering on each death. **F1 as it stood** (CR 113.6
@@ -158,7 +158,7 @@ identical native and under valgrind. **Totals: 99,927,135,440 instructions
 on `main`, 95,957,039,123 on the head (−3.97%).** The whole difference is
 the CR 603.10a capture: `compute_characteristics_uncached` is 4.00 G (4.01%)
 on `main`, 13,414 calls, and has no row on the head, where the frame is a
-memo read at the seam. Inclusive rows, first row per function, down to 6% of
+memo read before the batch performs. Inclusive rows, first row per function, down to 6% of
 the head:
 
 | function | `main` (G) | head (G) | head % |
@@ -205,6 +205,40 @@ third: the sort behind `battlefield_ordered` (10.3% inclusive, 7.6% of it
 **Determinism** holds under three `MTGSIM_HASH_SEED`s, line for line outside
 `=== Timing ===`, `stress`, 60 games, seed 99, at two seats and four, audited
 and unaudited.
+
+**Review round 1, same PR** (the owner's review of #179, 2026-09-23). The
+audit above was a second matcher; the review rebuilt it as the dispatcher's
+own loop run over a candidate set with no shortcut in it
+(`triggers-architecture.md` §4.10), fixed the one bug that matcher had found
+in the shared loop (CR 603.2c: an ability matched through a survivor's two
+lists triggered once per list), and tidied three things. **Prediction,
+written before the sitting:** the round's head (`1a09270`) against the first
+head's engine (`45d32e7`; `aef30d6` changed no code) `IDENTICAL` on every row,
+audited counter runs included, since the CR 603.2c fix is unreachable on the
+pools and the rest is refactoring or an audit that leaves no trace.
+**Result:** `IDENTICAL` on both pools at two seats and four, 200 games, seed
+12345, the audit agreeing on the same 177,397 / 209,234 / 360,439 / 410,372
+dispatches; CPU per decision −0.6% and −0.7%, inside the spread;
+deterministic on every arm. On `stress`, audited and unaudited are identical
+line for line at both seat counts.
+
+**What the audit costs now**, serial CPU per game audited against unaudited:
+7.0 → 15.4 ms at two seats (×2.2, was ×11), 22.6 → 53.2 ms at four (×2.3,
+was ×14), 38.4 → 102.9 ms at Commander scale (×2.7, was ×19, 50 games). A
+threaded audited sitting is 1–6 s on every board below, where the
+Commander-scale one took 23 s. Most of the difference is that an object no
+row reaches and that printed no triggered ability is skipped before a frame
+is computed, which is almost every card in a library or a hand.
+
+**Zero disagreements** on the same boards as above — both pools at two seats
+and four, Commander scale on both pools, Humility and Blood Artist ×4 on
+`stress`, the three TR-1 cards ×8 on `performance` — with the same dispatch
+and trigger counts. **It still bites**: item 167's snapshot off panics in
+game 175 at two seats (and seven games at four), item 174's capture off in
+game 69 at two seats and game 158 at four, the same games the first audit
+named. **F1's demonstration no longer reproduces**: CR 113.6 asked per
+ability is inside the loop the two answers share. Determinism holds under
+three hasher seeds, audited and unaudited, at two seats and four.
 
 **Re-recorded 2026-09-22 for the TR-1 review, theme E** (provenance ids —
 `triggers-architecture.md` §3.6's amendment as built — and main item 167's
