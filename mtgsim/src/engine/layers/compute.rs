@@ -130,6 +130,14 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     wanted
 }
 
+/// Whether no continuous effect can reach `id`: its effective characteristics
+/// are then its printed ones and its own CDAs (`compute_non_member`), and a
+/// CDA defines what a mana cost, type line or power/toughness box would, never
+/// an ability (CR 604.3).
+pub(crate) fn no_row_reaches(game: &GameState, id: ObjectId) -> bool {
+    matches!(membership(game, id), Membership::NonMember)
+}
+
 /// The debug mode §12 required in the same commit as the cache: every hit is
 /// checked against a fresh walk, which makes `cargo test` and a debug
 /// `fuzz_games` run the invalidation-completeness test. A coarse key can be

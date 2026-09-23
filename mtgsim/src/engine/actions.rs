@@ -951,8 +951,9 @@ impl GameState {
         // moved, a later one would see an earlier one gone (item 174).
         let frames_from = self.departure_frames.len();
         self.capture_departure_frames(&decided);
-        // The dispatch audit's own capture, of every object, when it is on (§4.10).
-        let audit_seam = self.audit_seam();
+        // The dispatch audit's snapshot of every object that could carry a
+        // triggered ability, when it is on (§4.10).
+        let audit_frames = self.audit_frames();
         let performed_from = self.events.len();
 
         // --- Phase 2: perform, in batch order -------------------------------
@@ -983,15 +984,21 @@ impl GameState {
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
+        let window = self.events.current_stamp().batch;
+        let performed_range = performed_from..self.events.len();
         if let Some(frames) = snapshot {
             self.look_back_snapshots.push(crate::engine::triggers::LookBackSnapshot {
-                window: self.events.current_stamp().batch,
-                performed: performed_from..self.events.len(),
+                window,
+                performed: performed_range.clone(),
                 frames,
             });
         }
-        if let Some(seam) = audit_seam {
-            self.audit_performed(seam, performed_from..self.events.len());
+        if let Some(frames) = audit_frames {
+            self.file_audit_snapshot(crate::engine::triggers::LookBackSnapshot {
+                window,
+                performed: performed_range,
+                frames,
+            });
         }
 
         // CR 104.2a / 104.4a are read off the batch, not off a member: two players

@@ -21,7 +21,6 @@
 
 use std::sync::Arc;
 
-use super::audit::AuditCapture;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
@@ -72,7 +71,17 @@ pub struct LookBackSnapshot {
     pub(crate) window: Option<BatchId>,
     /// The records the batch performed, as event-log indices.
     pub(crate) performed: std::ops::Range<usize>,
-    pub(crate) frames: Vec<(ObjectRef, Arc<EffectiveCharacteristics>)>,
+    pub(crate) frames: Vec<ObjectSnapshot>,
+}
+
+/// One object's ability list as a snapshot holds it, with where it was and
+/// whose: an object that has left since answers from these (the audit's).
+#[derive(Debug, Clone)]
+pub struct ObjectSnapshot {
+    pub(crate) object: ObjectRef,
+    pub(crate) zone: Zone,
+    pub(crate) owner: PlayerId,
+    pub(crate) chars: Arc<EffectiveCharacteristics>,
 }
 
 impl LookBackSnapshot {
@@ -163,8 +172,12 @@ pub(super) enum TriggerCandidateFrame<'a> {
     /// A live object's list now, off the layer memo. `snapshots` are the
     /// ones holding its list from before, by index into the window's.
     Live { chars: Arc<EffectiveCharacteristics>, snapshots: Vec<usize> },
-    /// A departed object's CR 603.10a frame, off its record.
-    Departed(&'a EffectiveCharacteristics),
+    /// A departed object's list from before it left. `snapshot: None` is the
+    /// CR 603.10a frame its record carries, which answers the look-back arms
+    /// of every record of the window; `Some(k)` is the list snapshot `k`
+    /// holds, which answers those of the records its batch performed (the
+    /// audit's).
+    Departed { chars: &'a EffectiveCharacteristics, snapshot: Option<usize> },
     /// A surviving object's list from before a batch, off `LookBackSnapshot`
     /// number `snapshot`.
     Before { chars: &'a EffectiveCharacteristics, snapshot: usize },
@@ -174,12 +187,12 @@ impl TriggerCandidateFrame<'_> {
     fn chars(&self) -> &EffectiveCharacteristics {
         match self {
             TriggerCandidateFrame::Live { chars, .. } => chars,
-            TriggerCandidateFrame::Departed(chars) | TriggerCandidateFrame::Before { chars, .. } => chars,
+            TriggerCandidateFrame::Departed { chars, .. } | TriggerCandidateFrame::Before { chars, .. } => chars,
         }
     }
 
     fn is_departed(&self) -> bool {
-        matches!(self, TriggerCandidateFrame::Departed(_))
+        matches!(self, TriggerCandidateFrame::Departed { .. })
     }
 
     /// The arms this list answers for a record that looks back through
@@ -195,11 +208,13 @@ impl TriggerCandidateFrame<'_> {
                 Some(Asks::NotLookBack)
             }
             TriggerCandidateFrame::Live { .. } => Some(Asks::Every),
-            TriggerCandidateFrame::Departed(_) => Some(Asks::LookBack),
-            TriggerCandidateFrame::Before { snapshot, .. } if looks_back_through == Some(*snapshot) => {
+            TriggerCandidateFrame::Departed { snapshot: None, .. } => Some(Asks::LookBack),
+            TriggerCandidateFrame::Departed { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
+                if looks_back_through == Some(*k) =>
+            {
                 Some(Asks::LookBack)
             }
-            TriggerCandidateFrame::Before { .. } => None,
+            TriggerCandidateFrame::Departed { .. } | TriggerCandidateFrame::Before { .. } => None,
         }
     }
 }
@@ -216,7 +231,7 @@ struct TriggerCandidateDef<'a> {
 
 /// Which of a def's arms one record asks (`TriggerEvent::looks_back`).
 #[derive(Clone, Copy)]
-pub(super) enum Asks {
+enum Asks {
     Every,
     LookBack,
     NotLookBack,
@@ -237,7 +252,7 @@ pub(super) struct MatchedTrigger {
 
 /// Why a candidate did not trigger — the `trigger` record's field.
 #[derive(Clone, Copy)]
-pub(super) enum Refusal {
+enum Refusal {
     /// The condition is a state trigger, which TR-6 checks.
     State,
     /// CR 603.2f.
@@ -278,8 +293,8 @@ impl GameState {
             .into_iter()
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
-        let captures = self.take_audit_captures(batch);
-        self.dispatch(&window, Some(ctx), &snapshots, &captures)
+        let audit = self.take_audit_snapshots(batch);
+        self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref())
     }
 
     /// One record emitted outside any batch — a phase beginning, a cast, an
@@ -288,7 +303,8 @@ impl GameState {
         // No `ActionContext` reaches an emission, and none is needed: a mana
         // trigger's event (`ManaAdded`) is performed inside a batch, so the
         // only path that resolves at dispatch never runs here.
-        let _ = self.dispatch(&[seq], None, &[], &[]);
+        let audit = self.dispatch_audit.is_some().then(Vec::new);
+        let _ = self.dispatch(&[seq], None, &[], audit.as_deref());
     }
 
     fn dispatch(
@@ -296,7 +312,7 @@ impl GameState {
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
-        captures: &[AuditCapture],
+        audit: Option<&[LookBackSnapshot]>,
     ) -> Result<(), String> {
         // CR 104.1 — a game that has ended queues nothing; nobody would
         // receive priority to place it.
@@ -311,7 +327,7 @@ impl GameState {
             ));
         }
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots, captures);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -344,18 +360,19 @@ impl GameState {
     ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
     ///    bounds.
     ///
-    /// In an audited game (§4.10) the reference answers the same window
-    /// between steps 3 and 4, whatever the gate said.
+    /// In an audited game `audit` is the window's snapshots of every object
+    /// (§4.10), and the audit answers the same window between steps 3 and 4,
+    /// whatever the gate said.
     fn dispatch_inner(
         &mut self,
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
-        captures: &[AuditCapture],
+        audit: Option<&[LookBackSnapshot]>,
     ) -> Result<(), String> {
         let matches = self.detect(window, snapshots);
-        if self.dispatch_audit.is_some() {
-            self.audit_dispatch(window, captures, &matches);
+        if let Some(audit) = audit {
+            self.audit_dispatch(window, audit, &matches);
         }
         if matches.is_empty() {
             return Ok(());
@@ -551,18 +568,26 @@ impl GameState {
     /// performs, since the departure about to happen may end that very
     /// effect. The frames are memo hits: nothing has changed since the batch
     /// began deciding.
-    pub(crate) fn look_back_frames(&self) -> Vec<(ObjectRef, Arc<EffectiveCharacteristics>)> {
+    pub(crate) fn look_back_frames(&self) -> Vec<ObjectSnapshot> {
         let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         // Every printed source, not the ones whose kinds a look-back arm
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
         self.live_candidates(self.battlefield_readers(EventKindMask::ALL), unattributed)
             .into_iter()
-            .filter_map(|id| {
-                let zone_change_epoch = self.objects.get(&id)?.zone_change_epoch;
-                Some((ObjectRef { id, zone_change_epoch }, compute_characteristics(self, id)?))
-            })
+            .filter_map(|id| self.object_snapshot(id))
             .collect()
+    }
+
+    /// `id`'s list now, and where it is and whose.
+    pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
+        let object = self.objects.get(&id)?;
+        Some(ObjectSnapshot {
+            object: ObjectRef { id, zone_change_epoch: object.zone_change_epoch },
+            zone: object.zone,
+            owner: object.owner,
+            chars: compute_characteristics(self, id)?,
+        })
     }
 
     /// The live objects a dispatch asks, in CR 613.7 order: `readers` on the
@@ -612,18 +637,18 @@ impl GameState {
         // the granter left, is still asked, after the rest.
         let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
         for (k, snapshot) in snapshots.iter().enumerate() {
-            for (source, frame) in &snapshot.frames {
-                if self.object_ref(source.id) == Some(*source) {
-                    before.entry(source.id).or_default().push((k, frame.as_ref()));
+            for frame in &snapshot.frames {
+                if self.object_ref(frame.object.id) == Some(frame.object) {
+                    before.entry(frame.object.id).or_default().push((k, frame.chars.as_ref()));
                 }
             }
         }
         if !before.is_empty() {
             let mut reached: IdSet<ObjectId> = live.iter().copied().collect();
             for snapshot in snapshots {
-                for (source, _) in &snapshot.frames {
-                    if before.contains_key(&source.id) && reached.insert(source.id) {
-                        live.push(source.id);
+                for frame in &snapshot.frames {
+                    if before.contains_key(&frame.object.id) && reached.insert(frame.object.id) {
+                        live.push(frame.object.id);
                     }
                 }
             }
@@ -688,7 +713,7 @@ impl GameState {
                 owner,
                 zone: from,
                 host: None,
-                frame: TriggerCandidateFrame::Departed(frame),
+                frame: TriggerCandidateFrame::Departed { chars: frame, snapshot: None },
                 card,
             });
         }
@@ -827,7 +852,7 @@ impl GameState {
     /// One def against one record: the first arm that matches, and the
     /// subjects of its occurrences (one per trigger). `Err` names the
     /// predicate that refused.
-    pub(super) fn match_def(
+    fn match_def(
         &self,
         def: &TriggerDef,
         candidate: &TriggerCandidate<'_>,
