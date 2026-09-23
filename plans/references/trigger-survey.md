@@ -413,6 +413,29 @@ this table keeps the survey's filter so its rows are shares of table one's.
 Every count in tables one and two was the same on 2026-09-23 as on
 2026-09-18.
 
+**Where the "neither" rows went** (the owner's review, 2026-09-23).
+Three card questions found them, each checked against its CR text, and
+each is an amendment in `triggers-architecture.md` rather than a gap
+filed here:
+
+- **G1, Vibrance** — the spell it was, read after the source left. Mana
+  spent is `codebase-state.md` item 30, now its own PR ahead of TR-2; the
+  frame keeps the cast facts (§3.11, TR-4); an object that leaves after it
+  triggered has its frame written onto the entry (§6.1, TR-2, item 169).
+- **G2, Ajani, Nacatl Avenger** — the resolution's own events. The
+  reflexive window is the records "earlier during the resolution" (§4.6,
+  TR-3), the one reader "this way" and "that many" share; `CreatesToken`
+  matches the instructed definition (§3.3, TR-5); a delayed trigger's
+  `refs` are the objects its instruction made (§3.9, TR-3).
+- **G3, Wicked Guardian** — the resolution's own choices. "If you do /
+  don't / can't" reads CR 118.12's answer, never the event, and names its
+  chooser (§6.2, TR-2).
+
+The zone-statement row is item 173, scheduled into TR-4. Tribute and X
+stay Phase 8's. A rulings sweep over every row was scoped (about 2,000
+cards, 5,467 rulings) and dropped: a card's rulings are read when it is
+registered (`engineering-practices.md` §3.4).
+
 ---
 
 ## 5. The gaps — filed as `codebase-state.md` "Before Triggered abilities" items 10–18
