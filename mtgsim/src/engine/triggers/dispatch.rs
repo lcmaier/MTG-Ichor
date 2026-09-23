@@ -219,6 +219,14 @@ impl TriggerCandidateFrame<'_> {
     }
 }
 
+/// One ability's match against one record, before "one or more" folds it.
+struct ArmMatch<'r, 'a> {
+    row: &'r TriggerCandidateDef<'a>,
+    /// Which of the condition's events matched.
+    arm: EventIndex,
+    subjects: Vec<Option<ObjectId>>,
+}
+
 /// One triggered ability of one candidate, with the facts that do not depend
 /// on the record answered once: CR 113.6 and the identity.
 struct TriggerCandidateDef<'a> {
@@ -765,7 +773,7 @@ impl GameState {
             // CR 603.2c: an ability triggers once each time its trigger event
             // occurs. A survivor is asked through two lists and can match one
             // record through each; the first arm in the ability's order wins.
-            let mut hits: Vec<(&TriggerCandidateDef<'_>, EventIndex, Vec<Option<ObjectId>>)> = Vec::new();
+            let mut hits: Vec<ArmMatch<'_, '_>> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
@@ -788,14 +796,15 @@ impl GameState {
                         mana,
                     )
                 });
-                let Some(matched) = matched else { continue };
-                match hits.iter_mut().find(|(hit, ..)| hit.identity == identity) {
-                    Some(hit) if matched.0 < hit.1.0 => *hit = (row, matched, subjects),
+                let Some(arm) = matched else { continue };
+                let this = ArmMatch { row, arm, subjects };
+                match hits.iter_mut().find(|hit| hit.row.identity == identity) {
+                    Some(earlier) if this.arm < earlier.arm => *earlier = this,
                     Some(_) => {}
-                    None => hits.push((row, matched, subjects)),
+                    None => hits.push(this),
                 }
             }
-            for (row, matched, subjects) in hits {
+            for ArmMatch { row, arm: matched, subjects } in hits {
                 let candidate = &candidates[row.candidate];
                 let (identity, def) = (row.identity, row.def);
                 let mana = is_mana_ability(def);
