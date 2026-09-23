@@ -1703,6 +1703,21 @@ section never asked.
     payment time and nowhere afterward.
     → `cr-coverage-audit.md` §5.1.
 
+    **Scheduled 2026-09-23 (the trigger rulings pass): its own PR, ahead of
+    TR-2.** `trigger-survey.md` table three counts the intervening "if"s that
+    read CR 400.7d's facts: 58 trigger cards read the mana spent to cast the
+    permanent, 107 whether it was kicked or bargained, 13 an alternative
+    cost — and Vibrance's recheck reads it after the permanent may be gone
+    (`triggers-architecture.md` §3.11 and §6.1, amended). Sized ~200 with
+    tests: the atoms a payment spends, recorded at CR 601.2h onto
+    `StackEntry` and carried to `CastFacts` by `place_on_battlefield` beside
+    the additional and alternative costs `StackEntry` already holds; a copy
+    of the spell carries none of the mana (ATOM-707.10-003).
+    `Condition::SpellWasKicked` is declared today and its one evaluator
+    asserts; it becomes the carried fact's first reader. What a reader needs
+    of a mana source that is gone (a sacrificed Treasure, a snow permanent)
+    is that PR's first question.
+
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (CV-4) and no CR 700.14 card is registered.
 
@@ -7879,6 +7894,16 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      locked controller as "you" and the binding's frame for a clause about
      the bound object, ~40 lines.
 
+     **Widened 2026-09-23 (the trigger rulings pass):** the binding's frame
+     exists only when the triggering event was the departure. A source that
+     leaves *after* it triggered — Vibrance's evoke sacrifice resolving
+     first, or any "deals damage equal to its power" enters trigger answered
+     by removal — has no frame any binding points at, and CR 608.2h and
+     113.7a answer from its last known information. `triggers-architecture.md`
+     §6.1's amendment: `capture_departure_frames` writes a `departed` frame
+     onto every queued or stacked entry naming the departing object, ~50
+     lines more, in TR-2.
+
 170. **`OrderTriggers` offers the entries' sources, so two entries of one
      source are indistinguishable to a human client.** `ask_order_triggers`
      builds `ChoiceOption::Object(source)` per entry in trigger order; the
@@ -7941,6 +7966,10 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      board with Bridge's zone change printed "from anywhere" *does* trigger,
      since CR 603.6c's last sentence makes it no leaves-the-battlefield
      ability, read after the wipe, with Jailer gone.
+
+     **Scheduled 2026-09-23 (the trigger rulings pass): TR-4**, beside the
+     Ichorid prerequisite its §12 row already names; table three counts 17
+     trigger cards stating their zone this way.
 
 174. **~~A departing permanent's CR 603.10a frame is captured when that member
      moves, so it depends on batch order.~~ — ✅ CLOSED 2026-09-22 (TR-1b).** — archived.

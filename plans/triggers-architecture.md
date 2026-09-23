@@ -317,7 +317,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `Attached` | `BecomesAttached { attachment: Option<ObjectFilter>, host: Option<ObjectFilter> }` — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002) | no | TR-4 |
 | `EquipmentDetached` → **`Unattached`** | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's three routes (question 5), replacing `EquipmentDetached` | yes (603.10c): the frame is the attachment's, with `attached_to` from item 14 | TR-4 |
 | `LeftTheGame` | folded into `ZoneChange`'s leaves-the-battlefield reading: a `LeftTheGame` from the battlefield matches `from: Battlefield, to: None` and nothing narrower, which is CR 603.6c's own sentence; the phased-in qualifier is item 6's and waits for phasing | yes (the record carries the frame since RE-7) | TR-1 |
-| `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13) | no | TR-5 (fixture) |
+| `TokenCreated` | `CreatesToken { owner, zone: Option<Zone>, kind: Option<TokenKind>, multiplicity }` — keyed here and never on `is_token` at entry (item 8; CR 111.13). **Amended 2026-09-23 (the rulings pass, G2):** a reflexive "when you do" on a creation asks whether each token is of the definition the instruction named — Ajani, Nacatl Avenger's ruling triggers once per Cat Warrior under Doubling Season and not at all for the Angels Divine Visitation makes instead — so `kind` matches the instructed definition, not a token type | no | TR-5 (fixture) |
 | `TokenCeasedToExist` | **no arm** — CR 704.5d names no trigger event, and what cards observe is the *absence*: Flickerwisp's ruling has an exiled token "cease to exist and won't return", which is a delayed trigger's `ObjectRef` finding nothing (§3.9), not an event to match | — | — |
 | `StateBasedActionPerformed` | **no arm** | — | — |
 | *new* `Targeted` (item 12) | `BecomesTarget { subject: TargetRef (object or player), by: Option<TargetingFilter> (a spell, an ability, "an opponent controls", "an Aura spell"), first_time_each_turn }` — once per spell or ability, however many instances (question 11) | no | TR-5 |
@@ -401,7 +401,9 @@ comparison; `EffectRecipient::TriggeringPlayer` is `player_of` on the
 records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
 (Simic Ascendancy's "that many" across a batch); and
 `AmountExpr::TriggeringPower` reads the live object when it is where the
-event left it and the record's `lki` frame otherwise (CR 608.2h). All
+event left it and its last known information otherwise (CR 608.2h) — the
+record's `lki` frame when the event was the departure, the entry's
+`departed` frame when the object left afterwards (§6.1's amendment). All
 three leaves ship in TR-1 because the type that carries them opens there.
 
 **Why no stored amount.** A single `Option<u64>` on the binding would mean
@@ -606,16 +608,22 @@ pub struct DelayedTrigger {
     /// 603.7d–g: the controller as of the creating instant.
     pub controller: PlayerId,
     /// When it was created — CR 603.7a (never retroactive), 513.2 (a step
-    /// that has begun does not "back up"), and the reflexive window.
+    /// that has begun does not "back up"), and the reflexive window's end.
     pub created: Instant { turn: u32, record: usize },
     /// CR 603.7b — once, or a stated duration.
     pub duration: DelayedDuration,   // Once | ThisTurn | UntilEvent(..)
-    /// CR 603.7c — the objects it refers to, by id and epoch (CR 400.7).
+    /// CR 603.7c — the objects it refers to, by id and epoch (CR 400.7),
+    /// filled from the records the creating instruction performed, never
+    /// from its count: under Doubling Season "exile it at the beginning of
+    /// the next end step" exiles each token made (Twinflame's and
+    /// Kiki-Jiki's rulings), and a creature that later becomes a copy of
+    /// one is not among them (Twinflame's other ruling).
     pub refs: Vec<ObjectRef>,
     /// CR 107.3n — X, inherited from the creating spell when unstated.
     pub x: Option<u64>,
     /// CR 603.12 — `Some(stamp)` for a reflexive trigger: checked at once
-    /// against the records that carry this stamp since `created.record`.
+    /// against the records that carry this stamp up to `created.record` —
+    /// "earlier during the resolution" (amended 2026-09-23, §4.6).
     pub reflexive: Option<ResolutionStamp>,
     /// A named extra turn, for "at the beginning of that turn's end step"
     /// (Final Fortune): CR 500.7's queue entries gain an id and a turn
@@ -713,6 +721,13 @@ pub struct LastKnownInformation {
     /// `None` for an object that was not a permanent. CR 110.5's four
     /// statuses plus the two facts the four printed families read.
     pub status: Option<Status>,
+    /// CR 400.7d's facts the permanent kept about the spell it was
+    /// (`PermanentState.cast`, main item 9). Amended 2026-09-23 (the
+    /// rulings pass, G1): an intervening "if" about them is rechecked after
+    /// the permanent may have left (CR 603.4), and CR 113.7a answers from
+    /// last known information — Vibrance evoked, its sacrifice ordered
+    /// first, still deals 3 damage if {R}{R} was spent to cast it.
+    pub cast: Option<CastFacts>,
 }
 pub struct Status {
     pub tapped: bool,
@@ -1109,7 +1124,7 @@ ruling and Flickerwisp's board.
 A **reflexive** trigger (603.12) is a delayed entry with `reflexive:
 Some(stamp)`, created by `Effect::Reflexive { when: ReflexiveEvent, then }`
 as the resolution reaches it, and **checked immediately**: the window is
-the records with that stamp since `created.record`. `ReflexiveEvent` is a
+the records with that stamp up to `created.record`. `ReflexiveEvent` is a
 `TriggerEvent` restricted to what the resolution's own instructions can
 perform — "when you do" is the `ZoneChange { cause: Sacrificed }` the
 preceding `Optional` proposed; if none matched, the entry is dropped
@@ -1118,6 +1133,22 @@ stack without a target ... a second ability triggers and you pick a
 target") and its last is the count ("you can't sacrifice multiple creatures
 to deal damage multiple times"). 603.12a's "one or more times" is
 `OncePerEvent` over that window; its payment loop is CP-1's (§13).
+
+**Amended 2026-09-23 (the rulings pass, G2).** The first text read the
+window "since `created.record`", which contradicts both CR 603.12 — the
+ability triggers "based on whether the trigger event or events occurred
+earlier during the resolution of the spell or ability that created them" —
+and this section's own example, whose sacrifice precedes the reflexive
+entry. The window is every record the resolution has performed so far, and
+it is one reader, `resolution_records(stamp)`. It is also where "this way"
+and "that many" look (`trigger-survey.md` table three: 480 and 260 trigger
+cards read the resolution's own events — "you gain life equal to the
+damage dealt this way", "discard any number, then draw that many"); their
+`AmountExpr` and `Condition` leaves come with their first cards and read
+this reader, never a count kept beside it. A reflexive whose action is
+making a token — Ajani, Nacatl Avenger, Generous Plunderer — needs
+`CreatesToken` (§3.3), which is TR-5's; Ajani's two rulings are TR-5
+fixtures, and the few such cards are not a reason to move the arm.
 
 ### 4.7 Triggered mana abilities (CR 605.1b, 605.4a; question 12; main item 11)
 
@@ -1415,6 +1446,25 @@ creature is in the graveyard at both. `Condition` is one enum for the
 static "as long as", the intervening "if" and the state trigger, as
 `layers-architecture.md` §13b decision 5 planned; a leaf is three edits.
 
+**Amended 2026-09-23 (the rulings pass, G1): an object that leaves after it
+triggered.** The binding's frame exists only when the triggering event was
+the object's departure. An enters trigger whose source is sacrificed before
+it resolves has none: its entry record carries no frame, and the departure
+is a later record no binding points at. CR 603.4 still rechecks, and CR
+608.2h and 113.7a answer from "the object's last known information" — and
+"the source can still perform the action even though it no longer exists".
+So the departure writes the frame where the recheck finds it:
+`capture_departure_frames` (§4.3) sets `departed: Vec<(ObjectRef,
+Arc<frame>)>` on every `PendingTrigger` and `StackEntry` whose source or
+bound object (`TriggerBinding.object`) is the departing `ObjectRef`, the
+frame type of the day (`EffectiveCharacteristics` until TR-4's
+`LastKnownInformation`). The evaluator and §6.3's readers take an object's
+facts from there once its epoch has moved. One writer, one meaning, and no
+search of the log (§7). Vibrance is the case that found it, and it also
+needs mana spent recorded (`codebase-state.md` item 30) and the frame's
+`cast` (§3.11); the common case is any "this creature deals damage equal
+to its power" enters trigger answered by removal, which needs neither.
+
 ### 6.2 "May" and "unless" (CR 603.5)
 
 The ability goes on the stack regardless; the choice is at resolution.
@@ -1429,6 +1479,29 @@ pays [cost]" is a payment inside a resolution, `cost-architecture.md`
 §3.10's shape and CP-1's slot; Strict Proctor, Frost Titan and every ward
 wait for it (§13).
 
+**Amended 2026-09-23 (the rulings pass, G3): the field records CR 118.12's
+answer, not the event.** CR 118.12 makes the action a cost paid at
+resolution, and its "If [a player] [does, doesn't, or can't]" clause
+"checks whether the player chose to pay an optional cost or started to pay
+a mandatory cost, regardless of what events actually occurred"; CR 118.11
+keeps a modified payment paid. So `last_optional_taken` is
+`last_cost_answer: Option<CostAnswer>`, `Does | Doesnt | Cant` in the
+rule's words, written by the atom that takes the action and read by the
+clause after it — never re-derived from the performed records. Wicked
+Guardian's ruling is the board: its 2 damage prevented by protection, the
+card is still drawn, where a reader asking the stream whether damage was
+dealt would draw nothing. `Cant` is the mandatory form's failure —
+ATOM-118.12-001's Standstill, exiled before its trigger resolves, is not
+sacrificed and no one draws — and "if you can't" reads it (105 trigger
+cards, `trigger-survey.md` table three). The choice names its chooser:
+`Effect::Optional` carries a `PlayerRef`, `You` unless the text names
+another, so "that player may ... if they do" (53) asks the right seat; "any
+player may ... if a player does" asks each in APNAP order (CR 101.4) and
+is `Does` if any did, built with its first card. ATOM-118.12-002 is this
+paragraph's rule; its own board is Dermoplasm's morph under Gather
+Specimens, which waits for Phase 8, so TR-2 covers it partially with
+Wicked Guardian's.
+
 ### 6.3 The bound facts, LKI, and CR 603.6's "unable to be found"
 
 `EffectRecipient::TriggeringObject` resolves against `ObjectRef`: the
@@ -1439,7 +1512,9 @@ on it" after a bounce (ATOM-603.6-001) and CR 603.6c's "checks for it only
 in the first zone that it went to" (-001/-002), which is the same
 comparison read the other way. `AmountExpr::TriggeringPower` and its
 siblings read `LastKnownInformation` (§3.11): live if the object is where the event
-left it, the frame otherwise. Nothing the effect reads is copied at
+left it, the frame otherwise — the record's when the event was the
+departure, the entry's `departed` frame when the object left afterwards
+(§6.1's amendment). Nothing the effect reads is copied at
 dispatch that the record does not already hold — the binding is indices
 and one `Arc`.
 
@@ -1507,7 +1582,9 @@ field with one writer:
 | resolutions per ability per turn (603.7h) | `TurnSummary.abilities_resolved` | the dispatcher, off `AbilityResolved` | the count condition |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
 | who cast this permanent, and from which zone (400.7d; main item 9) | `PermanentState.cast: Option<CastFacts { by: PlayerId, from: Zone }>` | the entry performer, off the stack entry (`controller`, `cast_from`) the proposal's zone change came from | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
-| the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer | the delayed check, the resolution |
+| the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
+| the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionContext.last_cost_answer` | the atom that takes the action | the "if" clause after it (§6.2) |
+| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
 | the trigger's event, subject, amount, frame | `TriggerBinding` (record ids, the matched event, the subject's epoch — nothing the records hold) | the dispatcher | the resolution, through the arm's projections |
@@ -1843,18 +1920,22 @@ instructions, −3.97% against `main`.
 
 | Piece | ~additions |
 |---|---|
-| `TurnSummary`, `PlayerHistory`, `own_turns`, the record-by-record advance, the four `Condition` leaves (three edits each), `FirstTimeEachTurn`, the two gate sets and their two writers, `TriggerLimit` on the def, the 603.7h count off `AbilityResolved` and its condition, the arms `DrawsCard`, `GainsLife`, `LosesLife`, `CastsSpell`, `AbilityResolves`, `ShufflesLibrary`; `Condition::ResolvedThisTurn(n)` (§6.5) | ~500 |
-| `Effect::Optional` with `OptionalEffect`, `last_optional_taken` for "if you do" (main item 24), 118.12's cost-object check | ~120 |
+| `TurnSummary`, `PlayerHistory`, `own_turns`, the record-by-record advance, the four `Condition` leaves (three edits each), `FirstTimeEachTurn`, the two gate sets and their two writers, `TriggerLimit` on the def, the 603.7h count off `AbilityResolved` and its condition, the arms `DrawsCard`, `GainsLife`, `LosesLife`, `CastsSpell`, `AbilityResolves`, `ShufflesLibrary`; `Condition::ResolvedThisTurn(n)` (§6.5); the `departed` frames and their reader (§6.1's amendment) | ~550 |
+| `Effect::Optional` with `OptionalEffect` and its chooser, `last_cost_answer` for "if you do / don't / can't" (§6.2's amendment; main item 24), 118.12's cost-object check | ~160 |
 | `EffectRecipient::EachPlayer(PlayerSet)` in APNAP order (S2, item 122); Alms Collector's rider re-encoded | ~80 |
 | cards: **Paladin of Atonement** (last turn, whoever's; `AmountExpr::TriggeringToughness` off the frame), **Vengeful Warchief** ("for the first time each turn"), **Elvish Warmaster** ("one or more", "triggers only once each turn"), **Nykthos Paragon** (603.2h, "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Temple Bell** (each player draws), **Cosi's Trickster** ("whenever an opponent shuffles", "may"; its three rulings); Warchief, Warmaster, Crawler and Trickster pooled (the histories, the gate, `EachPlayer`, the shuffle arm) | ~400 |
-| tests, 21: §13's 8 TR-2 atoms (603.1b's fixture in Avatar Aang's shape is one); Nykthos Paragon's six rulings as six tests; Cosi's Trickster's three; Elvish Warmaster's once each turn; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 121.2c against Alms Collector; the elision's binding-read board (below). The pregame-sweep question is measured too, a probe recorded and not a test | ~800 |
+| tests, 24: §13's 9 TR-2 atoms (603.1b's fixture in Avatar Aang's shape is one; 118.12-002 partial, on Wicked Guardian's prevented damage); Nykthos Paragon's six rulings as six tests; Cosi's Trickster's three; Elvish Warmaster's once each turn; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 121.2c against Alms Collector; the elision's binding-read board (below); an "if you can't" fixture; an enters trigger's "if" and power read after its source is sacrificed in response (§6.1). The pregame-sweep question is measured too, a probe recorded and not a test | ~890 |
 | docs, ledger, record | ~260 |
 
 **Carried in from the TR-1 review** (2026-09-22):
 
 - **Before it:** the review's theme E — provenance ids (§3.6's amendment),
   which TR-2's gates key on, and item 167's snapshot (§4.3). Both landed
-  2026-09-22.
+  2026-09-22. **And item 30's capture (the rulings pass, 2026-09-23), its
+  own PR:** mana spent recorded at payment, with the additional and
+  alternative costs `StackEntry` already holds, carried to `CastFacts`. A
+  fact, so recorded on sight (`engineering-practices.md` §5), and TR-2 would
+  pass the band carrying it; its readers come with their cards.
 - **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
   `phase_tr1_integration_test.rs` today, and every trigger phase asks
   "before priority".
@@ -1873,7 +1954,7 @@ instructions, −3.97% against `main`.
 | the registry, `DelayedTrigger`, `DelayedSource`, `DelayedDuration`, `ObjectRef`, `Instant`, `ExtraTurnId` on `turn_queue` and `current_turn_origin`, `Primitive::CreateDelayedTrigger`, provenance from `ResolutionContext` and from a rider, 107.3n's X, `ChooseDelayedTriggerEvent`, cleanup expiry of `ThisTurn`; `Effect::Reflexive` and the immediate check; `UntilEvent` resolved at dispatch (610.3) | ~520 |
 | `Primitive::ReturnToBattlefield` and `ReturnToHand` made real over `change_zone` / `EnterBattlefield` (the stub arm at `resolve.rs:1417`), with 610.3c's owner's control; a source-relative "another" for a sacrifice chooser | ~120 |
 | cards: **Final Fortune** (603.7d, a named extra turn; its ruling — a skipped extra turn loses nothing — is the `ExtraTurnId` test), **Flickerwisp** (603.7e from a triggered ability, 603.7c through exile, CR 400.7; its second ruling is 513.2's sibling), **Cornered Crook** (603.12: `Optional` then reflexive, any target — Heart-Piercer Manticore prints the same shape with an LKI power read and cannot register whole, since embalm is `backlog.md` §2.3's and CV's), **Banishing Light** (610.3's until-return, no stack; its ruling that an Aura or Equipment on the exiled permanent falls off is CR 400.7's, and "leaves before the trigger resolves, nothing is exiled" is 610.3a); Flickerwisp and Banishing Light pooled (the registry, the until path) | ~320 |
-| tests, 29: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura | ~1,100 |
+| tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
 | docs, ledger, record | ~250 |
 
 **Candidate seam**, taken only if the brief's re-count puts code plus tests
@@ -1885,9 +1966,9 @@ reflexive with Final Fortune, Flickerwisp and Cornered Crook, then "until"
 
 | Piece | ~additions |
 |---|---|
-| `LastKnownInformation` and `Status` (3 field sites, 7 literals), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~480 |
+| `LastKnownInformation` and `Status` (3 field sites, 7 literals), its `cast` (§3.11's amendment), item 173's zone statement read off the intervening "if" (scheduled here 2026-09-23), the widened capture (item 15) gated on prior visibility for the third class, the reader methods on the type, `Unattached` with `announce_unattached` at three performers (7 `EquipmentDetached` sites), `ControlChanged` from the sweep with `announced_controller`, the arms `BecomesAttached`, `BecomesUnattached`, `ControlChanges`, `IsCountered`, `PlayerLoses`, `ZoneChange`'s other two classes, `Condition::TriggeringObjectHadCounters` | ~510 |
 | cards: **Grafted Wargear** (603.10c, item 14's host, "sacrifice that permanent"), **Strangleroot Geist** (undying as an `AbilityDef` — quadrant ③ — with 702.93a's intervening "if" off `Status.counters`, `ReturnToBattlefield` with an entry counter; Kitchen Finks prints persist, the mirror, and is not registered because its hybrid cost would have to be misspelled — Mirrorweave's precedent, `codebase-state.md`'s CV-1 status), **Rancor** (603.6e/400.7f, an Aura's own dies-trigger, `ReturnToHand`), **Multani's Presence** (603.10e — `SpellCountered`, never `SpellFizzled`), **Golgari Brownscale** (603.10a's third class; registered whole if dredge — a draw replacement functioning from the graveyard, which LK and RF make expressible — fits the band, else the atom's fixture and the card in §15); a 603.10d fixture over Act of Treason's steal; Strangleroot Geist and Grafted Wargear pooled | ~420 |
-| tests, 27: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards) | ~1,000 |
+| tests, 29: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); item 173's Bridge from Below in a graveyard, and the Jailer fixture that follows it | ~1,070 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |
 
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
@@ -1899,9 +1980,9 @@ item 173's 113.6b statement).
 
 | Piece | ~additions |
 |---|---|
-| `AttackShape` and `BlockShape` over item 11's records (one blockers record per declaration), `Targeted` at three emit sites, `DamagePrevented` from the prevention leg, entry `CountersChanged` with `by`, the arms `Attacks`, `Blocks`, `BecomesTarget`, `DamageIsPrevented`, `CountersPutOn`/`RemovedFrom` with `nth` and per-counter occurrences, `ActivatesAbility`, `CreatesToken`, `Scries`; `Effect::TriggerMultiplier` behind the gate; CR 704.5q routed through two `RemoveCounters` proposals in the state-based batch (Deferred Migrations item 6's counter half; `CountersAnnihilated` deleted) | ~560 |
+| `AttackShape` and `BlockShape` over item 11's records (one blockers record per declaration), `Targeted` at three emit sites, `DamagePrevented` from the prevention leg, entry `CountersChanged` with `by`, the arms `Attacks`, `Blocks`, `BecomesTarget`, `DamageIsPrevented`, `CountersPutOn`/`RemovedFrom` with `nth` and per-counter occurrences, `ActivatesAbility`, `CreatesToken` (its `kind` the instructed definition, §3.3's amendment), `Scries`; `Effect::TriggerMultiplier` behind the gate; CR 704.5q routed through two `RemoveCounters` proposals in the state-based batch (Deferred Migrations item 6's counter half; `CountersAnnihilated` deleted) | ~575 |
 | cards: **Hellrider** (508.3a's defender), **Loyal Sentry** (509.3b), **Cephalid Aristocrat** (item 12, mills), **Simic Ascendancy** (122.6 entry counters, "one or more", 603.4 at upkeep, `WinGame`), **Selfless Squire** (item 16 — its second ruling: any prevention, not only its own), **Panharmonicon** (603.2d, its ten rulings), **Protean Hydra** (CR 704.5q's removal is a removal — its six rulings; X entry counters through RC-5's dynamic amount, RD's rider for "remove that many", TR-3's delayed trigger, so the routing's fixture if any of the three refuses it); Hellrider, Simic Ascendancy and Panharmonicon pooled | ~440 |
-| tests, 30: §13's 4 TR-5 atoms; 509.3a–g's seven readings; Panharmonicon's ten rulings (its edges); Protean Hydra's six; Selfless Squire's second; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays") | ~1,100 |
+| tests, 32: §13's 4 TR-5 atoms; 509.3a–g's seven readings; Panharmonicon's ten rulings (its edges); Protean Hydra's six; Selfless Squire's second; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays"); Ajani, Nacatl Avenger's two reflexive rulings as fixtures, under the registered Doubling Season and Divine Visitation (§3.3's amendment) | ~1,180 |
 | docs, ledger, record | ~250 |
 
 **Candidate seam**, on TR-3's terms (the re-count below reads 2,100–2,600):
@@ -1939,15 +2020,26 @@ tests the row names, at 37 lines a test. The band is code plus tests
 
 | Phase | code rows | largest row ×1.9 | tests (count) | code + tests |
 |---|---|---|---|---|
-| TR-2 | 1,100 | 1,550 | ~800 (21) | 1,900–2,350 |
-| TR-3 | 960 | 1,430 | ~1,100 (29) | 2,060–2,530 |
-| TR-4 | 900 | 1,330 | ~1,000 (27) | 1,900–2,330 |
-| TR-5 | 1,000 | 1,500 | ~1,100 (30) | 2,100–2,600 |
+| TR-2 | 1,190 | 1,685 | ~890 (24) | 2,080–2,575 |
+| TR-3 | 960 | 1,430 | ~1,110 (30) | 2,070–2,540 |
+| TR-4 | 930 | 1,390 | ~1,070 (29) | 2,000–2,460 |
+| TR-5 | 1,015 | 1,530 | ~1,180 (32) | 2,195–2,710 |
 | TR-6 | 440 | 730 | ~300 (9) | 740–1,030 |
 
 No re-plan. TR-3 and TR-5 are the two whose top end passes 2,500, and each
 names a candidate seam under its table, used only if its brief's re-count
 says so.
+
+**Re-counted 2026-09-23 (the rulings pass).** The rows above carry its
+amendments (§6.1, §6.2, §3.9, §3.11, §3.3) and item 173, scheduled into
+TR-4; item 30's capture is its own PR ahead of TR-2 and in no row. TR-2's
+top end now passes 2,500 too, so it gets a candidate seam on the same
+terms: the histories and the gates with Paladin of Atonement, Vengeful
+Warchief and Elvish Warmaster, then "may", CR 118.12's answer, the
+`departed` frames and each player with Nykthos Paragon, Psychosis Crawler,
+Temple Bell and Cosi's Trickster. No phase moves: the one ordering question
+the pass raised, `CreatesToken` for a reflexive on a creation, is a few
+cards and waits for TR-5.
 
 ---
 
@@ -1962,7 +2054,7 @@ their trigger half lands.
 | Phase | Atoms (rule ids) | Count |
 |---|---|---|
 | **TR-1** | 117.2a-001; 500.6-001; 502.4-001; 503.1a-001; COMP-UNTAP-TRIGGER-UPKEEP-001; 508.1m-001; 511.2-001; 405.3-001, -002; 603.2-001; 603.2b-001; 603.2c-001; 603.2e-001 (fixture); 603.2f-001; 603.2g-001; 603.3-001; 603.3a-001; 603.3b-001, -002 (the tier, by fixture; Strict Proctor's card waits for CP-1); 603.3d-001; 603.4-001, -002, -003; 603.6-001; 603.6a-001; 603.6b-001, -002; 603.6c-001, -002; 603.10a-001, -002 (partial → full); 605.1b-001; 605.4a-001; 605.5a-001; 106.12a-001 (partial → full); 119.9-001, -002; 113.9-003; 608.2-001; 608.2a-001; 608.2k-001; 614.6-001, 614.8-002, 615.6-001 (partial → full); COMP-CLEANUP-RELOOP-001; 800.4d-001 (partial → full) | 46 — 44 of them Phase 7; ATOM-603.10a-001 carries no phase in the corpus and ATOM-800.4d-001 is Phase 9's, and both are claimed here because their trigger half is this phase's |
-| **TR-2** | 603.1b-001 (fixture); 603.2h-001, -002; 603.5-001; 118.12-001; 121.5-001 (partial → full); 608.2h-001; 608.2p-001 | 8 |
+| **TR-2** | 603.1b-001 (fixture); 603.2h-001, -002; 603.5-001; 118.12-001; 121.5-001 (partial → full); 608.2h-001; 608.2p-001; 118.12-002 (partial — a Phase 8 atom whose rule §6.2's amendment builds; its Dermoplasm board waits for morph) | 9 — 8 of them Phase 7 |
 | **TR-3** | 603.7-001; 603.7a-001; 603.7b-001, -002; 603.7c-001; 603.7d-001; 603.7e-001; 603.7f-001; 603.7g-001 (fixture); 603.7h-001; 603.12-001; 107.3n-001; 513.2-001, -002; 610.3-001; 610.3a-001; 610.3b-001; 610.3c-001, -002; 610.3d-001 | 20 |
 | **TR-4** | 603.6e-001, -002; 400.7e-001, -002; 400.7f-001; 603.10c-001, -002, -003; 603.10d-001; 603.10e-001; 603.9-001; 603.2e-002; 122.8-001; 122.9-001 | 14 |
 | **TR-5** | 508.2a-001; 603.2d-001; 122.7-001; 120.10-001 | 4 |
@@ -1970,8 +2062,8 @@ their trigger half lands.
 | **Deferred, with the rule that lets each wait** | 603.2a-001 (needs an "activated abilities can't be activated" restriction — RS-2's); 603.3c-001, -002 and 700.2b-001 (modes — `backlog.md` §2.7, on §5.4's placement); 607.2c-001, 607.2h-001 (linked — §2.2); 603.12a-001 and 605.3a-002 (a cost paid at resolution — CP-1, which also unlocks 702.21a-001, -002 (ward = TR-5's event + CP-1's "unless"), Strict Proctor and Frost Titan); 400.7-001 (the rule itself — CV-1b); 111.13-001, 112.2-002, 700.2g-001, 707.10b-001, 707.5-002, BOUNDARY-707.7-001, BOUNDARY-707.9g-001 (copies — CV-2, CV-4, with §6.5's sentence); 208.2b-001, -002 (copiable values from an entry choice — CV); 610.5-001, -002 (a granted keyword at cast — §2.1's convoke); 611.2e-001, 611.3d-001, -002 (their owners: 611.3d is §2.3's foretell); 115.9a-001 ("with N targets" — a filter over `chosen_targets`, Phase 8 with its first card); 701.43d-001 (exert — §2.5); 701.66a-001, -002 and 702.176a-003 (earthbend, impending — Phase 8); 724.1-001, 724.2-001, -002, COMP-MONARCH-COMBAT-001, 724.3-001, 724.5-001, 725.1-001, 725.2-002, 725.3-001 (designations — Phase 9, on §3.8's arm); 608.2d-001 (stays partial: choices at resolution are §2.7's and CP-1's); 608.2j-001 (a characteristic read — ALREADY-IMPL's, re-filed at TR-6's close) | 41 |
 
 Ninety-two of the 133 Phase 7 atoms are owed across the six phases (plus
-the two from outside the phase TR-1 claims), forty-one are deferred with an
-owner each; 92 + 41 = 133, no atom listed twice and none unlisted — checked
+the two from outside the phase TR-1 claims and the one TR-2 claims in part),
+forty-one are deferred with an owner each; 92 + 41 = 133, no atom listed twice and none unlisted — checked
 against `spec.sqlite` on 2026-09-18, and worth re-checking the same way
 at each close. The deferrals are re-read at TR-6's close-out
 (`engineering-practices.md` §9 pass 1) and any whose owner has landed by
@@ -2126,6 +2218,15 @@ Recorded here at authoring; a finding that becomes a code item moves to
     the one fixture that asks (a discard, `cause: Some(Discarded)`) does,
     and it reads correctly, because its fields are `Some`: it was `None`
     standing for "any" that the review objected to, not `Some`.
+15. **The `departed` frames serve activated abilities too, and nothing here
+    builds that half** (the rulings pass, 2026-09-23). CR 113.7a names
+    activated and triggered abilities alike: "{T}: this creature deals
+    damage equal to its power" with its source sacrificed in response reads
+    the source's last known information, and ATOM-113.7a-001 (ALREADY-IMPL)
+    proves only that the ability still resolves. §6.1's field is written
+    for every stack entry whose source departs, so an activated ability's
+    reader is a leaf away; which reader, and whether today's `SourcePower`
+    already answers it, is the first activated card's question.
 
 ---
 

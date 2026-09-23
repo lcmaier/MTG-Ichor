@@ -37,6 +37,11 @@ It counts; it does not judge. A row's "performed event today" column is a
 reading of the tree by hand, checked by assertion where a field is named;
 the "no event" verdicts and the gap list in the doc are the reader's.
 
+Table three (2026-09-23) counts the other half: what a trigger's condition
+and its resolution clauses *read*, and where each answer lives. Its "who has
+that place" column is a reading of the tree and the design by hand, like
+table two's performed-event column, and nothing asserts it.
+
 WHEN TO DELETE THIS FILE
 ------------------------
 When the triggers architecture doc has fixed the event stream's shape and
@@ -201,7 +206,8 @@ def parse_enum(path, name):
 
 
 def emit_sites():
-    """Every `emit_event(` call in `mtgsim/src`, with the variant it emits."""
+    """Every call through either door -- `emit_event(` and, since TR-1,
+    `emit_event_unstamped(` -- in `mtgsim/src`, with the variant it emits."""
     sites = []
     for dirpath, _, files in os.walk(SRC):
         for f in files:
@@ -210,7 +216,7 @@ def emit_sites():
             p = os.path.join(dirpath, f)
             lines = open(p, encoding="utf-8").read().split("\n")
             for i, l in enumerate(lines):
-                if "emit_event(" not in l or "fn emit_event" in l or l.strip().startswith("//"):
+                if not re.search(r"emit_event(_unstamped)?\(", l) or "fn emit_event" in l or l.strip().startswith("//"):
                     continue
                 window = "\n".join(lines[i:i + 4])
                 mv = re.search(r"GameEvent::(\w+)", window)
@@ -395,18 +401,18 @@ T2 = [
      [("who", "CardDrawn.player_id"), ("which card", "CardDrawn.card_id"), ("first or second card this turn (miracle, 702.94a)", "tracker")],
      "carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and \"if you draw one or more cards this way\" reads the count the performed draws returned, not the stream"),
     ("at the beginning of upkeep", "603.2b / 500.6", 'o:"at the beginning of" o:"upkeep"', ["StepBegin"],
-     [("which step", "StepBegin.step"), ("whose turn", "!StepBegin.player"), ("whose turn (today)", "live: the active player")],
-     "**field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- \"your upkeep\" and \"each opponent's upkeep\" read it"),
+     [("which step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried since TR-1 (item 10): the performer writes the `player` `GameAction::BeginStep` carries -- \"your upkeep\" and \"each opponent's upkeep\" read it"),
     ("deals damage / deals combat damage", "120.4b", W + ' (o:"deals damage" or o:"deals combat damage")', ["DamageDealt"],
      [("the source", "DamageDealt.source_id"), ("the recipient", "DamageDealt.target"), ("how much", "DamageDealt.amount"),
-      ("combat or not", "!DamageDealt.is_combat"), ("the source's controller and types", "live: the source, still on the battlefield until SBAs")],
-     "**field gap**: `GameAction::DealDamage` carries `is_combat` and the performer drops it; the next row is the share that reads it"),
+      ("combat or not", "DamageDealt.is_combat"), ("the source's controller and types", "live: the source, still on the battlefield until SBAs")],
+     "carried since TR-1 (item 10); the next row is the share that reads `is_combat`"),
     ("deals combat damage", "510.2 / 120.4b", W + ' o:"deals combat damage"', ["DamageDealt"],
-     [("combat or not", "!DamageDealt.is_combat")],
-     "the share of the row above that cannot be matched off the record"),
+     [("combat or not", "DamageDealt.is_combat")],
+     "the share of the row above that reads the field item 10 added"),
     ("at the beginning of the end step", "513.1 / 513.2", 'o:"at the beginning of" o:"end step"', ["StepBegin"],
-     [("which step", "StepBegin.step"), ("whose turn", "!StepBegin.player")],
-     "the upkeep row's gap again; CR 513.2's next-turn rule is a question for the doc"),
+     [("which step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried, as the upkeep row is; CR 513.2's next-turn rule is §14's question 1"),
     ("intervening \"if\"", "603.4", TRIGGER + ' o:", if "', ["(any)"],
      [("the condition, as the event is performed", "live: the board then"), ("the condition again, as the ability resolves (608.2a)", "live: the board then")],
      "no event of its own: a predicate the matcher evaluates twice"),
@@ -420,8 +426,8 @@ T2 = [
      [("that it was a discard", "ZoneChange.cause"), ("who", "ZoneChange.owner")],
      "carried; \"cycles or discards\" (702.29d) waits for cycling"),
     ("at the beginning of the next ... (delayed)", "603.7", 'o:"at the beginning of the next"', ["StepBegin", "PhaseBegin", "TurnBegin"],
-     [("the step", "StepBegin.step"), ("whose turn", "!StepBegin.player"), ("\"next\" -- not this one (513.2)", "live: when the ability was created")],
-     "carried by the step rows, with their gap; the creation instant is the delayed ability's own field"),
+     [("the step", "StepBegin.step"), ("whose turn", "StepBegin.player"), ("\"next\" -- not this one (513.2)", "live: when the ability was created")],
+     "carried by the step rows; the creation instant is the delayed ability's own field"),
     ("dies with or without counters, or while attached -- the frame's status", "702.79a / 702.93a / 603.6e / 603.10c",
      '(kw:persist or kw:undying or o:"enchanted creature dies" or o:"becomes unattached")', ["ZoneChange"],
      [("what it was, and whose", "ZoneChange.lki"), ("the counters it had, what it was attached to, whether it was tapped",
@@ -431,8 +437,8 @@ T2 = [
      [("from the battlefield", "ZoneChange.from"), ("what it was (603.10a)", "ZoneChange.lki"), ("left the game with its owner", "LeftTheGame.lki")],
      "carried on both routes; the phased-in qualifier is item 6"),
     ("at the beginning of combat", "603.2b / 506.1", 'o:"beginning of combat"', ["StepBegin", "PhaseBegin"],
-     [("the step", "StepBegin.step"), ("whose turn", "!StepBegin.player")],
-     "the upkeep row's gap; \"at end of combat\" (511.2) is the end-of-combat step beginning"),
+     [("the step", "StepBegin.step"), ("whose turn", "StepBegin.player")],
+     "carried, as the upkeep row is; \"at end of combat\" (511.2) is the end-of-combat step beginning"),
     ("blocks / blocks a creature / becomes blocked / becomes blocked by", "509.3a-d", W + ' o:"blocks"', ["BlockersDeclared"],
      [("the (blocker, attacker) pairs", "BlockersDeclared.blockers")],
      "carried; the four shapes are four readings of one list (CR 700.1's example: one event or two)"),
@@ -440,8 +446,8 @@ T2 = [
      [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.old"), ("the source", "LifeChanged.source")],
      "carried; one record per source event, which is CR 702.15e's two lifelink triggers"),
     ("loses life", "120.3a", 'o:"whenever" (o:"lose life" or o:"loses life")', ["LifeChanged"],
-     [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.new"), ("from damage, a payment or an effect (727.1a)", "!LifeChanged.cause")],
-     "carried; one record per `LoseLife` proposal -- combat damage from two attackers is two, a question for the doc; the proposal's `LifeLossCause` is dropped by the performer and one printed phrase reads it"),
+     [("who", "LifeChanged.player_id"), ("how much", "LifeChanged.new"), ("from damage, a payment or an effect (727.1a)", "LifeChanged.cause")],
+     "carried; one record per `LoseLife` proposal -- combat damage from two attackers is two (§14's question 3: per record); `cause` since TR-1 (item 10)"),
     ("becomes the target", "115.1 / 603.2e", 'o:"becomes the target"', [],
      [("the object targeted", "no event"), ("by which spell or ability, whose", "no event")],
      "**no event**: targets are chosen at CR 601.2c and announced to nothing"),
@@ -534,6 +540,140 @@ T2 = [
 ]
 
 # --------------------------------------------------------------------------
+# Table 3 -- what conditions and resolution clauses read, and where the answer lives
+# --------------------------------------------------------------------------
+# Each row: (clause, CR, query, places, who has the place, note). A place is
+# one of PLACES' keys; "has" says whether the engine or the design holds it.
+
+PLACES = {
+    "board": "the board now",
+    "cast": "the spell it was (400.7d)",
+    "history": "a history (§3.10)",
+    "binding": "the bound object's LKI, or the matched record",
+    "choices": "the resolution's own choices (118.12)",
+    "events": "the resolution's own events (603.12)",
+}
+
+T3 = [
+    # The intervening "if" (CR 603.4), split by what it reads.
+    ("intervening \"if\", every one", "603.4", TRIGGER + ' o:", if "', ["board", "cast", "history", "binding"],
+     "design: §6.1, both instants through `settled_holds`",
+     "the survey's one bucket, which table two modeled as \"live (the board then)\"; the rows below split it"),
+    ("... a presence or a count on the board: \"if you control\", \"if you have\", \"if an opponent\", \"if there are\", \"if that player\"",
+     "603.4 / 608.2a", TRIGGER + ' (o:", if you control" or o:", if you have" or o:", if an opponent" or o:", if there are" or o:", if that player")',
+     ["board"], "engine: `Condition` and `settled_holds`, a leaf per card",
+     "the place the design assumed for all of them"),
+    ("... this turn or last turn: morbid, raid, revolt, \"no spells were cast last turn\"", "603.4 / 603.1b",
+     TRIGGER + ' o:", if " (o:"this turn" or o:"last turn")', ["history"],
+     "design: `PlayerHistory` (§3.10, TR-2); engine: none",
+     "over-count: \"this turn\" anywhere in the text"),
+    ("... the spell it was: mana spent to cast it -- adamant, \"if mana from a Treasure was spent\", the evoke Incarnations", "400.7d / 601.2h",
+     TRIGGER + ' o:"was spent to cast"', ["cast"],
+     "**neither**: no payment records which mana paid it (item 30), and `CastFacts` has no field for it",
+     "main item 9's 2026-09-22 note: \"mana spent is recorded nowhere yet, so that one needs its capture at payment first\""),
+    ("... the spell it was: kicked or bargained -- an additional cost", "400.7d / 702.33d",
+     TRIGGER + ' (o:"was kicked" or o:"was bargained")', ["cast"],
+     "engine: `StackEntry.additional_costs_paid`, never carried to the permanent; `Condition::SpellWasKicked` is declared and its only evaluator asserts; design: a `CastFacts` field when a card reads one (main item 9)",
+     ""),
+    ("... the spell it was: an alternative cost -- prowl, surge, spectacle, madness, emerge, sneak", "400.7d / 118.9",
+     TRIGGER + ' o:"cost was paid"', ["cast"],
+     "engine: `StackEntry.chosen_alternative_cost`, never carried; design: a `CastFacts` field (main item 9)",
+     ""),
+    ("... the spell it was: cast at all, and by whom", "400.7d / 603.4",
+     TRIGGER + ' (o:"if you cast it" or o:"if it was cast" or o:"if it wasn\'t cast" or o:"if you didn\'t cast it")', ["cast"],
+     "engine: `PermanentState.cast` (`CastFacts { by, from }`, TR-1); no `Condition` leaf yet",
+     "\"you\" is the ability's controller, so a copy of the trigger controlled by another player fails it (main item 9)"),
+    ("... the spell it was, read again after the source is gone: evoke beside a mana-spent \"if\"", "603.4 / 113.7a / 702.74a",
+     TRIGGER + ' o:"was spent to cast" kw:evoke', ["cast", "binding"],
+     "**neither**: item 169's evaluator answers false for a source that has left, and §3.11's frame carries no cast facts",
+     "Vibrance and its four siblings: the evoke sacrifice and the ETB trigger go on the stack together, and if the sacrifice resolves first the ETB's recheck reads a gone source; CR 113.7a and 608.2h answer it from last known information"),
+    ("... an object the event moved, as it last existed: \"if it had counters on it\", \"if it was a Human\"", "603.10a / 608.2h",
+     W + ' (o:", if it had" or o:", if that creature had" or o:", if it was a" or o:", if it wasn\'t a" or o:", if that creature was")', ["binding"],
+     "engine: the frame's characteristics (`ZoneChange.lki`); design: counters on §3.11's `Status` (TR-4)",
+     ""),
+    ("... persist and undying: the reminder text's \"if it had no ... counters on it\"", "702.79a / 702.93a",
+     '(kw:persist or kw:undying)', ["binding"],
+     "design: `Status.counters` (§3.11, TR-4); engine: none (item 14)",
+     "`o:` excludes reminder text, so the keyword query"),
+    ("... a leaves-the-battlefield trigger whose source is gone: \"you\" and the board at both instants", "603.4 / 603.10a / 109.5",
+     W + ' (o:"dies" or o:"leaves the battlefield") o:", if "', ["board", "binding"],
+     "design: §6.1's `TriggerContext` evaluator (TR-2); engine: false for a departed source (item 169)",
+     ""),
+    ("... the source's own zone: \"if this card is in your graveyard\", CR 113.6b's statement", "113.6b / 603.4",
+     'o:"if this card is in your graveyard" (o:whenever or o:"at the beginning" or o:"when ")', ["board"],
+     "engine: `Condition::SourceInZone`; **neither** reads it as the trigger's zone statement (item 173, unscheduled)",
+     ""),
+    ("... a choice made as it entered: tribute", "702.104b / 614.12",
+     TRIGGER + ' o:"tribute wasn\'t paid"', ["cast"],
+     "**neither**: tribute is Phase 8's keyword; the choice is made as the permanent enters and kept on it",
+     "not a cast fact, but the same kind of place: something the permanent remembers about arriving"),
+    # What a resolving effect reads.
+    ("X, the value the spell that became it was cast with", "107.3m",
+     'm:X ' + W + ' o:"enters" -o:"enters with X"', ["cast"],
+     "engine: `PermanentState.x_value`; no reader (ATOM-107.3m-001, deferred to Phase 8)",
+     "over-count: an X spell with any enters trigger, whether or not that trigger reads X"),
+    ("\"that many\": the matched record's amount, or the resolution's own count", "608.2c / 603.2c",
+     TRIGGER + ' o:"that many"', ["binding", "events"],
+     "engine: `AmountExpr::TriggeringAmount` (TR-1) for the record's; **neither** for the resolution's own (\"discard any number, then draw that many\")",
+     ""),
+    ("\"if you do\": the resolution's own choice (optional) or its own action (mandatory)", "603.5 / 118.12",
+     TRIGGER + ' o:"if you do"', ["choices"],
+     "design: `last_optional_taken` (§6.2, TR-2) for the optional form; ATOM-118.12-001 (TR-2); ATOM-118.12-002, the outcome altered, is Phase 8's",
+     "§6.2 describes the optional form only"),
+    ("\"if you don't\", \"if you can't\": the choice declined, or an instruction that could not be followed", "118.12 / 101.3",
+     TRIGGER + ' (o:"if you don\'t" or o:"if you can\'t")', ["choices", "events"],
+     "design: the same field, negated, for \"don't\"; **neither** for \"can't\"",
+     ""),
+    ("\"if they do\", \"if a player does\": another player's choice", "101.4 / 608.2d",
+     TRIGGER + ' (o:"if they do" or o:"if that player does" or o:"if a player does" or o:"if no one does" or o:"if they don\'t" or o:"if that player doesn\'t")',
+     ["choices"],
+     "design: §6.2's `OptionalEffect` asks one player; \"unless [a player] pays\" is CP-1's; **neither** for \"any player may ... if a player does\"",
+     ""),
+    ("\"when you do\": reflexive, against the resolution's own events", "603.12",
+     'o:"when you do"', ["events"],
+     "design: §4.6 (TR-3), whose window is \"since `created.record`\" where CR 603.12 says \"earlier during the resolution\"",
+     ""),
+    ("\"when [something happens] this way\": reflexive, the second form", "603.12",
+     'o:/\\bwhen [^.]*this way/', ["events"],
+     "design: §4.6 (TR-3)",
+     "the one regex row: a substring cannot tie \"when\" to \"this way\" in one sentence"),
+    ("\"when you pay ... one or more times\"", "603.12a",
+     'o:"one or more times"', ["events"],
+     "design: §4.6, `OncePerEvent` over the reflexive window; the payment loop is CP-1's",
+     ""),
+    ("\"this way\": a count or a fact of the resolution's own events", "608.2c / 603.12",
+     TRIGGER + ' o:"this way"', ["events"],
+     "engine: every record carries `EventStamp.resolution`; **neither** reads it outside §4.6's reflexive window",
+     ""),
+    ("\"for each\": a count at resolution", "608.2c / 608.2h",
+     TRIGGER + ' o:"for each"', ["board", "history", "events", "cast"],
+     "engine: the board's counts; the rest by the three rows below",
+     "the largest mixed row"),
+    ("... \"for each ... this way\"", "608.2c",
+     TRIGGER + ' o:"for each" o:"this way"', ["events"],
+     "**neither**, as \"this way\" above", ""),
+    ("... \"for each ... this turn\"", "608.2c / 603.1b",
+     TRIGGER + ' o:"for each" o:"this turn"', ["history"],
+     "design: `PlayerHistory` (§3.10, TR-2)", ""),
+    ("... \"for each color of mana spent to cast it\"", "400.7d / 702.44a",
+     TRIGGER + ' (o:"colors of mana spent" or o:"color of mana spent")', ["cast"],
+     "**neither** (item 30)", ""),
+    ("a delayed trigger's \"it\", \"them\", \"that token\": the objects the creating resolution made or moved", "603.7c / 707.10e",
+     '(o:"it at the beginning of the next" or o:"them at the beginning of the next" or o:"token at the beginning of the next" or o:"tokens at the beginning of the next")',
+     ["events"],
+     "design: `DelayedTrigger.refs` (§3.9, TR-3), filled by the producer -- from the instruction or from the records it performed, unstated",
+     ""),
+    ("a token-creation trigger under a doubler: \"twice that many\"", "614.1a / 603.12a",
+     'o:"twice that many"', ["events"],
+     "design: `CreatesToken` (§3.3, TR-5), whose `kind` is the token's type, not instructed or added",
+     "Ajani, Nacatl Avenger's ruling: under Doubling Season its reflexive ability triggers once per Cat Warrior made"),
+    ("a token-creation trigger under a substitute: \"would be created\"", "614.1a / 614.6",
+     'o:"would be created"', ["events"],
+     "design: `CreatesToken` (§3.3, TR-5); nothing tells an instructed token from a substitute",
+     "Ajani, Nacatl Avenger's ruling: under Divine Visitation the Angels made instead do not trigger it"),
+]
+
+# --------------------------------------------------------------------------
 # Rendering
 # --------------------------------------------------------------------------
 
@@ -576,9 +716,9 @@ def render_stream(events, actions, causes, sites, ntrig):
     L.append("| what | count | reproduced by |")
     L.append("|---|---:|---|")
     L.append("| `GameEvent` variants | %d | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |" % len(events))
-    L.append("| ... emitted somewhere | %d | an `emit_event(` call naming the variant within four lines |" % (len(events) - len(never)))
+    L.append("| ... emitted somewhere | %d | an emit call naming the variant within four lines |" % (len(events) - len(never)))
     L.append("| ... never emitted | %d | %s |" % (len(never), ", ".join("`%s`" % v for v in never)))
-    L.append("| `emit_event` call sites | %d | `emit_event(` in `mtgsim/src`, the definition and comment lines excluded |" % len(sites))
+    L.append("| emit call sites | %d | `emit_event(` and `emit_event_unstamped(` in `mtgsim/src`, the definitions and comment lines excluded |" % len(sites))
     L.append("| `GameAction` variants | %d | `pub enum GameAction` in `mtgsim/src/engine/actions.rs`, parsed |" % len(actions))
     L.append("| `ZoneChangeCause` arms | %d | `pub enum ZoneChangeCause` in `mtgsim/src/types/zones.rs`, parsed |" % len(causes))
     L.append("| registered cards with a triggered ability | %d | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |" % ntrig)
@@ -646,6 +786,22 @@ def render_t2(events):
     return "\n".join(L)
 
 
+def render_t3():
+    L = []
+    L.append("| clause, and what it reads | CR | cards | where the answer lives | who has that place |")
+    L.append("|---|---|---:|---|---|")
+    for clause, cr, q, places, has, note in T3:
+        where = "; ".join(PLACES[p] for p in places)
+        cell = esc(clause) + (" -- " + esc(note) if note else "")
+        L.append("| %s | %s | %s | %s | %s |" % (cell, cr, fmt(count(q)), where, esc(has)))
+    L.append("")
+    L.append("Queries, in row order (each plus `%s`, `unique=cards`):" % BASE.strip())
+    L.append("")
+    for i, (clause, _, q, *_) in enumerate(T3, 1):
+        L.append("%d. `%s`" % (i, q))
+    return "\n".join(L)
+
+
 BOUNDARY = [
     ('o:"dies"', 'o:/\\bdies\\b/'),
     ('o:"when "', 'o:/\\bwhen\\b/'),
@@ -710,6 +866,7 @@ def main():
         "CORPUS": render_corpus(corpus_block(conn)),
         "TABLE-1": render_t1(conn),
         "TABLE-2": render_t2(events),
+        "TABLE-3": render_t3(),
         "BOUNDARY": render_boundary(),
         "DATE": "Counted %s (Scryfall fetch date from the cache; the tree and the corpus as of the run)." % fetched_on(),
     }
@@ -722,7 +879,7 @@ def main():
         open(DOC, "wb").write(text.replace("\n", eol).encode("utf-8"))
         print("wrote", os.path.relpath(DOC, ROOT))
     else:
-        for k in ("DATE", "STREAM", "CORPUS", "TABLE-1", "TABLE-2", "BOUNDARY"):
+        for k in ("DATE", "STREAM", "CORPUS", "TABLE-1", "TABLE-2", "TABLE-3", "BOUNDARY"):
             print("## %s\n\n%s\n" % (k, blocks[k]))
 
 

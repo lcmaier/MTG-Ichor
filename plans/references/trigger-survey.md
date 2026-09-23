@@ -25,7 +25,7 @@ doc quietly wrong. The prose outside the markers is authored: the decisions,
 the gap list and the questions.
 
 <!-- trigger-survey: begin DATE -->
-Counted 2026-09-18 (Scryfall fetch date from the cache; the tree and the corpus as of the run).
+Counted 2026-09-23 (Scryfall fetch date from the cache; the tree and the corpus as of the run).
 <!-- trigger-survey: end DATE -->
 
 ---
@@ -77,19 +77,22 @@ tree; the corpus side is `plans/atomic-tests/spec.sqlite`, which
 <!-- trigger-survey: begin STREAM -->
 | what | count | reproduced by |
 |---|---:|---|
-| `GameEvent` variants | 34 | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |
-| ... emitted somewhere | 31 | an `emit_event(` call naming the variant within four lines |
-| ... never emitted | 3 | `PhaseEnd`, `StepEnd`, `TurnEnd` |
-| `emit_event` call sites | 34 | `emit_event(` in `mtgsim/src`, the definition and comment lines excluded |
+| `GameEvent` variants | 32 | `pub enum GameEvent` in `mtgsim/src/events/event.rs`, parsed |
+| ... emitted somewhere | 32 | an emit call naming the variant within four lines |
+| ... never emitted | 0 |  |
+| emit call sites | 35 | `emit_event(` and `emit_event_unstamped(` in `mtgsim/src`, the definitions and comment lines excluded |
 | `GameAction` variants | 23 | `pub enum GameAction` in `mtgsim/src/engine/actions.rs`, parsed |
 | `ZoneChangeCause` arms | 22 | `pub enum ZoneChangeCause` in `mtgsim/src/types/zones.rs`, parsed |
-| registered cards with a triggered ability | 0 | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |
+| registered cards with a triggered ability | 3 | `AbilityType::Triggered` in `mtgsim/src/cards/*.rs` |
 <!-- trigger-survey: end STREAM -->
 
-Three variants — `PhaseEnd`, `StepEnd`, `TurnEnd` — are declared and emitted
-nowhere. No printed trigger reads an end: "at end of combat" is the end-of-
-combat step *beginning* (CR 511.2) and "at end of turn" was errata'd to "at the
-beginning of the end step" (CR 513.1a). Item 18 below.
+On 2026-09-18 three variants — `PhaseEnd`, `StepEnd`, `TurnEnd` — were
+declared and emitted nowhere. No printed trigger reads an end: "at end of
+combat" is the end-of-combat step *beginning* (CR 511.2) and "at end of turn"
+was errata'd to "at the beginning of the end step" (CR 513.1a). TR-1 deleted
+the three (item 18 below) and added `AbilityTriggered`, the one record emitted
+through the second door, `emit_event_unstamped`, which the site count reads
+since 2026-09-23.
 
 <!-- trigger-survey: begin CORPUS -->
 | what | count | reproduced by |
@@ -97,19 +100,18 @@ beginning of the end step" (CR 513.1a). Item 18 below.
 | Phase 7 atoms | 133 | `SELECT COUNT(*) FROM atoms WHERE phase='Phase 7'` |
 | ... CR sections they span | 36 | `COUNT(DISTINCT substr(rule_num,1,3))`, same filter |
 | ... under CR 603 | 52 | `rule_num LIKE '603%'`, same filter (54 in the corpus at any phase) |
-| ... fully covered | 0 | `coverage.partial = 0` |
-| ... partially covered, by a test that does not build the atom | 6 | `coverage.partial = 1` and no full row |
-| | | `ATOM-106.12a-001` -- `the_event_says_whether_the_permanent_was_tapped_for_mana` |
+| ... fully covered | 44 | `coverage.partial = 0` |
+| ... partially covered, by a test that does not build the atom | 2 | `coverage.partial = 1` and no full row |
 | | | `ATOM-121.5-001` -- `test_library_to_hand_without_drawing_is_not_a_draw` |
-| | | `ATOM-603.10a-002` -- `test_the_lki_frame_is_the_permanent_as_it_last_existed` |
 | | | `ATOM-608.2d-001` -- `test_a_player_with_no_creatures_is_asked_nothing_and_no_error_is_raised` |
-| | | `ATOM-614.6-001` -- `test_a_static_replacement_ability_prevents_the_event` |
-| | | `ATOM-615.6-001` -- `prevented_damage_never_happens_and_the_trigger_half_is_item_6s` |
 <!-- trigger-survey: end CORPUS -->
 
-No Phase 7 atom is fully covered, and the six partials are each a test that
-proves the *event* half of an atom whose trigger half is critical-path item
-6's — the `ATOM-615.6-001` test's name says so in as many words.
+On 2026-09-18 no Phase 7 atom was fully covered, and the six partials were
+each a test that proved the *event* half of an atom whose trigger half is
+critical-path item 6's — the `ATOM-615.6-001` test's name says so in as many
+words. TR-1 took four of the six to full; the two left are TR-2's
+(`ATOM-121.5-001`) and a deferral (`ATOM-608.2d-001`,
+`triggers-architecture.md` §13).
 
 ---
 
@@ -195,21 +197,21 @@ shape every event can wear.
 | casts a spell | 601.2i | 1,546 | `SpellCast` | the spell: `SpellCast.spell_id`; who cast it: `SpellCast.caster`; creature spell, mana value, colors: live (the stack object); the zone it was cast from: live (the stack entry's `cast_from`); first / second spell this turn: a turn tracker (item 42) | carried; a copy is not cast (CR 707.10) and CV's copy path must emit no `SpellCast` |
 | dies | 700.4 / 603.6c | 1,241 | `ZoneChange` | from the battlefield to a graveyard: `ZoneChange.from`; why: `ZoneChange.cause`; what it was, and whose (603.10a): `ZoneChange.lki` | carried; the frame is CR 603.10a's look-back, captured before CR 611.2a drops the registry rows |
 | draws a card | 121.1 | 1,216 | `CardDrawn` | who: `CardDrawn.player_id`; which card: `CardDrawn.card_id`; first or second card this turn (miracle, 702.94a): a turn tracker (item 42) | carried; CR 121.5 is why this is not the library-to-hand zone change. Transcendent Archaic is the subtlety: its ETB draws X, the colors spent to cast the spell that became it (CR 400.7d, information the permanent keeps about its own casting), and "if you draw one or more cards this way" reads the count the performed draws returned, not the stream |
-| at the beginning of upkeep | 603.2b / 500.6 | 1,167 | `StepBegin` | which step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`); whose turn (today): live (the active player) | **field gap**: `GameAction::BeginStep` carries `player` and the performer drops it -- "your upkeep" and "each opponent's upkeep" read it |
-| deals damage / deals combat damage | 120.4b | 1,127 | `DamageDealt` | the source: `DamageDealt.source_id`; the recipient: `DamageDealt.target`; how much: `DamageDealt.amount`; combat or not: **not on the record** (`DamageDealt` has no `is_combat`); the source's controller and types: live (the source, still on the battlefield until SBAs) | **field gap**: `GameAction::DealDamage` carries `is_combat` and the performer drops it; the next row is the share that reads it |
-| deals combat damage | 510.2 / 120.4b | 804 | `DamageDealt` | combat or not: **not on the record** (`DamageDealt` has no `is_combat`) | the share of the row above that cannot be matched off the record |
-| at the beginning of the end step | 513.1 / 513.2 | 976 | `StepBegin` | which step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`) | the upkeep row's gap again; CR 513.2's next-turn rule is a question for the doc |
+| at the beginning of upkeep | 603.2b / 500.6 | 1,167 | `StepBegin` | which step: `StepBegin.step`; whose turn: `StepBegin.player` | carried since TR-1 (item 10): the performer writes the `player` `GameAction::BeginStep` carries -- "your upkeep" and "each opponent's upkeep" read it |
+| deals damage / deals combat damage | 120.4b | 1,127 | `DamageDealt` | the source: `DamageDealt.source_id`; the recipient: `DamageDealt.target`; how much: `DamageDealt.amount`; combat or not: `DamageDealt.is_combat`; the source's controller and types: live (the source, still on the battlefield until SBAs) | carried since TR-1 (item 10); the next row is the share that reads `is_combat` |
+| deals combat damage | 510.2 / 120.4b | 804 | `DamageDealt` | combat or not: `DamageDealt.is_combat` | the share of the row above that reads the field item 10 added |
+| at the beginning of the end step | 513.1 / 513.2 | 976 | `StepBegin` | which step: `StepBegin.step`; whose turn: `StepBegin.player` | carried, as the upkeep row is; CR 513.2's next-turn rule is §14's question 1 |
 | intervening "if" | 603.4 | 1,338 | (any) | the condition, as the event is performed: live (the board then); the condition again, as the ability resolves (608.2a): live (the board then) | no event of its own: a predicate the matcher evaluates twice |
 | sacrifices | 701.17 | 555 | `ZoneChange` | that it was a sacrifice: `ZoneChange.cause`; who sacrificed it: `ZoneChange.lki` | carried; `ZoneChangeCause::Sacrificed`, and the frame's `controller` is the player who sacrificed |
 | one or more (a batch) | 603.2c | 443 | (any) | the events performed as one: the `EventStamp` envelope | carried by the envelope: every record in a batch carries one `BatchId` |
 | discards | 701.8 | 436 | `ZoneChange` | that it was a discard: `ZoneChange.cause`; who: `ZoneChange.owner` | carried; "cycles or discards" (702.29d) waits for cycling |
-| at the beginning of the next ... (delayed) | 603.7 | 391 | `StepBegin`, `PhaseBegin`, `TurnBegin` | the step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`); "next" -- not this one (513.2): live (when the ability was created) | carried by the step rows, with their gap; the creation instant is the delayed ability's own field |
+| at the beginning of the next ... (delayed) | 603.7 | 391 | `StepBegin`, `PhaseBegin`, `TurnBegin` | the step: `StepBegin.step`; whose turn: `StepBegin.player`; "next" -- not this one (513.2): live (when the ability was created) | carried by the step rows; the creation instant is the delayed ability's own field |
 | dies with or without counters, or while attached -- the frame's status | 702.79a / 702.93a / 603.6e / 603.10c | 109 | `ZoneChange` | what it was, and whose: `ZoneChange.lki`; the counters it had, what it was attached to, whether it was tapped: **not on the record** (`EffectiveCharacteristics` carries characteristics and the controller, no status) | **field gap**: persist's and undying's intervening-if read the counters the permanent had as it died; an Aura's 603.6e trigger reads what it enchanted |
 | leaves the battlefield | 603.6c | 330 | `ZoneChange`, `LeftTheGame` | from the battlefield: `ZoneChange.from`; what it was (603.10a): `ZoneChange.lki`; left the game with its owner: `LeftTheGame.lki` | carried on both routes; the phased-in qualifier is item 6 |
-| at the beginning of combat | 603.2b / 506.1 | 313 | `StepBegin`, `PhaseBegin` | the step: `StepBegin.step`; whose turn: **not on the record** (`StepBegin` has no `player`) | the upkeep row's gap; "at end of combat" (511.2) is the end-of-combat step beginning |
+| at the beginning of combat | 603.2b / 506.1 | 313 | `StepBegin`, `PhaseBegin` | the step: `StepBegin.step`; whose turn: `StepBegin.player` | carried, as the upkeep row is; "at end of combat" (511.2) is the end-of-combat step beginning |
 | blocks / blocks a creature / becomes blocked / becomes blocked by | 509.3a-d | 210 | `BlockersDeclared` | the (blocker, attacker) pairs: `BlockersDeclared.blockers` | carried; the four shapes are four readings of one list (CR 700.1's example: one event or two) |
 | gains life | 119.9 | 140 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.old`; the source: `LifeChanged.source` | carried; one record per source event, which is CR 702.15e's two lifelink triggers |
-| loses life | 120.3a | 51 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.new`; from damage, a payment or an effect (727.1a): **not on the record** (`LifeChanged` has no `cause`) | carried; one record per `LoseLife` proposal -- combat damage from two attackers is two, a question for the doc; the proposal's `LifeLossCause` is dropped by the performer and one printed phrase reads it |
+| loses life | 120.3a | 51 | `LifeChanged` | who: `LifeChanged.player_id`; how much: `LifeChanged.new`; from damage, a payment or an effect (727.1a): `LifeChanged.cause` | carried; one record per `LoseLife` proposal -- combat damage from two attackers is two (§14's question 3: per record); `cause` since TR-1 (item 10) |
 | becomes the target | 115.1 / 603.2e | 117 | **none** | the object targeted: no event; by which spell or ability, whose: no event | **no event**: targets are chosen at CR 601.2c and announced to nothing |
 | ward -- becomes the target of an opponent's spell or ability | 702.21a | 195 | **none** | the object targeted, and who controls the targeting spell: no event | **no event**: the same gap, with a keyword's population behind it |
 | becomes tapped | 603.2e | 114 | `Tapped` | the permanent: `Tapped.object_id` | carried; emitted on the transition only (CR 603.2e), never for a redundant tap or an entry |
@@ -309,10 +311,138 @@ take a new event kind without a redesign.
 
 ---
 
+## 4a. Table three — what conditions and resolution clauses read, and where the answer lives
+
+Tables one and two count what triggers *watch*. This one counts what they
+*read*: every trigger condition and every resolution clause that asks a
+question — the intervening "if", "if you do / don't / can't", "when you
+do", "this way", "that many", "for each", X, a delayed trigger's "it" — and
+the place the answer lives. Table two gave the intervening "if" one row and
+one place, "live (the board then)"; the owner's Vibrance question on
+2026-09-23 found about 200 of them reading a fact about the spell the
+permanent was, which is not on the board at all. Six places:
+
+- **the board now** — `Condition`, read by `settled_holds` at either instant;
+- **the spell it was** — CR 400.7d: "what costs were paid to cast that spell
+  or what mana was spent to pay those costs";
+- **a history** — `triggers-architecture.md` §3.10's trackers;
+- **the bound object's last known information, or the matched record** — the
+  binding (§3.4) and the frame (§3.11), CR 608.2h and 113.7a;
+- **the resolution's own choices** — CR 118.12: "whether the player chose to
+  pay an optional cost or started to pay a mandatory cost, regardless of what
+  events actually occurred";
+- **the resolution's own events** — CR 603.12: "earlier during the resolution
+  of the spell or ability that created them".
+
+The last column says who holds each place today: the engine (named), the
+design (the section and the phase), or **neither**. That column is a reading
+of the tree and the design by hand; the counts and queries are generated.
+
+<!-- trigger-survey: begin TABLE-3 -->
+| clause, and what it reads | CR | cards | where the answer lives | who has that place |
+|---|---|---:|---|---|
+| intervening "if", every one -- the survey's one bucket, which table two modeled as "live (the board then)"; the rows below split it | 603.4 | 1,338 | the board now; the spell it was (400.7d); a history (§3.10); the bound object's LKI, or the matched record | design: §6.1, both instants through `settled_holds` |
+| ... a presence or a count on the board: "if you control", "if you have", "if an opponent", "if there are", "if that player" -- the place the design assumed for all of them | 603.4 / 608.2a | 398 | the board now | engine: `Condition` and `settled_holds`, a leaf per card |
+| ... this turn or last turn: morbid, raid, revolt, "no spells were cast last turn" -- over-count: "this turn" anywhere in the text | 603.4 / 603.1b | 408 | a history (§3.10) | design: `PlayerHistory` (§3.10, TR-2); engine: none |
+| ... the spell it was: mana spent to cast it -- adamant, "if mana from a Treasure was spent", the evoke Incarnations -- main item 9's 2026-09-22 note: "mana spent is recorded nowhere yet, so that one needs its capture at payment first" | 400.7d / 601.2h | 58 | the spell it was (400.7d) | **neither**: no payment records which mana paid it (item 30), and `CastFacts` has no field for it |
+| ... the spell it was: kicked or bargained -- an additional cost | 400.7d / 702.33d | 107 | the spell it was (400.7d) | engine: `StackEntry.additional_costs_paid`, never carried to the permanent; `Condition::SpellWasKicked` is declared and its only evaluator asserts; design: a `CastFacts` field when a card reads one (main item 9) |
+| ... the spell it was: an alternative cost -- prowl, surge, spectacle, madness, emerge, sneak | 400.7d / 118.9 | 13 | the spell it was (400.7d) | engine: `StackEntry.chosen_alternative_cost`, never carried; design: a `CastFacts` field (main item 9) |
+| ... the spell it was: cast at all, and by whom -- "you" is the ability's controller, so a copy of the trigger controlled by another player fails it (main item 9) | 400.7d / 603.4 | 72 | the spell it was (400.7d) | engine: `PermanentState.cast` (`CastFacts { by, from }`, TR-1); no `Condition` leaf yet |
+| ... the spell it was, read again after the source is gone: evoke beside a mana-spent "if" -- Vibrance and its four siblings: the evoke sacrifice and the ETB trigger go on the stack together, and if the sacrifice resolves first the ETB's recheck reads a gone source; CR 113.7a and 608.2h answer it from last known information | 603.4 / 113.7a / 702.74a | 5 | the spell it was (400.7d); the bound object's LKI, or the matched record | **neither**: item 169's evaluator answers false for a source that has left, and §3.11's frame carries no cast facts |
+| ... an object the event moved, as it last existed: "if it had counters on it", "if it was a Human" | 603.10a / 608.2h | 46 | the bound object's LKI, or the matched record | engine: the frame's characteristics (`ZoneChange.lki`); design: counters on §3.11's `Status` (TR-4) |
+| ... persist and undying: the reminder text's "if it had no ... counters on it" -- `o:` excludes reminder text, so the keyword query | 702.79a / 702.93a | 48 | the bound object's LKI, or the matched record | design: `Status.counters` (§3.11, TR-4); engine: none (item 14) |
+| ... a leaves-the-battlefield trigger whose source is gone: "you" and the board at both instants | 603.4 / 603.10a / 109.5 | 105 | the board now; the bound object's LKI, or the matched record | design: §6.1's `TriggerContext` evaluator (TR-2); engine: false for a departed source (item 169) |
+| ... the source's own zone: "if this card is in your graveyard", CR 113.6b's statement | 113.6b / 603.4 | 17 | the board now | engine: `Condition::SourceInZone`; **neither** reads it as the trigger's zone statement (item 173, unscheduled) |
+| ... a choice made as it entered: tribute -- not a cast fact, but the same kind of place: something the permanent remembers about arriving | 702.104b / 614.12 | 11 | the spell it was (400.7d) | **neither**: tribute is Phase 8's keyword; the choice is made as the permanent enters and kept on it |
+| X, the value the spell that became it was cast with -- over-count: an X spell with any enters trigger, whether or not that trigger reads X | 107.3m | 55 | the spell it was (400.7d) | engine: `PermanentState.x_value`; no reader (ATOM-107.3m-001, deferred to Phase 8) |
+| "that many": the matched record's amount, or the resolution's own count | 608.2c / 603.2c | 260 | the bound object's LKI, or the matched record; the resolution's own events (603.12) | engine: `AmountExpr::TriggeringAmount` (TR-1) for the record's; **neither** for the resolution's own ("discard any number, then draw that many") |
+| "if you do": the resolution's own choice (optional) or its own action (mandatory) -- §6.2 describes the optional form only | 603.5 / 118.12 | 1,019 | the resolution's own choices (118.12) | design: `last_optional_taken` (§6.2, TR-2) for the optional form; ATOM-118.12-001 (TR-2); ATOM-118.12-002, the outcome altered, is Phase 8's |
+| "if you don't", "if you can't": the choice declined, or an instruction that could not be followed | 118.12 / 101.3 | 105 | the resolution's own choices (118.12); the resolution's own events (603.12) | design: the same field, negated, for "don't"; **neither** for "can't" |
+| "if they do", "if a player does": another player's choice | 101.4 / 608.2d | 53 | the resolution's own choices (118.12) | design: §6.2's `OptionalEffect` asks one player; "unless [a player] pays" is CP-1's; **neither** for "any player may ... if a player does" |
+| "when you do": reflexive, against the resolution's own events | 603.12 | 258 | the resolution's own events (603.12) | design: §4.6 (TR-3), whose window is "since `created.record`" where CR 603.12 says "earlier during the resolution" |
+| "when [something happens] this way": reflexive, the second form -- the one regex row: a substring cannot tie "when" to "this way" in one sentence | 603.12 | 55 | the resolution's own events (603.12) | design: §4.6 (TR-3) |
+| "when you pay ... one or more times" | 603.12a | 7 | the resolution's own events (603.12) | design: §4.6, `OncePerEvent` over the reflexive window; the payment loop is CP-1's |
+| "this way": a count or a fact of the resolution's own events | 608.2c / 603.12 | 480 | the resolution's own events (603.12) | engine: every record carries `EventStamp.resolution`; **neither** reads it outside §4.6's reflexive window |
+| "for each": a count at resolution -- the largest mixed row | 608.2c / 608.2h | 785 | the board now; a history (§3.10); the resolution's own events (603.12); the spell it was (400.7d) | engine: the board's counts; the rest by the three rows below |
+| ... "for each ... this way" | 608.2c | 122 | the resolution's own events (603.12) | **neither**, as "this way" above |
+| ... "for each ... this turn" | 608.2c / 603.1b | 106 | a history (§3.10) | design: `PlayerHistory` (§3.10, TR-2) |
+| ... "for each color of mana spent to cast it" | 400.7d / 702.44a | 5 | the spell it was (400.7d) | **neither** (item 30) |
+| a delayed trigger's "it", "them", "that token": the objects the creating resolution made or moved | 603.7c / 707.10e | 144 | the resolution's own events (603.12) | design: `DelayedTrigger.refs` (§3.9, TR-3), filled by the producer -- from the instruction or from the records it performed, unstated |
+| a token-creation trigger under a doubler: "twice that many" -- Ajani, Nacatl Avenger's ruling: under Doubling Season its reflexive ability triggers once per Cat Warrior made | 614.1a / 603.12a | 26 | the resolution's own events (603.12) | design: `CreatesToken` (§3.3, TR-5), whose `kind` is the token's type, not instructed or added |
+| a token-creation trigger under a substitute: "would be created" -- Ajani, Nacatl Avenger's ruling: under Divine Visitation the Angels made instead do not trigger it | 614.1a / 614.6 | 18 | the resolution's own events (603.12) | design: `CreatesToken` (§3.3, TR-5); nothing tells an instructed token from a substitute |
+
+Queries, in row order (each plus `game:paper -is:funny`, `unique=cards`):
+
+1. `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if "`
+2. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:", if you control" or o:", if you have" or o:", if an opponent" or o:", if there are" or o:", if that player")`
+3. `(o:"when " or o:"whenever " or o:"at the beginning of") o:", if " (o:"this turn" or o:"last turn")`
+4. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"was spent to cast"`
+5. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:"was kicked" or o:"was bargained")`
+6. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"cost was paid"`
+7. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:"if you cast it" or o:"if it was cast" or o:"if it wasn't cast" or o:"if you didn't cast it")`
+8. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"was spent to cast" kw:evoke`
+9. `(o:"when " or o:"whenever ") (o:", if it had" or o:", if that creature had" or o:", if it was a" or o:", if it wasn't a" or o:", if that creature was")`
+10. `(kw:persist or kw:undying)`
+11. `(o:"when " or o:"whenever ") (o:"dies" or o:"leaves the battlefield") o:", if "`
+12. `o:"if this card is in your graveyard" (o:whenever or o:"at the beginning" or o:"when ")`
+13. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"tribute wasn't paid"`
+14. `m:X (o:"when " or o:"whenever ") o:"enters" -o:"enters with X"`
+15. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"that many"`
+16. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"if you do"`
+17. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:"if you don't" or o:"if you can't")`
+18. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:"if they do" or o:"if that player does" or o:"if a player does" or o:"if no one does" or o:"if they don't" or o:"if that player doesn't")`
+19. `o:"when you do"`
+20. `o:/\bwhen [^.]*this way/`
+21. `o:"one or more times"`
+22. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"this way"`
+23. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"for each"`
+24. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"for each" o:"this way"`
+25. `(o:"when " or o:"whenever " or o:"at the beginning of") o:"for each" o:"this turn"`
+26. `(o:"when " or o:"whenever " or o:"at the beginning of") (o:"colors of mana spent" or o:"color of mana spent")`
+27. `(o:"it at the beginning of the next" or o:"them at the beginning of the next" or o:"token at the beginning of the next" or o:"tokens at the beginning of the next")`
+28. `o:"twice that many"`
+29. `o:"would be created"`
+<!-- trigger-survey: end TABLE-3 -->
+
+**Reading it.** The rows overlap by design: the first is the whole
+intervening-"if" population, the next twelve split it by place, and a card
+with two clauses is in two rows. The sizes quoted when this table was
+commissioned (14,880 triggered cards, 1,399 intervening "if"s) were counted
+with no `game:paper -is:funny`; five of them reproduce exactly that way, and
+this table keeps the survey's filter so its rows are shares of table one's.
+Every count in tables one and two was the same on 2026-09-23 as on
+2026-09-18.
+
+**Where the "neither" rows went** (the owner's review, 2026-09-23).
+Three card questions found them, each checked against its CR text, and
+each is an amendment in `triggers-architecture.md` rather than a gap
+filed here:
+
+- **G1, Vibrance** — the spell it was, read after the source left. Mana
+  spent is `codebase-state.md` item 30, now its own PR ahead of TR-2; the
+  frame keeps the cast facts (§3.11, TR-4); an object that leaves after it
+  triggered has its frame written onto the entry (§6.1, TR-2, item 169).
+- **G2, Ajani, Nacatl Avenger** — the resolution's own events. The
+  reflexive window is the records "earlier during the resolution" (§4.6,
+  TR-3), the one reader "this way" and "that many" share; `CreatesToken`
+  matches the instructed definition (§3.3, TR-5); a delayed trigger's
+  `refs` are the objects its instruction made (§3.9, TR-3).
+- **G3, Wicked Guardian** — the resolution's own choices. "If you do /
+  don't / can't" reads CR 118.12's answer, never the event, and names its
+  chooser (§6.2, TR-2).
+
+The zone-statement row is item 173, scheduled into TR-4. Tribute and X
+stay Phase 8's. A rulings sweep over every row was scoped (about 2,000
+cards, 5,467 rulings) and dropped: a card's rulings are read when it is
+registered (`engineering-practices.md` §3.4).
+
+---
+
 ## 5. The gaps — filed as `codebase-state.md` "Before Triggered abilities" items 10–18
 
 Each is a row in table two and an item there, with the item's reachability
-line and size. None is built here (decision 2). The reachability verdict is
+line and size. None is built here (decision 2); `triggers-architecture.md`
+§3.12 decides each and schedules it, and TR-1 closed items 10 and 18. The reachability verdict is
 the same for all nine — **unreachable**: no dispatcher reads any event, so no
 fuzz game can produce a wrong answer from a missing field today — and it
 stops being so the day the matcher lands, which is why each is filed before
@@ -612,7 +742,7 @@ python plans/references/trigger-survey.py --write
 
 Fetches every query not in the gitignored cache (`.census-triggers.json`,
 ~80 requests at a courteous rate), rebuilds `spec.sqlite` if it is missing,
-parses the enums, asserts the field claims, and rewrites the six marked
+parses the enums, asserts the field claims, and rewrites the seven marked
 blocks in place; the prose is untouched. `--refresh` drops the cache first,
 `--boundary` prints §7 alone, `--names Q` prints the first page of names
 behind a query (how the small buckets in table two were read), `--no-fetch`
