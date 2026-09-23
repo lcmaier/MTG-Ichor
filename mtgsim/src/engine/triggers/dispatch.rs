@@ -399,7 +399,10 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, unattributed, snapshots)
+        self.diagnostics.record_trigger_window();
+        let matches = self.find_matches(window, readers, unattributed, snapshots);
+        self.diagnostics.record_trigger_matches(matches.len() as u64);
+        matches
     }
 
     /// Steps 4 and 5, for the matches `detect` found.
@@ -694,6 +697,8 @@ impl GameState {
                 card,
             });
         }
+
+        self.diagnostics.record_trigger_candidates(candidates.len() as u64);
 
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).

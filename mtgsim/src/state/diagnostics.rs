@@ -56,6 +56,9 @@ pub struct Diagnostics {
     decisions: Cell<u64>,
     priority_decisions: Cell<u64>,
     triggers_placed: Cell<u64>,
+    trigger_windows: Cell<u64>,
+    trigger_candidates: Cell<u64>,
+    trigger_matches: Cell<u64>,
 }
 
 impl Diagnostics {
@@ -274,6 +277,41 @@ impl Diagnostics {
 
     pub fn triggers_placed(&self) -> u64 {
         self.triggers_placed.get()
+    }
+
+    /// One trigger dispatch past its gate: a window carrying a kind some
+    /// candidate reads, so the matcher ran (`triggers-architecture.md` §4.2).
+    /// With the next two it is §11's probe, kept as rows (§4.10, decision 4),
+    /// so a dispatcher lever is read off a counter rather than a throwaway
+    /// build.
+    pub fn record_trigger_window(&self) {
+        self.trigger_windows.set(self.trigger_windows.get() + 1);
+    }
+
+    /// The candidates one dispatch past its gate asked: one per ability list,
+    /// so an object with a list from before a batch counts twice. Each is a
+    /// layer frame read and a `match_def` per def per record.
+    pub fn record_trigger_candidates(&self, n: u64) {
+        self.trigger_candidates.set(self.trigger_candidates.get() + n);
+    }
+
+    /// The triggers one dispatch matched, triggered mana abilities included,
+    /// which resolve at once and are never placed — so this row minus
+    /// `Triggers placed` is those, plus what CR 800.4d refused.
+    pub fn record_trigger_matches(&self, n: u64) {
+        self.trigger_matches.set(self.trigger_matches.get() + n);
+    }
+
+    pub fn trigger_windows(&self) -> u64 {
+        self.trigger_windows.get()
+    }
+
+    pub fn trigger_candidates(&self) -> u64 {
+        self.trigger_candidates.get()
+    }
+
+    pub fn trigger_matches(&self) -> u64 {
+        self.trigger_matches.get()
     }
 
     pub fn priority_decisions(&self) -> u64 {

@@ -112,6 +112,11 @@ ROWS = [
     # trigger source is in the pool, then the row that says the dispatcher
     # and the drain both ran.
     ("Triggers placed", r"^\s+Triggers placed:\s+([\d.]+)"),
+    # The dispatcher's own work (TR-1b): dispatches past the gate, the
+    # candidates they asked, the triggers they matched — §11's probe, kept.
+    ("Windows past gate", r"^\s+Windows past gate:\s+([\d.]+)"),
+    ("Candidate visits", r"^\s+Candidate visits:\s+([\d.]+)"),
+    ("Trigger matches", r"^\s+Trigger matches:\s+([\d.]+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can

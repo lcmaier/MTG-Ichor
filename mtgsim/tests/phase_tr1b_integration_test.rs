@@ -330,3 +330,31 @@ fn an_audited_game_counts_and_traces_what_an_unaudited_one_does() {
     assert_eq!(events, audited_events, "every event");
     assert_eq!(trace, audited_trace, "every trace line");
 }
+
+// ---------------------------------------------------------------------------
+// The dispatcher's counts (§4.10, decision 4)
+// ---------------------------------------------------------------------------
+
+/// The three rows count what they say. Soul Warden entering is a window its
+/// own mask reads, so it passes the gate, asks one candidate and matches
+/// nothing ("another creature"); a bear entering does the same and matches
+/// once; a tap is a kind no source reads and never passes the gate.
+#[test]
+fn the_dispatchers_counts_are_windows_past_the_gate_candidates_and_matches() {
+    let mut game = setup_two_player_game();
+    let counts = |game: &GameState| {
+        let d = &game.diagnostics;
+        (d.trigger_windows(), d.trigger_candidates(), d.trigger_matches())
+    };
+    assert_eq!(counts(&game), (0, 0, 0));
+
+    put_on_battlefield(&mut game, soul_warden(), 0);
+    assert_eq!(counts(&game), (1, 1, 0), "its own entry: asked, and refused");
+
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    assert_eq!(counts(&game), (2, 2, 1), "the bear's entry: asked, and matched");
+
+    game.execute_action(GameAction::Tap { object: bear }, &test_ctx()).unwrap();
+    assert_eq!(counts(&game), (2, 2, 1), "a tap no source reads stops at the gate");
+    assert_eq!(pending(&game), 1);
+}
