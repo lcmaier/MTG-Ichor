@@ -250,7 +250,8 @@ the rail survives RC-2's ETB rewrite either way.
 → **Owner: `codebase-state.md` Deferred Migrations item 30. Capture is
   independent of every scheduled phase and cheap whenever. The design
   constraint lands at CV — the 707.10 split above — which is where the
-  back-stop belongs.**
+  back-stop belongs.** The mana half was captured by type 2026-09-23; a
+  unit's source needs a per-unit pool and moved to item 33.
 
 ### 5.2 Near-misses
 

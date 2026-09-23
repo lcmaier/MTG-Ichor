@@ -1461,8 +1461,8 @@ frame type of the day (`EffectiveCharacteristics` until TR-4's
 `LastKnownInformation`). The evaluator and §6.3's readers take an object's
 facts from there once its epoch has moved. One writer, one meaning, and no
 search of the log (§7). Vibrance is the case that found it, and it also
-needs mana spent recorded (`codebase-state.md` item 30) and the frame's
-`cast` (§3.11); the common case is any "this creature deals damage equal
+needs mana spent (recorded by type since 2026-09-23, `codebase-state.md`
+item 30) and the frame's `cast` (§3.11); the common case is any "this creature deals damage equal
 to its power" enters trigger answered by removal, which needs neither.
 
 ### 6.2 "May" and "unless" (CR 603.5)
@@ -1581,7 +1581,7 @@ field with one writer:
 | a state trigger is on the stack (603.8) | `state_triggers_armed_off: IdSet<AbilityIdentity>` | the dispatcher (arm off), `trigger_left_stack` (re-arm) | the state check |
 | resolutions per ability per turn (603.7h) | `TurnSummary.abilities_resolved` | the dispatcher, off `AbilityResolved` | the count condition |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
-| who cast this permanent, and from which zone (400.7d; main item 9) | `PermanentState.cast: Option<CastFacts { by: PlayerId, from: Zone }>` | the entry performer, off the stack entry (`controller`, `cast_from`) the proposal's zone change came from | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
+| who cast this permanent, from which zone, and what paid for it (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent, additional_costs_paid, alternative_cost }>` | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionContext.last_cost_answer` | the atom that takes the action | the "if" clause after it (§6.2) |
 | an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |
@@ -1935,7 +1935,8 @@ instructions, −3.97% against `main`.
   own PR:** mana spent recorded at payment, with the additional and
   alternative costs `StackEntry` already holds, carried to `CastFacts`. A
   fact, so recorded on sight (`engineering-practices.md` §5), and TR-2 would
-  pass the band carrying it; its readers come with their cards.
+  pass the band carrying it; its readers come with their cards. **Landed
+  2026-09-23**, the mana by type; its source is `roadmap-v2.md` §3a B9.
 - **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
   `phase_tr1_integration_test.rs` today, and every trigger phase asks
   "before priority".

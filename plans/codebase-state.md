@@ -789,7 +789,9 @@ here. None is blocking RB.
    (an additional cost) and the alternative cost are each one constructor
    site plus the carry off the `StackEntry`, which holds all three already;
    mana spent is recorded nowhere yet, so that one needs its capture at
-   payment first.
+   payment first. **2026-09-23:** kicked, the alternative cost and the mana
+   spent by type joined it (item 30), carried on `ResolvingObject.cast`,
+   which replaced `cast_from`.
 
    **Reachability (2026-09-19):** closed — TR-1; the rule itself closed 2026-08-26.
 
@@ -1718,6 +1720,27 @@ section never asked.
     of a mana source that is gone (a sacrificed Treasure, a snow permanent)
     is that PR's first question.
 
+    **Landed 2026-09-23 for the mana, by type, and the costs.** `ManaPool::pay`
+    returns what it removed, `pay_costs` hands it up, and `cast_spell` writes
+    `StackEntry.mana_spent` once CR 601.2h's payment succeeds. Resolution
+    carries it on `ResolvingObject.cast`, with the additional and alternative
+    costs, and `place_on_battlefield` writes all of it onto `CastFacts`.
+    `Condition::SpellWasKicked` reads the carried costs off the permanent or
+    the resolving spell, so its assert is gone; no leaf reads the mana, and
+    none is added before a registered card does. ATOM-400.7d-001 is covered
+    by `a_kicked_permanent_remembers_what_paid_for_it`, through `cast_spell`.
+    The first question's answer: **the source is not a field, it is the
+    pool** — the simple pool drops it at `pool.add` — so it moved to item 33,
+    which now owns mana provenance with a slot.
+
+    **What stays open here is the objects.** A copy inherits them
+    (ATOM-707.10-002, Fling) and a sacrificed one is read from its LKI, which
+    is TR-4's frame; the design constraint still lands at CV.
+
+    **Reachability (2026-09-23):** unreachable — no registered card reads a
+    cast cost or the mana spent; the fixtures in `phase_tr1_integration_test.rs`
+    are the customer.
+
     **Reachability (2026-09-03):** unreachable — nothing reads it: no sunburst,
     no spell copy (CV-4) and no CR 700.14 card is registered.
 
@@ -1789,9 +1812,9 @@ section never asked.
     unit-tested subsystem that looks finished in a grep. The wiring is
     ticketed in the ledger: **T12c**, restricted mana in the casting pipeline;
     **T12d**, the cards and the grants (Cavern of Souls, Boseiju). Grant
-    delivery to the cast spell rides item 30's `StackEntry` rail, so the two
-    want doing together. **Trigger: T12d's cards, or item 30's capture PR,
-    whichever comes first.**
+    delivery to the cast spell rides item 30's `StackEntry` rail, which landed
+    without it (2026-09-23). **Trigger: `roadmap-v2.md` §3a row B9, a hard
+    back-stop before Phase 8 — see "mana provenance" below.**
     → `plans/cards-unlocked-ledger.md` T12 rows; `roadmap-v2.md` §4;
     `cr-coverage-audit.md` §4's `ManaPool` row.
 
@@ -1802,8 +1825,29 @@ section never asked.
 
     **Sized:** T12c — `pay_single_cost`'s Mana arm builds a
     `SpendContext` and routes `pay_with_plan`, ~150–250 lines; T12d is the two
-    cards; lands with item 30's capture PR or the first restricted-mana card,
-    whichever first.
+    cards; both land inside B9 below.
+
+    **Scheduled 2026-09-23 (item 30's capture PR): this item owns mana
+    provenance, and it has a slot.** Item 30 landed the mana spent by type,
+    because that is all `ManaPool::pay` knows. Three families want a unit's
+    source, and it is one facility — each unit keeps its source and that
+    source's facts as it produced the mana — so they land together:
+    - restricted mana and its grants, T12c/T12d (the 227 above);
+    - CR 107.4h's `{S}`, which cannot even be *paid* without it (43 cards,
+      `o:"{S}"`);
+    - CR 400.7d's source readers, "mana from a Treasure" and "if {S} was
+      spent" (12 of `trigger-survey.md` table three's 58; 15 of the 102
+      `o:"was spent to cast"`).
+
+    **The cost is the question the engine asks, not the field.** Once two
+    `{G}` can differ, which one pays is the player's choice under CR 601.2h —
+    Treasure mana spent for Hired Hexblade, snow mana kept for an `{S}` — so
+    the generic split and the colored pips grow a source axis, and that is a
+    fixture migration. **A design pass the owner reviews comes first.**
+    `ManaSpent`'s body becomes the per-unit record and keeps its accessors.
+    **Slot:** `roadmap-v2.md` §3a B9 and `CLAUDE.md`'s critical path, a hard
+    back-stop before Phase 8. **Sized:** T12c's ~150–250 plus the source axis
+    and the migration — a phase, not a PR; the design pass sizes it.
 
 ### Found by the RS-0 refactor (2026-08-31)
 
