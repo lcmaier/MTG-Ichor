@@ -7956,32 +7956,16 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
 (`enable_dispatch_audit`, `fuzz_games --audit`, `fuzz_ab.py`'s audited counter
 runs), the dispatcher's three rows, and `plans/profile/`'s callgrind scripts
 (`triggers-architecture.md` §4.10 as built; §12's TR-1b stub; `fuzz-record.md`,
-the TR-1b block). Every audited sitting read zero disagreements. What follows
-is what writing the reference found: two readings the dispatcher does not
-make, each silent until a pooled card reaches it, when the audit reports it.
-The third such reading, a departed object's host, is "Before Triggered
-abilities" item 14's.
+the TR-1b block). Every audited sitting read zero disagreements. Writing the
+reference found three readings the dispatcher did not make. One is fixed in
+this PR: an ability matched through a survivor's two lists triggered once
+per list where CR 603.2c allows one per event, and the shared matching loop
+now keeps the first arm (`one_ability_triggers_once_per_death_across_a_survivors_two_lists`).
+One is a departed object's host, "Before Triggered abilities" item 14's. The
+third follows, silent until a pooled card reaches it, when the audit reports
+it.
 
-175. **A survivor's two lists can trigger one ability twice on one record.**
-     A batch that takes §4.3's look-back snapshot makes a survivor two
-     candidates, its list from before asking the look-back arms and its list
-     now asking the rest, and `find_matches` folds "one or more" per
-     (identity, arm). A def with a look-back arm and another arm that both
-     match one record — "whenever a creature dies or a creature card is put
-     into a graveyard from anywhere" — therefore triggers once per list. CR
-     603.2c: an ability triggers only once each time its trigger event
-     occurs. The audit's reference asks each ability once per record and
-     keeps the first arm that matches.
-
-     **Reachability (2026-09-22):** unreachable — every registered def's arms
-     are of one class (Blood Artist's single arm looks back), and it needs a
-     survivor in a batch that departs an ability list's source besides.
-
-     **Sized:** ~10 lines in `find_matches`: a survivor's two candidates fold
-     their matches per (identity, record), keeping the lower arm, which is
-     `audit.rs`'s `reference_ask` rule.
-
-176. **A window's departure frames and newcomers answer records that are not
+175. **A window's departure frames and newcomers answer records that are not
      theirs.** The dispatcher asks every frame a window's departures carry,
      and every live list, about every record in the window. When the records
      come from more than one batch — a rider's, after its replaced event

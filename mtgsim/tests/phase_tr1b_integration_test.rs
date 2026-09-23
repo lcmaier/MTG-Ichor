@@ -33,14 +33,17 @@ use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    install_trace, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
+    creature_with_ability, install_trace, put_on_battlefield, registered, setup_two_player_game, test_ctx,
+    vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId};
-use mtgsim::types::triggers::{DamageRecipient, Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{
+    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
+};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -117,6 +120,50 @@ fn a_departure_frame_keeps_the_type_an_earlier_member_gave_it() {
 
         assert_eq!(pending(&game), 1, "the ring died a creature (march_first: {march_first})");
     }
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.2c — one ability, one trigger per event, across a survivor's two lists
+// ---------------------------------------------------------------------------
+
+/// A survivor of a batch that takes a look-back snapshot is asked through two
+/// lists: its list from before for look-back arms, its list now for the rest.
+/// One ability whose look-back arm ("dies") and other arm ("put into a
+/// graveyard from anywhere") both match one death triggers once for it, not
+/// once per list; the first arm in the ability's order is the one bound.
+#[test]
+fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
+    let mut game = setup_two_player_game();
+    let two_arms = TriggerDef {
+        condition: TriggerCondition::AnyOf(vec![
+            dies(a_creature()).into(),
+            TriggerEvent::ZoneChange {
+                subject: TriggerSubject::Filter(a_creature()),
+                from: None,
+                to: Some(Zone::Graveyard),
+                cause: None,
+                owner: None,
+                multiplicity: Multiplicity::PerOccurrence,
+            },
+        ]),
+        intervening_if: None,
+        limit: None,
+        effect: gain_one(),
+    };
+    let watcher = put_on_battlefield(&mut game, creature_with_ability("Twofold Mourner", 1, 1, triggered_ability(two_arms)), 0);
+    // The granter is the source of an ability list's row, so the wipe that
+    // takes it takes a look-back snapshot of the watcher.
+    let granter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let bystander = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    grant(&mut game, granter, bystander, enters(another(a_creature())));
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[granter, bear], source);
+
+    assert_eq!(pending(&game), 2, "the granter's death and the bear's, once each");
+    assert!(game.pending_triggers.iter().all(|t| t.origin.source() == watcher));
+    assert!(game.pending_triggers.iter().all(|t| t.binding.event.0 == 0), "the first arm, dies");
 }
 
 // ---------------------------------------------------------------------------

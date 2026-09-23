@@ -1299,11 +1299,12 @@ diagnostics, event log and trace lines, which is a test.
 each silent while no pooled card reaches it and loud the day one does. A
 departed object's host and controller are the ones it had before the event,
 where the dispatcher's departed candidate has no host until TR-4's frame
-carries `attached_to` ("Before Triggered abilities" item 14). One ability
-triggers once per record across a survivor's two lists (main item 175). And
-each record reads the objects that existed at its own seam, where the
-dispatcher asks every departure frame and every live list of the window
-about every record in it (main item 176).
+carries `attached_to` ("Before Triggered abilities" item 14). And each record
+reads the objects that existed at its own seam, where the dispatcher asks
+every departure frame and every live list of the window about every record
+in it (main item 175). A fourth, one ability triggering once per list of a
+survivor where CR 603.2c allows once per event, was fixed in the shared
+matching loop during review.
 
 ---
 
@@ -1857,8 +1858,8 @@ test, the rows) and three unit tests of the comparison.
 **What moved on the way in.** The departure frames became memo reads where
 the capture was one uncached board walk per departure, which is the whole
 of the measured saving. Writing the reference found two readings the
-dispatcher does not make, filed as main items 175 and 176, both
-unreachable. About 1,130 lines of code and tests against ~550: the
+dispatcher did not make: one fixed in review (CR 603.2c, an ability
+triggering once per list of a survivor), one filed as main item 175. About 1,130 lines of code and tests against ~550: the
 reference's own capture and pairing, and the harness plumbing.
 
 **Measured** (`fuzz-record.md`, the TR-1b block): zero disagreements on

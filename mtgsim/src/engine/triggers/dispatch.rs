@@ -739,6 +739,10 @@ impl GameState {
 
         for (seq, record) in records {
             let looks_back_through = LookBackSnapshot::for_record(snapshots, seq.0);
+            // CR 603.2c: an ability triggers once each time its trigger event
+            // occurs. A survivor is asked through two lists and can match one
+            // record through each; the first arm in the ability's order wins.
+            let mut hits: Vec<(&TriggerCandidateDef<'_>, EventIndex, Vec<Option<ObjectId>>)> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
@@ -762,6 +766,16 @@ impl GameState {
                     )
                 });
                 let Some(matched) = matched else { continue };
+                match hits.iter_mut().find(|(hit, ..)| hit.identity == identity) {
+                    Some(hit) if matched.0 < hit.1.0 => *hit = (row, matched, subjects),
+                    Some(_) => {}
+                    None => hits.push((row, matched, subjects)),
+                }
+            }
+            for (row, matched, subjects) in hits {
+                let candidate = &candidates[row.candidate];
+                let (identity, def) = (row.identity, row.def);
+                let mana = is_mana_ability(def);
                 let arm = &def.condition.events()[matched.0];
                 // Cloned here rather than in the pre-pass: a match is under 1%
                 // of visits, so one clone per matching record is cheaper than

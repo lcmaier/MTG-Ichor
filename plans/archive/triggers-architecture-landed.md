@@ -202,8 +202,10 @@ test plays a game twice. Commit 2 changed the dispatcher's shape only as
 far as the audit needed: the gate and the match became `detect`, the queue
 `queue_matches`, and the internals the reference shares became `pub(super)`.
 
-**Two findings, filed rather than fixed** (`codebase-state.md` main items
-175 and 176): one ability can trigger twice on one record across a
-survivor's two lists, and a window's departure frames and newcomers answer
-records from before and after their own existence. Both unreachable on the
-pools, both the audit's to report first.
+**Two findings.** One ability could trigger twice on one record across a
+survivor's two lists (CR 603.2c allows once per event): filed as item 175
+and then fixed in the review, in the matching loop the dispatcher and the
+audit share. A window's departure frames and newcomers answer records from
+before and after their own existence: `codebase-state.md` main item 175
+(numbered 176 until the first was removed), unreachable on the pools and the
+audit's to report first.
