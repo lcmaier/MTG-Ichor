@@ -576,6 +576,11 @@ pub struct GameState {
     /// 603.10 looks back to for them (`LookBackSnapshot`). Each open window's
     /// batches add theirs, and the window's dispatch takes them.
     pub(crate) look_back_snapshots: Vec<crate::engine::triggers::LookBackSnapshot>,
+    /// The CR 603.10a frames of the permanents the open batches decided to
+    /// take off the battlefield, taken at each batch's seam so no member's
+    /// frame sees an earlier member leave (item 174). A move takes its own;
+    /// each batch drops the rest once it has performed.
+    pub(crate) departure_frames: Vec<crate::engine::triggers::DepartureFrame>,
 
     // --- Event log ---
     pub events: EventLog,
@@ -837,6 +842,7 @@ impl GameState {
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             look_back_snapshots: Vec::new(),
+            departure_frames: Vec::new(),
             events: EventLog::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),

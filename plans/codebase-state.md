@@ -7942,29 +7942,10 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      since CR 603.6c's last sentence makes it no leaves-the-battlefield
      ability, read after the wipe, with Jailer gone.
 
-174. **A departing permanent's CR 603.10a frame is captured when that
-     member moves, so it depends on batch order.** `perform_zone_change`
-     walks the leaving permanent just before its own move (`actions.rs`,
-     the `lki` capture), after the batch's earlier members have already
-     moved. If an earlier member was the source of an effect on the later
-     one, the frame shows the later one after that source left. Destroy
-     Humility and Blood Artist as one event: with Humility first, Blood
-     Artist's frame has its ability and it triggers on its own death, where
-     CR 603.10 reads the list before the wipe and nothing triggers; with
-     Blood Artist first the frame is right. The frame's appearance has the
-     same fault: an artifact creature under March of the Machines, moved
-     after March, is framed as a noncreature artifact, and "whenever a
-     creature dies" misses it. Found 2026-09-22 answering the owner's
-     question on #178; the survivors' half was item 167.
-
-     **Reachability (2026-09-22):** reachable — wrong today: Humility and
-     Blood Artist are both pooled, and a wipe built in
-     `battlefield_ids_ordered` order performs Humility first whenever it
-     entered first. Proved with a throwaway fixture (deleted): Humility
-     first, 1 trigger; Blood Artist first, 0.
-
-     **Sized:** capture each decided departure's frame at the batch's seam,
-     the moment §4.3's snapshot is taken, and have the move read the
-     captured frame; ~100 lines with a fixture in both orders. TR-1b's
-     first commit (`triggers-architecture.md` §4.10), since the dispatch
-     audit would report it on the pools.
+174. **~~A departing permanent's CR 603.10a frame is captured when that member
+     moves, so it depends on batch order.~~ — ✅ CLOSED 2026-09-22 (TR-1b).** — archived.
+     Each decided departure is framed at its batch's seam, before any member
+     moves, and the move reads that frame; a destruction's nested move reads
+     the outer batch's (`triggers-architecture.md` §4.3).
+     **Reachability (2026-09-22):** closed — TR-1b's first commit.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 174".

@@ -947,6 +947,10 @@ impl GameState {
             .departs_an_ability_list_source(&decided)
             .then(|| self.look_back_frames())
             .filter(|frames| !frames.is_empty());
+        // The departing members' own frames, for the same reason: taken as each
+        // moved, a later one would see an earlier one gone (item 174).
+        let frames_from = self.departure_frames.len();
+        self.capture_departure_frames(&decided);
         let performed_from = self.events.len();
 
         // --- Phase 2: perform, in batch order -------------------------------
@@ -963,11 +967,17 @@ impl GameState {
                 .collect()
         });
         let mut performed = Vec::with_capacity(decided.len());
+        let mut performed_ok = Ok(());
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
-            self.perform_action(action.clone(), ctx, &applied_to[i])?;
+            if let Err(e) = self.perform_action(action.clone(), ctx, &applied_to[i]) {
+                performed_ok = Err(e);
+                break;
+            }
             performed.push(action);
         }
+        self.departure_frames.truncate(frames_from);
+        performed_ok?;
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
@@ -1712,15 +1722,12 @@ impl GameState {
             return Ok(());
         }
 
-        // CR 603.10a — capture the frame while the object is still a permanent;
-        // a moment later `cleanup_zone_state` has retired its static abilities'
-        // effects (CR 611.2a) and the answer is unrecoverable. The one place the
-        // layer walk has to run *before* a mutation. A permanent, not merely an
-        // object in the zone: a token whose entry is being decided has no entity
-        // and nothing to look back at (`create_tokens`).
+        // CR 603.10a — the frame the batch's seam took, before any member moved
+        // (`take_departure_frame`). A permanent, not merely an object in the
+        // zone: a token whose entry is being decided has no entity and nothing
+        // to look back at (`create_tokens`).
         let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&object) {
-            crate::engine::layers::compute::compute_characteristics_uncached(self, object)
-                .map(Box::new)
+            self.take_departure_frame(object)
         } else {
             None
         };

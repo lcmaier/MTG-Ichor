@@ -1017,7 +1017,9 @@ that differ from the sketch above:
   the zone is written, which is what covers the `// CAST-ROLLBACK:` moves.
 - **The CR 603.10a capture reads `compute_characteristics_uncached`**, the
   owned walk the audit also compares a hit against; `compute_as_entering` never
-  went through the top-level entry and still does not.
+  went through the top-level entry and still does not. (Since TR-1b the capture
+  is a memo read at the batch's seam, and the owned walk is its fallback —
+  `codebase-state.md` item 174.)
 
 The audit caught three tests writing a walk input directly (the base controller
 in `filter_controller_test.rs`, a counter removal in

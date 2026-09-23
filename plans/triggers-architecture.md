@@ -995,6 +995,19 @@ fixtures: Humility beside a surviving Blood Artist, and a grant whose source
 dies in the wipe, whose carrier triggers for each death. Bridge from Below's
 graveyard half is the zone map's, and waits for main item 173.
 
+**A source that leaves in the same event** (main item 174, TR-1b's first
+commit). A departure record's frame is taken at the same seam, for the same
+reason: taken as each member moved, a later member's frame showed an earlier
+one gone — Blood Artist framed after Humility left had its ability back, and
+an artifact March of the Machines animated, framed after March left, was no
+creature. So the batch frames every permanent its decided members take off
+the battlefield before any of them performs — every permanent when a player
+leaves, since CR 800.4a's fourth clause decides its exiles only after its
+first two — and the move reads that frame (`capture_departure_frames`). A
+destruction's move is a nested batch, and the permanent keeps the frame the
+outer batch took: the event it is part of. Both halves are fixtures, each in
+both batch orders.
+
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm

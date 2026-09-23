@@ -25,4 +25,4 @@ pub mod binding;
 pub mod dispatch;
 pub mod placement;
 
-pub use dispatch::{is_mana_ability, visible_to_all, LookBackSnapshot, DISPATCH_NESTING_LIMIT};
+pub use dispatch::{is_mana_ability, visible_to_all, DepartureFrame, LookBackSnapshot, DISPATCH_NESTING_LIMIT};

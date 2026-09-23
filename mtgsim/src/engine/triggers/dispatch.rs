@@ -86,6 +86,16 @@ impl LookBackSnapshot {
     }
 }
 
+/// One permanent's CR 603.10a frame, taken at the seam of the batch that
+/// decided its departure: the permanent as it was immediately before the
+/// event, whichever member of the event moves first (item 174).
+#[derive(Debug, Clone)]
+pub struct DepartureFrame {
+    object: ObjectRef,
+    /// `None` once the move has taken it.
+    frame: Option<Box<EffectiveCharacteristics>>,
+}
+
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
 /// target, triggers from mana being added, and could add mana. CR 605.5a is
 /// the same sentence from the other side — a target or any other event
@@ -459,6 +469,56 @@ impl GameState {
                     .any(|s| self.objects.get(s).is_some_and(|o| o.owner == *player)),
                 _ => false,
             })
+    }
+
+    /// The permanents `decided` takes off the battlefield, in batch order.
+    /// A player leaving takes every permanent: CR 800.4a's fourth clause
+    /// decides what it exiles only after its first two have run.
+    fn departing_permanents(&self, decided: &[Option<GameAction>]) -> Vec<ObjectId> {
+        let mut departing = Vec::new();
+        for action in decided.iter().flatten() {
+            match action {
+                GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
+                | GameAction::Destroy { object, .. } => departing.push(*object),
+                GameAction::PlayerLoses { .. } => departing.extend(self.battlefield_ids_ordered()),
+                _ => {}
+            }
+        }
+        departing
+    }
+
+    /// CR 603.10a at the seam: frame each permanent `decided` takes off the
+    /// battlefield before any member performs. A permanent an enclosing batch
+    /// already framed keeps that frame, since a destruction's move is a
+    /// nested batch and the event it belongs to is the outer one. The frames
+    /// are memo hits: nothing has changed since the batch began deciding.
+    pub(crate) fn capture_departure_frames(&mut self, decided: &[Option<GameAction>]) {
+        for id in self.departing_permanents(decided) {
+            if !self.battlefield.contains_key(&id) {
+                continue;
+            }
+            let Some(object) = self.object_ref(id) else { continue };
+            if self.departure_frames.iter().any(|d| d.object == object) {
+                continue;
+            }
+            if let Some(frame) = compute_characteristics(self, id) {
+                self.departure_frames.push(DepartureFrame { object, frame: Some(Box::new((*frame).clone())) });
+            }
+        }
+    }
+
+    /// The frame the move of `id` off the battlefield carries, from its
+    /// batch's seam.
+    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Box<EffectiveCharacteristics>> {
+        let object = self.object_ref(id)?;
+        let taken = self
+            .departure_frames
+            .iter_mut()
+            .find(|d| d.object == object)
+            .and_then(|d| d.frame.take());
+        // Every departure is decided by a batch, whose seam framed it.
+        debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch's seam");
+        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Box::new))
     }
 
     /// The objects the dispatch at the window's close could ask a look-back

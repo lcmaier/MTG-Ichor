@@ -87,15 +87,12 @@ impl GameState {
         }
 
         for (id, from) in leaving {
-            // CR 603.10a, in the one window it can be read: a moment later
-            // `cleanup_zone_state` has retired the continuous effects this
-            // permanent's static abilities generated and the answer is
-            // unrecoverable. CR 603.6c is what wants it — a leaves-the-
-            // battlefield ability triggers "when a phased-in permanent leaves
-            // the game because its owner leaves the game".
+            // CR 603.10a, off the frame the loss's batch took at its seam
+            // (`take_departure_frame`). CR 603.6c is what wants it — a leaves-
+            // the-battlefield ability triggers "when a phased-in permanent
+            // leaves the game because its owner leaves the game".
             let lki = if from == Zone::Battlefield && self.battlefield.contains_key(&id) {
-                crate::engine::layers::compute::compute_characteristics_uncached(self, id)
-                    .map(Box::new)
+                self.take_departure_frame(id)
             } else {
                 None
             };
