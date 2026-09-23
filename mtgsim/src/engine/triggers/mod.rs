@@ -16,13 +16,18 @@
 //! removes each entry as it places it so a clone taken at the ordering
 //! prompt resumes by running the drain again (item 40).
 //!
+//! [`audit`] answers every dispatch again the slow way in a game that turns
+//! it on, and panics when the two answers differ (§4.10).
+//!
 //! [`binding`] is what the resolution reads back: the bound facts as
 //! indices into the event log, resolved through the matched arm's
 //! projections, with CR 603.6's "unable to be found" and CR 400.7 as one
 //! epoch comparison.
 
+pub mod audit;
 pub mod binding;
 pub mod dispatch;
 pub mod placement;
 
-pub use dispatch::{is_mana_ability, visible_to_all, LookBackSnapshot, DISPATCH_NESTING_LIMIT};
+pub use audit::DispatchAudit;
+pub use dispatch::{is_mana_ability, visible_to_all, DepartureFrame, LookBackSnapshot, DISPATCH_NESTING_LIMIT};

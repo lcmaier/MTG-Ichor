@@ -995,6 +995,20 @@ fixtures: Humility beside a surviving Blood Artist, and a grant whose source
 dies in the wipe, whose carrier triggers for each death. Bridge from Below's
 graveyard half is the zone map's, and waits for main item 173.
 
+**A source that leaves in the same event** (main item 174, TR-1b's first
+commit). A departure record's frame is taken at the same point, between
+deciding and performing, for the same
+reason: taken as each member moved, a later member's frame showed an earlier
+one gone — Blood Artist framed after Humility left had its ability back, and
+an artifact March of the Machines animated, framed after March left, was no
+creature. So the batch frames every permanent its decided members take off
+the battlefield before any of them performs — every permanent when a player
+leaves, since CR 800.4a's fourth clause decides its exiles only after its
+first two — and the move reads that frame (`capture_departure_frames`). A
+destruction's move is a nested batch, and the permanent keeps the frame the
+outer batch took: the event it is part of. Both halves are fixtures, each in
+both batch orders.
+
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
 CR 603.2c's two answers, and the `multiplicity` field is which one an arm
@@ -1168,6 +1182,94 @@ decision resets it. Tiers 2 and 3 need the state hash item 40's discipline
 makes possible and stay in `backlog.md` §2.28 with the fork harness; the voluntary
 shortcut (D26) stays there too. `fuzz_games`' turn limit keeps standing in
 for what Tier 1 cannot see.
+
+### 4.10 The dispatch audit — the dispatcher again, with its shortcuts off (TR-1b)
+
+**Why it exists.** The dispatcher is an optimized answer to one question:
+which triggered abilities does this window trigger? It answers through
+shortcuts: a gate over record kinds, three candidate sets kept as objects
+move (printed sources on the battlefield, the zone map, the zones a granting
+or copying row reaches), a look-back snapshot taken only when a batch departs
+an ability list's source (§4.3), and a departure's frame off its record.
+Every wrong answer TR-1 has had lived there, not in a condition's
+predicates: F1 asked a def where it does not function, item 167 read a
+survivor's list after the event, and item 174 read a departing member's list
+after an earlier member left. Every one was found by reading, because nothing
+checks detection in a random game: the fuzzer's invariants are crashes, CR
+117.5 and determinism, and a wrong trigger count passes all three. The audit
+is that check.
+
+**What it is.** In a run that enables it, every dispatch is answered twice by
+the dispatcher's own matching loop, `match_candidates`: once over the
+dispatcher's candidates, once over a set with no shortcut in it —
+
+- every object that could carry a triggered ability, with its list now:
+  every permanent and every spell, and elsewhere every object a continuous
+  effect can reach or that printed one (an object no row reaches has its
+  printed abilities and nothing else, and CR 604.3 keeps a CDA from adding
+  one);
+- and, for every batch of the window, the list each such object had before
+  the batch performed: an ordinary `LookBackSnapshot`, taken at every batch
+  where §4.3 takes one only when a source departs. A survivor's list from
+  before answers the look-back arms of the records its batch performed; an
+  object that has moved since answers them from its list then, under its
+  controller then; every other arm reads the list now. A record no batch
+  performed reads the list now for every arm.
+
+The two answers are compared as multisets of triggers (source, ability, arm,
+records, subject, controller), and a disagreement panics with the window and
+what each side had that the other did not, which the fuzz harness reports
+with the game's seed.
+
+**What it checks, and what it cannot.** It checks the shortcuts: the gate,
+the three candidate sets, when §4.3's snapshot is taken, and the departure
+frames. Switched off one at a time, item 167's snapshot and item 174's frame
+each panic on the forced Humility and Blood Artist board. It shares the loop
+itself — CR 113.6 asked per ability, `match_def` and what it calls, and how
+many triggers one ability makes of one event — so those are rules with their
+own fixtures rather than the audit's: F1, a per-ability CR 113.6 bug, would
+not show. It shares one reading too: which moment a record looks back to
+(§4.3, the outermost batch that performed it) is CR 704.3 and 603.10
+interpreted, not implemented.
+
+**Its reads leave no trace.** The layer memo, the diagnostics and the trace
+handle are saved before each audit read and restored after, so an audited
+game's counters and trace are an unaudited one's: a whole-game test, and
+every A/B sitting, whose counter runs are audited and whose timing rounds are
+not. It costs about 2.2× the CPU per game at two seats, 2.3× at four and 2.7×
+at Commander scale.
+
+**Disagreements decided before it runs.** Item 174 was reachable on the pools,
+so the audit would have fired on it; it is fixed in TR-1b's first commit.
+Item 168 (a departed candidate's identity carries the post-move epoch) is a
+convention the audit shares, so it does not fire. The snapshot's gaps that no
+pooled card reaches — a conditional grant whose condition reads a departing
+permanent, CR 305.7's Layer 4 route to an ability list, a row that arrives
+beside a look-back event — fire the day a pooled card reaches them, which is
+the point. So does the one reading the audit makes and the dispatcher does
+not: each record reads the objects as they were before its own batch
+performed, where the dispatcher asks every departure frame and every live
+list of the window about every record in it (main item 175).
+
+**Decided** by the owner on 2026-09-22, each as recommended: a runtime switch
+(`fuzz_games --audit`, passed by `fuzz_ab.py`'s threaded counter runs) rather
+than `debug_assertions`; every zone, libraries included, since the measured
+cost did not say otherwise; item 174 fixed first, with no list of known
+disagreements, since a known-disagreement list is how an audit rots; and the
+dispatcher's counts as rows (`Windows past gate`, `Candidate visits`,
+`Trigger matches`), the performance half of what the audit is for
+correctness.
+
+**Changed in review** (the owner, 2026-09-23). The audit was first built as a
+second matcher beside the dispatcher: its own capture of every object in
+every zone at every batch and every dispatch, its own pairing of each
+object's two lists, its own CR 113.6 filter and fold. It came to 555 lines
+against ~250 sized and 11–19× the CPU per game. The owner chose the form
+above, which gives up checking the loop's rules on their own for a third of
+the code and a sixth of the cost; the review also fixed the one thing the
+second matcher had found in the loop, an ability matched through a
+survivor's two lists triggering once per list (CR 603.2c). The first form's
+sizes are in the archive, under TR-1b.
 
 ---
 
@@ -1630,6 +1732,13 @@ The three sweeps together are at most about a quarter of the CPU; the rest
 is outside this probe, and §3's instruction-count profile is the instrument
 for ranking it.
 
+**Since TR-1b the probe's count columns are rows** (§4.10, decision 4):
+`Windows past gate`, `Candidate visits` and `Trigger matches` print in every
+sitting. And the instruction-count profile has its first reading at this
+scale — `fuzz-record.md`'s TR-1b block, taken with `plans/profile/`: the
+dispatcher is 1.8% of 95.96 G instructions, and the replacement gather 17.7%
+inclusive, which agrees with the probe above.
+
 **A/B predictions, per phase**, in `engineering-practices.md` §3.1's terms —
 three arms where a pool changes (`main`, the engine with pools unchanged,
 shipped), two seats and four, and the budget is 2.5 points of CPU per
@@ -1696,6 +1805,39 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-1"; the trace page
 `plans/traces/tr-1-a-trigger-is-matched-at-the-close.html`.
+
+### TR-1b — the dispatch audit (~550) — ✅ landed 2026-09-22
+
+**What shipped.** Main item 174's fix: each departing permanent framed before
+its batch performs, a destruction's nested move reading the outer batch's
+frame (§4.3). `engine/triggers/audit.rs`: the dispatcher's own matching loop,
+`match_candidates`, run a second time over a candidate set with no shortcut
+in it, the comparison and its panic, and reads that leave no trace (§4.10).
+`enable_dispatch_audit`, `fuzz_games --audit`, and `fuzz_ab.py` auditing its
+counter runs. The dispatcher's rows, `Windows past gate`, `Candidate visits`
+and `Trigger matches`. `plans/profile/`'s callgrind scripts, the board their
+argument. Thirteen tests: ten in `phase_tr1b_integration_test.rs` (item 174 in
+both batch orders, CR 603.2c across a survivor's two lists, the audit over
+each candidate set, the whole-game invisibility test, the rows) and three
+unit tests of the comparison.
+
+**What moved on the way in.** The departure frames became memo reads where
+the capture was one uncached board walk per departure, which is the whole of
+the measured saving. The owner's review replaced the first audit, a second
+matcher at 555 lines and 11–19× the CPU, with the shortcuts-off form, and
+fixed the one bug that matcher had found in the shared loop (CR 603.2c); one
+reading is filed as main item 175.
+
+**Measured** (`fuzz-record.md`, the TR-1b block and its review round):
+zero disagreements on every audited sitting, both pools at two seats and
+four, Commander scale, and the forced boards; the audit shown to bite with
+item 167's snapshot off and item 174's capture off; the audit 2.2–2.7× the
+CPU per game. Item 174's fix changes one forced game's answer in 200 at each
+seat count and no shipped game's play. The review round is `IDENTICAL` to the
+first head on every row. The first Commander-scale callgrind reading: 95.96 G
+instructions, −3.97% against `main`.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-1b".
 
 ### TR-2 — the histories, the gates, "may", and each player (~2,150)
 

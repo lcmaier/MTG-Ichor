@@ -509,8 +509,8 @@ impl TriggerEvent {
 }
 
 /// Which of a condition's events matched — an index into
-/// [`TriggerCondition::events`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// [`TriggerCondition::events`], ordered as the condition lists them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EventIndex(pub usize);
 
 /// Monotonic per game: the order key within one player's triggers and the

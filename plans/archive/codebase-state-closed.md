@@ -2406,3 +2406,36 @@ Closed by `engine::triggers::LookBackSnapshot` (`triggers-architecture.md` §4.3
      Not chosen: TR-4's `LastKnownInformation` growing a per-window frame
      for every source the batch touched, which makes a frame carry a list for
      an object that did not move.
+
+### Item 174 — closed 2026-09-22 by TR-1b
+
+Closed by `GameState::capture_departure_frames` (`triggers-architecture.md` §4.3): between deciding and performing, a batch frames every permanent its decided members take off the battlefield — a zone change from it, a destruction, and every permanent when a player leaves, since CR 800.4a's fourth clause decides what it exiles only after its first two — and the move reads that frame instead of walking the board it finds. A permanent an enclosing batch already framed keeps that frame, so a destruction's move, a nested batch, reads the frame of the event it belongs to. The frames are memo reads, as the look-back snapshot's are. Both halves are fixtures in `phase_tr1b_integration_test.rs`, each in both batch orders and each red on the pre-fix tree in the order the entry named: Humility and Blood Artist (1 trigger with Humility first, 0 is right), and March of the Machines with an artifact it animates (0 with March first, 1 is right). `fuzz-record.md`'s TR-1b block has the A/B.
+
+*Original entry:*
+
+174. **A departing permanent's CR 603.10a frame is captured when that
+     member moves, so it depends on batch order.** `perform_zone_change`
+     walks the leaving permanent just before its own move (`actions.rs`,
+     the `lki` capture), after the batch's earlier members have already
+     moved. If an earlier member was the source of an effect on the later
+     one, the frame shows the later one after that source left. Destroy
+     Humility and Blood Artist as one event: with Humility first, Blood
+     Artist's frame has its ability and it triggers on its own death, where
+     CR 603.10 reads the list before the wipe and nothing triggers; with
+     Blood Artist first the frame is right. The frame's appearance has the
+     same fault: an artifact creature under March of the Machines, moved
+     after March, is framed as a noncreature artifact, and "whenever a
+     creature dies" misses it. Found 2026-09-22 answering the owner's
+     question on #178; the survivors' half was item 167.
+
+     **Reachability (2026-09-22):** reachable — wrong today: Humility and
+     Blood Artist are both pooled, and a wipe built in
+     `battlefield_ids_ordered` order performs Humility first whenever it
+     entered first. Proved with a throwaway fixture (deleted): Humility
+     first, 1 trigger; Blood Artist first, 0.
+
+     **Sized:** capture each decided departure's frame at the batch's seam,
+     the moment §4.3's snapshot is taken, and have the move read the
+     captured frame; ~100 lines with a fixture in both orders. TR-1b's
+     first commit (`triggers-architecture.md` §4.10), since the dispatch
+     audit would report it on the pools.

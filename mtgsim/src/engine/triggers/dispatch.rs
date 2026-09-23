@@ -71,7 +71,17 @@ pub struct LookBackSnapshot {
     pub(crate) window: Option<BatchId>,
     /// The records the batch performed, as event-log indices.
     pub(crate) performed: std::ops::Range<usize>,
-    pub(crate) frames: Vec<(ObjectRef, Arc<EffectiveCharacteristics>)>,
+    pub(crate) frames: Vec<ObjectSnapshot>,
+}
+
+/// One object's ability list as a snapshot holds it, with where it was and
+/// whose: an object that has left since answers from these (the audit's).
+#[derive(Debug, Clone)]
+pub struct ObjectSnapshot {
+    pub(crate) object: ObjectRef,
+    pub(crate) zone: Zone,
+    pub(crate) owner: PlayerId,
+    pub(crate) chars: Arc<EffectiveCharacteristics>,
 }
 
 impl LookBackSnapshot {
@@ -84,6 +94,16 @@ impl LookBackSnapshot {
             .or_else(|| later.min_by_key(|(_, s)| s.performed.start))
             .map(|(k, _)| k)
     }
+}
+
+/// One permanent's CR 603.10a frame, taken before the batch that decided its
+/// departure performs: the permanent as it was immediately before the event,
+/// whichever member of the event moves first (item 174).
+#[derive(Debug, Clone)]
+pub struct DepartureFrame {
+    object: ObjectRef,
+    /// `None` once the move has taken it.
+    frame: Option<Box<EffectiveCharacteristics>>,
 }
 
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
@@ -131,29 +151,33 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 /// now, a departed object's CR 603.10a frame, or a survivor's list from
 /// before a batch. An object with lists from before the event is several
 /// candidates, one per list, side by side.
-struct TriggerCandidate<'a> {
-    id: ObjectId,
+pub(super) struct TriggerCandidate<'a> {
+    pub(super) id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
     /// frame's controller for a departed one.
-    controller: PlayerId,
-    owner: PlayerId,
-    zone: Zone,
+    pub(super) controller: PlayerId,
+    pub(super) owner: PlayerId,
+    pub(super) zone: Zone,
     /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
-    host: Option<ObjectId>,
-    frame: TriggerCandidateFrame<'a>,
+    pub(super) host: Option<ObjectId>,
+    pub(super) frame: TriggerCandidateFrame<'a>,
     /// What a stack object is built from (CR 603.3's "text of the ability").
-    card: Arc<CardData>,
+    pub(super) card: Arc<CardData>,
 }
 
 /// Which list a candidate reads, and so which trigger arms it answers: CR
 /// 603.10 gives a look-back arm the list from before the event and every
 /// other arm the list now.
-enum TriggerCandidateFrame<'a> {
+pub(super) enum TriggerCandidateFrame<'a> {
     /// A live object's list now, off the layer memo. `snapshots` are the
     /// ones holding its list from before, by index into the window's.
     Live { chars: Arc<EffectiveCharacteristics>, snapshots: Vec<usize> },
-    /// A departed object's CR 603.10a frame, off its record.
-    Departed(&'a EffectiveCharacteristics),
+    /// A departed object's list from before it left. `snapshot: None` is the
+    /// CR 603.10a frame its record carries, which answers the look-back arms
+    /// of every record of the window; `Some(k)` is the list snapshot `k`
+    /// holds, which answers those of the records its batch performed (the
+    /// audit's).
+    Departed { chars: &'a EffectiveCharacteristics, snapshot: Option<usize> },
     /// A surviving object's list from before a batch, off `LookBackSnapshot`
     /// number `snapshot`.
     Before { chars: &'a EffectiveCharacteristics, snapshot: usize },
@@ -163,12 +187,12 @@ impl TriggerCandidateFrame<'_> {
     fn chars(&self) -> &EffectiveCharacteristics {
         match self {
             TriggerCandidateFrame::Live { chars, .. } => chars,
-            TriggerCandidateFrame::Departed(chars) | TriggerCandidateFrame::Before { chars, .. } => chars,
+            TriggerCandidateFrame::Departed { chars, .. } | TriggerCandidateFrame::Before { chars, .. } => chars,
         }
     }
 
     fn is_departed(&self) -> bool {
-        matches!(self, TriggerCandidateFrame::Departed(_))
+        matches!(self, TriggerCandidateFrame::Departed { .. })
     }
 
     /// The arms this list answers for a record that looks back through
@@ -184,13 +208,23 @@ impl TriggerCandidateFrame<'_> {
                 Some(Asks::NotLookBack)
             }
             TriggerCandidateFrame::Live { .. } => Some(Asks::Every),
-            TriggerCandidateFrame::Departed(_) => Some(Asks::LookBack),
-            TriggerCandidateFrame::Before { snapshot, .. } if looks_back_through == Some(*snapshot) => {
+            TriggerCandidateFrame::Departed { snapshot: None, .. } => Some(Asks::LookBack),
+            TriggerCandidateFrame::Departed { snapshot: Some(k), .. } | TriggerCandidateFrame::Before { snapshot: k, .. }
+                if looks_back_through == Some(*k) =>
+            {
                 Some(Asks::LookBack)
             }
-            TriggerCandidateFrame::Before { .. } => None,
+            TriggerCandidateFrame::Departed { .. } | TriggerCandidateFrame::Before { .. } => None,
         }
     }
+}
+
+/// One ability's match against one record, before "one or more" folds it.
+struct ArmMatch<'r, 'a> {
+    row: &'r TriggerCandidateDef<'a>,
+    /// Which of the condition's events matched.
+    arm: EventIndex,
+    subjects: Vec<Option<ObjectId>>,
 }
 
 /// One triggered ability of one candidate, with the facts that do not depend
@@ -212,15 +246,15 @@ enum Asks {
 }
 
 /// A match the dispatcher will queue or resolve.
-struct MatchedTrigger {
-    identity: AbilityIdentity,
-    controller: PlayerId,
+pub(super) struct MatchedTrigger {
+    pub(super) identity: AbilityIdentity,
+    pub(super) controller: PlayerId,
     def: Arc<TriggerDef>,
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
-    event: EventIndex,
-    records: Vec<EventSeq>,
-    object: Option<ObjectRef>,
+    pub(super) event: EventIndex,
+    pub(super) records: Vec<EventSeq>,
+    pub(super) object: Option<ObjectRef>,
     mana: bool,
 }
 
@@ -267,7 +301,8 @@ impl GameState {
             .into_iter()
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
-        self.dispatch(&window, Some(ctx), &snapshots)
+        let audit = self.take_audit_snapshots(batch);
+        self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref())
     }
 
     /// One record emitted outside any batch — a phase beginning, a cast, an
@@ -276,7 +311,8 @@ impl GameState {
         // No `ActionContext` reaches an emission, and none is needed: a mana
         // trigger's event (`ManaAdded`) is performed inside a batch, so the
         // only path that resolves at dispatch never runs here.
-        let _ = self.dispatch(&[seq], None, &[]);
+        let audit = self.dispatch_audit.is_some().then(Vec::new);
+        let _ = self.dispatch(&[seq], None, &[], audit.as_deref());
     }
 
     fn dispatch(
@@ -284,6 +320,7 @@ impl GameState {
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
+        audit: Option<&[LookBackSnapshot]>,
     ) -> Result<(), String> {
         // CR 104.1 — a game that has ended queues nothing; nobody would
         // receive priority to place it.
@@ -298,7 +335,7 @@ impl GameState {
             ));
         }
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -330,12 +367,29 @@ impl GameState {
     ///    is emitted (§4.8). CR 603.3b's second tier is what watches that
     ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
     ///    bounds.
+    ///
+    /// In an audited game `audit` is the window's snapshots of every object
+    /// (§4.10), and the audit answers the same window between steps 3 and 4,
+    /// whatever the gate said.
     fn dispatch_inner(
         &mut self,
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
+        audit: Option<&[LookBackSnapshot]>,
     ) -> Result<(), String> {
+        let matches = self.detect(window, snapshots);
+        if let Some(audit) = audit {
+            self.audit_dispatch(window, audit, &matches);
+        }
+        if matches.is_empty() {
+            return Ok(());
+        }
+        self.queue_matches(matches, ctx)
+    }
+
+    /// Steps 1 to 3: the gate and the match, read-only.
+    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
         // --- The gate: four probes, and on the old pools nothing else -------
         //
         // The window's kinds first, OR-ed once (§11). A window no arm can
@@ -349,7 +403,7 @@ impl GameState {
             }
         });
         if window_kinds.is_empty() {
-            return Ok(());
+            return Vec::new();
         }
         let summary = self.continuous_effects.summary();
         let unattributed = summary.unattributed_trigger_zones;
@@ -368,14 +422,13 @@ impl GameState {
             && !any_frame_source
             && snapshots.is_empty()
         {
-            return Ok(());
+            return Vec::new();
         }
+        self.find_matches(window, readers, unattributed, snapshots)
+    }
 
-        let matches = self.find_matches(window, readers, unattributed, snapshots);
-        if matches.is_empty() {
-            return Ok(());
-        }
-
+    /// Steps 4 and 5, for the matches `detect` found.
+    fn queue_matches(&mut self, matches: Vec<MatchedTrigger>, ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
@@ -461,6 +514,56 @@ impl GameState {
             })
     }
 
+    /// CR 603.10a before the batch performs: frame each permanent `decided`
+    /// takes off the battlefield, in batch order. A player leaving takes
+    /// every permanent, since CR 800.4a's fourth clause decides what it exiles
+    /// only after its first two have run. The frames are memo hits: nothing
+    /// has changed since the batch began deciding.
+    pub(crate) fn capture_departure_frames(&mut self, decided: &[Option<GameAction>]) {
+        for action in decided.iter().flatten() {
+            match action {
+                GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
+                | GameAction::Destroy { object, .. } => self.capture_departure_frame(*object),
+                GameAction::PlayerLoses { .. } => {
+                    for id in self.battlefield_ids_ordered() {
+                        self.capture_departure_frame(id);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// One permanent's frame. A permanent an enclosing batch already framed
+    /// keeps that frame, since a destruction's move is a nested batch and
+    /// the event it belongs to is the outer one.
+    fn capture_departure_frame(&mut self, id: ObjectId) {
+        if !self.battlefield.contains_key(&id) {
+            return;
+        }
+        let Some(object) = self.object_ref(id) else { return };
+        if self.departure_frames.iter().any(|d| d.object == object) {
+            return;
+        }
+        if let Some(frame) = compute_characteristics(self, id) {
+            self.departure_frames.push(DepartureFrame { object, frame: Some(Box::new((*frame).clone())) });
+        }
+    }
+
+    /// The frame the move of `id` off the battlefield carries, taken before
+    /// its batch performed.
+    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Box<EffectiveCharacteristics>> {
+        let object = self.object_ref(id)?;
+        let taken = self
+            .departure_frames
+            .iter_mut()
+            .find(|d| d.object == object)
+            .and_then(|d| d.frame.take());
+        // Every departure is decided by a batch, which framed it first.
+        debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
+        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Box::new))
+    }
+
     /// The objects the dispatch at the window's close could ask a look-back
     /// trigger of, each with the existence it has now and its frame: every
     /// permanent that printed a triggered ability, the cards off the
@@ -470,18 +573,26 @@ impl GameState {
     /// performs, since the departure about to happen may end that very
     /// effect. The frames are memo hits: nothing has changed since the batch
     /// began deciding.
-    pub(crate) fn look_back_frames(&self) -> Vec<(ObjectRef, Arc<EffectiveCharacteristics>)> {
+    pub(crate) fn look_back_frames(&self) -> Vec<ObjectSnapshot> {
         let unattributed = self.continuous_effects.summary().unattributed_trigger_zones;
         // Every printed source, not the ones whose kinds a look-back arm
         // reads: which arms look back is `TriggerEvent::looks_back`'s to say,
         // and a kind filter here would be a second table of it.
         self.live_candidates(self.battlefield_readers(EventKindMask::ALL), unattributed)
             .into_iter()
-            .filter_map(|id| {
-                let zone_change_epoch = self.objects.get(&id)?.zone_change_epoch;
-                Some((ObjectRef { id, zone_change_epoch }, compute_characteristics(self, id)?))
-            })
+            .filter_map(|id| self.object_snapshot(id))
             .collect()
+    }
+
+    /// `id`'s list now, and where it is and whose.
+    pub(crate) fn object_snapshot(&self, id: ObjectId) -> Option<ObjectSnapshot> {
+        let object = self.objects.get(&id)?;
+        Some(ObjectSnapshot {
+            object: ObjectRef { id, zone_change_epoch: object.zone_change_epoch },
+            zone: object.zone,
+            owner: object.owner,
+            chars: compute_characteristics(self, id)?,
+        })
     }
 
     /// The live objects a dispatch asks, in CR 613.7 order: `readers` on the
@@ -514,10 +625,9 @@ impl GameState {
         live
     }
 
-    /// The matcher's read-only half: every candidate ability against every
-    /// record of the window, in window order then candidate order — the
-    /// order the `OrderTriggers` prompt will offer, which has to be
-    /// process-stable end to end (§15 item 1).
+    /// The matcher's read-only half: the dispatcher's candidates for the
+    /// window — its four legs and the survivors' lists from before — asked
+    /// by [`Self::match_candidates`].
     fn find_matches(
         &self,
         window: &[EventSeq],
@@ -532,18 +642,18 @@ impl GameState {
         // the granter left, is still asked, after the rest.
         let mut before: IdMap<ObjectId, Vec<(usize, &EffectiveCharacteristics)>> = IdMap::default();
         for (k, snapshot) in snapshots.iter().enumerate() {
-            for (source, frame) in &snapshot.frames {
-                if self.object_ref(source.id) == Some(*source) {
-                    before.entry(source.id).or_default().push((k, frame.as_ref()));
+            for frame in &snapshot.frames {
+                if self.object_ref(frame.object.id) == Some(frame.object) {
+                    before.entry(frame.object.id).or_default().push((k, frame.chars.as_ref()));
                 }
             }
         }
         if !before.is_empty() {
             let mut reached: IdSet<ObjectId> = live.iter().copied().collect();
             for snapshot in snapshots {
-                for (source, _) in &snapshot.frames {
-                    if before.contains_key(&source.id) && reached.insert(source.id) {
-                        live.push(source.id);
+                for frame in &snapshot.frames {
+                    if before.contains_key(&frame.object.id) && reached.insert(frame.object.id) {
+                        live.push(frame.object.id);
                     }
                 }
             }
@@ -553,10 +663,6 @@ impl GameState {
             .iter()
             .filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r)))
             .collect();
-
-        let mut matches: Vec<MatchedTrigger> = Vec::new();
-        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
-        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // Leg 2: the frames the window carries (CR 603.10a) — each departed
         // object's list as it was, asked look-back conditions only.
@@ -612,10 +718,30 @@ impl GameState {
                 owner,
                 zone: from,
                 host: None,
-                frame: TriggerCandidateFrame::Departed(frame),
+                frame: TriggerCandidateFrame::Departed { chars: frame, snapshot: None },
                 card,
             });
         }
+
+        let matches = self.match_candidates(&records, &candidates, snapshots);
+        self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
+        matches
+    }
+
+    /// Every candidate ability against every record of the window, in window
+    /// order then candidate order — the order the `OrderTriggers` prompt will
+    /// offer, which has to be process-stable end to end (§15 item 1). Which
+    /// candidates there are is the caller's: the dispatcher's legs, or the
+    /// audit's every object (`audit.rs`).
+    pub(super) fn match_candidates(
+        &self,
+        records: &[(EventSeq, &EventRecord)],
+        candidates: &[TriggerCandidate<'_>],
+        snapshots: &[LookBackSnapshot],
+    ) -> Vec<MatchedTrigger> {
+        let mut matches: Vec<MatchedTrigger> = Vec::new();
+        // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
+        let mut once: Vec<((AbilityIdentity, EventIndex), usize)> = Vec::new();
 
         // One row per triggered ability, so the records loop below pays
         // only for what depends on the record (§4.2).
@@ -642,8 +768,12 @@ impl GameState {
             }
         }
 
-        for (seq, record) in &records {
+        for (seq, record) in records {
             let looks_back_through = LookBackSnapshot::for_record(snapshots, seq.0);
+            // CR 603.2c: an ability triggers once each time its trigger event
+            // occurs. A survivor is asked through two lists and can match one
+            // record through each; the first arm in the ability's order wins.
+            let mut hits: Vec<ArmMatch<'_, '_>> = Vec::new();
             for row in &defs {
                 let candidate = &candidates[row.candidate];
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
@@ -666,7 +796,18 @@ impl GameState {
                         mana,
                     )
                 });
-                let Some(matched) = matched else { continue };
+                let Some(arm) = matched else { continue };
+                let this = ArmMatch { row, arm, subjects };
+                match hits.iter_mut().find(|hit| hit.row.identity == identity) {
+                    Some(earlier) if this.arm < earlier.arm => *earlier = this,
+                    Some(_) => {}
+                    None => hits.push(this),
+                }
+            }
+            for ArmMatch { row, arm: matched, subjects } in hits {
+                let candidate = &candidates[row.candidate];
+                let (identity, def) = (row.identity, row.def);
+                let mana = is_mana_ability(def);
                 let arm = &def.condition.events()[matched.0];
                 // Cloned here rather than in the pre-pass: a match is under 1%
                 // of visits, so one clone per matching record is cheaper than
@@ -960,7 +1101,7 @@ impl GameState {
         None
     }
 
-    fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
+    pub(crate) fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
         self.objects.get(&id).map(|o| ObjectRef { id, zone_change_epoch: o.zone_change_epoch })
     }
 

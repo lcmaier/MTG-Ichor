@@ -82,10 +82,10 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
 /// every member's frame** at this epoch, so the next member asked is a hit
 /// (§13b, decision 2). A miss for anything else walks that object alone.
 ///
-/// Two readers bypass the memo on purpose. The CR 614.12 look-ahead
-/// (`lookahead::compute_as_entering`) computes a hypothetical board, and the
-/// CR 603.10a LKI capture (`compute_characteristics_uncached`) computes the
-/// frame an event will store. Neither consults nor fills the memo.
+/// One reader bypasses the memo on purpose: the CR 614.12 look-ahead
+/// (`lookahead::compute_as_entering`) computes a hypothetical board. The CR
+/// 603.10a frame an event stores is read here, before its batch performs,
+/// where nothing has changed since the batch began deciding (item 174).
 pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     let epoch = game.layer_epoch();
     if let Some(frame) = game.layer_memo.get(id, epoch) {
@@ -130,6 +130,14 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     wanted
 }
 
+/// Whether no continuous effect can reach `id`: its effective characteristics
+/// are then its printed ones and its own CDAs (`compute_non_member`), and a
+/// CDA defines what a mana cost, type line or power/toughness box would, never
+/// an ability (CR 604.3).
+pub(crate) fn no_row_reaches(game: &GameState, id: ObjectId) -> bool {
+    matches!(membership(game, id), Membership::NonMember)
+}
+
 /// The debug mode §12 required in the same commit as the cache: every hit is
 /// checked against a fresh walk, which makes `cargo test` and a debug
 /// `fuzz_games` run the invalidation-completeness test. A coarse key can be
@@ -162,9 +170,8 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
 /// the walk `Diagnostics::layer_walks` counts. For a member that is a
 /// whole pass, of which one frame is kept.
 ///
-/// The CR 603.10a LKI capture reads through here: the frame it takes is about
-/// to be *stored*, on an event, as the record of what the permanent was, and
-/// it is built from a fresh walk rather than from anything shared.
+/// The CR 603.10a capture's fallback, for a departure no batch framed before
+/// performing (`take_departure_frame`), which a debug build refuses.
 pub(crate) fn compute_characteristics_uncached(
     game: &GameState,
     id: ObjectId,
@@ -177,7 +184,7 @@ pub(crate) fn compute_characteristics_uncached(
 
 /// The walk [`compute_characteristics_uncached`] records and the debug-build
 /// memo audit (`audit_memo_hit`) does not. Both callers are the release
-/// engine's shape: the LKI capture is a real walk and writes a `layer_walk`;
+/// engine's shape: the LKI fallback is a real walk and writes a `layer_walk`;
 /// the audit re-walks a memo hit to check it and rewinds the counts, and a
 /// record from it would make a debug build's trace differ from a release
 /// build's — which would break regenerating a page from a test.

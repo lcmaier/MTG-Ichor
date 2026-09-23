@@ -7941,3 +7941,47 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      board with Bridge's zone change printed "from anywhere" *does* trigger,
      since CR 603.6c's last sentence makes it no leaves-the-battlefield
      ability, read after the wipe, with Jailer gone.
+
+174. **~~A departing permanent's CR 603.10a frame is captured when that member
+     moves, so it depends on batch order.~~ — ✅ CLOSED 2026-09-22 (TR-1b).** — archived.
+     Each decided departure is framed before its batch performs, before any
+     member moves, and the move reads that frame; a destruction's nested move reads
+     the outer batch's (`triggers-architecture.md` §4.3).
+     **Reachability (2026-09-22):** closed — TR-1b's first commit.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 174".
+
+### Found by TR-1b — the dispatch audit (2026-09-22)
+
+**Shipped:** item 174's fix, `engine/triggers/audit.rs` and its switch
+(`enable_dispatch_audit`, `fuzz_games --audit`, `fuzz_ab.py`'s audited counter
+runs), the dispatcher's rows, and `plans/profile/`'s callgrind scripts
+(`triggers-architecture.md` §4.10; §12's TR-1b stub; `fuzz-record.md`, the
+TR-1b block). The audit is the dispatcher's own matching loop run again over
+a candidate set with no shortcut in it, and every audited sitting read zero
+disagreements. Building it found an ability matched through a survivor's two
+lists triggering once per list where CR 603.2c allows one per event, fixed in
+the shared loop (`one_ability_triggers_once_per_death_across_a_survivors_two_lists`),
+and the reading below, which the audit makes and the dispatcher does not.
+
+175. **A window's departure frames and newcomers answer records that are not
+     theirs.** The dispatcher asks every frame a window's departures carry,
+     and every live list, about every record in the window. When the records
+     come from more than one batch — a rider's, after its replaced event
+     performed — a permanent that left in the first batch answers the look-back
+     arms of a death in the second, which happened after it was gone, and a
+     permanent that entered between them answers the look-back arms of a death
+     before it arrived. CR 603.10a looks back to the instant before each
+     event, when neither was there. The audit reads each record's objects as
+     they were before the outermost batch that performed it; within one
+     batch, a destruction's nested move included, the two agree.
+
+     **Reachability (2026-09-22):** unreachable — every audited sitting (both
+     pools at two seats and four, Commander scale, and the forced Humility and
+     TR-1 boards) read zero disagreements, so no pooled card builds such a
+     window with a look-back source on either side of it.
+
+     **Sized:** ~40 lines: each candidate list names the batch it was taken
+     before (a departure's frame, a newcomer's entry), and a look-back arm is
+     asked of it only for the records that batch performed — the audit's
+     rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
+     the dispatcher's own candidates.

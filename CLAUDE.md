@@ -9,7 +9,7 @@ not approximated. Crate lives in `mtgsim/`, edition 2024.
 ```bash
 cd mtgsim && cargo test                   # must stay green
 cd mtgsim && cargo build --all-targets    # must print ZERO warnings — hard bar
-cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card
+cd mtgsim && cargo run --bin cli_play     # play at the terminal; --bin fuzz_games is random-vs-random, --pool stress plays every card, --audit checks every trigger dispatch
 python plans/specdb.py stats              # rules coverage by phase
 python plans/check_claude_md.py && python plans/check_module_layout.py && python plans/check_glossary.py && python plans/check_state_of_play.py --check && python plans/check_rulings.py --check && python plans/check_string_literals.py   # all must pass
 ```

@@ -56,6 +56,23 @@ pub struct Diagnostics {
     decisions: Cell<u64>,
     priority_decisions: Cell<u64>,
     triggers_placed: Cell<u64>,
+    trigger_dispatch: Cell<TriggerDispatchWork>,
+}
+
+/// The dispatcher's work: §11's probe, kept as rows (`triggers-architecture.md`
+/// §4.10, decision 4), so a dispatcher lever is read off a counter rather
+/// than a throwaway build.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TriggerDispatchWork {
+    /// Dispatches past the gate: a window carrying a kind some candidate
+    /// reads, so the matcher ran.
+    pub windows: u64,
+    /// The candidates they asked, one per ability list, so an object with a
+    /// list from before a batch counts twice.
+    pub candidates: u64,
+    /// The triggers they matched, triggered mana abilities included, which
+    /// resolve at once and are never placed.
+    pub matches: u64,
 }
 
 impl Diagnostics {
@@ -274,6 +291,20 @@ impl Diagnostics {
 
     pub fn triggers_placed(&self) -> u64 {
         self.triggers_placed.get()
+    }
+
+    /// One dispatch past its gate, with the candidates it asked and the
+    /// triggers it matched.
+    pub fn record_trigger_dispatch(&self, candidates: u64, matches: u64) {
+        let mut work = self.trigger_dispatch.get();
+        work.windows += 1;
+        work.candidates += candidates;
+        work.matches += matches;
+        self.trigger_dispatch.set(work);
+    }
+
+    pub fn trigger_dispatch(&self) -> TriggerDispatchWork {
+        self.trigger_dispatch.get()
     }
 
     pub fn priority_decisions(&self) -> u64 {

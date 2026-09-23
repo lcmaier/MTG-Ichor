@@ -30,6 +30,14 @@ instead of most of an hour:
   medians of three at 200 games is where the run-to-run spread sits at ~2.4%,
   and cutting either is what raises it.
 
+**The counter runs are audited** (`fuzz_games --audit`, `triggers-architecture.md`
+§4.10) on every arm whose binary has the flag: every trigger dispatch is
+answered twice, and a disagreement is a panic, which `Panics` already flags.
+The audit changes no counter, and its lines are about the run rather than the
+game, so they are stripped before any comparison; `--no-audit` turns it off.
+The timing rounds are never audited, so the determinism column below is also
+the check that the audit changed nothing on `performance`.
+
 Determinism falls out for free: every timing round's output outside
 `=== Timing ===` must equal the threaded counter run's, which checks both
 thread-independence and run-to-run identity without extra runs — each round
@@ -104,6 +112,11 @@ ROWS = [
     # trigger source is in the pool, then the row that says the dispatcher
     # and the drain both ran.
     ("Triggers placed", r"^\s+Triggers placed:\s+([\d.]+)"),
+    # The dispatcher's own work (TR-1b): dispatches past the gate, the
+    # candidates they asked, the triggers they matched — §11's probe, kept.
+    ("Windows past gate", r"^\s+Windows past gate:\s+([\d.]+)"),
+    ("Candidate visits", r"^\s+Candidate visits:\s+([\d.]+)"),
+    ("Trigger matches", r"^\s+Trigger matches:\s+([\d.]+)"),
 ]
 # Rows that must read zero, flagged loudly when they do not. The fuzz harness
 # asserts nothing, so a row pinned at zero is the only way a 200-game run can
@@ -157,9 +170,21 @@ def strip_timing(text):
             continue
         if not skip:
             out.append(line)
-    # The header names the pool size and the thread count; neither is a counter.
-    out = [l for l in out if not l.startswith("Card pool: ") and not l.startswith("Threads: ")]
+    # The header names the pool size and the thread count, and an audited run
+    # says so twice; none of those is a counter.
+    out = [
+        l for l in out
+        if not l.startswith("Card pool: ") and not l.startswith("Threads: ") and not l.startswith("Audit:")
+    ]
     return "\n".join(out)
+
+
+def audits(binary):
+    """Whether `binary` has `--audit`: a binary from before TR-1b answers the
+    flag with "Unknown argument", and is run without it."""
+    probe = subprocess.run([binary, "--games", "0", "--audit"], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", check=False)
+    return "Audit: on" in probe.stdout
 
 
 def grab(text, pat):
@@ -261,6 +286,8 @@ def main():
     ap.add_argument("--life", type=int, default=None,
                     help="starting life, passed to every run (default: the binary's, 20)")
     ap.add_argument("--out", default=None, help="directory for the raw outputs (default: a temp dir)")
+    ap.add_argument("--no-audit", action="store_true",
+                    help="run the counter runs without fuzz_games --audit (the default audits every arm that has it)")
     args = ap.parse_args()
 
     arms = []
@@ -296,13 +323,19 @@ def main():
     t0 = time.time()
     print(f"outputs: {out}")
 
-    # ---- counters, both pools, threaded ----------------------------------
+    # ---- counters, both pools, threaded, audited ---------------------------
+    audited = {label: not args.no_audit and audits(path) for label, path, _ in arms}
     counted = {}   # (arm, pool) -> (counters, stripped text)
+    audit_line = {}  # (arm, pool) -> the run's audit result line
     for pool in POOLS:
         for label, path, flags in arms:
-            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--pool", pool] + common + flags,
+            audit = ["--audit"] if audited[label] else []
+            text = run(path, ["--games", str(args.games), "--threads", str(args.threads), "--pool", pool] + common + flags + audit,
                        os.path.join(out, f"counters_{label}_{pool}.txt"))
             counted[(label, pool)] = (counters(text), strip_timing(text))
+            m = re.search(r"^Audit:\s+(\d+) dispatches answered twice, (\d+) triggers agreed", text, re.M)
+            audit_line[(label, pool)] = (f"{int(m.group(1)):,} dispatches, {int(m.group(2)):,} triggers agreed"
+                                         if m else "not audited")
     for pool in POOLS:
         table(f"=== counters, {pool}, {args.games} games / seed {args.seed} ===", labels,
               {a: counted[(a, pool)][0] for a in labels}, [r for r, _ in ROWS])
@@ -318,6 +351,8 @@ def main():
             ]
             if bad:
                 print(f"  !! {a}: {', '.join(bad)} nonzero")
+        for a in labels:
+            print(f"  audit, {a}: {audit_line[(a, pool)]}")
 
     # ---- reachability -----------------------------------------------------
     if args.require:
