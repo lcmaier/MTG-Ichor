@@ -37,6 +37,84 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-22 for the TR-1 review, theme E** (provenance ids —
+`triggers-architecture.md` §3.6's amendment as built — and main item 167's
+look-back snapshot, §4.3). **No pool change**: `performance` stays at 94 and
+`stress` at 171, and every row of the 2026-09-19 tables still reads. What
+this block records is two arms' attribution and one cost.
+
+**Predictions, written before any arm ran.** Provenance against `main`:
+`IDENTICAL` on every row, because the mana window dedupes on the definition
+and the elision's def key equals the old id key for the five pooled
+triggers. Both against provenance: gameplay identical except where Humility
+leaves in a batch beside a death while a Blood Artist survives; the cost
+rows moving only where an ability list's source leaves while a Blood Artist
+is on the battlefield; CPU inside the spread for both.
+
+**The A/B, three arms, `fuzz_ab.py`**: `main` at #177's head (`073f348`),
+provenance at `83dcc58`, both at the next commit. Both pools, two seats and
+four, 200 games, seed 12345, timing 3×200 on `performance`.
+
+| arm | vs `main`, counters | CPU/game vs `main`, two seats / four |
+|---|---|---|
+| provenance | **IDENTICAL** on both pools at two seats and four | −0.3% / +1.1% |
+| both | **IDENTICAL** at two seats; at four, cost rows and three games' play (below) | −0.1% / +0.1% |
+
+**The first sitting missed one prediction, and the miss was the agent's.**
+Provenance read one game in 200 different on `performance` at two seats
+(seed 12543): `ui/random.rs`' mana preference counted a permanent's
+flexibility per `(permanent, ability)` entry, so under two Citanul
+Hierophants every creature's two instances of `{T}: Add {G}` counted twice
+where they had collapsed into one key, and the agent's least-flexible pick
+moved. Keyed on the definition, as the window is, in provenance's own
+commit; the re-run above is `IDENTICAL`, and 0 of 200 games differ replayed
+one by one.
+
+**What moves in "both", game by game** — each of the 200 games replayed
+alone on both arms. At two seats 10 `performance` and 3 `stress` games
+differ, each by 1–4 `Memo hits` and nothing else, the snapshot's own memo
+reads, below the table's precision. At four seats 24 and 10 games differ in
+the cost rows alone, and **three change an answer, all three item 167's
+board**, named off each game's trace on the provenance arm: seeds 12352 and
+12457 on `performance`, where one state-based check kills a creature and
+makes P2 lose, P2's Humility leaves the game in the same event (CR 800.4a)
+and a surviving Blood Artist no longer triggers on the death; and seed
+12366 on `stress`, an Opalescence-animated Humility dying in combat beside
+Parallel Lives.
+
+**Reachability** — `--require "Humility,Blood Artist" --copies 4`, 200
+games, seed 12345, both arms. On `performance` no game changes an answer at
+either seat count, since the pool can remove Humility only by its
+controller leaving, while 125 and 172 games take a snapshot (cost rows
+only). On `stress` 2 of 200 at two seats and 6 of 200 at four change an
+answer, `Triggers placed` 2.0 → 2.0 and 4.7 → 4.5. Item 167's verdict held:
+reachable, wrong, rare.
+
+**The owner's condition on the two-half `AbilityId`** (§3.6: kept if the CPU
+line shows no cost of the wider key, a field on `AbilityDef` otherwise):
+the provenance arm is −0.3% and +1.1% per game, inside the sitting's
+spread at both seat counts, so the id keeps its two halves.
+
+**Determinism** holds under three `MTGSIM_HASH_SEED`s, line for line outside
+`=== Timing ===`: `stress`, 60 games, seed 99, at two seats and four, and on
+the forced Humility and Blood Artist board at four.
+
+**Review round 1, same PR** (the owner's review of #178). Two code changes,
+each its own arm against the one before. **A candidate is one ability list**
+(`42ccd0e`): a survivor's list from before is its own candidate beside its
+live one, rather than rows tagged with where they came from. It reads
+`IDENTICAL` to the previous head on every row, diagnostics included, on
+both pools at two seats and four and on the forced Humility and Blood
+Artist `stress` board at both seat counts, where snapshots are taken; CPU
++0.6% and +1.4%, inside the spread. **The snapshot reads every printed
+trigger source** (`6fdca3b`), not only those whose kinds a look-back arm
+reads, since that filter was a second table of `TriggerEvent::looks_back`
+that TR-4's new look-back classes would have fallen out of. Gameplay is
+identical everywhere, and only engine-work rows move, by one or two
+`Memo hits` a game on average and one `Layer frames` on `stress` at two
+seats. Determinism holds under three hasher seeds at four seats, on the
+shipped `stress` pool and on the forced board.
+
 **Re-recorded 2026-09-22 for the TR-1 review, theme C** (the matcher — F1's
 CR 113.6 fix, #16's flatten, `triggers-architecture.md` §11's kind mask, #38,
 and `fuzz_games --copies N`). **No pool change**, so there is no new fixture

@@ -89,10 +89,12 @@ fn mana_window_preference(
         return WindowPreference::AnyWillDo;
     }
 
+    // Keyed on the definition, as the window is: two grants of one mana
+    // ability are one type the permanent can make, not two.
     let produces: crate::types::ids::IdMap<(ObjectId, AbilityId), ManaType> =
         available_mana_sources(game, player)
             .into_iter()
-            .map(|s| ((s.permanent_id, s.ability_id), s.produces))
+            .map(|s| ((s.permanent_id, s.ability_id.definition()), s.produces))
             .collect();
     // How many wanted types each permanent can make: its flexibility.
     let mut flexibility: crate::types::ids::IdMap<ObjectId, usize> =
@@ -110,7 +112,7 @@ fn mana_window_preference(
             unreadable = true;
             continue;
         };
-        match produces.get(&(*perm, *ab)) {
+        match produces.get(&(*perm, ab.definition())) {
             Some(t) if wanted.contains(t) => useful.push((i, flexibility[perm])),
             Some(_) => {}
             None => unreadable = true,

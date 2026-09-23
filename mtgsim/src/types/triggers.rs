@@ -230,6 +230,8 @@ pub struct EventKindMask(u16);
 
 impl EventKindMask {
     pub const EMPTY: EventKindMask = EventKindMask(0);
+    /// Every kind: as a filter, it keeps every source that reads anything.
+    pub const ALL: EventKindMask = EventKindMask(u16::MAX);
 
     pub const fn of(kind: EventKind) -> EventKindMask {
         EventKindMask(kind.bit())
@@ -607,7 +609,6 @@ mod tests {
         let identity = AbilityIdentity {
             source: ObjectRef { id, zone_change_epoch: 0 },
             ability: AbilityId::printed("x", 0),
-            instance: 0,
         };
         vec![
             ("ZoneChange", GameEvent::ZoneChange {

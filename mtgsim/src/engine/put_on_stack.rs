@@ -404,8 +404,6 @@ impl GameState {
                 zone_change_epoch: self.get_object(source_id)?.zone_change_epoch,
             },
             ability: ability.id,
-            // The ordinal among same-id defs ahead of this one (item 149).
-            instance: abilities[..ability_index].iter().filter(|a| a.id == ability.id).count() as u32,
         };
         // Off the def the effective list carries, never `card_data.abilities`:
         // a granted ability exists in no `CardData` (CLAUDE.md).

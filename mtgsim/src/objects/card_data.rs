@@ -143,10 +143,11 @@ pub struct AbilityDef {
     /// - A copy effect (Layer 1) or a text-changing effect (Layer 3) hands the
     ///   whole `AbilityDef` over, so the flag rides along — which is exactly
     ///   what 604.3a(2) asks for. ✅
-    /// - **A Layer 6 `GrantAbility` must clear this on the def it grants.** A
-    ///   granted ability is never a CDA, however its text reads. Nothing grants
-    ///   abilities yet; the rule is recorded in Deferred Migrations so the
-    ///   Layer 6 phase honors it.
+    /// - **A Layer 6 `GrantAbility` clears this on the def it grants**, in
+    ///   `layers::compute`'s grant arm: a Layer 6 grant is none of 604.3a(2)'s
+    ///   routes, so the ability is never a CDA there, however its text reads.
+    ///   A token's abilities are its `CardData`'s, 604.3a(2)'s second route,
+    ///   and keep the flag as printed ones do.
     ///
     /// Read by `engine::layers::cda`, which applies CDAs off the object's own
     /// effective ability list. CDAs are never registered as continuous effects

@@ -450,7 +450,7 @@ the full identity (§3.6) so a bounced and replayed permanent — a new object,
 CR 400.7 — starts clean, and both cleared by the `BeginTurn` performer.
 "Each turn" is the game's turn, not the controller's.
 
-### 3.6 `AbilityIdentity` gains `instance` and the object's epoch (S3)
+### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
 
 ```rust
 pub struct AbilityIdentity {
@@ -459,19 +459,18 @@ pub struct AbilityIdentity {
     /// bounce are two abilities' worth of counting. One `ObjectRef`, since
     /// that type is exactly this pair (`types/ids.rs`).
     pub source: ObjectRef,
-    pub ability: AbilityId,
-    /// The k-th instance of `ability` on `source`, in effective-list order.
+    /// Which ability, and for a granted one which grant: `AbilityId {
+    /// definition, grant }`, the grant the granting row's `EffectId`.
     /// A4g made an `AbilityId` per definition, so two sources granting one
-    /// ability put it on an object twice under one id (item 149). For a
-    /// mana ability nothing tells the two apart in outcome; for a TRIGGERED
-    /// one the outcome differs — Diffusion Sliver's ruling: the abilities
-    /// Slivers grant "are cumulative", so a Sliver under two Diffusion
-    /// Slivers triggers twice and the opponent pays twice — and a
-    /// dispatcher keyed on `(source, ability)` alone would fold the two
-    /// into one trigger. Each instance triggers, is placed, and is its own
-    /// gate; CR 603.7h counts the ABILITY (§6.5), so the counters key on
-    /// the pair and ignore this field.
-    pub instance: u32,
+    /// ability put it on an object twice (item 149). For a mana ability
+    /// nothing tells the two apart in outcome; for a TRIGGERED one the
+    /// outcome differs — Diffusion Sliver's ruling: the abilities Slivers
+    /// grant "are cumulative", so a Sliver under two Diffusion Slivers
+    /// triggers twice and the opponent pays twice — and a dispatcher keyed
+    /// on the definition alone would fold the two into one trigger. Each
+    /// instance triggers, is placed, and is its own gate; CR 603.7h counts
+    /// the ABILITY (§6.5), so its key takes `ability.definition()`.
+    pub ability: AbilityId,
 }
 ```
 
@@ -505,6 +504,33 @@ The elision (`placement.rs:106`) is re-keyed on def equality rather than id
 equality, and item 149's closure is amended. "Loses all abilities" goes by
 list, so CR 113.10b is unaffected. Diffusion Sliver itself waits for TR-5's
 target event, so nothing printed reads the field yet.
+
+**Built 2026-09-22 (theme E), with three calls the amendment left open —
+the owner's, each as recommended.** The mint changes every granted def's
+id, not only a triggered one's, and three sites wanted the shared id,
+because each means "this ability, whichever instance": CR 113.10b's
+`LoseAbility`, the mana window's dedupe, and a granted static's rows, which
+`register_granted_static_effects` filed under the def's id for CR 604.2's
+existence check to find on the grantee. *Where the definition lives:*
+inside the id, `AbilityId { definition, grant }` with the grant `0` unless a
+Layer 6 row granted the instance, so no `AbilityDef` literal changed,
+equality is per instance by default, and `definition()` is the opt-in —
+taken on the condition that the A/B's CPU line shows no cost of the wider
+key (`fuzz-record.md`'s theme E block), a field on `AbilityDef` otherwise.
+*The mint's input:* the granting row's `EffectId`
+(`AbilityId::granted_by`), not its source and epoch. A resolution's row is
+sourced at the resolving stack object — a spell, whose epoch moves when it
+reaches the graveyard and again whenever it leaves, or an ability object
+CR 608.2n deletes — and two grants of one def from one source to one
+object would share a pair. The row is the grant: a counter no row reuses,
+gone when the grant goes. *The mana window* dedupes on the definition, so
+it lists what it listed. A granted static's rows now carry its instance's
+id, which keeps the existence check exact, and CR 614.12's look-ahead names
+its would-be rows by the ids their registration will assign. One
+consequence rather than a call: the replacement gather keys a static
+replacement by `(ObjectId, AbilityId)`, so two granted instances of one
+replacement ability are two effects, as the CR has them; nothing registered
+grants one.
 
 ### 3.7 `PendingTrigger` and the queue
 
@@ -859,7 +885,7 @@ effective frame read once — a live object's off the layer memo, a departed
 one's off the CR 603.10a frame its record carries (`TriggerCandidateFrame`).
 The rows are one per triggered ability of each candidate
 (`TriggerCandidateDef`), holding what does not depend on the record: CR
-113.6's per-ability answer, the instance ordinal and the identity. Then every
+113.6's per-ability answer and the identity. Then every
 record is asked of every row. The rows exist because the first cut was
 records × candidates × abilities, recounting the ordinal by a prefix scan
 and rebuilding the identity on every record (#16).
@@ -945,6 +971,29 @@ already registered.
 For a look-back candidate the ability's controller (603.3a's "you") is the
 frame's `controller`, and the "if" clause reads the frame where it names
 the object (persist's "if it had no -1/-1 counters", off `Status.counters`).
+
+**A source that survives the event** (main item 167, built 2026-09-22 in
+the TR-1 review's theme E). CR 603.10's "existence of those abilities ...
+immediately prior to the event" holds for every look-back source, not only
+one that left: a Blood Artist that survives the wipe that took Humility had
+no abilities before it, and triggers on none of the deaths. A survivor's
+list can differ across the event only if the batch departs the source of a
+row that writes ability lists — a copy, or a Layer 6 grant or removal
+(`RegistryScopeSummary::ability_list_sources`) — so that is the trigger,
+asked of the batch's *decided* members between deciding and performing:
+replacement decides whether anything departs, and the lists are still the
+ones before. The batch then keeps each look-back reader's frame, an `Arc`
+off the memo, as a `LookBackSnapshot` over the records it performs — legs 1,
+3 and 4, read before a departure can end the grant leg 4 walks for — and the
+close asks look-back arms of those frames and every other arm of the live
+list. **A nested batch that joins the window takes its own**, and a record
+reads the outermost snapshot whose batch performed it, since a nested batch
+inside a performer is the enclosing event at finer grain (CR 704.3's one
+event); else the first taken after it, since no list changed in between;
+else the live list, which is then also the list before it. Both signs are
+fixtures: Humility beside a surviving Blood Artist, and a grant whose source
+dies in the wipe, whose carrier triggers for each death. Bridge from Below's
+graveyard half is the zone map's, and waits for main item 173.
 
 ### 4.4 Multiplicity: per record, per window, and the multiplier
 
@@ -1179,14 +1228,29 @@ by construction, at the fork model's own boundary, a priority grant.
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
 through `choose_ordering` with the pending entries as `ChoiceOption`s in
 `seq` order, two or more only. **Its elision is item 163's, inherited and
-not re-derived**: two entries that are instances of one ability under one
-controller with no targets and no modes and identical bindings give the
-same game in either order, so the engine does not ask — with the expiry
-conditions written beside the predicate the way `ordering_cannot_change_outcome`
-carries item 47's: a binding that differs, a target, a mode, or an effect
-that reads the stack (a tier-2 trigger) reopens the prompt. A decorator's
-timestamp order for a human under the toggle, and the agent's own for a
-bot, are `backlog.md` §2.22's rows 8 and 9 and not the engine's.
+not re-derived**: one player's entries give the same game in either order,
+and the engine does not ask, when every one of these holds — each the
+reason the prompt is asked otherwise:
+
+- **Equal defs.** Different abilities do different things. Compared as
+  defs, not ids, since the TR-1 review's theme E: two grants of one ability
+  carry two ids (§3.6), and are still one ability twice.
+- **Identical bindings** — the same records and the same subject — since
+  "that creature" or "that much" is otherwise a different object or number.
+- **No instance of "target".** CR 603.3d's choice is made per object as
+  each goes on the stack, so the order decides who chooses against what.
+- **No mode.** CR 603.3c's choice, the same way.
+- **Tier 1.** A tier-2 entry's effect reads the stack it is put onto
+  (CR 603.3b).
+
+`trigger_order_cannot_change_outcome` is these conditions' conjunction and
+says no more. They were written beside the predicate at first, on the
+precedent of `ordering_cannot_change_outcome`, whose "expiry conditions"
+are a different thing: the future code changes that break its proof, each
+one a compile error. These are the predicate itself, so its reasons live
+here (the owner's review of #178). A decorator's timestamp order for a
+human under the toggle, and the agent's own for a bot, are `backlog.md`
+§2.22's rows 8 and 9 and not the engine's.
 
 ### 5.3 CR 800.4d's second sentence (item 7)
 
@@ -1366,7 +1430,7 @@ unblocked by this — nothing here reads further back than one batch.
 | `stack.rs::resolve_taken` (`:120–230`) | resolves, announces `AbilityResolved` | the intervening "if" first (608.2a); `trigger_left_stack` for a state trigger; the binding threaded into `ResolutionContext` | TR-1, TR-6 |
 | `stack.rs::handle_fizzle`, `resolve.rs`' `CounterAbility` arm, 603.3d's removal | remove the object | call `trigger_left_stack` | TR-6 |
 | `resolve.rs` (`:220–240`) | `Conditional`, `Optional` → `Err` | `Conditional` resolves (its `Condition` through `settled_holds`); `Optional` asks; `Triggered` is refused outside a trigger's placement (a spell cannot carry one); `Reflexive` creates and checks | TR-1, TR-2, TR-3 |
-| `oracle/characteristics.rs::get_effective_abilities` | three index readers | a fourth reader, the dispatcher, indexing by `instance` ordinal | TR-1 |
+| `oracle/characteristics.rs::get_effective_abilities` | three index readers | a fourth reader, the dispatcher, keying each def by its id (a granted instance's names its grant, §3.6) | TR-1 |
 | `zone_function::functioning_zones` | six of fourteen subrules | the `Triggered` arm (113.6k, derived) | TR-1 |
 | `register_static_effects` / `cleanup_zone_state` / `place_on_battlefield` | maintain the replacement gate sets | maintain `trigger_sources` and `zone_trigger_sources` beside them | TR-1 |
 | `RegistryScopeSummary` | nine fields | `unattributed_trigger_zones` | TR-1 |
@@ -1421,9 +1485,9 @@ are refused there too — Astral Slide's example.
 merging phase knows what it inherits: the identity's `source` is the
 permanent — CR 729.2a gives a merged permanent one set of characteristics
 (its topmost component's, or what the merging effect says: mutate's is
-every component's abilities), so the effective list is the permanent's,
-`instance` indexes that list, and a component's own ordinal is not a thing
-this design knows; `cast`, `announced_controller`, the gates, the
+every component's abilities), so the effective list is the permanent's
+and so is every identity read off it, and a component's own ordinal is not
+a thing this design knows; `cast`, `announced_controller`, the gates, the
 counters in `Status` and the histories key on the permanent;
 `zone_change_epoch` is the permanent's, since CR 729.2c makes a merged
 permanent "the same object that it was before". **One read is a
@@ -1622,7 +1686,8 @@ pooled (91 → 94). Fifty tests, §13's TR-1 row clean.
 atoms here; leg 3 is swept with leg 4 because they are one map; the gate has
 a sixth probe (the departure frames); the binding carries the def. A
 look-back arm on a surviving permanent reads its post-event list — main item
-167. The archive has the sizing table and the nine notes.
+167, closed by the review's theme E (§4.3). The archive has the sizing table
+and the nine notes.
 
 **Measured** (`fuzz-record.md`, the TR-1 block): the probe found no dispatch
 passing the gate on the old pools; the engine arm `IDENTICAL` on every counter
@@ -1646,7 +1711,8 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 **Carried in from the TR-1 review** (2026-09-22):
 
 - **Before it:** the review's theme E — provenance ids (§3.6's amendment),
-  which TR-2's gates key on, and item 167's snapshot.
+  which TR-2's gates key on, and item 167's snapshot (§4.3). Both landed
+  2026-09-22.
 - **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
   `phase_tr1_integration_test.rs` today, and every trigger phase asks
   "before priority".

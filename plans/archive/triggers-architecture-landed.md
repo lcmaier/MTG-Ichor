@@ -91,6 +91,7 @@ fifty of them.
    wipe that took Humility reads the list it has after the wipe, where
    CR 603.10 wants the one before. Filed as `codebase-state.md` main item
    167; the frames a record carries were never going to answer it.
+   *Closed 2026-09-22 by the review's theme E: §4.3's look-back snapshot.*
 7. **The dispatch is where `test_support::put_on_battlefield`'s direct
    writes became visible.** The helper wrote `entered_battlefield_turn` and
    `controller_since_turn` after `place_on_battlefield` had walked nothing;
@@ -103,7 +104,9 @@ fifty of them.
    §3.6 says why a mana ability's two instances need no telling apart. Giving
    them the instance would have re-offered the second Citanul Hierophants
    the window used to list and moved the random agent's stream, which §11's
-   `IDENTICAL` prediction for the engine arm forbids.
+   `IDENTICAL` prediction for the engine arm forbids. *Amended 2026-09-22
+   (theme E):* the ids in those pairs now carry a granted instance's grant,
+   and the dedupe keys on `AbilityId::definition()` — the same answer.
 9. **Line counts.** `types/triggers.rs` 446, `engine/triggers/` 1,015
    (`dispatch.rs` 754 of them), the cards 278, the tests 1,807 — the sizing's
    700 was well under half: fifty tests, each a board — and the docs above
@@ -111,8 +114,21 @@ fifty of them.
    and the peel-off point the doc named (605.1b with Wild Growth) is about
    200 of those lines, so it was not taken; the reviewer decides.
 
-**Asked at the review and kept** (the TR-1 review, 2026-09-22, theme D),
-so they are not asked again:
+**Asked at the review and kept** (the TR-1 review, 2026-09-20 to 09-22 —
+theme A's three and theme D's four), so they are not asked again:
+
+- **#19, `retain` for a stack removal:** it keeps the stack's order where
+  `swap_remove` would move the last object into the hole, and it matches the
+  three sibling removals; at 608.2a the object is the top by construction, so
+  a `pop` with a debug assertion would also be exact, and is not worth the
+  change.
+- **#20, the three `EventLog` wrappers:** `records` is private, so `record` is
+  the newtype's only reader (14 callers); `next_seq` (one caller) keeps the
+  length-to-sequence conversion inside the log; `emit_unstamped` is the
+  second door, named so the exemption is greppable.
+- **#32, `TriggerSeq`:** it pairs with `EventSeq`, the other monotone
+  counter; the `*Id` family is hashed ids, so `TriggerId` would file it in
+  the wrong family by name.
 
 - **#9, `could_add_mana` on `Modal`:** a modal trigger with one mana mode is a
   mana ability by CR 605.1b's "could add mana" — 605.2 keeps the class when

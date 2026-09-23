@@ -34,29 +34,32 @@ use mtgsim::cards::phase_tr1_cards::{
     blood_artist, felidar_sovereign, saproling_token, soul_warden, verdant_force, wild_growth,
 };
 use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{is_mana_ability, visible_to_all};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::get_effective_controller;
-use mtgsim::state::game_state::{GameResult, GameState, Phase, PhaseType, StepType};
+use mtgsim::state::game_state::{
+    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StepType,
+};
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
-    put_on_battlefield, put_spell_on_stack, setup_game, setup_two_player_game, test_ctx,
-    test_dp, vanilla_creature,
+    put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
+    test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
+    ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
-    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject,
-    TriggerTier,
+    DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin,
+    TriggerSubject, TriggerTier,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
@@ -411,6 +414,56 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
     resolve_top(&mut game, &dp);
     resolve_top(&mut game, &dp);
     assert_eq!(life(&game, 0), 22);
+}
+
+/// Item 167: CR 603.10 looks back to "the existence of those abilities ...
+/// immediately prior to the event" for a source that *survives* it too. One
+/// wipe takes Humility and a creature while Blood Artist lives: before the
+/// wipe Blood Artist had no abilities, so nothing triggers, though its
+/// ability is back by the time anything is checked.
+// COVERS-PARTIAL: ATOM-603.10a-001
+#[test]
+fn a_survivor_looks_back_to_the_abilities_it_had_before_the_wipe() {
+    let mut game = setup_two_player_game();
+    let artist = put_on_battlefield(&mut game, blood_artist(), 0);
+    let enchantment = put_on_battlefield(&mut game, humility(), 1);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[enchantment, bear], source);
+
+    assert_eq!(game.get_object(artist).unwrap().zone, Zone::Battlefield);
+    assert_eq!(pending(&game), 0, "no ability before the event, so no trigger");
+}
+
+/// Item 167's other sign: a look-back ability *granted* by a row whose source
+/// leaves in the same event existed before it and not after, so it triggers —
+/// for the granter's own death too, which is another creature dying.
+// COVERS-PARTIAL: ATOM-603.10a-001
+#[test]
+fn a_grant_ending_in_the_wipe_still_sees_the_creatures_die() {
+    let mut game = setup_two_player_game();
+    let carrier = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let granter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let mut granted = triggered_ability(whenever(dies(another(a_creature())), gain_one()));
+    granted.id = new_ability_id();
+    game.continuous_effects.add(ContinuousEffect {
+        duration: Duration::WhileSourceOnBattlefield,
+        affected_objects: ObjectSet::Fixed(vec![carrier]),
+        ..registered(
+            granter,
+            Layer::Layer6Ability,
+            100,
+            EffectModification::GrantAbility(Box::new(granted)),
+        )
+    });
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+
+    destroy_all(&mut game, &[granter, bear], source);
+
+    assert_eq!(pending(&game), 2, "the granter and the bear, off the list from before");
+    assert!(game.pending_triggers.iter().all(|t| t.origin.source() == carrier));
 }
 
 /// CR 603.2c — one trigger per occurrence: three lands destroyed as one
@@ -1710,6 +1763,29 @@ fn a_from_anywhere_trigger_is_stopped_by_yixlid_jailer() {
     assert_eq!(pending(&game), 1);
 }
 
+/// CR 603.6c's last sentence when the same wipe also takes Yixlid Jailer: a
+/// "from anywhere" trigger is read after the whole event, so it triggers in
+/// either batch order. With the card first, it reaches the graveyard while
+/// Jailer is still on the battlefield, and a read at that move would find no
+/// ability. The board where a look-back trigger and a "from anywhere" one
+/// part ways across this event is a card already in the graveyard with a
+/// trigger about other cards — Bridge from Below's shape — which the engine
+/// cannot express until an intervening "if" can state the zone it works in.
+#[test]
+fn a_from_anywhere_trigger_reads_the_board_after_a_wipe_that_took_yixlid_jailer() {
+    for jailer_first in [true, false] {
+        let mut game = setup_two_player_game();
+        let jailer = put_on_battlefield(&mut game, yixlid_jailer(), 1);
+        let echo = put_on_battlefield(&mut game, guile_shaped(), 0);
+        let source = put_on_battlefield(&mut game, sol_ring(), 1);
+        let order = if jailer_first { [jailer, echo] } else { [echo, jailer] };
+
+        destroy_all(&mut game, &order, source);
+
+        assert_eq!(pending(&game), 1, "read after the event, Jailer gone (jailer_first: {jailer_first})");
+    }
+}
+
 /// Dread's two triggers (Lorwyn): "Whenever a creature deals damage to you,
 /// destroy it" and "When Dread is put into a graveyard from anywhere, shuffle
 /// it into its owner's library". The effects are stand-ins; the tests count
@@ -1911,8 +1987,8 @@ fn a_window_no_source_reads_is_refused_at_the_gate() {
 // ---------------------------------------------------------------------------
 
 /// The stack object is `activate_ability`'s twin: `is_spell: false`, no
-/// `cast_from`, an identity with the instance and the source's epoch, and
-/// the binding beside it.
+/// `cast_from`, an identity with the printed ability and the source's epoch,
+/// and the binding beside it.
 #[test]
 fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     let mut game = setup_two_player_game();
@@ -1925,12 +2001,68 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     assert_eq!(entry.cast_from, None);
     let identity = entry.ability_identity.unwrap();
     assert_eq!(identity.source.id, warden);
-    assert_eq!(identity.instance, 0);
+    assert_eq!(identity.ability, soul_warden().abilities[0].id);
     assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
     let binding = entry.trigger.as_ref().unwrap();
     assert_eq!(binding.object.map(|o| o.id), Some(bear));
     assert_eq!(game.bound_object(binding), Some(bear));
     assert_eq!(game.get_object(id).unwrap().card_data.name, "Soul Warden");
+}
+
+/// Two grants of one triggered ability are two instances on the carrier, and
+/// each keeps its identity for exactly as long as its grant lasts: the first
+/// grant ending mid-turn leaves the survivor's trigger under the identity it
+/// had (`triggers-architecture.md` §3.6, the provenance amendment). An
+/// ordinal among same-id instances renumbered the survivor from 1 to 0, which
+/// would orphan a TR-2 gate keyed on the one and hand it the other's.
+#[test]
+fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
+    let mut game = setup_two_player_game();
+    let carrier = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let granters = [
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0),
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0),
+    ];
+    // Diffusion Sliver's shape, from registry rows: each granter grants one
+    // def to the carrier while it is on the battlefield. One def, cloned, so
+    // the two grants are of one ability.
+    let mut granted = triggered_ability(whenever(enters(another(a_creature())), gain_one()));
+    granted.id = new_ability_id();
+    for (granter, timestamp) in granters.into_iter().zip([100, 101]) {
+        game.continuous_effects.add(ContinuousEffect {
+            duration: Duration::WhileSourceOnBattlefield,
+            affected_objects: ObjectSet::Fixed(vec![carrier]),
+            ..registered(
+                granter,
+                Layer::Layer6Ability,
+                timestamp,
+                EffectModification::GrantAbility(Box::new(granted.clone())),
+            )
+        });
+    }
+    let identities = |game: &GameState| -> Vec<AbilityIdentity> {
+        game.pending_triggers
+            .iter()
+            .map(|t| match t.origin {
+                TriggerOrigin::Object(identity) => identity,
+            })
+            .collect()
+    };
+
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let before = identities(&game);
+    assert_eq!(before.len(), 2, "two instances, two triggers");
+    assert_ne!(before[0], before[1], "and two identities");
+    game.pending_triggers.clear();
+
+    let source = put_on_battlefield(&mut game, sol_ring(), 1);
+    destroy_all(&mut game, &[granters[0]], source);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(
+        identities(&game),
+        vec![before[1]],
+        "the second grant's trigger, under the identity it had while the first lasted"
+    );
 }
 
 /// CR 400.7d — a permanent that resolved from a cast spell remembers who

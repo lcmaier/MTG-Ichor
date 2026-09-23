@@ -936,6 +936,19 @@ impl GameState {
         self.prevention_allocations = outer_allocations;
         decided_ok?;
 
+        // CR 603.10 decides a leaves-the-battlefield trigger from "the existence
+        // of those abilities ... immediately prior to the event". A surviving
+        // object's abilities change across this batch only if it removes the
+        // source of an effect that copies, grants or removes abilities, and then
+        // the lists from before are saved now, while they still exist
+        // (`LookBackSnapshot`). Asked of the decided members, since replacement
+        // decides whether anything departs.
+        let snapshot = self
+            .departs_an_ability_list_source(&decided)
+            .then(|| self.look_back_frames())
+            .filter(|frames| !frames.is_empty());
+        let performed_from = self.events.len();
+
         // --- Phase 2: perform, in batch order -------------------------------
         //
         // Batch order, not APNAP: the choices were what CR 101.4 sequences, and
@@ -958,6 +971,13 @@ impl GameState {
         self.trace(|| {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
+        if let Some(frames) = snapshot {
+            self.look_back_snapshots.push(crate::engine::triggers::LookBackSnapshot {
+                window: self.events.current_stamp().batch,
+                performed: performed_from..self.events.len(),
+                frames,
+            });
+        }
 
         // CR 104.2a / 104.4a are read off the batch, not off a member: two players
         // losing in one state-based check is one simultaneous event whose outcome

@@ -229,9 +229,11 @@ pub fn castable_spells(
 ///
 /// Returns `(permanent_id, ability_id)` for every mana ability on a permanent
 /// the player controls whose costs (typically tap) can be paid right now.
-/// Deduplicated by `(permanent_id, ability_id)` — a single ability that
-/// produces mana in multiple color modes (e.g. Cavern of Souls' "add any
-/// color") appears once. Mode selection, when applicable, is a follow-up
+/// Deduplicated by the permanent and the ability's definition — a single
+/// ability that produces mana in multiple color modes (e.g. Cavern of Souls'
+/// "add any color") appears once, and so do two grants of one mana ability
+/// (two Citanul Hierophants), which are one choice in outcome; the handle is
+/// the first instance's. Mode selection, when applicable, is a follow-up
 /// choice inside the ability's activation (future work; no such cards in the
 /// current pool).
 ///
@@ -246,9 +248,8 @@ pub fn enumerate_activatable_mana_abilities(
         crate::types::ids::IdSet::default();
     let mut result = Vec::new();
     for src in available_mana_sources(game, player_id) {
-        let key = (src.permanent_id, src.ability_id);
-        if seen.insert(key) {
-            result.push(key);
+        if seen.insert((src.permanent_id, src.ability_id.definition())) {
+            result.push((src.permanent_id, src.ability_id));
         }
     }
     result

@@ -203,7 +203,6 @@ pub(crate) fn trigger(
     r.field_u64("source", identity.source.id.raw());
     r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
-    r.field_u64("instance", identity.instance as u64);
     r.field_str("zone", &format!("{:?}", zone));
     r.field_bool("matched", matched);
     r.field_opt_str("refused_by", refused_by);

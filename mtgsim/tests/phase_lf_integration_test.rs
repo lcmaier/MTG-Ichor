@@ -63,8 +63,9 @@ fn ability_ids(game: &GameState, id: ObjectId) -> Vec<AbilityId> {
 
 /// The substantive half of the rule. `chars.abilities` is a `Vec`, and the same
 /// ability really can appear twice — printed on the card and granted on top of
-/// it, sharing an `AbilityId`. A "remove the first match" implementation passes
-/// every other test in this file and fails this one.
+/// it, two instances of one definition. A "remove the first match"
+/// implementation passes every other test in this file and fails this one, and
+/// so does one that matches the granted instance's own id.
 // COVERS: ATOM-113.10b-001
 #[test]
 fn test_losing_an_ability_removes_every_instance_of_it() {
@@ -76,18 +77,20 @@ fn test_losing_an_ability_removes_every_instance_of_it() {
         0,
     );
 
-    // Grant the *same* ability again — same id, so the creature now has two
+    // Grant the *same* ability again — same def, so the creature now has two
     // instances of one ability, which is the board CR 113.10b describes.
     game.continuous_effects.add(row(
         id,
         1,
         EffectModification::GrantAbility(Box::new(printed.clone())),
     ));
+    let ids = ability_ids(&game, id);
     assert_eq!(
-        ability_ids(&game, id),
+        ids.iter().map(|a| a.definition()).collect::<Vec<_>>(),
         vec![printed.id, printed.id],
         "printed + granted = two instances of the same ability"
     );
+    assert_ne!(ids[0], ids[1], "each instance with its own id (§3.6)");
 
     // One "loses [ability]" effect, and both go.
     game.continuous_effects

@@ -85,26 +85,21 @@ impl GameState {
         Ok(placed > 0)
     }
 
-    /// Item 163's elision, inherited: two entries that are instances of one
-    /// ability under one controller, with no targets and no modes and
-    /// identical bindings, give the same game in either order, so the engine
-    /// does not ask. **Expiry conditions**, each of which reopens the prompt:
-    /// a binding that differs (a different record or subject), an instance of
-    /// "target" (CR 603.3d's choice is per object), a mode (603.3c), or a
-    /// tier-2 entry (its effect reads the stack it is being put onto).
+    /// Whether one player's entries give the same game in whatever order
+    /// they go on the stack, so the ordering prompt is not asked.
+    /// `triggers-architecture.md` §5.2 gives the reason for each condition.
+    /// Compared by def rather than by id, since two grants of one ability
+    /// carry two ids.
     fn trigger_order_cannot_change_outcome(&self, seqs: &[TriggerSeq]) -> bool {
         let entries: Vec<&PendingTrigger> = seqs
             .iter()
             .filter_map(|seq| self.pending_triggers.iter().find(|t| t.seq == *seq))
             .collect();
         let Some(first) = entries.first() else { return true };
-        let TriggerOrigin::Object(first_identity) = first.origin;
         entries.iter().all(|t| {
-            let TriggerOrigin::Object(identity) = t.origin;
             t.tier() == TriggerTier::First
                 && t.instances.is_empty()
-                && identity.ability == first_identity.ability
-                && t.binding.def.effect == first.binding.def.effect
+                && t.binding.def == first.binding.def
                 && t.binding.records == first.binding.records
                 && t.binding.object == first.binding.object
         })

@@ -124,8 +124,8 @@ pub enum ChoiceKind {
     /// one tier onto the stack. The options are the entries' sources in
     /// trigger order, and the answer is a permutation; the first goes on
     /// lowest. **Asked only with two or more**, and not even then when no
-    /// order can change the game — item 163's elision, whose expiry
-    /// conditions are written beside the predicate in `engine::triggers`.
+    /// order can change the game — the elision `triggers-architecture.md`
+    /// §5.2 gives the conditions of, in `engine::triggers::placement`.
     OrderTriggers { player: PlayerId, tier: crate::types::triggers::TriggerTier },
 
     /// A "you **may** ... instead" replacement effect is offering itself

@@ -5,8 +5,8 @@
 //! were v4 UUIDs until 2026-09-16, and the cost was SipHash over sixteen bytes
 //! at every memo, object and battlefield lookup — a third of a game.
 //!
-//! Two newtypes over one integer rather than two aliases of it, so that the
-//! thirteen `(ObjectId, AbilityId)` sites cannot swap their halves silently.
+//! Two newtypes rather than two aliases of one integer, so that the thirteen
+//! `(ObjectId, AbilityId)` sites cannot swap their halves silently.
 //!
 //! Beside them, the scalars an object is *referred to* by rather than named
 //! by: CR 613.7's [`Timestamp`], CR 400.7's [`ZoneChangeEpoch`], and the pair
@@ -88,7 +88,8 @@ impl std::fmt::Display for ObjectId {
     }
 }
 
-/// Unique identifier for an ability definition on a card.
+/// Unique identifier for an ability on an object: which definition, and —
+/// for one a Layer 6 effect granted — which grant.
 ///
 /// **Per definition, not per object.** A plural token creation shares one
 /// `Arc<CardData>` across equal defs and a copy keeps its source's defs, so
@@ -97,8 +98,16 @@ impl std::fmt::Display for ObjectId {
 /// list — never across objects. Two fixtures both built as
 /// `CardDataBuilder::new("Grizzly Bears")` therefore share ids by design.
 ///
-/// The top two bits say where an id came from, so the three derivations can
-/// never collide with each other; the rest is the derivation's own:
+/// **Per grant, on top of that.** Two grants of one def put two instances on
+/// one object (Diffusion Sliver's ruling: "cumulative"), and each triggers,
+/// is activated and replaces on its own, so [`Self::granted_by`] tags the
+/// granted copy with the granting row. Equality is per instance; a site that
+/// means "this ability, whichever instance" — CR 113.10b's removal, the mana
+/// window — compares [`Self::definition`]s (`triggers-architecture.md` §3.6).
+///
+/// The definition's top two bits say where it came from, so the three
+/// derivations can never collide with each other; the rest is the
+/// derivation's own:
 ///
 /// | bits | role | derived from |
 /// |---|---|---|
@@ -107,7 +116,12 @@ impl std::fmt::Display for ObjectId {
 /// | `10` | on an object | the object and a tag ([`Self::derived_on`]) |
 /// | `11` | a test's | a process counter ([`new_ability_id`]) |
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AbilityId(u64);
+pub struct AbilityId {
+    definition: u64,
+    /// The `EffectId` of the Layer 6 row that granted this instance, or `0`
+    /// for one the object has by any other route. Registry ids start at one.
+    grant: u64,
+}
 
 const ROLE_SHIFT: u32 = 62;
 const ROLE_MASK: u64 = 0b11 << ROLE_SHIFT;
@@ -122,14 +136,18 @@ impl AbilityId {
     /// list first, then every def nested in an effect (a granted ability, a
     /// token's abilities) — so a def that reaches an object still carrying
     /// this was never built into a card.
-    pub const UNASSIGNED: AbilityId = AbilityId(0);
+    pub const UNASSIGNED: AbilityId = AbilityId { definition: 0, grant: 0 };
+
+    const fn defined(definition: u64) -> AbilityId {
+        AbilityId { definition, grant: 0 }
+    }
 
     /// A printed ability of the card named `card_name`: `ordinal` is its
     /// index in the printed list, or, past the list's end, its place among
     /// the defs nested in the printed effects. Pure in its inputs, so the
     /// same card built twice, in two processes, has the same ids.
     pub fn printed(card_name: &str, ordinal: u32) -> AbilityId {
-        AbilityId(ROLE_PRINTED | ((fnv1a_64(card_name.as_bytes()) ^ ordinal as u64) & !ROLE_MASK))
+        AbilityId::defined(ROLE_PRINTED | ((fnv1a_64(card_name.as_bytes()) ^ ordinal as u64) & !ROLE_MASK))
     }
 
     /// An ability an effect synthesizes on `object` with nowhere to store a
@@ -138,15 +156,38 @@ impl AbilityId {
     /// the next recompute must match. `tag` says which of the object's
     /// synthesized abilities this is (the land type's discriminant, there).
     pub fn derived_on(object: ObjectId, tag: u8) -> AbilityId {
-        AbilityId(ROLE_ON_OBJECT | (((object.0 << 8) | tag as u64) & !ROLE_MASK))
+        AbilityId::defined(ROLE_ON_OBJECT | (((object.0 << 8) | tag as u64) & !ROLE_MASK))
+    }
+
+    /// This ability as the Layer 6 row `row` grants it, minted where the
+    /// grant is applied (`compute.rs`). The row is the
+    /// grant: it exists exactly as long as the grant does, its id is a
+    /// counter no other row reuses, and nothing re-issues a row for a grant
+    /// that continues (`CLAUDE.md` forbids reconciling the registry), so the
+    /// instance keeps this id for its whole life and no other instance gets
+    /// it. Not the source's epoch: a resolution's row outlives the spell's
+    /// move to the graveyard and the ability object CR 608.2n deletes.
+    pub fn granted_by(self, row: u64) -> AbilityId {
+        debug_assert!(row != 0, "registry ids start at one; 0 means not granted");
+        AbilityId { definition: self.definition, grant: row }
+    }
+
+    /// The ability, whichever instance: the id with its grant dropped.
+    pub fn definition(self) -> AbilityId {
+        AbilityId::defined(self.definition)
     }
 }
 
 impl std::fmt::Display for AbilityId {
     /// Hexadecimal: the value is a derivation, and a decimal reading of it
-    /// says nothing. Diagnostics only — a log names an ability by index.
+    /// says nothing. Diagnostics only — a log names an ability by index. A
+    /// granted instance adds its row, `0x…/g7`.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#x}", self.0)
+        write!(f, "{:#x}", self.definition)?;
+        if self.grant != 0 {
+            write!(f, "/g{}", self.grant)?;
+        }
+        Ok(())
     }
 }
 
@@ -183,7 +224,7 @@ pub fn new_object_id() -> ObjectId {
 pub fn new_ability_id() -> AbilityId {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(1);
-    AbilityId(ROLE_TEST | NEXT.fetch_add(1, Ordering::Relaxed))
+    AbilityId::defined(ROLE_TEST | NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
 // ---------------------------------------------------------------------------
@@ -319,11 +360,22 @@ mod tests {
         let printed = AbilityId::printed("Forest", 0);
         let on_object = AbilityId::derived_on(object, 3);
         let test = new_ability_id();
-        assert_eq!(printed.0 & ROLE_MASK, ROLE_PRINTED);
-        assert_eq!(on_object.0 & ROLE_MASK, ROLE_ON_OBJECT);
-        assert_eq!(test.0 & ROLE_MASK, ROLE_TEST);
-        assert_ne!(AbilityId::UNASSIGNED.0 & ROLE_MASK, ROLE_PRINTED);
+        assert_eq!(printed.definition & ROLE_MASK, ROLE_PRINTED);
+        assert_eq!(on_object.definition & ROLE_MASK, ROLE_ON_OBJECT);
+        assert_eq!(test.definition & ROLE_MASK, ROLE_TEST);
+        assert_ne!(AbilityId::UNASSIGNED.definition & ROLE_MASK, ROLE_PRINTED);
         assert_ne!(new_ability_id(), test);
+    }
+
+    #[test]
+    fn two_grants_of_one_ability_are_two_instances_of_one_definition() {
+        let printed = AbilityId::printed("Diffusion Sliver", 3);
+        let (first, second) = (printed.granted_by(7), printed.granted_by(8));
+        assert_ne!(first, second);
+        assert_ne!(first, printed);
+        assert_eq!(first.definition(), printed);
+        assert_eq!(second.definition(), printed);
+        assert_eq!(first.to_string(), format!("{printed}/g7"));
     }
 
     #[test]

@@ -1381,8 +1381,10 @@ pub enum Primitive {
     /// keeps `Primitive` small, since this variant is otherwise the largest.
     ///
     /// CR 604.3a(2): the granted def's `is_characteristic_defining` is cleared
-    /// when it is applied, whatever the card author wrote. A granted ability is
-    /// never a CDA.
+    /// when it is applied, whatever the card author wrote. A Layer 6 grant is
+    /// none of 604.3a(2)'s routes to a CDA — printed, granted to a token by the
+    /// effect that created it, or acquired through a copy or text-changing
+    /// effect.
     GrantAbility(Box<crate::objects::card_data::AbilityDef>, Duration),
     /// Remove one ability by id (layer 6). CR 113.10b — *all* instances of it.
     LoseAbility(crate::types::ids::AbilityId, Duration),
