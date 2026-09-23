@@ -567,7 +567,10 @@ fixed seed in the WSL Ubuntu distro (a four-seat `stress` game is ~2.8 s under
 it, so 200 games take ten minutes, and the counters outside `=== Timing ===`
 come out identical to the native run's), first taken by item 138 on
 2026-09-15 and read in `layers-architecture.md` §12; milliseconds stay in the
-A/B sitting.
+A/B sitting. The scripts are `plans/profile/` since TR-1b: `launch_prof.sh`
+starts an arm detached, `prof_arm.sh` builds and plays one board (its flags
+are the board), and `read_prof.sh` prints the total and the top inclusive
+rows. The Commander-scale baseline is `fuzz-record.md`'s TR-1b block.
 
 **Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
 byte-identical across runs at one seed and at any `--threads`, so `fuzz_ab.py`
@@ -581,7 +584,10 @@ once per process from `MTGSIM_HASH_SEED`, so three runs under one seed would
 iterate every map in the same order and agree with each other whether or not a
 sweep is ordered. A different seed per run restores the property the check had
 under `RandomState`; `fuzz_ab.py` sets one per timing round and CI's step sets
-one per run.
+one per run. **Its counter runs are audited** (`fuzz_games --audit`,
+`triggers-architecture.md` §4.10) on every arm whose binary has the flag, and
+its timing rounds never are, so `deterministic: yes` there also says the
+audit changed nothing; a disagreement is a panic, which `Panics` flags.
 
 ```bash
 cd mtgsim && for i in 1 2 3; do MTGSIM_HASH_SEED=$i cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt

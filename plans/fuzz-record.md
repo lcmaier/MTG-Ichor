@@ -37,6 +37,175 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-22 for TR-1b** (the dispatch audit — `triggers-architecture.md`
+§4.10 and §12's TR-1b row — with main item 174's fix as its first commit, the
+dispatcher's counts as three rows, and the first Commander-scale callgrind
+reading). **No pool change**, so there is no new fixture table: `performance`
+stays at 94 and `stress` at 171. What this block records is four arms'
+attribution, the audit's sittings, what it costs, and a baseline.
+
+**Predictions, written before any arm ran.** 174's fix against `main`:
+gameplay moving only where a batch departs Humility ahead of a creature whose
+look-back ability it had removed (or March ahead of an artifact it animated),
+each diverging game attributed; the cost rows moving down, since the frame
+became a memo read at the seam where it was an uncached board walk per
+departure. The audit arm unaudited against 174's: `IDENTICAL`. The audit arm
+audited against itself unaudited: `IDENTICAL` counters. The counts arm
+against the audit arm: the three new rows and nothing else. Every audited
+sitting: zero disagreements.
+
+**The A/B, four arms, `fuzz_ab.py`**: `main` at #178's merge (`28a1d18`),
+**fix174** (`e25ceb7`), **audit** (`e083bbd`), **counts** (`45d32e7`). Both
+pools, two seats and four, 200 games, seed 12345, timing 3×200 on
+`performance`. The sitting now audits its counter runs on every arm whose
+binary has `--audit` (audit and counts), and its timing rounds never.
+
+| arm | counters | µs / decision vs `main`, two seats / four |
+|---|---|---|
+| fix174 vs `main` | every gameplay row identical; six cost rows move, all down | −1.9% / −5.9% |
+| audit (audited) vs fix174 (unaudited) | **IDENTICAL** on both pools at two seats and four | −0.8% / −6.1% vs `main` |
+| counts vs audit, both audited | **IDENTICAL** outside the three new rows | −0.7% / −6.5% vs `main` |
+
+The six rows, `performance` / `stress`: at two seats `Layer walks` 366 → 358 /
+494 → 487, `Board walks` 245 → 237 / 317 → 310, `Memo hits` 64,525 → 64,559 /
+101,673 → 101,707, `Layer frames` 4,748 → 4,551 / 7,071 → 6,905, `Frames/walk`
+12.96 → 12.71 / 14.32 → 14.19, `Dependency checks` 30 → 29 / 18 → 17; at four
+seats 815 → 764 / 1,107 → 1,057, 540 → 489 / 643 → 593, 196,290 → 196,412 /
+284,988 → 285,114, 16,765 → 14,922 / 21,574 → 19,750, 20.56 → 19.53 /
+19.48 → 18.69, 106 → 92 / 129 → 117. The four-seat saving is the larger
+because a player leaving departs a whole board, and each permanent was one
+uncached walk.
+
+**What moves in fix174, game by game** — the 200-game `--dump-events` streams
+of `main` and fix174 diffed per game. `performance`: 0 of 200 at either seat
+count. `stress`: 1 of 200 at two seats and 5 of 200 at four, and in **every
+one the only difference is a frame's type annotation** — seven lines in six
+games, `Creature` → `Creature Land` (one `Artifact Creature` →
+`Artifact Creature Land`), where Ashaya, Soul of the Wild ("nontoken creatures
+you control are Forest lands") left in the same batch ahead of the creature.
+The fix frames the creature before the event, a land; `main` framed it after
+Ashaya left. Named by name at two seats and, for the three four-seat games
+whose owners had left, by replaying each alone under a turn cap (seeds 12386,
+12504, 12523). No trigger and no decision moved: every watcher in those games
+reads "a creature", which both frames are. So the prediction's shape held and
+its example did not: the shipped pools reach item 174's appearance half
+through Ashaya, not March, and reach its trigger half not at all.
+
+**Reachability** — `--require "Humility,Blood Artist" --copies 4`, 200 games,
+`main` against fix174 game by game. On `stress` **1 of 200 at two seats and 1
+of 200 at four change an answer**, both item 174's board exactly: one
+state-based check after a Pyroclasm (seed 12413) and after combat (seed
+12502) moves Humility ahead of a Blood Artist, and `main` triggers that
+Blood Artist on every death in the event where fix174 triggers it on none.
+Four more four-seat games differ by the Ashaya annotation only. On
+`performance` 0 of 200 at both seat counts. `Triggers placed` reads 2.0 and
+4.5 on both arms: one game's three triggers are below the row's precision.
+
+**The audited sittings** — `fuzz_games --audit` on the counts arm, 200 games,
+seed 12345, **zero disagreements on every board**:
+
+| board | dispatches answered twice | triggers agreed | `Triggers placed` |
+|---|---|---|---|
+| `performance`, two seats / four | 177,397 / 360,439 | 538 / 1,219 | 1.5 / 4.2 |
+| `stress`, two seats / four | 209,234 / 410,372 | 331 / 965 | 1.0 / 3.7 |
+| Commander scale (four seats, 100 cards, 40 life), `performance` / `stress` | 493,427 / 556,543 | 1,657 / 1,623 | 4.7 / 5.3 |
+| `stress`, Humility and Blood Artist ×4, two seats / four | 248,868 / 557,494 | 567 / 1,118 | 2.0 / 4.5 |
+| `performance`, the three TR-1 cards ×8, two seats / four | 263,880 / 602,841 | 13,228 / 36,662 | 47.5 / 149.6 |
+
+Audited against unaudited, the audit arm's output outside `=== Timing ===` is
+identical line for line on both pools at two seats and four (by hand), and
+every timing round of the sitting above, unaudited, reproduced its audited
+counter run (`deterministic: yes` on all four arms at both seat counts).
+
+**The audit bites** — recorded, not committed; each a one-line switch in a
+release build, the tree restored after. **Item 167's snapshot off**
+(`departs_an_ability_list_source` answering false): the forced Humility
+board on `stress` panics in game 175 (seed 12519): Humility and Parallel
+Lives die in one state-based check, and the dispatcher triggers the surviving
+Blood Artist twice where the reference says none. **Item 174's seam capture
+off** (the move walking the board it finds): the same board panics in game
+69 at two seats and game 158 at four, Humility moved ahead of a Blood Artist
+and the dispatcher triggering on each death. **F1 as it stood** (CR 113.6
+asked of the object, and the per-condition check round 1 added to
+`match_def` off with it — `match_def` is shared with the reference, and the
+per-condition check alone masks the per-def one on Dread, whose two
+abilities have one condition each): `the_audit_agrees_over_a_zone_map_card`
+panics at the damage window, naming Dread's damage trigger as the
+dispatcher's alone, before the fixture's own assertion.
+
+**What the audit costs** (decision 2: every zone, libraries included, unless
+the cost said otherwise). CPU per game, serial, audited against unaudited:
+7.7 → 85.0 ms at two seats (×11), 23.0 → 314.9 ms at four (×14), 39.3 → 750.3
+ms at Commander scale (×19, 50 games). A threaded 200-game audited sitting is
+3 s at two seats, 8 s at four and about 20 s at Commander scale, which is
+what an A/B's counter runs now pay per arm and pool. Not prohibitive, so
+libraries stay in reach.
+
+**The dispatcher's rows** read 25.5 / 31.0 / 2.7 (`Windows past gate`,
+`Candidate visits`, `Trigger matches`) on `performance` at two seats and
+70.8 / 109.0 / 6.1 at four; with eight copies each of the three TR-1 cards at
+two seats, 189.0 / 712.9 / 66.1. `triggers-architecture.md` §11.1's throwaway
+probe read 25 / 30 / 2.7 and 189 / 707 / 66.1 on the first two boards.
+Windows and matches reproduce it; candidates are counted per ability list,
+and counting distinct objects instead gives 30.6 and 708.9, so the per-list
+definition is part of the gap and the rest is not attributed.
+
+**Callgrind at Commander scale — the baseline.** `plans/profile/`'s scripts
+(new in this PR; the board is their argument), `--games 200 --seed 12345
+--pool performance --players 4 --deck-size 100 --life 40`, `main` and the
+head (`45d32e7`) built and run in WSL the same hour; each arm's counters
+identical native and under valgrind. **Totals: 99,927,135,440 instructions
+on `main`, 95,957,039,123 on the head (−3.97%).** The whole difference is
+the CR 603.10a capture: `compute_characteristics_uncached` is 4.00 G (4.01%)
+on `main`, 13,414 calls, and has no row on the head, where the frame is a
+memo read at the seam. Inclusive rows, first row per function, down to 6% of
+the head:
+
+| function | `main` (G) | head (G) | head % |
+|---|---|---|---|
+| `Game::run_turn` | 98.12 | 94.16 | 98.1% |
+| `GameState::run_priority_round` | 83.37 | 79.39 | 82.7% |
+| `GameState::check_state_based_actions` | 39.03 | 35.22 | 36.7% |
+| `layers::compute::compute_characteristics` | 33.21 | 33.25 | 34.6% |
+| `layers::board::compute_board_to` | 22.49 | 22.39 | 23.3% |
+| `GameState::execute_batch_inner` | 26.32 | 22.32 | 23.3% |
+| `replacement::pipeline::apply_replacements` | 19.80 | 19.72 | 20.5% |
+| `oracle::legality::candidate_priority_actions` | 18.33 | 18.34 | 19.1% |
+| `replacement::gather::gather` | 17.04 | 16.99 | 17.7% |
+| `oracle::characteristics::is_creature` | 15.88 | 15.90 | 16.6% |
+| `GameState::execute_actions` | 14.33 | 13.97 | 14.6% |
+| `oracle::mana_helpers::available_mana_sources` | 12.47 | 12.47 | 13.0% |
+| `oracle::mana_helpers::castable_spells` | 12.11 | 12.11 | 12.6% |
+| `layers::board::perform` | 12.49 | 10.89 | 11.4% |
+| `GameState::drain` | 10.41 | 10.42 | 10.9% |
+| `GameState::resolve_top_of_stack` | 10.04 | 9.91 | 10.3% |
+| `GameState::battlefield_ordered` | 9.85 | 9.85 | 10.3% |
+| `GameState::change_zone` | 8.87 | 8.85 | 9.2% |
+| `__rust_alloc` | 9.75 | 8.81 | 9.2% |
+| `RandomState::hash_one::<&CardType>` | 8.94 | 8.56 | 8.9% |
+| `GameState::run_mana_ability_window` | 8.22 | 8.22 | 8.6% |
+| `GameState::cast_spell` | 8.12 | 8.09 | 8.4% |
+| `__rust_dealloc` | 8.01 | 7.66 | 8.0% |
+| `GameState::battlefield_ids_ordered` | 7.61 | 7.53 | 7.8% |
+| `oracle::mana_helpers::find_mana_sources` | 7.32 | 7.32 | 7.6% |
+| `driftsort_main::<(ObjectId, &PermanentState)>` | 7.27 | 7.27 | 7.6% |
+| `GameState::perform_sba_and_triggers` | 6.75 | 6.70 | 7.0% |
+| `layers::board::write_affected` | 7.38 | 6.43 | 6.7% |
+| `oracle::characteristics::get_effective_abilities` | 6.37 | 6.38 | 6.6% |
+| `oracle::mana_helpers::activatable_abilities` | 6.05 | 6.05 | 6.3% |
+| `layers::board::row_affected` | 6.61 | 5.76 | 6.0% |
+
+The dispatcher itself (`dispatch_inner`, which `find_matches` inlines into on
+the head) is 1.72 G on `main` and 1.73 G on the head, 1.8%: §11.2's 2% at this
+scale, now an instruction count. Two rows no phase has named sit in the top
+third: the sort behind `battlefield_ordered` (10.3% inclusive, 7.6% of it
+`driftsort` over `(ObjectId, &PermanentState)`) and SipHash over the type set
+(`hash_one::<&CardType>`, 8.9%). They are a reading, not a plan.
+
+**Determinism** holds under three `MTGSIM_HASH_SEED`s, line for line outside
+`=== Timing ===`, `stress`, 60 games, seed 99, at two seats and four, audited
+and unaudited.
+
 **Re-recorded 2026-09-22 for the TR-1 review, theme E** (provenance ids —
 `triggers-architecture.md` §3.6's amendment as built — and main item 167's
 look-back snapshot, §4.3). **No pool change**: `performance` stays at 94 and

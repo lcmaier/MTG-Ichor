@@ -1,0 +1,2 @@
+# These run under bash in WSL, where a carriage return is part of the command.
+*.sh text eol=lf
