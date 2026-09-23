@@ -7949,3 +7949,56 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      the outer batch's (`triggers-architecture.md` §4.3).
      **Reachability (2026-09-22):** closed — TR-1b's first commit.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 174".
+
+### Found by TR-1b — the dispatch audit (2026-09-22)
+
+**Shipped:** item 174's fix, `engine/triggers/audit.rs` and its switch
+(`enable_dispatch_audit`, `fuzz_games --audit`, `fuzz_ab.py`'s audited counter
+runs), the dispatcher's three rows, and `plans/profile/`'s callgrind scripts
+(`triggers-architecture.md` §4.10 as built; §12's TR-1b stub; `fuzz-record.md`,
+the TR-1b block). Every audited sitting read zero disagreements. What follows
+is what writing the reference found: two readings the dispatcher does not
+make, each silent until a pooled card reaches it, when the audit reports it.
+The third such reading, a departed object's host, is "Before Triggered
+abilities" item 14's.
+
+175. **A survivor's two lists can trigger one ability twice on one record.**
+     A batch that takes §4.3's look-back snapshot makes a survivor two
+     candidates, its list from before asking the look-back arms and its list
+     now asking the rest, and `find_matches` folds "one or more" per
+     (identity, arm). A def with a look-back arm and another arm that both
+     match one record — "whenever a creature dies or a creature card is put
+     into a graveyard from anywhere" — therefore triggers once per list. CR
+     603.2c: an ability triggers only once each time its trigger event
+     occurs. The audit's reference asks each ability once per record and
+     keeps the first arm that matches.
+
+     **Reachability (2026-09-22):** unreachable — every registered def's arms
+     are of one class (Blood Artist's single arm looks back), and it needs a
+     survivor in a batch that departs an ability list's source besides.
+
+     **Sized:** ~10 lines in `find_matches`: a survivor's two candidates fold
+     their matches per (identity, record), keeping the lower arm, which is
+     `audit.rs`'s `reference_ask` rule.
+
+176. **A window's departure frames and newcomers answer records that are not
+     theirs.** The dispatcher asks every frame a window's departures carry,
+     and every live list, about every record in the window. When the records
+     come from more than one batch — a rider's, after its replaced event
+     performed — a permanent that left in the first batch answers the look-back
+     arms of a death in the second, which happened after it was gone, and a
+     permanent that entered between them answers the look-back arms of a death
+     before it arrived. CR 603.10a looks back to the instant before each
+     event, when neither was there. The audit's reference reads each record's
+     objects at its own seam, the outermost batch that performed it; within
+     one batch, a destruction's nested move included, the two agree.
+
+     **Reachability (2026-09-22):** unreachable — every audited sitting (both
+     pools at two seats and four, Commander scale, and the forced Humility and
+     TR-1 boards) read zero disagreements, so no pooled card builds such a
+     window with a look-back source on either side of it.
+
+     **Sized:** ~40 lines: each candidate list names the seam it describes (a
+     departure's frame, a newcomer's entry), and a look-back arm is asked of
+     it only for the records whose seam it existed at; `audit.rs`'s `pair`
+     is the rule.

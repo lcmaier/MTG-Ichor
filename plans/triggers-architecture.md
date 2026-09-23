@@ -1269,6 +1269,42 @@ pooled card reaches them, which is the point.
 **Sized** in §12, TR-1b: about 550 lines of code and tests, one PR in
 three commits (item 174's fix, the audit, the counts).
 
+**Decided** by the owner on 2026-09-22, each as recommended: (b), a runtime
+switch; (a), every zone, libraries included, since the measured cost did
+not say otherwise; item 174 fixed first, with no list of known
+disagreements; and the counts as rows.
+
+**As built** (TR-1b, `engine/triggers/audit.rs`). `enable_dispatch_audit`
+turns it on, `fuzz_games --audit` calls that, and `fuzz_ab.py` passes the
+flag in its threaded counter runs to every arm whose binary has it. At each
+batch's seam, beside §4.3's snapshot and item 174's departure frames, the
+audit captures every object in every zone with its list, zone, controller
+and host; an ability on the stack is an object (CR 113.1c) without its
+source's abilities, and is not captured. A record reads the capture of the
+earliest seam whose performed range covers it: the outermost batch, whose
+seam comes before any nested one's, which ties with it on the range's start
+when the nested batch is the first thing performed. The dispatcher's gate
+and match became `detect`, so the audit sees its answer at every exit, the
+gate's included. For each record and object, each triggered ability is
+asked once, its look-back arms off the list from before and the rest off the
+list now, and the first arm in the def's order that matches is the trigger
+(CR 603.2c). An object that changed zones since the seam has only the list
+from before, one that exists only since only the list now, and an unbatched
+record, which no seam precedes, reads the list now as both. Its reads are
+invisible by a save and restore of the layer memo, the diagnostics and the
+trace handle around each; a whole game audited and unaudited has the same
+diagnostics, event log and trace lines, which is a test.
+
+**Where the reference reads what the dispatcher does not.** Three readings,
+each silent while no pooled card reaches it and loud the day one does. A
+departed object's host and controller are the ones it had before the event,
+where the dispatcher's departed candidate has no host until TR-4's frame
+carries `attached_to` ("Before Triggered abilities" item 14). One ability
+triggers once per record across a survivor's two lists (main item 175). And
+each record reads the objects that existed at its own seam, where the
+dispatcher asks every departure frame and every live list of the window
+about every record in it (main item 176).
+
 ---
 
 ## 5. Placement — the stub, drained (CR 603.3)
@@ -1730,6 +1766,13 @@ The three sweeps together are at most about a quarter of the CPU; the rest
 is outside this probe, and §3's instruction-count profile is the instrument
 for ranking it.
 
+**Since TR-1b the probe's count columns are rows** (§4.10, decision 4):
+`Windows past gate`, `Candidate visits` and `Trigger matches` print in every
+sitting. And the instruction-count profile has its first reading at this
+scale — `fuzz-record.md`'s TR-1b block, taken with `plans/profile/`: the
+dispatcher is 1.8% of 95.96 G instructions, and the replacement gather 17.7%
+inclusive, which agrees with the probe above.
+
 **A/B predictions, per phase**, in `engineering-practices.md` §3.1's terms —
 three arms where a pool changes (`main`, the engine with pools unchanged,
 shipped), two seats and four, and the budget is 2.5 points of CPU per
@@ -1797,29 +1840,37 @@ shipped arm differs, with `Triggers placed` 1.5 and 4.2 on `performance`.
 → `plans/archive/triggers-architecture-landed.md`, "TR-1"; the trace page
 `plans/traces/tr-1-a-trigger-is-matched-at-the-close.html`.
 
-### TR-1b — the dispatch audit (~550)
+### TR-1b — the dispatch audit (~550) — ✅ landed 2026-09-22
 
-The TR-1 review's closing question was how anyone knows detection is
-right, and the answer was that nothing checked it (§4.10). Scheduled by
-the owner on 2026-09-22 as the next piece of work, before TR-2, so that
-TR-2's new trigger conditions arrive under the check.
+**What shipped.** Main item 174's fix: a departing permanent framed at its
+batch's seam, a destruction's nested move reading the outer batch's frame
+(§4.3). `engine/triggers/audit.rs`: the seam capture of every object in
+every zone, the reference matcher, the multiset comparison and its panic,
+and the invisible reads (§4.10). `enable_dispatch_audit`, `fuzz_games
+--audit`, and `fuzz_ab.py` auditing its counter runs. The three dispatcher
+rows, `Windows past gate`, `Candidate visits` and `Trigger matches`.
+`plans/profile/`'s callgrind scripts, the board their argument. Twelve
+tests: nine in `phase_tr1b_integration_test.rs` (item 174 in both batch
+orders, the audit over each candidate set, the whole-game invisibility
+test, the rows) and three unit tests of the comparison.
 
-| Piece | ~additions |
-|---|---|
-| Item 174: capture each decided departure's frame at the batch's seam, where §4.3's snapshot is taken, and have the move read it; a fixture in both batch orders | ~100 |
-| The audit's capture at every seam, the reference matcher, the comparison and its report, the runtime switch, `fuzz_games --audit` and `fuzz_ab.py`'s counter runs | ~250 |
-| The dispatcher's counts as diagnostics rows (§4.10 decision 4) | ~30 |
-| Tests: the audit on over each candidate set's board (a printed source, a zone-map card, a granted trigger, a departed frame, a survivor's snapshot), and a comparison fed two different answers | ~170 |
+**What moved on the way in.** The departure frames became memo reads where
+the capture was one uncached board walk per departure, which is the whole
+of the measured saving. Writing the reference found two readings the
+dispatcher does not make, filed as main items 175 and 176, both
+unreachable. About 1,130 lines of code and tests against ~550: the
+reference's own capture and pairing, and the harness plumbing.
 
-**Gate:** the usual, plus an audited sitting on both pools at two seats and
-four, and on the forced boards (Humility with Blood Artist at four copies;
-Soul Warden, Blood Artist and Wild Growth at eight), reading zero
-disagreements. **The audit shown to bite**, recorded rather than committed:
-with item 167's snapshot reverted, and separately item 174's fix, an
-audited sitting reports the disagreement; F1, which no pooled card
-reaches, is shown on Dread's fixture with the audit on. A/B: audited and
-unaudited counters `IDENTICAL`, and the unaudited arm against `main` moving
-only by the new rows.
+**Measured** (`fuzz-record.md`, the TR-1b block): zero disagreements on
+every audited sitting, both pools at two seats and four, Commander scale,
+and the forced boards; the audit shown to bite with item 167's snapshot
+off, item 174's capture off, and F1 as it stood; the audit ×11 to ×19 CPU
+per game, a threaded sitting 3 to 20 s. Item 174's fix changes one forced
+game's answer in 200 at each seat count and no shipped game's play, and
+moves CPU per decision −1.9% and −5.9%. The first Commander-scale callgrind
+reading: 95.96 G instructions, −3.97% against `main`.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-1b".
 
 ### TR-2 — the histories, the gates, "may", and each player (~2,150)
 

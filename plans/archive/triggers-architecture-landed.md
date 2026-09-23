@@ -152,3 +152,58 @@ theme A's three and theme D's four), so they are not asked again:
 dispatch passing the gate on the old pools at two seats or four; the engine
 arm read `IDENTICAL` on every counter on both pools at both seat counts; the
 shipped arm's `Triggers placed` row and the reachability counts are there.
+
+#### TR-1b — the dispatch audit (~550) — ✅ landed 2026-09-22
+
+*Evicted 2026-09-22 from `plans/triggers-architecture.md` §12, where the heading and a stub remain.*
+
+### The plan as sized (2026-09-22)
+
+The TR-1 review's closing question was how anyone knows detection is
+right, and the answer was that nothing checked it (§4.10). Scheduled by
+the owner on 2026-09-22 as the next piece of work, before TR-2, so that
+TR-2's new trigger conditions arrive under the check.
+
+| Piece | ~additions |
+|---|---|
+| Item 174: capture each decided departure's frame at the batch's seam, where §4.3's snapshot is taken, and have the move read it; a fixture in both batch orders | ~100 |
+| The audit's capture at every seam, the reference matcher, the comparison and its report, the runtime switch, `fuzz_games --audit` and `fuzz_ab.py`'s counter runs | ~250 |
+| The dispatcher's counts as diagnostics rows (§4.10 decision 4) | ~30 |
+| Tests: the audit on over each candidate set's board (a printed source, a zone-map card, a granted trigger, a departed frame, a survivor's snapshot), and a comparison fed two different answers | ~170 |
+
+**Gate:** the usual, plus an audited sitting on both pools at two seats and
+four, and on the forced boards (Humility with Blood Artist at four copies;
+Soul Warden, Blood Artist and Wild Growth at eight), reading zero
+disagreements. **The audit shown to bite**, recorded rather than committed:
+with item 167's snapshot reverted, and separately item 174's fix, an
+audited sitting reports the disagreement; F1, which no pooled card
+reaches, is shown on Dread's fixture with the audit on. A/B: audited and
+unaudited counters `IDENTICAL`, and the unaudited arm against `main` moving
+only by the new rows.
+
+### As landed (2026-09-22)
+
+| Piece | sized | landed |
+|---|---|---|
+| Item 174's seam capture and its two fixtures | ~100 | 195 (95 code, 100 tests) |
+| The audit: capture, reference, comparison, switch, `fuzz_games --audit`, `fuzz_ab.py` | ~250 | 555 |
+| The dispatcher's rows | ~30 | 67, and a 28-line test |
+| Tests of the audit | ~170 | 285 (237 integration, 48 unit) |
+| `plans/profile/` (not sized) | — | 76 |
+
+**Where the audit grew.** The sizing counted a reference that reused the
+dispatcher's candidate sets with the lists swapped in. The design says the
+reference is independent of those sets, so it builds its own: every object
+in every zone at every seam and at every dispatch, paired across the two by
+`ObjectRef` so an object that changed zones is two existences (CR 400.7),
+and each ability asked once across its two lists. The comparison's report
+renders the window and both sides by name, and the whole-game invisibility
+test plays a game twice. Commit 2 changed the dispatcher's shape only as
+far as the audit needed: the gate and the match became `detect`, the queue
+`queue_matches`, and the internals the reference shares became `pub(super)`.
+
+**Two findings, filed rather than fixed** (`codebase-state.md` main items
+175 and 176): one ability can trigger twice on one record across a
+survivor's two lists, and a window's departure frames and newcomers answer
+records from before and after their own existence. Both unreachable on the
+pools, both the audit's to report first.
