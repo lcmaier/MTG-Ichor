@@ -951,6 +951,8 @@ impl GameState {
         // moved, a later one would see an earlier one gone (item 174).
         let frames_from = self.departure_frames.len();
         self.capture_departure_frames(&decided);
+        // The dispatch audit's own capture, of every object, when it is on (§4.10).
+        let audit_seam = self.audit_seam();
         let performed_from = self.events.len();
 
         // --- Phase 2: perform, in batch order -------------------------------
@@ -987,6 +989,9 @@ impl GameState {
                 performed: performed_from..self.events.len(),
                 frames,
             });
+        }
+        if let Some(seam) = audit_seam {
+            self.audit_performed(seam, performed_from..self.events.len());
         }
 
         // CR 104.2a / 104.4a are read off the batch, not off a member: two players

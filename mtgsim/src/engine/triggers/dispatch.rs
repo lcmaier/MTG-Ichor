@@ -21,6 +21,7 @@
 
 use std::sync::Arc;
 
+use super::audit::AuditCapture;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
 use crate::engine::layers::condition::settled_holds;
@@ -141,24 +142,24 @@ pub fn visible_to_all(game: &GameState, id: ObjectId) -> bool {
 /// now, a departed object's CR 603.10a frame, or a survivor's list from
 /// before a batch. An object with lists from before the event is several
 /// candidates, one per list, side by side.
-struct TriggerCandidate<'a> {
-    id: ObjectId,
+pub(super) struct TriggerCandidate<'a> {
+    pub(super) id: ObjectId,
     /// CR 603.3a's "you": the player who controls the source now, or the
     /// frame's controller for a departed one.
-    controller: PlayerId,
-    owner: PlayerId,
-    zone: Zone,
+    pub(super) controller: PlayerId,
+    pub(super) owner: PlayerId,
+    pub(super) zone: Zone,
     /// The source's host (CR 303.4m), for `TriggerSubject::Host`.
-    host: Option<ObjectId>,
-    frame: TriggerCandidateFrame<'a>,
+    pub(super) host: Option<ObjectId>,
+    pub(super) frame: TriggerCandidateFrame<'a>,
     /// What a stack object is built from (CR 603.3's "text of the ability").
-    card: Arc<CardData>,
+    pub(super) card: Arc<CardData>,
 }
 
 /// Which list a candidate reads, and so which trigger arms it answers: CR
 /// 603.10 gives a look-back arm the list from before the event and every
 /// other arm the list now.
-enum TriggerCandidateFrame<'a> {
+pub(super) enum TriggerCandidateFrame<'a> {
     /// A live object's list now, off the layer memo. `snapshots` are the
     /// ones holding its list from before, by index into the window's.
     Live { chars: Arc<EffectiveCharacteristics>, snapshots: Vec<usize> },
@@ -215,28 +216,28 @@ struct TriggerCandidateDef<'a> {
 
 /// Which of a def's arms one record asks (`TriggerEvent::looks_back`).
 #[derive(Clone, Copy)]
-enum Asks {
+pub(super) enum Asks {
     Every,
     LookBack,
     NotLookBack,
 }
 
 /// A match the dispatcher will queue or resolve.
-struct MatchedTrigger {
-    identity: AbilityIdentity,
-    controller: PlayerId,
+pub(super) struct MatchedTrigger {
+    pub(super) identity: AbilityIdentity,
+    pub(super) controller: PlayerId,
     def: Arc<TriggerDef>,
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
-    event: EventIndex,
-    records: Vec<EventSeq>,
-    object: Option<ObjectRef>,
+    pub(super) event: EventIndex,
+    pub(super) records: Vec<EventSeq>,
+    pub(super) object: Option<ObjectRef>,
     mana: bool,
 }
 
 /// Why a candidate did not trigger — the `trigger` record's field.
 #[derive(Clone, Copy)]
-enum Refusal {
+pub(super) enum Refusal {
     /// The condition is a state trigger, which TR-6 checks.
     State,
     /// CR 603.2f.
@@ -277,7 +278,8 @@ impl GameState {
             .into_iter()
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
-        self.dispatch(&window, Some(ctx), &snapshots)
+        let captures = self.take_audit_captures(batch);
+        self.dispatch(&window, Some(ctx), &snapshots, &captures)
     }
 
     /// One record emitted outside any batch — a phase beginning, a cast, an
@@ -286,7 +288,7 @@ impl GameState {
         // No `ActionContext` reaches an emission, and none is needed: a mana
         // trigger's event (`ManaAdded`) is performed inside a batch, so the
         // only path that resolves at dispatch never runs here.
-        let _ = self.dispatch(&[seq], None, &[]);
+        let _ = self.dispatch(&[seq], None, &[], &[]);
     }
 
     fn dispatch(
@@ -294,6 +296,7 @@ impl GameState {
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
+        captures: &[AuditCapture],
     ) -> Result<(), String> {
         // CR 104.1 — a game that has ended queues nothing; nobody would
         // receive priority to place it.
@@ -308,7 +311,7 @@ impl GameState {
             ));
         }
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots);
+        let result = self.dispatch_inner(window, ctx, snapshots, captures);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -340,12 +343,28 @@ impl GameState {
     ///    is emitted (§4.8). CR 603.3b's second tier is what watches that
     ///    record, and the recursion it opens is what `DISPATCH_NESTING_LIMIT`
     ///    bounds.
+    ///
+    /// In an audited game (§4.10) the reference answers the same window
+    /// between steps 3 and 4, whatever the gate said.
     fn dispatch_inner(
         &mut self,
         window: &[EventSeq],
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
+        captures: &[AuditCapture],
     ) -> Result<(), String> {
+        let matches = self.detect(window, snapshots);
+        if self.dispatch_audit.is_some() {
+            self.audit_dispatch(window, captures, &matches);
+        }
+        if matches.is_empty() {
+            return Ok(());
+        }
+        self.queue_matches(matches, ctx)
+    }
+
+    /// Steps 1 to 3: the gate and the match, read-only.
+    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
         // --- The gate: four probes, and on the old pools nothing else -------
         //
         // The window's kinds first, OR-ed once (§11). A window no arm can
@@ -359,7 +378,7 @@ impl GameState {
             }
         });
         if window_kinds.is_empty() {
-            return Ok(());
+            return Vec::new();
         }
         let summary = self.continuous_effects.summary();
         let unattributed = summary.unattributed_trigger_zones;
@@ -378,14 +397,13 @@ impl GameState {
             && !any_frame_source
             && snapshots.is_empty()
         {
-            return Ok(());
+            return Vec::new();
         }
+        self.find_matches(window, readers, unattributed, snapshots)
+    }
 
-        let matches = self.find_matches(window, readers, unattributed, snapshots);
-        if matches.is_empty() {
-            return Ok(());
-        }
-
+    /// Steps 4 and 5, for the matches `detect` found.
+    fn queue_matches(&mut self, matches: Vec<MatchedTrigger>, ctx: Option<&ActionContext>) -> Result<(), String> {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
@@ -778,7 +796,7 @@ impl GameState {
     /// One def against one record: the first arm that matches, and the
     /// subjects of its occurrences (one per trigger). `Err` names the
     /// predicate that refused.
-    fn match_def(
+    pub(super) fn match_def(
         &self,
         def: &TriggerDef,
         candidate: &TriggerCandidate<'_>,
@@ -1020,7 +1038,7 @@ impl GameState {
         None
     }
 
-    fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
+    pub(crate) fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
         self.objects.get(&id).map(|o| ObjectRef { id, zone_change_epoch: o.zone_change_epoch })
     }
 

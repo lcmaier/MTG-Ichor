@@ -581,6 +581,10 @@ pub struct GameState {
     /// frame sees an earlier member leave (item 174). A move takes its own;
     /// each batch drops the rest once it has performed.
     pub(crate) departure_frames: Vec<crate::engine::triggers::DepartureFrame>,
+    /// The dispatch audit's captures and counts, in a game that turned it on
+    /// (`enable_dispatch_audit`); `None` otherwise, which is all a dispatch
+    /// or a seam pays.
+    pub(crate) dispatch_audit: Option<Box<crate::engine::triggers::DispatchAudit>>,
 
     // --- Event log ---
     pub events: EventLog,
@@ -843,6 +847,7 @@ impl GameState {
             zone_trigger_sources: IdMap::default(),
             look_back_snapshots: Vec::new(),
             departure_frames: Vec::new(),
+            dispatch_audit: None,
             events: EventLog::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),

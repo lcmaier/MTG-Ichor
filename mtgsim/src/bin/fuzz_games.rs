@@ -173,6 +173,11 @@ struct Args {
     /// With `--trace`, trace only game N (1-based, the number the report
     /// prints), `--trace-game N`.
     trace_game: Option<usize>,
+    /// Answer every trigger dispatch a second time with the reference matcher
+    /// and panic where the two differ, `--audit` (`engine::triggers::audit`,
+    /// `triggers-architecture.md` §4.10). Off by default; on, it changes no
+    /// counter, and a disagreement is a `PANIC` line carrying the game's seed.
+    audit: bool,
 }
 
 /// The two pools, and the reason there are two.
@@ -221,6 +226,7 @@ fn parse_args() -> Args {
         life: 20,
         trace: None,
         trace_game: None,
+        audit: false,
     };
 
     let mut i = 1;
@@ -314,6 +320,9 @@ fn parse_args() -> Args {
             }
             "--no-auto-pay" => {
                 result.auto_pay = false;
+            }
+            "--audit" => {
+                result.audit = true;
             }
             "--players" => {
                 i += 1;
@@ -612,6 +621,10 @@ struct GameStats {
     decisions: u64,
     priority_decisions: u64,
     triggers_placed: u64,
+    /// `--audit`: dispatches answered twice and the triggers both answers
+    /// agreed on. Zero without the flag.
+    audited_dispatches: u64,
+    audited_triggers: u64,
     /// `--require` reachability: `(name, cast, resolved)`, in the order the
     /// flag listed them. Empty unless the flag is set.
     ///
@@ -861,6 +874,8 @@ struct AggregateStats {
     /// The two four-player rows — see `GameStats`.
     total_turns_after_departure: u64,
     total_departed_owned_permanents: u64,
+    total_audited_dispatches: u64,
+    total_audited_triggers: u64,
 }
 
 impl AggregateStats {
@@ -888,6 +903,8 @@ impl AggregateStats {
         self.total_decisions += game.decisions;
         self.total_priority_decisions += game.priority_decisions;
         self.total_triggers_placed += game.triggers_placed;
+        self.total_audited_dispatches += game.audited_dispatches;
+        self.total_audited_triggers += game.audited_triggers;
         if self.reach.is_empty() {
             self.reach = game.reach.iter().map(|(n, _, _)| (n.clone(), 0, 0, 0)).collect();
         }
@@ -1070,6 +1087,7 @@ fn run_one_game(
     middleware: MiddlewareConfig,
     table: TableConfig,
     trace: &TraceConfig,
+    audit: bool,
 ) -> (GameOutcome, std::time::Duration) {
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
@@ -1103,6 +1121,9 @@ fn run_one_game(
         let mut config = GameConfig::test();
         config.starting_life = table.life;
         let mut game = Game::new(config, decks).expect("Failed to create game");
+        if audit {
+            game.state.enable_dispatch_audit();
+        }
         game.reseed(shuffle_seed);
         let sink = trace.sink_for(game_num, game_seed);
         if let Some(sink) = &sink {
@@ -1166,6 +1187,9 @@ fn run_one_game(
                 s.decisions = c.decisions();
                 s.priority_decisions = c.priority_decisions();
                 s.triggers_placed = c.triggers_placed();
+                let (dispatches, triggers) = game.state.dispatch_audit_counts().unwrap_or((0, 0));
+                s.audited_dispatches = dispatches;
+                s.audited_triggers = triggers;
                 s
             },
         ))
@@ -1213,13 +1237,14 @@ fn run_games(
     middleware: MiddlewareConfig,
     table: TableConfig,
     trace: &TraceConfig,
+    audit: bool,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    middleware, table, trace,
+                    middleware, table, trace, audit,
                 )
             })
             .collect();
@@ -1251,6 +1276,7 @@ fn run_games(
                                     middleware,
                                     table,
                                     trace,
+                                    audit,
                                 ),
                             ));
                         }
@@ -1304,6 +1330,11 @@ fn main() {
     // Off the default for the payer line's reason; `fuzz_ab.py` drops a row
     // the baseline does not print, so an arm with the sink on still reads
     // `IDENTICAL` on everything the game did.
+    // Off the default for the payer line's reason; `fuzz_ab.py` strips the
+    // audit's lines, which are about the run and not the game.
+    if args.audit {
+        println!("Audit: on — every trigger dispatch answered twice (triggers-architecture.md §4.10)");
+    }
     if let Some(dir) = &args.trace {
         std::fs::create_dir_all(dir).expect("cannot create the trace directory");
         match args.trace_game {
@@ -1410,6 +1441,7 @@ fn main() {
             required_copies: args.copies,
         },
         &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
+        args.audit,
     );
 
     // Reporting is a serial pass over the games in order, so every line printed
@@ -1528,6 +1560,12 @@ fn main() {
     println!("Hit turn limit:  {}", hit_turn_limit);
     println!("Avg turns/game:  {:.1}", avg_turns);
     println!("Max turns seen:  {}", max_turns_seen);
+    if args.audit {
+        println!(
+            "Audit:           {} dispatches answered twice, {} triggers agreed, no disagreement in a completed game",
+            agg_stats.total_audited_dispatches, agg_stats.total_audited_triggers
+        );
+    }
 
     // Everything above this point is byte-identical across runs at one seed;
     // everything in this block is not. Keeping the boundary sharp is what lets
