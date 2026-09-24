@@ -1101,7 +1101,9 @@ impl GameState {
         None
     }
 
-    pub(crate) fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
+    /// `id` as the object it is now: its id and its current existence (CR
+    /// 400.7). `None` for an id no longer in the store.
+    pub fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
         self.objects.get(&id).map(|o| ObjectRef { id, zone_change_epoch: o.zone_change_epoch })
     }
 
@@ -1137,7 +1139,7 @@ impl GameState {
                     _ => pending.controller,
                 };
                 let mut resolution = ResolutionContext::untargeted(source, player);
-                resolution.ability_source = Some(source);
+                resolution.ability_source = self.object_ref(source);
                 resolution.trigger = Some(pending.binding.clone());
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount) in &output.mana {

@@ -18,7 +18,7 @@ use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
 
@@ -31,13 +31,14 @@ pub struct ResolutionContext {
     /// The resolving stack object — the spell, or for an ability the
     /// ephemeral object CR 608.2n deletes at the end of resolution.
     pub source: ObjectId,
-    /// CR 113.7a — for an activated ability, the permanent whose ability is
-    /// resolving; `None` for a spell (whose source is `source`) and for a
-    /// CR 615.5 rider. "This permanent" in an ability's text reads this:
-    /// `Primitive::Attach` attaches it. Existing primitives that attribute to
-    /// `source` (`DealDamage`'s source, `Destroy`'s `DestructionSource`) are
-    /// unchanged by this field; nothing registered activates one.
-    pub ability_source: Option<ObjectId>,
+    /// CR 113.7a — for an activated or triggered ability, the permanent whose
+    /// ability is resolving, and which existence of it (CR 400.7); `None` for
+    /// a spell (whose source is `source`) and for a CR 615.5 rider. "This
+    /// permanent" in an ability's text reads this: `Primitive::Attach` attaches
+    /// it and `EffectRecipient::ThisObject` finds it. Existing primitives that
+    /// attribute to `source` (`DealDamage`'s source, `Destroy`'s
+    /// `DestructionSource`) are unchanged by this field.
+    pub ability_source: Option<ObjectRef>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
     /// What each instance of "target" holds **after** CR 608.2b's re-check —
@@ -162,6 +163,13 @@ impl GameState {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
             }
+            // "This creature": no instance of "target" either (CR 113.7a), and
+            // empty when the source is no longer the object the ability is of.
+            Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
+                let this: Vec<ResolvedTarget> =
+                    self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
+                self.resolve_primitive(primitive, recipient, &this, ctx, dp)
+            }
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, cursor) {
                     Some((ix, clause)) => {
@@ -239,7 +247,7 @@ impl GameState {
             // `resolve_taken`; an `if` anywhere else is this, read against the
             // board as the atom is reached (CR 608.2c's "in the order written").
             Effect::Conditional(condition, inner) => {
-                let source = ctx.ability_source.unwrap_or(ctx.source);
+                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
                 if crate::engine::layers::condition::settled_holds(condition, self, source) {
                     self.resolve_effect_at(inner, ctx, dp, declared, cursor)
                 } else {
@@ -521,21 +529,18 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.13a — move to exile from wherever the object is. Two recipients:
-            // the resolved targets (CR 608.2b has re-checked them) and `Implicit`, the
-            // effect's own source — "exile this creature" on a rider (Exquisite
-            // Archangel) and "Exile Stunning Reversal" as a spell's last instruction,
-            // which CR 608.2m lets finish resolving from exile. A source that has
-            // already left where the effect found it is a new object (CR 400.7) and
-            // nothing moves. One batch, for `Destroy`'s reason (CR 608.2f).
+            // CR 701.13a — move to exile from wherever the object is: the resolved
+            // targets (CR 608.2b has re-checked them), or `ThisObject`'s slice —
+            // "exile this creature" on a rider (Exquisite Archangel) and "Exile
+            // Stunning Reversal" as a spell's last instruction, which CR 608.2m lets
+            // finish resolving from exile. One batch, for `Destroy`'s reason (CR 608.2f).
             Primitive::Exile => {
                 let objects: Vec<ObjectId> = match recipient {
                     EffectRecipient::Implicit => {
-                        let source = ctx.source;
-                        let here = self.battlefield.contains_key(&source)
-                            || self.stack_entries.contains_key(&source)
-                            || self.resolving.as_ref().is_some_and(|r| r.id == source);
-                        if here { vec![source] } else { Vec::new() }
+                        return Err(format!(
+                            "a `Primitive::Exile` on {:?} names nothing to exile; use `ThisObject` or a target",
+                            ctx.source
+                        ));
                     }
                     _ => targets
                         .iter()
@@ -678,7 +683,7 @@ impl GameState {
             Primitive::Attach => {
                 // "Attach this permanent to target ..." (CR 702.6a). The
                 // attachment is the ability's source; a spell has none to attach.
-                let attachment = ctx.ability_source.ok_or_else(|| {
+                let attachment = ctx.ability_source.map(|r| r.id).ok_or_else(|| {
                     "Primitive::Attach resolved from a spell: only an ability has a permanent to attach"
                         .to_string()
                 })?;
@@ -1081,7 +1086,7 @@ impl GameState {
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
                 // resolution. A spell's is the spell.
-                let source = ctx.ability_source.unwrap_or(ctx.source);
+                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
 
                 // CR 609.7a — the source is chosen when the effect is created, before the
                 // rows are built, since every row a recipient makes watches the same
@@ -1112,6 +1117,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::ThisObject
                     | EffectRecipient::TriggeringObject
                     | EffectRecipient::TriggeringPlayer => {
                         debug_assert!(
@@ -1397,10 +1403,11 @@ impl GameState {
             }
 
             // CR 701.24a — whose library is the recipient's whole question.
-            // `Controller` is "shuffle your library"; `Implicit` is the *source's
+            // `Controller` is "shuffle your library"; `ThisObject` is the *source's
             // owner's* — "shuffle it into **its owner's** library" as the rider of
             // a replacement whose substitute has already made the move, where "it"
-            // is the source (Darksteel Colossus). Moving nothing here is CR 701.24c:
+            // is the source (Darksteel Colossus). The owner survives the move (CR
+            // 108.3), so it is read wherever the card went. Moving nothing here is CR 701.24c:
             // a 903.9b that sent a commander to the command zone instead leaves it
             // there, and its owner's library is shuffled all the same. A target is
             // a player, or an object standing for its owner. The filter recipients
@@ -1408,7 +1415,15 @@ impl GameState {
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
-                    EffectRecipient::Implicit => vec![self.get_object(ctx.source)?.owner],
+                    EffectRecipient::ThisObject => {
+                        vec![self.get_object(ctx.ability_source.map_or(ctx.source, |r| r.id))?.owner]
+                    }
+                    EffectRecipient::Implicit => {
+                        return Err(format!(
+                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `ThisObject`",
+                            ctx.source
+                        ));
+                    }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::TriggeringObject
@@ -2081,6 +2096,23 @@ impl GameState {
                 }
             }
         })
+    }
+
+    /// CR 113.7a's "this [object]" for a resolution: the ability's source,
+    /// found by identity (CR 400.7), else the spell or replacement source itself
+    /// while it is still where the effect found it. `None` is the object
+    /// being gone, which the primitive meets as an empty target slice.
+    pub(crate) fn this_object(&self, ctx: &ResolutionContext) -> Option<ObjectId> {
+        match ctx.ability_source {
+            Some(source) => (self.object_ref(source.id) == Some(source)).then_some(source.id),
+            None => {
+                let id = ctx.source;
+                let here = self.battlefield.contains_key(&id)
+                    || self.stack_entries.contains_key(&id)
+                    || self.resolving.as_ref().is_some_and(|r| r.id == id);
+                here.then_some(id)
+            }
+        }
     }
 
     fn resolve_player_for_self(

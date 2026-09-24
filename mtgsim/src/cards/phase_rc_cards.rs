@@ -575,7 +575,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
                     non_wall_creatures_you_control,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             ),
         })
         .build()

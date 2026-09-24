@@ -138,7 +138,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            ability_source: entry.ability_identity.map(|identity| identity.source.id),
+            ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's

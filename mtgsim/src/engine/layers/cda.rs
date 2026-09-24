@@ -90,8 +90,8 @@ pub(super) fn cda_modifications(
             // recipient is always the object itself. A filter here would mean
             // the ability is not a CDA and was mis-flagged.
             debug_assert!(
-                matches!(recipient, EffectRecipient::Implicit),
-                "CR 604.3a(3): CDA on '{}' has a non-implicit recipient, so it affects other objects and is not characteristic-defining",
+                matches!(recipient, EffectRecipient::ThisObject),
+                "CR 604.3a(3): CDA on '{}' has a recipient other than ThisObject, so it affects other objects and is not characteristic-defining",
                 chars.name
             );
 
@@ -232,7 +232,7 @@ mod tests {
             instances: Vec::new(),
             ability_type: AbilityType::Static,
             costs: Vec::new(),
-            effect: Effect::Atom(primitive, EffectRecipient::Implicit),
+            effect: Effect::Atom(primitive, EffectRecipient::ThisObject),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         }

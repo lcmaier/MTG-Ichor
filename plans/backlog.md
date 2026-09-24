@@ -240,7 +240,7 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   again: `Primitive::ShuffleLibrary` and `GameAction::ShuffleLibrary` landed
   inside a replacement PR because Darksteel Colossus's rider needed them
   (`replacement-architecture.md` §9, Phase RF, decision 6). Whose library is
-  the recipient's: `Controller` is "shuffle your library", `Implicit` the
+  the recipient's: `Controller` is "shuffle your library", `ThisObject` the
   source's owner's, a target a player or an object standing for its owner.
   **`ShuffleIntoLibrary` stays here** — a spell's "shuffle target card into
   your library" must *move* the card first (CR 701.24c), which the rider must

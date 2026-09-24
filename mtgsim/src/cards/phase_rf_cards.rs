@@ -107,7 +107,7 @@ fn shuffles_into_library_from_anywhere() -> AbilityDef {
                 ObjectSet::SourceOnly,
                 Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
             )
-            .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Implicit)),
+            .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::ThisObject)),
         ))),
     ))
 }

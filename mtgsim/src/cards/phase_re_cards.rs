@@ -1355,8 +1355,8 @@ pub fn laboratory_maniac() -> Arc<CardData> {
 /// `Prevent` with a rider, because "instead exile this creature and ..." is
 /// two effects on two different subjects — the Archangel and you — and a
 /// substitution produces one event about one (§3.2d). The rider's exile names
-/// the Archangel through `EffectRecipient::Implicit`, which is the effect's
-/// own source; its life total is `Primitive::SetLifeTotal` over
+/// the Archangel through `EffectRecipient::ThisObject`, the effect's own
+/// source; its life total is `Primitive::SetLifeTotal` over
 /// `AmountExpr::StartingLifeTotal`, so it is 40 in Commander and a 24-life
 /// *gain* from -4 that Rhox Faithmender doubles (CR 119.5).
 /// # The rulings, and where each is tested
@@ -1430,7 +1430,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You)
             .with_then(Effect::Sequence(vec![
-                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
                 Effect::Atom(
                     Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
                     EffectRecipient::Controller,
@@ -1535,7 +1535,7 @@ pub fn stunning_reversal() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
                 // CR 608.2c's second instruction, on the spell itself.
-                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
             ]),
         ))
         .build()

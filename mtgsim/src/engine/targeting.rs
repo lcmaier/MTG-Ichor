@@ -322,6 +322,7 @@ impl GameState {
     ) -> Result<(), String> {
         match recipient {
             EffectRecipient::Implicit
+            | EffectRecipient::ThisObject
             | EffectRecipient::FilteredPermanents { .. }
             | EffectRecipient::FilteredObjectsIn { .. }
             | EffectRecipient::Host => {

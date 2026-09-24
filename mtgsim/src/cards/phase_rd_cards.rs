@@ -1742,7 +1742,7 @@ mod tests {
         let permanent = put_on_battlefield(game, card.clone(), controller);
         let ctx = ResolutionContext {
             source: permanent,
-            ability_source: Some(permanent),
+            ability_source: game.object_ref(permanent),
             controller,
             targets: ChosenTargets::NONE,
             replaced_amount: None,

@@ -102,7 +102,7 @@ impl GameState {
         match effect {
             Effect::Atom(Primitive::ProduceMana(output), _) => {
                 let mut resolution = ResolutionContext::untargeted(source, player_id);
-                resolution.ability_source = Some(source);
+                resolution.ability_source = self.object_ref(source);
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount_expr) in &output.mana {
                     mana.push((*mana_type, self.evaluate_amount(amount_expr, &resolution)?));

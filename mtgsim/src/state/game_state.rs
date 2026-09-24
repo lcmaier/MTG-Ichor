@@ -1978,7 +1978,7 @@ impl GameState {
             EffectRecipient::FilteredPermanents(filter) => {
                 Some(ObjectSet::battlefield_filter(filter.clone()))
             }
-            EffectRecipient::Implicit => Some(ObjectSet::SourceOnly),
+            EffectRecipient::ThisObject => Some(ObjectSet::SourceOnly),
             // Likewise unresolved: the host is read during the walk, which is
             // what makes it fine that this runs before the Aura is attached.
             EffectRecipient::Host => Some(ObjectSet::Host),
@@ -1994,7 +1994,7 @@ impl GameState {
                      resolution to select with, and a static ability never \
                      resolves; `Controller` names a player, not a set of \
                      objects. Use `FilteredPermanents` for \"permanents you \
-                     control\", or `Implicit` for \"this permanent\".",
+                     control\", or `ThisObject` for \"this permanent\".",
                     card_name, recipient
                 );
                 None
@@ -2289,7 +2289,7 @@ mod tests {
             assert!(GameState::static_object_set(
                 &EffectRecipient::FilteredPermanents(ObjectFilter::All), "T"
             ).is_some());
-            assert!(GameState::static_object_set(&EffectRecipient::Implicit, "T").is_some());
+            assert!(GameState::static_object_set(&EffectRecipient::ThisObject, "T").is_some());
         }
 
         // --- the arms that decline, each proven loud ----------------------
@@ -2382,7 +2382,7 @@ mod tests {
                     // Drawing a card is not a continuous effect; there is no
                     // layer for it and never will be.
                     Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Implicit,
+                    EffectRecipient::ThisObject,
                 )))
                 .build();
 

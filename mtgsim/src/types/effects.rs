@@ -526,8 +526,21 @@ pub enum ModalCount {
 /// without casting; hexproof/shroud do NOT apply, does NOT fizzle).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectRecipient {
-    /// No object involved (e.g. mana abilities, "draw a card" with no target)
+    /// No object involved: a mana ability's production, an instruction to the
+    /// controller that names nothing, a replacement row scoped by its own
+    /// filter and player set. Never "this object", which is [`Self::ThisObject`].
     Implicit,
+    /// "This creature", "this permanent", a card's own name: the object whose
+    /// ability this is (CR 113.7a), or the spell or replacement source itself
+    /// when no ability is resolving. On a static ability it is the source, read
+    /// live (`ObjectSet::SourceOnly`), and CR 604.3a(3) makes it every CDA's
+    /// recipient.
+    ///
+    /// At resolution it is found by identity: an ability's source that left
+    /// its zone and came back is a new object (CR 400.7), and the effect finds
+    /// nothing. A primitive that reads only a fact the move keeps, such as
+    /// `ShuffleLibrary`'s owner (CR 108.3), reads it wherever the object is.
+    ThisObject,
     /// The controller of this spell/ability (e.g. Night's Whisper "you draw",
     /// Angel's Mercy "you gain"). Not targeting.
     Controller,

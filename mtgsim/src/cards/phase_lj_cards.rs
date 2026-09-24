@@ -207,7 +207,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             )),
         )))
         .build()

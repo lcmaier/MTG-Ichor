@@ -232,7 +232,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
                     lands_you_control,
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             ),
         })
         .ability(static_ability(Effect::Atom(
@@ -329,7 +329,7 @@ pub fn kird_ape() -> Arc<CardData> {
                     AmountExpr::Fixed(2),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             )),
         )))
         .build()
