@@ -114,6 +114,7 @@ impl Game {
 
         // CR 103.5's mulligans are not asked: every player keeps their first
         // hand, whatever `GameConfig::mulligan_rule` says. `backlog.md` §2.32.
+        self.state.forget_pregame_history();
 
         // CR 103.8 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap step,

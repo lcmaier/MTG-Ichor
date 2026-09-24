@@ -607,6 +607,10 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // A library's card count is off `GameState`, like a life total, and
         // the leaf's threshold is a constant — nothing on any frame.
         Condition::YourLibraryEmpty => {}
+        // The counts are off `GameState`; "you" is the source's controller.
+        Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
+            out.source |= you_channel;
+        }
         // A conjunction reads whatever its clauses read. No wildcard inside, for
         // this function's own stated reason.
         //

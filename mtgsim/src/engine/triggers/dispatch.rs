@@ -334,6 +334,9 @@ impl GameState {
                 self.nesting.dispatch_depth
             ));
         }
+        // Every record, before the gate: what happened this turn is read by
+        // cards that are not on the battlefield yet (§3.10).
+        self.advance_history(window);
         self.nesting.dispatch_depth += 1;
         let result = self.dispatch_inner(window, ctx, snapshots, audit);
         self.nesting.dispatch_depth -= 1;

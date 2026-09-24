@@ -283,7 +283,11 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::SourceUntapped
         | Condition::YourLibraryEmpty
         | Condition::SpellWasKicked
-        | Condition::ModeChosen(_) => None,
+        | Condition::ModeChosen(_)
+        | Condition::ThisTurn(_)
+        | Condition::LastTurn(_)
+        | Condition::SinceYourLastTurn(_)
+        | Condition::ThisGame(_) => None,
     }
 }
 

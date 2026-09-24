@@ -562,6 +562,11 @@ pub struct GameState {
     /// the drain again.
     pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
+    /// Every player's turns, one row per player per turn of the game
+    /// (`triggers-architecture.md` §3.10): what "this turn", "last turn",
+    /// "since your last turn" and "this game" read. Indexed by seat; advanced
+    /// by the dispatcher, record by record, and by nothing else.
+    pub history: Vec<crate::state::history::PlayerHistory>,
     /// Permanents that *printed* a triggered ability, each against the
     /// record kinds its printed defs read — the dispatcher's fast-path gate,
     /// `replacement_ability_sources`' twin: written by
@@ -854,6 +859,12 @@ impl GameState {
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
+            // Turn 1 has begun for the starting player, as `last_turn_began` says.
+            history: {
+                let mut v = vec![crate::state::history::PlayerHistory::default(); num_players];
+                v[0].own_turns.push(1);
+                v
+            },
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             look_back_snapshots: Vec::new(),

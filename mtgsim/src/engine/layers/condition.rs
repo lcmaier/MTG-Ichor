@@ -28,6 +28,7 @@ use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
+use crate::types::history::HistoryCount;
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -156,6 +157,15 @@ pub(super) fn holds(
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
+        // A turn summary's count (§3.10), for "you" as every leaf here reads it:
+        // the source's controller. The counts are off `GameState`.
+        Condition::ThisTurn(count) => history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index),
+        Condition::LastTurn(count) => history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index),
+        Condition::SinceYourLastTurn(count) => {
+            history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index)
+        }
+        Condition::ThisGame(count) => history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index),
+
         // CR 702.33d, read off the cost decisions and not off the cast: a copy
         // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
         // the token it becomes; a permanent that was never a spell is not.
@@ -193,6 +203,47 @@ pub(super) fn holds(
 /// and their evaluators are [`holds`]'s, unchanged.
 pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
+}
+
+/// Which turns a history leaf sums.
+#[derive(Clone, Copy)]
+enum HistorySpan {
+    ThisTurn,
+    LastTurn,
+    SinceYourLastTurn,
+    ThisGame,
+}
+
+/// A history leaf: the rows `count.whose` names, summed over `span`'s turns.
+fn history_holds(
+    count: &HistoryCount,
+    span: HistorySpan,
+    game: &GameState,
+    board: &Board<'_>,
+    source: ObjectId,
+    layer_index: usize,
+) -> bool {
+    let Some(you) = controller_of(game, board, source, layer_index) else {
+        return false;
+    };
+    let now = game.turn_number;
+    let (first, last) = match span {
+        HistorySpan::ThisTurn => (now, now),
+        HistorySpan::LastTurn => (now.saturating_sub(1), now.saturating_sub(1)),
+        HistorySpan::SinceYourLastTurn => {
+            let after = game.history.get(you).and_then(|h| h.own_turn_before(now)).map_or(1, |t| t + 1);
+            (after, now)
+        }
+        HistorySpan::ThisGame => (1, now),
+    };
+    let total: u64 = game
+        .history
+        .iter()
+        .enumerate()
+        .filter(|(player, _)| count.whose.contains(you, *player))
+        .map(|(_, history)| history.sum(count.fact, first, last))
+        .sum();
+    count.is.holds(total)
 }
 
 /// CR 707.10's cost decisions for `source`: the resolving spell's, whose

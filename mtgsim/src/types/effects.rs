@@ -504,6 +504,20 @@ pub enum Condition {
     /// A library is off `GameState`, not off any frame, so
     /// `board::condition_reads` declares nothing for it.
     YourLibraryEmpty,
+    /// "If you lost life this turn", "if an opponent was dealt damage this
+    /// turn" (bloodthirst): a count over the turn in progress, off the turn
+    /// summaries (`triggers-architecture.md` §3.10).
+    ThisTurn(crate::types::history::HistoryCount),
+    /// "If you lost life last turn" (Paladin of Atonement): the game's
+    /// previous turn, whoever's it was, as that card's ruling reads it.
+    LastTurn(crate::types::history::HistoryCount),
+    /// "If you haven't been dealt combat damage since your last turn"
+    /// (Marchesa, Resolute Monarch): every turn after your most recent one
+    /// before this, through the turn in progress.
+    SinceYourLastTurn(crate::types::history::HistoryCount),
+    /// "If this spell is the first spell you've cast this game" (First
+    /// Contact): every turn so far.
+    ThisGame(crate::types::history::HistoryCount),
 }
 
 /// How many modes to choose (rule 700.2)

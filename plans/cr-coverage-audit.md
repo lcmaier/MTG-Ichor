@@ -507,6 +507,12 @@ is derivable; where each name was read is not, and the gate needs the names.
     `zone_replacement_ability_sources`, `zone_trigger_sources`, `layer_epoch`,
     `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
     `next_trigger_seq`, `next_object_id`.
+- **Added by TR-2a (2026-09-24)**, each asked §2's question as it landed:
+  - `history`: every player's "this turn" quantities, one row per turn,
+    recorded as each record is dispatched and read by the `Condition` history
+    leaves. Each fact is counted on the row of the one player the record
+    names (`triggers-architecture.md` §3.10). CR 103.5's opening hands are
+    drawn before the first turn, so no row holds them.
 
 ---
 
