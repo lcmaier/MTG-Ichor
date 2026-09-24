@@ -34,7 +34,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
+    Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -43,6 +44,7 @@ use mtgsim::types::triggers::{
     Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
 };
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
@@ -581,4 +583,63 @@ fn a_control_change_does_not_restart_the_count() {
     game.activate_ability(1, pilgrim, 0, &dp).expect("the thief activates");
     drain(&mut game);
     assert_eq!(life(&game, 1), 23, "the third resolution this turn, whoever controlled the first two");
+}
+
+// ---------------------------------------------------------------------------
+// CR 608.2h — "its power": determined as the effect applies
+// ---------------------------------------------------------------------------
+
+/// +`n`/+`n` until end of turn on `id`, the way a resolving pump spell gives it.
+fn pump(game: &mut GameState, id: ObjectId, n: u64) {
+    let giant_growth = Effect::Atom(
+        Primitive::ModifyPowerToughness(AmountExpr::Fixed(n), AmountExpr::Fixed(n), Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let source = put_in_hand(game, grizzly_bears(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&giant_growth, &ctx, &test_dp()).expect("the pump");
+}
+
+/// "When this creature enters, it deals damage equal to its power to target
+/// player": 3 power as it triggers, 6 after a pump in response. The power is
+/// the creature's as the effect applies, since it is still on the
+/// battlefield (CR 608.2h).
+// COVERS: ATOM-608.2h-001
+#[test]
+fn its_power_is_read_as_the_effect_applies() {
+    let mut game = setup_two_player_game();
+    let bolt_of_self = Effect::Atom(
+        Primitive::DealDamage { amount: AmountExpr::TriggeringPower, unpreventable: false },
+        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+    );
+    let brute = put_on_battlefield(
+        &mut game,
+        creature_with_ability(
+            "Proud Brute",
+            3,
+            3,
+            triggered_ability(whenever(enters(TriggerSubject::ThisObject), bolt_of_self)),
+        ),
+        0,
+    );
+    let dp = ScriptedDecisionProvider::new();
+    dp.expect_pick_n(
+        ChoiceKind::SelectRecipients {
+            recipient: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            spell_id: ObjectId::UNASSIGNED,
+        },
+        vec![1],
+    );
+    place(&mut game, &dp);
+    pump(&mut game, brute, 3);
+    resolve_top(&mut game, &test_dp());
+    assert_eq!(life(&game, 1), 14, "6 damage, not 3");
 }

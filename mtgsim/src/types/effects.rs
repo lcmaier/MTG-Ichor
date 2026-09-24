@@ -58,6 +58,14 @@ pub enum AmountExpr {
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
     /// with no quantity refuses rather than answering 0.
     TriggeringAmount,
+    /// "Its power" on a triggered ability: the bound object's (CR 608.2h),
+    /// read off the record's CR 603.10a frame when the event was its
+    /// departure, and live when it is still where the event left it
+    /// (`triggers-architecture.md` §3.4, §6.3).
+    TriggeringPower,
+    /// "Its toughness", read the same way: Paladin of Atonement's "you gain
+    /// life equal to its toughness" as it last existed on the battlefield.
+    TriggeringToughness,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"

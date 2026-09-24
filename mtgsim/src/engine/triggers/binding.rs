@@ -4,7 +4,12 @@
 //! so every read here goes back to the log through the matched arm's
 //! projection — one copy of each fact, and the frame comes with the record.
 
+use std::sync::Arc;
+
+use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
+use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{ObjectId, PlayerId};
@@ -40,6 +45,27 @@ impl GameState {
             total = Some(total.unwrap_or(0) + n);
         }
         total
+    }
+
+    /// "Its power", "its toughness": the bound object's characteristics as
+    /// CR 608.2h reads them. When the matched event was the object's
+    /// departure, it is expected where it was, so the record's CR 603.10a
+    /// frame answers (Paladin of Atonement's ruling: its toughness "as it last
+    /// existed on the battlefield"). Otherwise it is the object now, while it
+    /// is still where the event left it. `None` when it is neither, which is
+    /// the last known information TR-2b's `departed` frames hold.
+    pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
+        let subject = binding.subject?;
+        let first = self.events.record(*binding.records.first()?)?;
+        match &first.event {
+            GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
+            | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
+                if *object_id == subject.id =>
+            {
+                Some(Arc::new((**frame).clone()))
+            }
+            _ => compute_characteristics(self, self.bound_object(binding)?),
+        }
     }
 
     /// The bound fact a `TriggeringObject` or `TriggeringPlayer` atom acts

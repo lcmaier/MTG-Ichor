@@ -1995,6 +1995,25 @@ impl GameState {
                     format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
             }
+            // "Its power", "its toughness" (CR 608.2h). A negative value is
+            // no amount: Paladin of Atonement's ruling gains nothing, and
+            // loses nothing, for toughness below 0.
+            AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => {
+                let binding = _ctx.trigger.as_ref().ok_or_else(|| {
+                    format!("{:?} has no meaning outside a triggered ability's resolution", expr)
+                })?;
+                let chars = self.bound_characteristics(binding).ok_or_else(|| {
+                    format!(
+                        "{:?}: the bound object has left since the event and no frame answers for it (TR-2b's departed frames)",
+                        expr
+                    )
+                })?;
+                let value = match expr {
+                    AmountExpr::TriggeringPower => chars.power,
+                    _ => chars.toughness,
+                };
+                Ok(value.unwrap_or(0).max(0) as u64)
+            }
             // "This creature's power" is a *replacement effect's* question: CR 614.12
             // asks it of a permanent about to enter, and
             // `replacement::evaluate_enter_template` is the one evaluator that knows
