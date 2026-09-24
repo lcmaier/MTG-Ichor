@@ -16,7 +16,7 @@ impl GameState {
     /// to" and CR 400.7's new object are one comparison: the id is in the
     /// store and its `zone_change_epoch` is the one the dispatcher saw.
     pub fn bound_object(&self, binding: &TriggerBinding) -> Option<ObjectId> {
-        let reference = binding.object?;
+        let reference = binding.subject?;
         let object = self.objects.get(&reference.id)?;
         (object.zone_change_epoch == reference.zone_change_epoch).then_some(reference.id)
     }

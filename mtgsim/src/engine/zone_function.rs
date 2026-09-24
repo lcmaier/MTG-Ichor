@@ -132,8 +132,8 @@ fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardT
 /// CR 113.6k for one trigger condition.
 fn condition_zones(arm: &TriggerEvent, types: &HashSet<CardType>) -> ZoneSet {
     match arm {
-        TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: Some(zone), .. } => ZoneSet::of(*zone),
-        TriggerEvent::ZoneChange { subject: TriggerSubject::This, from: None, .. } => ZoneSet::ALL,
+        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: Some(zone), .. } => ZoneSet::of(*zone),
+        TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: None, .. } => ZoneSet::ALL,
         _ => default_zones(types),
     }
 }

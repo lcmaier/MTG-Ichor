@@ -172,7 +172,7 @@ pub fn enters(subject: impl Into<TriggerSubject>) -> CountableEvent {
         subject: subject.into(),
         controller: None,
         from: None,
-        cast: None,
+        was_cast: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
 }

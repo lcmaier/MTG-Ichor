@@ -254,7 +254,7 @@ pub(super) struct MatchedTrigger {
     instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
     pub(super) records: Vec<EventSeq>,
-    pub(super) object: Option<ObjectRef>,
+    pub(super) subject: Option<ObjectRef>,
     mana: bool,
 }
 
@@ -262,11 +262,11 @@ pub(super) struct MatchedTrigger {
 #[derive(Clone, Copy)]
 enum Refusal {
     /// The condition is a state trigger, which TR-6 checks.
-    State,
+    StateTrigger,
     /// CR 603.2f.
     Visibility,
     /// The arm does not read this record, or its predicates said no.
-    Condition,
+    TriggerCondition,
     /// CR 603.4 at the trigger.
     InterveningIf,
 }
@@ -274,9 +274,9 @@ enum Refusal {
 impl Refusal {
     fn name(self) -> &'static str {
         match self {
-            Refusal::State => "state",
+            Refusal::StateTrigger => "state",
             Refusal::Visibility => "visibility",
-            Refusal::Condition => "condition",
+            Refusal::TriggerCondition => "condition",
             Refusal::InterveningIf => "intervening_if",
         }
     }
@@ -438,8 +438,8 @@ impl GameState {
                 def: Arc::clone(&m.def),
                 records: m.records.clone(),
                 event: m.event,
-                object: m.object,
-                triggered: None,
+                subject: m.subject,
+                triggered_by: None,
             };
             let caused_by = m.records[0];
             let origin = TriggerOrigin::Object(m.identity);
@@ -450,7 +450,7 @@ impl GameState {
                 source_card: Arc::clone(&m.source_card),
                 instances: m.instances.clone(),
                 binding,
-                state: false,
+                is_state_trigger: false,
             };
             if m.mana {
                 match ctx {
@@ -824,7 +824,7 @@ impl GameState {
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![*seq],
-                                object: subject.and_then(|id| self.object_ref(id)),
+                                subject: subject.and_then(|id| self.object_ref(id)),
                                 mana,
                             });
                         }
@@ -844,7 +844,7 @@ impl GameState {
                                     instances: row.instances.to_vec(),
                                     event: matched,
                                     records: vec![*seq],
-                                    object: None,
+                                    subject: None,
                                     mana,
                                 });
                             }
@@ -868,7 +868,7 @@ impl GameState {
         event: &GameEvent,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
-            return Err(Refusal::State);
+            return Err(Refusal::StateTrigger);
         }
         // CR 603.2f, per candidate, of the object as the event left it. A frame
         // candidate was a permanent, which is visible.
@@ -896,7 +896,7 @@ impl GameState {
                 break;
             }
         }
-        let (event_index, subjects) = matched.ok_or(Refusal::Condition)?;
+        let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
         // CR 603.4 at the trigger. "You" is the source's controller, read off
         // the source; a condition about the bound facts is TR-2's reader.
         if let Some(condition) = &def.intervening_if
@@ -1004,7 +1004,7 @@ impl GameState {
                 one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
             }
             (
-                TriggerEvent::EntersBattlefield { subject, controller, from, cast, .. },
+                TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
                 GameEvent::PermanentEnteredBattlefield { object_id, controller: rc },
             ) => {
                 // The join (§4.4): `from` off the same object's zone change in
@@ -1014,7 +1014,7 @@ impl GameState {
                     None => true,
                     Some(zone) => self.entry_origin(*object_id, seq) == Some(*zone),
                 };
-                let cast_ok = cast.is_none_or(|expected| {
+                let cast_ok = was_cast.is_none_or(|expected| {
                     self.battlefield.get(object_id).is_some_and(|e| e.cast.is_some()) == expected
                 });
                 one(
@@ -1029,8 +1029,8 @@ impl GameState {
                 .filter(|id| self.subject_matches(attacker, Some(**id), candidate, None))
                 .map(|id| Some(*id))
                 .collect(),
-            (TriggerEvent::AbilityTriggers { caused_by, of }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
-                let of_ok = match of {
+            (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
+                let source_ok = match source {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
@@ -1043,7 +1043,7 @@ impl GameState {
                     None => true,
                     Some(inner) => self.events.record(*cause).is_some_and(|r| inner.reads(&r.event)),
                 };
-                one(of_ok && cause_ok)
+                one(source_ok && cause_ok)
             }
             _ => Vec::new(),
         }
@@ -1062,12 +1062,12 @@ impl GameState {
     ) -> bool {
         match (subject, id) {
             (TriggerSubject::Any, _) => true,
-            (TriggerSubject::This, Some(id)) => id == candidate.id,
+            (TriggerSubject::ThisObject, Some(id)) => id == candidate.id,
             (TriggerSubject::Host, Some(id)) => candidate.host == Some(id),
             (TriggerSubject::Filter(filter), Some(id)) => self
                 .object_matches_filter_of_source(id, filter, candidate.controller, candidate.id, frame)
                 .unwrap_or(false),
-            (TriggerSubject::This | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
+            (TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
         }
     }
 

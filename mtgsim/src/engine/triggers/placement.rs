@@ -102,7 +102,7 @@ impl GameState {
                 && t.instances.is_empty()
                 && t.binding.def == first.binding.def
                 && t.binding.records == first.binding.records
-                && t.binding.object == first.binding.object
+                && t.binding.subject == first.binding.subject
         })
     }
 

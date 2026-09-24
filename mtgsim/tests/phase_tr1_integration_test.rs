@@ -285,7 +285,7 @@ fn the_newcomers_own_etb_triggers_beside_soul_wardens() {
     put_on_battlefield(&mut game, soul_warden(), 0);
     let comer = put_on_battlefield(
         &mut game,
-        watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()),
+        watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()),
         1,
     );
 
@@ -641,7 +641,7 @@ fn an_untap_step_trigger_is_held_until_the_upkeep() {
     fill_library(&mut game, 1, 5);
     let untapper = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::This }, draw_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject }, draw_one()),
         1,
     );
     game.battlefield.get_mut(&untapper).unwrap().tapped = true;
@@ -713,7 +713,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
 
     assert_eq!(pending(&game), 2, "one per attacker");
     let subjects: Vec<Option<ObjectId>> =
-        game.pending_triggers.iter().map(|t| t.binding.object.map(|o| o.id)).collect();
+        game.pending_triggers.iter().map(|t| t.binding.subject.map(|o| o.id)).collect();
     assert_eq!(subjects, vec![Some(a), Some(b)]);
     let watcher = StackWatcher::new();
     game.run_priority_round(&watcher).unwrap();
@@ -933,7 +933,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     let mut game = setup_two_player_game();
     let grower = put_on_battlefield(
         &mut game,
-        watcher("Sprouting Sapling", enters(TriggerSubject::This), counter_on_it.clone()),
+        watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it.clone()),
         0,
     );
     assert_eq!(pending(&game), 1);
@@ -945,7 +945,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
     let mut game = setup_two_player_game();
     let grower = put_on_battlefield(
         &mut game,
-        watcher("Sprouting Sapling", enters(TriggerSubject::This), counter_on_it),
+        watcher("Sprouting Sapling", enters(TriggerSubject::ThisObject), counter_on_it),
         0,
     );
     game.change_zone(grower, Zone::Hand, ZoneChangeCause::Returned, &test_ctx()).unwrap();
@@ -965,7 +965,7 @@ fn a_zone_change_trigger_cannot_find_an_object_that_left() {
 fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let exile_it = Effect::Atom(Primitive::Exile, EffectRecipient::TriggeringObject);
     let mut game = setup_two_player_game();
-    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::This), exile_it.clone()), 0);
+    let restless = put_on_battlefield(&mut game, watcher("Restless Shade", dies(TriggerSubject::ThisObject), exile_it.clone()), 0);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
     destroy_all(&mut game, &[restless], source);
     assert_eq!(pending(&game), 1);
@@ -1015,14 +1015,14 @@ fn a_permanent_animated_as_it_enters_is_a_creature_to_an_etb_trigger() {
 fn humility_strips_an_etb_before_it_can_trigger() {
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, humility(), 1);
-    put_on_battlefield(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()), 0);
+    put_on_battlefield(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()), 0);
     assert_eq!(pending(&game), 0);
 
     // Together, in one window: Humility has no ETB of its own, and the
     // creature's is gone by the time the window closes.
     let mut game = setup_two_player_game();
     let hum = put_in_hand(&mut game, humility(), 1);
-    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()), 0);
+    let scholar = put_in_hand(&mut game, watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()), 0);
     let entry = |_game: &GameState, object: ObjectId, controller: PlayerId| GameAction::EnterBattlefield {
         object,
         from: Some(Zone::Hand),
@@ -1089,7 +1089,7 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
         enchantment_watcher(
             "Lenient Proctor",
             triggered_ability(whenever(
-                TriggerEvent::AbilityTriggers { caused_by: None, of: Some(a_creature()) },
+                TriggerEvent::AbilityTriggers { caused_by: None, source: Some(a_creature()) },
                 gain_one(),
             )),
         ),
@@ -1097,7 +1097,7 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
     );
     let scholar = put_on_battlefield(
         &mut game,
-        watcher("Arriving Scholar", enters(TriggerSubject::This), draw_one()),
+        watcher("Arriving Scholar", enters(TriggerSubject::ThisObject), draw_one()),
         0,
     );
 
@@ -1119,7 +1119,7 @@ fn a_trigger_with_no_legal_target_is_removed_and_never_reaches_the_stack() {
         &mut game,
         watcher(
             "Shattering Herald",
-            enters(TriggerSubject::This),
+            enters(TriggerSubject::ThisObject),
             Effect::Atom(
                 Primitive::Destroy,
                 EffectRecipient::Target(
@@ -1638,7 +1638,7 @@ fn under_eon_hub_an_untap_trigger_goes_on_the_stack_at_the_draw_step() {
     put_on_battlefield(&mut game, eon_hub(), 0);
     let watch = put_on_battlefield(
         &mut game,
-        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::This }, gain_one()),
+        watcher("Night Watch", TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject }, gain_one()),
         1,
     );
     game.battlefield.get_mut(&watch).unwrap().tapped = true;
@@ -1660,7 +1660,7 @@ fn guile_shaped() -> Arc<CardData> {
     watcher(
         "Incarnate Echo",
         TriggerEvent::ZoneChange {
-            subject: TriggerSubject::This,
+            subject: TriggerSubject::ThisObject,
             from: None,
             to: Some(Zone::Graveyard),
             cause: None,
@@ -1757,7 +1757,7 @@ fn dread_shaped() -> Arc<CardData> {
         )))
         .ability(triggered_ability(whenever(
             TriggerEvent::ZoneChange {
-                subject: TriggerSubject::This,
+                subject: TriggerSubject::ThisObject,
                 from: None,
                 to: Some(Zone::Graveyard),
                 cause: None,
@@ -1822,7 +1822,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
         triggered_ability(TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::ZoneChange {
-                    subject: TriggerSubject::This,
+                    subject: TriggerSubject::ThisObject,
                     from: None,
                     to: Some(Zone::Graveyard),
                     cause: None,
@@ -1903,7 +1903,7 @@ fn the_dispatcher_writes_a_trigger_record_per_decision_and_a_pending_record_per_
 ///
 /// The trace's `trigger` record is written per decision, so "no record" is
 /// "not asked" — which before the mask was "asked and refused by
-/// `Refusal::Condition`". Soul Warden reads an entry and nothing else; a tap
+/// `Refusal::TriggerCondition`". Soul Warden reads an entry and nothing else; a tap
 /// is a window it cannot match, and the dispatch returns at the gate.
 #[test]
 fn a_window_no_source_reads_is_refused_at_the_gate() {
@@ -1950,7 +1950,7 @@ fn the_stack_object_is_an_ability_with_its_identity_and_binding() {
     assert_eq!(identity.ability, soul_warden().abilities[0].id);
     assert_eq!(identity.source.zone_change_epoch, game.get_object(warden).unwrap().zone_change_epoch);
     let binding = entry.trigger.as_ref().unwrap();
-    assert_eq!(binding.object.map(|o| o.id), Some(bear));
+    assert_eq!(binding.subject.map(|o| o.id), Some(bear));
     assert_eq!(game.bound_object(binding), Some(bear));
     assert_eq!(game.get_object(id).unwrap().card_data.name, "Soul Warden");
 }
@@ -2060,7 +2060,7 @@ fn kicked_herald() -> Arc<CardData> {
         .power_toughness(2, 2)
         .additional_cost(kicker_red())
         .ability(triggered_ability(TriggerDef {
-            condition: TriggerCondition::Event(enters(TriggerSubject::This).into()),
+            condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
             intervening_if: Some(Condition::SpellWasKicked),
             limit: None,
             effect: gain_one(),

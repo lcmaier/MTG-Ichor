@@ -207,7 +207,7 @@ fn dread_shaped() -> Arc<CardData> {
         multiplicity: Multiplicity::PerOccurrence,
     };
     let from_anywhere = TriggerEvent::ZoneChange {
-        subject: TriggerSubject::This,
+        subject: TriggerSubject::ThisObject,
         from: None,
         to: Some(Zone::Graveyard),
         cause: None,

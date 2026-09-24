@@ -209,7 +209,7 @@ impl GameState {
             source.zone_change_epoch,
             matched.identity.ability,
             matched.event.0,
-            matched.object,
+            matched.subject,
             matched.controller
         )
     }

@@ -776,7 +776,7 @@ here. None is blocking RB.
    — CR 400.7d's two facts, written once by `place_on_battlefield` off
    `ResolvingObject.cast_from` (carried beside `default_controller` for the
    same reason), `None` for a land drop, a token or an effect's entry.
-   `TriggerEvent::EntersBattlefield { cast }` reads it;
+   `TriggerEvent::EntersBattlefield { was_cast }` reads it;
    `a_permanent_remembers_whether_it_was_cast` is the test. "If you cast it"
    as an intervening "if" is a `Condition` leaf for the first card that
    prints it.
@@ -8384,7 +8384,7 @@ keeps the cost decisions).
 177. **A zone-change record does not say which object the move made, so a
      binding takes its subject's identity at dispatch.** `GameEvent::ZoneChange`
      carries the `object_id`, not the `zone_change_epoch` that `move_object`
-     stamped. `TriggerBinding.object` is read live when the window closes:
+     stamped. `TriggerBinding.subject` is read live when the window closes:
      `subject.and_then(|id| self.object_ref(id))` in `dispatch.rs`, "the
      subject's epoch at dispatch". But the rules fix that identity at the move:
      - CR 400.7e names "the new object that it became in the zone it moved to".

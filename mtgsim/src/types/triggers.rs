@@ -106,10 +106,10 @@ pub enum TriggerTier {
 pub enum TriggerLimit {
     /// CR 603.2h — "Do this only once each turn": an action-taken gate,
     /// written by the resolution that takes the action.
-    DoOnceEachTurn,
+    DoThisOnlyOnceEachTurn,
     /// "This ability triggers only once each turn" — a triggered gate,
     /// written by the dispatcher as it queues (Elvish Warmaster's ruling).
-    OnceEachTurn,
+    TriggersOnlyOnceEachTurn,
     /// "Whenever [event] for the first time each turn" — a predicate on the
     /// event, read record by record off the turn summary.
     FirstTimeEachTurn,
@@ -127,7 +127,7 @@ pub enum Multiplicity {
 #[derive(Debug, Clone, PartialEq)]
 pub enum TriggerSubject {
     /// CR 603.6a's "[this object]": the record's subject is the source itself.
-    This,
+    ThisObject,
     /// "Enchanted land", "equipped creature": the source's host (CR 303.4m).
     Host,
     /// "A creature", "another creature you control". "Another" is
@@ -319,7 +319,7 @@ pub enum TriggerEvent {
         subject: TriggerSubject,
         controller: Option<PlayerRef>,
         from: Option<Zone>,
-        cast: Option<bool>,
+        was_cast: Option<bool>,
         multiplicity: Multiplicity,
     },
     /// CR 508.3a's plain shape, "whenever a creature attacks" — one attacker
@@ -328,7 +328,7 @@ pub enum TriggerEvent {
     Attacks { attacker: TriggerSubject, multiplicity: Multiplicity },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
-    AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, of: Option<ObjectFilter> },
+    AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
 }
 
 impl TriggerEvent {
@@ -535,9 +535,9 @@ pub struct TriggerBinding {
     pub event: EventIndex,
     /// The subject's epoch at dispatch. `None` for an event about no object
     /// and for a `OncePerEvent` binding.
-    pub object: Option<ObjectRef>,
+    pub subject: Option<ObjectRef>,
     /// The ability whose triggering this is (CR 603.3b's second tier).
-    pub triggered: Option<TriggerSeq>,
+    pub triggered_by: Option<TriggerSeq>,
 }
 
 impl TriggerBinding {
@@ -582,7 +582,7 @@ pub struct PendingTrigger {
     pub instances: Vec<EffectRecipient>,
     pub binding: TriggerBinding,
     /// CR 603.8's one-shot state trigger; armed by TR-6.
-    pub state: bool,
+    pub is_state_trigger: bool,
 }
 
 impl PendingTrigger {
@@ -654,7 +654,7 @@ mod tests {
     /// the one `reads` held as a 13-pair `matches!` before the mask.
     #[test]
     fn each_arm_reads_exactly_the_records_it_names() {
-        let this = TriggerSubject::This;
+        let this = TriggerSubject::ThisObject;
         let each = Multiplicity::PerOccurrence;
         let expected: Vec<(TriggerEvent, &[&str])> = vec![
             (
@@ -673,11 +673,11 @@ mod tests {
             (TriggerEvent::TurnBegins { whose: None }, &["TurnBegin"]),
             (TriggerEvent::GainsLife { player: None, multiplicity: each }, &["LifeChanged"]),
             (
-                TriggerEvent::EntersBattlefield { subject: this.clone(), controller: None, from: None, cast: None, multiplicity: each },
+                TriggerEvent::EntersBattlefield { subject: this.clone(), controller: None, from: None, was_cast: None, multiplicity: each },
                 &["PermanentEnteredBattlefield"],
             ),
             (TriggerEvent::Attacks { attacker: this, multiplicity: each }, &["AttackersDeclared"]),
-            (TriggerEvent::AbilityTriggers { caused_by: None, of: None }, &["AbilityTriggered"]),
+            (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
         ];
         let records = sample_records();
         for (arm, reads) in &expected {
@@ -694,8 +694,8 @@ mod tests {
     fn a_defs_record_kinds_are_its_arms_together() {
         let tapped_or_untapped = TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
-                TriggerEvent::BecomesTapped { subject: TriggerSubject::This },
-                TriggerEvent::BecomesUntapped { subject: TriggerSubject::This },
+                TriggerEvent::BecomesTapped { subject: TriggerSubject::ThisObject },
+                TriggerEvent::BecomesUntapped { subject: TriggerSubject::ThisObject },
             ]),
             intervening_if: None,
             limit: None,
