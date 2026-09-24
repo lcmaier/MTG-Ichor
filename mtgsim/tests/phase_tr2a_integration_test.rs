@@ -24,6 +24,7 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::DamageTarget;
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
+use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType};
@@ -39,6 +40,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{
     Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
@@ -642,4 +644,49 @@ fn its_power_is_read_as_the_effect_applies() {
     pump(&mut game, brute, 3);
     resolve_top(&mut game, &test_dp());
     assert_eq!(life(&game, 1), 14, "6 damage, not 3");
+}
+
+// ---------------------------------------------------------------------------
+// CR 611.2c — "creatures you control get ..." fixes its set as it resolves
+// ---------------------------------------------------------------------------
+
+/// "Creatures you control get +1/+1 and gain flying until end of turn": the
+/// set is the controller's creatures as the effect resolves. The opponent's
+/// creature is not in it, and neither is a creature that arrives afterwards
+/// (CR 611.2c).
+#[test]
+fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
+    let mut game = setup_two_player_game();
+    let mine = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let theirs = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(a_creature()),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ));
+    let rally = Effect::Sequence(vec![
+        Effect::Atom(
+            Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::UntilEndOfTurn),
+            yours.clone(),
+        ),
+        Effect::Atom(Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::UntilEndOfTurn), yours),
+    ]);
+    let source = put_in_hand(&mut game, grizzly_bears(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&rally, &ctx, &test_dp()).expect("the rally");
+    let late = put_on_battlefield(&mut game, grizzly_bears(), 0);
+
+    assert_eq!(get_effective_power(&game, mine), Some(3));
+    assert!(has_keyword(&game, mine, KeywordFlag::Flying));
+    assert_eq!(get_effective_power(&game, theirs), Some(2), "not the controller's");
+    assert!(!has_keyword(&game, theirs, KeywordFlag::Flying));
+    assert_eq!(get_effective_power(&game, late), Some(2), "arrived after the set was fixed");
+    assert!(!has_keyword(&game, late, KeywordFlag::Flying));
 }

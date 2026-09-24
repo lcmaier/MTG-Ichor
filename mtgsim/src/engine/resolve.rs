@@ -757,7 +757,7 @@ impl GameState {
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.collect_battlefield_targets(targets);
+                let target_ids = self.affected_permanents(recipient, targets, ctx);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -946,9 +946,14 @@ impl GameState {
             // affected set is locked to the targets at resolution (CR 613.7b).
 
             Primitive::GrantKeywordFlag(keyword, duration) => {
+                let affected: Vec<ResolvedTarget> = self
+                    .affected_permanents(recipient, targets, ctx)
+                    .into_iter()
+                    .map(ResolvedTarget::Object)
+                    .collect();
                 self.register_resolution_ability_effect(
                     ctx,
-                    targets,
+                    &affected,
                     *duration,
                     EffectModification::GrantKeywordFlag(*keyword),
                 );
@@ -1924,6 +1929,27 @@ impl GameState {
                 lookahead: None,
             },
         )
+    }
+
+    /// The permanents a one-shot continuous effect applies to: its resolved
+    /// targets, or for "each [permanent] you control" every permanent the
+    /// filter matches now. CR 611.2c fixes that set as the effect begins, so
+    /// a creature that becomes an Elf later is not in it (Elvish Warmaster's
+    /// third ruling).
+    fn affected_permanents(
+        &self,
+        recipient: &EffectRecipient,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Vec<ObjectId> {
+        match recipient {
+            EffectRecipient::FilteredPermanents(filter) => self
+                .battlefield_ids_ordered()
+                .into_iter()
+                .filter(|&id| self.object_matches_filter(id, filter, ctx.controller).unwrap_or(false))
+                .collect(),
+            _ => self.collect_battlefield_targets(targets),
+        }
     }
 
     fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
