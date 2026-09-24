@@ -104,16 +104,42 @@ pub struct PermanentState {
     /// the spell that became it is gone: `EntersBattlefield { cast }`, "if
     /// you cast it", Coal Stoker's "from your hand" read it. `None` for a
     /// permanent that was not cast — a land drop, a token, an effect's
-    /// entry. Written once, by the entry performer, off the stack entry the
-    /// proposal's zone change came from (`codebase-state.md` main item 9).
+    /// entry, the token a copy of a spell becomes. Written once, by the entry
+    /// performer, off the stack entry the proposal's zone change came from
+    /// (`codebase-state.md` main item 9).
     pub cast: Option<CastFacts>,
+
+    /// CR 707.10's cost decisions for the spell this permanent was: kicked,
+    /// bargained, evoked. Beside `cast` rather than in it, because a copy of
+    /// a spell isn't cast and keeps them anyway: the token a copy of a kicked
+    /// spell becomes is kicked (Archangel of Wrath's ruling). Empty for a
+    /// permanent that was never a spell.
+    pub cost_choices: CostChoices,
 }
 
-/// CR 400.7d's two facts about a permanent that was cast.
+/// CR 400.7d's facts about a permanent that was cast: who cast it, from
+/// where, and the mana spent to pay its costs. A copy of a spell has none of
+/// them — it isn't cast, and mana is not an object (CR 707.10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CastFacts {
     pub by: PlayerId,
     pub from: crate::types::zones::Zone,
+    pub mana_spent: crate::types::mana::ManaSpent,
+}
+
+/// The decisions about a spell's costs that CR 707.10 copies with it, the way
+/// it copies X: the additional costs paid and the alternative cost chosen.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CostChoices {
+    /// Kicked, bargained (CR 702.33d, 702.166b) — every additional cost paid,
+    /// in printed order.
+    pub additional: Vec<crate::types::costs::AdditionalCost>,
+    /// Evoked, prowled, dashed (CR 118.9).
+    pub alternative: Option<crate::types::costs::AlternativeCost>,
+}
+
+impl CostChoices {
+    pub const NONE: CostChoices = CostChoices { additional: Vec::new(), alternative: None };
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +185,7 @@ impl PermanentState {
             attached_to: None,
             attached_by: Vec::new(),
             cast: None,
+            cost_choices: CostChoices::NONE,
         }
     }
 

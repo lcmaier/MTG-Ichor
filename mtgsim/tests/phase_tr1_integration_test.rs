@@ -39,23 +39,25 @@ use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{is_mana_ability, visible_to_all};
 use mtgsim::events::event::{DamageTarget, GameEvent};
-use mtgsim::objects::card_data::{AbilityDef, CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::game_state::{
-    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StepType,
+    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
-    test_ctx, test_dp, vanilla_creature,
+    static_ability, test_ctx, test_dp, vanilla_creature,
 };
 use mtgsim::types::card_types::CardType;
+use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
-use mtgsim::types::mana::ManaType;
+use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin,
@@ -2076,6 +2078,144 @@ fn a_permanent_remembers_whether_it_was_cast() {
     assert_eq!((facts.by, facts.from), (1, Zone::Hand));
     let placed = put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(game.battlefield[&placed].cast, None);
+}
+
+fn kicker_red() -> AdditionalCost {
+    AdditionalCost::Kicker(vec![Cost::Mana(ManaCost::build(&[ManaType::Red], 0))])
+}
+
+/// Cast `card` from hand out of exactly `pool`, kicking it or not, then
+/// resolve it and anything its resolution triggered. Exact, so the generic
+/// split is forced (CR 102.2) and asks nothing.
+fn cast_from_exact_pool(card: Arc<CardData>, pool: &[ManaType], kick: bool) -> (GameState, ObjectId) {
+    let mut game = setup_two_player_game();
+    let id = put_in_hand(&mut game, card, 0);
+    for &t in pool {
+        game.players[0].mana_pool.add(t, 1);
+    }
+    let dp = ScriptedDecisionProvider::new();
+    let kicked = if kick { vec![0] } else { Vec::new() };
+    dp.expect_pick_n(ChoiceKind::ChooseAdditionalCosts { spell_id: id }, kicked);
+    game.cast_spell(0, id, &dp).expect("cast from an exact pool");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
+    resolve_top(&mut game, &test_dp());
+    place(&mut game, &test_dp());
+    while !game.stack.is_empty() {
+        resolve_top(&mut game, &test_dp());
+    }
+    (game, id)
+}
+
+/// A {1}{G} 2/2 with kicker {R} and "When this creature enters, if it was
+/// kicked, you gain 1 life" — ATOM-400.7d-001's board with the "if kicked"
+/// ability it names.
+fn kicked_herald() -> Arc<CardData> {
+    CardDataBuilder::new("Kicked Herald")
+        .card_type(CardType::Creature)
+        .mana_cost(ManaCost::build(&[ManaType::Green], 1))
+        .power_toughness(2, 2)
+        .additional_cost(kicker_red())
+        .ability(triggered_ability(TriggerDef {
+            condition: TriggerCondition::Event(enters(TriggerSubject::This).into()),
+            intervening_if: Some(Condition::SpellWasKicked),
+            limit: None,
+            effect: gain_one(),
+        }))
+        .build()
+}
+
+/// CR 400.7d — the permanent keeps what was paid to cast it: the kicker, and
+/// the mana by type, the generic {1} included (the exact {W}{G}{R} forces it
+/// onto the {W}). Its "if kicked" ability reads that as it enters and again
+/// as it resolves (CR 603.4). Driven through `cast_spell`, because the cast
+/// path is the only writer of the mana.
+// COVERS: ATOM-400.7d-001
+#[test]
+fn a_kicked_permanent_remembers_what_paid_for_it() {
+    let (game, herald) =
+        cast_from_exact_pool(kicked_herald(), &[ManaType::White, ManaType::Green, ManaType::Red], true);
+    let choices = &game.battlefield[&herald].cost_choices;
+    assert!(matches!(choices.additional[..], [AdditionalCost::Kicker(_)]));
+    assert_eq!(choices.alternative, None);
+    let facts = game.battlefield[&herald].cast.expect("cast from the hand");
+    let by_type = [
+        ManaType::White,
+        ManaType::Blue,
+        ManaType::Black,
+        ManaType::Red,
+        ManaType::Green,
+        ManaType::Colorless,
+    ]
+    .map(|t| facts.mana_spent.amount(t));
+    assert_eq!(by_type, [1, 0, 0, 1, 1, 0]);
+    assert_eq!(life(&game, 0), 21, "the \"if kicked\" ability read it");
+}
+
+/// The same creature unkicked: no additional cost paid, and the "if" is
+/// false as it enters, so the ability never triggers.
+#[test]
+fn an_unkicked_permanent_was_not_kicked() {
+    let (game, herald) = cast_from_exact_pool(kicked_herald(), &[ManaType::White, ManaType::Green], false);
+    assert!(game.battlefield[&herald].cost_choices.additional.is_empty());
+    let facts = game.battlefield[&herald].cast.expect("cast from the hand");
+    assert_eq!(facts.mana_spent.total(), 2);
+    assert_eq!(life(&game, 0), 20);
+}
+
+/// CR 707.10 — "a copy of a spell isn't cast", and it copies "additional or
+/// alternative costs". So the permanent a kicked spell's copy becomes was
+/// not cast, spent no mana, and is kicked (Archangel of Wrath's ruling). No
+/// spell copy exists before CV-4, so the entry is staged the way CV-4's
+/// copy will be: a spell with the original's decisions and no `cast_from`.
+#[test]
+fn a_spell_that_was_not_cast_keeps_its_kicker() {
+    let mut game = setup_two_player_game();
+    let copy = game.add_object(GameObject::new(kicked_herald(), 0, Zone::Stack));
+    game.stack.push(copy);
+    game.stack_entries.insert(copy, StackEntry {
+        object_id: copy,
+        controller: 0,
+        chosen_targets: Vec::new(),
+        chosen_modes: Vec::new(),
+        x_value: None,
+        effect: Effect::Sequence(Vec::new()),
+        is_spell: true,
+        chosen_alternative_cost: None,
+        additional_costs_paid: vec![kicker_red()],
+        mana_spent: ManaSpent::NONE,
+        cast_from: None,
+        ability_identity: None,
+        trigger: None,
+    });
+    resolve_top(&mut game, &test_dp());
+    place(&mut game, &test_dp());
+    while !game.stack.is_empty() {
+        resolve_top(&mut game, &test_dp());
+    }
+    assert_eq!(game.battlefield[&copy].cast, None, "not cast");
+    assert_eq!(life(&game, 0), 21, "and still kicked");
+}
+
+/// "If this spell was kicked" on an instant is read as it resolves, when
+/// its `StackEntry` has already been taken — so off the facts resolution
+/// carries, the same record a permanent spell hands to the permanent.
+#[test]
+fn a_resolving_spell_reads_its_own_kicker() {
+    let insight = || {
+        CardDataBuilder::new("Kicked Insight")
+            .card_type(CardType::Instant)
+            .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
+            .additional_cost(kicker_red())
+            .ability(AbilityDef {
+                ability_type: AbilityType::Spell,
+                ..static_ability(Effect::Conditional(Condition::SpellWasKicked, Box::new(gain_one())))
+            })
+            .build()
+    };
+    let (game, _) = cast_from_exact_pool(insight(), &[ManaType::Blue, ManaType::Red], true);
+    assert_eq!(life(&game, 0), 21, "kicked");
+    let (game, _) = cast_from_exact_pool(insight(), &[ManaType::Blue], false);
+    assert_eq!(life(&game, 0), 20, "not kicked");
 }
 
 /// CR 117.5 — "each time a player would get priority, [...] triggered

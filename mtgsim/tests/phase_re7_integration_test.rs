@@ -34,6 +34,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::colors::Color;
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::oracle::characteristics::get_effective_controller;
@@ -199,6 +200,7 @@ fn stack_object_with(
         is_spell,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: ManaSpent::NONE,
         cast_from: if is_spell { Some(Zone::Hand) } else { None },
         ability_identity: None,
         trigger: None,

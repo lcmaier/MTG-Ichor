@@ -2,6 +2,7 @@ use crate::oracle::characteristics::{has_permanent_type, has_subtype};
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
+use crate::state::battlefield::{CastFacts, CostChoices};
 use crate::state::game_state::{GameState, ResolvingObject};
 use crate::types::card_types::{EnchantmentType, Subtype};
 use crate::types::zones::Zone;
@@ -72,7 +73,15 @@ impl GameState {
         self.resolving = Some(ResolvingObject {
             id: object_id,
             default_controller,
-            cast_from: entry.cast_from,
+            cast: entry.cast_from.map(|from| CastFacts {
+                by: default_controller,
+                from,
+                mana_spent: entry.mana_spent,
+            }),
+            cost_choices: CostChoices {
+                additional: entry.additional_costs_paid.clone(),
+                alternative: entry.chosen_alternative_cost.clone(),
+            },
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -287,7 +296,7 @@ mod tests {
     use crate::state::game_state::{GameState, StackEntry};
     use crate::types::card_types::CardType;
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
-    use crate::types::mana::{ManaCost, ManaType};
+    use crate::types::mana::{ManaCost, ManaSpent, ManaType};
     use crate::types::zones::Zone;
     use crate::test_support::{lightning_bolt as make_bolt, pacifism as make_pacifism, test_dp};
 
@@ -343,6 +352,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -470,6 +480,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -547,6 +558,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -605,6 +617,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -714,6 +727,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,

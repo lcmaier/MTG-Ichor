@@ -41,7 +41,7 @@ use crate::types::effects::{
 };
 use crate::types::ids::{AbilityId, ObjectId, PlayerId, new_ability_id};
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::{ManaCost, ManaType};
+use crate::types::mana::{ManaCost, ManaSpent, ManaType};
 use crate::engine::actions::ActionContext;
 use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
@@ -377,6 +377,7 @@ pub fn put_spell_on_stack(
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,

@@ -34,6 +34,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_object_id, ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::zones::Zone;
 use mtgsim::engine::targeting::{ChosenTargets};
 
@@ -105,6 +106,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,

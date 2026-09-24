@@ -18,13 +18,15 @@
 //!
 //! `Condition` is `types::effects`' own enum, written for CR 603.4's
 //! intervening "if" and shared rather than duplicated (§13b decision 5), so
-//! two arms here are resolution-only and assert the way `evaluate_amount`'s
+//! `ModeChosen` is resolution-only here and asserts the way `evaluate_amount`'s
 //! resolution-only amounts do.
 
 use crate::engine::layers::board::Board;
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
+use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
+use crate::types::costs::AdditionalCost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
 use crate::types::ids::{ObjectId, PlayerId};
 
@@ -154,13 +156,19 @@ pub(super) fn holds(
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
-        // Both are answers a *resolution* had and a static ability never
-        // does: CR 702.33a's kicker was paid as a spell was cast, and CR
-        // 700.2's modes were chosen then too. A card author reaching for one
-        // on a static ability is making the `evaluate_amount` mistake and
-        // gets the same treatment — stopped in debug, declining in release,
-        // never inventing an answer.
-        Condition::SpellWasKicked | Condition::ModeChosen(_) => {
+        // CR 702.33d, read off the cost decisions and not off the cast: a copy
+        // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
+        // the token it becomes; a permanent that was never a spell is not.
+        Condition::SpellWasKicked => cost_choices(game, source).is_some_and(|choices| {
+            choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
+        }),
+
+        // An answer a *resolution* had and a static ability never does:
+        // CR 700.2's modes are chosen as a spell is cast, and nothing carries
+        // them past it. A card author reaching for one on a static ability is
+        // making the `evaluate_amount` mistake and gets the same treatment —
+        // stopped in debug, declining in release, never inventing an answer.
+        Condition::ModeChosen(_) => {
             debug_assert!(
                 false,
                 "{:?} has no static-context evaluator: it reads a choice made \
@@ -185,6 +193,15 @@ pub(super) fn holds(
 /// and their evaluators are [`holds`]'s, unchanged.
 pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
+}
+
+/// CR 707.10's cost decisions for `source`: the resolving spell's, whose
+/// `StackEntry` resolution has taken, or the permanent's it became.
+fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
+    match &game.resolving {
+        Some(r) if r.id == source => Some(&r.cost_choices),
+        _ => game.battlefield.get(&source).map(|e| &e.cost_choices),
+    }
 }
 
 /// CR 109.5's "you", off the source's live frame.
@@ -427,12 +444,14 @@ mod tests {
         assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED));
     }
 
+    /// "If you put a permanent with a kicker ability onto the battlefield
+    /// without casting it, you can't kick it" (Archangel of Wrath's ruling):
+    /// it was never a spell, so there were no costs to decide.
     #[test]
-    #[should_panic(expected = "no static-context evaluator")]
-    fn a_resolution_only_leaf_on_a_static_is_loud() {
+    fn a_permanent_that_was_never_a_spell_was_not_kicked() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        let _ = settled_holds(&Condition::SpellWasKicked, &game, bears);
+        assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears));
     }
 
     #[test]

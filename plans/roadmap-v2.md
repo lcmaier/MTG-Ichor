@@ -259,6 +259,7 @@ its own trigger.
 | B6 | **CV-3 … CV-7** | CV-7 (merging, CR 729) is back-stopped before Phase 8 because a multi-component permanent is a fact every later phase would otherwise code against **Added 2026-09-15 (pass 4):** CV-2 is unblocked (RC-2 and RC-4 landed) and first in the chain CV-2 → main item 10 with CV-1b → RS-2; CV-4 is free at any point and its 39 CR 707.10b clauses are item 6's; CV-6 after CV-5 and unsized on purpose (count `put_on_stack.rs`'s alternative-cost sites first), with "Before Layers" item 10's 1a/1b split and `replacement-architecture.md` §8a's turned-face-up event kind; CV-7 its own design pass. What the doc owes each: its LKI section decides against item 10's shape — the `Fixed`-set prune and `target_epochs` — whether or not item 10 has landed (CV-1b); CR 707.5's ETB-of-a-copy becomes a test (CV-2); CR 726's day/night reads the previous turn's spell count, P3's tracker (CV-5); which reads key on the permanent and which on a component before CV-7 (CR 729.3d). Atoms: `copy-effects-architecture.md` §8's 101 (2026-08-29), four of CR 707's partial since CV-1 — CV-1b's slice is 707.2, 707.3 and 707.7; CV-2's 707.5, 707.6 and 707.9, thirteen with the two composites; CV-4's the nine under 707.10–707.12; CV-5's the 34 of 712 plus 710's 3; CV-6's 708's 10; CV-7's 729's 19 plus 712.4's 3; no 707.1 atom exists for CV-3. | ~5 |
 | B7 | **The lattice** (§4's table) | feature-shaped, order free; §2.8 (functioning zones, activation restrictions) first, since §2.3's cast-from-elsewhere keywords are written in it | 10–13 |
 | B8 | **"As though" effects** (CR 609.4) — `backlog.md` §2.24, graduating to `as-though-architecture.md` | **The permission half is back-stopped before C**, and this row is what schedules it: 287 cards, but a *mechanism* rather than breadth, so without it Phase 8 codes around it one card at a time — the same profile and the same back-stop as B6's CV-7 and as B4. **After B5, never before**: `cant-effects-architecture.md` §3.7 cuts its seam at RS-3a and RS-4, and going first would cut the same four combat functions from the permission side and retrofit the restrictions instead — the doubled rewrite mirrored. The **payment half** (609.4b) rides with **CP-1** rather than taking a slot, because §2.24 sizes it at ~200–300 *on top of* CP-1's payment site. The **value-substitution half** gets no back-stop on purpose: it is unsized, it needs RC-4's frame generalized past entries, and §2.24's own invariant — the fiction never reaches `compute_characteristics`, or Masako's creature is untapped for the untap step — has to be designed before a date means anything **Added 2026-09-15 (pass 4):** no triggers-doc question; 5 atoms under CR 609.4, all `NEW`, Phase 8. | 2 + CP-1 |
+| B9 | **Mana provenance** — `codebase-state.md` main item 33: each unit of mana keeps its source and that source's facts, so restricted mana and its grants (T12c/T12d), CR 107.4h's `{S}` and CR 400.7d's source readers ("mana from a Treasure", "if {S} was spent") land as one facility | **Scheduled 2026-09-23, by item 30's capture PR, with a hard back-stop before C**, the same profile as B4 and B6's CV-7: a mechanism, not breadth. Item 30 recorded the mana spent by type because the simple pool drops a unit's source at `pool.add`; what costs is the question, since once two `{G}` can differ CR 601.2h makes "which one pays" the player's choice — a source axis on the generic split and the pips, and a fixture migration. **A design pass the owner reviews comes first**; depends on nothing in A | design + 1–2 |
 
 ### C. Phase 8 — card breadth (643 atoms)
 
@@ -422,7 +423,7 @@ free is the internal arrows.
 | §2.10 color derivation | devotion, protection-from-color, color-matters | pairs with §2.1 |
 | §2.5 remaining `Primitive` arms | manifest, cloak, exert, unattach; the face-down subsystem (shared with foretell) | §2.9 for face-down |
 | §2.12 step-scoped durations | only 10 cards say "until end of combat" — the weight is the engine hooks (CR 511.3, CR 703.4q), a caution against sizing by card count | — |
-| T12c/T12d restricted-mana wiring | the 227 `o:"this mana"` cards; Omnath-class blanket persistence | grants want item 30 and item 6 |
+| T12c/T12d restricted-mana wiring | the 227 `o:"this mana"` cards; Omnath-class blanket persistence | scheduled as §3a B9, before C; grants want item 6 |
 | §2.4 `DecisionProvider` choice shapes | the voting cycle; name-a-card | one trait decision, taken once |
 | §2.13 deck-limit validation | a deckbuilding UI that refuses malformed lists | trivial |
 | §2.15 player-scoped continuous effects | Winter's hand-size clause; the Reliquary Tower class (62 touch it, 43 remove it); player hexproof (14) | conditional gating: item 6 |
@@ -438,7 +439,8 @@ free is the internal arrows.
 the mana atoms, the spent objects — rides the `x_value` rail, is independent
 of every scheduled phase, and the information exists only at payment time. One
 small standalone PR; the design half (the CR 707.10 split) stays CV's, per
-`codebase-state.md` item 30.
+`codebase-state.md` item 30. **Landed 2026-09-23 for the mana, by type**; the
+spent objects stay CV's, and the mana's source is §3a B9.
 
 **2. The information model (§2.9) gets a scheduled slot with a hard back-stop:
 before Phase 8's face-down and reveal cards, and before any Phase 10 GUI/AI

@@ -70,6 +70,7 @@ mod tests {
     use crate::test_support::{put_in_hand, put_on_battlefield, registered, test_ctx, vanilla_creature};
     use crate::types::effects::{CounterType, Effect};
     use crate::types::ids::ObjectId;
+    use crate::types::mana::ManaSpent;
     use crate::types::replacement::EnterMods;
     use crate::types::zones::{Zone, ZoneChangeCause};
 
@@ -254,6 +255,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,

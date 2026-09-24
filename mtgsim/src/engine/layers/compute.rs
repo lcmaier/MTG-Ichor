@@ -287,7 +287,7 @@ pub(crate) fn base_controller(
     if let Some(entry) = game.stack_entries.get(&id) {
         return Some(entry.controller);
     }
-    if let Some(resolving) = game.resolving
+    if let Some(resolving) = &game.resolving
         && resolving.id == id {
         return Some(resolving.default_controller);
     }

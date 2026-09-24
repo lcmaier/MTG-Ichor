@@ -15,6 +15,7 @@ use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::triggers::{PendingTrigger, TriggerOrigin, TriggerSeq, TriggerTier};
+use crate::types::mana::ManaSpent;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_order_triggers;
 use crate::ui::decision::DecisionProvider;
@@ -154,6 +155,7 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
+            mana_spent: ManaSpent::NONE,
             cast_from: None,
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),

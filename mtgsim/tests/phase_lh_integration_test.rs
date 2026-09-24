@@ -25,7 +25,7 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::effects::{Effect, EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::ids::{ObjectId, PlayerId};
-use mtgsim::types::mana::ManaType;
+use mtgsim::types::mana::{ManaSpent, ManaType};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
@@ -66,6 +66,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,

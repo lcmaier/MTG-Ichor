@@ -39,6 +39,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::replacement::EventPattern;
+use mtgsim::types::mana::ManaSpent;
 use mtgsim::types::restriction::{Restriction, RestrictionDef};
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -122,6 +123,7 @@ fn stage_spell_with(
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
+        mana_spent: ManaSpent::NONE,
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,

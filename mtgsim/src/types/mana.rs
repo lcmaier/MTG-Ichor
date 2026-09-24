@@ -467,6 +467,40 @@ impl ManaAtom {
     }
 }
 
+/// The mana a payment spent, by type (CR 601.2h) — what CR 400.7d lets a
+/// permanent read about the spell it was.
+///
+/// **By type only**, because that is all the simple pool keeps: a unit's
+/// source is gone by the time it is spent, so "mana from a Treasure" and
+/// CR 107.4h's `{S}` have no answer here. `codebase-state.md` item 33 owns the
+/// per-unit record; it replaces this body and keeps the accessors.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ManaSpent([u64; 6]);
+
+impl ManaSpent {
+    /// No mana: an ability, a copy of a spell, a spell cast without paying.
+    pub const NONE: ManaSpent = ManaSpent([0; 6]);
+
+    fn add(&mut self, mana_type: ManaType, amount: u64) {
+        self.0[mana_type as usize] += amount;
+    }
+
+    /// Fold another payment's mana into this one.
+    pub(crate) fn absorb(&mut self, other: ManaSpent) {
+        for (mine, theirs) in self.0.iter_mut().zip(other.0) {
+            *mine += theirs;
+        }
+    }
+
+    pub fn amount(&self, mana_type: ManaType) -> u64 {
+        self.0[mana_type as usize]
+    }
+
+    pub fn total(&self) -> u64 {
+        self.0.iter().sum()
+    }
+}
+
 /// A player's mana pool — tracks available mana by type.
 ///
 /// Dual-track structure:
@@ -790,12 +824,13 @@ impl ManaPool {
     /// portion. The values must sum to `cost.generic_count()`. This is a
     /// player choice because the player may want to preserve specific colors.
     ///
-    /// Returns Err if the pool has insufficient mana or the allocation is invalid.
+    /// Returns what it removed, or Err if the pool has insufficient mana or the
+    /// allocation is invalid.
     pub fn pay(
         &mut self,
         cost: &ManaCost,
         generic_allocation: &HashMap<ManaType, u64>,
-    ) -> Result<(), String> {
+    ) -> Result<ManaSpent, String> {
         if !self.can_pay(cost) {
             return Err("Insufficient mana to pay cost".to_string());
         }
@@ -831,24 +866,27 @@ impl ManaPool {
             }
         }
 
+        let mut spent = ManaSpent::NONE;
         for (&mana_type, &required) in &need {
             self.remove(mana_type, required)?;
+            spent.add(mana_type, required);
         }
 
         for (&mana_type, &alloc_amount) in generic_allocation {
             if alloc_amount > 0 {
                 self.remove(mana_type, alloc_amount)?;
+                spent.add(mana_type, alloc_amount);
             }
         }
 
-        Ok(())
+        Ok(spent)
     }
 
     /// Pay a ManaCost that has no generic component.
     ///
     /// Convenience method for costs where all mana is specific colors (e.g. {W},
     /// {G}{G}, {R}). Errors if the cost has a generic component — use `pay()` instead.
-    pub fn pay_specific_only(&mut self, cost: &ManaCost) -> Result<(), String> {
+    pub fn pay_specific_only(&mut self, cost: &ManaCost) -> Result<ManaSpent, String> {
         if cost.generic_count() > 0 {
             return Err("Cost has generic component — use pay() with a generic allocation".to_string());
         }
