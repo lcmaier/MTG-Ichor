@@ -37,6 +37,66 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-24 for item 176** (a redirect keeps the act —
+`codebase-state.md` item 176; `GameActionTemplate::ZoneChangeTo` names only a
+destination). **No pool change**, so there is no new fixture table:
+`performance` stays at 94 and `stress` at 171. What moves is a label on the
+performed record, and one prompt.
+
+**Expected, as the brief stated it before the run:** a `differ` only where a
+redirect moves. Academy's CR 616.1 prompt now comes in both orders under
+Leyline of the Void, and a move that Rest in Peace or Leyline redirects changes
+its label.
+
+**The A/B, `fuzz_ab.py`**: `main` at #183's merge (`ebe9266`) against the fix
+(`c7b9a1b`), 200 games, seed 12345, both pools, timing 3×200 on `performance`.
+**Counters `IDENTICAL` on both pools**, `Replacement prompts` included (0.14 /
+1.80), and the audit agreed on both arms (177,397 / 209,234 dispatches).
+Timing: 6.94 → 6.96 ms/game median (+0.3%), µs/decision 29.5 → 29.6,
+deterministic on both arms. The counters cannot see a label, and seed 12345's
+200 `stress` games never dealt a discard that Leyline and an Academy both
+watched with Leyline chosen first.
+
+**Game by game**, the 200-game `--dump-events` streams diffed per game. A line
+counts as the same event when only its `[cause]` differs:
+
+| board | games differing | lines, cause only | any other difference |
+|---|---|---|---|
+| `performance` | 7 of 200 | 10 | 0 |
+| `stress` | 77 of 200 | 478 | 0 |
+
+Every line is a redirected move that now carries its act. On `performance`,
+all 10 are `Hand -> Library` from `[PutIntoLibrary]` to `[Discarded]`: a Nexus
+of Fate or a Darksteel Colossus discarded and shuffled in instead. On `stress`:
+
+- `Battlefield -> Exile`, from `[Exiled]`: 202 `DestroyedBySba`,
+  25 `Sacrificed`, 14 `Destroyed`, 7 `ZeroToughness`, 5 `AuraSba`;
+- `Stack -> Exile`: 147 `Resolved`, 3 `Countered`. `Stack -> Library`:
+  32 `Resolved`, Nexus of Fate;
+- `Hand -> Exile`: 30 `Discarded`. `Hand -> Library`: 11 `Discarded`;
+- `Hand -> Exile`: 2 `PlayedAsLand`, a Dryad Arbor played under Containment
+  Priest, which is decision 2's other act that is its destination.
+
+**The Leyline board**: `--pool stress --require "Leyline of the Void,Nephalia
+Academy,Mind Rot,Hymn to Tourach" --copies 4`, 200 games, seed 12345, `main`
+against the fix. `Replacement prompts` goes 1.90 → 2.31 per game. 169 of 200
+games differ, 142 by labels only, and 27 change course. Each was attributed at
+its first divergence that is not a label:
+
+- **15** at a discard Leyline was chosen for, where Academy is now offered next
+  and accepted: `Hand -> Exile [Exiled]` becomes
+  `Hand -> Library [Discarded]`;
+- **10** after an earlier discard of that shape where Academy was offered and
+  declined. The outcome matches `main`'s but for the label, and the prompt
+  spent a draw of the random provider's stream, so a later choice differs;
+- **2** after a Nexus of Fate or Darksteel Colossus discard (games 164 and
+  174), where the discarding player's Academy is now offered after the card's
+  own redirect. It is the same CR 616.1f reader.
+
+**Determinism**: three `fuzz_games` runs, `stress`, 200 games, seed 12345,
+under `MTGSIM_HASH_SEED` 1, 2 and 3, were identical line for line except the
+timing lines.
+
 **Re-recorded 2026-09-22 for TR-1b** (the dispatch audit — `triggers-architecture.md`
 §4.10 and §12's TR-1b row — with main item 174's fix as its first commit, the
 dispatcher's counts as three rows, and the first Commander-scale callgrind

@@ -103,8 +103,8 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 |---|---:|
 | Numbered items | 237 |
 | …closed, still recorded | 76 |
-| …open — unreachable, and says why | 101 |
-| **…open — reachable, wrong today** | **4** |
+| …open — unreachable, and says why | 102 |
+| **…open — reachable, wrong today** | **3** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 27 |
 | **…open — reachability *not* stated** | **0** |

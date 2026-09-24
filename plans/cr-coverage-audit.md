@@ -298,7 +298,7 @@ triggers, then cost, then the rest**. **All four ran on 2026-09-24.**
 | An "as it enters" choice: a color, a creature type, a player, an anchor word (614.12a, 614.12c) | **nowhere**: no slot in `EnterMods` or `PermanentState` | — | a copy entering makes its own choice, and a permanent that becomes a copy later has none (707.6); it leaves with the permanent (400.7); a control change keeps it | feature with a constraint, `backlog.md` §2.2 (CR 607.2d). 208 cards, `o:/as [^.]*enters[^.]*, choose/`, of which 192 read "chosen" |
 | What an entry's zone change chose: the cards Sutured Ghoul exiled (614.14), the creatures a devourer ate (702.82b) | `EntrySelectionScope.chosen`, for one batch. `AuxiliaryMove.per_chosen` turns it into counters | **no**: it is gone when the batch closes | a copy that gains the pair links anew (614.14); the exiled cards are new objects (400.7) | feature, `backlog.md` §2.2. Sutured Ghoul is item 59, already reachable and wrong. 8 readers: `o:"devoured"` 6, plus the entry pair "the exiled cards" 2 |
 | The effects that have already applied to an event (614.5) | `lineage` per member in the loop; `rider_lineage` during a rider | yes, and a modified event or a rider inherits it | 903.9b's exemption is built; 717.6's is in §5.2 | no gap, but it is dropped once the event performs, and the next two rows need it |
-| **What an "instead" left behind: the act of a redirected zone change** (614.6, 701.9c) | `GameEvent::ZoneChange.cause` | **no**: `Rewrite::Instead(ZoneChangeTo)` writes its own `cause` | the rulings on Rest in Peace, Leyline of the Void and Nephalia Academy say the card was still discarded; `triggers-architecture.md` §4 matches a sacrifice or discard on `cause` | **FACT**: item 176, reachable and wrong today |
+| **What an "instead" left behind: the act of a redirected zone change** (614.6, 701.9c) | `GameEvent::ZoneChange.cause` | **yes, since 2026-09-24**: `ZoneChangeTo` names only a destination and keeps the event's `cause`. Found as **no**: it wrote its own | the rulings on Rest in Peace, Leyline of the Void and Nephalia Academy say the card was still discarded; CR 616.1f's re-gather; `triggers-architecture.md` §4 matches a sacrifice or discard on `cause` | **FACT**: item 176, found reachable and wrong, **fixed 2026-09-24**. The item stays open for the next row's half |
 | Which replacement redirected an event ("when this card is exiled this way", 702.35a) | nowhere, once the event has been performed | no | — | the same item's second half. 61 cards (`kw:madness`). CR 615.13's version already has a shape: `DamagePrevented.by` ("Before Triggered abilities" item 16) |
 | The damage a prevention effect prevented (615.5, 615.13) | `Rider.prevented`, read by `AmountExpr::DamagePrevented`; `PreventionAllocationScope` for the batch | yes | CR 615.13's unit is one application, which the rider's number already is | no gap. 35 cards read it through a rider (`o:"prevented this way"`); the trigger is "Before Triggered abilities" item 16 (TR-5) |
 | A chosen source, "a source of your choice" (609.7a) | nowhere: `SourceFilter` is `ControlledBy` only | — | 400.7c | feature: an additive `SourceFilter` arm that holds the source's identity. 65 cards (`o:"source of your choice"`) |
@@ -626,10 +626,11 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
 ### 5.4 The re-sweep's findings (2026-09-24, §4a)
 
 - **The act of a redirected zone change.** `Rewrite::Instead(ZoneChangeTo)`
-  writes its own `cause`, so a discard or sacrifice that Rest in Peace or
-  Leyline of the Void redirects is performed as `Exiled`. The record also
-  cannot name the replacement that redirected it, which madness's trigger
-  needs. → `codebase-state.md` item 176, reachable and wrong today.
+  wrote its own `cause`, so a discard or sacrifice that Rest in Peace or
+  Leyline of the Void redirects was performed as `Exiled`. **Fixed
+  2026-09-24**: a redirect keeps the act. The record still cannot name the
+  replacement that redirected it, which madness's trigger needs. →
+  `codebase-state.md` item 176, re-scoped to that half.
 - **References held across a move: a fourth kind.**
   `RegisteredReplacementEffect.targets`, which item 90's rider reads. →
   main item 10, sharpened.

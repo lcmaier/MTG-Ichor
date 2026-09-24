@@ -157,7 +157,7 @@ the enforcement.
 | `EventPattern` | `types/replacement.rs` | Which events an effect watches. Ships 6 arms: `DealDamage`, `ZoneChange`, `Untap`, `Tap`, `Destroy`, `CounterChange` | **grows on one axis only** — an arm per `GameAction` variant (§3.2a) |
 | `DestructionSourcePattern` | `types/replacement.rs` | The `EventPattern::Destroy` filter over `DestructionSource` | tracks `DestructionSource` |
 | `Rewrite` | `types/replacement.rs` | What the effect does to the event. **Ships 2 arms, not §3.2b's 5**: `Prevent` and `Instead(GameActionTemplate)` | **closed** — `Amount`, redirection and the rest land with the phase that can apply them |
-| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
+| `GameActionTemplate` | `types/replacement.rs` | The substitute an `Instead` produces, as a template over the incoming event. Ships `ZoneChangeTo` (three RB customers — the finality counter, CR 903.9b, and Kalitas's exile) and `RemoveCountersFromAffected` (two — the shield and stun counters). **`ZoneChangeTo` names only a destination** and keeps the event's `cause`, since a redirected act is still that act (CR 614.6, 701.9c, 701.17c, 608.2c's example): `cause` is the act, `to` where it went. It carried its own cause until 2026-09-24 (`codebase-state.md` item 176) | **grows per card** — this is the unbounded arm's payload, bounded by "must produce a `GameAction` the engine already proposes" |
 | `ReplacementClass` | `types/replacement.rs` | CR 616.1a–e's forced-choice buckets, `Ord` in the rule's own order | **closed** — all five ship; only `Other` has a producer |
 | `Uses` | `types/replacement.rs` | `Static` or `Once`. `CounterBacked` did not survive contact with the CR (§3.2) | **closed** — `Shield(u64)` is CR 615.7's and lands with RD |
 | `ReplacementInstanceId` | `engine/replacement/instance.rs` | CR 614.5's identity key: `Registered` / `StaticAbility` / `Counter` / `GameRule` | **grows**, one arm per §3.3 gather source |
@@ -3393,7 +3393,9 @@ Each is a §11 item; the number is the pointer.
 - Mana production was a direct write with no event, RA's unnamed debt —
   93–98, and RE-9.
 - A substitution overwrites the replaced event's `cause` — 90, 91;
-  `codebase-state.md` item 131 carries it to critical-path item 6.
+  `codebase-state.md` item 131 carried it to critical-path item 6, and item
+  176 fixed it on 2026-09-24: a redirect keeps the act (CR 614.6). Item 131's
+  same-zone move, which leaves no record, is what item 6 still inherits.
 - CR 614.5's identity, CR 615.7's allocation across groups, CR 609.7b's
   recheck at the event — RD's design check, seven decisions and the one
   nobody asked (the archive, "RD").
