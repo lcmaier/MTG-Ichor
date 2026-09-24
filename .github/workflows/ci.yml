@@ -169,3 +169,11 @@ jobs:
       - name: String literals
         working-directory: .
         run: python3 plans/check_string_literals.py
+
+      # Every field `GameState` holds is named in `cr-coverage-audit.md` §4b,
+      # beside the type-surface pass that read it. That document promised the
+      # sweep "the day a type joins GameState", and the promise lapsed while
+      # the state went from 28 fields to 52. Reads two files, nothing else.
+      - name: Type surface
+        working-directory: .
+        run: python3 plans/check_type_surface.py

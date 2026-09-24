@@ -219,7 +219,9 @@ vocabulary, which grows by contract (`CLAUDE.md`). A new type joins the
 sweep the day it joins `GameState`. Card-population probes stay on as the
 standing check that the criterion holds — three ran, three earned their
 keep. *That promise lapsed between `3c322e5` and 2026-09-24, while `GameState`
-went from 28 fields to 52; §4a is the catch-up.*
+went from 28 fields to 52; §4a is the catch-up. `check_type_surface.py` now
+holds it: a pull request that adds a field this document does not name fails
+(§4b).*
 
 **Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement; pass 2, triggers; pass 3, cost; pass 4, the rest.**
 
@@ -476,6 +478,37 @@ a plan (main item 18) goes with its twin in the source.
 
 ---
 
+## 4b. `GameState`'s fields, and where each was read
+
+`plans/check_type_surface.py` fails a pull request whose `GameState` holds a
+field this document does not name: §4's promise, made a gate on 2026-09-24 at
+the owner's call. A field is named here once §2's question has been asked of
+it, beside the pass that asked or the reason it holds nothing. The list itself
+is derivable; where each name was read is not, and the gate needs the names.
+
+- **The 27 fields `GameState` had at `3c322e5` and still has**, under §4's
+  first table and the remainder it dispositioned: `objects`, `players`,
+  `stack`, `stack_entries`, `resolving`, `battlefield`, `exile`, `command`,
+  `turn_number`, `last_turn_began`, `active_player`, `priority_player`,
+  `phase`, `attacks_declared`, `blockers_declared`,
+  `blocker_damage_divisions`, `dealt_first_strike_damage`, `next_timestamp`,
+  `player_lost`, `skip_first_draw`, `continuous_effects`,
+  `replacement_effects`, `replacement_ability_sources`,
+  `next_zone_change_epoch`, `last_sba_check_epoch`, `events`, `rng`. The
+  re-sweep read several again; §4's second table says which.
+- **The 25 added since**, by the pass of §4a that read them:
+  - pass 1: `entry_selection`, `prevention_allocations`, `rider_lineage`;
+  - pass 2: `pending_triggers`, `look_back_snapshots`, `departure_frames`;
+  - pass 4: `restrictions`, `turn_plan`, `turn_queue`, `turn_rotation`,
+    `result`, `starting_life`;
+  - no fact about the game (pass 3's remainder): `cost_modification_ability_sources`,
+    `restriction_ability_sources`, `trigger_sources`,
+    `zone_replacement_ability_sources`, `zone_trigger_sources`, `layer_epoch`,
+    `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
+    `next_trigger_seq`, `next_object_id`.
+
+---
+
 ## 5. Findings register
 
 One line per finding, with a pointer to where it actually lives.
@@ -713,7 +746,8 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
-- **Settled 2026-09-24: the re-sweep.** Pass 4 (§4a) closed it.
+- **Settled 2026-09-24: the re-sweep.** Pass 4 (§4a) closed it, and
+  `check_type_surface.py` holds §4's promise from here on (§4b).
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the
