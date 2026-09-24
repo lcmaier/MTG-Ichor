@@ -226,7 +226,7 @@ fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
 /// **A `SourceInZone` leaf is a zone statement only at the top of the
 /// condition, or as a direct member of a top-level `All`. Anywhere else it is
 /// an ordinary predicate.** Concretely: `Conditional(SourceInZone(GY), body)`
-/// and `Conditional(All([SourceInZone(GY), ControlPermanent(Island)]), body)`
+/// and `Conditional(All([SourceInZone(GY), YouControlPermanent(Island)]), body)`
 /// both state the graveyard; `Conditional(All([All([SourceInZone(GY)])]), body)`
 /// states nothing, and neither would a clause under a future `Or` or `Not`.
 /// **A card cannot reach the nested form by accident** — there is no card text
@@ -271,17 +271,17 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
             }
             found
         }
-        // Everything else is an ordinary predicate. `CardInGraveyard` is the
+        // Everything else is an ordinary predicate. `CardInYourGraveyard` is the
         // near miss and stays one on purpose: it is about some *other*
         // object's zone, which places nothing.
-        Condition::ControlPermanent(_)
+        Condition::YouControlPermanent(_)
         | Condition::OpponentControlsPermanent(_)
-        | Condition::CardInGraveyard(_)
-        | Condition::LifeAtLeast(_)
-        | Condition::LifeAtMost(_)
+        | Condition::CardInYourGraveyard(_)
+        | Condition::YourLifeAtLeast(_)
+        | Condition::YourLifeAtMost(_)
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
-        | Condition::LibraryEmpty
+        | Condition::YourLibraryEmpty
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_) => None,
     }
@@ -371,7 +371,7 @@ mod tests {
         let wonder = ability(Effect::Conditional(
             Condition::All(vec![
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
-                Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
+                Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                     LandType::Island,
                 ))),
             ]),
@@ -391,7 +391,7 @@ mod tests {
     #[test]
     fn a_condition_that_names_no_zone_leaves_the_default() {
         let kird_ape = ability(Effect::Conditional(
-            Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
             Box::new(anthem()),
         ));
         assert_eq!(

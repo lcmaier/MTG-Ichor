@@ -228,7 +228,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .rules_text("Vigilance\nLifelink\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
         .ability(triggered_ability(TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
-            intervening_if: Some(Condition::LifeAtLeast(AmountExpr::Fixed(40))),
+            intervening_if: Some(Condition::YourLifeAtLeast(AmountExpr::Fixed(40))),
             limit: None,
             effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
         }))

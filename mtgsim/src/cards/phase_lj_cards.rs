@@ -160,7 +160,7 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
 /// Jailer's own tests assert the mechanism through `get_effective_abilities`,
 /// which is a direct read rather than a consequence.
 ///
-/// A *color* in a graveyard is different: `Condition::CardInGraveyard` reads
+/// A *color* in a graveyard is different: `Condition::CardInYourGraveyard` reads
 /// it, and since LJ folded `CardFilter` into `ObjectFilter` that condition can
 /// ask `ByColor`. So this fixture closes the loop — a zone-reaching row
 /// changes a graveyard card's characteristics, and a **rule** reads the
@@ -182,13 +182,13 @@ pub fn graveyard_painter() -> Arc<CardData> {
 /// your graveyard."
 ///
 /// The reader in [`graveyard_painter`]'s loop, and Kird Ape's shape with
-/// `Condition::CardInGraveyard` in place of `ControlPermanent`. The condition
+/// `Condition::CardInYourGraveyard` in place of `YouControlPermanent`. The condition
 /// is evaluated by `engine::layers::condition` against the *live* board at the
 /// row's layer, so the color it asks about is the post-Layer-5 color — which
 /// is what makes the Painter visible to it.
 ///
 /// `ByColor` is the leaf that makes this fixture possible at all: before LJ
-/// folded the two filter types together, `CardInGraveyard` took a `CardFilter`
+/// folded the two filter types together, `CardInYourGraveyard` took a `CardFilter`
 /// whose three variants could ask about a type or a color but never about an
 /// owner or a controller. The color half is what this needs.
 pub fn graveyard_reveler() -> Arc<CardData> {
@@ -200,7 +200,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("This creature gets +2/+2 as long as there's a red card in your graveyard.")
         .ability(static_ability(Effect::Conditional(
-            Condition::CardInGraveyard(ObjectFilter::ByColor(Color::Red)),
+            Condition::CardInYourGraveyard(ObjectFilter::ByColor(Color::Red)),
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(2),

@@ -64,7 +64,7 @@ pub(super) fn holds(
         // controls a creature". The controller test is the *variant's*, not
         // the filter's — that is what separates the two — and it reads the
         // effective controller, so a Layer 2 steal moves the answer.
-        Condition::ControlPermanent(filter) => {
+        Condition::YouControlPermanent(filter) => {
             controls_matching(filter, game, board, source, layer_index, true)
         }
         Condition::OpponentControlsPermanent(filter) => {
@@ -79,8 +79,8 @@ pub(super) fn holds(
         // a speculative arm. What *is* missing is the opponent's total —
         // Bloodghast's "as long as an opponent has 10 or less life" — which
         // wants its own leaf, since these two read the source's controller.
-        Condition::LifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
-        Condition::LifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
+        Condition::YourLifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
+        Condition::YourLifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
 
         // "as long as there's a [X] card in your graveyard". The variant carries
         // no player, and the printed shape it is written for is *your* graveyard;
@@ -91,7 +91,7 @@ pub(super) fn holds(
         // reads every leaf the layer walk reads, and CR 108.4a is what makes that
         // sound off the battlefield: a card with no controller uses its owner
         // wherever a controller is asked for, so `ByController` answers here too.
-        Condition::CardInGraveyard(filter) => {
+        Condition::CardInYourGraveyard(filter) => {
             let Some(you) = controller_of(game, board, source, layer_index) else {
                 return false;
             };
@@ -138,7 +138,7 @@ pub(super) fn holds(
         // "While your library has no cards in it" — Laboratory Maniac. The
         // library is off `GameState`; "your" is the source's controller off
         // its live frame, as `life_compare` reads it.
-        Condition::LibraryEmpty => controller_of(game, board, source, layer_index)
+        Condition::YourLibraryEmpty => controller_of(game, board, source, layer_index)
             .and_then(|you| game.players.get(you))
             .is_some_and(|player| player.library.is_empty()),
 
@@ -274,7 +274,7 @@ fn life_compare(
 // ---------------------------------------------------------------------------
 // The leaves with no registered consumer.
 //
-// Kird Ape covers `ControlPermanent` and the Flight Clause covers
+// Kird Ape covers `YouControlPermanent` and the Flight Clause covers
 // `HostMatches`, both end to end in `tests/phase_li3_integration_test.rs`.
 // The rest are exercised here against a settled board, because a leaf no
 // card reaches is exactly the kind of code that is wrong and quiet — the
@@ -312,41 +312,41 @@ mod tests {
         game.players[0].life_total = 20;
         game.players[1].life_total = 3;
 
-        assert!(settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
-        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(19)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(19)), &game, bears));
 
         // CR 109.5 — the *source's* controller, not either player at large.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
-        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
+        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, bears));
     }
 
     #[test]
     fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
 
         put_in_graveyard(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
+        assert!(settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
         assert!(settled_holds(
-            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Land)),
+            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Land)),
             &game,
             bears
         ));
         assert!(!settled_holds(
-            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Creature)),
+            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Creature)),
             &game,
             bears
         ));
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, theirs));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, theirs));
     }
 
     #[test]
@@ -357,15 +357,15 @@ mod tests {
             crate::types::card_types::LandType::Forest,
         ));
 
-        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(!settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 1);
-        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(settled_holds(&Condition::OpponentControlsPermanent(forest), &game, bears));
     }
 
@@ -402,7 +402,7 @@ mod tests {
         // Wonder's own condition, clause for clause.
         let wonder = Condition::All(vec![
             Condition::SourceInZone(ZoneSet::GRAVEYARD),
-            Condition::ControlPermanent(island),
+            Condition::YouControlPermanent(island),
         ]);
         assert!(!settled_holds(&wonder, &game, dead), "in the graveyard, no Island");
         put_on_battlefield(&mut game, basic_lands::island(), 0);

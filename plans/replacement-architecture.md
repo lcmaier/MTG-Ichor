@@ -2173,7 +2173,7 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 - **Partial redirection** (Harm's Way) is **RD-5, a candidate, not out** —
   finding 23 has its shape and the measurement that decides it. Divine
   Deflection's pooled amount needs nothing RD lacks except
-  `AmountExpr::Variable`.
+  `AmountExpr::X`.
 - **Attacking a planeswalker** — combat's (`validation.rs:199`).
 - **CR 615.13** — Phase 7, as §12 says. RD records the prevented amount where
   615.5 needs it and emits no new event: whether a prevention is something the
@@ -2190,7 +2190,7 @@ files), CM-3 (+2,498 / 20) and CM-4 (+1,494 / 14).
 
 #### RD-5 — partial redirection (Harm's Way) — ❌ gate closed 2026-09-09, moved to `backlog.md` §2.25
 
-**So `backlog.md` §2.25 owns Harm's Way**, with the shape, this table and the reason. Divine Deflection is *not* affected and never was: a `Filter` + `PlayerSet` row with `NextDamage(X)` is already a pooled amount, and it waits only on `AmountExpr::Variable` and `codebase-state.md` item 90.
+**So `backlog.md` §2.25 owns Harm's Way**, with the shape, this table and the reason. Divine Deflection is *not* affected and never was: a `Filter` + `PlayerSet` row with `NextDamage(X)` is already a pooled amount, and it waits only on `AmountExpr::X` and `codebase-state.md` item 90.
 
 → The split the card needs, the gate and the ≈30 sites that fail it, and the three things worth keeping: `plans/archive/replacement-architecture-landed.md`, "RD-5" (evicted 2026-09-15).
 
@@ -2541,7 +2541,7 @@ batch's settlement of CR 104.2a/104.4a; CR 104.1 at the chokepoint, the check
 and the priority loop; CR 800.4j at the rotation and the three turn-based
 actions a departed active player has nobody to perform; `Primitive::{LoseGame,
 WinGame, SetLifeTotal}`, `Primitive::Exile` made real, `AmountExpr::StartingLifeTotal`,
-`Condition::LibraryEmpty` with the gather's "as long as" leg; `fuzz_games
+`Condition::YourLibraryEmpty` with the gather's "as long as" leg; `fuzz_games
 --players N`. Laboratory Maniac (pooled), Exquisite Archangel, Stunning
 Reversal, Platinum Angel. Items 6 (the loss half), 112, 113 (the priority
 half) and 123 close; 108 is re-dated and measured; 122 is re-owned.
@@ -2557,7 +2557,7 @@ instruction both exile the effect's own source. And the four-player run's first
 finding was the harness's own board — a departed seat still offered as an
 attack target (CR 506.2), fixed here (item 66).
 
-**Decided here, and written down**: `Condition::LibraryEmpty` is asked at
+**Decided here, and written down**: `Condition::YourLibraryEmpty` is asked at
 gather through `settled_holds` — CR 604.2 and 614.4, with CR 121.6a putting the
 proposal in front of that gather (item 64); `GameResult` is the chokepoint's,
 settled per *batch* and never per member, which is the four-loss Stunning

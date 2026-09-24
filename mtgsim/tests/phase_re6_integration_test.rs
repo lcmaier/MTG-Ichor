@@ -511,7 +511,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
         ability_type: mtgsim::objects::card_data::AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Conditional(
-            mtgsim::types::effects::Condition::LibraryEmpty,
+            mtgsim::types::effects::Condition::YourLibraryEmpty,
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::PlayerLoses,
                 affected_objects: ObjectSet::NO_OBJECTS,

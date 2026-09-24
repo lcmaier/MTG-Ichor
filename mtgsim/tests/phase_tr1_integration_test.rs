@@ -1224,7 +1224,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
             1,
             triggered_ability(TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
-                intervening_if: Some(Condition::LifeAtLeast(AmountExpr::Fixed(20))),
+                intervening_if: Some(Condition::YourLifeAtLeast(AmountExpr::Fixed(20))),
                 limit: None,
                 effect: Effect::Atom(
                     Primitive::Destroy,

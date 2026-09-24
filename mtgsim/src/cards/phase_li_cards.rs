@@ -292,7 +292,7 @@ pub fn purifier_clause() -> Arc<CardData> {
 /// (Oracle text verified on Scryfall, 2026-09-06.)
 ///
 /// **The cheapest printed conditional static there is**, and the one that
-/// needs no new condition leaf: `ControlPermanent(BySubtype(Forest))` over an
+/// needs no new condition leaf: `YouControlPermanent(BySubtype(Forest))` over an
 /// `Implicit` recipient, which is one layer-7c row whose *existence* is a
 /// question asked every pass (CR 604.2, `board::static_ability_still_exists`).
 /// Asymmetric, so a row applied twice or transposed fails an assertion.
@@ -320,7 +320,7 @@ pub fn kird_ape() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("This creature gets +1/+2 as long as you control a Forest.")
         .ability(static_ability(Effect::Conditional(
-            Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
+            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                 LandType::Forest,
             ))),
             Box::new(Effect::Atom(
@@ -416,7 +416,7 @@ pub fn simian_clause() -> Arc<CardData> {
              to its other types.",
         )
         .ability(static_ability(Effect::Conditional(
-            Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
+            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                 LandType::Forest,
             ))),
             Box::new(Effect::Atom(

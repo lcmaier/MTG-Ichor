@@ -1954,10 +1954,10 @@ impl GameState {
     ) -> Result<u64, String> {
         match expr {
             AmountExpr::Fixed(n) => Ok(*n),
-            AmountExpr::Variable => {
+            AmountExpr::X => {
                 // `StackEntry::x_value` has held it since the cast; reading it here is main
                 // item 90's PR (`codebase-state.md`), with the card that needs it.
-                Err("Variable (X) amount resolution not yet implemented".to_string())
+                Err("X amount resolution not yet implemented".to_string())
             }
             AmountExpr::CountOf(_selector) => {
                 Err("CountOf amount resolution not yet implemented".to_string())
@@ -1991,7 +1991,7 @@ impl GameState {
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }
-            AmountExpr::DamageDealt => {
+            AmountExpr::DamageDealtThisWay => {
                 Err("DamageDealt amount resolution not yet implemented".to_string())
             }
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so

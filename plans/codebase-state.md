@@ -124,7 +124,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
 | 601.2a | Announce spell / move to stack | ✅ | `engine/put_on_stack.rs` (780 lines) |
-| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `Variable`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
+| 601.2b | Choose modes / X / alt+additional costs | 🟡 X **chosen and paid** ✅ (X-dependent *resolution* amounts ❌ — `engine/resolve.rs:786-804` returns `Err` for a resolving `X`/`TargetPower`/`CountOf` amount; loud, and unreachable with no such card registered), alt ✅, additional ✅ (T18a); **mode choice ❌** (T18b pending — `ChoiceKind::ChooseModes` not added yet) | `engine/put_on_stack.rs` |
 | 601.2c | Choose targets + target uniqueness | ✅ multi-target with `TargetCount::Exactly(n)` / `UpTo(n)` min/max enforcement; `validate_targets` called post-selection; **uniqueness rules (115.3/4) ❌** (T18b) | `engine/put_on_stack.rs:130–152`, `ui/ask.rs` |
 | 601.2d | Distribution (damage/counters among targets) | ❌ still unbuilt after A4i, and now the only half of `backlog.md` §2.20 left — `roadmap-v2.md` row A4l sizes it | `engine/put_on_stack.rs` |
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
@@ -3658,7 +3658,7 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     Threading them onto `ReplacementInstance`
     and `Rider`, and giving `ReplacementDef::then` a recipient leaf that says
     "the thing this effect targeted at resolution", is that card's PR, which
-    also needs `AmountExpr::Variable`.
+    also needs `AmountExpr::X`.
 
     **The three rulings that pin the shape, carried here so they survive the
     handoff file** (Divine Deflection, verified on Scryfall 2026-09-08; the
@@ -6094,7 +6094,7 @@ What the *shape* says, as opposed to what one endpoint suggested:
 
 132. **A crate-wide `.clone()` audit, owed at the end of replacement effects.**
     LJ's review found a `player.graveyard.clone()` inside
-    `engine::layers::condition`'s `CardInGraveyard` arm that was never needed —
+    `engine::layers::condition`'s `CardInYourGraveyard` arm that was never needed —
     both borrows are immutable and it compiles without. It had been added
     defensively rather than because the compiler asked, and it sat on a genuinely
     hot path: CR 604.2's existence check runs per application, per layer, per
@@ -6133,7 +6133,7 @@ three turn-based actions a departed active player has nobody to perform;
 CR 800.4a at the target rule and the attack-target list;
 `Primitive::{LoseGame, WinGame, SetLifeTotal}`, `Primitive::Exile` for the
 effect's own source and for a targeted card wherever it is,
-`AmountExpr::StartingLifeTotal`, `Condition::LibraryEmpty` and the CR 604.2
+`AmountExpr::StartingLifeTotal`, `Condition::YourLibraryEmpty` and the CR 604.2
 leg in both static sweeps through `settled_holds`; `fuzz_games --players N`.
 Four cards — Laboratory Maniac (pooled), Exquisite Archangel, Stunning
 Reversal, Platinum Angel. Items 6 (the loss half), 73, 112, 113 (the

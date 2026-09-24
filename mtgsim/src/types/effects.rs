@@ -15,7 +15,7 @@ pub enum AmountExpr {
     /// A constant known at definition time
     Fixed(u64),
     /// X, chosen when the spell/ability is cast/activated (rule 107.3)
-    Variable,
+    X,
     /// "equal to the number of [things matching selector]"
     CountOf(Selector),
     /// "equal to the number of card **types** among [things matching selector]"
@@ -63,7 +63,7 @@ pub enum AmountExpr {
     /// "equal to that creature's toughness"
     TargetToughness,
     /// "equal to the damage dealt this way"
-    DamageDealt,
+    DamageDealtThisWay,
     /// CR 615.5's "that much" / "that many" — the amount the *replaced* event
     /// carried when a CR 615.5 rider was queued.
     ///
@@ -73,7 +73,7 @@ pub enum AmountExpr {
     /// other evaluator refuses it rather than reading a number off the board —
     /// there is none to read.
     ///
-    /// Distinct from [`Self::DamageDealt`], which is a resolving spell's
+    /// Distinct from [`Self::DamageDealtThisWay`], which is a resolving spell's
     /// question about damage it dealt itself.
     ReplacedAmount,
     /// "twice that many" — a factor on another amount.
@@ -442,11 +442,11 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    ControlPermanent(ObjectFilter),
-    LifeAtLeast(AmountExpr),
-    LifeAtMost(AmountExpr),
+    YouControlPermanent(ObjectFilter),
+    YourLifeAtLeast(AmountExpr),
+    YourLifeAtMost(AmountExpr),
     OpponentControlsPermanent(ObjectFilter),
-    CardInGraveyard(ObjectFilter),
+    CardInYourGraveyard(ObjectFilter),
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -459,7 +459,7 @@ pub enum Condition {
     /// ability that states which zones it functions in functions only from
     /// those zones — so the clause that gates the effect is the same sentence
     /// that places the ability. A condition about some *other* object's zone
-    /// is [`Self::CardInGraveyard`], which is why this one says `Source`.
+    /// is [`Self::CardInYourGraveyard`], which is why this one says `Source`.
     ///
     /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
     /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
@@ -494,7 +494,7 @@ pub enum Condition {
     SourceUntapped,
     /// "While your library has no cards in it" — Laboratory Maniac, and its
     /// planeswalker twin Jace, Wielder of Mysteries. "Your" is CR 109.5's
-    /// controller of the source, read the way `LifeAtLeast` reads it.
+    /// controller of the source, read the way `YourLifeAtLeast` reads it.
     ///
     /// **Written for one card and says so.** The leaf's first reader is a
     /// replacement effect's "as long as", evaluated by `replacement::gather`
@@ -503,7 +503,7 @@ pub enum Condition {
     /// conditional static's condition is one question wherever it is asked.
     /// A library is off `GameState`, not off any frame, so
     /// `board::condition_reads` declares nothing for it.
-    LibraryEmpty,
+    YourLibraryEmpty,
 }
 
 /// How many modes to choose (rule 700.2)

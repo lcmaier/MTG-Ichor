@@ -471,7 +471,7 @@ RD-3 built CR 609.7a's chosen source. The card is one mechanism short.
 | **Rules** | CR 614.9 (partial redirection), 615.7 (the count allocated across members) |
 | **Verdict** | `Rewrite` returns one proposal; `apply_replacements` returns one entry per *batch index*, and a split-off event has none |
 | **Size** | ≈ 30 mechanical sites plus new logic in `next_damage_shares` — above `replacement-architecture.md` §9's ~300–400 estimate, which did not contain the allocation half |
-| **Blocks** | Harm's Way; and, since RE-6, the choice Exquisite Archangel's first ruling offers — see the second customer below. Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::Variable` and `codebase-state.md` item 90 |
+| **Blocks** | Harm's Way; and, since RE-6, the choice Exquisite Archangel's first ruling offers — see the second customer below. Divine Deflection is a *pooled* amount, not a split, and waits on `AmountExpr::X` and `codebase-state.md` item 90 |
 | **Atoms** | none filed under `Backlog`; CR 614.9's atoms are covered by RD-4's whole-event redirects |
 | **Owner** | `replacement-architecture.md` §9's RD-5 section, which carries the shape, the site table and the gate that closed |
 

@@ -71,7 +71,7 @@ fn creatures_you_control() -> ObjectFilter {
 ///   is on the battlefield — where Wonder is a 2/2 flier that grants nothing.
 ///   Read *again* at every layer by the existence check, which is what retires
 ///   the row when the card is exiled (§13d decision 3).
-/// - `ControlPermanent(Island)` is an ordinary "as long as", the shape LI-3
+/// - `YouControlPermanent(Island)` is an ordinary "as long as", the shape LI-3
 ///   landed for Kird Ape. It names no zone and does not place the ability.
 ///
 /// # Its printed flying is a `KeywordFlag`, not an ability
@@ -100,7 +100,7 @@ pub fn wonder() -> Arc<CardData> {
             Condition::All(vec![
                 // CR 113.6b — the clause that says where this ability functions.
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
-                Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
+                Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
                     LandType::Island,
                 ))),
             ]),
