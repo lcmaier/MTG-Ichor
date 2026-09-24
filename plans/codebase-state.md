@@ -856,6 +856,22 @@ here. None is blocking RB.
     A/B'd as two arms (the rule alone, then the card) the way the Everywhere
     PR was.
 
+    **A fourth kind, found by the type-surface re-sweep (2026-09-24,
+    `cr-coverage-audit.md` §4a):** `RegisteredReplacementEffect.targets`.
+    Divine Deflection's target is chosen at cast, and its rider reads it
+    whenever the shield next applies (item 90). That ruling makes the rider's
+    check "an existence and type check". Under CR 400.7, existence is identity:
+    a target that left and came back is a different object, and a bare
+    `ObjectId` finds it anyway. It needs an epoch stored beside each target, as
+    `chosen_targets` does, at about 10 lines on top of the size below.
+    Narrower still is the applied set: its `StaticAbility(ObjectId, AbilityId)`
+    key outlives a move only inside a rider (CR 615.5). That is recorded here
+    but not sized.
+
+    **Reachability (2026-09-24):** unreachable — nothing returns an object to
+    a zone yet (the 2026-09-03 line below still holds), and item 90's rider has
+    no reader.
+
     **Reachability (2026-09-03):** unreachable — no registered card returns an
     object to any zone (`ReturnToHand`, `ReturnToBattlefield` and the rest of
     the zone-moving primitives are the stub arm at `resolve.rs:866`) and nothing
@@ -8065,3 +8081,87 @@ and the reading below, which the audit makes and the dispatcher does not.
      asked of it only for the records that batch performed — the audit's
      rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
      the dispatcher's own candidates.
+
+### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
+
+`cr-coverage-audit.md` §4a read the replacement area's one-moment facts against
+§2's two checks. That yielded one new item. Main item 10 also gains a fourth
+kind of reference, and `backlog.md` §2.2 gains constraints on the
+linked-ability records an entry makes.
+
+176. **An "instead" keeps the destination and drops the act: a redirected
+     discard or sacrifice is performed as `Exiled`.** `pipeline.rs`'s
+     `substitute` builds the modified zone change with the template's `cause`,
+     not the event's. `Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to,
+     cause })` is the template, and Rest in Peace, Leyline of the Void, Kalitas
+     and finality counters all write `Exiled`. So a card discarded under Leyline
+     is recorded as `Hand -> Exile [Exiled]`.
+
+     The rulings say otherwise:
+     - Rest in Peace (2018-03-16) and Leyline of the Void (2024-09-20): a card
+       discarded while either is out is still discarded, "even though that card
+       never reaches a graveyard".
+     - Nephalia Academy (2016-07-13): "the card was still discarded".
+
+     CR 614.6 makes the modified event the one that happens. CR 701.9c treats a
+     card put somewhere else in place of the graveyard as still discarded.
+
+     Two readers break:
+     - **CR 616.1f, today.** After Leyline applies, the event is still a
+       discard, so Nephalia Academy ("instead of putting it anywhere else")
+       still applies. The pipeline re-gathers on the rewritten event, whose
+       `cause` no longer matches Academy's `cause: Some(Discarded)`, so Academy
+       is never offered. The order the affected player picks decides whether the
+       card lands in the library or in exile.
+     - **Every sacrifice and discard trigger, once they land.**
+       `triggers-architecture.md` §4 matches a sacrifice or discard by `cause`
+       on the performed `ZoneChange`. `trigger-survey.md` table two counts 555
+       "sacrifices" cards and 436 "discards" cards, and under any of these
+       redirections every one of them misses. Madness is among them: its card is
+       discarded, then exiled instead.
+
+     **The second half: which replacement did the redirecting.** Madness's
+     trigger reads "when this card is exiled this way", and CR 702.35a says it
+     "functions when the first ability is applied". It therefore needs the
+     event to name the instance that redirected it. The record names none,
+     because the CR 614.5 applied set is dropped once the event has been
+     performed. 61 cards (`kw:madness`) need it. CR 615.13 asks the same of a
+     prevention, and that one already has a shape:
+     `GameEvent::DamagePrevented { by: ReplacementInstanceId }`
+     ("Before Triggered abilities" item 16).
+
+     **Reachability (2026-09-24):** reachable — wrong today. The board: Leyline
+     of the Void under P0, Nephalia Academy under P1, and a spell of P0's that
+     makes P1 discard.
+     - Leyline first at the CR 616.1 prompt: the card goes to exile, and
+       Academy's optional prompt never comes.
+     - Academy first: the card goes on top of P1's library.
+
+     Both orders were reproduced with a throwaway probe in
+     `phase_re8_integration_test.rs`, then deleted. Leyline of the Void, Rest in
+     Peace, Nephalia Academy, Hymn to Tourach and Mind Rot are all in the
+     default registry, so `--pool stress` can deal the board, and a random
+     provider picks either order. The madness half is unreachable: no madness
+     card is registered.
+
+     **Sized:** ~60–100 lines with tests.
+     - `substitute` keeps the event's `cause` when it redirects a zone change,
+       and `ZoneChangeTo` names only a destination. The one remaining use of a
+       template cause is an entry turned into a zone change (Containment
+       Priest, Hallowed Moonlight), and the entry's own cause serves there.
+     - `CommanderZoneReplacement` stops being a cause. Nothing reads it; it
+       becomes the second half's redirecting instance.
+     - That touches 11 production template sites and 7 in tests. The regression
+       tests are the probe's two orders and a sacrifice under Rest in Peace
+       recorded as `Sacrificed`.
+     - `fuzz_games`' stack-to-exile note (`fuzz_games.rs:746`) changes.
+     - An A/B whose `differ` is expected: the Academy prompt now comes in both
+       orders, and redirected moves change their label.
+
+     The second half is either a field on the performed record or a sibling
+     event shaped like `DamagePrevented`. That choice belongs to the first
+     madness card, not to a field today. Madness is a cast from exile, so it is
+     `backlog.md` §2.3's, as item 133 already notes.
+
+     **Back-stop:** before the first card whose trigger reads `Sacrificed` or
+     `Discarded`.

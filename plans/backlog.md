@@ -124,6 +124,27 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 - **Atoms** — 10 re-filed to `Backlog`, all session S5; 20 in the corpus, the
   remainder correctly filed at Phase 8 and later.
 - **Owner** — none yet.
+- **Two records an entry makes, and nothing keeps either**
+  (`cr-coverage-audit.md` §4a, 2026-09-24).
+  - **An "as it enters" choice:** a color, a creature type, a player or an
+    anchor word (CR 614.12a, 614.12c). 208 cards,
+    `o:/as [^.]*enters[^.]*, choose/`.
+  - **What the entry's own zone change chose:** CR 614.14's "the exiled cards"
+    (Sutured Ghoul, item 59) and CR 702.82b's "it devoured" (6 cards). Today
+    it exists in `EntrySelectionScope.chosen` for one batch, and
+    `AuxiliaryMove.per_chosen` turns it into counters.
+
+  Four constraints on their shape:
+  - **Made before the permanent enters (CR 614.12a),** so the choice travels
+    in `EnterMods`, and the look-ahead frame reads it. A chosen creature type
+    changes which other entry replacements apply (CR 614.12's "as it would
+    exist").
+  - **Kept on the permanent, so it leaves with it (CR 400.7).** It never goes
+    into `CopiableValues`: a copy entering makes its own choice, and a
+    permanent that becomes a copy later has none (CR 707.6).
+  - **Keyed by the ability pair (CR 614.14, 607.4).**
+  - **The auxiliary move's record holds the moved objects as they are after
+    the move.**
 
 ### 2.3 Casting from a non-hand zone
 

@@ -173,10 +173,11 @@ rules from quotes in the tree. Its other readings are in §4a.
 
 ---
 
-## 4. The sweep — seventeen types
+## 4. The sweep
 
 Per type: read it, read the CR sections describing what it models, answer the
-question. Run 2026-08-31.
+question. Run 2026-08-31 over seventeen types; the re-sweep's rows (§4a) follow
+the first table.
 
 | Type | What the CR wants that it can't say | Verdict |
 |---|---|---|
@@ -194,7 +195,7 @@ question. Run 2026-08-31.
 | `DecisionProvider` | a vote (CR 701.38); a card name (CR 201.4) | near-miss, §5.2 |
 | `ContinuousEffect` | CR 611.2c's locked set; CR 613.8 dependency | **no gap** — `ObjectSet::Fixed` is exactly 611.2c; 613.8 is critical-path item 7 |
 | `StackEntry` | **what was spent to pay the costs** | **FACT** — §5.1 |
-| `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33 |
+| `ManaPool` | non-fungible mana — CR 106.6 restrictions, grants, persistence | **no gap in the type** (T12b built it); the *gatekeepers* are unwired — Deferred Migrations item 33. **Corrected 2026-09-24:** true of the restricted track only; the plain pool production uses drops a unit's source at `pool.add` (item 33) |
 | `PlayerState` | continuous effects on player values and rules (CR 402.2, 613.10–613.11); counter *kinds* on players (CR 122.1) | features — `backlog.md` §2.15, §2.16; probed by Winter, Misanthropic Guide |
 | `Zone` | per-viewer visibility; object identity across zones; CR 729 merging | **no gap** — every demand already owned (§2.9, item 6's LKI, CV-7). `is_public()` exists, unconsumed |
 
@@ -217,7 +218,106 @@ filed at Phase 7 as D15's source-less triggers); and the `GameAction`/event
 vocabulary, which grows by contract (`CLAUDE.md`). A new type joins the
 sweep the day it joins `GameState`. Card-population probes stay on as the
 standing check that the criterion holds — three ran, three earned their
-keep.
+keep. *That promise lapsed between `3c322e5` and 2026-09-24, while `GameState`
+went from 28 fields to 52; §4a is the catch-up.*
+
+**Rows added by the re-sweep (2026-09-24, pass 1: replacement, §4a).**
+
+| Type | What the CR wants that it can't say | Verdict |
+|---|---|---|
+| `PermanentState` *(re-read: `cast`, `cost_choices`)* | an "as it enters" choice (CR 614.12a, 707.6) | feature — `backlog.md` §2.2 |
+| `ResolvingObject` *(for the entry)* | — | **no gap** — carries CR 400.7d's facts and the cost decisions to an "enters with" before the permanent exists |
+| `ReplacementEffectRegistry` | a chosen source (CR 609.7a); targets held across a move (CR 400.7) | feature; main item 10 |
+| the applied set (`rider_lineage`, the loop's `lineage`) | which replacement redirected an event, once it has been performed (CR 702.35a) | **FACT** — §5.4 |
+| `EntrySelectionScope` | what an entry's zone change chose, after the batch (CR 614.14, 702.82b) | feature — `backlog.md` §2.2 |
+| `PreventionAllocationScope` | — | **no gap** — CR 615.7, scoped to the batch |
+| `EventLog` / `EventRecord` | the act of a zone change an "instead" redirected (CR 614.6, 701.9c) | **FACT** — §5.4 |
+
+**Not yet swept: passes 2–4.**
+- **Triggers:** `PendingTrigger`, `TriggerBinding`, `LookBackSnapshot`, `DepartureFrame`.
+- **Cost:** `StackEntry` (`trigger`, `mana_spent`), `ResolvingObject` (beyond the entry), `CastFacts`, `CostChoices`, `ManaSpent`, `ManaPool` (re-read), `TargetInstance`.
+- **The rest:** `GameObject` (`timestamp`), `PlayerState` (`counters`), `RestrictionRegistry`, `DurationRegistry`, `TurnPlan` with `turn_queue` and `turn_rotation`, `GameResult` and `starting_life`.
+
+---
+
+## 4a. The re-sweep — facts that exist at one moment (2026-09-24)
+
+**Why it ran.** Item 30 recorded one fact, and PR #181 had to fix its shape
+twice. A unit's source looked like a missing field and was really the pool's
+representation (item 33). "Kicked" was stored as part of how the spell was cast,
+but CR 707.10 copies it to a copy that was never cast (`CostChoices`, beside
+`CastFacts`). The 2026-08-31 sweep had found item 30 and still called
+`ManaPool` "no gap in the type", which is true only of a track production never
+fills. §2's two checks and §3's second run come from that.
+
+**Sized before reading.**
+- **Types.** Everything `GameState` owns through its fields' types (struct,
+  enum and alias definitions under `mtgsim/src`, without card files, binaries
+  or `#[cfg(test)]`) comes to **170** types, against 96 at `3c322e5`.
+  - §4's criterion keeps the **43 that record something about this game**.
+  - The rest are 96 vocabulary types (card text as data: `Effect`,
+    `TriggerDef`, `ReplacementDef`, the filters), 18 ids and keys, 10
+    instruments and caches, and 3 recomputed on every read
+    (`EffectiveCharacteristics`, `CopiableValues`, `Resolved`).
+  - The 43 make **23 units**. Types already swept and unchanged since
+    (`ContinuousEffect` and its registry, `Phase`) are out, and a sub-part is
+    read with its parent. `rider_lineage`, which holds CR 614.5's applied set,
+    counts as a unit though it is a field rather than a type. The 23 are 5
+    re-reads, 3 types that predate the sweep but were never in it, and 15 new.
+- **CR lines.** Seven phrases read one moment's past, counted with
+  `grep -E '^[0-9]{3}\.[0-9]+[a-z]?\.? ' tmnt.txt | grep -ciE '<phrase>'`:
+  "chosen" 102, "this way" 59, "as .* enters" 47, "was paid" 21, "was cast" 20,
+  "last known information" 14, "was spent" 3.
+  - Together they hit **242** of 3,120 rule lines.
+  - 77 of those are CR 702 keywords, 12 are CR 614–616, 4 are CR 603, 11 are
+    casting, cost and mana, 5 are CR 707, and 133 belong to no one subsystem.
+
+That is large, so the owner split it into four passes: **replacement, then
+triggers, then cost, then the rest**. §4 lists what each unswept pass owns.
+**Pass 1 ran on 2026-09-24.**
+
+**Pass 1: replacement (CR 614–616).** Card counts are Scryfall's
+`total_cards` for `game:paper -is:funny`, with the query beside each number.
+
+| Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
+|---|---|---|---|---|
+| How a permanent enters: tapped, its counters and who puts them (CR 614.1c–d) | `EnterMods` on the entry proposal, then `PermanentState` | yes | a copy entering applies the copied "enters with" (707.5, CV) | no gap; announcing the counters is "Before Triggered abilities" item 17 |
+| An "as it enters" choice: a color, a creature type, a player, an anchor word (614.12a, 614.12c) | **nowhere**: no slot in `EnterMods` or `PermanentState` | — | a copy entering makes its own choice, and a permanent that becomes a copy later has none (707.6); it leaves with the permanent (400.7); a control change keeps it | feature with a constraint, `backlog.md` §2.2 (CR 607.2d). 208 cards, `o:/as [^.]*enters[^.]*, choose/`, of which 192 read "chosen" |
+| What an entry's zone change chose: the cards Sutured Ghoul exiled (614.14), the creatures a devourer ate (702.82b) | `EntrySelectionScope.chosen`, for one batch. `AuxiliaryMove.per_chosen` turns it into counters | **no**: it is gone when the batch closes | a copy that gains the pair links anew (614.14); the exiled cards are new objects (400.7) | feature, `backlog.md` §2.2. Sutured Ghoul is item 59, already reachable and wrong. 8 readers: `o:"devoured"` 6, plus the entry pair "the exiled cards" 2 |
+| The effects that have already applied to an event (614.5) | `lineage` per member in the loop; `rider_lineage` during a rider | yes, and a modified event or a rider inherits it | 903.9b's exemption is built; 717.6's is in §5.2 | no gap, but it is dropped once the event performs, and the next two rows need it |
+| **What an "instead" left behind: the act of a redirected zone change** (614.6, 701.9c) | `GameEvent::ZoneChange.cause` | **no**: `Rewrite::Instead(ZoneChangeTo)` writes its own `cause` | the rulings on Rest in Peace, Leyline of the Void and Nephalia Academy say the card was still discarded; `triggers-architecture.md` §4 matches a sacrifice or discard on `cause` | **FACT**: item 176, reachable and wrong today |
+| Which replacement redirected an event ("when this card is exiled this way", 702.35a) | nowhere, once the event has been performed | no | — | the same item's second half. 61 cards (`kw:madness`). CR 615.13's version already has a shape: `DamagePrevented.by` ("Before Triggered abilities" item 16) |
+| The damage a prevention effect prevented (615.5, 615.13) | `Rider.prevented`, read by `AmountExpr::DamagePrevented`; `PreventionAllocationScope` for the batch | yes | CR 615.13's unit is one application, which the rider's number already is | no gap. 35 cards read it through a rider (`o:"prevented this way"`); the trigger is "Before Triggered abilities" item 16 (TR-5) |
+| A chosen source, "a source of your choice" (609.7a) | nowhere: `SourceFilter` is `ControlledBy` only | — | 400.7c | feature: an additive `SourceFilter` arm that holds the source's identity. 65 cards (`o:"source of your choice"`) |
+| A resolution-created row's targets (Divine Deflection) | `RegisteredReplacementEffect.targets` | yes | **400.7**: a bare `ObjectId` finds a target that left and came back | main item 10, sharpened with a fourth kind of reference |
+| The entering spell's cost decisions, read by an "enters with" before the permanent exists (kicked, sunburst) | `ResolvingObject.cost_choices` and `.cast` | yes: `cost_choices()` checks the resolving object first | a copy of a kicked spell enters kicked (707.10) | no gap since #181. §3's run raised it, reading the tree from before #181 |
+
+**One fact, and it is §5.1's shape again:** the event keeps the fact's
+*outcome* and loses the fact itself. Item 30's mana arrived as counts per type.
+Here the redirected move arrives as `Exiled`. A redirected discard is still a
+discard, and trigger cards read the act: `trigger-survey.md` table two counts
+555 behind "sacrifices" and 436 behind "discards".
+
+**The remainder, dispositioned.** 13 of the 25 fields added since `3c322e5`
+hold no fact about the game:
+- the five fast-path gates over printed abilities, which are indexes and fall
+  under `CLAUDE.md`'s gate rule: `cost_modification_ability_sources`,
+  `restriction_ability_sources`, `trigger_sources`,
+  `zone_replacement_ability_sources`, `zone_trigger_sources`;
+- the layer walk's cache, `layer_epoch` and `layer_memo`;
+- three instruments nothing may branch on: `diagnostics`, `dispatch_audit`,
+  `trace`;
+- `nesting`, whose type `NestingGuards` guards the engine rather than a rule;
+- two id allocators, `next_trigger_seq` and `next_object_id`.
+
+**Carried to pass 3, from §3's run.** CV-4 plans a copy of a spell as a clone of
+its `StackEntry`, and that clone keeps `mana_spent` unless it is cleared by hand.
+The run also doubted whether `CostChoices.additional` can say how many times a
+multikicker was paid. Both belong to the cost pass.
+
+**Fixed on sight: nothing.** The one wrong answer, item 176, needs a design line
+and an A/B because it changes whether a CR 616.1 prompt appears, so it is an
+item rather than an entry on the fix list.
 
 ---
 
@@ -334,6 +434,20 @@ depth (25), **linked abilities (10, which no plan doc mentioned)**, cost pipelin
 (7) and one already covered. Linked abilities was invisible precisely because it
 was travelling under another mechanic's section number. → backlog §2.2, §3.
 
+### 5.4 The re-sweep's findings (2026-09-24, pass 1, §4a)
+
+- **The act of a redirected zone change.** `Rewrite::Instead(ZoneChangeTo)`
+  writes its own `cause`, so a discard or sacrifice that Rest in Peace or
+  Leyline of the Void redirects is performed as `Exiled`. The record also
+  cannot name the replacement that redirected it, which madness's trigger
+  needs. → `codebase-state.md` item 176, reachable and wrong today.
+- **References held across a move: a fourth kind.**
+  `RegisteredReplacementEffect.targets`, which item 90's rider reads. →
+  main item 10, sharpened.
+- **The linked-ability records an entry makes**: an "as it enters" choice, and
+  what the entry's own zone change chose. Both exist only at the entry. →
+  `backlog.md` §2.2, which gains the constraints.
+
 ---
 
 ## 6. Confirmations, not instruments
@@ -412,6 +526,8 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
+- **Open: passes 2–4 of the re-sweep** (§4a): triggers, then cost, then the
+  rest. §4 lists which types each pass covers.
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the
