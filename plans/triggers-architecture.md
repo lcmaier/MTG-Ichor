@@ -660,6 +660,19 @@ stack, so it resolves at dispatch the way a mana trigger does (§4.7), with
 610.3d's simultaneity falling out of the window. Banishing Light is the
 consumer.
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): the id rides the
+proposal.** "A turn records which entry it came from" has to happen before the
+turn begins, on `GameAction::BeginTurn`, because four printed replacement
+effects read it there: Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant
+and Trouble in Pairs replace "a player would begin an extra turn" (CR
+614.10). Today `next_turn_taker` pops the queue and proposes the turn with its
+player and number only, and `BeginTurn`'s own doc says who takes the turn is
+not on the event. The proposal carries `extra: Option<ExtraTurnId>`, the
+turn's `EventPattern` arm reads it, and the turn that begins takes it from the
+proposal. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a
+duration on the same id. ~20–30 lines, with this id or with the first of the
+four cards.
+
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
 ```rust
@@ -762,6 +775,13 @@ pub struct LastKnownInformation {
     /// so does the token a copy of a kicked spell became, whose `cast` is
     /// `None`.
     pub cost_choices: CostChoices,
+    /// For a stack object, its entry as it left the stack: what CR 707.10
+    /// copies (targets, modes, X, the costs) and who controlled it, for CR
+    /// 603.10e's look-back. `None` for anything else. Amended 2026-09-24
+    /// (`cr-coverage-audit.md` §4a, pass 4): a copy trigger still copies a
+    /// spell countered before it resolves (Double Vision's ruling), and
+    /// CV-4's `copy_of` clones a live entry, of which there is none by then.
+    pub entry: Option<Box<StackEntry>>,
 }
 pub struct Status {
     pub tapped: bool,
@@ -1498,6 +1518,23 @@ search of the log (§7). Vibrance is the case that found it, and it also
 needs mana spent (recorded by type since 2026-09-23, `codebase-state.md`
 item 30) and the frame's `cast` (§3.11); the common case is any "this creature deals damage equal
 to its power" enters trigger answered by removal, which needs neither.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): from every zone.**
+`capture_departure_frames` frames what leaves the battlefield, and TR-4 widens
+that capture to CR 603.10a's three classes. CR 113.7a and 608.2h are scoped to
+neither: they use last known information for any object gone from the zone it
+was expected in, and two printed readers leave from zones no class covers.
+God-Eternal Kefnet's trigger copies a revealed card, and its ruling copies
+from last known information if the card leaves the hand first. Double
+Vision's and Galvanic Iteration's rulings make their copy even if the spell
+was countered first. So the `departed` frame is written wherever an object a
+queued or stacked entry names leaves its zone: in `move_object`, gated on the
+pending list or the stack naming the mover, which on the common board are
+empty or short. A stack object's frame keeps its entry (§3.11), because CR
+707.10 copies a spell's targets, modes, X and costs, and CV-4's `copy_of` has
+no live entry to read once the spell has left. The `IsCountered` look-back
+(CR 603.10e, §4.3's list) reads the same frame of the countered spell.
+`codebase-state.md` item 169 carries the size.
 
 ### 6.2 "May" and "unless" (CR 603.5)
 

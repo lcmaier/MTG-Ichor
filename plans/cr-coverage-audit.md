@@ -221,7 +221,7 @@ standing check that the criterion holds — three ran, three earned their
 keep. *That promise lapsed between `3c322e5` and 2026-09-24, while `GameState`
 went from 28 fields to 52; §4a is the catch-up.*
 
-**Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement; pass 2, triggers; pass 3, cost.**
+**Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement; pass 2, triggers; pass 3, cost; pass 4, the rest.**
 
 | Type | What the CR wants that it can't say | Verdict |
 |---|---|---|
@@ -241,9 +241,14 @@ went from 28 fields to 52; §4a is the catch-up.*
 | `ManaPool` *(pass 3, re-read)* | a unit's source; restrictions (CR 106.6, 107.4h) | item 33, as corrected above |
 | `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | main item 10's `target_epochs` |
 | `ResolvingObject` *(pass 3)* | — | **no gap** — CR 110.2b's default controller and CR 400.7d's facts, carried past the entry's removal |
-
-**Not yet swept: pass 4.**
-- **The rest:** `GameObject` (`timestamp`), `PlayerState` (`counters`), `RestrictionRegistry`, `DurationRegistry`, `TurnPlan` with `turn_queue` and `turn_rotation`, `GameResult` and `starting_life`.
+| `GameObject` *(pass 4: `timestamp`)* | — | **no gap** — CR 613.7d–e built; 613.7m is "Before card breadth" item 4 |
+| `PlayerState` *(pass 4: `counters`)* | a team's shared poison (CR 701.34b) | feature, Phase 9's Two-Headed Giant |
+| `RestrictionRegistry` *(pass 4)* | a target that left and came back; the object a "for as long as" watches | main item 10; item 17 |
+| `DurationRegistry` *(pass 4)* | the object a resolution's "for as long as" watches (CR 611.2b) | item 17, sharpened |
+| `TurnPlan`, `turn_queue`, `turn_rotation` *(pass 4)* | a proposed turn being an extra one (CR 614.10) | `triggers-architecture.md` §3.9 amended |
+| `GameResult`, `starting_life` *(pass 4)* | a team's win; a seat's own starting life (CR 103.4b, 103.4e) | features, Phase 9's variants |
+| the departed frame *(pass 4, planned)* | a source or bound object leaving a hand or the stack (CR 113.7a, 608.2h) | item 169, sharpened |
+| `CostChoices` *(pass 4, re-read)* | the player a payment chose (CR 702.174a) | item 30, sharpened |
 
 ---
 
@@ -280,8 +285,7 @@ fills. §2's two checks and §3's second run come from that.
     casting, cost and mana, 5 are CR 707, and 133 belong to no one subsystem.
 
 That is large, so the owner split it into four passes: **replacement, then
-triggers, then cost, then the rest**. §4 lists what each unswept pass owns.
-**Passes 1, 2 and 3 ran on 2026-09-24.**
+triggers, then cost, then the rest**. **All four ran on 2026-09-24.**
 
 **Pass 1: replacement (CR 614–616).** Card counts are Scryfall's
 `total_cards` for `game:paper -is:funny`, with the query beside each number.
@@ -374,6 +378,101 @@ cannot yet ask for one.
 **Fixed on sight: nothing.** The one wrong answer, item 176, needs a design line
 and an A/B because it changes whether a CR 616.1 prompt appears, so it is an
 item rather than an entry on the fix list.
+
+**Pass 4: the rest.** The six types §4 listed, and the CR lines no pass had
+read. `GameState`'s declaration had not changed since `c2dbf99`, so the list
+stood.
+
+| Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
+|---|---|---|---|---|
+| An object's timestamp (613.7d, 613.7e) | `GameObject.timestamp` | yes: `add_object` and `move_object` stamp it, and `attach` stamps it again | simultaneous arrivals, in APNAP order and each player's own (613.7m); turning face up, transforming (613.7f–g) | no gap: 613.7m is "Before card breadth" item 4, 613.7f–g are `roadmap.md` D3, and 613.7n rides LH-2 |
+| A player's counters (122.1) | `PlayerState.counters` | yes, through `perform_action`'s counter arms (RE-5) | proliferate (701.34a); a team's shared poison (701.34b) | no gap for v1: Two-Headed Giant is Phase 9's |
+| A resolution's "can't", with its duration and its "you" (101.2, 611.2a, 611.2c) | `RegisteredRestriction` | yes | a target that left and came back (400.7); "for as long as this creature remains on the battlefield" (Suncleanser) | main item 10; the next row |
+| **The object a "for as long as" watches** (611.2b) | nowhere: a resolution's row records `source: ctx.source`, the resolving stack object | **no** | a flicker ends it (400.7); leaving before the resolution means it never starts (Sower of Temptation's ruling); a change of control ends it for good (Dragonlord Silumgar's ruling, and suspend's haste, 702.62a) | **item 17, sharpened.** 78 cards, nearly all resolutions: `o:"for as long as ~ remains on the battlefield"` 27, `o:"for as long as you control ~"` 51 |
+| When a row ends (514.2, 611.2a) | `DurationRegistry`'s two expiry hooks | yes, for the turn-scoped arms | a step- or phase-scoped duration (500.4, 500.5) | owned: `backlog.md` §2.12 |
+| This turn's phases, and the natural rotation (500.1, 500.7, 500.8) | `TurnPlan`, `turn_rotation` | yes | a skipped turn advances the rotation, and an extra turn does not (614.10a, 500.7) | no gap; extra steps are `backlog.md` §2.17 |
+| **A turn being an extra one** (500.7) | popped off `turn_queue` by `next_turn_taker`; not on `GameAction::BeginTurn` | **no**: gone before the proposal | "if a player would begin an extra turn" (614.10): Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant, Trouble in Pairs (`o:"begin an extra turn"`) | **`triggers-architecture.md` §3.9 amended** |
+| Which extra turn "that turn" is (500.7, 603.7) | planned: §3.9's `ExtraTurnId` | planned | a skipped turn fires nothing (614.10a; Alchemist's Gambit's ruling) | no gap. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a duration on the same id; Emrakul, the Promised End's "after that turn" waits for CR 722, controlling another player |
+| The game's end (104) | `result`, beside `player_lost` | yes, by the performer or at the batch's settlement | 104.2a and 104.4a at settlement; 104.3f | no gap for v1. 104.3f is on `replacement-architecture.md`'s "Out of RE" list; a team's win and a draw for some players (104.2c–d, 104.3h, 104.4d–h) are Phase 9's |
+| A player's starting life (103.4) | `starting_life` | yes | "your starting life total" (Exquisite Archangel) | feature: one number is right while every seat starts equal, as in every v1 format. Archenemy and Vanguard (103.4b, 103.4e) give a seat its own |
+
+**Then the CR lines**, in two sets. Both start from §4a's base grep and drop
+the sections passes 1–3 owned, `grep -vE '^(61[456]|603|10[67]|11[78]|60[12]|707)\.'`:
+- **73 lines no pass had read:** "chosen", and none of the other six phrases.
+- **137 lines passes 1–3 had read for their own subsystem only:** any of the
+  other six.
+
+**CR 702's 77 lines, 16 of the first set and 61 of the second, are keyword
+breadth**, the way §6 retired `audit --dark`. The pass swept only a line that
+names something an object or a player keeps, as 702.82b's "it devoured" and
+702.138b's "escaped" do:
+- gift's chosen opponent (702.174a): the last row of the next table;
+- suspend's haste "until you lose control of the spell or the permanent it
+  becomes" (702.62a): item 17's control leg;
+- cipher's encoding, which survives a change of control (702.99c): a linked
+  record, `backlog.md` §2.2;
+- tribute's "if tribute wasn't paid" (702.104b): an entry's own fact, §2.2;
+- soulbond's pair, which ends with either creature's control, type or zone
+  (702.95a): §2.6;
+- a foretold or a plotted card (702.143c, 702.170d): §4's first row's flag,
+  plus the turn it happened, carried into the cast at 601.2a because the spell
+  is a new object;
+- morph's and disguise's X (702.37f, 702.168e): `PermanentState.x_value`,
+  written by the action that turns the permanent face up (CV-6).
+
+**Combat (508, 509) was re-read rather than swept**, since RS-3 owns its
+restrictions. `AttackingInfo.target` records 508.1b's choice, and `is_blocked`
+keeps 509.1h's "remains blocked". TR-5's item 11 puts each declared attacker's
+defender on the `AttackersDeclared` record, and that record is what 508.7a's
+"still considered to have attacked" and 802.2a's "before it was removed from
+combat" read. A creature put onto the battlefield attacking (508.4) has no
+record, and no card reads its target after it leaves combat (`o:"onto the
+battlefield attacking" o:"defending player"` 0, `o:"removed from combat"
+o:"defending player"` 0).
+
+**The rest were owned already:** targets (115: `chosen_targets` holds the
+announcement that 115.9a and 115.9c count; main item 10), modes (700.2: item
+31), card names (201.4: `backlog.md` §2.4), who can see what (101.4a, 406.4:
+§2.9), casting from other zones (400.7g–i, 715.3d: §2.3), a source of your
+choice (609.7a: pass 1), split cards and prototype (709, 718: `CardData`'s
+known fact), a departed player's last known information (800.4i: "Before
+Commander" item 4), and setup and the casual variants (103.1, 103.2, 103.6b,
+123, 717, 728, 800.5, 801, 805, 807, 810, 901). **One feature has no owner
+yet:** 307.5a's "cast any time a sorcery couldn't have been cast" is a fact
+about the cast, and `CastFacts` gains it with its first card (`o:"couldn't
+have been cast"` 10, Necromancy among them).
+
+The lines gave two facts. The first began as a lead pass 3 left: God-Eternal
+Kefnet copies a revealed card, and if the card leaves the hand first, its
+ruling says "you'll copy it using its last known information".
+
+| Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
+|---|---|---|---|---|
+| **The last known information of a source or a bound object that left a zone other than the battlefield** (113.7a, 608.2h) | planned: §6.1's `departed` frame, written by `capture_departure_frames` | **no**: that frames what leaves the battlefield, and TR-4 widens it to 603.10a's three classes only | a card revealed in a hand leaves before the trigger resolves (God-Eternal Kefnet's ruling); a spell is countered before its copy trigger resolves, and the copy is still made (Double Vision's and Galvanic Iteration's rulings); 603.10e's `IsCountered` look-back | **item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and `copy-effects-architecture.md` §4.4, amended.** `(o:"when " or o:"whenever ") o:"copy that spell"` 70; with `"copy that card"`, 3 |
+| **The player a payment chose** (702.174a) | nowhere: `CostChoices.additional` holds the cost definitions paid | **no** | a copy of the spell keeps the opponent, and a permanent that enters as a copy does not (Into the Flood Maw's ruling), which is CR 707.10's side | **item 30, sharpened.** `kw:gift` 25. Behold's objects (701.4, `o:"behold"` 24) join the list |
+
+**Three of pass 4's four findings are the re-sweep's shape again**: a fact
+that exists at one moment and is read later from a place that does not hold
+it. The object a "for as long as" watches is known at the resolution and never
+written down. A turn's being an extra one is known when the queue is popped,
+and gone by the proposal. The player a payment chose is gone when the cast
+completes. The fourth is pass 2's shape: a planned frame, written before the
+rule that reads it from every zone reached it. None is reachable today.
+
+**The follow-up list**: three wrong citations, small enough to fix on sight.
+All but one sit in `src/` comments, so they wait for a code PR, and the one in
+a plan (main item 18) goes with its twin in the source.
+- `PlayerState.counters`' doc says CR 613.7c timestamps counters on objects.
+  The rule says "an object or player". Its conclusion, that no layer reads a
+  player's, stands.
+- Six CR 103 citations in `src/` are one off against `tmnt.txt`. The starting
+  life total is 103.4, not 103.3 (`game_state.rs:373`, `types/effects.rs:119`,
+  `resolve.rs:2020`). Opening hands are 103.5, not 103.4 (`turns.rs:51`). The
+  starting player is 103.1 and their first turn 103.8, not 103.7
+  (`game_state.rs:329`, `game.rs:118`).
+- `remove_from_combat`'s doc (`game_state.rs:1467`) and main item 18 cite CR
+  506.4b for "remains blocked", which `tmnt.txt` puts in 509.1h. The quoted
+  wording is an older CR's.
 
 ---
 
@@ -520,6 +619,21 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
   `triggers-architecture.md` §3.10, amended.
 - **The objects that paid** (pass 3). The list belongs with what a copy
   keeps, and holds identities rather than a count. → item 30, sharpened.
+- **Last known information off the battlefield** (pass 4). §6.1's
+  `departed` frame is written only for what leaves the battlefield, so a
+  revealed card that leaves a hand, or a spell countered before its copy
+  trigger resolves, has none. A spell's frame also lacks the decisions CR
+  707.10 copies. →
+  item 169, sharpened; `triggers-architecture.md` §6.1 and §3.11 and
+  `copy-effects-architecture.md` §4.4, amended.
+- **The object a resolution's "for as long as" watches** (pass 4). The row's
+  `source` is the resolving stack object, so item 17's fix, keyed on it, never
+  finds the permanent. → item 17, sharpened.
+- **A proposed turn does not say it is an extra one** (pass 4), which four
+  "would begin an extra turn" replacements read. → `triggers-architecture.md`
+  §3.9, amended.
+- **The player a payment chose** (pass 4): gift's opponent, which a copy of
+  the spell keeps. → item 30, sharpened.
 
 ---
 
@@ -599,7 +713,7 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
-- **Open: pass 4 of the re-sweep** (§4a), the rest. §4 lists its types.
+- **Settled 2026-09-24: the re-sweep.** Pass 4 (§4a) closed it.
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the

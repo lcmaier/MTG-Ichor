@@ -1314,6 +1314,45 @@ registered card returns an object.
     resolution-created replacement whose text is "for as long as [this
     permanent] is on the battlefield".
 
+    **The key is wrong, and the continuous registry has the same hole (the
+    type-surface re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** A
+    resolution's row records `source: ctx.source`, the resolving stack object,
+    which ceases to exist at CR 608.2n. That is never the permanent a "for as
+    long as" names, so a closure keyed on the row's source never matches the
+    one that leaves. `cleanup_zone_state`'s `remove_by_source` ends a static
+    ability's rows because their source *is* the permanent, and it would leave
+    Sower of Temptation's control change in place after Sower left. 78 cards,
+    nearly all trigger, activated or Saga-chapter resolutions:
+    `o:"for as long as ~ remains on the battlefield"` 27 (Sower, and
+    Suncleanser's "can't", a restriction row) and `o:"for as long as you
+    control ~"` 51 (Dragonlord Silumgar). The rulings fix what the row needs:
+    - **The watched object, by `ObjectRef`.** Sower's ruling (2007-10-01): if
+      Sower leaves before the ability resolves, it has no effect, which is CR
+      611.2b's "never starts". A flicker ends it (CR 400.7), so the epoch
+      matters. It is the entry's `ability_identity.source`, already an
+      `ObjectRef`.
+    - **A control leg, as a second arm.** Silumgar's ruling (2015-02-25):
+      another player gaining control ends the effect, and regaining control
+      does not restore it. So the end is an event, TR-4's `ControlChanged`
+      (`triggers-architecture.md` §3.12 item 13), not a condition read live.
+      Sower's ruling keeps its steal when Sower changes controller, which is
+      why the two legs are separate arms. Suspend's haste, "until you lose
+      control of the spell or the permanent it becomes" (CR 702.62a), is the
+      control leg across main item 10's stack-to-battlefield carve-out.
+
+    **Sized:** ~80–120 lines with tests, replacing the closure above. Two
+    `Duration` arms carry the `ObjectRef` (and the player, for the control
+    leg), written by the resolution; a resolution whose ref is already stale
+    registers nothing. One `DurationRegistry` retain keyed on the ref serves all
+    three registries, called from `move_object` for any zone and from the
+    control-change sweep. Fixtures: Sower flickered in response, Sower leaving
+    later, Silumgar stolen and returned. Owed by the first registered
+    resolution with such a duration, in any of the three registries.
+
+    **Reachability (2026-09-24):** unreachable — the 33 registered
+    source-scoped durations are all static abilities, whose rows name the
+    permanent as their source; no registered resolution writes one.
+
     **Reachability (2026-09-03):** unreachable — still exactly two producers of
     registry rows, `Primitive::Regenerate` (`UntilEndOfTurn`) and
     `Primitive::Restrict` (a duration the card writes), and no registered card
@@ -1779,6 +1818,25 @@ section never asked.
       So each entry is an `ObjectRef` taken after the payment.
     - **The last known information of the moved ones is TR-4's frame,** as
       above.
+
+    **A payment can choose a player too (the type-surface re-sweep,
+    2026-09-24, `cr-coverage-audit.md` §4a pass 4).** Gift's additional cost is
+    "you may choose an opponent" (CR 702.174a), and Into the Flood Maw's ruling
+    (2024-07-26) says the opponent "is chosen as part of that additional cost".
+    The same card's rulings decide the side: a copy of the spell has the gift
+    promised to the same opponent, and a permanent that enters as a copy of one
+    does not. That is CR 707.10's side, as above. But `CostChoices.additional`
+    holds the `AdditionalCost` definitions that were paid, and nothing a
+    payment chose. So the list above holds players as well as objects, one
+    entry per payment that chose. 25 cards (`kw:gift`), 21 of them reading "if
+    the gift was promised". Behold (CR 701.4) is the object half's newest
+    population: `o:"behold"` is 24 cards, and Dragon's Fire's ruling
+    (2021-07-23) reads the chosen Dragon's power as the spell resolves, or its
+    power the last time it was on the battlefield if it has left. About 10–15
+    lines on top of the size below.
+
+    **Reachability (2026-09-24, pass 4):** unreachable — no gift or behold card
+    is registered, and `AdditionalCost` has no gift arm.
 
     **Reachability (2026-09-24):** unreachable — no registered card reads an
     object spent on a cost, and convoke, delve and improvise are not built.
@@ -7997,6 +8055,36 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      `triggers-architecture.md` §3.11 now carries `cost_choices` beside `cast`.
      The capture copies it off `PermanentState` beside `cast`, about 2 lines on
      top of the size below.
+
+     **And from every zone, not only the battlefield (the type-surface
+     re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** The widening
+     below writes the `departed` frame from `capture_departure_frames`, which
+     frames what leaves the battlefield, and TR-4 widens that capture to CR
+     603.10a's three classes only. CR 113.7a and 608.2h use last known
+     information for an object gone from whatever zone it was expected in, and
+     two printed readers leave from zones no class covers:
+     - **A hand.** God-Eternal Kefnet's trigger copies a revealed card, and its
+       ruling (2019-05-03) copies "using its last known information" if the
+       card leaves the hand first. 3 triggers copy a card
+       (`(o:"when " or o:"whenever ") o:"copy that card"`).
+     - **The stack.** Double Vision's ruling (2020-06-23) and Galvanic
+       Iteration's (2021-09-24) say the copy is made even if the spell "has
+       been countered by the time that ability resolves". 70 triggers copy a
+       spell (`(o:"when " or o:"whenever ") o:"copy that spell"`). A spell's
+       frame is more than its characteristics: CR 707.10 copies its targets,
+       modes, X and costs, and CV-4's `copy_of` clones a `StackEntry` that is
+       gone once the spell has left.
+
+     TR-4's `IsCountered` arm, a look-back under CR 603.10e, reads the same
+     missing frame of a countered spell. `triggers-architecture.md` §6.1 now
+     writes the frame wherever a named object leaves, §3.11 gives a stack
+     object's frame its entry, and `copy-effects-architecture.md` §4.4 copies
+     from it. **Sized:** ~40–60 lines on top of the widening's ~50: the write
+     moves into `move_object`, gated on a queued or stacked entry naming the
+     mover; a stack object's frame keeps its entry; one fixture per zone.
+
+     **Reachability (2026-09-24, pass 4):** unreachable — no registered trigger
+     binds a card in a hand or copies a spell, and CV-4 is not built.
 
      **Reachability (2026-09-24):** unreachable — no registered card has an "if
      it was kicked" trigger (`Condition::SpellWasKicked` appears only in tests),
