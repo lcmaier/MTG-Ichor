@@ -34,12 +34,12 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, EffectRecipient, PlayerRef, PlayerSet, Primitive,
+    AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::{TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -259,4 +259,77 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     let turn = game.state.turn_number;
     assert_eq!(game.state.history[1].turn(turn).map_or(0, |r| r.cards_drawn), 1, "the second turn's draw step");
+}
+
+// ---------------------------------------------------------------------------
+// §3.3 — the two arms TR-2a adds: a loss, and a cast
+// ---------------------------------------------------------------------------
+
+fn gain_one() -> Effect {
+    Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+}
+
+fn pending(game: &GameState) -> usize {
+    game.pending_triggers.len()
+}
+
+/// "Whenever you lose life": one trigger per loss record (§14 question 3),
+/// so two sources' damage in one batch is two; a gain is the other arm's,
+/// and another player's loss is not "you".
+#[test]
+fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
+    let mut game = setup_two_player_game();
+    let grudge = TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+    let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::ThisObject)), 0);
+    let ctx = test_ctx();
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    assert_eq!(pending(&game), 1);
+    game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: keeper }, &ctx).unwrap();
+    game.execute_action(GameAction::LoseLife { player: 1, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    assert_eq!(pending(&game), 1, "a gain, and another player's loss, trigger nothing");
+
+    let a = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let b = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let hit = |source| GameAction::DealDamage {
+        source,
+        target: DamageTarget::Player(0),
+        amount: 1,
+        is_combat: true,
+        unpreventable: false,
+    };
+    game.execute_actions(vec![hit(a), hit(b)], &ctx).unwrap();
+    assert_eq!(pending(&game), 3, "two sources, two losses (CR 120.3a)");
+}
+
+/// "Whenever you cast a creature spell": the filter reads the spell on the
+/// stack as its record is dispatched (CR 601.2i), so a creature spell
+/// triggers it and a noncreature spell does not.
+#[test]
+fn casts_spell_reads_the_spell_as_it_is_cast() {
+    let mut game = setup_two_player_game();
+    let cast = TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(ObjectFilter::ByType(CardType::Creature)) };
+    put_on_battlefield(&mut game, watcher("Beast Caller's Drum", cast, gain_one()), 0);
+    let dp = ManaWindowStop::new(ScriptedDecisionProvider::new());
+
+    let mite = put_in_hand(&mut game, clockwork_mite(), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 1);
+    game.cast_spell(0, mite, &dp).expect("the artifact creature");
+    assert_eq!(pending(&game), 1, "a creature spell");
+    place(&mut game, &test_dp());
+    while !game.stack.is_empty() {
+        resolve_top(&mut game, &test_dp());
+    }
+
+    let trinket = put_in_hand(&mut game, clockwork_trinket(), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 1);
+    game.cast_spell(0, trinket, &dp).expect("the artifact");
+    assert_eq!(pending(&game), 0, "a noncreature spell triggers nothing");
+}
+
+/// A {1} artifact fixture with no abilities.
+fn clockwork_trinket() -> Arc<CardData> {
+    CardDataBuilder::new("Clockwork Trinket")
+        .card_type(CardType::Artifact)
+        .mana_cost(ManaCost::build(&[], 1))
+        .build()
 }

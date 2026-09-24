@@ -1001,10 +1001,25 @@ impl GameState {
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
                 one(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, candidate)))
             }
-            // The sign is the split: a loss is TR-2's `LosesLife`. A 0 gain
-            // never reaches the log (CR 119.10, `replacement::never_happens`).
+            // The sign is the split. A 0 gain never reaches the log (CR
+            // 119.10, `replacement::never_happens`).
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
                 one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
+            }
+            (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
+                one(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
+            }
+            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
+                let spell_ok = match spell {
+                    None => true,
+                    Some(filter) => self.subject_matches(
+                        &TriggerSubject::Filter(filter.clone()),
+                        Some(*spell_id),
+                        candidate,
+                        None,
+                    ),
+                };
+                one(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, candidate)))
             }
             (
                 TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },

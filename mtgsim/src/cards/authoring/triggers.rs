@@ -111,6 +111,7 @@ impl CountableEvent {
             TriggerEvent::ZoneChange { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. } => {
                 *multiplicity = Multiplicity::OncePerEvent
@@ -121,6 +122,7 @@ impl CountableEvent {
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::AbilityTriggers { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
             }

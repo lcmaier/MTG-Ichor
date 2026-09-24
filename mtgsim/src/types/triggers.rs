@@ -148,7 +148,7 @@ pub enum DamageRecipient {
 
 /// The kind of record a trigger arm reads - one variant per `GameEvent`
 /// variant any [`TriggerEvent`] can match, and none for the records no arm
-/// can (`CardDrawn`, `LibraryShuffled`, `SpellCast`, ...).
+/// can (`CardDrawn`, `LibraryShuffled`, ...).
 ///
 /// **The one table the matcher's discriminant test is written from.**
 /// [`TriggerEvent::reads`] and the dispatcher's source mask
@@ -170,6 +170,7 @@ pub enum EventKind {
     EnteredBattlefield,
     AttackersDeclared,
     AbilityTriggered,
+    SpellCast,
 }
 
 impl EventKind {
@@ -192,6 +193,7 @@ impl EventKind {
             GameEvent::PermanentEnteredBattlefield { .. } => EventKind::EnteredBattlefield,
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
+            GameEvent::SpellCast { .. } => EventKind::SpellCast,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityResolved { .. }
@@ -205,7 +207,6 @@ impl EventKind {
             | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::Scried { .. }
-            | GameEvent::SpellCast { .. }
             | GameEvent::SpellCountered { .. }
             | GameEvent::SpellFizzled { .. }
             | GameEvent::StateBasedActionPerformed
@@ -311,8 +312,12 @@ pub enum TriggerEvent {
     /// "Whenever [you/a player] gain[s] life" — CR 119.9 makes each source's
     /// gain its own event, and the record is per source; a 0 gain is no event
     /// (119.10) and never reaches the log. One of two arms over `LifeChanged`,
-    /// split by the sign; `LosesLife` is TR-2's.
+    /// split by the sign; the loss is [`Self::LosesLife`]'s.
     GainsLife { player: Option<PlayerRef>, multiplicity: Multiplicity },
+    /// "Whenever [you/a player] lose[s] life": the loss half of the sign
+    /// split, one occurrence per record (§14 question 3). Damage, a payment
+    /// and an effect all lose life (Vengeful Warchief's first ruling).
+    LosesLife { player: Option<PlayerRef>, multiplicity: Multiplicity },
     /// CR 603.6a. `from` and `cast` are joined from the same object's zone
     /// change in the window and from `PermanentState.cast` (§4.4).
     EntersBattlefield {
@@ -326,6 +331,10 @@ pub enum TriggerEvent {
     /// is one occurrence. TR-5 widens this to the five shapes with item 11's
     /// defender on the record.
     Attacks { attacker: TriggerSubject, multiplicity: Multiplicity },
+    /// "Whenever [you/a player] cast[s] a [filter] spell" (CR 601.2i). The
+    /// spell is on the stack as its record is dispatched, so the filter reads
+    /// it through the layer walk.
+    CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
@@ -346,8 +355,10 @@ impl TriggerEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::GainsLife { .. }
+            | TriggerEvent::LosesLife { .. }
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
+            | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::AbilityTriggers { .. } => false,
         }
     }
@@ -372,11 +383,14 @@ impl TriggerEvent {
             TriggerEvent::PhaseBegins { .. } => EventKindMask::of(EventKind::PhaseBegin),
             TriggerEvent::StepBegins { .. } => EventKindMask::of(EventKind::StepBegin),
             TriggerEvent::TurnBegins { .. } => EventKindMask::of(EventKind::TurnBegin),
-            TriggerEvent::GainsLife { .. } => EventKindMask::of(EventKind::LifeChanged),
+            TriggerEvent::GainsLife { .. } | TriggerEvent::LosesLife { .. } => {
+                EventKindMask::of(EventKind::LifeChanged)
+            }
             TriggerEvent::EntersBattlefield { .. } => {
                 EventKindMask::of(EventKind::EnteredBattlefield)
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
+            TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
         }
     }
@@ -393,6 +407,7 @@ impl TriggerEvent {
             TriggerEvent::ZoneChange { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
+            | TriggerEvent::LosesLife { multiplicity, .. }
             | TriggerEvent::EntersBattlefield { multiplicity, .. }
             | TriggerEvent::Attacks { multiplicity, .. } => *multiplicity,
             TriggerEvent::BecomesTapped { .. }
@@ -401,6 +416,7 @@ impl TriggerEvent {
             | TriggerEvent::PhaseBegins { .. }
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
+            | TriggerEvent::CastsSpell { .. }
             | TriggerEvent::AbilityTriggers { .. } => Multiplicity::PerOccurrence,
         }
     }
@@ -428,8 +444,11 @@ impl TriggerEvent {
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
+            | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
+            // "That spell".
+            (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
             _ => None,
         }
     }
@@ -447,7 +466,9 @@ impl TriggerEvent {
             (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { player, .. })
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { player, .. })
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { player, .. }) => Some(*player),
-            (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
+            (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. })
+            | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
+            (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { caster, .. }) => Some(*caster),
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
                 Some(*controller)
             }
@@ -472,6 +493,9 @@ impl TriggerEvent {
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((new - old).max(0) as u64)
             }
+            (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
+                Some((old - new).max(0) as u64)
+            }
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
@@ -481,6 +505,7 @@ impl TriggerEvent {
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
+            | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
             _ => None,
         }
@@ -501,7 +526,9 @@ impl TriggerEvent {
             | (TriggerEvent::StepBegins { .. }, GameEvent::StepBegin { .. })
             | (TriggerEvent::TurnBegins { .. }, GameEvent::TurnBegin { .. })
             | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
+            | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
+            | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => 1,
             _ => 0,
         }
@@ -641,6 +668,7 @@ mod tests {
                 controller: 0,
                 caused_by: EventSeq(0),
             }),
+            ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
         ]
     }
@@ -672,11 +700,13 @@ mod tests {
             (TriggerEvent::StepBegins { step: StepType::Upkeep, whose: None }, &["StepBegin"]),
             (TriggerEvent::TurnBegins { whose: None }, &["TurnBegin"]),
             (TriggerEvent::GainsLife { player: None, multiplicity: each }, &["LifeChanged"]),
+            (TriggerEvent::LosesLife { player: None, multiplicity: each }, &["LifeChanged"]),
             (
                 TriggerEvent::EntersBattlefield { subject: this.clone(), controller: None, from: None, was_cast: None, multiplicity: each },
                 &["PermanentEnteredBattlefield"],
             ),
             (TriggerEvent::Attacks { attacker: this, multiplicity: each }, &["AttackersDeclared"]),
+            (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
         ];
         let records = sample_records();
