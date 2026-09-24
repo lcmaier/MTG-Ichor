@@ -221,7 +221,7 @@ standing check that the criterion holds — three ran, three earned their
 keep. *That promise lapsed between `3c322e5` and 2026-09-24, while `GameState`
 went from 28 fields to 52; §4a is the catch-up.*
 
-**Rows added by the re-sweep (2026-09-24, pass 1: replacement, §4a).**
+**Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement, then pass 2, triggers.**
 
 | Type | What the CR wants that it can't say | Verdict |
 |---|---|---|
@@ -232,9 +232,12 @@ went from 28 fields to 52; §4a is the catch-up.*
 | `EntrySelectionScope` | what an entry's zone change chose, after the batch (CR 614.14, 702.82b) | feature — `backlog.md` §2.2 |
 | `PreventionAllocationScope` | — | **no gap** — CR 615.7, scoped to the batch |
 | `EventLog` / `EventRecord` | the act of a zone change an "instead" redirected (CR 614.6, 701.9c) | **FACT** — §5.4 |
+| `PendingTrigger` *(pass 2)* | — | **no gap** — the controller (CR 603.3a), the def and the source's card are all taken as it triggers |
+| `TriggerBinding` *(pass 2)* | the object a move made (CR 400.7e, 603.6c), which the `ZoneChange` record does not carry | item 177 |
+| `DepartureFrame`, `LookBackSnapshot` *(pass 2)* | a status (items 14, 15); a departed permanent's cost decisions (CR 603.4, 113.7a) | TR-4's frame; item 169, and `triggers-architecture.md` §3.11 amended |
+| the window (`EventLog`) *(pass 2)* | the state just after a record's own batch, once a rider has run (CR 603.4, 603.6a) | item 175, sharpened |
 
-**Not yet swept: passes 2–4.**
-- **Triggers:** `PendingTrigger`, `TriggerBinding`, `LookBackSnapshot`, `DepartureFrame`.
+**Not yet swept: passes 3 and 4.**
 - **Cost:** `StackEntry` (`trigger`, `mana_spent`), `ResolvingObject` (beyond the entry), `CastFacts`, `CostChoices`, `ManaSpent`, `ManaPool` (re-read), `TargetInstance`.
 - **The rest:** `GameObject` (`timestamp`), `PlayerState` (`counters`), `RestrictionRegistry`, `DurationRegistry`, `TurnPlan` with `turn_queue` and `turn_rotation`, `GameResult` and `starting_life`.
 
@@ -274,7 +277,7 @@ fills. §2's two checks and §3's second run come from that.
 
 That is large, so the owner split it into four passes: **replacement, then
 triggers, then cost, then the rest**. §4 lists what each unswept pass owns.
-**Pass 1 ran on 2026-09-24.**
+**Passes 1 and 2 ran on 2026-09-24.**
 
 **Pass 1: replacement (CR 614–616).** Card counts are Scryfall's
 `total_cards` for `game:paper -is:funny`, with the query beside each number.
@@ -297,6 +300,30 @@ triggers, then cost, then the rest**. §4 lists what each unswept pass owns.
 Here the redirected move arrives as `Exiled`. A redirected discard is still a
 discard, and trigger cards read the act: `trigger-survey.md` table two counts
 555 behind "sacrifices" and 436 behind "discards".
+
+**Pass 2: triggers (CR 603, 113.7a, 608.2h).** The four records, the window
+they are dispatched from, and the shapes `triggers-architecture.md` has
+already planned for them.
+
+| Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
+|---|---|---|---|---|
+| The trigger's controller (603.3a) and its ability as it triggered (113.7a) | `PendingTrigger.controller`; `TriggerBinding.def`, cloned out of the effective list | yes, at the dispatch | a later control change or Humility changes neither | no gap |
+| The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventSeq`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
+| **The object a move made** (400.7e, 603.6c) | `TriggerBinding.object`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
+| The appearance before a departure (603.10a) | `DepartureFrame`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status and the other two classes are items 14 and 15 (TR-4) | no gap beyond those |
+| **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `departed` frame, typed as §3.11's `LastKnownInformation` | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
+| **The intervening "if" at the trigger** (603.4) | `settled_holds` when the window closes | **no**, for a window with a rider: the rider has run (615.5) | a rider that changes the condition; a rider's newcomer asked about an earlier record (603.6a) | item 175 sharpened |
+| **"Do this only once each turn"** (603.2h) | planned: `action_taken_this_turn`, keyed by the ability | planned | **a control change**: the rule keys the gate on "its source's controller". 34 cards | §3.5, §6.4 and §7 amended |
+| A state trigger's re-arm (603.8); "only once each turn" | planned: sets of `AbilityIdentity`, which carries the epoch | planned | a zone change resets both (400.7) | no gap |
+| A delayed trigger's provenance and objects (603.7a–h) | planned: `DelayedTrigger` (§3.9) | planned: controller, source and refs as of the creating instant | refs by epoch, from the performed records | no gap, but the refs read item 177's missing field |
+| A copy of a triggered ability (707.10b) | a clone of its `StackEntry`: identity, binding, frame | yes | counted as the same ability (§6.5) | no gap |
+| Modes on a trigger (603.3c); a damage source's keywords from its LKI (702.2e, 702.15c, 702.80b, 702.90d) | `StackEntry.chosen_modes`, never written (item 31); `has_keyword`, live | — | — | owned: `backlog.md` §2.7 and §2.6 |
+
+**Pass 2's findings are all one moment read at another.** Item 177 reads, at
+the dispatch, the identity a move created. Item 175 reads, after the rider, a
+condition the event met. The other two are planned shapes written before a
+rule or a split reached them: CR 603.2h's "its source's controller", and #181's
+cost decisions. None is reachable today.
 
 **The remainder, dispositioned.** 13 of the 25 fields added since `3c322e5`
 hold no fact about the game:
@@ -434,7 +461,7 @@ depth (25), **linked abilities (10, which no plan doc mentioned)**, cost pipelin
 (7) and one already covered. Linked abilities was invisible precisely because it
 was travelling under another mechanic's section number. → backlog §2.2, §3.
 
-### 5.4 The re-sweep's findings (2026-09-24, pass 1, §4a)
+### 5.4 The re-sweep's findings (2026-09-24, §4a)
 
 - **The act of a redirected zone change.** `Rewrite::Instead(ZoneChangeTo)`
   writes its own `cause`, so a discard or sacrifice that Rest in Peace or
@@ -447,6 +474,16 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
 - **The linked-ability records an entry makes**: an "as it enters" choice, and
   what the entry's own zone change chose. Both exist only at the entry. →
   `backlog.md` §2.2, which gains the constraints.
+- **The object a move made** (pass 2). The `ZoneChange` record lacks the epoch
+  the move stamped, so a binding reads it at dispatch, and "them" cannot
+  read it at all. → `codebase-state.md` item 177.
+- **A departed permanent's cost decisions** (pass 2). §3.11's frame kept
+  `cast` only. → item 169, sharpened; `triggers-architecture.md` §3.11,
+  amended.
+- **The intervening "if" and a newcomer, read after a rider** (pass 2).
+  → item 175, sharpened.
+- **CR 603.2h's gate keyed without its controller** (pass 2). →
+  `triggers-architecture.md` §3.5, §6.4, §7, amended.
 
 ---
 
@@ -526,8 +563,8 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
-- **Open: passes 2–4 of the re-sweep** (§4a): triggers, then cost, then the
-  rest. §4 lists which types each pass covers.
+- **Open: passes 3 and 4 of the re-sweep** (§4a): cost, then the rest. §4
+  lists which types each pass covers.
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the

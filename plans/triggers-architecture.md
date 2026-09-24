@@ -447,10 +447,21 @@ pub enum TriggerLimit {
 ```
 
 The two gate sets live on `GameState` beside the turn summaries:
-`action_taken_this_turn` and `triggered_this_turn`, each an `IdSet` keyed by
-the full identity (§3.6) so a bounced and replayed permanent — a new object,
-CR 400.7 — starts clean, and both cleared by the `BeginTurn` performer.
-"Each turn" is the game's turn, not the controller's.
+`action_taken_this_turn` and `triggered_this_turn`, each keyed by the full
+identity (§3.6), so a bounced and replayed permanent — a new object, CR
+400.7 — starts clean, and both cleared by the `BeginTurn` performer. "Each
+turn" is the game's turn, not the controller's.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 2): the action-taken
+gate is also keyed by the controller.** CR 603.2h: the ability triggers "only
+if its source's controller has not yet taken the indicated action that turn".
+If a permanent changes control mid-turn, its new controller has not taken the
+action, so `action_taken_this_turn` is a set of `(AbilityIdentity, PlayerId)`
+pairs. Nykthos Paragon's rulings don't reach a control change, and the rule's
+wording decides it. `triggered_this_turn` stays keyed by the identity alone:
+Elvish Warmaster's ruling makes "triggers only once each turn" a fact about
+the ability. 34 cards print "Do this only once each turn"
+(`o:"do this only once each turn"`).
 
 ### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
 
@@ -728,6 +739,15 @@ pub struct LastKnownInformation {
     /// last known information — Vibrance evoked, its sacrifice ordered
     /// first, still deals 3 damage if {R}{R} was spent to cast it.
     pub cast: Option<CastFacts>,
+    /// The spell's cost decisions: kicked, bargained, evoked
+    /// (`PermanentState.cost_choices`). Amended 2026-09-24
+    /// (`cr-coverage-audit.md` §4a, pass 2). PR #181 moved them out of
+    /// `cast` a day after the field above was written, because CR 707.10
+    /// copies them to a copy that was never cast. Without this field, an "if
+    /// it was kicked" rechecked after the permanent left reads not kicked, and
+    /// so does the token a copy of a kicked spell became, whose `cast` is
+    /// `None`.
+    pub cost_choices: CostChoices,
 }
 pub struct Status {
     pub tapped: bool,
@@ -1521,7 +1541,8 @@ and one `Arc`.
 ### 6.4 "Do this only once each turn", written by the resolution (CR 603.2h)
 
 For a def with `TriggerLimit::DoOnceEachTurn`, the resolver checks
-`action_taken_this_turn` before performing the effect: present means the
+`action_taken_this_turn` for the pair (the ability, its controller; §3.5)
+before performing the effect: present means the
 instance does nothing (Nykthos Paragon's fourth ruling — a second instance
 on the stack resolves and no prompt is asked); absent means perform, then
 insert. Two Paragons are two identities and act twice (second ruling).
@@ -1576,13 +1597,13 @@ field with one writer:
 | Fact | Field | Writer | Readers |
 |---|---|---|---|
 | "this turn" quantities, "last turn", "your last turn", "this game" | `PlayerHistory.turns[..]` (§3.10) | the dispatcher, record by record | `Condition::ThisTurn/LastTurn/SinceYourLastTurn/ThisGame`, `FirstTimeEachTurn` |
-| the action was taken this turn (603.2h) | `action_taken_this_turn: IdSet<AbilityIdentity>` | the resolution | the dispatcher, the resolution |
+| the action was taken this turn (603.2h) | `action_taken_this_turn`, a set of `(AbilityIdentity, PlayerId)` — "its source's controller" (§3.5) | the resolution | the dispatcher, the resolution |
 | the ability triggered this turn ("only once each turn") | `triggered_this_turn: IdSet<AbilityIdentity>` | the dispatcher | the dispatcher |
 | a state trigger is on the stack (603.8) | `state_triggers_armed_off: IdSet<AbilityIdentity>` | the dispatcher (arm off), `trigger_left_stack` (re-arm) | the state check |
 | resolutions per ability per turn (603.7h) | `TurnSummary.abilities_resolved` | the dispatcher, off `AbilityResolved` | the count condition |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
 | who cast this permanent, from which zone, and with what mana (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent }>`, `None` for a copy of a spell (CR 707.10) | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
-| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
+| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by `LastKnownInformation` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionContext.last_cost_answer` | the atom that takes the action | the "if" clause after it (§6.2) |
 | an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |

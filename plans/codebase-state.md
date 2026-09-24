@@ -7954,6 +7954,25 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      store or with no frame to read "you" from — right for Felidar Sovereign,
      wrong for a dies-trigger with a clause (persist's shape, TR-4).
 
+     **The frame needs the cost decisions too (the type-surface re-sweep,
+     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The widening below writes
+     the departed frame for a source that leaves after it triggered. The frame
+     the recheck will read is §3.11's `LastKnownInformation`, and it carries
+     `cast` only. PR #181 moved kicked, bargained and evoked out of `cast` into
+     `CostChoices` the next day, because CR 707.10 copies them to a copy that
+     was never cast. So an "if it was kicked" recheck after the permanent
+     leaves (CR 603.4, 113.7a) would read not kicked. So would a token a copy of
+     a kicked spell became, whose `cast` is `None`. 72 enters triggers print
+     that clause (`(o:"when " or o:"whenever ") o:"if it was kicked"`; Gatekeeper
+     of Malakir), and 6 more print "if it was bargained".
+     `triggers-architecture.md` §3.11 now carries `cost_choices` beside `cast`.
+     The capture copies it off `PermanentState` beside `cast`, about 2 lines on
+     top of the size below.
+
+     **Reachability (2026-09-24):** unreachable — no registered card has an "if
+     it was kicked" trigger (`Condition::SpellWasKicked` appears only in tests),
+     and the frame is TR-4's.
+
      **Reachability (2026-09-19):** unreachable — no registered trigger with an
      intervening "if" leaves the battlefield before its check.
 
@@ -8071,6 +8090,32 @@ and the reading below, which the audit makes and the dispatcher does not.
      they were before the outermost batch that performed it; within one
      batch, a destruction's nested move included, the two agree.
 
+     **Two more readers of the same window (the type-surface re-sweep,
+     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The window closes after
+     its riders, and the dispatcher reads live state then, so two other checks
+     read the wrong moment for a record from the replaced event's batch:
+     - **CR 603.4's first check.** `match_def` evaluates the intervening "if"
+       with `settled_holds` at the window's close. The CR checks it "when the
+       trigger event occurs". CR 615.5 puts the rider "immediately afterward",
+       so a rider that changes the condition, such as Kalitas's Zombie entering
+       under "if you control no creatures", flips the answer.
+     - **A newcomer's ordinary arms.** CR 603.6a and 603.10 check the objects
+       that exist immediately after the event, and a permanent a rider created
+       did not. The fix above tags a newcomer's list with the batch it entered
+       in, but uses the tag only for look-back arms. It should gate every arm
+       the same way.
+
+     Both depend on when the condition is evaluated, which is
+     `triggers-architecture.md` §4.1's decision. One option is to dispatch a
+     rider-bearing window per batch: the replaced event's records first, then
+     the rider's. **Sized:** about 30 lines on top of the 40 below, once §4.1
+     decides.
+
+     **Reachability (2026-09-24):** unreachable — the one registered
+     intervening "if" (Felidar Sovereign's upkeep check) sits on a step
+     beginning, which no rider follows, and the one registered rider that
+     creates a permanent (Kalitas) makes a Zombie with no abilities.
+
      **Reachability (2026-09-22):** unreachable — every audited sitting (both
      pools at two seats and four, Commander scale, and the forced Humility and
      TR-1 boards) read zero disagreements, so no pooled card builds such a
@@ -8165,3 +8210,50 @@ linked-ability records an entry makes.
 
      **Back-stop:** before the first card whose trigger reads `Sacrificed` or
      `Discarded`.
+
+### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
+
+`cr-coverage-audit.md` §4a, pass 2, read the trigger records' one-moment facts
+against §2's two checks. One new item came out of it. Items 169 and 175 are
+sharpened. `triggers-architecture.md` is amended in §3.5, §6.4 and §7 (CR
+603.2h's gate is keyed by the controller too) and in §3.11 (the last-known frame
+keeps the cost decisions).
+
+177. **A zone-change record does not say which object the move made, so a
+     binding takes its subject's identity at dispatch.** `GameEvent::ZoneChange`
+     carries the `object_id`, not the `zone_change_epoch` that `move_object`
+     stamped. `TriggerBinding.object` is read live when the window closes:
+     `subject.and_then(|id| self.object_ref(id))` in `dispatch.rs`, "the
+     subject's epoch at dispatch". But the rules fix that identity at the move:
+     - CR 400.7e names "the new object that it became in the zone it moved to".
+     - CR 603.6c looks for the card "only in the first zone that it went to".
+
+     Two readers get a later identity:
+     - **A second move inside the window.** A rider (CR 615.5) runs before the
+       window's dispatch. If it moves the same object again, the binding takes
+       the second move's epoch, and "return it" finds the card in its second
+       zone.
+     - **"Them".** A `OncePerEvent` binding has no subject. "Put them onto the
+       battlefield" (Hedge Shredder) or "choose one of them" (Colossal
+       Grave-Reaver) has only each record's `object_id`, so it would have to
+       read live. 59 cards: `(o:"when " or o:"whenever ") o:"one or more" (o:"
+       them " or o:" them." or o:"those cards" or o:"those creatures")`.
+
+     `triggers-architecture.md` §3.9's delayed-trigger refs, "filled from the
+     records the creating instruction performed" by id and epoch, read the same
+     missing field.
+
+     **Reachability (2026-09-24):** unreachable. No registered rider moves an
+     object that moved earlier in its window: Exquisite Archangel's exile finds
+     nothing once the Archangel has died (item 125). And no registered trigger
+     reads "them".
+
+     **Sized:** ~20–30 lines.
+     - `ZoneChange` gains the epoch `move_object` stamped, at its one emit site
+       (`announce_zone_change`) and at the patterns that name every field.
+     - The binding reads that epoch from the record instead of from the store.
+     - One fixture: a rider that exiles a graveyard's cards after the replaced
+       event put a creature there; the creature's dies trigger then does
+       nothing.
+
+     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002).
