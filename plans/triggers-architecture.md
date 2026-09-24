@@ -684,21 +684,17 @@ four cards.
 
 ```rust
 /// One player's turn, materialized: every "this turn" quantity the CR or a
-/// registered card reads, one field each, one meaning each — never a scan
-/// of the log. Advanced at dispatch, record by record (§4.1). Each name says
-/// whose row the fact is on. As built in TR-2a.
+/// registered card reads, one count each, one meaning each — never a scan
+/// of the log. Advanced at dispatch, record by record (§4.1). As built in
+/// TR-2a and its review: the fact is the key, and each `TurnFact` variant's
+/// name says whose row it is counted on.
 pub struct TurnSummary {
-    pub spells_cast: u32,
-    pub spells_cast_of_type: Vec<(CardType, u32)>,  // sorted; types as cast
-    pub cards_drawn: u32,
-    pub life_gained: u64,
-    pub life_gain_events: u32,
-    pub life_lost: u64,
-    pub life_loss_events: u32,
-    pub damage_taken: u64,               // dealt to this player (bloodthirst)
-    pub controlled_creatures_died: u32,  // controlled as it died; morbid sums
-    pub attackers_declared: u32,         // raid is at least one
+    counts: [u64; TurnFact::COUNT],  // one slot per fact; spells per card type
 }
+// TurnFact: SpellsCast, SpellsCastOfType(CardType), CardsDrawn, LifeGained,
+// LifeGainEvents, LifeLost, LifeLossEvents, DamageTaken (dealt to this
+// player: bloodthirst), ControlledCreaturesDied (controlled as it died:
+// morbid sums the rows), AttackersDeclared (raid is at least one)
 
 /// Every turn of the game, for every player — the survey's recommendation
 /// taken: a few dozen counters per player per turn is kilobytes at
@@ -712,7 +708,7 @@ pub struct PlayerHistory {
     pub turns: Vec<TurnSummary>,
     pub own_turns: Vec<u32>,
 }
-// on GameState: history: Vec<PlayerHistory>, one per seat
+// on PlayerState: history: PlayerHistory
 ```
 
 **Three decisions.** *Whole game, not two turns*: the brief's recommendation,
@@ -1686,13 +1682,16 @@ primitive. `DrawCards` performs one instruction per player. `DealDamage`
 performs one event with a member for each player, first needed by a
 magecraft fixture's "each opponent".
 
-Alms Collector's rider uses a second recipient, `YouAndThatPlayer`: the
-effect's controller plus the player its first instance names, which for a
-rider is the replaced event's subject. It is its own recipient because
-`PlayerSet` answers membership from two ids, and "that player" is not one of
-them.
+The recipient is `EffectRecipient::EachOf(PlayerGroup)` (#186's review): the
+players standing in a `PlayerSet` relation to "you", together with the
+players the effect's context names (`NamedPlayers`). Alms Collector's rider
+is `PlayerGroup::you_and_that_player()`: "that player" is the player its first
+instance names, which for a rider is the replaced event's subject, and no
+`PlayerSet` can say it, since a set answers membership from two ids. A new
+printed phrase is a new `NamedPlayers` arm: Zurzoth's "you and those players"
+is `You` with the players its trigger names.
 
-Every other primitive refuses both recipients by name until a card needs
+Every other primitive refuses the recipient by name until a card needs
 it. Item 94's per-player replacement rows are refused in
 `CreateReplacement`. The "whenever you draw a card" reader is Psychosis
 Crawler, in TR-2b.
@@ -1783,7 +1782,7 @@ trait method (`roadmap-v2.md` §9's watch item): the four methods suffice.
 ## 10. N players, and the permanent versus its components
 
 **Every ordering is APNAP over the seat list**, through `apnap_index` and
-`in_game`: placement (§5.2), `EachPlayer` recipients (§6.6), the delayed
+`in_game`: placement (§5.2), `EachOf` recipients (§6.6), the delayed
 trigger's simultaneous choice (the controller's, one player). Every "you"
 resolves through a `PlayerId`: the controller locked at dispatch, the
 frame's controller for a look-back, 603.7d–g's for a delayed trigger, and
@@ -2059,7 +2058,7 @@ instructions, −3.97% against `main`.
 
 ### TR-2a — the histories, the gates, and each player — ✅ landed 2026-09-24
 
-**What shipped.** `GameState.history` (§3.10 as built): a `TurnSummary` per
+**What shipped.** `PlayerState.history` (§3.10 as built): a `TurnSummary` per
 player per turn, advanced by the dispatcher record by record before the gate,
 with `TurnOrdinals` for "the first time each turn" and four `Condition` leaves
 over a `HistoryCount`. The three turn-scoped sets (§3.5, §6.4, §6.5): CR
@@ -2067,8 +2066,7 @@ over a `HistoryCount`. The three turn-scoped sets (§3.5, §6.4, §6.5): CR
 turn" by the ability, and CR 603.7h's count by the ability, which
 `Condition::ResolvedThisTurn(n)` reads. The arms `LosesLife` (item 171) and
 `CastsSpell`. `EffectRecipient::ThisObject`, found by identity (CR 400.7);
-`EachPlayer(PlayerSet)` and `YouAndThatPlayer` in APNAP order (§6.6, item
-122); `AmountExpr::TriggeringPower` and `TriggeringToughness` (item 172). A
+`EachOf(PlayerGroup)` in APNAP order (§6.6, item 122); `AmountExpr::TriggeringPower` and `TriggeringToughness` (item 172). A
 one-shot over a filter fixes its affected set (CR 611.2c). Four cards:
 Paladin of Atonement, Vengeful Warchief, Elvish Warmaster and Temple Bell.
 Warchief and Warmaster are pooled (94 → 96), and all four are in `stress`

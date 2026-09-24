@@ -306,7 +306,7 @@ one-for-one renames and a moved test helper. That is over the band. "Each player
 done, and moving it back would not have brought TR-2a under 2,500.
 
 What the sizing did not foresee:
-- **`EachPlayer` admits `DealDamage`.** The 608.2p fixture's magecraft deals
+- **Each player admits `DealDamage`.** The 608.2p fixture's magecraft deals
   damage to each opponent.
 - **Fifteen `Implicit` sites became `ThisObject`.** `Implicit` had been
   spelling "this object" in all of them.
@@ -323,3 +323,34 @@ read is answered:
 - The one changed path is a Layer 4 row counting as an ability-list source.
   That is a set membership: the snapshot it now takes is TR-1's review's,
   read the same way.
+
+### Review round 1 (2026-09-24)
+
+The owner's review of #186, before merge:
+- **The history's shape.** A row is `[u64; TurnFact::COUNT]`, keyed by the
+  fact; it had been a struct that repeated `TurnFact` field for field, with a
+  sorted `Vec` per card type. The history moved from a seat-indexed `Vec` on
+  `GameState` onto `PlayerState`.
+- **The pregame.** The opening hands are drawn in turn 0, which has no row,
+  rather than recorded and then cleared.
+- **Names.** `place_in_turn`, `HistoryUpdate`, `met_by`, `you_for`,
+  `Cost::TapSelf`, `Cost::UntapSelf`, and the test file's helpers.
+- **One each-player recipient.** `EachOf(PlayerGroup)` replaced
+  `EachPlayer` and `YouAndThatPlayer`, so a new phrase is a context arm
+  rather than a recipient.
+- **A new test.** A spell's filtered one-shot reads "you" as the spell
+  resolves.
+
+What stayed, and why:
+- **Lifelink's accumulator stays on `GameState`.** Item 40 forbids
+  outcome-bearing state off it while a nested batch can prompt mid-perform,
+  which is also why `prevention_allocations` is there.
+- **Durations stay per atom.** Each continuous effect has its own (CR
+  611.2a), and a card-authoring helper for "X and Y until end of turn" is
+  offered, not built.
+- **Conditions naming "your" stay separate variants.** Folding them into one
+  variant with a `PlayerSet`, as `HistoryCount` does, is offered.
+
+The performance question from the first sitting was re-taken at seven
+rounds: −0.2% CPU per decision at four seats and −2.4% at two, against
++2.9% and +3.8% at three rounds.

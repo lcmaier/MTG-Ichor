@@ -77,7 +77,11 @@ runs audited.
 **The budget.** The three-round sitting read the engine arm over the
 four-seat line, at +2.9%. The re-take at five rounds read +1.3%, with the
 each arm at +0.1%, so the first reading sat inside the sitting's own spread
-(~2–6%, `fuzz_ab.py`). Both are recorded here for the reviewer.
+(~2–6%, `fuzz_ab.py`). Both are recorded here for the reviewer. The review
+asked for another reading: at seven rounds the engine arm read **−0.2%** at
+four seats and −2.4% at two. Three sittings of the same two binaries read
++2.9%, +1.3% and −0.2% at four seats, so TR-2a's cost is below what a timing
+sitting can resolve.
 
 **The cost rows, attributed by bisect** (each commit built alone, 200 games,
 four seats, `performance`):
@@ -188,6 +192,12 @@ shipped), `performance` / `stress`: `Layer walks` 745 / 1,200, `Memo hits`
 Timing ===`, on both pools at two seats and four. Every timing round of the
 sitting also reproduced its counter run (`deterministic: yes` on all five
 arms).
+
+**Review round 1** (the owner's review of #186). The round's head was run
+against the first head, both pools, two seats and four. Counters were
+`IDENTICAL`, and the audit agreed on the same dispatches. The round only
+refactored: it changed the history's shape, the recipient's shape, names,
+and the turn the opening hands are drawn in.
 
 **Re-recorded 2026-09-24 for item 176** (a redirect keeps the act —
 `codebase-state.md` item 176; `GameActionTemplate::ZoneChangeTo` names only a

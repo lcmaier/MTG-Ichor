@@ -2442,7 +2442,7 @@ Closed by `GameState::capture_departure_frames` (`triggers-architecture.md` §4.
 
 ### Item 122 — closed 2026-09-24 by TR-2a
 
-Closed by `EffectRecipient::EachPlayer(PlayerSet)` and `EffectRecipient::YouAndThatPlayer` (`triggers-architecture.md` §6.6). Each resolves to the seats still in the game, in APNAP order (CR 101.4), and `DrawCards` performs one instruction per player in that order, so CR 121.2c's "the active player performs all of their draws first" is the loop. Alms Collector is `Rewrite::Prevent` plus one rider, "you and that player each draw a card", whose draws carry the replaced event's applied set (CR 614.5). The seed-12345 A/B moved one four-seat `stress` game in 800, by the rider's order and nothing else.
+Closed by `EffectRecipient::EachOf(PlayerGroup)` (`triggers-architecture.md` §6.6), which #186's review made one recipient out of the two it shipped with. It resolves to the seats still in the game, in APNAP order (CR 101.4), and `DrawCards` performs one instruction per player in that order, so CR 121.2c's "the active player performs all of their draws first" is the loop. Alms Collector is `Rewrite::Prevent` plus one rider, "you and that player each draw a card", whose draws carry the replaced event's applied set (CR 614.5). The seed-12345 A/B moved one four-seat `stress` game in 800, by the rider's order and nothing else.
 
 *Original entry:*
 

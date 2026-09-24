@@ -131,7 +131,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2e | Post-proposal legality | ⚠️ **explicit no-op** with a comment: *"Currently a no-op (the pre-proposal check is sufficient for the cards we support). Future: validate that chosen targets are still legal after all proposal choices are made"* | `engine/put_on_stack.rs:175–182` |
 | 601.2f | Determine total cost | ✅ | `engine/cost_determination/total.rs` `determine_total_cost` — the whole step since CM-1 (2026-09-07) |
 | 601.2g | Mana ability activation window | ✅ (SPECIAL-2) | `engine/priority.rs` `run_mana_ability_window` |
-| 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::Tap`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
+| 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::TapSelf`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
 | 601.2i | Spell becomes cast | ✅ | `engine/put_on_stack.rs` |
 | 602 | Activated abilities (activate_ability + rollback) | ✅ structural; **activation restrictions** (sorcery-speed PW, graveyard-activated abilities) ❌ (T19) | `engine/actions.rs` activate_ability |
 | **603** | **Triggered abilities** | 🟡 In progress: `triggers-architecture.md` §12 phases it as TR-1 to TR-6, and `state-of-play.md` says which have landed. | only in `ui/display.rs:164` for label printing |
@@ -3251,7 +3251,7 @@ empty set to act on, and the reason is a property rather than a rewind:
   answer. A `debug_assert!` on `pay_costs`'s failure path enforces it.
 - The Mind Stone puzzle (`cost-architecture.md` §3.11) reaches the check and
   not the payment: with the ability's own source sacrificed inside its 601.2g window,
-  `can_pay_costs` refuses the `Cost::Tap` before any cost is paid, and
+  `can_pay_costs` refuses the `Cost::TapSelf` before any cost is paid, and
   `rollback_ability_activation` has nothing to cancel. The Ironworks
   activation stands with its mana and its cost, which is what both readings of
   the open judge question agree on.
@@ -3434,7 +3434,7 @@ offer" than the enumeration itself, and the only way to skip it is to not
 offer, which is item 70. If it ever matters, its owner is item 77.
 
 83. **A source can tap itself for mana inside its own 601.2g window, and then
-    its own `Cost::Tap` cannot be paid.** CR 605.3a lets a player activate any
+    its own `Cost::TapSelf` cannot be paid.** CR 605.3a lets a player activate any
     mana ability while paying, including one on the very permanent whose
     ability is being activated. `{3}, {T}: …` on a permanent that also has a
     mana ability is the board: tap it for mana in the window, and CR 601.2h
@@ -3444,14 +3444,14 @@ offer, which is item 70. If it ever matters, its owner is item 77.
 
     **What CM-4 changed is what happens before the rewind.** The engine's old
     stop was `can_pay_costs` over the whole cost list, so once the mana was
-    covered and the `Cost::Tap` was not, the window kept enumerating and asking
+    covered and the `Cost::TapSelf` was not, the window kept enumerating and asking
     — and `RandomDecisionProvider`'s `AnyWillDo` arm tapped land after land
     until it ran out of sources or hit `WINDOW_ACTIVATION_CAP`, all of it spent
     on a payment that could never complete. `ui::ManaWindowStop` declines as
     soon as the mana component is covered, so the rewind happens having burned
     nothing extra. **That is the whole of CM-4's counter movement**, and it is
     strictly the better answer: no number of mana abilities can make a
-    `Cost::Tap` payable.
+    `Cost::TapSelf` payable.
 
     Traced with a debug build over 200 games at seed 12345: **Chainbreaker**
     once on `performance` (`{3}, {T}`, its mana ability granted by a Layer 6
@@ -3751,7 +3751,7 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     beside the filter) and one more branch in the primitive.
 
     **Reachability (2026-09-24, TR-2a):** still unreachable.
-    `EffectRecipient::EachPlayer(PlayerSet)` exists now (item 122's), and
+    `EffectRecipient::EachOf(PlayerGroup)` exists now (item 122's), and
     `CreateReplacement` refuses it by name. What is left is the per-player
     rows, ~15 lines, with Kitsune Palliator.
 
@@ -4434,8 +4434,8 @@ so it is a mechanic the surface cannot express and not debt. Trace page:
 
 122. **~~CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
      first customer.~~ — ✅ CLOSED 2026-09-24 (TR-2a).** — archived.
-     `EffectRecipient::EachPlayer(PlayerSet)` and `YouAndThatPlayer` resolve to
-     the seats in the game in APNAP order, and Alms Collector's rider draws the
+     `EffectRecipient::EachOf(PlayerGroup)` resolves to the seats in the game
+     in APNAP order, and Alms Collector's rider draws the
      active player's card first (`triggers-architecture.md` §6.6).
      **Reachability (2026-09-24):** closed — TR-2a, `0e5f34a`.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 122".
@@ -8393,7 +8393,7 @@ keeps the cost decisions).
 ### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
 
 **Shipped:** the histories, the three turn-scoped sets, `LosesLife` and
-`CastsSpell`, `ThisObject`, the two each-player recipients and the two
+`CastsSpell`, `ThisObject`, the each-player recipient and the two
 `Triggering*` leaves (`triggers-architecture.md` §12's TR-2a stub;
 `fuzz-record.md`, the TR-2a block). Items 122 and 172 closed; 171 half
 closed; 169 is TR-2b's. Two fixes rode in, each with a test that fails on the
