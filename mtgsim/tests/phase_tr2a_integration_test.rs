@@ -126,7 +126,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 
 /// This turn's row for `player`, all zeros when nothing was counted on it.
 fn row(game: &GameState, player: PlayerId) -> TurnSummary {
-    game.history[player].turn(game.turn_number).cloned().unwrap_or_default()
+    game.players[player].history.turn(game.turn_number).cloned().unwrap_or(TurnSummary::ZERO)
 }
 
 fn this_turn(whose: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
@@ -174,18 +174,21 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
     game.execute_action(damage, &ctx).unwrap();
     game.execute_action(GameAction::Destroy { object: mine, source: DestructionSource::Effect(theirs) }, &ctx).unwrap();
 
-    let expected = TurnSummary {
-        cards_drawn: 2,
-        life_gained: 3,
-        life_gain_events: 2,
-        life_lost: 5,
-        life_loss_events: 2,
-        damage_taken: 3,
-        controlled_creatures_died: 1,
-        ..TurnSummary::default()
-    };
-    assert_eq!(row(&game, 0), expected);
-    assert_eq!(row(&game, 1), TurnSummary::default());
+    let counted = [
+        (TurnFact::SpellsCast, 0),
+        (TurnFact::CardsDrawn, 2),
+        (TurnFact::LifeGained, 3),
+        (TurnFact::LifeGainEvents, 2),
+        (TurnFact::LifeLost, 5),
+        (TurnFact::LifeLossEvents, 2),
+        (TurnFact::DamageTaken, 3),
+        (TurnFact::ControlledCreaturesDied, 1),
+        (TurnFact::AttackersDeclared, 0),
+    ];
+    for (fact, n) in counted {
+        assert_eq!(row(&game, 0).count(fact), n, "{fact:?}");
+    }
+    assert_eq!(row(&game, 1), TurnSummary::ZERO);
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
@@ -206,8 +209,8 @@ fn a_stolen_creatures_death_is_counted_on_its_controllers_row() {
     let destroy = GameAction::Destroy { object: bear, source: DestructionSource::Effect(bear) };
     game.execute_action(destroy, &test_ctx()).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
-    assert_eq!(row(&game, 0).controlled_creatures_died, 1, "the thief controlled it as it died");
-    assert_eq!(row(&game, 1).controlled_creatures_died, 0, "its owner did not");
+    assert_eq!(row(&game, 0).count(TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
+    assert_eq!(row(&game, 1).count(TurnFact::ControlledCreaturesDied), 0, "its owner did not");
 }
 
 /// Damage dealt to a permanent is not dealt to its controller (CR 120.3):
@@ -225,7 +228,7 @@ fn damage_to_a_permanent_is_not_damage_to_its_controller() {
         unpreventable: false,
     };
     game.execute_action(damage, &test_ctx()).unwrap();
-    assert_eq!(row(&game, 0), TurnSummary::default());
+    assert_eq!(row(&game, 0), TurnSummary::ZERO);
 }
 
 /// A {1} 1/1 artifact creature fixture.
@@ -250,7 +253,7 @@ fn a_spell_cast_from_hand_counts_once_and_under_each_of_its_types() {
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
 
     let row = row(&game, 0);
-    assert_eq!(row.spells_cast, 1);
+    assert_eq!(row.count(TurnFact::SpellsCast), 1);
     assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Artifact)), 1);
     assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Creature)), 1);
     assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Instant)), 0);
@@ -264,14 +267,18 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     let mut game = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     game.setup(&test_dp()).unwrap();
     for player in 0..2 {
-        assert_eq!(game.state.history[player].sum(TurnFact::CardsDrawn, 1, game.state.turn_number), 0);
+        assert_eq!(game.state.players[player].history.sum(TurnFact::CardsDrawn, 1, game.state.turn_number), 0);
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
         game.state.advance_turn(&test_ctx()).expect("advancing");
     }
     let turn = game.state.turn_number;
-    assert_eq!(game.state.history[1].turn(turn).map_or(0, |r| r.cards_drawn), 1, "the second turn's draw step");
+    assert_eq!(
+        game.state.players[1].history.turn(turn).map_or(0, |r| r.count(TurnFact::CardsDrawn)),
+        1,
+        "the second turn's draw step"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -838,7 +845,7 @@ fn one_lifelink_source_dealing_damage_to_two_recipients_at_once_gains_life_once(
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life(&game, 0), 25);
-    assert_eq!(row(&game, 0).life_gain_events, 1, "one event, not one per recipient");
+    assert_eq!(row(&game, 0).count(TurnFact::LifeGainEvents), 1, "one event, not one per recipient");
     assert_eq!(pending(&game), 1);
     drain(&mut game);
     assert_eq!(plus_ones(&game, keeper), 5, "that many is the whole gain");
@@ -857,7 +864,7 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
     game.execute_actions(batch, &test_ctx()).unwrap();
 
     assert_eq!(life(&game, 0), 25);
-    assert_eq!(row(&game, 0).life_gain_events, 2);
+    assert_eq!(row(&game, 0).count(TurnFact::LifeGainEvents), 2);
     assert_eq!(pending(&game), 2);
 }
 

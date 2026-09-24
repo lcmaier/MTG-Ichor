@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::state::history::PlayerHistory;
 use crate::types::effects::CounterType;
 use crate::types::ids::{IdMap, ObjectId, PlayerId};
 use crate::types::mana::ManaPool;
@@ -40,6 +41,12 @@ pub struct PlayerState {
     // General per-turn tracking (e.g. "cast a spell this turn") should live
     // in a separate TurnTracker struct when needed.
     pub has_drawn_from_empty_library: bool,
+
+    /// This player's turns, one row per turn of the game
+    /// (`triggers-architecture.md` §3.10): what "this turn", "last turn",
+    /// "since your last turn" and "this game" read. Advanced by the
+    /// dispatcher, record by record, and by nothing else.
+    pub history: PlayerHistory,
 }
 
 impl PlayerState {
@@ -57,6 +64,7 @@ impl PlayerState {
             counters: BTreeMap::new(),
             commander_damage_taken: IdMap::default(),
             has_drawn_from_empty_library: false,
+            history: PlayerHistory::before_any_turn(),
         }
     }
 

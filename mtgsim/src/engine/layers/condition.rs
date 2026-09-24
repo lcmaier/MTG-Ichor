@@ -239,17 +239,17 @@ fn history_holds(
         HistorySpan::ThisTurn => (now, now),
         HistorySpan::LastTurn => (now.saturating_sub(1), now.saturating_sub(1)),
         HistorySpan::SinceYourLastTurn => {
-            let after = game.history.get(you).and_then(|h| h.own_turn_before(now)).map_or(1, |t| t + 1);
+            let after = game.players.get(you).and_then(|p| p.history.own_turn_before(now)).map_or(1, |t| t + 1);
             (after, now)
         }
         HistorySpan::ThisGame => (1, now),
     };
     let total: u64 = game
-        .history
+        .players
         .iter()
         .enumerate()
         .filter(|(player, _)| count.whose.contains(you, *player))
-        .map(|(_, history)| history.sum(count.fact, first, last))
+        .map(|(_, player)| player.history.sum(count.fact, first, last))
         .sum();
     count.is.holds(total)
 }

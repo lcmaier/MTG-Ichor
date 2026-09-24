@@ -43,6 +43,28 @@ pub enum TurnFact {
     AttackersDeclared,
 }
 
+impl TurnFact {
+    /// How many counts a turn's row holds: the nine above, then one spell
+    /// count per card type.
+    pub const COUNT: usize = 9 + CardType::COUNT;
+
+    /// Where this fact's count sits in a row.
+    pub const fn slot(self) -> usize {
+        match self {
+            TurnFact::SpellsCast => 0,
+            TurnFact::CardsDrawn => 1,
+            TurnFact::LifeGained => 2,
+            TurnFact::LifeGainEvents => 3,
+            TurnFact::LifeLost => 4,
+            TurnFact::LifeLossEvents => 5,
+            TurnFact::DamageTaken => 6,
+            TurnFact::ControlledCreaturesDied => 7,
+            TurnFact::AttackersDeclared => 8,
+            TurnFact::SpellsCastOfType(card_type) => 9 + card_type.slot(),
+        }
+    }
+}
+
 /// How a count must compare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CountIs {

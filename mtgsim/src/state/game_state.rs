@@ -571,11 +571,6 @@ pub struct GameState {
     /// the drain again.
     pub pending_triggers: Vec<crate::types::triggers::PendingTrigger>,
     pub(crate) next_trigger_seq: u64,
-    /// Every player's turns, one row per player per turn of the game
-    /// (`triggers-architecture.md` §3.10): what "this turn", "last turn",
-    /// "since your last turn" and "this game" read. Indexed by seat; advanced
-    /// by the dispatcher, record by record, and by nothing else.
-    pub history: Vec<crate::state::history::PlayerHistory>,
     /// CR 603.2h — "do this only once each turn": each ability whose action
     /// its controller has taken this turn, with that controller, since the
     /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
@@ -822,9 +817,13 @@ impl TurnPlan {
 impl GameState {
     /// Create a new game with the given number of players
     pub fn new(num_players: usize, starting_life: i64) -> Self {
-        let players: Vec<PlayerState> = (0..num_players)
+        let mut players: Vec<PlayerState> = (0..num_players)
             .map(|id| PlayerState::new(id, starting_life))
             .collect();
+        // Turn 1 has begun for the starting player, as `last_turn_began` says.
+        if let Some(first) = players.first_mut() {
+            first.history.record_own_turn(1);
+        }
 
         GameState {
             objects: IdMap::default(),
@@ -887,12 +886,6 @@ impl GameState {
             action_taken_this_turn: IdSet::default(),
             triggered_this_turn: IdSet::default(),
             resolutions_this_turn: IdMap::default(),
-            // Turn 1 has begun for the starting player, as `last_turn_began` says.
-            history: {
-                let mut v = vec![crate::state::history::PlayerHistory::default(); num_players];
-                v[0].own_turns.push(1);
-                v
-            },
             trigger_sources: IdMap::default(),
             zone_trigger_sources: IdMap::default(),
             look_back_snapshots: Vec::new(),

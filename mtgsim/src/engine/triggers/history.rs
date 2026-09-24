@@ -9,6 +9,7 @@ use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::card_types::CardType;
+use crate::types::history::TurnFact;
 use crate::types::ids::PlayerId;
 use crate::types::zones::Zone;
 
@@ -16,11 +17,11 @@ use crate::types::zones::Zone;
 /// turn, 1 for the first: what "for the first time each turn" reads (§3.5).
 /// Only the kinds a summary counts events of have one: a cast, a draw, a
 /// gain, a loss.
-#[derive(Debug, Default)]
-pub(crate) struct TurnOrdinals(Vec<(EventSeq, u32)>);
+#[derive(Debug)]
+pub(crate) struct TurnOrdinals(Vec<(EventSeq, u64)>);
 
 impl TurnOrdinals {
-    pub(crate) fn of(&self, seq: EventSeq) -> Option<u32> {
+    pub(crate) fn of(&self, seq: EventSeq) -> Option<u64> {
         self.0.iter().find(|(s, _)| *s == seq).map(|(_, n)| *n)
     }
 }
@@ -36,7 +37,7 @@ enum Tally {
     LifeLost { player: PlayerId, amount: u64 },
     DamageTaken { player: PlayerId, amount: u64 },
     CreatureDied { controller: PlayerId },
-    AttackersDeclared { player: PlayerId, count: u32 },
+    AttackersDeclared { player: PlayerId, count: u64 },
 }
 
 impl Tally {
@@ -63,14 +64,17 @@ impl GameState {
         let tallies: Vec<(EventSeq, Tally)> =
             window.iter().filter_map(|&seq| self.tally(seq).map(|t| (seq, t))).collect();
         let turn = self.turn_number;
-        let mut ordinals = TurnOrdinals::default();
+        let mut ordinals = TurnOrdinals(Vec::with_capacity(tallies.len()));
         for (seq, tally) in tallies {
             if let Tally::AbilityResolved { identity } = tally {
                 let key = (identity.source, identity.ability.definition());
                 *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
                 continue;
             }
-            let Some(history) = tally.player().and_then(|p| self.history.get_mut(p)) else { continue };
+            let Some(history) = tally.player().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history)
+            else {
+                continue;
+            };
             if let Tally::TurnBegan { turn: began, .. } = tally {
                 history.record_own_turn(began);
                 continue;
@@ -79,36 +83,30 @@ impl GameState {
             let place = match tally {
                 Tally::TurnBegan { .. } | Tally::AbilityResolved { .. } => None,
                 Tally::SpellCast { types, .. } => {
-                    row.spells_cast += 1;
                     for card_type in types {
-                        row.count_spell_of_type(card_type);
+                        row.add(TurnFact::SpellsCastOfType(card_type), 1);
                     }
-                    Some(row.spells_cast)
+                    Some(row.add(TurnFact::SpellsCast, 1))
                 }
-                Tally::CardDrawn { .. } => {
-                    row.cards_drawn += 1;
-                    Some(row.cards_drawn)
-                }
+                Tally::CardDrawn { .. } => Some(row.add(TurnFact::CardsDrawn, 1)),
                 Tally::LifeGained { amount, .. } => {
-                    row.life_gained += amount;
-                    row.life_gain_events += 1;
-                    Some(row.life_gain_events)
+                    row.add(TurnFact::LifeGained, amount);
+                    Some(row.add(TurnFact::LifeGainEvents, 1))
                 }
                 Tally::LifeLost { amount, .. } => {
-                    row.life_lost += amount;
-                    row.life_loss_events += 1;
-                    Some(row.life_loss_events)
+                    row.add(TurnFact::LifeLost, amount);
+                    Some(row.add(TurnFact::LifeLossEvents, 1))
                 }
                 Tally::DamageTaken { amount, .. } => {
-                    row.damage_taken += amount;
+                    row.add(TurnFact::DamageTaken, amount);
                     None
                 }
                 Tally::CreatureDied { .. } => {
-                    row.controlled_creatures_died += 1;
+                    row.add(TurnFact::ControlledCreaturesDied, 1);
                     None
                 }
                 Tally::AttackersDeclared { count, .. } => {
-                    row.attackers_declared += count;
+                    row.add(TurnFact::AttackersDeclared, count);
                     None
                 }
             };
@@ -133,10 +131,9 @@ impl GameState {
             // CR 601.2i: the spell is cast, and on the stack, as this record
             // is dispatched, so its types are the ones it was cast with.
             GameEvent::SpellCast { spell_id, caster } => {
-                let mut types: Vec<CardType> = compute_characteristics(self, *spell_id)
+                let types: Vec<CardType> = compute_characteristics(self, *spell_id)
                     .map(|chars| chars.types.iter().copied().collect())
                     .unwrap_or_default();
-                types.sort_by_key(|t| *t as u8);
                 Tally::SpellCast { caster: *caster, types }
             }
             GameEvent::CardDrawn { player_id, .. } => Tally::CardDrawn { player: *player_id },
@@ -157,7 +154,7 @@ impl GameState {
             }
             // CR 508.1: the active player declares attackers.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                Tally::AttackersDeclared { player: self.active_player, count: attackers.len() as u32 }
+                Tally::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
             }
             _ => return None,
         })
@@ -166,8 +163,8 @@ impl GameState {
     /// CR 103.5's opening hands are drawn before the first turn begins, so no
     /// turn's row holds them.
     pub(crate) fn forget_pregame_history(&mut self) {
-        for history in &mut self.history {
-            history.turns.clear();
+        for player in &mut self.players {
+            player.history.turns.clear();
         }
     }
 }

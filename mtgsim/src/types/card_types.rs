@@ -19,6 +19,32 @@ pub enum CardType {
 }
 
 impl CardType {
+    /// How many card types there are (CR 300.1), for a table with a slot per
+    /// type.
+    pub const COUNT: usize = 15;
+
+    /// This type's slot in such a table. Exhaustive, so a new type fails to
+    /// compile here until `COUNT` counts it.
+    pub const fn slot(self) -> usize {
+        match self {
+            CardType::Artifact => 0,
+            CardType::Battle => 1,
+            CardType::Conspiracy => 2,
+            CardType::Creature => 3,
+            CardType::Dungeon => 4,
+            CardType::Enchantment => 5,
+            CardType::Instant => 6,
+            CardType::Kindred => 7,
+            CardType::Land => 8,
+            CardType::Phenomenon => 9,
+            CardType::Plane => 10,
+            CardType::Planeswalker => 11,
+            CardType::Scheme => 12,
+            CardType::Sorcery => 13,
+            CardType::Vanguard => 14,
+        }
+    }
+
     /// Whether this card type represents a permanent type (rule 110.4)
     pub fn is_permanent(&self) -> bool {
         matches!(
