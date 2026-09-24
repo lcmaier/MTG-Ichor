@@ -789,9 +789,11 @@ here. None is blocking RB.
    (an additional cost) and the alternative cost are each one constructor
    site plus the carry off the `StackEntry`, which holds all three already;
    mana spent is recorded nowhere yet, so that one needs its capture at
-   payment first. **2026-09-23:** kicked, the alternative cost and the mana
-   spent by type joined it (item 30), carried on `ResolvingObject.cast`,
-   which replaced `cast_from`.
+   payment first. **2026-09-23 (item 30):** the mana spent by type joined it,
+   carried on `ResolvingObject.cast`, which replaced `cast_from`. Kicked and
+   the alternative cost did **not** join it: CR 707.10 copies them to a copy
+   of the spell, which isn't cast, so they are `PermanentState.cost_choices`
+   beside it (the owner's review, Archangel of Wrath's ruling).
 
    **Reachability (2026-09-19):** closed — TR-1; the rule itself closed 2026-08-26.
 
@@ -1723,11 +1725,16 @@ section never asked.
     **Landed 2026-09-23 for the mana, by type, and the costs.** `ManaPool::pay`
     returns what it removed, `pay_costs` hands it up, and `cast_spell` writes
     `StackEntry.mana_spent` once CR 601.2h's payment succeeds. Resolution
-    carries it on `ResolvingObject.cast`, with the additional and alternative
-    costs, and `place_on_battlefield` writes all of it onto `CastFacts`.
-    `Condition::SpellWasKicked` reads the carried costs off the permanent or
-    the resolving spell, so its assert is gone; no leaf reads the mana, and
-    none is added before a registered card does. ATOM-400.7d-001 is covered
+    carries it on `ResolvingObject.cast` and `place_on_battlefield` writes it
+    onto `CastFacts`. **The costs are carried separately**, as
+    `CostChoices`, because the three facts copy three ways under CR 707.10: a
+    copy of a spell isn't cast (no `CastFacts`), gets none of the mana, and
+    keeps the additional and alternative costs, so the token a copy of a
+    kicked spell becomes is kicked. `Condition::SpellWasKicked` reads the
+    choices off the permanent or the resolving spell, so its assert is gone;
+    no leaf reads the mana, and none is added before a registered card does.
+    **`StackEntry.cast_from`'s invariant, `cast_from.is_some() == is_spell`,
+    ends at CV-4** for the same reason, and its doc now says so. ATOM-400.7d-001 is covered
     by `a_kicked_permanent_remembers_what_paid_for_it`, through `cast_spell`.
     The first question's answer: **the source is not a field, it is the
     pool** — the simple pool drops it at `pool.add` — so it moved to item 33,
