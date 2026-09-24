@@ -18,12 +18,15 @@ use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whene
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
-use mtgsim::cards::phase_re_cards::alms_collector;
+use mtgsim::cards::phase_re_cards::{alms_collector, yawgmoths_bargain};
+use mtgsim::cards::phase_tr2a_cards::{
+    elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
+};
 use mtgsim::engine::actions::{DestructionSource, DrawCause, GameAction, LifeLossCause};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent, LossReason};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
@@ -1083,4 +1086,225 @@ fn this_game_sums_every_turn_so_far() {
     }
     cast_and_drain(&mut game, 0, first_contact());
     assert_eq!(life(&game, 0), 22, "the second, two turns later");
+}
+
+// ---------------------------------------------------------------------------
+// The four cards, and their rulings
+// ---------------------------------------------------------------------------
+
+/// Paladin of Atonement asks whether you lost life last turn: it reads the
+/// history, so it counts a loss from before it arrived, and it ignores how
+/// much was lost and how much was gained.
+#[test]
+fn paladin_reads_last_turns_loss_whatever_else_happened() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let ctx = test_ctx();
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &ctx).unwrap();
+    game.execute_action(GameAction::GainLife { player: 0, amount: 5, source }, &ctx).unwrap();
+    let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
+
+    advance_to(&mut game, 1, StepType::Upkeep);
+    assert_eq!(pending(&game), 1, "each upkeep, and P0 lost life last turn");
+    drain(&mut game);
+    assert_eq!(plus_ones(&game, paladin), 1);
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(pending(&game), 0, "no loss on P1's turn");
+}
+
+/// "Its toughness" as it last existed on the battlefield: a 1/1 with two
+/// +1/+1 counters gains 3 as it dies. At toughness below 0 it gains nothing,
+/// and loses nothing.
+#[test]
+fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
+    let mut game = setup_two_player_game();
+    let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
+    let counters = |kind, n| GameAction::AddCounters {
+        subject: CounterSubject::Object(paladin),
+        counter: kind,
+        n,
+        by: 0,
+    };
+    game.execute_action(counters(CounterType::PlusOnePlusOne, 2), &test_ctx()).unwrap();
+    game.execute_action(GameAction::Destroy { object: paladin, source: DestructionSource::Effect(paladin) }, &test_ctx())
+        .unwrap();
+    drain(&mut game);
+    assert_eq!(life(&game, 0), 23);
+
+    let mut game = setup_two_player_game();
+    let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
+    let minus = GameAction::AddCounters {
+        subject: CounterSubject::Object(paladin),
+        counter: CounterType::MinusOneMinusOne,
+        n: 2,
+        by: 0,
+    };
+    game.execute_action(minus, &test_ctx()).unwrap();
+    drain(&mut game);
+    assert_eq!(game.get_object(paladin).unwrap().zone, Zone::Graveyard, "toughness -1 (CR 704.5f)");
+    assert_eq!(life(&game, 0), 20, "no life for toughness below 0");
+}
+
+/// Paying life is losing life, and the Warchief gets one counter however
+/// much was lost.
+#[test]
+fn warchief_counts_paid_life_as_lost_life() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 0);
+    let bargain = put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.activate_ability(0, bargain, 1, &dp).expect("pay 1 life: draw a card");
+    drain(&mut game);
+    assert_eq!(plus_ones(&game, warchief), 1, "a payment is a loss");
+
+    let mut game = setup_two_player_game();
+    let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 0);
+    game.execute_action(GameAction::LoseLife { player: 0, amount: 5, cause: LifeLossCause::Effect }, &test_ctx())
+        .unwrap();
+    drain(&mut game);
+    assert_eq!(plus_ones(&game, warchief), 1, "one counter for five life");
+}
+
+/// Life paid to activate an ability: the Warchief's trigger goes on the
+/// stack after the activation is complete, above it, so its counter lands
+/// before the ability resolves.
+#[test]
+fn warchiefs_counter_goes_on_after_the_activation_and_before_it_resolves() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 0);
+    let bargain = put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.activate_ability(0, bargain, 1, &dp).expect("pay 1 life: draw a card");
+    place(&mut game, &dp);
+    assert_eq!(game.stack.len(), 2, "the activation, and the trigger above it");
+    let hand_before = hand(&game, 0);
+
+    resolve_top(&mut game, &dp);
+    assert_eq!(plus_ones(&game, warchief), 1, "the counter first");
+    assert_eq!(hand(&game, 0), hand_before, "and the ability has not resolved yet");
+    resolve_top(&mut game, &dp);
+    assert_eq!(hand(&game, 0), hand_before + 1);
+}
+
+/// A Warchief that comes under your control after your first loss this turn
+/// cannot trigger this turn: the next loss is not the first. That holds
+/// whether it arrives or is stolen, and next turn's first loss triggers it.
+#[test]
+fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
+    let lose = |game: &mut GameState| {
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+            .unwrap();
+    };
+    // It enters after the loss.
+    let mut game = setup_two_player_game();
+    lose(&mut game);
+    put_on_battlefield(&mut game, vengeful_warchief(), 0);
+    lose(&mut game);
+    assert_eq!(pending(&game), 0, "P0's second loss this turn");
+    advance_to(&mut game, 1, StepType::Upkeep);
+    lose(&mut game);
+    assert_eq!(pending(&game), 1, "the first loss of a new turn");
+
+    // It is stolen after the loss.
+    let mut game = setup_two_player_game();
+    let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 1);
+    lose(&mut game);
+    steal(&mut game, warchief, 0);
+    lose(&mut game);
+    assert_eq!(pending(&game), 0, "the thief's second loss this turn");
+}
+
+/// However many Elves enter at once, one token: "one or more" is one trigger
+/// per event.
+#[test]
+fn warmaster_makes_one_token_however_many_elves_enter() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, elvish_warmaster(), 0);
+    let elves = vec![elf_warrior_token(), elf_warrior_token(), elf_warrior_token()];
+    game.execute_action(GameAction::CreateTokens { defs: elves, controller: 0 }, &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 1);
+    let before = game.battlefield.len();
+    drain(&mut game);
+    assert_eq!(game.battlefield.len(), before + 1, "one Elf Warrior");
+}
+
+/// Once it has triggered this turn it cannot trigger again: not while the
+/// first trigger waits on the stack, and not after that trigger is
+/// countered. The next turn it can.
+#[test]
+fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, elvish_warmaster(), 0);
+    let one_elf = || GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 };
+    game.execute_action(one_elf(), &test_ctx()).unwrap();
+    place(&mut game, &RecordingDecisionProvider::picking(0));
+    assert_eq!(game.stack.len(), 1);
+    game.execute_action(one_elf(), &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 0, "its trigger is still on the stack");
+
+    let trigger = *game.stack.last().unwrap();
+    let counter = Effect::Atom(
+        Primitive::CounterAbility,
+        EffectRecipient::Target(SelectionFilter::Spell, TargetCount::Exactly(1)),
+    );
+    let source = put_in_hand(&mut game, grizzly_bears(), 1);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(trigger)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&counter, &ctx, &test_dp()).expect("the counter");
+    assert!(game.stack.is_empty());
+    game.execute_action(one_elf(), &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 0, "countered, and it still triggered this turn");
+
+    advance_to(&mut game, 1, StepType::Upkeep);
+    game.execute_action(one_elf(), &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 1, "a new turn");
+}
+
+/// "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of
+/// turn" affects the Elves the controller controls as it resolves: not a
+/// non-Elf creature, and not an Elf that arrives afterwards.
+#[test]
+fn warmasters_pump_is_fixed_as_it_resolves() {
+    let mut game = setup_two_player_game();
+    let warmaster = put_on_battlefield(&mut game, elvish_warmaster(), 0);
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    for _ in 0..7 {
+        game.players[0].mana_pool.add(ManaType::Green, 1);
+    }
+    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
+    game.activate_ability(0, warmaster, 1, &dp).expect("{5}{G}{G} from an exact pool");
+    drain(&mut game);
+    let late = {
+        game.execute_action(GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 }, &test_ctx())
+            .unwrap();
+        drain(&mut game);
+        *game.battlefield_ids_ordered().last().unwrap()
+    };
+
+    assert_eq!(get_effective_power(&game, warmaster), Some(4));
+    assert!(has_keyword(&game, warmaster, KeywordFlag::Deathtouch));
+    assert_eq!(get_effective_power(&game, bear), Some(2), "not an Elf");
+    assert!(!has_keyword(&game, late, KeywordFlag::Deathtouch), "an Elf that arrived afterwards");
+}
+
+/// "{T}: Each player draws a card" with P1 active: P1 draws first (CR 121.2c).
+#[test]
+fn temple_bell_rings_the_active_player_first() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let bell = put_on_battlefield(&mut game, temple_bell(), 0);
+    set_active_player(&mut game, 1);
+    game.activate_ability(0, bell, 0, &RecordingDecisionProvider::picking(0)).expect("{T}");
+    drain(&mut game);
+    assert_eq!(draw_order(&game), vec![1, 0]);
 }
