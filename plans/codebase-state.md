@@ -10,14 +10,15 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Code size:** 62,241 lines of Rust across 118 `src/` files, plus 32,712 in `tests/`. 1,537 tests, 0 warnings. `fuzz_games` runs 200-game batches over two pools (`performance`, 89 cards; `stress`, every registered card, 159) at any seat count (`--players`), exits 1 on a panic or an unpaid resolution, and CI checks three runs at one seed line for line. The last readings: 13.98 ms CPU per two-seat game, 44.83 ms per four-seat (`fuzz-record.md`, RE-9's block).
 - **Well-covered:** CR 1 (game basics), CR 3 (card types), CR 4 (zones), CR 5 (turn structure — every turn, phase and step is a proposed event since RE-1, and the turn's sequence is data since RE-10), CR 7 (keyword abilities + SBAs).
 - **Partially covered:** CR 6 casting — the pipeline, X, alternative and additional costs, and **cost determination as its own pipeline** (`cost-architecture.md`, CM-0–CM-4, 2026-09-07/08: CR 601.2f's step, the spell's own cost abilities, sacrifice as a cost, the mana window and a payer split into two decorators); mode choice, distribution and target uniqueness pending; activation restrictions are one value (`ActivationRestriction::OnlyAsSorcery`, LH-2), the rest `backlog.md` §2.8. CR 1 mulligan is a stub. Equip ✅ (LH-2); Bestow not started.
-- **Not started:** **triggered abilities (CR 603)** beyond an enum variant — the record they will match against is RA's performed stream, and `replacement-architecture.md` §14 lists what item 6 inherits; CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
+- **Triggered abilities (CR 603) — in progress,** phased TR-1 to TR-6 in `triggers-architecture.md` §12; `state-of-play.md` says which have landed.
+- **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame; damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
 - **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
-- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
+- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122; 122 closed 2026-09-24 by TR-2a), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
 
@@ -133,7 +134,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 601.2h | Pay costs (with rollback on failure) | ✅ for `Cost::SacrificeSelf`, `Cost::Tap`, `Cost::PayLife`, `Cost::Mana`; **`Cost::Sacrifice(filter, count)` = `NotImplemented`** (T18c) | `engine/costs.rs` |
 | 601.2i | Spell becomes cast | ✅ | `engine/put_on_stack.rs` |
 | 602 | Activated abilities (activate_ability + rollback) | ✅ structural; **activation restrictions** (sorcery-speed PW, graveyard-activated abilities) ❌ (T19) | `engine/actions.rs` activate_ability |
-| **603** | **Triggered abilities** | ❌ `AbilityType::Triggered` enum variant exists (`objects/card_data.rs:49`), **no engine handling**. No trigger queue, no event→trigger mapping, no "puts X onto the stack" mechanism. | only in `ui/display.rs:164` for label printing |
+| **603** | **Triggered abilities** | 🟡 In progress: `triggers-architecture.md` §12 phases it as TR-1 to TR-6, and `state-of-play.md` says which have landed. | only in `ui/display.rs:164` for label printing |
 | 604 | Static abilities | 🟡 keyword statics via `has_keyword`; continuous-effect statics (P/T, color, type) register via `GameState::register_static_effects` ✅; other non-keyword statics ❌ | `state/game_state.rs` |
 | 605 | Mana abilities | ✅ detection + window + enumeration | `oracle/mana_helpers.rs`, `engine/priority.rs` |
 | 606 | Loyalty abilities | ❌ (T19 pending) |
@@ -3749,6 +3750,11 @@ architecture.md` §11 items 22, 24, 29 and 30 close. Trace page:
     **Sized:** ~30 — an each-player `EffectRecipient` arm (or a `PlayerSet`
     beside the filter) and one more branch in the primitive.
 
+    **Reachability (2026-09-24, TR-2a):** still unreachable.
+    `EffectRecipient::EachPlayer(PlayerSet)` exists now (item 122's), and
+    `CreateReplacement` refuses it by name. What is left is the per-player
+    rows, ~15 lines, with Kitsune Palliator.
+
 95. **The row a `Primitive::Regenerate` makes still names the ephemeral
     ability object; a `CreateReplacement` row names the permanent.**
     CR 113.7a makes an ability's source the object that has it, so
@@ -4426,61 +4432,13 @@ items 50–56 open, of which 53 is the one worth reading. CR 121.6c went to
 so it is a mechanic the surface cannot express and not debt. Trace page:
 [`plans/traces/re-2-a-draw-carries-its-lineage.html`](traces/re-2-a-draw-carries-its-lineage.html).
 
-122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
-     first customer.** *"If more than one player is instructed to draw cards,
-     the active player performs all of their draws first, then each other
-     player in turn order does the same."* Alms Collector's rider — "instead
-     **you and that player** each draw a card" — is the first effect in the
-     crate that instructs two players to draw, and it is an `Effect::Sequence`,
-     which resolves in the order the card's text was written. When the affected
-     opponent is the active player the two draws come out backwards.
-
-     **Reachability (2026-09-11):** reachable, wrong today, and only in the
-     event log. Alms Collector is registered and not pooled, so no fuzz game
-     reaches it; a fixture does, and the order is asserted nowhere because
-     asserting it would freeze the wrong answer. It becomes gameplay-visible
-     the day item 6 lands "whenever you draw a card", where two players'
-     triggers would go on the stack in the wrong order.
-
-     **Sized: not one line.** The facility is APNAP ordering over *an effect's
-     recipients*, and `Effect` has no arm that says "these atoms are one
-     instruction to several players" — a `Sequence` is CR 608.2c's instruction
-     sequencing, which is deliberately *not* reordered. The two candidate
-     shapes are a recipient-plural draw primitive
-     (`Primitive::DrawCards` with an `EffectRecipient::Filter`-style player set,
-     ordered by `apnap_index` at resolution, ~40 lines and one new recipient
-     reading) or a `Effect::Simultaneous` arm that sorts its atoms by chooser
-     the way `apnap_batch_order` already sorts a batch (~60 lines, and a second
-     ordering rule beside the batch's). CR 121.2d's shared-team-turns variant
-     is a third leg on whichever lands. **One customer today**, which is why
-     neither is built: §8c's "two customers before a leaf", applied to an
-     ordering rule rather than a filter.
-
-     **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
-     architecture doc must carry CR 121.2c's recipient ordering —
-     `roadmap-v2.md` A6's row says so now — because "whenever you draw a
-     card" is the rule's first gameplay reader, and the choice between the
-     two shapes below is that doc's to make with its trigger ordering.
-
-     **Narrowed 2026-09-11, at RE-2's close.** Alms Collector's rider turned out
-     to be one draw and not two — CR 614.5 forced the affected player's half
-     into the rewrite (item 53 there) — so the order is no longer the card's
-     text order but a structural one: the replaced event is performed, then the
-     rider (§4.1a). That is still not CR 121.2c's, and it is now wrong in a
-     narrower and more predictable way: the affected player always draws first,
-     where the rule says the active player does. The facility is unchanged and
-     so is the sizing.
-
-     → `replacement-architecture.md` §11 item 52. ~~**Owner: RE-6**, which is
-     where turn order stops being `(0..n)` because a lost player has left it.~~
-     **Re-owned 2026-09-12, at RE-6's close.** RE-6 did make the rotation
-     read `player_lost` (`GameState::next_player_in_game`), and that is not
-     this item: the facility here is APNAP ordering over *an effect's
-     recipients*, which §9's "Out of RE" declines on the same one-customer
-     argument as before — Laboratory Maniac's second ruling is the second
-     customer, and it is unexpressible for the same reason. **Owner: the
-     first each-player draw producer**, wherever Phase 8 lands it; the
-     rotation it will sort by exists now.
+122. **~~CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
+     first customer.~~ — ✅ CLOSED 2026-09-24 (TR-2a).** — archived.
+     `EffectRecipient::EachPlayer(PlayerSet)` and `YouAndThatPlayer` resolve to
+     the seats in the game in APNAP order, and Alms Collector's rider draws the
+     active player's card first (`triggers-architecture.md` §6.6).
+     **Reachability (2026-09-24):** closed — TR-2a, `0e5f34a`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 122".
 
 ### Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15
 
@@ -8035,6 +7993,10 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      epoch yet; CR 603.7h's counter (TR-2) and the gates (TR-2) are its
      readers, and neither keys a dies-trigger's source.
 
+     **Reachability (2026-09-24, TR-2a):** still unreachable. The gates and
+     CR 603.7h's count key by the identity now, but no registered dies trigger
+     carries a limit or reads its resolution count.
+
      **Sized:** the frame gains the epoch when it becomes
      `LastKnownInformation` (TR-4), ~5 lines at the two captures.
 
@@ -8111,6 +8073,11 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      onto every queued or stacked entry naming the departing object, ~50
      lines more, in TR-2.
 
+     **Scheduled 2026-09-24 (TR-2's split): TR-2b**, with the `departed`
+     frames. TR-2a's `bound_characteristics` answers only when the matched
+     event was the departure, and the `Triggering*` leaves refuse by name
+     where a `departed` frame would answer.
+
 170. **`OrderTriggers` offers the entries' sources, so two entries of one
      source are indistinguishable to a human client.** `ask_order_triggers`
      builds `ChoiceOption::Object(source)` per entry in trigger order; the
@@ -8133,15 +8100,17 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      **Reachability (2026-09-19):** nothing owed — a record, so the later phases
      widen rather than add a second arm.
 
-172. **The three bound-fact leaves are `TriggeringObject`, `TriggeringPlayer`
-     and `TriggeringAmount`; `TriggeringPower` waits.** §3.4 named four; the
-     fourth reads the live object or the frame's power (CR 608.2h), and the
-     frame that carries a status is TR-4's. Nothing prints it before Paladin
-     of Atonement's toughness read (TR-2) and Heart-Piercer Manticore's power
-     (TR-3).
+     **Reachability (2026-09-24, TR-2a):** half closed. `LosesLife { player,
+     multiplicity }` shipped without §3.3's `cause`, whose one customer is CR
+     727's rad counters. `Attacks`' five shapes stay TR-5's.
 
-     **Reachability (2026-09-19):** nothing owed — a record for TR-2, whose
-     `TriggeringToughness` is the same leaf with the other box.
+172. **~~The three bound-fact leaves are `TriggeringObject`, `TriggeringPlayer`
+     and `TriggeringAmount`; `TriggeringPower` waits.~~ — ✅ CLOSED 2026-09-24 (TR-2a).** — archived.
+     `AmountExpr::TriggeringPower` and `TriggeringToughness` read the record's
+     frame when the matched event was the departure, and the live object
+     otherwise (CR 608.2h). Paladin of Atonement reads its toughness.
+     **Reachability (2026-09-24):** closed — TR-2a, `ff01e29`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 172".
 
 173. **A triggered ability's CR 113.6b zone statement is never read, so
      Bridge from Below would do nothing anywhere.** `functioning_zones`
@@ -8420,3 +8389,26 @@ keeps the cost decisions).
 
      It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
      item 176's design settles just before TR-4.
+
+### Found by TR-2a — the histories, the gates, and each player (2026-09-24)
+
+**Shipped:** the histories, the three turn-scoped sets, `LosesLife` and
+`CastsSpell`, `ThisObject`, the two each-player recipients and the two
+`Triggering*` leaves (`triggers-architecture.md` §12's TR-2a stub;
+`fuzz-record.md`, the TR-2a block). Items 122 and 172 closed; 171 half
+closed; 169 is TR-2b's. Two fixes rode in, each with a test that fails on the
+tree before it: lifelink gains once per source per batch (CR 702.15e), and a
+Layer 4 row is an ability-list source (CR 305.7; §4.10).
+
+178. **`Primitive::Attach` finds its Equipment by id, so an Equipment that left
+     and came back would be attached (CR 400.7).** TR-2a made
+     `ResolutionContext.ability_source` an `ObjectRef`, and `ThisObject`
+     compares its epoch. `Attach` reads only the id and asks whether it is on
+     the battlefield, so an Equipment flickered in response to its equip
+     ability is a new object that the old ability still attaches.
+
+     **Reachability (2026-09-24):** unreachable — no registered effect returns
+     an Equipment to the battlefield while its equip ability waits.
+
+     **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
+     fixture with a flicker effect, ~25.

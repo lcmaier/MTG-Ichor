@@ -2439,3 +2439,81 @@ Closed by `GameState::capture_departure_frames` (`triggers-architecture.md` §4.
      captured frame; ~100 lines with a fixture in both orders. TR-1b's
      first commit (`triggers-architecture.md` §4.10), since the dispatch
      audit would report it on the pools.
+
+### Item 122 — closed 2026-09-24 by TR-2a
+
+Closed by `EffectRecipient::EachPlayer(PlayerSet)` and `EffectRecipient::YouAndThatPlayer` (`triggers-architecture.md` §6.6). Each resolves to the seats still in the game, in APNAP order (CR 101.4), and `DrawCards` performs one instruction per player in that order, so CR 121.2c's "the active player performs all of their draws first" is the loop. Alms Collector is `Rewrite::Prevent` plus one rider, "you and that player each draw a card", whose draws carry the replaced event's applied set (CR 614.5). The seed-12345 A/B moved one four-seat `stress` game in 800, by the rider's order and nothing else.
+
+*Original entry:*
+
+122. **CR 121.2c's two-player draw order is unexpressible, and RE-2 shipped its
+     first customer.** *"If more than one player is instructed to draw cards,
+     the active player performs all of their draws first, then each other
+     player in turn order does the same."* Alms Collector's rider — "instead
+     **you and that player** each draw a card" — is the first effect in the
+     crate that instructs two players to draw, and it is an `Effect::Sequence`,
+     which resolves in the order the card's text was written. When the affected
+     opponent is the active player the two draws come out backwards.
+
+     **Reachability (2026-09-11):** reachable, wrong today, and only in the
+     event log. Alms Collector is registered and not pooled, so no fuzz game
+     reaches it; a fixture does, and the order is asserted nowhere because
+     asserting it would freeze the wrong answer. It becomes gameplay-visible
+     the day item 6 lands "whenever you draw a card", where two players'
+     triggers would go on the stack in the wrong order.
+
+     **Sized: not one line.** The facility is APNAP ordering over *an effect's
+     recipients*, and `Effect` has no arm that says "these atoms are one
+     instruction to several players" — a `Sequence` is CR 608.2c's instruction
+     sequencing, which is deliberately *not* reordered. The two candidate
+     shapes are a recipient-plural draw primitive
+     (`Primitive::DrawCards` with an `EffectRecipient::Filter`-style player set,
+     ordered by `apnap_index` at resolution, ~40 lines and one new recipient
+     reading) or a `Effect::Simultaneous` arm that sorts its atoms by chooser
+     the way `apnap_batch_order` already sorts a batch (~60 lines, and a second
+     ordering rule beside the batch's). CR 121.2d's shared-team-turns variant
+     is a third leg on whichever lands. **One customer today**, which is why
+     neither is built: §8c's "two customers before a leaf", applied to an
+     ordering rule rather than a filter.
+
+     **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
+     architecture doc must carry CR 121.2c's recipient ordering —
+     `roadmap-v2.md` A6's row says so now — because "whenever you draw a
+     card" is the rule's first gameplay reader, and the choice between the
+     two shapes below is that doc's to make with its trigger ordering.
+
+     **Narrowed 2026-09-11, at RE-2's close.** Alms Collector's rider turned out
+     to be one draw and not two — CR 614.5 forced the affected player's half
+     into the rewrite (item 53 there) — so the order is no longer the card's
+     text order but a structural one: the replaced event is performed, then the
+     rider (§4.1a). That is still not CR 121.2c's, and it is now wrong in a
+     narrower and more predictable way: the affected player always draws first,
+     where the rule says the active player does. The facility is unchanged and
+     so is the sizing.
+
+     → `replacement-architecture.md` §11 item 52. ~~**Owner: RE-6**, which is
+     where turn order stops being `(0..n)` because a lost player has left it.~~
+     **Re-owned 2026-09-12, at RE-6's close.** RE-6 did make the rotation
+     read `player_lost` (`GameState::next_player_in_game`), and that is not
+     this item: the facility here is APNAP ordering over *an effect's
+     recipients*, which §9's "Out of RE" declines on the same one-customer
+     argument as before — Laboratory Maniac's second ruling is the second
+     customer, and it is unexpressible for the same reason. **Owner: the
+     first each-player draw producer**, wherever Phase 8 lands it; the
+     rotation it will sort by exists now.
+
+### Item 172 — closed 2026-09-24 by TR-2a
+
+Closed by `AmountExpr::TriggeringPower` and `AmountExpr::TriggeringToughness` over `TriggerBinding::bound_characteristics` (`triggers-architecture.md` §3.11): the record's CR 603.10a frame when the matched event was the bound object's departure, the live object while it is still where the event left it (CR 608.2h's "determined only once, when the effect is applied"), and nothing otherwise. The leaf refuses by name there, and TR-2b's `departed` frames answer it. Paladin of Atonement gains life equal to its toughness as it last existed on the battlefield, and a value below 0 is no amount.
+
+*Original entry:*
+
+172. **The three bound-fact leaves are `TriggeringObject`, `TriggeringPlayer`
+     and `TriggeringAmount`; `TriggeringPower` waits.** §3.4 named four; the
+     fourth reads the live object or the frame's power (CR 608.2h), and the
+     frame that carries a status is TR-4's. Nothing prints it before Paladin
+     of Atonement's toughness read (TR-2) and Heart-Piercer Manticore's power
+     (TR-3).
+
+     **Reachability (2026-09-19):** nothing owed — a record for TR-2, whose
+     `TriggeringToughness` is the same leaf with the other box.
