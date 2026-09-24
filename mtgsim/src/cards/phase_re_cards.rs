@@ -318,8 +318,9 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    TokenDef,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -753,7 +754,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 ///
 /// **The instruction is prevented, and one rider is "you and that player each
 /// draw a card"**: one instruction to two players, which CR 121.2c performs
-/// the active player's draw first (`EffectRecipient::YouAndThatPlayer`). The
+/// the active player's draw first (`PlayerGroup::you_and_that_player`). The
 /// rider carries this effect's applied set (CR 614.5), so the draws it makes
 /// are modified events this cannot apply to again. That is its second ruling:
 /// Thought Reflection doubles the affected player's draw, and this does not
@@ -812,7 +813,7 @@ pub fn alms_collector() -> Arc<CardData> {
             .affecting_players(PlayerSet::Opponents)
             .with_then(Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::YouAndThatPlayer,
+                EffectRecipient::EachOf(PlayerGroup::you_and_that_player()),
             )),
         ))
         .build()

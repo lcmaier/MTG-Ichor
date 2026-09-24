@@ -42,8 +42,9 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient,
+    ManaOutput, ObjectFilter, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    TargetCount, TypeChange,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -769,7 +770,7 @@ fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
         .unwrap();
     let each_draws = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(1)),
-        EffectRecipient::EachPlayer(PlayerSet::Everyone),
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 0);
     let ctx = ResolutionContext {
@@ -794,7 +795,7 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
     stock_libraries(&mut game, 5);
     let each_draws_three = Effect::Atom(
         Primitive::DrawCards(AmountExpr::Fixed(3)),
-        EffectRecipient::EachPlayer(PlayerSet::Everyone),
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
     );
     let source = put_in_hand(&mut game, grizzly_bears(), 1);
     let ctx = ResolutionContext {
@@ -984,7 +985,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
         Effect::Conditional(
             Condition::ResolvedThisTurn(2),
             Box::new(Effect::Sequence(vec![
-                two_damage(EffectRecipient::EachPlayer(PlayerSet::Opponents)),
+                two_damage(EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents))),
                 two_damage(opponents_creatures),
             ])),
         ),

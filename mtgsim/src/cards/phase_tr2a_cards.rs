@@ -20,8 +20,8 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
-    Primitive, TokenDef,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    PlayerGroup, PlayerRef, PlayerSet, Primitive, TokenDef,
 };
 use crate::types::history::{CountIs, HistoryCount, TurnFact};
 use crate::types::ids::AbilityId;
@@ -252,7 +252,7 @@ pub fn temple_bell() -> Arc<CardData> {
             costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::EachPlayer(PlayerSet::Everyone),
+                EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
             ),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,

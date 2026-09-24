@@ -423,6 +423,39 @@ impl PlayerSet {
     }
 }
 
+/// The players an instruction to several players names: those standing in
+/// `relation` to "you", together with those the effect's context names. A
+/// new printed phrase is a new `NamedPlayers` arm, not a new recipient:
+/// Zurzoth's "you and those players" is `You` with the players its trigger
+/// names.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerGroup {
+    pub relation: PlayerSet,
+    pub named: NamedPlayers,
+}
+
+impl PlayerGroup {
+    /// "Each player", "each opponent": the players `relation` names, and no
+    /// others.
+    pub fn set(relation: PlayerSet) -> Self {
+        PlayerGroup { relation, named: NamedPlayers::Nobody }
+    }
+
+    /// "You and that player" (Alms Collector's rider).
+    pub fn you_and_that_player() -> Self {
+        PlayerGroup { relation: PlayerSet::You, named: NamedPlayers::FirstInstance }
+    }
+}
+
+/// Players an effect's context names, rather than their relation to "you".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedPlayers {
+    Nobody,
+    /// "That player": the player the effect's first instance names, which for
+    /// a CR 615.5 rider is the replaced event's subject.
+    FirstInstance,
+}
+
 /// Duration for continuous effects (rule 611)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Duration {
@@ -628,16 +661,11 @@ pub enum EffectRecipient {
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
-    /// "Each player", "each opponent": every player the set names, over the
-    /// seats still in the game, in CR 101.4's APNAP order at resolution. A
-    /// draw instruction to several players is performed one player at a time
-    /// in that order (CR 121.2c).
-    EachPlayer(PlayerSet),
-    /// "You and that player": the effect's controller and the player its first
-    /// instance names, which for a CR 615.5 rider is the replaced event's
-    /// subject. Ordered as [`Self::EachPlayer`] orders its set. Alms
-    /// Collector's "instead you and that player each draw a card".
-    YouAndThatPlayer,
+    /// "Each player", "each opponent", "you and that player": every player the
+    /// group names, over the seats still in the game, each once, in CR 101.4's
+    /// APNAP order at resolution. A draw instruction to several players is
+    /// performed one player at a time in that order (CR 121.2c).
+    EachOf(PlayerGroup),
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,

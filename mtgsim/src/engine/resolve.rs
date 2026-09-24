@@ -10,9 +10,8 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, PatternFill,
-    PlayerRef, Primitive,
-    PlayerSet, SelectionFilter, TargetCount,
+    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, NamedPlayers,
+    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -163,10 +162,10 @@ impl GameState {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
             }
-            // "Each player", "you and that player": every player named, in APNAP
-            // order (CR 101.4), handed to the primitive as its players. Only a
-            // primitive that says what several players at once means takes it.
-            Effect::Atom(primitive, recipient @ (EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer)) => {
+            // "Each player", "you and that player": every player the group names,
+            // in APNAP order (CR 101.4), handed to the primitive as its players.
+            // Only a primitive that says what several players at once means takes it.
+            Effect::Atom(primitive, recipient @ EffectRecipient::EachOf(group)) => {
                 // A draw is one instruction per player (CR 121.2c); damage to
                 // them is one event, a member each.
                 if !matches!(primitive, Primitive::DrawCards(_) | Primitive::DealDamage { .. }) {
@@ -176,7 +175,7 @@ impl GameState {
                     ));
                 }
                 let players: Vec<ResolvedTarget> =
-                    self.each_player(recipient, ctx).into_iter().map(ResolvedTarget::Player).collect();
+                    self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
                 self.resolve_primitive(primitive, recipient, &players, ctx, dp)
             }
             // "This creature": no instance of "target" either (CR 113.7a), and
@@ -386,9 +385,9 @@ impl GameState {
                 // count would make "draw three cards" three instructions, the
                 // distinction Alms Collector's ruling turns on ("count how many
                 // times the word 'draw' is used"). Several players draw one at a
-                // time, in the APNAP order `each_player` gave them (CR 121.2c).
+                // time, in the APNAP order `players_in` gave them (CR 121.2c).
                 let players: Vec<PlayerId> = match recipient {
-                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => targets
+                    EffectRecipient::EachOf(_) => targets
                         .iter()
                         .filter_map(|t| match t {
                             ResolvedTarget::Player(pid) => Some(*pid),
@@ -1173,7 +1172,7 @@ impl GameState {
                     }
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
                     // A row per player (Kitsune Palliator) is `codebase-state.md` item 94's.
-                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => {
+                    EffectRecipient::EachOf(_) => {
                         return Err(format!(
                             "a `Primitive::CreateReplacement` on {:?} names each of several players; item 94",
                             ctx.source
@@ -1474,7 +1473,7 @@ impl GameState {
                         .collect(),
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
                     // Refused at the atom: "each player shuffles" waits for its card.
-                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => {
+                    EffectRecipient::EachOf(_) => {
                         return Err(format!("{:?} on a `Primitive::ShuffleLibrary` is not built", recipient));
                     }
                     EffectRecipient::FilteredPermanents(_)
@@ -2178,21 +2177,20 @@ impl GameState {
         })
     }
 
-    /// The players an `EachPlayer` or `YouAndThatPlayer` recipient names, over
-    /// the seats still in the game, in APNAP order (CR 101.4): the active
-    /// player first, then the rest in turn order.
-    fn each_player(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Vec<PlayerId> {
-        let that_player = ctx.targets.instance(0).iter().find_map(|t| match t {
-            ResolvedTarget::Player(pid) => Some(*pid),
-            ResolvedTarget::Object(_) => None,
-        });
-        let named = |player: PlayerId| match recipient {
-            EffectRecipient::EachPlayer(set) => set.contains(ctx.controller, player),
-            EffectRecipient::YouAndThatPlayer => player == ctx.controller || Some(player) == that_player,
-            _ => false,
+    /// The players `group` names, over the seats still in the game, each once,
+    /// in APNAP order (CR 101.4): the active player first, then the rest in
+    /// turn order.
+    fn players_in(&self, group: &PlayerGroup, ctx: &ResolutionContext) -> Vec<PlayerId> {
+        let named = match group.named {
+            NamedPlayers::Nobody => None,
+            NamedPlayers::FirstInstance => ctx.targets.instance(0).iter().find_map(|t| match t {
+                ResolvedTarget::Player(pid) => Some(*pid),
+                ResolvedTarget::Object(_) => None,
+            }),
         };
+        let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
         let mut players: Vec<PlayerId> =
-            (0..self.num_players()).filter(|&p| self.in_game(p) && named(p)).collect();
+            (0..self.num_players()).filter(|&p| self.in_game(p) && in_group(p)).collect();
         players.sort_by_key(|&p| self.apnap_index(p));
         players
     }

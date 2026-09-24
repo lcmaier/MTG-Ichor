@@ -323,8 +323,7 @@ impl GameState {
         match recipient {
             EffectRecipient::Implicit
             | EffectRecipient::ThisObject
-            | EffectRecipient::EachPlayer(_)
-            | EffectRecipient::YouAndThatPlayer
+            | EffectRecipient::EachOf(_)
             | EffectRecipient::FilteredPermanents { .. }
             | EffectRecipient::FilteredObjectsIn { .. }
             | EffectRecipient::Host => {
