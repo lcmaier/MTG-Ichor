@@ -447,10 +447,21 @@ pub enum TriggerLimit {
 ```
 
 The two gate sets live on `GameState` beside the turn summaries:
-`action_taken_this_turn` and `triggered_this_turn`, each an `IdSet` keyed by
-the full identity (§3.6) so a bounced and replayed permanent — a new object,
-CR 400.7 — starts clean, and both cleared by the `BeginTurn` performer.
-"Each turn" is the game's turn, not the controller's.
+`action_taken_this_turn` and `triggered_this_turn`, each keyed by the full
+identity (§3.6), so a bounced and replayed permanent — a new object, CR
+400.7 — starts clean, and both cleared by the `BeginTurn` performer. "Each
+turn" is the game's turn, not the controller's.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 2): the action-taken
+gate is also keyed by the controller.** CR 603.2h: the ability triggers "only
+if its source's controller has not yet taken the indicated action that turn".
+If a permanent changes control mid-turn, its new controller has not taken the
+action, so `action_taken_this_turn` is a set of `(AbilityIdentity, PlayerId)`
+pairs. Nykthos Paragon's rulings don't reach a control change, and the rule's
+wording decides it. `triggered_this_turn` stays keyed by the identity alone:
+Elvish Warmaster's ruling makes "triggers only once each turn" a fact about
+the ability. 34 cards print "Do this only once each turn"
+(`o:"do this only once each turn"`).
 
 ### 3.6 `AbilityIdentity` gains the object's epoch, and a granted instance its grant (S3)
 
@@ -649,6 +660,19 @@ stack, so it resolves at dispatch the way a mana trigger does (§4.7), with
 610.3d's simultaneity falling out of the window. Banishing Light is the
 consumer.
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): the id rides the
+proposal.** "A turn records which entry it came from" has to happen before the
+turn begins, on `GameAction::BeginTurn`, because four printed replacement
+effects read it there: Stranglehold, Ugin's Nexus, Gerrard's Hourglass Pendant
+and Trouble in Pairs replace "a player would begin an extra turn" (CR
+614.10). Today `next_turn_taker` pops the queue and proposes the turn with its
+player and number only, and `BeginTurn`'s own doc says who takes the turn is
+not on the event. The proposal carries `extra: Option<ExtraTurnId>`, the
+turn's `EventPattern` arm reads it, and the turn that begins takes it from the
+proposal. "During that turn" (Alchemist's Gambit, Kang the Conqueror) is a
+duration on the same id. ~20–30 lines, with this id or with the first of the
+four cards.
+
 ### 3.10 `TurnSummary`, `PlayerHistory`, and the game scope (item 42; P2–P4; question 15)
 
 ```rust
@@ -705,6 +729,20 @@ too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
 (the variant, the `holds` arm, the `condition_reads` arm, which for a
 summary read is "nothing" — no frame is read).
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): a count "before
+it" is taken at its record.** Storm copies a spell "for each other spell that
+was cast before it this turn" (CR 702.40a). That covers 33 cards (`kw:storm`)
+plus Thousand-Year Storm's "cast before it this turn". The trigger resolves
+later, and a spell cast in response advances `spells_cast` without being
+before it. So a leaf that reads the live summary at resolution counts too
+many.
+
+The count is every player's casts this turn, taken at the storm spell's
+`SpellCast` record. The dispatcher advances the summaries record by record,
+so the count is known there, and it has to travel with the trigger. The
+smallest form is `SpellCast` carrying the turn's ordinal. It is authored with
+the first storm card, like any other field in the summary.
+
 ### 3.11 `LastKnownInformation` — the LKI frame, widened (items 14, 15)
 
 CR 603.10 says "the appearance of objects immediately prior to the
@@ -728,6 +766,22 @@ pub struct LastKnownInformation {
     /// last known information — Vibrance evoked, its sacrifice ordered
     /// first, still deals 3 damage if {R}{R} was spent to cast it.
     pub cast: Option<CastFacts>,
+    /// The spell's cost decisions: kicked, bargained, evoked
+    /// (`PermanentState.cost_choices`). Amended 2026-09-24
+    /// (`cr-coverage-audit.md` §4a, pass 2). PR #181 moved them out of
+    /// `cast` a day after the field above was written, because CR 707.10
+    /// copies them to a copy that was never cast. Without this field, an "if
+    /// it was kicked" rechecked after the permanent left reads not kicked, and
+    /// so does the token a copy of a kicked spell became, whose `cast` is
+    /// `None`.
+    pub cost_choices: CostChoices,
+    /// For a stack object, its entry as it left the stack: what CR 707.10
+    /// copies (targets, modes, X, the costs) and who controlled it, for CR
+    /// 603.10e's look-back. `None` for anything else. Amended 2026-09-24
+    /// (`cr-coverage-audit.md` §4a, pass 4): a copy trigger still copies a
+    /// spell countered before it resolves (Double Vision's ruling), and
+    /// CV-4's `copy_of` clones a live entry, of which there is none by then.
+    pub entry: Option<Box<StackEntry>>,
 }
 pub struct Status {
     pub tapped: bool,
@@ -1465,6 +1519,23 @@ needs mana spent (recorded by type since 2026-09-23, `codebase-state.md`
 item 30) and the frame's `cast` (§3.11); the common case is any "this creature deals damage equal
 to its power" enters trigger answered by removal, which needs neither.
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): from every zone.**
+`capture_departure_frames` frames what leaves the battlefield, and TR-4 widens
+that capture to CR 603.10a's three classes. CR 113.7a and 608.2h are scoped to
+neither: they use last known information for any object gone from the zone it
+was expected in, and two printed readers leave from zones no class covers.
+God-Eternal Kefnet's trigger copies a revealed card, and its ruling copies
+from last known information if the card leaves the hand first. Double
+Vision's and Galvanic Iteration's rulings make their copy even if the spell
+was countered first. So the `departed` frame is written wherever an object a
+queued or stacked entry names leaves its zone: in `move_object`, gated on the
+pending list or the stack naming the mover, which on the common board are
+empty or short. A stack object's frame keeps its entry (§3.11), because CR
+707.10 copies a spell's targets, modes, X and costs, and CV-4's `copy_of` has
+no live entry to read once the spell has left. The `IsCountered` look-back
+(CR 603.10e, §4.3's list) reads the same frame of the countered spell.
+`codebase-state.md` item 169 carries the size.
+
 ### 6.2 "May" and "unless" (CR 603.5)
 
 The ability goes on the stack regardless; the choice is at resolution.
@@ -1521,7 +1592,8 @@ and one `Arc`.
 ### 6.4 "Do this only once each turn", written by the resolution (CR 603.2h)
 
 For a def with `TriggerLimit::DoOnceEachTurn`, the resolver checks
-`action_taken_this_turn` before performing the effect: present means the
+`action_taken_this_turn` for the pair (the ability, its controller; §3.5)
+before performing the effect: present means the
 instance does nothing (Nykthos Paragon's fourth ruling — a second instance
 on the stack resolves and no prompt is asked); absent means perform, then
 insert. Two Paragons are two identities and act twice (second ruling).
@@ -1576,13 +1648,13 @@ field with one writer:
 | Fact | Field | Writer | Readers |
 |---|---|---|---|
 | "this turn" quantities, "last turn", "your last turn", "this game" | `PlayerHistory.turns[..]` (§3.10) | the dispatcher, record by record | `Condition::ThisTurn/LastTurn/SinceYourLastTurn/ThisGame`, `FirstTimeEachTurn` |
-| the action was taken this turn (603.2h) | `action_taken_this_turn: IdSet<AbilityIdentity>` | the resolution | the dispatcher, the resolution |
+| the action was taken this turn (603.2h) | `action_taken_this_turn`, a set of `(AbilityIdentity, PlayerId)` — "its source's controller" (§3.5) | the resolution | the dispatcher, the resolution |
 | the ability triggered this turn ("only once each turn") | `triggered_this_turn: IdSet<AbilityIdentity>` | the dispatcher | the dispatcher |
 | a state trigger is on the stack (603.8) | `state_triggers_armed_off: IdSet<AbilityIdentity>` | the dispatcher (arm off), `trigger_left_stack` (re-arm) | the state check |
 | resolutions per ability per turn (603.7h) | `TurnSummary.abilities_resolved` | the dispatcher, off `AbilityResolved` | the count condition |
 | the controller the stream last announced (item 13) | `PermanentState.announced_controller` | placement, the state check's sweep | the sweep |
 | who cast this permanent, from which zone, and with what mana (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent }>`, `None` for a copy of a spell (CR 707.10) | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
-| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
+| its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by `LastKnownInformation` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionContext.last_cost_answer` | the atom that takes the action | the "if" clause after it (§6.2) |
 | an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |

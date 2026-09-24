@@ -645,6 +645,38 @@ new `ObjectId`, and the interesting parts are all decision-shaped:
   identity question and it lands with triggers (critical-path item 6), so CV-4
   covers spell copies and defers *ability* copies (39 clauses) with a cite.
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): the clone is not
+the whole copy.** `StackEntry` now also holds facts about the cast and about
+who put the spell on the stack, and CR 707.10 gives a copy the original's
+value of none of them. The copy resets three fields:
+- `cast_from` becomes `None`: "a copy of a spell isn't cast". The field's own
+  doc already names CV-4.
+- `mana_spent` becomes `ManaSpent::NONE`: mana isn't an object
+  (ATOM-707.10-003, Dawnglow Infusion).
+- `controller` becomes the player the copy is put on the stack under, and that
+  player also owns the new object: "controlled by the player under whose
+  control it was put on the stack".
+
+The copy keeps:
+- the decisions: `chosen_targets` until 707.10c's prompt, `chosen_modes`,
+  `x_value`, `chosen_alternative_cost` and `additional_costs_paid`;
+- for an ability copy (707.10b, item 6), `ability_identity` and `trigger`;
+- the objects that paid the original's costs, once item 30 records them.
+
+A constructor such as `StackEntry::copy_of` is the one place those three
+resets happen, so no copy path can keep them by forgetting. Tier E's cast copy
+(707.12) goes through 601.2a–h and records its own.
+
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 4): the original may
+be gone.** A copy trigger can resolve after the spell it names has left the
+stack, and Double Vision's and Galvanic Iteration's rulings still make the
+copy; 70 triggers print "copy that spell". So `copy_of` clones its entry from
+either place: the live `stack_entries` row, or the entry that
+`triggers-architecture.md` §3.11 and §6.1 now keep in the `departed` frame of
+a stack object that left. The three resets apply the same way to both. Tier
+E's copy of a card reads the frame's characteristics the same way, which is
+God-Eternal Kefnet's ruling for a revealed card that has left the hand.
+
 This tier is genuinely independent of the rest of this document, which is why
 §7 lets it float.
 

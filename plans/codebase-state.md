@@ -856,6 +856,22 @@ here. None is blocking RB.
     A/B'd as two arms (the rule alone, then the card) the way the Everywhere
     PR was.
 
+    **A fourth kind, found by the type-surface re-sweep (2026-09-24,
+    `cr-coverage-audit.md` §4a):** `RegisteredReplacementEffect.targets`.
+    Divine Deflection's target is chosen at cast, and its rider reads it
+    whenever the shield next applies (item 90). That ruling makes the rider's
+    check "an existence and type check". Under CR 400.7, existence is identity:
+    a target that left and came back is a different object, and a bare
+    `ObjectId` finds it anyway. It needs an epoch stored beside each target, as
+    `chosen_targets` does, at about 10 lines on top of the size below.
+    Narrower still is the applied set: its `StaticAbility(ObjectId, AbilityId)`
+    key outlives a move only inside a rider (CR 615.5). That is recorded here
+    but not sized.
+
+    **Reachability (2026-09-24):** unreachable — nothing returns an object to
+    a zone yet (the 2026-09-03 line below still holds), and item 90's rider has
+    no reader.
+
     **Reachability (2026-09-03):** unreachable — no registered card returns an
     object to any zone (`ReturnToHand`, `ReturnToBattlefield` and the rest of
     the zone-moving primitives are the stub arm at `resolve.rs:866`) and nothing
@@ -1297,6 +1313,45 @@ registered card returns an object.
     CR 611.2b ("for as long as . . ."), not 611.2a. Owed by the first
     resolution-created replacement whose text is "for as long as [this
     permanent] is on the battlefield".
+
+    **The key is wrong, and the continuous registry has the same hole (the
+    type-surface re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** A
+    resolution's row records `source: ctx.source`, the resolving stack object,
+    which ceases to exist at CR 608.2n. That is never the permanent a "for as
+    long as" names, so a closure keyed on the row's source never matches the
+    one that leaves. `cleanup_zone_state`'s `remove_by_source` ends a static
+    ability's rows because their source *is* the permanent, and it would leave
+    Sower of Temptation's control change in place after Sower left. 78 cards,
+    nearly all trigger, activated or Saga-chapter resolutions:
+    `o:"for as long as ~ remains on the battlefield"` 27 (Sower, and
+    Suncleanser's "can't", a restriction row) and `o:"for as long as you
+    control ~"` 51 (Dragonlord Silumgar). The rulings fix what the row needs:
+    - **The watched object, by `ObjectRef`.** Sower's ruling (2007-10-01): if
+      Sower leaves before the ability resolves, it has no effect, which is CR
+      611.2b's "never starts". A flicker ends it (CR 400.7), so the epoch
+      matters. It is the entry's `ability_identity.source`, already an
+      `ObjectRef`.
+    - **A control leg, as a second arm.** Silumgar's ruling (2015-02-25):
+      another player gaining control ends the effect, and regaining control
+      does not restore it. So the end is an event, TR-4's `ControlChanged`
+      (`triggers-architecture.md` §3.12 item 13), not a condition read live.
+      Sower's ruling keeps its steal when Sower changes controller, which is
+      why the two legs are separate arms. Suspend's haste, "until you lose
+      control of the spell or the permanent it becomes" (CR 702.62a), is the
+      control leg across main item 10's stack-to-battlefield carve-out.
+
+    **Sized:** ~80–120 lines with tests, replacing the closure above. Two
+    `Duration` arms carry the `ObjectRef` (and the player, for the control
+    leg), written by the resolution; a resolution whose ref is already stale
+    registers nothing. One `DurationRegistry` retain keyed on the ref serves all
+    three registries, called from `move_object` for any zone and from the
+    control-change sweep. Fixtures: Sower flickered in response, Sower leaving
+    later, Silumgar stolen and returned. Owed by the first registered
+    resolution with such a duration, in any of the three registries.
+
+    **Reachability (2026-09-24):** unreachable — the 33 registered
+    source-scoped durations are all static abilities, whose rows name the
+    permanent as their source; no registered resolution writes one.
 
     **Reachability (2026-09-03):** unreachable — still exactly two producers of
     registry rows, `Primitive::Regenerate` (`UntilEndOfTurn`) and
@@ -1743,6 +1798,54 @@ section never asked.
     **What stays open here is the objects.** A copy inherits them
     (ATOM-707.10-002, Fling) and a sacrificed one is read from its LKI, which
     is TR-4's frame; the design constraint still lands at CV.
+
+    **The open half, checked against its readers (the type-surface re-sweep,
+    2026-09-24, `cr-coverage-audit.md` §4a pass 3).** `PaymentPlan.sacrifices`
+    holds the objects a payment sacrifices at CR 601.2h, and it is dropped
+    when the cast completes. That is the only moment the fact exists. Three
+    constraints for whoever records it:
+    - **It goes on the side a copy keeps.** CR 707.10 says a copy "uses the
+      objects used to pay the costs of the original spell". So the list sits
+      beside `CostChoices`, not in `CastFacts`, the same split #181 made for
+      kicked.
+    - **It is a list of identities, not a count.** Fling and Rite of
+      Consumption read one object's power, from its last known information
+      once it has left. 34 cards read back an object sacrificed as an
+      additional cost: `o:"as an additional cost to cast this spell,
+      sacrifice" (o:"sacrificed creature" or o:"sacrificed permanent" or
+      o:"sacrificed artifact")`. Venerated Loxodon's "each creature that
+      convoked it" reads objects that never moved (6 cards, `o:"convoked"`).
+      So each entry is an `ObjectRef` taken after the payment.
+    - **The last known information of the moved ones is TR-4's frame,** as
+      above.
+
+    **A payment can choose a player too (the type-surface re-sweep,
+    2026-09-24, `cr-coverage-audit.md` §4a pass 4).** Gift's additional cost is
+    "you may choose an opponent" (CR 702.174a), and Into the Flood Maw's ruling
+    (2024-07-26) says the opponent "is chosen as part of that additional cost".
+    The same card's rulings decide the side: a copy of the spell has the gift
+    promised to the same opponent, and a permanent that enters as a copy of one
+    does not. That is CR 707.10's side, as above. But `CostChoices.additional`
+    holds the `AdditionalCost` definitions that were paid, and nothing a
+    payment chose. So the list above holds players as well as objects, one
+    entry per payment that chose. 25 cards (`kw:gift`), 21 of them reading "if
+    the gift was promised". Behold (CR 701.4) is the object half's newest
+    population: `o:"behold"` is 24 cards, and Dragon's Fire's ruling
+    (2021-07-23) reads the chosen Dragon's power as the spell resolves, or its
+    power the last time it was on the battlefield if it has left. About 10–15
+    lines on top of the size below.
+
+    **Reachability (2026-09-24, pass 4):** unreachable — no gift or behold card
+    is registered, and `AdditionalCost` has no gift arm.
+
+    **Reachability (2026-09-24):** unreachable — no registered card reads an
+    object spent on a cost, and convoke, delve and improvise are not built.
+
+    **Sized:** ~40–60 lines, landing with CV-4 (the first reader through CR
+    707.10) or the first Fling-shaped card, whichever comes first. The list
+    goes on `StackEntry` beside the cost decisions and is carried to
+    `ResolvingObject` and the permanent the same way; the frames come from
+    TR-4.
 
     **Reachability (2026-09-23):** unreachable — no registered card reads a
     cast cost or the mana spent; the fixtures in `phase_tr1_integration_test.rs`
@@ -7938,6 +8041,55 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      store or with no frame to read "you" from — right for Felidar Sovereign,
      wrong for a dies-trigger with a clause (persist's shape, TR-4).
 
+     **The frame needs the cost decisions too (the type-surface re-sweep,
+     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The widening below writes
+     the departed frame for a source that leaves after it triggered. The frame
+     the recheck will read is §3.11's `LastKnownInformation`, and it carries
+     `cast` only. PR #181 moved kicked, bargained and evoked out of `cast` into
+     `CostChoices` the next day, because CR 707.10 copies them to a copy that
+     was never cast. So an "if it was kicked" recheck after the permanent
+     leaves (CR 603.4, 113.7a) would read not kicked. So would a token a copy of
+     a kicked spell became, whose `cast` is `None`. 72 enters triggers print
+     that clause (`(o:"when " or o:"whenever ") o:"if it was kicked"`; Gatekeeper
+     of Malakir), and 6 more print "if it was bargained".
+     `triggers-architecture.md` §3.11 now carries `cost_choices` beside `cast`.
+     The capture copies it off `PermanentState` beside `cast`, about 2 lines on
+     top of the size below.
+
+     **And from every zone, not only the battlefield (the type-surface
+     re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** The widening
+     below writes the `departed` frame from `capture_departure_frames`, which
+     frames what leaves the battlefield, and TR-4 widens that capture to CR
+     603.10a's three classes only. CR 113.7a and 608.2h use last known
+     information for an object gone from whatever zone it was expected in, and
+     two printed readers leave from zones no class covers:
+     - **A hand.** God-Eternal Kefnet's trigger copies a revealed card, and its
+       ruling (2019-05-03) copies "using its last known information" if the
+       card leaves the hand first. 3 triggers copy a card
+       (`(o:"when " or o:"whenever ") o:"copy that card"`).
+     - **The stack.** Double Vision's ruling (2020-06-23) and Galvanic
+       Iteration's (2021-09-24) say the copy is made even if the spell "has
+       been countered by the time that ability resolves". 70 triggers copy a
+       spell (`(o:"when " or o:"whenever ") o:"copy that spell"`). A spell's
+       frame is more than its characteristics: CR 707.10 copies its targets,
+       modes, X and costs, and CV-4's `copy_of` clones a `StackEntry` that is
+       gone once the spell has left.
+
+     TR-4's `IsCountered` arm, a look-back under CR 603.10e, reads the same
+     missing frame of a countered spell. `triggers-architecture.md` §6.1 now
+     writes the frame wherever a named object leaves, §3.11 gives a stack
+     object's frame its entry, and `copy-effects-architecture.md` §4.4 copies
+     from it. **Sized:** ~40–60 lines on top of the widening's ~50: the write
+     moves into `move_object`, gated on a queued or stacked entry naming the
+     mover; a stack object's frame keeps its entry; one fixture per zone.
+
+     **Reachability (2026-09-24, pass 4):** unreachable — no registered trigger
+     binds a card in a hand or copies a spell, and CV-4 is not built.
+
+     **Reachability (2026-09-24):** unreachable — no registered card has an "if
+     it was kicked" trigger (`Condition::SpellWasKicked` appears only in tests),
+     and the frame is TR-4's.
+
      **Reachability (2026-09-19):** unreachable — no registered trigger with an
      intervening "if" leaves the battlefield before its check.
 
@@ -8055,6 +8207,32 @@ and the reading below, which the audit makes and the dispatcher does not.
      they were before the outermost batch that performed it; within one
      batch, a destruction's nested move included, the two agree.
 
+     **Two more readers of the same window (the type-surface re-sweep,
+     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The window closes after
+     its riders, and the dispatcher reads live state then, so two other checks
+     read the wrong moment for a record from the replaced event's batch:
+     - **CR 603.4's first check.** `match_def` evaluates the intervening "if"
+       with `settled_holds` at the window's close. The CR checks it "when the
+       trigger event occurs". CR 615.5 puts the rider "immediately afterward",
+       so a rider that changes the condition, such as Kalitas's Zombie entering
+       under "if you control no creatures", flips the answer.
+     - **A newcomer's ordinary arms.** CR 603.6a and 603.10 check the objects
+       that exist immediately after the event, and a permanent a rider created
+       did not. The fix above tags a newcomer's list with the batch it entered
+       in, but uses the tag only for look-back arms. It should gate every arm
+       the same way.
+
+     Both depend on when the condition is evaluated, which is
+     `triggers-architecture.md` §4.1's decision. One option is to dispatch a
+     rider-bearing window per batch: the replaced event's records first, then
+     the rider's. **Sized:** about 30 lines on top of the 40 below, once §4.1
+     decides.
+
+     **Reachability (2026-09-24):** unreachable — the one registered
+     intervening "if" (Felidar Sovereign's upkeep check) sits on a step
+     beginning, which no rider follows, and the one registered rider that
+     creates a permanent (Kalitas) makes a Zombie with no abilities.
+
      **Reachability (2026-09-22):** unreachable — every audited sitting (both
      pools at two seats and four, Commander scale, and the forced Humility and
      TR-1 boards) read zero disagreements, so no pooled card builds such a
@@ -8065,3 +8243,134 @@ and the reading below, which the audit makes and the dispatcher does not.
      asked of it only for the records that batch performed — the audit's
      rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
      the dispatcher's own candidates.
+
+### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
+
+`cr-coverage-audit.md` §4a read the replacement area's one-moment facts against
+§2's two checks. That yielded one new item. Main item 10 also gains a fourth
+kind of reference, and `backlog.md` §2.2 gains constraints on the
+linked-ability records an entry makes.
+
+176. **An "instead" keeps the destination and drops the act: a redirected
+     discard or sacrifice is performed as `Exiled`.** `pipeline.rs`'s
+     `substitute` builds the modified zone change with the template's `cause`,
+     not the event's. `Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to,
+     cause })` is the template, and Rest in Peace, Leyline of the Void, Kalitas
+     and finality counters all write `Exiled`. So a card discarded under Leyline
+     is recorded as `Hand -> Exile [Exiled]`.
+
+     The rulings say otherwise:
+     - Rest in Peace (2018-03-16) and Leyline of the Void (2024-09-20): a card
+       discarded while either is out is still discarded, "even though that card
+       never reaches a graveyard".
+     - Nephalia Academy (2016-07-13): "the card was still discarded".
+
+     CR 614.6 makes the modified event the one that happens. CR 701.9c treats a
+     card put somewhere else in place of the graveyard as still discarded.
+
+     Two readers break:
+     - **CR 616.1f, today.** After Leyline applies, the event is still a
+       discard, so Nephalia Academy ("instead of putting it anywhere else")
+       still applies. The pipeline re-gathers on the rewritten event, whose
+       `cause` no longer matches Academy's `cause: Some(Discarded)`, so Academy
+       is never offered. The order the affected player picks decides whether the
+       card lands in the library or in exile.
+     - **Every sacrifice and discard trigger, once they land.**
+       `triggers-architecture.md` §4 matches a sacrifice or discard by `cause`
+       on the performed `ZoneChange`. `trigger-survey.md` table two counts 555
+       "sacrifices" cards and 436 "discards" cards, and under any of these
+       redirections every one of them misses. Madness is among them: its card is
+       discarded, then exiled instead.
+
+     **The second half: which replacement did the redirecting.** Madness's
+     trigger reads "when this card is exiled this way", and CR 702.35a says it
+     "functions when the first ability is applied". It therefore needs the
+     event to name the instance that redirected it. The record names none,
+     because the CR 614.5 applied set is dropped once the event has been
+     performed. 61 cards (`kw:madness`) need it. CR 615.13 asks the same of a
+     prevention, and that one already has a shape:
+     `GameEvent::DamagePrevented { by: ReplacementInstanceId }`
+     ("Before Triggered abilities" item 16).
+
+     **Reachability (2026-09-24):** reachable — wrong today. The board: Leyline
+     of the Void under P0, Nephalia Academy under P1, and a spell of P0's that
+     makes P1 discard.
+     - Leyline first at the CR 616.1 prompt: the card goes to exile, and
+       Academy's optional prompt never comes.
+     - Academy first: the card goes on top of P1's library.
+
+     Both orders were reproduced with a throwaway probe in
+     `phase_re8_integration_test.rs`, then deleted. Leyline of the Void, Rest in
+     Peace, Nephalia Academy, Hymn to Tourach and Mind Rot are all in the
+     default registry, so `--pool stress` can deal the board, and a random
+     provider picks either order. The madness half is unreachable: no madness
+     card is registered.
+
+     **Sized:** ~60–100 lines with tests.
+     - `substitute` keeps the event's `cause` when it redirects a zone change,
+       and `ZoneChangeTo` names only a destination. The one remaining use of a
+       template cause is an entry turned into a zone change (Containment
+       Priest, Hallowed Moonlight), and the entry's own cause serves there.
+     - `CommanderZoneReplacement` stops being a cause. Nothing reads it; it
+       becomes the second half's redirecting instance.
+     - That touches 11 production template sites and 7 in tests. The regression
+       tests are the probe's two orders and a sacrifice under Rest in Peace
+       recorded as `Sacrificed`.
+     - `fuzz_games`' stack-to-exile note (`fuzz_games.rs:746`) changes.
+     - An A/B whose `differ` is expected: the Academy prompt now comes in both
+       orders, and redirected moves change their label.
+
+     The second half is either a field on the performed record or a sibling
+     event shaped like `DamagePrevented`. That choice belongs to the first
+     madness card, not to a field today. Madness is a cast from exile, so it is
+     `backlog.md` §2.3's, as item 133 already notes.
+
+     **Back-stop:** before the first card whose trigger reads `Sacrificed` or
+     `Discarded`.
+
+### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
+
+`cr-coverage-audit.md` §4a, pass 2, read the trigger records' one-moment facts
+against §2's two checks. One new item came out of it. Items 169 and 175 are
+sharpened. `triggers-architecture.md` is amended in §3.5, §6.4 and §7 (CR
+603.2h's gate is keyed by the controller too) and in §3.11 (the last-known frame
+keeps the cost decisions).
+
+177. **A zone-change record does not say which object the move made, so a
+     binding takes its subject's identity at dispatch.** `GameEvent::ZoneChange`
+     carries the `object_id`, not the `zone_change_epoch` that `move_object`
+     stamped. `TriggerBinding.object` is read live when the window closes:
+     `subject.and_then(|id| self.object_ref(id))` in `dispatch.rs`, "the
+     subject's epoch at dispatch". But the rules fix that identity at the move:
+     - CR 400.7e names "the new object that it became in the zone it moved to".
+     - CR 603.6c looks for the card "only in the first zone that it went to".
+
+     Two readers get a later identity:
+     - **A second move inside the window.** A rider (CR 615.5) runs before the
+       window's dispatch. If it moves the same object again, the binding takes
+       the second move's epoch, and "return it" finds the card in its second
+       zone.
+     - **"Them".** A `OncePerEvent` binding has no subject. "Put them onto the
+       battlefield" (Hedge Shredder) or "choose one of them" (Colossal
+       Grave-Reaver) has only each record's `object_id`, so it would have to
+       read live. 59 cards: `(o:"when " or o:"whenever ") o:"one or more" (o:"
+       them " or o:" them." or o:"those cards" or o:"those creatures")`.
+
+     `triggers-architecture.md` §3.9's delayed-trigger refs, "filled from the
+     records the creating instruction performed" by id and epoch, read the same
+     missing field.
+
+     **Reachability (2026-09-24):** unreachable. No registered rider moves an
+     object that moved earlier in its window: Exquisite Archangel's exile finds
+     nothing once the Archangel has died (item 125). And no registered trigger
+     reads "them".
+
+     **Sized:** ~20–30 lines.
+     - `ZoneChange` gains the epoch `move_object` stamped, at its one emit site
+       (`announce_zone_change`) and at the patterns that name every field.
+     - The binding reads that epoch from the record instead of from the store.
+     - One fixture: a rider that exiles a graveyard's cards after the replaced
+       event put a creature there; the creature's dies trigger then does
+       nothing.
+
+     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002).

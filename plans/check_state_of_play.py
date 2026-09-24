@@ -162,8 +162,6 @@ def deferred_migrations():
     counts = {k: classes.count(k) for k in
               ("closed", "unreachable", "reachable_wrong", "reachable_ok", "none_owed", "unstated")}
     return {
-        "lines": end - start,
-        "of": len(lines),
         "items": len(items),
         **counts,
         "sized": sum(1 for b in open_items if "Sized:" in b),
@@ -305,7 +303,6 @@ def render():
     L.append("")
     L.append("| | |")
     L.append("|---|---:|")
-    L.append(f"| Section size | {dm['lines']} of {dm['of']} lines ({100 * dm['lines'] // dm['of']}%) |")
     L.append(f"| Numbered items | {dm['items']} |")
     L.append(f"| …closed, still recorded | {dm['closed']} |")
     L.append(f"| …open — unreachable, and says why | {dm['unreachable']} |")

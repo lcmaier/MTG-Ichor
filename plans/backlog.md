@@ -124,6 +124,27 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
 - **Atoms** — 10 re-filed to `Backlog`, all session S5; 20 in the corpus, the
   remainder correctly filed at Phase 8 and later.
 - **Owner** — none yet.
+- **Two records an entry makes, and nothing keeps either**
+  (`cr-coverage-audit.md` §4a, 2026-09-24).
+  - **An "as it enters" choice:** a color, a creature type, a player or an
+    anchor word (CR 614.12a, 614.12c). 208 cards,
+    `o:/as [^.]*enters[^.]*, choose/`.
+  - **What the entry's own zone change chose:** CR 614.14's "the exiled cards"
+    (Sutured Ghoul, item 59) and CR 702.82b's "it devoured" (6 cards). Today
+    it exists in `EntrySelectionScope.chosen` for one batch, and
+    `AuxiliaryMove.per_chosen` turns it into counters.
+
+  Four constraints on their shape:
+  - **Made before the permanent enters (CR 614.12a),** so the choice travels
+    in `EnterMods`, and the look-ahead frame reads it. A chosen creature type
+    changes which other entry replacements apply (CR 614.12's "as it would
+    exist").
+  - **Kept on the permanent, so it leaves with it (CR 400.7).** It never goes
+    into `CopiableValues`: a copy entering makes its own choice, and a
+    permanent that becomes a copy later has none (CR 707.6).
+  - **Keyed by the ability pair (CR 614.14, 607.4).**
+  - **The auxiliary move's record holds the moved objects as they are after
+    the move.**
 
 ### 2.3 Casting from a non-hand zone
 
@@ -2139,6 +2160,57 @@ take it from.
 | **Blocks** | nothing on the spine; the readability of every log, trace and prompt line, and main item 141's wire shape, which should not inherit a spelling by accident |
 | **Atoms** | none |
 | **Owner** | — ; filed 2026-09-18 from the owner's review of A4c (PR #170) |
+
+### 2.37 Which clause fits which slot — parity at TR-6's close, the matrix with custom-card design
+
+**Revised 2026-09-24, the day it was filed.** The first version planned one
+docs-only matrix: every clause slot against every vocabulary, run once TR-2 to
+TR-6 had landed, to decide the owner's "universal currency" refactor. On
+review, the refactor is not expected to pay, for three reasons:
+- **The currency already exists.** `Effect` is the universal "do X" and
+  `GameAction` the universal event. The most visible asymmetry, that "instead"
+  takes only event templates, is the CR's own rule, which no refactor removes.
+- **Filling the matrix's holes ahead of cards would break a rule.**
+  `CLAUDE.md` says an arm the pipeline cannot apply is worse than a missing one.
+- **Which holes matter is undecided.** That depends on how custom cards will be
+  authored.
+
+So the entry splits in two. The piece with v1 value is kept and moved earlier;
+the matrix waits for the design that needs it.
+
+**The surface.** Each slot takes its own vocabulary:
+- **"Do X"** takes `Effect` (50 `Primitive` arms): a resolution, a trigger,
+  TR-3's delayed and reflexive triggers, and a replacement's rider.
+- **"Instead, X"** takes `GameActionTemplate` (8 arms). This is CR-shaped: CR
+  614.1a replaces events with other events, and CR 616.1f applies replacements
+  again to the result. "Instead, do any instruction" is `Rewrite::Prevent` plus
+  a rider.
+- **"If X would" and "when X"** are `EventPattern` (20 arms, over proposals,
+  CR 614) and `TriggerEvent` (12, over records, CR 603), with no parity rule
+  between them.
+- `Condition` leaves, `TemplateAmount` arms and `TurnSummary` fields grow with
+  the card that needs them, on purpose.
+
+**Two pieces, two times.**
+- **Parity, at TR-6's close.** A table of `EventPattern` against
+  `TriggerEvent`, event kind by event kind. Each kind has both arms, or a
+  recorded reason it doesn't (a CR rule, or no card yet). Commander's pool
+  exercises both sides of most events, and TR-6 adds the trigger vocabulary's
+  last arms.
+- **The matrix, as the first step of custom-card design (post-v1).** Every
+  clause slot against every vocabulary, with each hole marked either CR-forced
+  or incidental. It is measured against whatever format custom cards are
+  authored in, since that format's grammar decides which holes matter. No hole
+  is filled ahead of a card that needs it.
+
+| Field | |
+|---|---|
+| **Rules** | CR 614.1a and 614.6 (a replacement's substitute is an event); 616.1f (the loop re-gathers on it); 603.2 (any game event can be a trigger event); 608.2c (a resolution follows its instructions) |
+| **Verdict** | `Rewrite::Instead` takes `GameActionTemplate` (8 arms), while every other "do X" slot takes `Effect`. `EventPattern` and `TriggerEvent` describe the same events for two readers, and no rule keeps them in parity |
+| **Size** | parity is a table, about an hour. The matrix is a docs pass, about a session. The refactor the entry was first filed to decide is not expected to pay |
+| **Blocks** | the matrix blocks post-v1 custom card support. Nothing on the spine |
+| **Atoms** | none; the CR states the slots, not their implementation |
+| **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
 ## 3. Dispositioned — sections that need no entry of their own
 
