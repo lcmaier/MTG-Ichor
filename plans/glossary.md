@@ -158,6 +158,14 @@ writing it, and recording the number so the prediction can be scored afterwards.
 Sense 2 is what missed lifelink's first helper — it censused `emit` sites, and
 the helper wrote `life_total` by hand while emitting loudly.
 
+**history** — `PlayerState.history`: one `TurnSummary` per player per turn
+of the game, a count for each `TurnFact` (`triggers-architecture.md` §3.10).
+It is what "this turn", "last turn", "since your last turn" and "this game"
+read. The dispatcher is its one writer: `advance_history` turns each record it
+dispatches into a `HistoryUpdate`, which says what that record adds to whose
+row. **Not the event log**: the log is the performed stream (`EventLog`), and
+no rule reads a past turn from it.
+
 **registry** — three tables wear the name and only two are game state.
 **(1)** `CardRegistry`: card name → constructor, the definitions themselves,
 nothing to do with a game in progress. **(2)** `ContinuousEffectRegistry`:

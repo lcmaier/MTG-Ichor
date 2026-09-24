@@ -876,7 +876,6 @@ impl GameState {
     /// One def against one record: the first arm that matches, and the
     /// subjects of its occurrences (one per trigger). `Err` names the
     /// predicate that refused.
-    #[allow(clippy::too_many_arguments)]
     fn match_def(
         &self,
         def: &TriggerDef,
@@ -926,7 +925,7 @@ impl GameState {
                 !self.action_taken_this_turn.contains(&(identity, candidate.controller))
             }
             Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
-            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.of(seq) == Some(1),
+            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.place_in_turn(seq) == Some(1),
         };
         if !within_limit {
             return Err(Refusal::Limit);

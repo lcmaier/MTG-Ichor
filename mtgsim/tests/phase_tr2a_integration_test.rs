@@ -73,7 +73,7 @@ fn counter_on(recipient: EffectRecipient) -> Effect {
     )
 }
 
-fn place(game: &mut GameState, dp: &dyn DecisionProvider) {
+fn place_triggers(game: &mut GameState, dp: &dyn DecisionProvider) {
     game.perform_sba_and_triggers(dp).expect("placing");
 }
 
@@ -81,7 +81,7 @@ fn resolve_top(game: &mut GameState, dp: &dyn DecisionProvider) {
     game.resolve_top_of_stack(dp).expect("resolving");
 }
 
-fn plus_ones(game: &GameState, id: ObjectId) -> u32 {
+fn plus_one_counters(game: &GameState, id: ObjectId) -> u32 {
     game.battlefield.get(&id).map_or(0, |e| e.counter_count(CounterType::PlusOnePlusOne))
 }
 
@@ -96,9 +96,9 @@ fn this_object_is_the_permanent_whose_ability_resolves() {
     let mut game = setup_two_player_game();
     let sapling =
         put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
-    place(&mut game, &test_dp());
+    place_triggers(&mut game, &test_dp());
     resolve_top(&mut game, &test_dp());
-    assert_eq!(plus_ones(&game, sapling), 1);
+    assert_eq!(plus_one_counters(&game, sapling), 1);
 }
 
 /// CR 400.7 — flickered between its trigger and its resolution, the source
@@ -109,7 +109,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
     let mut game = setup_two_player_game();
     let sapling =
         put_on_battlefield(&mut game, watcher("Self-Tending Sapling", enters(TriggerSubject::ThisObject), counter_on(EffectRecipient::ThisObject)), 0);
-    place(&mut game, &test_dp());
+    place_triggers(&mut game, &test_dp());
     assert_eq!(game.stack.len(), 1);
     game.change_zone(sapling, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
     game.change_zone(sapling, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
@@ -117,7 +117,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 
     // The first trigger resolves; the return's own trigger is still pending.
     resolve_top(&mut game, &test_dp());
-    assert_eq!(plus_ones(&game, sapling), 0, "the returned permanent is not the object the ability is of");
+    assert_eq!(plus_one_counters(&game, sapling), 0, "the returned permanent is not the object the ability is of");
 }
 
 // ---------------------------------------------------------------------------
@@ -125,7 +125,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 // ---------------------------------------------------------------------------
 
 /// This turn's row for `player`, all zeros when nothing was counted on it.
-fn row(game: &GameState, player: PlayerId) -> TurnSummary {
+fn this_turns_row(game: &GameState, player: PlayerId) -> TurnSummary {
     game.players[player].history.turn(game.turn_number).cloned().unwrap_or(TurnSummary::ZERO)
 }
 
@@ -186,9 +186,9 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
         (TurnFact::AttackersDeclared, 0),
     ];
     for (fact, n) in counted {
-        assert_eq!(row(&game, 0).count(fact), n, "{fact:?}");
+        assert_eq!(this_turns_row(&game, 0).count(fact), n, "{fact:?}");
     }
-    assert_eq!(row(&game, 1), TurnSummary::ZERO);
+    assert_eq!(this_turns_row(&game, 1), TurnSummary::ZERO);
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
@@ -209,8 +209,8 @@ fn a_stolen_creatures_death_is_counted_on_its_controllers_row() {
     let destroy = GameAction::Destroy { object: bear, source: DestructionSource::Effect(bear) };
     game.execute_action(destroy, &test_ctx()).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
-    assert_eq!(row(&game, 0).count(TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
-    assert_eq!(row(&game, 1).count(TurnFact::ControlledCreaturesDied), 0, "its owner did not");
+    assert_eq!(this_turns_row(&game, 0).count(TurnFact::ControlledCreaturesDied), 1, "the thief controlled it as it died");
+    assert_eq!(this_turns_row(&game, 1).count(TurnFact::ControlledCreaturesDied), 0, "its owner did not");
 }
 
 /// Damage dealt to a permanent is not dealt to its controller (CR 120.3):
@@ -228,7 +228,7 @@ fn damage_to_a_permanent_is_not_damage_to_its_controller() {
         unpreventable: false,
     };
     game.execute_action(damage, &test_ctx()).unwrap();
-    assert_eq!(row(&game, 0), TurnSummary::ZERO);
+    assert_eq!(this_turns_row(&game, 0), TurnSummary::ZERO);
 }
 
 /// A {1} 1/1 artifact creature fixture.
@@ -252,7 +252,7 @@ fn a_spell_cast_from_hand_counts_once_and_under_each_of_its_types() {
     game.cast_spell(0, mite, &dp).expect("cast from an exact pool");
     assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
 
-    let row = row(&game, 0);
+    let row = this_turns_row(&game, 0);
     assert_eq!(row.count(TurnFact::SpellsCast), 1);
     assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Artifact)), 1);
     assert_eq!(row.count(TurnFact::SpellsCastOfType(CardType::Creature)), 1);
@@ -289,7 +289,7 @@ fn gain_one() -> Effect {
     Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller)
 }
 
-fn pending(game: &GameState) -> usize {
+fn pending_triggers(game: &GameState) -> usize {
     game.pending_triggers.len()
 }
 
@@ -303,10 +303,10 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
     let keeper = put_on_battlefield(&mut game, watcher("Grudge Keeper", grudge, counter_on(EffectRecipient::ThisObject)), 0);
     let ctx = test_ctx();
     game.execute_action(GameAction::LoseLife { player: 0, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
-    assert_eq!(pending(&game), 1);
+    assert_eq!(pending_triggers(&game), 1);
     game.execute_action(GameAction::GainLife { player: 0, amount: 2, source: keeper }, &ctx).unwrap();
     game.execute_action(GameAction::LoseLife { player: 1, amount: 2, cause: LifeLossCause::Effect }, &ctx).unwrap();
-    assert_eq!(pending(&game), 1, "a gain, and another player's loss, trigger nothing");
+    assert_eq!(pending_triggers(&game), 1, "a gain, and another player's loss, trigger nothing");
 
     let a = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let b = put_on_battlefield(&mut game, grizzly_bears(), 1);
@@ -318,7 +318,7 @@ fn loses_life_triggers_once_per_loss_and_never_on_a_gain() {
         unpreventable: false,
     };
     game.execute_actions(vec![hit(a), hit(b)], &ctx).unwrap();
-    assert_eq!(pending(&game), 3, "two sources, two losses (CR 120.3a)");
+    assert_eq!(pending_triggers(&game), 3, "two sources, two losses (CR 120.3a)");
 }
 
 /// "Whenever you cast a creature spell": the filter reads the spell on the
@@ -334,8 +334,8 @@ fn casts_spell_reads_the_spell_as_it_is_cast() {
     let mite = put_in_hand(&mut game, clockwork_mite(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
     game.cast_spell(0, mite, &dp).expect("the artifact creature");
-    assert_eq!(pending(&game), 1, "a creature spell");
-    place(&mut game, &test_dp());
+    assert_eq!(pending_triggers(&game), 1, "a creature spell");
+    place_triggers(&mut game, &test_dp());
     while !game.stack.is_empty() {
         resolve_top(&mut game, &test_dp());
     }
@@ -343,7 +343,7 @@ fn casts_spell_reads_the_spell_as_it_is_cast() {
     let trinket = put_in_hand(&mut game, clockwork_trinket(), 0);
     game.players[0].mana_pool.add(ManaType::Colorless, 1);
     game.cast_spell(0, trinket, &dp).expect("the artifact");
-    assert_eq!(pending(&game), 0, "a noncreature spell triggers nothing");
+    assert_eq!(pending_triggers(&game), 0, "a noncreature spell triggers nothing");
 }
 
 /// A {1} artifact fixture with no abilities.
@@ -388,19 +388,19 @@ fn tollkeepers_ledger() -> Arc<CardData> {
     )
 }
 
-fn hand(game: &GameState, player: PlayerId) -> usize {
+fn hand_size(game: &GameState, player: PlayerId) -> usize {
     game.players[player].hand.len()
 }
 
 /// Resolve everything on the stack and everything that triggers on the way,
 /// taking the first option of any prompt and each player's triggers in the
 /// order they triggered.
-fn drain(game: &mut GameState) {
+fn resolve_all(game: &mut GameState) {
     let dp = RecordingDecisionProvider::picking(0);
-    place(game, &dp);
+    place_triggers(game, &dp);
     while !game.stack.is_empty() {
         resolve_top(game, &dp);
-        place(game, &dp);
+        place_triggers(game, &dp);
     }
 }
 
@@ -413,16 +413,16 @@ fn do_this_only_once_stops_triggering_once_the_action_is_taken() {
     stock_libraries(&mut game, 10);
     put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 1);
-    drain(&mut game);
-    assert_eq!(hand(&game, 0), 1, "the first entry draws");
+    assert_eq!(pending_triggers(&game), 1);
+    resolve_all(&mut game);
+    assert_eq!(hand_size(&game, 0), 1, "the first entry draws");
 
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 0, "the action was taken this turn: no trigger");
+    assert_eq!(pending_triggers(&game), 0, "the action was taken this turn: no trigger");
 
     pass_turn(&mut game);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 1, "a new turn, a new action");
+    assert_eq!(pending_triggers(&game), 1, "a new turn, a new action");
 }
 
 /// CR 603.2h read at resolution: two instances triggered before either
@@ -436,9 +436,9 @@ fn a_second_instance_resolves_and_does_nothing_once_the_action_is_taken() {
     put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 2, "nothing had resolved, so both triggered");
-    drain(&mut game);
-    assert_eq!(hand(&game, 0), 1, "only one of the two drew");
+    assert_eq!(pending_triggers(&game), 2, "nothing had resolved, so both triggered");
+    resolve_all(&mut game);
+    assert_eq!(hand_size(&game, 0), 1, "only one of the two drew");
 }
 
 /// CR 603.2h reads "its source's controller": after P0 took the action, P1
@@ -449,15 +449,15 @@ fn do_this_only_once_is_the_controllers_gate() {
     stock_libraries(&mut game, 10);
     let ledger = put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    drain(&mut game);
-    assert_eq!(hand(&game, 0), 1);
+    resolve_all(&mut game);
+    assert_eq!(hand_size(&game, 0), 1);
 
     steal(&mut game, ledger, 1);
-    let before = hand(&game, 1);
+    let before = hand_size(&game, 1);
     put_on_battlefield(&mut game, grizzly_bears(), 1);
-    assert_eq!(pending(&game), 1, "P1 has not taken the action this turn");
-    drain(&mut game);
-    assert_eq!(hand(&game, 1), before + 1, "and P1 draws");
+    assert_eq!(pending_triggers(&game), 1, "P1 has not taken the action this turn");
+    resolve_all(&mut game);
+    assert_eq!(hand_size(&game, 1), before + 1, "and P1 draws");
 }
 
 /// "Whenever a creature enters, you gain 1 life. This ability triggers only
@@ -477,14 +477,14 @@ fn triggers_only_once_each_turn_counts_the_trigger() {
     put_on_battlefield(&mut game, once_bitten_totem(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 1, "the second entry finds it triggered");
-    drain(&mut game);
+    assert_eq!(pending_triggers(&game), 1, "the second entry finds it triggered");
+    resolve_all(&mut game);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 0);
+    assert_eq!(pending_triggers(&game), 0);
 
     pass_turn(&mut game);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
-    assert_eq!(pending(&game), 1, "a new turn");
+    assert_eq!(pending_triggers(&game), 1, "a new turn");
 }
 
 /// "For the first time each turn" is the record's place in its turn: two
@@ -516,16 +516,16 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
         unpreventable: false,
     };
     game.execute_actions(vec![hit(a), hit(b)], &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 1, "two losses, and only the first is the first");
-    drain(&mut game);
-    assert_eq!(plus_ones(&game, brooder), 1);
+    assert_eq!(pending_triggers(&game), 1, "two losses, and only the first is the first");
+    resolve_all(&mut game);
+    assert_eq!(plus_one_counters(&game, brooder), 1);
 
     game.execute_action(hit(a), &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 0, "the third loss this turn");
+    assert_eq!(pending_triggers(&game), 0, "the third loss this turn");
 
     pass_turn(&mut game);
     game.execute_action(hit(a), &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 1, "the first loss of a new turn");
+    assert_eq!(pending_triggers(&game), 1, "the first loss of a new turn");
 }
 
 // ---------------------------------------------------------------------------
@@ -555,7 +555,7 @@ fn kindling_pilgrim() -> Arc<CardData> {
     creature_with_ability("Kindling Pilgrim", 1, 1, ability)
 }
 
-fn life(game: &GameState, player: PlayerId) -> i64 {
+fn life_total(game: &GameState, player: PlayerId) -> i64 {
     game.players[player].life_total
 }
 
@@ -570,16 +570,16 @@ fn the_nth_resolution_counts_resolutions_not_activations() {
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, pilgrim, 0, &dp).expect("first activation");
     game.activate_ability(0, pilgrim, 0, &dp).expect("second, in response");
-    drain(&mut game);
-    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (2, 20), "two resolutions, no bonus");
+    resolve_all(&mut game);
+    assert_eq!((plus_one_counters(&game, pilgrim), life_total(&game, 0)), (2, 20), "two resolutions, no bonus");
 
     game.activate_ability(0, pilgrim, 0, &dp).expect("third");
-    drain(&mut game);
-    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (3, 23), "the third resolution");
+    resolve_all(&mut game);
+    assert_eq!((plus_one_counters(&game, pilgrim), life_total(&game, 0)), (3, 23), "the third resolution");
 
     game.activate_ability(0, pilgrim, 0, &dp).expect("fourth");
-    drain(&mut game);
-    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (4, 23), "only the third");
+    resolve_all(&mut game);
+    assert_eq!((plus_one_counters(&game, pilgrim), life_total(&game, 0)), (4, 23), "only the third");
 }
 
 /// "It doesn't matter who controlled the creature or the previous abilities
@@ -593,12 +593,12 @@ fn a_control_change_does_not_restart_the_count() {
     let dp = RecordingDecisionProvider::picking(0);
     for _ in 0..2 {
         game.activate_ability(0, pilgrim, 0, &dp).expect("P0 activates");
-        drain(&mut game);
+        resolve_all(&mut game);
     }
     steal(&mut game, pilgrim, 1);
     game.activate_ability(1, pilgrim, 0, &dp).expect("the thief activates");
-    drain(&mut game);
-    assert_eq!(life(&game, 1), 23, "the third resolution this turn, whoever controlled the first two");
+    resolve_all(&mut game);
+    assert_eq!(life_total(&game, 1), 23, "the third resolution this turn, whoever controlled the first two");
 }
 
 // ---------------------------------------------------------------------------
@@ -654,10 +654,10 @@ fn its_power_is_read_as_the_effect_applies() {
         },
         vec![1],
     );
-    place(&mut game, &dp);
+    place_triggers(&mut game, &dp);
     pump(&mut game, brute, 3);
     resolve_top(&mut game, &test_dp());
-    assert_eq!(life(&game, 1), 14, "6 damage, not 3");
+    assert_eq!(life_total(&game, 1), 14, "6 damage, not 3");
 }
 
 // ---------------------------------------------------------------------------
@@ -844,11 +844,11 @@ fn one_lifelink_source_dealing_damage_to_two_recipients_at_once_gains_life_once(
     let batch = vec![damage(linker, DamageTarget::Object(blocker), 2), damage(linker, DamageTarget::Player(1), 3)];
     game.execute_actions(batch, &test_ctx()).unwrap();
 
-    assert_eq!(life(&game, 0), 25);
-    assert_eq!(row(&game, 0).count(TurnFact::LifeGainEvents), 1, "one event, not one per recipient");
-    assert_eq!(pending(&game), 1);
-    drain(&mut game);
-    assert_eq!(plus_ones(&game, keeper), 5, "that many is the whole gain");
+    assert_eq!(life_total(&game, 0), 25);
+    assert_eq!(this_turns_row(&game, 0).count(TurnFact::LifeGainEvents), 1, "one event, not one per recipient");
+    assert_eq!(pending_triggers(&game), 1);
+    resolve_all(&mut game);
+    assert_eq!(plus_one_counters(&game, keeper), 5, "that many is the whole gain");
 }
 
 /// "If multiple sources with lifelink deal damage at the same time, they
@@ -863,9 +863,9 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
     let batch = vec![damage(first, DamageTarget::Player(1), 2), damage(second, DamageTarget::Player(1), 3)];
     game.execute_actions(batch, &test_ctx()).unwrap();
 
-    assert_eq!(life(&game, 0), 25);
-    assert_eq!(row(&game, 0).count(TurnFact::LifeGainEvents), 2);
-    assert_eq!(pending(&game), 2);
+    assert_eq!(life_total(&game, 0), 25);
+    assert_eq!(this_turns_row(&game, 0).count(TurnFact::LifeGainEvents), 2);
+    assert_eq!(pending_triggers(&game), 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -918,7 +918,7 @@ fn cast_and_drain(game: &mut GameState, player: PlayerId, card: Arc<CardData>) {
     let id = put_in_hand(game, card, player);
     let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
     game.cast_spell(player, id, &dp).expect("castable");
-    drain(game);
+    resolve_all(game);
 }
 
 /// CR 603.1b: two trigger conditions and an instruction about whether both
@@ -951,10 +951,10 @@ fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
         }),
     );
     put_on_battlefield(&mut game, tinkers_accord, 0);
-    let before = hand(&game, 0);
+    let before = hand_size(&game, 0);
 
     cast_and_drain(&mut game, 0, free_spell("Clockwork Trinket", CardType::Artifact));
-    assert_eq!(hand(&game, 0), before + 1, "both have happened this turn, so the artifact triggers it");
+    assert_eq!(hand_size(&game, 0), before + 1, "both have happened this turn, so the artifact triggers it");
 }
 
 /// CR 608.2p: an ability that tracks how many times it has resolved this
@@ -1007,20 +1007,20 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
         ),
         0,
     );
-    let hand_before = hand(&game, 0);
+    let hand_before = hand_size(&game, 0);
 
     cast_and_drain(&mut game, 0, free_spell("Spark A", CardType::Instant));
-    assert_eq!(hand(&game, 0), hand_before, "discard one, draw one");
-    assert_eq!((life(&game, 1), game.battlefield.contains_key(&theirs)), (20, true), "no bonus the first time");
+    assert_eq!(hand_size(&game, 0), hand_before, "discard one, draw one");
+    assert_eq!((life_total(&game, 1), game.battlefield.contains_key(&theirs)), (20, true), "no bonus the first time");
 
     cast_and_drain(&mut game, 0, free_spell("Spark B", CardType::Instant));
-    assert_eq!(life(&game, 1), 18, "the second time: 2 damage to each opponent");
+    assert_eq!(life_total(&game, 1), 18, "the second time: 2 damage to each opponent");
     assert!(!game.battlefield.contains_key(&theirs), "and to each creature they control");
     assert_eq!(game.players[0].mana_pool.total(), 0);
 
     cast_and_drain(&mut game, 0, free_spell("Spark C", CardType::Instant));
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 4, "the third time: {{R}}{{R}}{{R}}{{R}}");
-    assert_eq!(life(&game, 1), 18, "and no second round of damage");
+    assert_eq!(life_total(&game, 1), 18, "and no second round of damage");
 }
 
 /// "At the beginning of your upkeep, if you haven't lost life since your last
@@ -1056,14 +1056,14 @@ fn since_your_last_turn_spans_the_turns_after_it() {
     advance_to(&mut game, 1, StepType::Upkeep);
     lose(&mut game);
     advance_to(&mut game, 0, StepType::Upkeep);
-    assert_eq!(pending(&game), 0);
+    assert_eq!(pending_triggers(&game), 0);
 
     // Lost on P0's own previous turn: that is before the span.
     let mut game = setup_two_player_game();
     put_on_battlefield(&mut game, steady_vigil(), 0);
     lose(&mut game);
     advance_to(&mut game, 0, StepType::Upkeep);
-    assert_eq!(pending(&game), 1);
+    assert_eq!(pending_triggers(&game), 1);
 }
 
 /// "If this spell is the first spell you've cast this game, you gain 2 life"
@@ -1088,14 +1088,14 @@ fn this_game_sums_every_turn_so_far() {
     let mut game = setup_two_player_game();
     stock_libraries(&mut game, 10);
     cast_and_drain(&mut game, 0, first_contact());
-    assert_eq!(life(&game, 0), 22, "the first spell this game");
+    assert_eq!(life_total(&game, 0), 22, "the first spell this game");
 
     advance_to(&mut game, 0, StepType::Upkeep);
     while game.phase.phase_type != PhaseType::Precombat {
         game.advance_turn(&test_ctx()).expect("advancing");
     }
     cast_and_drain(&mut game, 0, first_contact());
-    assert_eq!(life(&game, 0), 22, "the second, two turns later");
+    assert_eq!(life_total(&game, 0), 22, "the second, two turns later");
 }
 
 // ---------------------------------------------------------------------------
@@ -1116,12 +1116,12 @@ fn paladin_reads_last_turns_loss_whatever_else_happened() {
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
 
     advance_to(&mut game, 1, StepType::Upkeep);
-    assert_eq!(pending(&game), 1, "each upkeep, and P0 lost life last turn");
-    drain(&mut game);
-    assert_eq!(plus_ones(&game, paladin), 1);
+    assert_eq!(pending_triggers(&game), 1, "each upkeep, and P0 lost life last turn");
+    resolve_all(&mut game);
+    assert_eq!(plus_one_counters(&game, paladin), 1);
 
     advance_to(&mut game, 0, StepType::Upkeep);
-    assert_eq!(pending(&game), 0, "no loss on P1's turn");
+    assert_eq!(pending_triggers(&game), 0, "no loss on P1's turn");
 }
 
 /// "Its toughness" as it last existed on the battlefield: a 1/1 with two
@@ -1141,8 +1141,8 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     game.execute_action(counters(CounterType::PlusOnePlusOne, 2), &test_ctx()).unwrap();
     game.execute_action(GameAction::Destroy { object: paladin, source: DestructionSource::Effect(paladin) }, &test_ctx())
         .unwrap();
-    drain(&mut game);
-    assert_eq!(life(&game, 0), 23);
+    resolve_all(&mut game);
+    assert_eq!(life_total(&game, 0), 23);
 
     let mut game = setup_two_player_game();
     let paladin = put_on_battlefield(&mut game, paladin_of_atonement(), 0);
@@ -1153,9 +1153,9 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
         by: 0,
     };
     game.execute_action(minus, &test_ctx()).unwrap();
-    drain(&mut game);
+    resolve_all(&mut game);
     assert_eq!(game.get_object(paladin).unwrap().zone, Zone::Graveyard, "toughness -1 (CR 704.5f)");
-    assert_eq!(life(&game, 0), 20, "no life for toughness below 0");
+    assert_eq!(life_total(&game, 0), 20, "no life for toughness below 0");
 }
 
 /// Paying life is losing life, and the Warchief gets one counter however
@@ -1170,15 +1170,15 @@ fn warchief_counts_paid_life_as_lost_life() {
     let bargain = put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, bargain, 1, &dp).expect("pay 1 life: draw a card");
-    drain(&mut game);
-    assert_eq!(plus_ones(&game, warchief), 1, "a payment is a loss");
+    resolve_all(&mut game);
+    assert_eq!(plus_one_counters(&game, warchief), 1, "a payment is a loss");
 
     let mut game = setup_two_player_game();
     let warchief = put_on_battlefield(&mut game, vengeful_warchief(), 0);
     game.execute_action(GameAction::LoseLife { player: 0, amount: 5, cause: LifeLossCause::Effect }, &test_ctx())
         .unwrap();
-    drain(&mut game);
-    assert_eq!(plus_ones(&game, warchief), 1, "one counter for five life");
+    resolve_all(&mut game);
+    assert_eq!(plus_one_counters(&game, warchief), 1, "one counter for five life");
 }
 
 /// Life paid to activate an ability: the Warchief's trigger goes on the
@@ -1193,15 +1193,15 @@ fn warchiefs_counter_goes_on_after_the_activation_and_before_it_resolves() {
     let bargain = put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
     let dp = RecordingDecisionProvider::picking(0);
     game.activate_ability(0, bargain, 1, &dp).expect("pay 1 life: draw a card");
-    place(&mut game, &dp);
+    place_triggers(&mut game, &dp);
     assert_eq!(game.stack.len(), 2, "the activation, and the trigger above it");
-    let hand_before = hand(&game, 0);
+    let hand_before = hand_size(&game, 0);
 
     resolve_top(&mut game, &dp);
-    assert_eq!(plus_ones(&game, warchief), 1, "the counter first");
-    assert_eq!(hand(&game, 0), hand_before, "and the ability has not resolved yet");
+    assert_eq!(plus_one_counters(&game, warchief), 1, "the counter first");
+    assert_eq!(hand_size(&game, 0), hand_before, "and the ability has not resolved yet");
     resolve_top(&mut game, &dp);
-    assert_eq!(hand(&game, 0), hand_before + 1);
+    assert_eq!(hand_size(&game, 0), hand_before + 1);
 }
 
 /// A Warchief that comes under your control after your first loss this turn
@@ -1219,10 +1219,10 @@ fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
     lose(&mut game);
     put_on_battlefield(&mut game, vengeful_warchief(), 0);
     lose(&mut game);
-    assert_eq!(pending(&game), 0, "P0's second loss this turn");
+    assert_eq!(pending_triggers(&game), 0, "P0's second loss this turn");
     advance_to(&mut game, 1, StepType::Upkeep);
     lose(&mut game);
-    assert_eq!(pending(&game), 1, "the first loss of a new turn");
+    assert_eq!(pending_triggers(&game), 1, "the first loss of a new turn");
 
     // It is stolen after the loss.
     let mut game = setup_two_player_game();
@@ -1230,7 +1230,7 @@ fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
     lose(&mut game);
     steal(&mut game, warchief, 0);
     lose(&mut game);
-    assert_eq!(pending(&game), 0, "the thief's second loss this turn");
+    assert_eq!(pending_triggers(&game), 0, "the thief's second loss this turn");
 }
 
 /// However many Elves enter at once, one token: "one or more" is one trigger
@@ -1242,9 +1242,9 @@ fn warmaster_makes_one_token_however_many_elves_enter() {
     put_on_battlefield(&mut game, elvish_warmaster(), 0);
     let elves = vec![elf_warrior_token(), elf_warrior_token(), elf_warrior_token()];
     game.execute_action(GameAction::CreateTokens { defs: elves, controller: 0 }, &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 1);
+    assert_eq!(pending_triggers(&game), 1);
     let before = game.battlefield.len();
-    drain(&mut game);
+    resolve_all(&mut game);
     assert_eq!(game.battlefield.len(), before + 1, "one Elf Warrior");
 }
 
@@ -1258,10 +1258,10 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
     put_on_battlefield(&mut game, elvish_warmaster(), 0);
     let one_elf = || GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 };
     game.execute_action(one_elf(), &test_ctx()).unwrap();
-    place(&mut game, &RecordingDecisionProvider::picking(0));
+    place_triggers(&mut game, &RecordingDecisionProvider::picking(0));
     assert_eq!(game.stack.len(), 1);
     game.execute_action(one_elf(), &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 0, "its trigger is still on the stack");
+    assert_eq!(pending_triggers(&game), 0, "its trigger is still on the stack");
 
     let trigger = *game.stack.last().unwrap();
     let counter = Effect::Atom(
@@ -1281,11 +1281,11 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
     game.resolve_effect(&counter, &ctx, &test_dp()).expect("the counter");
     assert!(game.stack.is_empty());
     game.execute_action(one_elf(), &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 0, "countered, and it still triggered this turn");
+    assert_eq!(pending_triggers(&game), 0, "countered, and it still triggered this turn");
 
     advance_to(&mut game, 1, StepType::Upkeep);
     game.execute_action(one_elf(), &test_ctx()).unwrap();
-    assert_eq!(pending(&game), 1, "a new turn");
+    assert_eq!(pending_triggers(&game), 1, "a new turn");
 }
 
 /// "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of
@@ -1303,11 +1303,11 @@ fn warmasters_pump_is_fixed_as_it_resolves() {
     }
     let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
     game.activate_ability(0, warmaster, 1, &dp).expect("{5}{G}{G} from an exact pool");
-    drain(&mut game);
+    resolve_all(&mut game);
     let late = {
         game.execute_action(GameAction::CreateTokens { defs: vec![elf_warrior_token()], controller: 0 }, &test_ctx())
             .unwrap();
-        drain(&mut game);
+        resolve_all(&mut game);
         *game.battlefield_ids_ordered().last().unwrap()
     };
 
@@ -1363,7 +1363,7 @@ fn temple_bell_rings_the_active_player_first() {
     let bell = put_on_battlefield(&mut game, temple_bell(), 0);
     set_active_player(&mut game, 1);
     game.activate_ability(0, bell, 0, &RecordingDecisionProvider::picking(0)).expect("{T}");
-    drain(&mut game);
+    resolve_all(&mut game);
     assert_eq!(draw_order(&game), vec![1, 0]);
 }
 
@@ -1383,16 +1383,16 @@ fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
     let artist = put_on_battlefield(&mut game, blood_artist(), 0);
     let ashaya = put_on_battlefield(&mut game, ashaya_soul_of_the_wild(), 0);
     put_on_battlefield(&mut game, blood_moon(), 1);
-    place(&mut game, &test_dp());
+    place_triggers(&mut game, &test_dp());
 
     assert_eq!(game.get_object(ashaya).unwrap().zone, Zone::Graveyard, "0/0 under Blood Moon");
     assert_eq!(game.get_object(artist).unwrap().zone, Zone::Battlefield);
-    assert_eq!(pending(&game) + game.stack.len(), 0, "no ability before the event, so no trigger");
+    assert_eq!(pending_triggers(&game) + game.stack.len(), 0, "no ability before the event, so no trigger");
 
     // And after it Blood Artist is itself again.
     let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
     let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
     game.execute_action(GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) }, &test_ctx())
         .unwrap();
-    assert_eq!(pending(&game), 1, "a creature dying now");
+    assert_eq!(pending_triggers(&game), 1, "a creature dying now");
 }

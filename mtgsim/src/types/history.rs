@@ -73,7 +73,7 @@ pub enum CountIs {
 }
 
 impl CountIs {
-    pub fn holds(self, count: u64) -> bool {
+    pub fn met_by(self, count: u64) -> bool {
         match self {
             CountIs::AtLeast(n) => count >= n,
             CountIs::AtMost(n) => count <= n,

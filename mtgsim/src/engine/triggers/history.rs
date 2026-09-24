@@ -21,14 +21,14 @@ use crate::types::zones::Zone;
 pub(crate) struct TurnOrdinals(Vec<(EventSeq, u64)>);
 
 impl TurnOrdinals {
-    pub(crate) fn of(&self, seq: EventSeq) -> Option<u64> {
+    pub(crate) fn place_in_turn(&self, seq: EventSeq) -> Option<u64> {
         self.0.iter().find(|(s, _)| *s == seq).map(|(_, n)| *n)
     }
 }
 
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
-enum Tally {
+enum HistoryUpdate {
     TurnBegan { player: PlayerId, turn: u32 },
     AbilityResolved { identity: AbilityIdentity },
     SpellCast { caster: PlayerId, types: Vec<CardType> },
@@ -40,19 +40,19 @@ enum Tally {
     AttackersDeclared { player: PlayerId, count: u64 },
 }
 
-impl Tally {
+impl HistoryUpdate {
     /// Whose row it is counted on; `None` for a count that is the game's.
-    fn player(&self) -> Option<PlayerId> {
+    fn whose_row(&self) -> Option<PlayerId> {
         Some(match self {
-            Tally::AbilityResolved { .. } => return None,
-            Tally::TurnBegan { player, .. }
-            | Tally::SpellCast { caster: player, .. }
-            | Tally::CardDrawn { player }
-            | Tally::LifeGained { player, .. }
-            | Tally::LifeLost { player, .. }
-            | Tally::DamageTaken { player, .. }
-            | Tally::CreatureDied { controller: player }
-            | Tally::AttackersDeclared { player, .. } => *player,
+            HistoryUpdate::AbilityResolved { .. } => return None,
+            HistoryUpdate::TurnBegan { player, .. }
+            | HistoryUpdate::SpellCast { caster: player, .. }
+            | HistoryUpdate::CardDrawn { player }
+            | HistoryUpdate::LifeGained { player, .. }
+            | HistoryUpdate::LifeLost { player, .. }
+            | HistoryUpdate::DamageTaken { player, .. }
+            | HistoryUpdate::CreatureDied { controller: player }
+            | HistoryUpdate::AttackersDeclared { player, .. } => *player,
         })
     }
 }
@@ -61,51 +61,51 @@ impl GameState {
     /// Advance the summaries of the turn in progress by `window`'s records,
     /// and say where each record the event counts count falls in its turn.
     pub(crate) fn advance_history(&mut self, window: &[EventSeq]) -> TurnOrdinals {
-        let tallies: Vec<(EventSeq, Tally)> =
-            window.iter().filter_map(|&seq| self.tally(seq).map(|t| (seq, t))).collect();
+        let updates: Vec<(EventSeq, HistoryUpdate)> =
+            window.iter().filter_map(|&seq| self.history_update(seq).map(|u| (seq, u))).collect();
         let turn = self.turn_number;
-        let mut ordinals = TurnOrdinals(Vec::with_capacity(tallies.len()));
-        for (seq, tally) in tallies {
-            if let Tally::AbilityResolved { identity } = tally {
+        let mut ordinals = TurnOrdinals(Vec::with_capacity(updates.len()));
+        for (seq, update) in updates {
+            if let HistoryUpdate::AbilityResolved { identity } = update {
                 let key = (identity.source, identity.ability.definition());
                 *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
                 continue;
             }
-            let Some(history) = tally.player().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history)
+            let Some(history) = update.whose_row().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history)
             else {
                 continue;
             };
-            if let Tally::TurnBegan { turn: began, .. } = tally {
+            if let HistoryUpdate::TurnBegan { turn: began, .. } = update {
                 history.record_own_turn(began);
                 continue;
             }
             let Some(row) = history.turn_mut(turn) else { continue };
-            let place = match tally {
-                Tally::TurnBegan { .. } | Tally::AbilityResolved { .. } => None,
-                Tally::SpellCast { types, .. } => {
+            let place = match update {
+                HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => None,
+                HistoryUpdate::SpellCast { types, .. } => {
                     for card_type in types {
                         row.add(TurnFact::SpellsCastOfType(card_type), 1);
                     }
                     Some(row.add(TurnFact::SpellsCast, 1))
                 }
-                Tally::CardDrawn { .. } => Some(row.add(TurnFact::CardsDrawn, 1)),
-                Tally::LifeGained { amount, .. } => {
+                HistoryUpdate::CardDrawn { .. } => Some(row.add(TurnFact::CardsDrawn, 1)),
+                HistoryUpdate::LifeGained { amount, .. } => {
                     row.add(TurnFact::LifeGained, amount);
                     Some(row.add(TurnFact::LifeGainEvents, 1))
                 }
-                Tally::LifeLost { amount, .. } => {
+                HistoryUpdate::LifeLost { amount, .. } => {
                     row.add(TurnFact::LifeLost, amount);
                     Some(row.add(TurnFact::LifeLossEvents, 1))
                 }
-                Tally::DamageTaken { amount, .. } => {
+                HistoryUpdate::DamageTaken { amount, .. } => {
                     row.add(TurnFact::DamageTaken, amount);
                     None
                 }
-                Tally::CreatureDied { .. } => {
+                HistoryUpdate::CreatureDied { .. } => {
                     row.add(TurnFact::ControlledCreaturesDied, 1);
                     None
                 }
-                Tally::AttackersDeclared { count, .. } => {
+                HistoryUpdate::AttackersDeclared { count, .. } => {
                     row.add(TurnFact::AttackersDeclared, count);
                     None
                 }
@@ -123,38 +123,38 @@ impl GameState {
     }
 
     /// What `seq` adds, or `None` for a record no summary counts.
-    fn tally(&self, seq: EventSeq) -> Option<Tally> {
+    fn history_update(&self, seq: EventSeq) -> Option<HistoryUpdate> {
         let record = self.events.record(seq)?;
         Some(match &record.event {
-            GameEvent::TurnBegin { player, turn_number } => Tally::TurnBegan { player: *player, turn: *turn_number },
-            GameEvent::AbilityResolved { identity, .. } => Tally::AbilityResolved { identity: *identity },
+            GameEvent::TurnBegin { player, turn_number } => HistoryUpdate::TurnBegan { player: *player, turn: *turn_number },
+            GameEvent::AbilityResolved { identity, .. } => HistoryUpdate::AbilityResolved { identity: *identity },
             // CR 601.2i: the spell is cast, and on the stack, as this record
             // is dispatched, so its types are the ones it was cast with.
             GameEvent::SpellCast { spell_id, caster } => {
                 let types: Vec<CardType> = compute_characteristics(self, *spell_id)
                     .map(|chars| chars.types.iter().copied().collect())
                     .unwrap_or_default();
-                Tally::SpellCast { caster: *caster, types }
+                HistoryUpdate::SpellCast { caster: *caster, types }
             }
-            GameEvent::CardDrawn { player_id, .. } => Tally::CardDrawn { player: *player_id },
+            GameEvent::CardDrawn { player_id, .. } => HistoryUpdate::CardDrawn { player: *player_id },
             GameEvent::LifeChanged { player_id, old, new, .. } if new > old => {
-                Tally::LifeGained { player: *player_id, amount: (new - old) as u64 }
+                HistoryUpdate::LifeGained { player: *player_id, amount: (new - old) as u64 }
             }
             GameEvent::LifeChanged { player_id, old, new, .. } if new < old => {
-                Tally::LifeLost { player: *player_id, amount: (old - new) as u64 }
+                HistoryUpdate::LifeLost { player: *player_id, amount: (old - new) as u64 }
             }
             GameEvent::DamageDealt { target: DamageTarget::Player(pid), amount, .. } => {
-                Tally::DamageTaken { player: *pid, amount: *amount }
+                HistoryUpdate::DamageTaken { player: *pid, amount: *amount }
             }
             // CR 700.4's "dies", under whoever controlled the creature as it did.
             GameEvent::ZoneChange { from: Zone::Battlefield, to: Zone::Graveyard, lki: Some(frame), .. }
                 if frame.types.contains(&CardType::Creature) =>
             {
-                Tally::CreatureDied { controller: frame.controller }
+                HistoryUpdate::CreatureDied { controller: frame.controller }
             }
             // CR 508.1: the active player declares attackers.
             GameEvent::AttackersDeclared { attackers } if !attackers.is_empty() => {
-                Tally::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
+                HistoryUpdate::AttackersDeclared { player: self.active_player, count: attackers.len() as u64 }
             }
             _ => return None,
         })

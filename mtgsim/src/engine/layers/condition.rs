@@ -93,7 +93,7 @@ pub(super) fn holds(
         // sound off the battlefield: a card with no controller uses its owner
         // wherever a controller is asked for, so `ByController` answers here too.
         Condition::CardInYourGraveyard(filter) => {
-            let Some(you) = controller_of(game, board, source, layer_index) else {
+            let Some(you) = you_for(game, board, source, layer_index) else {
                 return false;
             };
             let Some(player) = game.players.get(you) else { return false };
@@ -139,7 +139,7 @@ pub(super) fn holds(
         // "While your library has no cards in it" — Laboratory Maniac. The
         // library is off `GameState`; "your" is the source's controller off
         // its live frame, as `life_compare` reads it.
-        Condition::YourLibraryEmpty => controller_of(game, board, source, layer_index)
+        Condition::YourLibraryEmpty => you_for(game, board, source, layer_index)
             .and_then(|you| game.players.get(you))
             .is_some_and(|player| player.library.is_empty()),
 
@@ -231,7 +231,7 @@ fn history_holds(
     source: ObjectId,
     layer_index: usize,
 ) -> bool {
-    let Some(you) = controller_of(game, board, source, layer_index) else {
+    let Some(you) = you_for(game, board, source, layer_index) else {
         return false;
     };
     let now = game.turn_number;
@@ -251,7 +251,7 @@ fn history_holds(
         .filter(|(player, _)| count.whose.contains(you, *player))
         .map(|(_, player)| player.history.sum(count.fact, first, last))
         .sum();
-    count.is.holds(total)
+    count.is.met_by(total)
 }
 
 /// CR 707.10's cost decisions for `source`: the resolving spell's, whose
@@ -263,8 +263,12 @@ fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
     }
 }
 
-/// CR 109.5's "you", off the source's live frame.
-fn controller_of(
+/// CR 109.5's "you": the source's controller, off its live frame, or its
+/// owner if it has no controller. `None` only when the source no longer exists
+/// anywhere (a token that has ceased to exist), where no "you" can be read and
+/// a leaf answers false; a trigger's recheck gets its locked controller
+/// instead (item 169, TR-2b).
+fn you_for(
     game: &GameState,
     board: &Board<'_>,
     source: ObjectId,
