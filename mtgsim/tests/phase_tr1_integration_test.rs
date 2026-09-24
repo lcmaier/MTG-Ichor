@@ -13,7 +13,6 @@
 //! practices.md` §3); the five cards are printed and were verified on
 //! Scryfall on 2026-09-19.
 
-use std::cell::RefCell;
 use std::sync::Arc;
 
 use mtgsim::cards::alpha::lightning_bolt;
@@ -48,7 +47,7 @@ use mtgsim::state::game_state::{
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
     put_on_battlefield, put_spell_on_stack, registered, setup_game, setup_two_player_game,
-    static_ability, test_ctx, test_dp, vanilla_creature,
+    static_ability, test_ctx, test_dp, vanilla_creature, StackWatcher,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
@@ -202,61 +201,6 @@ fn deal(game: &mut GameState, source: ObjectId, target: DamageTarget, amount: u6
         &test_ctx(),
     )
     .expect("dealing damage");
-}
-
-/// A provider that passes at every priority prompt and records what the
-/// stack and the queue held at the **first** one — CR 117.5's "before any
-/// player gets priority" made observable.
-struct StackWatcher {
-    first: RefCell<Option<(usize, usize)>>,
-}
-
-impl StackWatcher {
-    fn new() -> Self {
-        StackWatcher { first: RefCell::new(None) }
-    }
-    fn at_first_prompt(&self) -> (usize, usize) {
-        self.first.borrow().expect("a priority prompt was asked")
-    }
-}
-
-impl DecisionProvider for StackWatcher {
-    fn pick_n(
-        &self,
-        game: &GameState,
-        _player: PlayerId,
-        context: &ChoiceContext,
-        options: &[ChoiceOption],
-        bounds: (usize, usize),
-    ) -> Vec<usize> {
-        if matches!(context.kind, ChoiceKind::PriorityAction) && self.first.borrow().is_none() {
-            *self.first.borrow_mut() = Some((game.stack.len(), game.pending_triggers.len()));
-        }
-        (0..bounds.0.max(1).min(options.len())).collect()
-    }
-    fn pick_number(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, min: u64, _: u64) -> u64 {
-        min
-    }
-    fn allocate(
-        &self,
-        _: &GameState,
-        _: PlayerId,
-        _: &ChoiceContext,
-        total: u64,
-        buckets: &[ChoiceOption],
-        mins: &[u64],
-        _: Option<&[u64]>,
-    ) -> Vec<u64> {
-        let mut out = mins.to_vec();
-        let spent: u64 = out.iter().sum();
-        if !buckets.is_empty() {
-            out[0] += total.saturating_sub(spent);
-        }
-        out
-    }
-    fn choose_ordering(&self, _: &GameState, _: PlayerId, _: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
-        (0..items.len()).collect()
-    }
 }
 
 // ---------------------------------------------------------------------------
