@@ -22,7 +22,7 @@ use crate::engine::targeting::TargetInstance;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::types::mana::ManaCost;
+use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
 use crate::oracle::mana_helpers::{
@@ -198,7 +198,7 @@ impl GameState {
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
             cast_from: Some(cast_from),
             ability_identity: None,
             trigger: None,
@@ -450,7 +450,7 @@ impl GameState {
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
             // An activated ability is not cast from anywhere (CR 602.2a gives
             // it a source, which is a different fact). See `cast_from`.
             cast_from: None,

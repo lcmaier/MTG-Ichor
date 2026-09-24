@@ -40,9 +40,10 @@ use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::engine::triggers::{is_mana_ability, visible_to_all};
 use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
+use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::state::game_state::{
-    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StepType,
+    AbilityIdentity, GameResult, GameState, Phase, PhaseType, StackEntry, StepType,
 };
 use mtgsim::test_support::{
     creature_with_ability, fill_library, install_trace, put_in_hand, put_in_library,
@@ -56,7 +57,7 @@ use mtgsim::types::effects::{
     ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
-use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
 use mtgsim::types::replacement::EnterMods;
 use mtgsim::types::triggers::{
     DamageRecipient, Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin,
@@ -2073,7 +2074,7 @@ fn a_permanent_remembers_whether_it_was_cast() {
     let mut game = setup_two_player_game();
     let cast = put_spell_on_stack(&mut game, grizzly_bears(), 1);
     resolve_top(&mut game, &test_dp());
-    let facts = game.battlefield[&cast].cast.as_ref().expect("cast from the hand");
+    let facts = game.battlefield[&cast].cast.expect("cast from the hand");
     assert_eq!((facts.by, facts.from), (1, Zone::Hand));
     let placed = put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(game.battlefield[&placed].cast, None);
@@ -2133,9 +2134,10 @@ fn kicked_herald() -> Arc<CardData> {
 fn a_kicked_permanent_remembers_what_paid_for_it() {
     let (game, herald) =
         cast_from_exact_pool(kicked_herald(), &[ManaType::White, ManaType::Green, ManaType::Red], true);
-    let facts = game.battlefield[&herald].cast.as_ref().expect("cast from the hand");
-    assert!(matches!(facts.additional_costs_paid[..], [AdditionalCost::Kicker(_)]));
-    assert_eq!(facts.alternative_cost, None);
+    let choices = &game.battlefield[&herald].cost_choices;
+    assert!(matches!(choices.additional[..], [AdditionalCost::Kicker(_)]));
+    assert_eq!(choices.alternative, None);
+    let facts = game.battlefield[&herald].cast.expect("cast from the hand");
     let by_type = [
         ManaType::White,
         ManaType::Blue,
@@ -2154,10 +2156,44 @@ fn a_kicked_permanent_remembers_what_paid_for_it() {
 #[test]
 fn an_unkicked_permanent_was_not_kicked() {
     let (game, herald) = cast_from_exact_pool(kicked_herald(), &[ManaType::White, ManaType::Green], false);
-    let facts = game.battlefield[&herald].cast.as_ref().expect("cast from the hand");
-    assert!(facts.additional_costs_paid.is_empty());
+    assert!(game.battlefield[&herald].cost_choices.additional.is_empty());
+    let facts = game.battlefield[&herald].cast.expect("cast from the hand");
     assert_eq!(facts.mana_spent.total(), 2);
     assert_eq!(life(&game, 0), 20);
+}
+
+/// CR 707.10 — "a copy of a spell isn't cast", and it copies "additional or
+/// alternative costs". So the permanent a kicked spell's copy becomes was
+/// not cast, spent no mana, and is kicked (Archangel of Wrath's ruling). No
+/// spell copy exists before CV-4, so the entry is staged the way CV-4's
+/// copy will be: a spell with the original's decisions and no `cast_from`.
+#[test]
+fn a_spell_that_was_not_cast_keeps_its_kicker() {
+    let mut game = setup_two_player_game();
+    let copy = game.add_object(GameObject::new(kicked_herald(), 0, Zone::Stack));
+    game.stack.push(copy);
+    game.stack_entries.insert(copy, StackEntry {
+        object_id: copy,
+        controller: 0,
+        chosen_targets: Vec::new(),
+        chosen_modes: Vec::new(),
+        x_value: None,
+        effect: Effect::Sequence(Vec::new()),
+        is_spell: true,
+        chosen_alternative_cost: None,
+        additional_costs_paid: vec![kicker_red()],
+        mana_spent: ManaSpent::NONE,
+        cast_from: None,
+        ability_identity: None,
+        trigger: None,
+    });
+    resolve_top(&mut game, &test_dp());
+    place(&mut game, &test_dp());
+    while !game.stack.is_empty() {
+        resolve_top(&mut game, &test_dp());
+    }
+    assert_eq!(game.battlefield[&copy].cast, None, "not cast");
+    assert_eq!(life(&game, 0), 21, "and still kicked");
 }
 
 /// "If this spell was kicked" on an instant is read as it resolves, when

@@ -93,7 +93,9 @@ pub struct StackEntry {
     /// The zone this spell was cast from (CR 601.2a), captured before the card
     /// moved to the stack.
     ///
-    /// **Invariant: `cast_from.is_some() == is_spell`.** An activated ability is
+    /// **Invariant: `cast_from.is_some() == is_spell`** — until CV-4, since a
+    /// copy of a spell is a spell and isn't cast (CR 707.10), so it will be
+    /// `None` too. An activated ability is
     /// not cast from anywhere — CR 602.2a gives it a *source*, which is a
     /// different fact, and folding the two together is how a field starts
     /// drifting. `None` for abilities is the honest answer, not a missing value.
@@ -145,8 +147,10 @@ pub struct ResolvingObject {
     /// CR 400.7d's facts about the spell, off its `StackEntry`, carried the
     /// same way for the same reason: `place_on_battlefield` writes
     /// `PermanentState::cast` off them, and the entry is gone by then. `None`
-    /// for an ability.
+    /// for an ability, and for a copy of a spell, which isn't cast.
     pub cast: Option<crate::state::battlefield::CastFacts>,
+    /// Its CR 707.10 cost decisions, which a copy keeps. Empty for an ability.
+    pub cost_choices: crate::state::battlefield::CostChoices,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
@@ -1250,12 +1254,13 @@ impl GameState {
         let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
-        // CR 400.7d — who cast it and from where, off the resolving spell's
-        // entry; a permanent that arrives any other way was not cast.
-        entry.cast = match &self.resolving {
-            Some(r) if r.id == id => r.cast.clone(),
-            _ => None,
-        };
+        // CR 400.7d — how it was cast and what its costs were, off the
+        // resolving spell's entry. A permanent that arrives any other way was
+        // never a spell, and its `PermanentState::new` defaults say so.
+        if let Some(r) = self.resolving.as_ref().filter(|r| r.id == id) {
+            entry.cast = r.cast;
+            entry.cost_choices = r.cost_choices.clone();
+        }
         self.insert_battlefield_entity(id, entry);
         self.bump_layer_epoch();
 
@@ -2449,7 +2454,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,

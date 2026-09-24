@@ -540,6 +540,7 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
+    use crate::types::mana::ManaSpent;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase};
@@ -670,7 +671,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -703,7 +704,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
@@ -725,7 +726,7 @@ mod tests {
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),
-            mana_spent: Default::default(),
+            mana_spent: ManaSpent::NONE,
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,

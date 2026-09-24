@@ -319,7 +319,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<ManaSpent, String> {
         let mut moved_an_object = false;
-        let mut spent = ManaSpent::default();
+        let mut spent = ManaSpent::NONE;
         for (idx, cost) in plan.ordered.iter().enumerate() {
             let result = self.pay_single_cost(
                 cost, player_id, source_id, plan, idx, &mut spent, ctx,

@@ -24,7 +24,7 @@
 use crate::engine::layers::board::Board;
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
-use crate::state::battlefield::CastFacts;
+use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
@@ -156,10 +156,11 @@ pub(super) fn holds(
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
-        // CR 702.33d — a fact about the spell as it was cast, which CR 400.7d
-        // keeps on the permanent it became. Anything not cast was not kicked.
-        Condition::SpellWasKicked => cast_facts(game, source).is_some_and(|facts| {
-            facts.additional_costs_paid.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
+        // CR 702.33d, read off the cost decisions and not off the cast: a copy
+        // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
+        // the token it becomes; a permanent that was never a spell is not.
+        Condition::SpellWasKicked => cost_choices(game, source).is_some_and(|choices| {
+            choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
         }),
 
         // An answer a *resolution* had and a static ability never does:
@@ -194,12 +195,12 @@ pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) 
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
 }
 
-/// CR 400.7d's record of how `source` was cast: the resolving spell's, whose
+/// CR 707.10's cost decisions for `source`: the resolving spell's, whose
 /// `StackEntry` resolution has taken, or the permanent's it became.
-fn cast_facts(game: &GameState, source: ObjectId) -> Option<&CastFacts> {
+fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
     match &game.resolving {
-        Some(r) if r.id == source => r.cast.as_ref(),
-        _ => game.battlefield.get(&source).and_then(|e| e.cast.as_ref()),
+        Some(r) if r.id == source => Some(&r.cost_choices),
+        _ => game.battlefield.get(&source).map(|e| &e.cost_choices),
     }
 }
 
@@ -443,10 +444,11 @@ mod tests {
         assert!(!settled_holds(&anywhere, &game, ObjectId::UNASSIGNED));
     }
 
-    /// A permanent that arrived any way but resolving has no cast to have
-    /// been kicked in, and says so rather than asserting.
+    /// "If you put a permanent with a kicker ability onto the battlefield
+    /// without casting it, you can't kick it" (Archangel of Wrath's ruling):
+    /// it was never a spell, so there were no costs to decide.
     #[test]
-    fn a_permanent_that_was_not_cast_was_not_kicked() {
+    fn a_permanent_that_was_never_a_spell_was_not_kicked() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
         assert!(!settled_holds(&Condition::SpellWasKicked, &game, bears));

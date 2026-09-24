@@ -474,10 +474,13 @@ impl ManaAtom {
 /// source is gone by the time it is spent, so "mana from a Treasure" and
 /// CR 107.4h's `{S}` have no answer here. `codebase-state.md` item 33 owns the
 /// per-unit record; it replaces this body and keeps the accessors.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ManaSpent([u64; 6]);
 
 impl ManaSpent {
+    /// No mana: an ability, a copy of a spell, a spell cast without paying.
+    pub const NONE: ManaSpent = ManaSpent([0; 6]);
+
     fn add(&mut self, mana_type: ManaType, amount: u64) {
         self.0[mana_type as usize] += amount;
     }
@@ -863,7 +866,7 @@ impl ManaPool {
             }
         }
 
-        let mut spent = ManaSpent::default();
+        let mut spent = ManaSpent::NONE;
         for (&mana_type, &required) in &need {
             self.remove(mana_type, required)?;
             spent.add(mana_type, required);
