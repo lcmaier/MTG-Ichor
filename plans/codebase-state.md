@@ -1367,8 +1367,8 @@ registered card returns an object.
     and removes the regenerating creature from combat — and it does the job
     properly in both directions: an attacker leaving combat also stops being
     *blocked by* its blockers, and a blocker leaving stops appearing in the
-    attackers' `blocked_by` lists, with CR 506.4b's "remains blocked even if all
-    creatures blocking it are removed" deliberately preserved. **Recorded so the
+    attackers' `blocked_by` lists, with CR 509.1h's "remains blocked even if all
+    the creatures blocking it are removed" deliberately preserved. **Recorded so the
     combat phase uses it rather than writing a second one**; a one-line
     `entry.attacking = None` is the version that looks right and is not. No
     action owed before then. (It is also the sizing lesson: a phase split on

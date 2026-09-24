@@ -463,7 +463,8 @@ rule that reads it from every zone reached it. None is reachable today.
 
 **The follow-up list**: three wrong citations, small enough to fix on sight.
 All but one sit in `src/` comments, so they wait for a code PR, and the one in
-a plan (main item 18) goes with its twin in the source.
+a plan (main item 18) goes with its twin in the source. **All three were fixed
+in item 176's PR (2026-09-24)**, the first code PR after the sweep.
 - `PlayerState.counters`' doc says CR 613.7c timestamps counters on objects.
   The rule says "an object or player". Its conclusion, that no layer reads a
   player's, stands.
