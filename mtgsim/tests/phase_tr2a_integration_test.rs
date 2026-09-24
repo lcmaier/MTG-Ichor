@@ -706,6 +706,39 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
     assert!(!has_keyword(&game, late, KeywordFlag::Flying));
 }
 
+/// The same pump on a {W} instant whose controller changes while it waits on
+/// the stack, as a Commandeer's would: "you" is the spell's controller as it
+/// resolves (CR 109.5), which is when the set is fixed (CR 611.2c), so the new
+/// controller's creature gets it and the caster's does not.
+#[test]
+fn a_filtered_one_shot_reads_you_as_its_spell_resolves() {
+    let mut game = setup_two_player_game();
+    let casters = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let new_controllers = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let yours = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(a_creature()),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    ));
+    let pump = Effect::Atom(
+        Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(1), Duration::UntilEndOfTurn),
+        yours,
+    );
+    let rally = CardDataBuilder::new("Rally Fixture")
+        .card_type(CardType::Instant)
+        .mana_cost(ManaCost::build(&[ManaType::White], 0))
+        .ability(spell_ability(pump))
+        .build();
+    let rally = put_in_hand(&mut game, rally, 0);
+    game.players[0].mana_pool.add(ManaType::White, 1);
+    let dp = ManaWindowStop::new(ScriptedDecisionProvider::new());
+    game.cast_spell(0, rally, &dp).expect("cast from an exact pool");
+    game.stack_entries.get_mut(&rally).expect("on the stack").controller = 1;
+    resolve_top(&mut game, &dp);
+
+    assert_eq!(get_effective_power(&game, new_controllers), Some(3), "its controller's as it resolved");
+    assert_eq!(get_effective_power(&game, casters), Some(2), "not its caster's");
+}
+
 // ---------------------------------------------------------------------------
 // CR 121.2c — several players drawing: the active player first (item 122)
 // ---------------------------------------------------------------------------
