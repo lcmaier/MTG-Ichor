@@ -8246,7 +8246,8 @@ and the reading below, which the audit makes and the dispatcher does not.
      before (a departure's frame, a newcomer's entry), and a look-back arm is
      asked of it only for the records that batch performed — the audit's
      rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
-     the dispatcher's own candidates.
+     the dispatcher's own candidates. Item 176's record design, before TR-4,
+     takes this item as an input (2026-09-24).
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8313,8 +8314,15 @@ linked-ability records an entry makes.
 
      **Sized:** a design section first, in `replacement-architecture.md`'s
      event spine with a pointer from `triggers-architecture.md`'s `ZoneChange`
-     pattern row, reviewed before any code. It carries the reader interface
-     with the record: act words read the act, destination words `to`,
+     pattern row, reviewed before any code. **It covers the zone-change
+     record's whole contract**, not only these three questions: which object
+     the move made (item 177) and the moment each fact is taken at (item 175)
+     are the same record's. Seven of the eleven items opened since TR-1 sit on
+     that surface (167, 168, 169, 174, 175, 176, 177), found one review or
+     audit at a time because the record was never designed as a unit: the
+     replacement docs designed the proposal, the triggers doc the matcher.
+     The section takes 175 and 177 as inputs and says whether each keeps its
+     own slot. It carries the reader interface with the record: act words read the act, destination words `to`,
      performer words the performer, and "this way" the redirecting
      replacement, so a pattern cannot name "exiled" as an act. The record's
      diff is smaller than the 238 `ZoneChangeCause` sites (44 in `src`, 194 in
@@ -8330,8 +8338,16 @@ linked-ability records an entry makes.
      - whether the performer lives on the stamp, where every event kind would
        have one, or on `ZoneChange`.
 
-     **Back-stop:** TR-2, whose trigger arms are the first readers of any of
-     the three.
+     **Back-stop:** before TR-4, designed and reviewed first. TR-4 widens the
+     zone-change record (CR 603.10a's other two classes) and lands item 177,
+     so the contract is settled before that phase touches it. This PR's first
+     re-scope said TR-2, on the assumption that TR-2's arms read the record
+     first. They do not: none of TR-2–TR-6's registered cards or arms reads a
+     cause, a performer or a redirect (`triggers-architecture.md` §12). TR-2
+     reads draws, life, casts and shuffles; TR-4's zone-change cards read
+     destinations; Multani's Presence reads `SpellCountered`. The first
+     readers are Phase 8's sacrifice and discard triggers, "this way" clauses
+     and madness.
 
      **Fixed 2026-09-24**, `replacement/instead-keeps-the-act`: the act.
      `ZoneChangeTo { to }` names only a destination and `substitute` keeps the
@@ -8402,4 +8418,5 @@ keeps the cost decisions).
        event put a creature there; the creature's dies trigger then does
        nothing.
 
-     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002).
+     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
+     item 176's design settles just before TR-4.

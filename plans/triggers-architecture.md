@@ -1920,7 +1920,12 @@ the spine every later phase reads; TR-2's histories are what TR-3's
 "this turn" durations and TR-5's `FirstTimeEachTurn` read; TR-3 builds
 `ReturnToBattlefield`, which TR-4's persist and Rancor need; TR-4 widens
 the frame TR-5's combat shapes never read; TR-6 is last because the loop
-detector reads every prompt the earlier phases add.
+detector reads every prompt the earlier phases add. **Between TR-3 and
+TR-4, `codebase-state.md` item 176's zone-change record design** (the
+owner, 2026-09-24): what was done, who did it, which replacement redirected
+it, the object the move made (item 177) and the moment each fact is taken
+at (item 175), designed and reviewed before code. TR-4 widens that record,
+and no earlier phase's card reads the parts it settles.
 
 ### TR-1 — the spine: dispatch, the queue, placement, the stack object — ✅ landed 2026-09-19
 

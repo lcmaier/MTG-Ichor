@@ -631,7 +631,8 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
   2026-09-24**: a redirect keeps the act. The record still cannot name the
   replacement that redirected it, which madness's trigger needs, and it
   mixes what was done with who did it. → `codebase-state.md` item 176,
-  re-scoped to those three facets, back-stopped at TR-2.
+  re-scoped to those three facets and the record's whole contract,
+  back-stopped before TR-4.
 - **References held across a move: a fourth kind.**
   `RegisteredReplacementEffect.targets`, which item 90's rider reads. →
   main item 10, sharpened.
