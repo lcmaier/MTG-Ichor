@@ -18,11 +18,12 @@ use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
+use mtgsim::cards::phase_re_cards::alms_collector;
 use mtgsim::engine::actions::{DestructionSource, DrawCause, GameAction, LifeLossCause};
 use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::DamageTarget;
+use mtgsim::events::event::{DamageTarget, GameEvent, LossReason};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
@@ -30,8 +31,8 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::state::history::TurnSummary;
 use mtgsim::test_support::{
-    creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, setup_two_player_game, stock_libraries, test_ctx,
-    test_dp, RecordingDecisionProvider,
+    creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
+    setup_two_player_game, stock_libraries, test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -689,4 +690,109 @@ fn a_filtered_one_shot_applies_to_the_permanents_it_matched_as_it_resolved() {
     assert!(!has_keyword(&game, theirs, KeywordFlag::Flying));
     assert_eq!(get_effective_power(&game, late), Some(2), "arrived after the set was fixed");
     assert!(!has_keyword(&game, late, KeywordFlag::Flying));
+}
+
+// ---------------------------------------------------------------------------
+// CR 121.2c — several players drawing: the active player first (item 122)
+// ---------------------------------------------------------------------------
+
+/// Who drew, in the order the log recorded it.
+fn draw_order(game: &GameState) -> Vec<PlayerId> {
+    game.events
+        .events()
+        .filter_map(|e| match e {
+            GameEvent::CardDrawn { player_id, .. } => Some(*player_id),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `player` resolves "draw `n` cards" as one instruction.
+fn draw_instruction(game: &mut GameState, player: PlayerId, n: u64) {
+    let draw = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(n)), EffectRecipient::Controller);
+    let source = put_in_hand(game, grizzly_bears(), player);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: player,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&draw, &ctx, &test_dp()).expect("the draw");
+}
+
+/// Alms Collector's "instead you and that player each draw a card" is one
+/// instruction to two players, and CR 121.2c has the active player draw
+/// first, whichever of the two that is.
+#[test]
+fn alms_collectors_two_draws_come_out_active_player_first() {
+    // The Collector's controller is active.
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    put_on_battlefield(&mut game, alms_collector(), 0);
+    draw_instruction(&mut game, 1, 2);
+    assert_eq!(draw_order(&game), vec![0, 1]);
+
+    // The affected player is active.
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    set_active_player(&mut game, 1);
+    put_on_battlefield(&mut game, alms_collector(), 0);
+    draw_instruction(&mut game, 1, 2);
+    assert_eq!(draw_order(&game), vec![1, 0]);
+}
+
+/// "Each player draws a card" at four seats: the active player, then the
+/// rest in turn order, and a player who has left the game draws nothing
+/// (CR 101.4, 121.2c, 800.4a).
+#[test]
+fn each_player_draws_in_apnap_order_over_the_seats_still_in_the_game() {
+    let mut game = setup_game(4);
+    stock_libraries(&mut game, 5);
+    set_active_player(&mut game, 2);
+    game.execute_action(GameAction::PlayerLoses { player: 3, reason: LossReason::Effect }, &test_ctx())
+        .unwrap();
+    let each_draws = Effect::Atom(
+        Primitive::DrawCards(AmountExpr::Fixed(1)),
+        EffectRecipient::EachPlayer(PlayerSet::Everyone),
+    );
+    let source = put_in_hand(&mut game, grizzly_bears(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&each_draws, &ctx, &test_dp()).expect("the draws");
+    assert_eq!(draw_order(&game), vec![2, 0, 1]);
+}
+
+/// The atom's own board: "each player draws 3 cards" with P0 active. P0
+/// performs all three draws, then P1 (CR 121.2c).
+// COVERS: ATOM-121.2c-001
+#[test]
+fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 5);
+    let each_draws_three = Effect::Atom(
+        Primitive::DrawCards(AmountExpr::Fixed(3)),
+        EffectRecipient::EachPlayer(PlayerSet::Everyone),
+    );
+    let source = put_in_hand(&mut game, grizzly_bears(), 1);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 1,
+        targets: ChosenTargets::NONE,
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&each_draws_three, &ctx, &test_dp()).expect("the draws");
+    assert_eq!(draw_order(&game), vec![0, 0, 0, 1, 1, 1]);
 }

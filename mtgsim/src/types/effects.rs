@@ -628,6 +628,16 @@ pub enum EffectRecipient {
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
+    /// "Each player", "each opponent": every player the set names, over the
+    /// seats still in the game, in CR 101.4's APNAP order at resolution. A
+    /// draw instruction to several players is performed one player at a time
+    /// in that order (CR 121.2c).
+    EachPlayer(PlayerSet),
+    /// "You and that player": the effect's controller and the player its first
+    /// instance names, which for a CR 615.5 rider is the replaced event's
+    /// subject. Ordered as [`Self::EachPlayer`] orders its set. Alms
+    /// Collector's "instead you and that player each draw a card".
+    YouAndThatPlayer,
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,

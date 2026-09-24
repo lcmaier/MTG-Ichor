@@ -163,6 +163,20 @@ impl GameState {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
             }
+            // "Each player", "you and that player": every player named, in APNAP
+            // order (CR 101.4), handed to the primitive as its players. Only a
+            // primitive that says what several players at once means takes it.
+            Effect::Atom(primitive, recipient @ (EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer)) => {
+                if !matches!(primitive, Primitive::DrawCards(_)) {
+                    return Err(format!(
+                        "{:?} on {:?} is not built for {:?}; CR 121.2c's draw is the one that is",
+                        recipient, ctx.source, primitive
+                    ));
+                }
+                let players: Vec<ResolvedTarget> =
+                    self.each_player(recipient, ctx).into_iter().map(ResolvedTarget::Player).collect();
+                self.resolve_primitive(primitive, recipient, &players, ctx, dp)
+            }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
             Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
@@ -365,20 +379,28 @@ impl GameState {
 
             Primitive::DrawCards(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
-                // Drawing targets the controller (EffectRecipient::Controller or None)
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
-                // **One instruction, whatever `count` is** (CR 121.2a); its performer
-                // does CR 121.2's individual draws. A loop here would make "draw three
-                // cards" three instructions, the distinction Alms Collector's ruling turns
-                // on ("count how many times the word 'draw' is used").
-                self.execute_action(
-                    GameAction::DrawCards {
-                        player: player_id,
-                        n: count,
-                        cause: DrawCause::Effect,
-                    },
-                    &actx,
-                )?;
+                // **One instruction per player, whatever `count` is** (CR 121.2a);
+                // its performer does CR 121.2's individual draws. A loop over the
+                // count would make "draw three cards" three instructions, the
+                // distinction Alms Collector's ruling turns on ("count how many
+                // times the word 'draw' is used"). Several players draw one at a
+                // time, in the APNAP order `each_player` gave them (CR 121.2c).
+                let players: Vec<PlayerId> = match recipient {
+                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Player(pid) => Some(*pid),
+                            ResolvedTarget::Object(_) => None,
+                        })
+                        .collect(),
+                    _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
+                };
+                for player in players {
+                    self.execute_action(
+                        GameAction::DrawCards { player, n: count, cause: DrawCause::Effect },
+                        &actx,
+                    )?;
+                }
                 Ok(())
             }
 
@@ -1148,6 +1170,13 @@ impl GameState {
                             .collect()
                     }
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // A row per player (Kitsune Palliator) is `codebase-state.md` item 94's.
+                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => {
+                        return Err(format!(
+                            "a `Primitive::CreateReplacement` on {:?} names each of several players; item 94",
+                            ctx.source
+                        ));
+                    }
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
                     // order. A row on a card in another zone is §3.3 source 2 and needs
@@ -1442,6 +1471,10 @@ impl GameState {
                         })
                         .collect(),
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // Refused at the atom: "each player shuffles" waits for its card.
+                    EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer => {
+                        return Err(format!("{:?} on a `Primitive::ShuffleLibrary` is not built", recipient));
+                    }
                     EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::FilteredObjectsIn(..)
                     | EffectRecipient::Host => {
@@ -2141,6 +2174,25 @@ impl GameState {
                 }
             }
         })
+    }
+
+    /// The players an `EachPlayer` or `YouAndThatPlayer` recipient names, over
+    /// the seats still in the game, in APNAP order (CR 101.4): the active
+    /// player first, then the rest in turn order.
+    fn each_player(&self, recipient: &EffectRecipient, ctx: &ResolutionContext) -> Vec<PlayerId> {
+        let that_player = ctx.targets.instance(0).iter().find_map(|t| match t {
+            ResolvedTarget::Player(pid) => Some(*pid),
+            ResolvedTarget::Object(_) => None,
+        });
+        let named = |player: PlayerId| match recipient {
+            EffectRecipient::EachPlayer(set) => set.contains(ctx.controller, player),
+            EffectRecipient::YouAndThatPlayer => player == ctx.controller || Some(player) == that_player,
+            _ => false,
+        };
+        let mut players: Vec<PlayerId> =
+            (0..self.num_players()).filter(|&p| self.in_game(p) && named(p)).collect();
+        players.sort_by_key(|&p| self.apnap_index(p));
+        players
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,

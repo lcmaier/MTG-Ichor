@@ -560,10 +560,8 @@ fn each_draw_of_an_instruction_completes_before_the_next_is_proposed() {
 /// for each of two players, so a pair of replaced instructions produces an
 /// alternating log rather than a run.
 ///
-/// The order inside each pair is the affected player's draw and *then* the
-/// rider's, which is §4.1a — a rider resolves after the event it rides on. It
-/// is deliberately not the card's text order ("you and that player"), and it is
-/// not CR 121.2c's turn order either; `codebase-state.md` item 122 owns that.
+/// The order inside each pair is CR 121.2c's: the active player draws first.
+/// Player 0 is active here, so each pair is P0 then P1.
 #[test]
 fn a_riders_draws_resolve_before_the_next_instruction_begins() {
     let mut game = stocked(2);
@@ -571,7 +569,7 @@ fn a_riders_draws_resolve_before_the_next_instruction_begins() {
 
     // Two instructions of two, back to back. Each is replaced, and each
     // replacement's two draws happen before the next instruction is proposed:
-    // P1 P0 P1 P0, not P1 P1 P0 P0.
+    // P0 P1 P0 P1, not P0 P0 P1 P1.
     let twice = Effect::Sequence(vec![
         Effect::Atom(
             Primitive::DrawCards(AmountExpr::Fixed(2)),
@@ -592,7 +590,7 @@ fn a_riders_draws_resolve_before_the_next_instruction_begins() {
             _ => None,
         })
         .collect();
-    assert_eq!(order, vec![1, 0, 1, 0], "CR 121.6b — the replacement completes first");
+    assert_eq!(order, vec![0, 1, 0, 1], "CR 121.6b — the replacement completes first");
 }
 
 // ---------------------------------------------------------------------------
