@@ -120,6 +120,17 @@ something".
 **The unit is the type *and the functions that gate on it*.** §3 is why: one of
 the six is invisible at the field level.
 
+**Two checks per fact, added 2026-09-24** after item 30's shape was fixed twice
+in review (§4a):
+
+1. **Recorded when it exists, on the path production takes.** A type with a
+   track that could hold the fact does not count if production never fills it,
+   and a fact that exists only for a moment has to be captured in that moment.
+2. **Its shape survives the rules that watch it.** At least a copy (CR 707.10:
+   what a copy keeps and what it doesn't get), a zone change (CR 400.7), a
+   control change, a replacement (CR 614: the modified event, not the proposed
+   one), and per unit against aggregate.
+
 ---
 
 ## 3. Calibration — run the question against what you already know
@@ -148,6 +159,17 @@ is how §2's table was framed in the first place.
 
 The method passes. It is also honest about its own reach: **it finds what a
 type cannot say, not what a type says wrongly.** Reviews own the other half.
+
+**Run again 2026-09-24, for §2's two checks**, against item 30 as it stood at
+`7a7820c`, before PR #181 reshaped it. The run was blind: a subagent worked in a
+worktree at that commit, was not told what #181 changed, and had the checks
+without their examples. **It re-found both halves.** The copy leg found that
+the cost decisions held inside `Option<CastFacts>` answer "was it kicked" or
+"was it cast" wrongly for a copy of a kicked permanent spell, which is #181's
+`CostChoices`. Check 1 with the per-unit leg found that a unit's source is gone
+at `pool.add`, so capturing it at CR 601.2h is too late, which is item 33's
+slot. The worktree had no CR, since `MTG-Rules/` is untracked, so the run cited
+rules from quotes in the tree. Its other readings are in §4a.
 
 ---
 
