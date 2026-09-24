@@ -240,14 +240,10 @@ pub enum ZoneChangeCause {
     Fizzled,
 
     // --- Commander (CR 903) ---
-    /// CR 903.9b — a commander that would go to its owner's hand or library
-    /// goes to the command zone instead, if its owner chooses. A *replacement*,
-    /// and the rules' only stated exception to CR 614.5.
-    CommanderZoneReplacement,
     /// CR 704.6d / 903.9a — a commander in a graveyard or exile is moved to the
-    /// command zone by a **state-based action**, not by a replacement effect.
-    /// Two rules, two variants: the engine's reason for the move differs even
-    /// though the destination does not.
+    /// command zone by a **state-based action**. CR 903.9b's replacement has no
+    /// variant: it changes only the destination, so the move keeps the act it
+    /// replaced, a bounce or a tuck (CR 614.6).
     CommanderZoneSba,
 
     // --- multiplayer (CR 800.4) ---
