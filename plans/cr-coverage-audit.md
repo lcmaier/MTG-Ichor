@@ -221,7 +221,7 @@ standing check that the criterion holds — three ran, three earned their
 keep. *That promise lapsed between `3c322e5` and 2026-09-24, while `GameState`
 went from 28 fields to 52; §4a is the catch-up.*
 
-**Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement, then pass 2, triggers.**
+**Rows added by the re-sweep (2026-09-24, §4a): pass 1, replacement; pass 2, triggers; pass 3, cost.**
 
 | Type | What the CR wants that it can't say | Verdict |
 |---|---|---|
@@ -236,9 +236,13 @@ went from 28 fields to 52; §4a is the catch-up.*
 | `TriggerBinding` *(pass 2)* | the object a move made (CR 400.7e, 603.6c), which the `ZoneChange` record does not carry | item 177 |
 | `DepartureFrame`, `LookBackSnapshot` *(pass 2)* | a status (items 14, 15); a departed permanent's cost decisions (CR 603.4, 113.7a) | TR-4's frame; item 169, and `triggers-architecture.md` §3.11 amended |
 | the window (`EventLog`) *(pass 2)* | the state just after a record's own batch, once a rider has run (CR 603.4, 603.6a) | item 175, sharpened |
+| `StackEntry` *(pass 3: `trigger`, `mana_spent`)* | the objects that paid (CR 707.10, 400.7d); what a copy of it may keep (CR 707.10) | item 30's open half, sharpened; `copy-effects-architecture.md` §4.4 amended |
+| `CastFacts`, `CostChoices`, `ManaSpent` *(pass 3)* | a count of payments (multikicker, replicate, squad) | feature: the record can repeat, and the CR 601.2b announcement cannot ask for a number |
+| `ManaPool` *(pass 3, re-read)* | a unit's source; restrictions (CR 106.6, 107.4h) | item 33, as corrected above |
+| `TargetInstance` *(pass 3)* | a target that left and came back (CR 400.7) | main item 10's `target_epochs` |
+| `ResolvingObject` *(pass 3)* | — | **no gap** — CR 110.2b's default controller and CR 400.7d's facts, carried past the entry's removal |
 
-**Not yet swept: passes 3 and 4.**
-- **Cost:** `StackEntry` (`trigger`, `mana_spent`), `ResolvingObject` (beyond the entry), `CastFacts`, `CostChoices`, `ManaSpent`, `ManaPool` (re-read), `TargetInstance`.
+**Not yet swept: pass 4.**
 - **The rest:** `GameObject` (`timestamp`), `PlayerState` (`counters`), `RestrictionRegistry`, `DurationRegistry`, `TurnPlan` with `turn_queue` and `turn_rotation`, `GameResult` and `starting_life`.
 
 ---
@@ -277,7 +281,7 @@ fills. §2's two checks and §3's second run come from that.
 
 That is large, so the owner split it into four passes: **replacement, then
 triggers, then cost, then the rest**. §4 lists what each unswept pass owns.
-**Passes 1 and 2 ran on 2026-09-24.**
+**Passes 1, 2 and 3 ran on 2026-09-24.**
 
 **Pass 1: replacement (CR 614–616).** Card counts are Scryfall's
 `total_cards` for `game:paper -is:funny`, with the query beside each number.
@@ -325,6 +329,30 @@ condition the event met. The other two are planned shapes written before a
 rule or a split reached them: CR 603.2h's "its source's controller", and #181's
 cost decisions. None is reachable today.
 
+**Pass 3: cost (CR 601.2, 118, 106–107, 707.10).** The facts a cast records,
+where each lands, and what CR 707.10 lets a copy keep.
+
+| Fact | Where it lives | Recorded when it exists? | The rules that watch it | Verdict |
+|---|---|---|---|---|
+| Who cast it, and from where (601.2a, 400.7d) | `StackEntry.cast_from` → `CastFacts.by`/`.from` | yes | a copy isn't cast (707.10); after it leaves, §3.11's frame | no gap |
+| The mana spent, by type (601.2h, 400.7d) | `StackEntry.mana_spent` → `CastFacts.mana_spent` | yes, from `ManaPool::pay`'s return, on the plain pool production uses | a unit's source is item 33's; expend (700.14) is a `TurnSummary` field authored with its card, and the payment is on the entry when `SpellCast` dispatches | no gap |
+| The cost decisions (601.2b, 118.8–9) | `StackEntry` → `CostChoices` | yes | a copy keeps them (707.10). Multikicker (19 cards), replicate (19) and squad (15) count payments: the `Vec` can repeat an entry, but the announcement cannot ask for a number. 702.152b and 702.157b's per-instance identity goes with the printed position | feature; no gap in the record |
+| X (107.3m, 107.3h) | `x_value`, `StackEntry` → `PermanentState` | yes | a copy keeps it (707.10) | no gap |
+| Targets, one entry per instance (601.2c, 115.3) | `TargetInstance` | yes | a target that left and came back (400.7) | owned: main item 10's `target_epochs` |
+| Modes (601.2b, 700.2) | `chosen_modes`, never written | — (nothing is modal) | a copy keeps them | owned: item 31, `backlog.md` §2.7 |
+| **The objects that paid** (601.2h, 400.7d) | `PaymentPlan.sacrifices`, until the cast completes | **no** | a copy uses the original's (707.10); Fling reads one object's power from its LKI; convoke's objects never move | item 30's open half, sharpened: beside the cost decisions, a list of identities. 34 + 6 readers |
+| **What a copy of the spell gets** (707.10) | planned: CV-4's "`StackEntry` clone plus a new `ObjectId`" | planned | a clone keeps `cast_from`, `mana_spent` and `controller`, and 707.10 gives the copy none of the original's | `copy-effects-architecture.md` §4.4 amended |
+| **Storm's count** (702.40a) | planned: `TurnSummary.spells_cast`, read live | planned | a spell cast in response is not "before it"; 33 cards | `triggers-architecture.md` §3.10 amended |
+| A mana unit's source; restrictions (106.6, 107.4h) | dropped by the plain pool at `pool.add` | no | per unit | owned: item 33, slot B9 |
+
+**Pass 3 files no new item.** Production records each cost fact at its own
+moment. The one it does not record, the objects that paid, was already item
+30's open half. The findings are planned shapes around those facts:
+- CV-4's clone would keep three things a copy doesn't get (CR 707.10).
+- Item 30's objects must sit with what a copy keeps, the same split #181 made
+  for kicked (CR 707.10).
+- Storm's count would be read at the wrong moment (CR 702.40a).
+
 **The remainder, dispositioned.** 13 of the 25 fields added since `3c322e5`
 hold no fact about the game:
 - the five fast-path gates over printed abilities, which are indexes and fall
@@ -337,10 +365,11 @@ hold no fact about the game:
 - `nesting`, whose type `NestingGuards` guards the engine rather than a rule;
 - two id allocators, `next_trigger_seq` and `next_object_id`.
 
-**Carried to pass 3, from §3's run.** CV-4 plans a copy of a spell as a clone of
-its `StackEntry`, and that clone keeps `mana_spent` unless it is cleared by hand.
-The run also doubted whether `CostChoices.additional` can say how many times a
-multikicker was paid. Both belong to the cost pass.
+**Carried to pass 3 from §3's run, and answered there.** CV-4's clone would
+keep `mana_spent`, and also `cast_from` and `controller`, so
+`copy-effects-architecture.md` §4.4 is amended. The multikicker count is a
+feature: `CostChoices.additional` can repeat an entry, and the announcement
+cannot yet ask for one.
 
 **Fixed on sight: nothing.** The one wrong answer, item 176, needs a design line
 and an A/B because it changes whether a CR 616.1 prompt appears, so it is an
@@ -484,6 +513,13 @@ was travelling under another mechanic's section number. → backlog §2.2, §3.
   → item 175, sharpened.
 - **CR 603.2h's gate keyed without its controller** (pass 2). →
   `triggers-architecture.md` §3.5, §6.4, §7, amended.
+- **What a copy of a spell gets** (pass 3). CV-4's planned `StackEntry` clone
+  would keep `cast_from`, `mana_spent` and `controller`. →
+  `copy-effects-architecture.md` §4.4, amended.
+- **Storm's count, read at resolution** (pass 3). →
+  `triggers-architecture.md` §3.10, amended.
+- **The objects that paid** (pass 3). The list belongs with what a copy
+  keeps, and holds identities rather than a count. → item 30, sharpened.
 
 ---
 
@@ -563,8 +599,7 @@ into a darkness one.
 
 - **Settled.** §5.1 is `codebase-state.md` Deferred Migrations item 30 — its
   back-stop is **CV**, not RC (`77bda5e`). §5.3's three are `backlog.md` §2.
-- **Open: passes 3 and 4 of the re-sweep** (§4a): cost, then the rest. §4
-  lists which types each pass covers.
+- **Open: pass 4 of the re-sweep** (§4a), the rest. §4 lists its types.
 - **Open — the second vocabulary, now three rules.** `DUPLICATE` (305.9) was
   the fourth and is **settled**: `1f2c8da` restated it as `ALREADY-IMPLEMENTED`
   with the duplication explained in prose, which is the worked example for the

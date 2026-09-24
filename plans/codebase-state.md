@@ -1760,6 +1760,35 @@ section never asked.
     (ATOM-707.10-002, Fling) and a sacrificed one is read from its LKI, which
     is TR-4's frame; the design constraint still lands at CV.
 
+    **The open half, checked against its readers (the type-surface re-sweep,
+    2026-09-24, `cr-coverage-audit.md` §4a pass 3).** `PaymentPlan.sacrifices`
+    holds the objects a payment sacrifices at CR 601.2h, and it is dropped
+    when the cast completes. That is the only moment the fact exists. Three
+    constraints for whoever records it:
+    - **It goes on the side a copy keeps.** CR 707.10 says a copy "uses the
+      objects used to pay the costs of the original spell". So the list sits
+      beside `CostChoices`, not in `CastFacts`, the same split #181 made for
+      kicked.
+    - **It is a list of identities, not a count.** Fling and Rite of
+      Consumption read one object's power, from its last known information
+      once it has left. 34 cards read back an object sacrificed as an
+      additional cost: `o:"as an additional cost to cast this spell,
+      sacrifice" (o:"sacrificed creature" or o:"sacrificed permanent" or
+      o:"sacrificed artifact")`. Venerated Loxodon's "each creature that
+      convoked it" reads objects that never moved (6 cards, `o:"convoked"`).
+      So each entry is an `ObjectRef` taken after the payment.
+    - **The last known information of the moved ones is TR-4's frame,** as
+      above.
+
+    **Reachability (2026-09-24):** unreachable — no registered card reads an
+    object spent on a cost, and convoke, delve and improvise are not built.
+
+    **Sized:** ~40–60 lines, landing with CV-4 (the first reader through CR
+    707.10) or the first Fling-shaped card, whichever comes first. The list
+    goes on `StackEntry` beside the cost decisions and is carried to
+    `ResolvingObject` and the permanent the same way; the frames come from
+    TR-4.
+
     **Reachability (2026-09-23):** unreachable — no registered card reads a
     cast cost or the mana spent; the fixtures in `phase_tr1_integration_test.rs`
     are the customer.

@@ -716,6 +716,20 @@ too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
 (the variant, the `holds` arm, the `condition_reads` arm, which for a
 summary read is "nothing" — no frame is read).
 
+**Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): a count "before
+it" is taken at its record.** Storm copies a spell "for each other spell that
+was cast before it this turn" (CR 702.40a). That covers 33 cards (`kw:storm`)
+plus Thousand-Year Storm's "cast before it this turn". The trigger resolves
+later, and a spell cast in response advances `spells_cast` without being
+before it. So a leaf that reads the live summary at resolution counts too
+many.
+
+The count is every player's casts this turn, taken at the storm spell's
+`SpellCast` record. The dispatcher advances the summaries record by record,
+so the count is known there, and it has to travel with the trigger. The
+smallest form is `SpellCast` carrying the turn's ordinal. It is authored with
+the first storm card, like any other field in the summary.
+
 ### 3.11 `LastKnownInformation` — the LKI frame, widened (items 14, 15)
 
 CR 603.10 says "the appearance of objects immediately prior to the
