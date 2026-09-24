@@ -229,3 +229,97 @@ The audit is 284 lines where it was 468 (28 and 48 of them unit tests), and cost
 2.2×, 2.3× and 2.7× the CPU per game at two seats, four and Commander scale
 where it cost 11×, 14× and 19×. What it gave up is checking the shared loop's
 rules on its own, so F1's demonstration no longer reproduces.
+
+#### TR-2a — the histories, the gates, and each player — ✅ landed 2026-09-24
+
+*Evicted 2026-09-24 from `plans/triggers-architecture.md` §12, where the heading and a stub remain. TR-2 was sized whole; the plan below is that sizing as written, and TR-2b's half of it stays live in §12.*
+
+### The plan as sized (TR-2, as §12 carried it on 2026-09-23)
+
+| Piece | ~additions |
+|---|---|
+| `TurnSummary`, `PlayerHistory`, `own_turns`, the record-by-record advance, the four `Condition` leaves (three edits each), `FirstTimeEachTurn`, the two gate sets and their two writers, `TriggerLimit` on the def, the 603.7h count off `AbilityResolved` and its condition, the arms `DrawsCard`, `GainsLife`, `LosesLife`, `CastsSpell`, `AbilityResolves`, `ShufflesLibrary`; `Condition::ResolvedThisTurn(n)` (§6.5); the `departed` frames and their reader (§6.1's amendment) | ~550 |
+| `Effect::Optional` with `OptionalEffect` and its chooser, `last_cost_answer` for "if you do / don't / can't" (§6.2's amendment; main item 24), 118.12's cost-object check | ~160 |
+| `EffectRecipient::EachPlayer(PlayerSet)` in APNAP order (S2, item 122); Alms Collector's rider re-encoded | ~80 |
+| cards: **Paladin of Atonement** (last turn, whoever's; `AmountExpr::TriggeringToughness` off the frame), **Vengeful Warchief** ("for the first time each turn"), **Elvish Warmaster** ("one or more", "triggers only once each turn"), **Nykthos Paragon** (603.2h, "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Temple Bell** (each player draws), **Cosi's Trickster** ("whenever an opponent shuffles", "may"; its three rulings); Warchief, Warmaster, Crawler and Trickster pooled (the histories, the gate, `EachPlayer`, the shuffle arm) | ~400 |
+| tests, 24: §13's 9 TR-2 atoms (603.1b's fixture in Avatar Aang's shape is one; 118.12-002 partial, on Wicked Guardian's prevented damage); Nykthos Paragon's six rulings as six tests; Cosi's Trickster's three; Elvish Warmaster's once each turn; Ashling the Pilgrim's count as a fixture (the card needs two amount leaves and waits); 121.2c against Alms Collector; the elision's binding-read board (below); an "if you can't" fixture; an enters trigger's "if" and power read after its source is sacrificed in response (§6.1). The pregame-sweep question is measured too, a probe recorded and not a test | ~890 |
+| docs, ledger, record | ~260 |
+
+**Carried in from the TR-1 review** (2026-09-22):
+
+- **Before it:** the review's theme E — provenance ids (§3.6's amendment),
+  which TR-2's gates key on, and item 167's snapshot (§4.3). Both landed
+  2026-09-22. **And item 30's capture (the rulings pass, 2026-09-23), its
+  own PR:** mana spent recorded at payment, with the additional and
+  alternative costs `StackEntry` already holds, carried to `CastFacts`. A
+  fact, so recorded on sight (`engineering-practices.md` §5), and TR-2 would
+  pass the band carrying it; its readers come with their cards. **Landed
+  2026-09-23**, the mana by type; its source is `roadmap-v2.md` §3a B9.
+- **Its first commit:** `StackWatcher` moves to `test_support` — five uses in
+  `phase_tr1_integration_test.rs` today, and every trigger phase asks
+  "before priority".
+- **Beside its binding reader:** item 163's elision compares only the bound
+  facts the effect *reads* (walk it for the three `Triggering*` leaves), so
+  two landfall triggers from two lands stop prompting when the effect
+  ignores the land. Tireless Provisioner is correct today: its
+  Food-or-Treasure choice is CR 608.2d's, made as the effect applies (no
+  bulleted modes, CR 700.2), so two identical stack objects give the same
+  game in either order.
+
+### The split (2026-09-24)
+
+Re-counted before any code, by §12's method: 37 lines a test, and ×1.9 on
+the largest code row for the top end.
+
+| | code | top end | tests | code + tests |
+|---|---|---|---|---|
+| TR-2, 2026-09-23 | 1,190 | 1,685 | ~890 (24) | 2,080–2,575 |
+| TR-2, re-counted | 1,635 | 2,050 | ~1,480 (40) | 3,115–3,530 |
+| TR-2a, as split | 925 | 1,360 | ~700 (19) | 1,630–2,065 |
+| TR-2b, as split | 710 | 910 | ~780 (21) | 1,490–1,690 |
+
+The growth had three sources:
+- **The amendments.** The gate keyed by controller, frames from every zone,
+  and the frame's cost decisions came to about 125 lines.
+- **Gaps the card row hid,** about 230 lines:
+  - no recipient for "this creature";
+  - one-shots over "each creature you control" doing nothing;
+  - Psychosis Crawler's CDA reading hand size.
+- **Rulings the row had not counted,** nine tests.
+
+The owner took the split with "each player" moved into TR-2a. That put item
+122, which was reachable and wrong, in the first PR. The owner's other
+decisions at the sizing:
+- **Names.** `EffectRecipient::ThisObject`, not `This`, and a rule for names
+  read at the call site (`engineering-practices.md` §2b).
+- **`last_cost_answer`** lives in the resolver's walk (§6.2).
+- **§3.10's fields** are built now, each named for the side it counts.
+- **The lifelink fix** is folded in.
+- **Alms Collector's toughness** is fixed as the last card commit, after the
+  engine arm.
+
+### As landed (2026-09-24)
+
+It landed at +2,875 additions in code and tests, about 270 of them
+one-for-one renames and a moved test helper. That is over the band. "Each player", about
+245 of those lines, stays in: the owner's condition was that the coding was
+done, and moving it back would not have brought TR-2a under 2,500.
+
+What the sizing did not foresee:
+- **`EachPlayer` admits `DealDamage`.** The 608.2p fixture's magecraft deals
+  damage to each opponent.
+- **Fifteen `Implicit` sites became `ThisObject`.** `Implicit` had been
+  spelling "this object" in all of them.
+- **The Layer 4 route.** The dispatch audit panicked at four seats on
+  `stress` once the new cards changed the decks: seed 777, game 889, Blood
+  Moon beside Ashaya, Soul of the Wild (§4.10).
+
+**Trace page: no**, decided at its close. §7's test is a change to *how* a
+read is answered:
+- TR-2a's new reads are new fields, read where the dispatcher and the
+  resolver already read.
+- `ThisObject` is a new recipient, and the flicker test states it
+  completely.
+- The one changed path is a Layer 4 row counting as an ability-list source.
+  That is a set membership: the snapshot it now takes is TR-1's review's,
+  read the same way.

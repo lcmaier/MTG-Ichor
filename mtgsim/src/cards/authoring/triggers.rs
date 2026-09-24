@@ -3,7 +3,7 @@
 //! **The cause-and-owner builder is deliberately absent.**
 //! `.caused_by(Sacrificed)` and `.owned_by(Opponent)` are one method each on
 //! [`CountableEvent`] and they wait for the first card that prints one: none
-//! of TR-1's five does, and none of TR-2's seven is a zone-change trigger.
+//! of TR-1's five does, and none of TR-2's seven.
 //! Until then a card that asks writes the arm out — which is what the one
 //! fixture that asks (a discard, `cause: Some(Discarded)`) already does, and
 //! reads correctly, because its fields are `Some`. → `triggers-
