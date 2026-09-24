@@ -14,7 +14,7 @@
 
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{enters, triggered_ability, whenever};
+use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
@@ -28,7 +28,7 @@ use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction,
 use mtgsim::oracle::characteristics::{get_effective_power, has_keyword};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::game_state::{GameState, PhaseType};
+use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::state::history::TurnSummary;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
@@ -36,8 +36,8 @@ use mtgsim::test_support::{
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -853,4 +853,234 @@ fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
     assert_eq!(life(&game, 0), 25);
     assert_eq!(row(&game, 0).life_gain_events, 2);
     assert_eq!(pending(&game), 2);
+}
+
+// ---------------------------------------------------------------------------
+// The history leaves in their printed shapes, and CR 603.1b and 608.2p
+// ---------------------------------------------------------------------------
+
+/// Walk the turn machinery until `whose` player's `step` begins.
+fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
+    stock_libraries(game, 10);
+    for _ in 0..200 {
+        game.advance_turn(&test_ctx()).expect("advancing");
+        if game.active_player == whose && game.phase.step == Some(step) {
+            return;
+        }
+    }
+    panic!("player {whose}'s {step:?} never began");
+}
+
+fn spell_type(card_type: CardType) -> ObjectFilter {
+    ObjectFilter::ByType(card_type)
+}
+
+/// A {0} spell fixture of `card_type` that does nothing.
+fn free_spell(name: &str, card_type: CardType) -> Arc<CardData> {
+    let builder = CardDataBuilder::new(name).mana_cost(ManaCost::build(&[], 0));
+    match card_type {
+        CardType::Instant | CardType::Sorcery => {
+            builder.card_type(card_type).ability(spell_ability(Effect::Sequence(Vec::new()))).build()
+        }
+        _ => builder.card_type(card_type).build(),
+    }
+}
+
+/// The spell ability a fixture instant or sorcery carries.
+fn spell_ability(effect: Effect) -> AbilityDef {
+    AbilityDef {
+        id: new_ability_id(),
+        instances: Vec::new(),
+        ability_type: AbilityType::Spell,
+        costs: Vec::new(),
+        effect,
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    }
+}
+
+/// Cast `card` from `player`'s hand for free, then resolve it and whatever
+/// its casting triggered.
+fn cast_and_drain(game: &mut GameState, player: PlayerId, card: Arc<CardData>) {
+    let id = put_in_hand(game, card, player);
+    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
+    game.cast_spell(player, id, &dp).expect("castable");
+    drain(game);
+}
+
+/// CR 603.1b: two trigger conditions and an instruction about whether both
+/// have happened this turn — "Whenever you cast a creature spell and an
+/// artifact spell in the same turn, draw a card" — is `AnyOf` over the two
+/// casts, with an intervening "if" reading the turn's history. It looks at
+/// the whole turn, not only what happened while the permanent was there
+/// (Avatar Aang's ruling): the creature was cast before it arrived.
+// COVERS: ATOM-603.1b-001
+#[test]
+fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    cast_and_drain(&mut game, 0, free_spell("Clockwork Pup", CardType::Creature));
+
+    let both_this_turn = Condition::All(vec![
+        this_turn(PlayerSet::You, TurnFact::SpellsCastOfType(CardType::Creature), CountIs::AtLeast(1)),
+        this_turn(PlayerSet::You, TurnFact::SpellsCastOfType(CardType::Artifact), CountIs::AtLeast(1)),
+    ]);
+    let tinkers_accord = enchantment_with(
+        "Tinker's Accord",
+        triggered_ability(TriggerDef {
+            condition: TriggerCondition::AnyOf(vec![
+                TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Creature)) },
+                TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Artifact)) },
+            ]),
+            intervening_if: Some(both_this_turn),
+            limit: None,
+            effect: draw_one(),
+        }),
+    );
+    put_on_battlefield(&mut game, tinkers_accord, 0);
+    let before = hand(&game, 0);
+
+    cast_and_drain(&mut game, 0, free_spell("Clockwork Trinket", CardType::Artifact));
+    assert_eq!(hand(&game, 0), before + 1, "both have happened this turn, so the artifact triggers it");
+}
+
+/// CR 608.2p: an ability that tracks how many times it has resolved this
+/// turn. Ashling, Flame Dancer's magecraft, on three instants cast one after
+/// another: the first resolution does only its first sentence, the second
+/// deals 2 damage to each opponent and each creature they control, and the
+/// third adds {R}{R}{R}{R}.
+// COVERS: ATOM-608.2p-001
+#[test]
+fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    for _ in 0..3 {
+        put_in_hand(&mut game, grizzly_bears(), 0);
+    }
+    let theirs = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let two_damage = |recipient| {
+        Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(2), unpreventable: false }, recipient)
+    };
+    let opponents_creatures = EffectRecipient::FilteredPermanents(ObjectFilter::And(
+        Box::new(a_creature()),
+        Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
+    ));
+    let magecraft = Effect::Sequence(vec![
+        Effect::Atom(Primitive::Discard(AmountExpr::Fixed(1), DiscardChooser::Affected), EffectRecipient::Controller),
+        draw_one(),
+        Effect::Conditional(
+            Condition::ResolvedThisTurn(2),
+            Box::new(Effect::Sequence(vec![
+                two_damage(EffectRecipient::EachPlayer(PlayerSet::Opponents)),
+                two_damage(opponents_creatures),
+            ])),
+        ),
+        Effect::Conditional(
+            Condition::ResolvedThisTurn(3),
+            Box::new(Effect::Atom(
+                Primitive::ProduceMana(ManaOutput { mana: vec![(ManaType::Red, AmountExpr::Fixed(4))], special: Vec::new() }),
+                EffectRecipient::Controller,
+            )),
+        ),
+    ]);
+    let instant_or_sorcery =
+        ObjectFilter::Or(Box::new(spell_type(CardType::Instant)), Box::new(spell_type(CardType::Sorcery)));
+    put_on_battlefield(
+        &mut game,
+        watcher(
+            "Flame Dancer's Echo",
+            TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(instant_or_sorcery) },
+            magecraft,
+        ),
+        0,
+    );
+    let hand_before = hand(&game, 0);
+
+    cast_and_drain(&mut game, 0, free_spell("Spark A", CardType::Instant));
+    assert_eq!(hand(&game, 0), hand_before, "discard one, draw one");
+    assert_eq!((life(&game, 1), game.battlefield.contains_key(&theirs)), (20, true), "no bonus the first time");
+
+    cast_and_drain(&mut game, 0, free_spell("Spark B", CardType::Instant));
+    assert_eq!(life(&game, 1), 18, "the second time: 2 damage to each opponent");
+    assert!(!game.battlefield.contains_key(&theirs), "and to each creature they control");
+    assert_eq!(game.players[0].mana_pool.total(), 0);
+
+    cast_and_drain(&mut game, 0, free_spell("Spark C", CardType::Instant));
+    assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 4, "the third time: {{R}}{{R}}{{R}}{{R}}");
+    assert_eq!(life(&game, 1), 18, "and no second round of damage");
+}
+
+/// "At the beginning of your upkeep, if you haven't lost life since your last
+/// turn, draw a card" (Marchesa, Resolute Monarch's shape): the span is every
+/// turn after your last one, so a loss on the opponent's turn closes it and
+/// a loss on your own previous turn does not.
+#[test]
+fn since_your_last_turn_spans_the_turns_after_it() {
+    let quiet = Condition::SinceYourLastTurn(HistoryCount {
+        whose: PlayerSet::You,
+        fact: TurnFact::LifeLost,
+        is: CountIs::AtMost(0),
+    });
+    let steady_vigil = || {
+        enchantment_with(
+            "Steady Vigil",
+            triggered_ability(TriggerDef {
+                condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
+                intervening_if: Some(quiet.clone()),
+                limit: None,
+                effect: draw_one(),
+            }),
+        )
+    };
+    let lose = |game: &mut GameState| {
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+            .unwrap();
+    };
+
+    // Lost on the opponent's turn: the next upkeep does not trigger.
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, steady_vigil(), 0);
+    advance_to(&mut game, 1, StepType::Upkeep);
+    lose(&mut game);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(pending(&game), 0);
+
+    // Lost on P0's own previous turn: that is before the span.
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, steady_vigil(), 0);
+    lose(&mut game);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(pending(&game), 1);
+}
+
+/// "If this spell is the first spell you've cast this game, you gain 2 life"
+/// (First Contact's shape): the count spans every turn, so a spell cast two
+/// turns ago makes this one the second.
+#[test]
+fn this_game_sums_every_turn_so_far() {
+    let first_contact = || {
+        CardDataBuilder::new("Early Contact")
+            .card_type(CardType::Sorcery)
+            .mana_cost(ManaCost::build(&[], 0))
+            .ability(spell_ability(Effect::Conditional(
+                Condition::ThisGame(HistoryCount {
+                    whose: PlayerSet::You,
+                    fact: TurnFact::SpellsCast,
+                    is: CountIs::AtMost(1),
+                }),
+                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller)),
+            )))
+            .build()
+    };
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    cast_and_drain(&mut game, 0, first_contact());
+    assert_eq!(life(&game, 0), 22, "the first spell this game");
+
+    advance_to(&mut game, 0, StepType::Upkeep);
+    while game.phase.phase_type != PhaseType::Precombat {
+        game.advance_turn(&test_ctx()).expect("advancing");
+    }
+    cast_and_drain(&mut game, 0, first_contact());
+    assert_eq!(life(&game, 0), 22, "the second, two turns later");
 }

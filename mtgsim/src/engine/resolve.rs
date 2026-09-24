@@ -167,9 +167,11 @@ impl GameState {
             // order (CR 101.4), handed to the primitive as its players. Only a
             // primitive that says what several players at once means takes it.
             Effect::Atom(primitive, recipient @ (EffectRecipient::EachPlayer(_) | EffectRecipient::YouAndThatPlayer)) => {
-                if !matches!(primitive, Primitive::DrawCards(_)) {
+                // A draw is one instruction per player (CR 121.2c); damage to
+                // them is one event, a member each.
+                if !matches!(primitive, Primitive::DrawCards(_) | Primitive::DealDamage { .. }) {
                     return Err(format!(
-                        "{:?} on {:?} is not built for {:?}; CR 121.2c's draw is the one that is",
+                        "{:?} on {:?} is not built for {:?}; a draw and damage are",
                         recipient, ctx.source, primitive
                     ));
                 }
