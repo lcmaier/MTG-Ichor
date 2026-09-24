@@ -159,12 +159,4 @@ impl GameState {
             _ => return None,
         })
     }
-
-    /// CR 103.5's opening hands are drawn before the first turn begins, so no
-    /// turn's row holds them.
-    pub(crate) fn forget_pregame_history(&mut self) {
-        for player in &mut self.players {
-            player.history.turns.clear();
-        }
-    }
 }

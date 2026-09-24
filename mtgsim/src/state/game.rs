@@ -106,6 +106,9 @@ impl Game {
         // can be gathered and no choice can arise, and Leylines (CR 103.6)
         // arrive after this point.
         let actx = ActionContext::new(decisions);
+        // No turn has begun while the game is set up (CR 103), so the opening
+        // hands are drawn in turn 0, which has no history row.
+        self.state.turn_number = 0;
         for player_id in 0..num_players {
             for _ in 0..hand_size {
                 self.state.draw_card(player_id, &actx)?;
@@ -114,7 +117,6 @@ impl Game {
 
         // CR 103.5's mulligans are not asked: every player keeps their first
         // hand, whatever `GameConfig::mulligan_rule` says. `backlog.md` §2.32.
-        self.state.forget_pregame_history();
 
         // CR 103.8 — the first turn begins, and it begins the way every later
         // one does: a `BeginTurn` proposal, its beginning phase, its untap step,
