@@ -228,7 +228,7 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 /// **It never declines, and in a mana window that matters.** CR 605.3a's
 /// window runs until the player declines, so a board with a spare untapped
 /// source will be offered again after the cost is covered and this provider
-/// will take it — including the activation's *own* source, whose `Cost::Tap`
+/// will take it — including the activation's *own* source, whose `Cost::TapSelf`
 /// the payment is about to owe (`codebase-state.md` item 83). Wrap it in
 /// [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
 /// activates an ability or casts a spell with mana sources to spare, as every

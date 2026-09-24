@@ -223,7 +223,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Activated,
-            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
+            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::RemoveCounters(CounterType::MinusOneMinusOne, AmountExpr::Fixed(1)),
                 EffectRecipient::Target(
@@ -479,7 +479,7 @@ pub fn containment_priest() -> Arc<CardData> {
 /// the stress pool on its own: it is the only registered permanent with two
 /// permanent types, so it is a creature to Doom Blade and Humility, a land to
 /// Root Maze and Blood Moon, summoning-sick for its own mana ability (CR 302.6
-/// — `Cost::Tap` asks, and the reminder text says so), and the land that
+/// — `Cost::TapSelf` asks, and the reminder text says so), and the land that
 /// CR 305.7 turns into a Mountain *Dryad* rather than a Mountain — the
 /// CR 205.1a case `land_types::apply_set_subtypes` got wrong until this card
 /// made it reachable.

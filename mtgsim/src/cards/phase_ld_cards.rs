@@ -344,7 +344,7 @@ pub fn dual_land_ub() -> Arc<CardData> {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![crate::types::costs::Cost::Tap],
+            costs: vec![crate::types::costs::Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::ProduceMana(crate::types::effects::ManaOutput {
                     mana: vec![(mana_type, AmountExpr::Fixed(1))],

@@ -297,7 +297,7 @@ impl CardDataBuilder {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![Cost::Tap],
+            costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(mana_type, AmountExpr::Fixed(1))],

@@ -249,7 +249,7 @@ pub fn temple_bell() -> Arc<CardData> {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Activated,
-            costs: vec![Cost::Tap],
+            costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
                 EffectRecipient::EachPlayer(PlayerSet::Everyone),

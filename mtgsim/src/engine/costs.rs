@@ -98,8 +98,8 @@ const RANK_MOVES_AN_OBJECT: u8 = 2;
 fn payment_order_rank(cost: &Cost) -> u8 {
     match cost {
         Cost::Mana(_) => RANK_MANA,
-        Cost::Tap
-        | Cost::Untap
+        Cost::TapSelf
+        | Cost::UntapSelf
         | Cost::PayLife(_)
         | Cost::RemoveCounters(_, _)
         | Cost::AddCounters(_, _) => RANK_MUTATES,
@@ -145,7 +145,7 @@ impl GameState {
         source_id: ObjectId,
     ) -> Result<(), String> {
         match cost {
-            Cost::Tap => {
+            Cost::TapSelf => {
                 let entry = self.battlefield.get(&source_id)
                     .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
                 if entry.tapped {
@@ -159,7 +159,7 @@ impl GameState {
                 }
                 Ok(())
             }
-            Cost::Untap => {
+            Cost::UntapSelf => {
                 let entry = self.battlefield.get(&source_id)
                     .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
                 if !entry.tapped {
@@ -361,7 +361,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<(), String> {
         match cost {
-            Cost::Tap => {
+            Cost::TapSelf => {
                 let entry = self.battlefield.get(&source_id)
                     .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
                 if entry.tapped {
@@ -376,7 +376,7 @@ impl GameState {
                 // and CR 122.1d stun counters both act on this.
                 self.execute_action(GameAction::Tap { object: source_id }, ctx)
             }
-            Cost::Untap => {
+            Cost::UntapSelf => {
                 let entry = self.battlefield.get(&source_id)
                     .ok_or_else(|| format!("Permanent {} not on battlefield", source_id))?;
                 if !entry.tapped {
@@ -387,7 +387,7 @@ impl GameState {
                 if has_summoning_sickness(self, source_id) {
                     return Err("Creature has summoning sickness".to_string());
                 }
-                // {Q} — same chokepoint as Cost::Tap. CR 122.1d makes Untap
+                // {Q} — same chokepoint as Cost::TapSelf. CR 122.1d makes Untap
                 // replaceable, which is why this cannot stay a direct write.
                 self.execute_action(GameAction::Untap { object: source_id }, ctx)
             }
@@ -510,15 +510,15 @@ mod tests {
     #[test]
     fn test_pay_tap_cost() {
         let (mut game, forest_id) = setup_with_forest();
-        plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::TapSelf], 0, forest_id, &test_ctx()).unwrap();
         assert!(game.battlefield.get(&forest_id).unwrap().tapped);
     }
 
     #[test]
     fn test_pay_tap_cost_already_tapped() {
         let (mut game, forest_id) = setup_with_forest();
-        plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).unwrap();
-        assert!(plan_and_pay(&mut game, &[Cost::Tap], 0, forest_id, &test_ctx()).is_err());
+        plan_and_pay(&mut game, &[Cost::TapSelf], 0, forest_id, &test_ctx()).unwrap();
+        assert!(plan_and_pay(&mut game, &[Cost::TapSelf], 0, forest_id, &test_ctx()).is_err());
     }
 
     #[test]
@@ -591,7 +591,7 @@ mod tests {
         assert!(plan_and_pay(&mut game, &[Cost::PayLife(21)], 0, forest_id, &test_ctx()).is_err());
     }
 
-    // --- Cost::Untap ({Q}) summoning sickness tests (T10 / E13) ---
+    // --- Cost::UntapSelf ({Q}) summoning sickness tests (T10 / E13) ---
 
     fn setup_creature_on_turn(turn: u32, keywords: Vec<crate::types::keywords::KeywordFlag>) -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
@@ -616,7 +616,7 @@ mod tests {
     fn test_untap_cost_blocked_by_summoning_sickness() {
         // Creature enters on turn 1, game is on turn 1 → summoning sick → can't pay {Q}
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![]);
-        let result = plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx());
+        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -625,7 +625,7 @@ mod tests {
     fn test_untap_cost_allowed_with_haste() {
         // Creature with haste enters on turn 1, game is on turn 1 → haste bypasses sickness
         let (mut game, creature_id) = setup_creature_on_turn(1, vec![crate::types::keywords::KeywordFlag::Haste]);
-        plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 
@@ -643,7 +643,7 @@ mod tests {
         entry.tapped = true;
         game.insert_battlefield_entity(id, entry);
 
-        plan_and_pay(&mut game, &[Cost::Untap], 0, id, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::UntapSelf], 0, id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&id).unwrap().tapped);
     }
 
@@ -657,7 +657,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        let result = plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx());
+        let result = plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx());
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("summoning sickness"));
     }
@@ -670,7 +670,7 @@ mod tests {
         game.battlefield.get_mut(&creature_id).unwrap().controller_since_turn = 3;
         game.battlefield.get_mut(&creature_id).unwrap().tapped = true;
 
-        plan_and_pay(&mut game, &[Cost::Untap], 0, creature_id, &test_ctx()).unwrap();
+        plan_and_pay(&mut game, &[Cost::UntapSelf], 0, creature_id, &test_ctx()).unwrap();
         assert!(!game.battlefield.get(&creature_id).unwrap().tapped);
     }
 
@@ -701,12 +701,12 @@ mod tests {
         // is the mana split, and it is paid while nothing has moved.
         let costs = [
             Cost::Sacrifice(creature_filter(), 1),
-            Cost::Tap,
+            Cost::TapSelf,
             Cost::Mana(ManaCost::build(&[ManaType::Red], 0)),
         ];
         let ordered: Vec<&Cost> = ordered_for_payment(&costs);
         assert!(matches!(ordered[0], Cost::Mana(_)));
-        assert!(matches!(ordered[1], Cost::Tap));
+        assert!(matches!(ordered[1], Cost::TapSelf));
         assert!(matches!(ordered[2], Cost::Sacrifice(_, _)));
     }
 
@@ -714,11 +714,11 @@ mod tests {
     fn test_payment_order_is_stable_within_a_rank() {
         // Two costs of one rank keep the order the card printed them in —
         // the engine reorders only what the theorem needs it to.
-        let costs = [Cost::Tap, Cost::PayLife(1), Cost::Untap];
+        let costs = [Cost::TapSelf, Cost::PayLife(1), Cost::UntapSelf];
         let ordered = ordered_for_payment(&costs);
-        assert!(matches!(ordered[0], Cost::Tap));
+        assert!(matches!(ordered[0], Cost::TapSelf));
         assert!(matches!(ordered[1], Cost::PayLife(_)));
-        assert!(matches!(ordered[2], Cost::Untap));
+        assert!(matches!(ordered[2], Cost::UntapSelf));
     }
 
     #[test]

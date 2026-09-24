@@ -40,7 +40,7 @@ pub fn sol_ring() -> Arc<CardData> {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![Cost::Tap],
+            costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     // One ability producing two, not two abilities producing one:

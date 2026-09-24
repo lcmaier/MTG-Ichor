@@ -475,15 +475,15 @@ mod tests {
         let (mana, others, had_mana) = split_mana_component(vec![
             Cost::PayLife(2),
             Cost::Mana(cost(&[G, R])),
-            Cost::Tap,
+            Cost::TapSelf,
             Cost::Mana(cost(&[R])),
         ]);
         assert_eq!(mana.to_string(), "{1}{R}{R}");
-        assert_eq!(others, vec![Cost::PayLife(2), Cost::Tap]);
+        assert_eq!(others, vec![Cost::PayLife(2), Cost::TapSelf]);
         assert!(had_mana);
         assert_eq!(
             rebuild(mana.clone(), others, had_mana),
-            vec![Cost::Mana(mana), Cost::PayLife(2), Cost::Tap]
+            vec![Cost::Mana(mana), Cost::PayLife(2), Cost::TapSelf]
         );
     }
 

@@ -297,11 +297,11 @@ fn test_can_pay_costs_validates_correctly() {
     let land_id = put_land_on_battlefield(&mut game, basic_lands::forest, 0);
 
     // Tap cost should be payable (untapped land)
-    assert!(game.can_pay_costs(&[Cost::Tap], 0, land_id).is_ok());
+    assert!(game.can_pay_costs(&[Cost::TapSelf], 0, land_id).is_ok());
 
     // Tap the land manually
     game.battlefield.get_mut(&land_id).unwrap().tapped = true;
-    assert!(game.can_pay_costs(&[Cost::Tap], 0, land_id).is_err());
+    assert!(game.can_pay_costs(&[Cost::TapSelf], 0, land_id).is_err());
 
     // Mana cost check
     game.players[0].mana_pool.add(ManaType::Red, 1);

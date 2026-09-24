@@ -61,7 +61,7 @@ impl GameState {
         // ability of that permanent that includes the {T} symbol in its
         // activation cost" — the ability's costs, read here where the
         // effective ability is in hand, and never the payment plan.
-        let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::Tap));
+        let tapped_for_mana = ability.costs.iter().any(|c| matches!(c, Cost::TapSelf));
 
         // Resolve effect immediately (mana abilities don't use the stack)
         self.resolve_mana_effect(&ability.effect, player_id, permanent_id, tapped_for_mana, ctx)?;

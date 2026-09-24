@@ -9,10 +9,11 @@ use super::mana::ManaCost;
 /// `pay_single_cost` return `Err("not yet implemented")` for them.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Cost {
-    /// Tap the source permanent
-    Tap,
-    /// Untap the source permanent (Devoted Druid)
-    Untap,
+    /// {T}: "tap this permanent" (CR 107.5). A cost that taps some other
+    /// permanent is not this one.
+    TapSelf,
+    /// {Q}: "untap this permanent" (CR 107.6). Devoted Druid.
+    UntapSelf,
     /// Pay a mana cost
     Mana(ManaCost),
     /// Pay N life

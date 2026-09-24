@@ -605,7 +605,7 @@ pub fn mind_stone() -> Arc<CardData> {
             ability_type: AbilityType::Activated,
             costs: vec![
                 Cost::Mana(ManaCost::build(&[], 1)),
-                Cost::Tap,
+                Cost::TapSelf,
                 Cost::SacrificeSelf,
             ],
             effect: Effect::Atom(
@@ -711,7 +711,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
             ability_type: AbilityType::Activated,
             costs: vec![
                 Cost::Sacrifice(ObjectFilter::ByType(CardType::Artifact), 1),
-                Cost::Tap,
+                Cost::TapSelf,
             ],
             effect: Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
