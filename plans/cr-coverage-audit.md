@@ -521,6 +521,10 @@ is derivable; where each name was read is not, and the gate needs the names.
   - `resolutions_this_turn`: CR 603.7h's count, recorded off each
     `AbilityResolved` and keyed by the ability, not by its controller
     (Ashling the Pilgrim's ruling). All three end as the next turn begins.
+  - `lifelink_gains`: each lifelink source's damage in the batch being
+    performed, recorded as the damage is dealt and gained as one event per
+    source once the batch's members have performed (CR 702.15e). It holds
+    nothing past its batch, as `prevention_allocations` does.
 
 ---
 

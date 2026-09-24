@@ -6,7 +6,6 @@
 
 use crate::events::event::DamageTarget;
 use crate::oracle::characteristics::has_keyword;
-use crate::engine::actions::{ActionContext, GameAction};
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
@@ -37,43 +36,44 @@ pub fn apply_deathtouch_flag(
 
 /// Apply lifelink: controller gains life equal to damage dealt.
 ///
-/// Rule 702.15b / CR 120.3f: damage dealt by a source with lifelink causes that
-/// source's controller to gain that much life, in addition to the damage's other
-/// results. Multiple instances don't stack (rule 702.15f) — boolean check.
+/// One lifelink source's damage in the batch being performed: who gains, and
+/// how much so far (CR 702.15e).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LifelinkGain {
+    pub source: ObjectId,
+    pub player: crate::types::ids::PlayerId,
+    pub amount: u64,
+}
+
+/// Record `amount` of damage `source` just dealt, if it has lifelink, for the
+/// gain its batch makes once every member has performed. CR 702.15b / 120.3f:
+/// lifelink's gain is one of the damage's results, part of the same event (CR
+/// 120.4c–d), so the batch proposes it before it closes. CR 702.15e: sources
+/// dealing damage at the same time cause separate life-gain events, so one
+/// source's damage to several recipients at once is one (Nykthos Paragon's
+/// sixth ruling). Multiple instances are redundant (CR 702.15f). The
+/// controller is read now, as the damage is dealt, so a stolen lifelinker
+/// gains for the thief.
 ///
-/// The gain is not merely simultaneous with the damage, it is *part of the same
-/// event*: CR 120.4c processes damage into its results and CR 120.4d says the
-/// damage event then occurs, once.
-///
-/// The gain is **proposed**, not written, so a CR 614 life-gain watcher
-/// (Tainted Remedy: "If an opponent would gain life, they lose that much life
-/// instead") sees lifelink. It runs from inside `perform_action(DealDamage)`,
-/// so the `GainLife` proposal nests inside a performance already in flight as
-/// a *contained* event with fresh lineage rather than a decomposition of the
-/// damage (`replacement-architecture.md` §3.2d).
-pub fn apply_lifelink(
-    game: &mut GameState,
-    source: ObjectId,
-    amount: u64,
-    ctx: &ActionContext,
-) -> Result<(), String> {
+/// The gain is **proposed** by the batch, not written, so a CR 614 watcher
+/// (Tainted Remedy) sees lifelink.
+pub fn note_lifelink(game: &mut GameState, source: ObjectId, amount: u64) {
     if !has_keyword(game, source, KeywordFlag::Lifelink) {
-        return Ok(());
+        return;
     }
-    // CR 702.15b gives the life to the source's controller — effective, so a
-    // stolen lifelinker gains life for the thief.
-    if let Some(controller) = crate::oracle::characteristics::get_effective_controller(game, source) {
-        game.execute_action(
-            GameAction::GainLife { player: controller, amount, source },
-            ctx,
-        )?;
+    let Some(player) = crate::oracle::characteristics::get_effective_controller(game, source) else {
+        return;
+    };
+    match game.lifelink_gains.iter_mut().find(|gain| gain.source == source) {
+        Some(gain) => gain.amount += amount,
+        None => game.lifelink_gains.push(LifelinkGain { source, player, amount }),
     }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::actions::GameAction;
     use crate::test_support::test_ctx;
     use crate::events::event::GameEvent;
     use crate::objects::card_data::CardDataBuilder;
@@ -132,12 +132,27 @@ mod tests {
 
     // --- Lifelink tests ---
 
+    /// `source` deals `amount` to player 1, through the chokepoint.
+    fn deal_to_player_one(game: &mut GameState, source: ObjectId, amount: u64) {
+        game.execute_action(
+            GameAction::DealDamage {
+                source,
+                target: DamageTarget::Player(1),
+                amount,
+                is_combat: false,
+                unpreventable: false,
+            },
+            &test_ctx(),
+        )
+        .unwrap();
+    }
+
     #[test]
     fn test_lifelink_gains_life() {
         let mut game = GameState::new(2, 20);
         let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
 
-        apply_lifelink(&mut game, source, 3, &test_ctx()).unwrap();
+        deal_to_player_one(&mut game, source, 3);
         assert_eq!(game.players[0].life_total, 23);
     }
 
@@ -146,17 +161,8 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let source = setup_creature(&mut game, &[]);
 
-        apply_lifelink(&mut game, source, 3, &test_ctx()).unwrap();
+        deal_to_player_one(&mut game, source, 3);
         assert_eq!(game.players[0].life_total, 20);
-    }
-
-    #[test]
-    fn test_lifelink_emits_event() {
-        let mut game = GameState::new(2, 20);
-        let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
-
-        apply_lifelink(&mut game, source, 2, &test_ctx()).unwrap();
-        assert_eq!(game.events.len(), 1);
     }
 
     #[test]
@@ -164,22 +170,21 @@ mod tests {
         let mut game = GameState::new(2, 20);
         let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
 
-        apply_lifelink(&mut game, source, 2, &test_ctx()).unwrap();
+        deal_to_player_one(&mut game, source, 2);
 
-        // The gain now goes through execute_action(GainLife) rather than being
-        // written straight into life_total. Nothing observable changes today —
-        // the same LifeChanged comes out — which is the point: it is the
-        // *proposal* a CR 614 watcher needs (Tainted Remedy must see lifelink),
-        // and there was none. Locking the shape here so the routing cannot be
-        // quietly undone.
-        let emitted: Vec<&GameEvent> = game.events.events().collect();
-        match emitted.as_slice() {
-            [GameEvent::LifeChanged { player_id, old, new, source: src, .. }] => {
-                assert_eq!(*player_id, 0);
+        // The gain goes through a `GainLife` proposal rather than being written
+        // into life_total, so a CR 614 watcher (Tainted Remedy) sees it.
+        let gains: Vec<&GameEvent> = game
+            .events
+            .events()
+            .filter(|e| matches!(e, GameEvent::LifeChanged { player_id: 0, .. }))
+            .collect();
+        match gains.as_slice() {
+            [GameEvent::LifeChanged { old, new, source: src, .. }] => {
                 assert_eq!((*old, *new), (20, 22));
                 assert_eq!(*src, Some(source), "CR 702.15b attributes the gain to the lifelinker");
             }
-            other => panic!("expected one LifeChanged, got {:?}", other),
+            other => panic!("expected one gain for player 0, got {:?}", other),
         }
     }
 

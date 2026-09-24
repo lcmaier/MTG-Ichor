@@ -32,7 +32,7 @@ use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::state::history::TurnSummary;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
-    setup_two_player_game, stock_libraries, test_ctx, test_dp, RecordingDecisionProvider,
+    setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
@@ -795,4 +795,62 @@ fn each_player_draws_three_and_the_active_player_draws_all_of_theirs_first() {
     };
     game.resolve_effect(&each_draws_three, &ctx, &test_dp()).expect("the draws");
     assert_eq!(draw_order(&game), vec![0, 0, 0, 1, 1, 1]);
+}
+
+// ---------------------------------------------------------------------------
+// CR 702.15e — one lifelink source's simultaneous damage is one life gain
+// ---------------------------------------------------------------------------
+
+/// "Whenever you gain life, put that many +1/+1 counters on this creature."
+fn gain_counter() -> Arc<CardData> {
+    let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+    let that_many = Effect::Atom(
+        Primitive::AddCounters {
+            counter: CounterType::PlusOnePlusOne,
+            amount: AmountExpr::TriggeringAmount,
+            by: PlayerRef::You,
+        },
+        EffectRecipient::ThisObject,
+    );
+    watcher("Mercy Keeper", gains, that_many)
+}
+
+fn damage(source: ObjectId, target: DamageTarget, amount: u64) -> GameAction {
+    GameAction::DealDamage { source, target, amount, is_combat: true, unpreventable: false }
+}
+
+/// A lifelinker dealing damage to a blocker and to a player at once causes
+/// one life-gain event for the whole amount (CR 702.15b, 702.15e; Nykthos
+/// Paragon's sixth ruling): one trigger, with that many as 5.
+#[test]
+fn one_lifelink_source_dealing_damage_to_two_recipients_at_once_gains_life_once() {
+    let mut game = setup_two_player_game();
+    let keeper = put_on_battlefield(&mut game, gain_counter(), 0);
+    let linker = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[KeywordFlag::Lifelink]), 0);
+    let blocker = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let batch = vec![damage(linker, DamageTarget::Object(blocker), 2), damage(linker, DamageTarget::Player(1), 3)];
+    game.execute_actions(batch, &test_ctx()).unwrap();
+
+    assert_eq!(life(&game, 0), 25);
+    assert_eq!(row(&game, 0).life_gain_events, 1, "one event, not one per recipient");
+    assert_eq!(pending(&game), 1);
+    drain(&mut game);
+    assert_eq!(plus_ones(&game, keeper), 5, "that many is the whole gain");
+}
+
+/// "If multiple sources with lifelink deal damage at the same time, they
+/// cause separate life gain events" (CR 702.15e): two lifelinkers, two gains,
+/// two triggers.
+#[test]
+fn two_lifelink_sources_dealing_damage_at_once_are_two_gains() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, gain_counter(), 0);
+    let first = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[KeywordFlag::Lifelink]), 0);
+    let second = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[KeywordFlag::Lifelink]), 0);
+    let batch = vec![damage(first, DamageTarget::Player(1), 2), damage(second, DamageTarget::Player(1), 3)];
+    game.execute_actions(batch, &test_ctx()).unwrap();
+
+    assert_eq!(life(&game, 0), 25);
+    assert_eq!(row(&game, 0).life_gain_events, 2);
+    assert_eq!(pending(&game), 2);
 }
