@@ -1493,12 +1493,21 @@ pub enum TokenSubstitution {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GameActionTemplate {
-    /// Send the event's object somewhere else instead, keeping its `from`.
+    /// Send the event's object somewhere else instead, keeping its `from` and
+    /// its `cause`.
     ///
     /// Three customers in RB: CR 122.1h's finality counter ("If this permanent
     /// would be put into a graveyard from the battlefield, exile it instead"),
     /// CR 903.9b's commander redirection, and Kalitas, Traitor of Ghet's exile.
-    ZoneChangeTo { to: Zone, cause: ZoneChangeCause },
+    ///
+    /// **Only a destination, because the act is the event's (CR 614.6).**
+    /// Destroy, discard, mill, sacrifice and counter are each a move to the
+    /// graveyard, and a redirected one is still that act: CR 701.9c and the
+    /// Rest in Peace and Nephalia Academy rulings for discard, CR 701.17c for
+    /// mill, CR 608.2c's example for counter. An entry turned into a zone
+    /// change keeps the entry's cause by the same rule, since a return or a
+    /// land play is read together with `to`. `codebase-state.md` item 176.
+    ZoneChangeTo { to: Zone },
 
     /// Remove counters from the *affected* object instead.
     ///

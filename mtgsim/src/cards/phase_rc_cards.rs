@@ -457,10 +457,7 @@ pub fn containment_priest() -> Arc<CardData> {
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
                     )),
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                    to: Zone::Exile,
-                    cause: ZoneChangeCause::Exiled,
-                }),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
         })
         .build()

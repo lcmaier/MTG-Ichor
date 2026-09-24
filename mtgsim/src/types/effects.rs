@@ -116,7 +116,7 @@ pub enum AmountExpr {
     ///
     /// Only a rider has one; every other evaluator refuses it.
     DamagePrevented,
-    /// CR 103.3's starting life total — "your life total becomes equal to
+    /// CR 103.4's starting life total — "your life total becomes equal to
     /// your starting life total" (Exquisite Archangel). A leaf rather than a
     /// `Fixed(20)` because v1 is Commander, where it is 40, and the number is
     /// the game's (`GameState::starting_life`) and not the card's.

@@ -329,7 +329,7 @@ use crate::types::replacement::{
     Rewrite, Rounding, TemplateAmount, TokenKind, TokenSubstitution,
 };
 use crate::types::restriction::{ReplacementKindFilter, Restriction, RestrictionDef};
-use crate::types::zones::{DrawCause, Zone, ZoneChangeCause};
+use crate::types::zones::{DrawCause, Zone};
 
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
@@ -1816,10 +1816,7 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
                         Box::new(ReplacementDef::new(
                             EventPattern::EnterBattlefield { cast: Some(false) },
                             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-                            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                                to: Zone::Exile,
-                                cause: ZoneChangeCause::Exiled,
-                            }),
+                            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
                         )),
                         Duration::UntilEndOfTurn,
                         PatternFill::Authored,

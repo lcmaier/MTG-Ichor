@@ -180,10 +180,7 @@ fn moonlight_shaped() -> Arc<CardData> {
         .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: Some(false) },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         )))))
         .build()
 }
@@ -251,9 +248,11 @@ fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
     assert!(game.exile.contains(&bear));
     assert!(!game.battlefield.contains_key(&bear));
+    // The return's cause, not the exile's: the Priest changes only where the
+    // move goes (CR 614.6, `codebase-state.md` item 176).
     assert_eq!(
         moves_of(&game, start, bear),
-        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeCause::Exiled, false)],
+        vec![(Zone::Graveyard, Zone::Exile, ZoneChangeCause::Returned, false)],
         "one move from where it was, and no look-back frame for a permanent that never existed"
     );
     assert!(!entries(&game, start).contains(&bear), "it never entered");

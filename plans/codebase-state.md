@@ -1367,8 +1367,8 @@ registered card returns an object.
     and removes the regenerating creature from combat — and it does the job
     properly in both directions: an attacker leaving combat also stops being
     *blocked by* its blockers, and a blocker leaving stops appearing in the
-    attackers' `blocked_by` lists, with CR 506.4b's "remains blocked even if all
-    creatures blocking it are removed" deliberately preserved. **Recorded so the
+    attackers' `blocked_by` lists, with CR 509.1h's "remains blocked even if all
+    the creatures blocking it are removed" deliberately preserved. **Recorded so the
     combat phase uses it rather than writing a second one**; a one-line
     `entry.attacking = None` is the version that looks right and is not. No
     action owed before then. (It is also the sizing lesson: a phase split on
@@ -6355,9 +6355,14 @@ named:**
      `Cost::Discard`. ~60 lines, and it arrives with §2.9 rather than before —
      a flag written by one card is the shape §2.9 exists to replace.
 
-131. **A substituted zone change overwrites the replaced event's `cause`, and
-     the cause is the only thing several facts are written on.** A discard is
-     the instance that found it; a resolution is the one that bit.
+131. **A same-zone substitute leaves no record, so the act it replaced is
+     written nowhere** (re-scoped 2026-09-24). **The first two instances closed
+     with item 176** (the type-surface re-sweep, pass 1): a substituted zone
+     change overwrote the replaced event's `cause`, and `ZoneChangeTo` now
+     names only a destination, so the discard and the resolution below keep
+     their acts (CR 614.6). What follows is as found at RE-8, kept for the
+     third instance. A discard is the instance that found it; a resolution is
+     the one that bit.
      `GameActionTemplate::ZoneChangeTo` carries the substitute's
      `ZoneChangeCause` and overwrites the replaced event's, so under Leyline of
      the Void a discarded card's performed event is `ZoneChange { to: Exile,
@@ -6378,24 +6383,22 @@ named:**
      substitution happens *inside* the resolution that proposed the event
      (`replacement-architecture.md` §11 item 91).
 
-     **Reachability (2026-09-14):** reachable, and **not wrong today**, and the
-     bound is worth stating: every *engine* reader of a cause reads the
-     **proposal**, before any rewrite — `pattern_watches`' `ZoneChange
-     { cause }` and `EnterBattlefield { cast }`, and `is_prohibited` through
-     the same. The erasure is only on the **performed** event, whose one reader
-     today is the harness, which is why it surfaced there and not in a test. It
-     is wrong the day critical-path item 6 lands, and the board is unforced:
-     **13 times in 200 `stress` games**.
+     **Reachability (2026-09-24):** reachable, and not wrong today — the
+     third instance only. Darksteel Colossus and Nexus of Fate are registered
+     and Angel of Suffering mills, but nothing reads a mill count yet. On
+     2026-09-14 this line bounded the first two by "every *engine* reader of a
+     cause reads the **proposal**", but CR 616.1f's re-gather reads the
+     rewritten event, so Nephalia Academy under Leyline of the Void was
+     reachable and wrong from RE-8 on (item 176).
 
-     **Sized:** not thirty lines. The field is RB's with three deliberate
-     customers (CR 122.1h's finality counter, CR 903.9b's commander, Kalitas),
-     and the question is what a substitution *about the destination* should do
-     to the reason the object is moving — `cause: Option<ZoneChangeCause>`
-     meaning "keep the original", or that rule by default. ~80 lines plus a
-     re-reading of every RB def, and it belongs to whoever builds
-     critical-path item 6's zone-change matcher, who is the first reader that
-     can tell it is wrong. **Where a stamp fits, it is the pattern to copy** —
-     it answered the harness's question exactly and needs no field at all.
+     **Sized:** the first two closed in item 176's PR, once the question this
+     line asked was answered: what a substitution *about the destination*
+     should do to the reason the object is moving. It keeps it, for every
+     template (CR 614.6). What is left is the third instance, which has no
+     record for a kept cause to ride on. **Where a stamp fits, it is the
+     pattern to copy** — it answered the harness's question exactly and needs
+     no field at all — and it belongs to whoever builds critical-path item 6's
+     zone-change matcher, the first reader that can tell it is wrong.
 
      **A third instance, sharper than both (RF's review, 2026-09-16).** Under
      Darksteel Colossus's clause a milled member's substitute is a zone
@@ -6404,17 +6407,18 @@ named:**
      record at all on which a kept cause could ride. The owner's wrinkle:
      "whenever an opponent mills one or more cards, you gain life equal to
      the number milled", on a mill of three with a Colossus in it. The
-     performed stream shows two `Milled` records (and none under Rest in
-     Peace, whose substitute writes `Exiled`); CR 701.17c's framing — "the
-     zone it moved to from the library" — treats a milled card that went
-     elsewhere as milled all the same, which reads 3, while the owner's first
-     reading was 2. Which is right is item 6's to settle with 701.17c open;
+     performed stream shows two `Milled` records (and, until item 176, none
+     under Rest in Peace, whose substitute wrote `Exiled`); CR 701.17c's
+     framing — "the zone it moved to from the library" — treats a milled card
+     that went elsewhere as milled all the same, which reads 3, while the
+     owner's first reading was 2. Which is right is item 6's to settle with 701.17c open;
      what RF adds is that a *stamp* is the only shape that can carry the
      fact, because a stamp can exist where no record does.
 
      **Scheduled (2026-09-15, post-RE audit):** critical-path item 6's
-     zone-change matcher, as sized above; `replacement-architecture.md` §14
-     lists it among what item 6 inherits. The board had counted this item as
+     zone-change matcher, as sized above, and since 2026-09-24 for the third
+     instance only; `replacement-architecture.md` §14 lists it among what
+     item 6 inherits. The board had counted this item as
      a wrong answer since 2026-09-14 because its verdict contains the words
      "wrong today"; the classifier learned the negation the same day.
 
@@ -8242,7 +8246,8 @@ and the reading below, which the audit makes and the dispatcher does not.
      before (a departure's frame, a newcomer's entry), and a look-back arm is
      asked of it only for the records that batch performed — the audit's
      rule, `TriggerCandidateFrame::Departed { snapshot: Some(k) }`, taken for
-     the dispatcher's own candidates.
+     the dispatcher's own candidates. Item 176's record design, before TR-4,
+     takes this item as an input (2026-09-24).
 
 ### Found by the type-surface re-sweep, pass 1: replacement (2026-09-24)
 
@@ -8251,82 +8256,122 @@ and the reading below, which the audit makes and the dispatcher does not.
 kind of reference, and `backlog.md` §2.2 gains constraints on the
 linked-ability records an entry makes.
 
-176. **An "instead" keeps the destination and drops the act: a redirected
-     discard or sacrifice is performed as `Exiled`.** `pipeline.rs`'s
-     `substitute` builds the modified zone change with the template's `cause`,
-     not the event's. `Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to,
-     cause })` is the template, and Rest in Peace, Leyline of the Void, Kalitas
-     and finality counters all write `Exiled`. So a card discarded under Leyline
-     is recorded as `Hand -> Exile [Exiled]`.
+176. **A zone change's record mixes what was done with who did it, and drops
+     which replacement redirected it.** Re-scoped 2026-09-24, on #185's review.
+     Found as one wrong answer: `substitute` wrote the template's `cause` over
+     the act, so a redirected discard, sacrifice, destroy, mill or counter was
+     performed as `Exiled`, and Nephalia Academy was never offered after
+     Leyline of the Void (fixed; the block at the end). The review asked
+     whether one `cause` is itself the smell. It is: the CR asks three things
+     of a zone change, and the record answers them unevenly.
 
-     The rulings say otherwise:
-     - Rest in Peace (2018-03-16) and Leyline of the Void (2024-09-20): a card
-       discarded while either is out is still discarded, "even though that card
-       never reaches a graveyard".
-     - Nephalia Academy (2016-07-13): "the card was still discarded".
+     **The rule the fix kept is CR 614.6's, for any move.** A replacement that
+     changes only where a move goes leaves the event the one that happens,
+     from any zone to any zone. Graveyards are where the rules say so outright,
+     because destroy, discard, mill, sacrifice and counter are defined by their
+     move (CR 701.8a, 701.9a, 701.17a, 701.21a, 701.6a): CR 701.9c and the
+     Rest in Peace (2018-03-16), Leyline of the Void (2024-09-20) and Nephalia
+     Academy (2016-07-13) rulings for discard, CR 701.17c for mill, CR 608.2c's
+     example for counter. It is as true away from a graveyard: CR 903.9b's
+     commander is still `Returned` in the command zone, a Dryad Arbor that
+     Containment Priest exiles is still `PlayedAsLand`, a Nexus of Fate
+     shuffled in is still `Resolved`, and unearth, flashback and buyback
+     (CR 702.84a, 702.34a, 702.27a) redirect moves that never involve one.
 
-     CR 614.6 makes the modified event the one that happens. CR 701.9c treats a
-     card put somewhere else in place of the graveyard as still discarded.
+     What the origin and destination decide is which of a reader's words stay
+     true. **Act words** (sacrifice, discard, mill, counter, destroy, cast)
+     stay true, and read the act. **Destination words** (exiled, returned,
+     dies, enters) read `from` and `to`: an unearthed creature bounced into
+     exile is `Returned, to: Exile`, and it was not returned to a hand. So a
+     redirected move carries two acts, and each has its own performer. A
+     creature Diabolic Edict makes P1 sacrifice under Rest in Peace was
+     sacrificed at the edict's instruction and exiled by Rest in Peace's
+     replacement.
 
-     Two readers break:
-     - **CR 616.1f, today.** After Leyline applies, the event is still a
-       discard, so Nephalia Academy ("instead of putting it anywhere else")
-       still applies. The pipeline re-gathers on the rewritten event, whose
-       `cause` no longer matches Academy's `cause: Some(Discarded)`, so Academy
-       is never offered. The order the affected player picks decides whether the
-       card lands in the library or in exile.
-     - **Every sacrifice and discard trigger, once they land.**
-       `triggers-architecture.md` §4 matches a sacrifice or discard by `cause`
-       on the performed `ZoneChange`. `trigger-survey.md` table two counts 555
-       "sacrifices" cards and 436 "discards" cards, and under any of these
-       redirections every one of them misses. Madness is among them: its card is
-       discarded, then exiled instead.
+     **The three questions:**
 
-     **The second half: which replacement did the redirecting.** Madness's
-     trigger reads "when this card is exiled this way", and CR 702.35a says it
-     "functions when the first ability is applied". It therefore needs the
-     event to name the instance that redirected it. The record names none,
-     because the CR 614.5 applied set is dropped once the event has been
-     performed. 61 cards (`kw:madness`) need it. CR 615.13 asks the same of a
-     prevention, and that one already has a shape:
-     `GameEvent::DamagePrevented { by: ReplacementInstanceId }`
-     ("Before Triggered abilities" item 16).
+     | question | CR | the record today | gap |
+     |---|---|---|---|
+     | what was done | the 701 keyword actions; 601.2a; 608.2n; 704.5f's "put into its owner's graveyard", which 701.8b says is not destroyed | `ZoneChangeCause` | mixed with the performer: `DestroyedBySba`, `ZeroToughness`, `LegendRule` and the other rule variants are two facts in one slot |
+     | who did it | an effect (Academy's and Sigarda's "a spell or ability an opponent controls"); a cost (701.9c); a rule (704.5, 514.1) | `EventStamp::resolution`, else `None` | a cost payment, a state-based action, a turn-based action and combat damage all record `None`, so a discard paid as a cost and the cleanup discard are the same record |
+     | which replacement redirected it | 614.5's applied set; 702.35a, madness's "exiled this way" (61 cards, `kw:madness`) | dropped once the event performs | no field. CR 615.13's prevention already has one: `GameEvent::DamagePrevented { by }` ("Before Triggered abilities" item 16) |
 
-     **Reachability (2026-09-24):** reachable — wrong today. The board: Leyline
-     of the Void under P0, Nephalia Academy under P1, and a spell of P0's that
-     makes P1 discard.
-     - Leyline first at the CR 616.1 prompt: the card goes to exile, and
-       Academy's optional prompt never comes.
-     - Academy first: the card goes on top of P1's library.
+     **The trap until it lands.** A destination word must not be read off the
+     act, and nothing enforces that: `TriggerEvent::ZoneChange` (TR-1) and
+     `EventPattern::ZoneChange` both take any `ZoneChangeCause`. Athreos,
+     Shroud-Veiled's "dies or is put into exile" written as `cause:
+     Some(Exiled)` would miss a sacrifice that Rest in Peace exiled, and "is
+     returned to" written as `cause: Some(Returned)` would fire on the
+     unearthed creature above. No registered card writes either. For ranking
+     only: 43 printed triggers read "is put into exile" or "is exiled", and 6
+     read "is returned to".
 
-     Both orders were reproduced with a throwaway probe in
-     `phase_re8_integration_test.rs`, then deleted. Leyline of the Void, Rest in
-     Peace, Nephalia Academy, Hymn to Tourach and Mind Rot are all in the
-     default registry, so `--pool stress` can deal the board, and a random
-     provider picks either order. The madness half is unreachable: no madness
-     card is registered.
+     **Reachability (2026-09-24):** unreachable — nothing reads the performer
+     or a redirecting replacement off a performed record, and no registered
+     pattern names a destination act. Academy and Sigarda read the performer
+     off the proposal, which has it. The act half was reachable and wrong on
+     the Leyline and Academy board, and is fixed.
 
-     **Sized:** ~60–100 lines with tests.
-     - `substitute` keeps the event's `cause` when it redirects a zone change,
-       and `ZoneChangeTo` names only a destination. The one remaining use of a
-       template cause is an entry turned into a zone change (Containment
-       Priest, Hallowed Moonlight), and the entry's own cause serves there.
-     - `CommanderZoneReplacement` stops being a cause. Nothing reads it; it
-       becomes the second half's redirecting instance.
-     - That touches 11 production template sites and 7 in tests. The regression
-       tests are the probe's two orders and a sacrifice under Rest in Peace
-       recorded as `Sacrificed`.
-     - `fuzz_games`' stack-to-exile note (`fuzz_games.rs:746`) changes.
-     - An A/B whose `differ` is expected: the Academy prompt now comes in both
-       orders, and redirected moves change their label.
+     **Sized:** a design section first, in `replacement-architecture.md`'s
+     event spine with a pointer from `triggers-architecture.md`'s `ZoneChange`
+     pattern row, reviewed before any code. **It covers the zone-change
+     record's whole contract**, not only these three questions: which object
+     the move made (item 177) and the moment each fact is taken at (item 175)
+     are the same record's. Seven of the eleven items opened since TR-1 sit on
+     that surface (167, 168, 169, 174, 175, 176, 177), found one review or
+     audit at a time because the record was never designed as a unit: the
+     replacement docs designed the proposal, the triggers doc the matcher.
+     The section takes 175 and 177 as inputs and says whether each keeps its
+     own slot. It carries the reader interface with the record: act words read the act, destination words `to`,
+     performer words the performer, and "this way" the redirecting
+     replacement, so a pattern cannot name "exiled" as an act. The record's
+     diff is smaller than the 238 `ZoneChangeCause` sites (44 in `src`, 194 in
+     tests), because the act variants keep their names. What moves is the 19
+     sites on rule variants, `Resolved`'s 19 on one decision, the cost-payment
+     sites, and the pipeline keeping the applied set on the performed record.
+     Open for the design:
+     - whether `Resolved` is an act or a rule's move (CR 608.2n);
+     - whether a special action, such as a land play, is a performer of its
+       own;
+     - whether the record names one redirecting replacement or the applied
+       list;
+     - whether the performer lives on the stamp, where every event kind would
+       have one, or on `ZoneChange`.
 
-     The second half is either a field on the performed record or a sibling
-     event shaped like `DamagePrevented`. That choice belongs to the first
-     madness card, not to a field today. Madness is a cast from exile, so it is
-     `backlog.md` §2.3's, as item 133 already notes.
+     **Back-stop:** before TR-4, designed and reviewed first. TR-4 widens the
+     zone-change record (CR 603.10a's other two classes) and lands item 177,
+     so the contract is settled before that phase touches it. This PR's first
+     re-scope said TR-2, on the assumption that TR-2's arms read the record
+     first. They do not: none of TR-2–TR-6's registered cards or arms reads a
+     cause, a performer or a redirect (`triggers-architecture.md` §12). TR-2
+     reads draws, life, casts and shuffles; TR-4's zone-change cards read
+     destinations; Multani's Presence reads `SpellCountered`. The first
+     readers are Phase 8's sacrifice and discard triggers, "this way" clauses
+     and madness.
 
-     **Back-stop:** before the first card whose trigger reads `Sacrificed` or
-     `Discarded`.
+     **Fixed 2026-09-24**, `replacement/instead-keeps-the-act`: the act.
+     `ZoneChangeTo { to }` names only a destination and `substitute` keeps the
+     event's `cause`; 11 production and 7 test sites lost theirs. Only that
+     template had the defect: `DrawCards` already carried the event's cause,
+     and the other five change the event's kind, so the original act really
+     does not happen. Decisions:
+     1. An entry turned into a zone change (Containment Priest, Hallowed
+        Moonlight) keeps the entry's own cause, by the same rule.
+     2. `CommanderZoneReplacement` is no longer a cause: a bounced commander
+        keeps `Returned`, with `to: Command`. It did not become the redirect's
+        marker, because the marker names an instance and a cause names an act.
+     3. The performed record names no redirecting instance yet. That is this
+        item's third question.
+
+     The act's readers were three: the CR 616.1f re-gather (Academy, the one
+     that was wrong), trigger arms on a cause (none registered;
+     `trigger-survey.md` table two counts 555 "sacrifices" and 436 "discards"
+     cards), and a resolution's "this way" clauses (201 cards across the five
+     acts with `game:paper -is:funny`). `tests/instead_keeps_the_act_test.rs`
+     has one board per act, and each failed against the pre-fix tree. The A/B
+     is in `fuzz-record.md`. Item 131's first two instances were this defect,
+     found at RE-8 and scheduled onto critical-path item 6; they closed with
+     it.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
@@ -8373,4 +8418,5 @@ keeps the cost decisions).
        event put a creature there; the creature's dies trigger then does
        nothing.
 
-     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002).
+     It lands with TR-4's CR 400.7e atoms (400.7e-001, -002), on the record
+     item 176's design settles just before TR-4.

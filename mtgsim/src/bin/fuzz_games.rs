@@ -35,12 +35,14 @@
 // **Read the `resolved` column, not `cast`.** `cast` counts `SpellCast`
 // events; `resolved` counts stack departures a spell's *own resolution*
 // stamped, which is exact and excludes a counter, a fizzle and an exile off
-// the stack alike. Deliberately not `cause == Resolved`: CR 608.2m's move to
-// the graveyard can itself be replaced, so under Leyline of the Void a spell
-// that resolved perfectly well leaves the stack as `Exiled` (13 of 142 casts
-// in one 200-game `stress` run, 2026-09-14). The other direction — a
-// resolution with no cast behind it — is checked in every game, flag or no
-// flag: see `uncast_resolutions`.
+// the stack alike. Not `cause == Resolved`, which could not do it when the
+// column was built: CR 608.2m's move to the graveyard can itself be replaced,
+// and a redirect wrote its own cause, so under Leyline of the Void a spell
+// that resolved perfectly well left the stack as `Exiled` (13 of 142 casts in
+// one 200-game `stress` run, 2026-09-14). A redirect keeps the act since item
+// 176 (CR 614.6); the stamp stays, exact by construction. The other
+// direction — a resolution with no cast behind it — is checked in every game,
+// flag or no flag: see `uncast_resolutions`.
 //
 // `--pool` picks the card pool. `performance` is the frozen 55 every recorded
 // baseline was measured on and is the default, because an A/B against a pool
@@ -742,12 +744,13 @@ fn extract_stats<'a>(
                 // `ActionContext::resolving`, and every other way off the stack is stamped
                 // by somebody else or by nobody — a counter (CR 701.5) by the countering
                 // spell, a fizzle (CR 608.3b) by `ActionContext::new`, an exile off the
-                // stack by that effect. The cause cannot do the job: CR 608.2m's graveyard
-                // move is an event like any other, so under Leyline of the Void a resolved
-                // sorcery leaves as `Stack -> Exile [Exiled]` (13 of Hymn to Tourach's 142
-                // casts in 200 `stress` games, 2026-09-14), and Leyline replaces a
-                // *countered* spell's graveyard move too. → `codebase-state.md` "Found by
-                // RE-8", item 131.
+                // stack by that effect. The cause could not do the job when this was
+                // written: CR 608.2m's graveyard move is an event like any other, and under
+                // Leyline of the Void a resolved sorcery left as `Stack -> Exile [Exiled]`
+                // (13 of Hymn to Tourach's 142 casts in 200 `stress` games, 2026-09-14).
+                // Since item 176 a redirect keeps the act (CR 614.6), so that move reads
+                // `[Resolved]` and a countered spell's `[Countered]`. → `codebase-state.md`
+                // "Found by RE-8", item 131.
                 if !watch.is_empty()
                     && *from == Zone::Stack
                     && record.resolution().is_some_and(|r| r.source == *object_id)

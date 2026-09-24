@@ -202,10 +202,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
                     // control, because a card in a hand has no controller and
                     // CR 400.3 sends a discard to its owner's graveyard.
                     ObjectSet::filter_in(ObjectFilter::ByOwner(PlayerRef::You), ZoneSet::HAND),
-                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                        to: Zone::Library,
-                        cause: ZoneChangeCause::Discarded,
-                    }),
+                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
                 )
                 .caused_by(SourceFilter::ControlledBy(PlayerRef::Opponent))
                 .optional(),

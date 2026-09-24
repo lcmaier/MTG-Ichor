@@ -588,7 +588,7 @@ fn test_a_finality_counter_exiles_instead_of_the_graveyard() {
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(bear, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        vec![(bear, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
         "one event, the modified one — CR 614.6"
     );
 }
@@ -719,7 +719,7 @@ fn test_a_replacement_effect_does_not_apply_to_its_own_output() {
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
     );
 }
 
@@ -760,10 +760,7 @@ fn self_matching_probe(name: &str) -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::SourceOnly,
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         ),
     )
 }
@@ -982,10 +979,7 @@ fn all_creatures_exile_watcher() -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         ),
     )
 }
@@ -1425,7 +1419,7 @@ fn test_kalitas_exiles_an_opponents_dying_creature_and_makes_a_zombie() {
     assert_eq!(tokens(&game), vec!["Zombie Token".to_string()]);
     assert_eq!(
         zone_changes(&game),
-        vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        vec![(victim, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
     );
 }
 
@@ -1952,9 +1946,9 @@ fn test_a_commander_headed_for_its_owners_hand_may_go_to_the_command_zone() {
             cmdr,
             Zone::Battlefield,
             Zone::Command,
-            ZoneChangeCause::CommanderZoneReplacement
+            ZoneChangeCause::Returned
         )],
-        "one event, the modified one — the hand move never happened"
+        "one event: the return, to the command zone (CR 614.6)"
     );
 }
 
@@ -2035,10 +2029,7 @@ fn test_an_exempt_effect_that_reapplies_to_its_own_output_is_caught_at_once() {
             object: None,
         },
         ObjectSet::Fixed(vec![victim]),
-        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-            to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
-        }),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Graveyard }),
     );
     def.exempt_from_614_5 = true;
     game.replacement_effects.add(RegisteredReplacementEffect {
@@ -2078,10 +2069,7 @@ fn exempt_row(
     let mut def = ReplacementDef::new(
         EventPattern::ZoneChange { from: None, to: Some(to), cause: None, object: None },
         ObjectSet::Fixed(vec![victim]),
-        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-            to: becomes,
-            cause: ZoneChangeCause::Sacrificed,
-        }),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: becomes }),
     );
     def.exempt_from_614_5 = true;
     RegisteredReplacementEffect {
@@ -2200,10 +2188,7 @@ fn library_tucker(name: &str) -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::SourceOnly,
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Library,
-                cause: ZoneChangeCause::PutIntoLibrary,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
         ),
     )
 }
@@ -2241,7 +2226,7 @@ fn test_choosing_exile_leaves_the_shuffle_inapplicable() {
     assert_eq!(game.get_object(probe).unwrap().zone, Zone::Exile);
     assert_eq!(
         zone_changes(&game),
-        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Exiled)],
+        vec![(probe, Zone::Battlefield, Zone::Exile, ZoneChangeCause::Sacrificed)],
         "one event: the shuffle never applied, because the creature stopped dying"
     );
     assert!(dp.is_empty(), "asked once — the loop did not re-offer");
@@ -2373,12 +2358,11 @@ fn test_a_replacement_with_no_matching_event_is_a_no_op() {
     // directly by some other effect: there is no death, so nothing applies and
     // the exile happens normally.
     //
-    // The sharp part is that the outcome — the creature in exile — is the same
-    // one the replacement would have produced. So the assertion is on the
-    // event's `cause`, which is the only thing that distinguishes "the
-    // replacement fired" from "it never had anything to fire on".
+    // The probe sends a death to the library, so the zone is what tells "the
+    // replacement fired" from "it never had anything to fire on". The cause
+    // cannot: a redirect keeps the proposal's (CR 614.6).
     let mut game = setup_two_player_game();
-    let probe = put_on_battlefield(&mut game, exile_on_death("Ashen Probe"), 0);
+    let probe = put_on_battlefield(&mut game, library_on_death("Ashen Probe"), 0);
 
     game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx())
         .unwrap();
@@ -2391,8 +2375,8 @@ fn test_a_replacement_with_no_matching_event_is_a_no_op() {
     );
 }
 
-/// "If this creature would die, exile it instead."
-fn exile_on_death(name: &str) -> Arc<CardData> {
+/// "If this creature would die, put it into its owner's library instead."
+fn library_on_death(name: &str) -> Arc<CardData> {
     replacement_creature(
         name,
         ReplacementDef::new(
@@ -2403,10 +2387,7 @@ fn exile_on_death(name: &str) -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::SourceOnly,
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
         ),
     )
 }

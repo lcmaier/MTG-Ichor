@@ -48,7 +48,7 @@ impl GameState {
     /// Begin the game's first turn, its beginning phase and its untap step —
     /// through the chokepoint, like every later one.
     ///
-    /// Called once, by `Game::setup`, after CR 103.4's opening hands.
+    /// Called once, by `Game::setup`, after CR 103.5's opening hands.
     /// [`GameState::new`] leaves the board *describing* turn 1 (turn number,
     /// active player, the beginning phase) so that a bare `GameState` in a unit
     /// test reads the way it always has; this is what makes those units

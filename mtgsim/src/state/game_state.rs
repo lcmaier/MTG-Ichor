@@ -326,7 +326,7 @@ pub struct GameState {
     /// CR 614.10a says the sequence proceeds past a skipped turn, so the turn
     /// after a skipped P2 is P3's and not P2's again.
     ///
-    /// Starts at CR 103.7's starting player, because [`Self::new`] starts with
+    /// Starts at CR 103.1's starting player, because [`Self::new`] starts with
     /// that player's first turn already in progress — and a fixture that
     /// hand-writes `active_player` writes this too, for the same reason.
     pub turn_rotation: PlayerId,
@@ -370,7 +370,7 @@ pub struct GameState {
     /// the `PlayerWins` performer and by [`Self::settle_game_result`], read by
     /// `Game::is_over` and by every loop that must stop when the game does.
     pub result: Option<GameResult>,
-    /// CR 103.3's starting life total, which "your starting life total" on a
+    /// CR 103.4's starting life total, which "your starting life total" on a
     /// card (Exquisite Archangel) reads and a two-player 20 would get wrong
     /// in Commander.
     pub starting_life: i64,
@@ -1466,10 +1466,10 @@ impl GameState {
     /// Both directions, which is the part a one-line `entry.attacking = None`
     /// would get wrong: an attacker leaving combat also stops being *blocked
     /// by* its blockers, and a blocker leaving stops appearing in the
-    /// attackers' `blocked_by` lists. CR 506.4b keeps the attacker blocked in
-    /// the sense that matters for damage — "an attacking creature that's been
-    /// blocked remains blocked even if all creatures blocking it are removed
-    /// from combat" — so `is_blocked` is deliberately left alone.
+    /// attackers' `blocked_by` lists. CR 509.1h keeps the attacker blocked in
+    /// the sense that matters for damage — "a creature remains blocked even if
+    /// all the creatures blocking it are removed from combat" — so
+    /// `is_blocked` is deliberately left alone.
     pub(crate) fn remove_from_combat(&mut self, id: ObjectId) {
         let Some(entry) = self.battlefield.get(&id) else {
             return;
@@ -1497,7 +1497,7 @@ impl GameState {
             }
         }
         // This creature was blocking: the attackers stop being blocked by it.
-        // CR 506.4b leaves them *blocked* — they simply have no blockers.
+        // CR 509.1h leaves them *blocked* — they simply have no blockers.
         for attacker in was_blocking {
             if let Some(a) = self.battlefield.get_mut(&attacker)
                 && let Some(info) = a.attacking.as_mut() {

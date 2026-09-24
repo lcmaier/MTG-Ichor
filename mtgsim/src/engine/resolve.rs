@@ -2017,7 +2017,7 @@ impl GameState {
             AmountExpr::Multiply(inner, n) => {
                 Ok(self.evaluate_amount(inner, _ctx)?.saturating_mul(*n))
             }
-            // CR 103.3's number is the game's, and never below zero.
+            // CR 103.4's number is the game's, and never below zero.
             AmountExpr::StartingLifeTotal => Ok(self.starting_life.max(0) as u64),
             // Meaningful only inside the layer walk, where "it" is the object
             // the continuous effect is being applied to. A resolving spell has

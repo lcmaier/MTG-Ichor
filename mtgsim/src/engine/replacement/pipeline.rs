@@ -1193,7 +1193,7 @@ fn draw_doubler_commutes(def: &ReplacementDef, event: &GameAction) -> bool {
 /// a constant.
 fn template_is_instance_invariant(template: &GameActionTemplate) -> bool {
     match template {
-        // Built from the event's own object and `from`.
+        // Built from the event's own object, `from` and `cause`.
         GameActionTemplate::ZoneChangeTo { .. } => true,
         // Built from the event's subject.
         GameActionTemplate::RemoveCountersFromAffected { .. } => true,
@@ -2209,23 +2209,31 @@ fn substitute(
     subject: EventSubject,
 ) -> Result<GameAction, String> {
     match (template, event) {
+        // CR 614.6: the modified event is the one that happens, and a new
+        // destination leaves the act — the discard, the sacrifice — performed.
         (
-            GameActionTemplate::ZoneChangeTo { to, cause },
-            GameAction::ZoneChange { object, from, .. },
-        ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause: *cause }),
+            GameActionTemplate::ZoneChangeTo { to },
+            GameAction::ZoneChange { object, from, cause, .. },
+        ) => Ok(GameAction::ZoneChange { object, from, to: *to, cause }),
 
         // Containment Priest, Hallowed Moonlight: the entry is the zone change
-        // (CR 614.1c), so a card's substitute is one move from where it is and it
-        // never becomes a permanent. A token has no `from` — created in the zone,
-        // entity pending (`create_tokens`) — so its substitute is the creation
-        // itself, elsewhere: `CreateTokenIn`, the Moonlight ruling's appearance.
+        // (CR 614.1c), so a card's substitute is one move from where it is, with
+        // the entry's cause, and it never becomes a permanent. A token has no
+        // `from` — created in the zone, entity pending (`create_tokens`) — so its
+        // substitute is the creation itself, elsewhere: `CreateTokenIn`, the
+        // Moonlight ruling's appearance.
         (
-            GameActionTemplate::ZoneChangeTo { to, cause },
-            GameAction::EnterBattlefield { object, from, .. },
-        ) => Ok(match from {
-            Some(from) => GameAction::ZoneChange { object, from, to: *to, cause: *cause },
-            None => GameAction::CreateTokenIn { object, zone: *to },
-        }),
+            GameActionTemplate::ZoneChangeTo { to },
+            GameAction::EnterBattlefield { object, from, cause, .. },
+        ) => match (from, cause) {
+            (Some(from), Some(cause)) => Ok(GameAction::ZoneChange { object, from, to: *to, cause }),
+            (None, _) => Ok(GameAction::CreateTokenIn { object, zone: *to }),
+            (Some(_), None) => Err(format!(
+                "replacement {:?} redirects an entry of {:?} from a zone, and the entry \
+                 names no cause: only a token's entry has none",
+                chosen.id, object
+            )),
+        },
 
         (GameActionTemplate::RemoveCountersFromAffected { counter, n }, _) => {
             match subject_object(subject) {

@@ -1043,10 +1043,7 @@ fn counter_replacements(
                     object: None,
                 },
                 ObjectSet::SourceOnly,
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                    to: Zone::Exile,
-                    cause: ZoneChangeCause::Exiled,
-                }),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ),
         ));
     }
@@ -1143,10 +1140,7 @@ fn commander_zone_replacement(
             object: None,
         },
         ObjectSet::Fixed(vec![*object]),
-        Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-            to: Zone::Command,
-            cause: ZoneChangeCause::CommanderZoneReplacement,
-        }),
+        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Command }),
     )
     .optional();
     def.exempt_from_614_5 = true;

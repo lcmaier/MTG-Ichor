@@ -30,7 +30,7 @@ pub struct PlayerState {
     /// `CounterType` with a permanent's counters because CR 701.34a's
     /// proliferate sweeps both in one pass. A `BTreeMap` so a walk over it is
     /// in enum order, process-independent. No timestamps: CR 613.7c
-    /// timestamps counters on *objects*, and no layer computes a player.
+    /// timestamps a player's counters too, but no layer computes a player.
     /// Written through [`Self::add_counters`] / [`Self::remove_counters`] by
     /// `perform_action`'s counter arms and by nothing else.
     pub counters: BTreeMap<CounterType, u32>,

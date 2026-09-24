@@ -28,7 +28,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
+use crate::types::zones::{Zone, ZoneSet};
 
 /// Kalitas, Traitor of Ghet — {2}{B}{B}
 /// Legendary Creature — Vampire Warrior, 3/4
@@ -122,10 +122,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
                                 Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
                             )),
                         )),
-                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                        to: Zone::Exile,
-                        cause: ZoneChangeCause::Exiled,
-                    }),
+                    Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
                 )
                 .with_then(Effect::Atom(
                     Primitive::CreateToken(zombie_token(), AmountExpr::Fixed(1)),
@@ -226,10 +223,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
                 // no `Not(Token)`. Everything that would hit a graveyard,
                 // "from anywhere".
                 ObjectSet::filter_in(ObjectFilter::All, ZoneSet::ALL),
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                    to: Zone::Exile,
-                    cause: ZoneChangeCause::Exiled,
-                }),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
         })
         .build()
@@ -313,10 +307,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
                     // "from anywhere".
                     ZoneSet::ALL,
                 ),
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                    to: Zone::Exile,
-                    cause: ZoneChangeCause::Exiled,
-                }),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
             ))),
         })
         .build()

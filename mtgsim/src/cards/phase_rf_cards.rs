@@ -36,7 +36,7 @@ use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef, Rewrite};
-use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
+use crate::types::zones::{Zone, ZoneSet};
 
 /// `codebase-state.md` item 120's constructor, the copy this file owes it.
 fn static_ability(effect: Effect) -> AbilityDef {
@@ -105,10 +105,7 @@ fn shuffles_into_library_from_anywhere() -> AbilityDef {
                     object: None,
                 },
                 ObjectSet::SourceOnly,
-                Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                    to: Zone::Library,
-                    cause: ZoneChangeCause::PutIntoLibrary,
-                }),
+                Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Library }),
             )
             .with_then(Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Implicit)),
         ))),
@@ -215,10 +212,7 @@ pub fn timid_golem() -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::SourceOnly,
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         )))))
         .build()
 }
@@ -281,10 +275,7 @@ pub fn sealing_ward() -> Arc<CardData> {
                 object: None,
             },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-            Rewrite::Instead(GameActionTemplate::ZoneChangeTo {
-                to: Zone::Exile,
-                cause: ZoneChangeCause::Exiled,
-            }),
+            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
         )))))
         .build()
 }
