@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-19",
+  "fetched": "2026-09-24",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -323,6 +323,15 @@
     "Elvish Archers": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Elvish Warmaster": {
+      "first_seen": "2026-09-24",
+      "read": "2026-09-24",
+      "rulings": [
+        {"n": 1, "published_at": "2021-02-05", "comment": "It doesn't matter how many Elves enter the battlefield under your control. The ability creates only one Elf Warrior creature token."},
+        {"n": 2, "published_at": "2021-02-05", "comment": "Once the triggered ability has triggered once during a turn, it can't trigger again, even if the triggered ability is still on the stack, has been countered, or has otherwise left the stack."},
+        {"n": 3, "published_at": "2021-02-05", "comment": "The activated ability affects only Elves you control as the ability resolves. Elves you begin to control later in the turn won't get the bonuses. Creatures you control that become Elves later in the turn won't get the bonuses, and Elves you control that got the bonuses that stop being Elves later in the turn won't lose them."}
+      ]
     },
     "Eon Hub": {
       "first_seen": "2026-09-17",
@@ -707,6 +716,14 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Paladin of Atonement": {
+      "first_seen": "2026-09-24",
+      "read": "2026-09-24",
+      "rulings": [
+        {"n": 1, "published_at": "2018-01-19", "comment": "Paladin of Atonement’s first ability cares only whether you lost life last turn, even if Paladin of Atonement wasn’t on the battlefield when that happened. It doesn’t care how much you lost, whether you also gained life, or even whether you gained more life than you lost."},
+        {"n": 2, "published_at": "2018-01-19", "comment": "To determine how much life you gain for the last ability, use Paladin of Atonement’s toughness as it last existed on the battlefield. If its toughness was less than 0, you won’t gain life. (You also won’t lose life.)."}
+      ]
+    },
     "Pale Moon": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -966,6 +983,11 @@
         {"n": 3, "published_at": "2020-06-23", "comment": "Because Teferi's Ageless Insight is legendary, it's unlikely that one player will control two. However, if that happens, each card that player would draw after the first will result in four cards being drawn. If they control three, they draw eight cards, and so on."}
       ]
     },
+    "Temple Bell": {
+      "first_seen": "2026-09-24",
+      "read": "2026-09-24",
+      "rulings": []
+    },
     "Thalia, Guardian of Thraben": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1062,6 +1084,16 @@
     "Vampire Nighthawk": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Vengeful Warchief": {
+      "first_seen": "2026-09-24",
+      "read": "2026-09-24",
+      "rulings": [
+        {"n": 1, "published_at": "2019-07-12", "comment": "A player loses life if they pay life."},
+        {"n": 2, "published_at": "2019-07-12", "comment": "You put only one +1/+1 counter on Vengeful Warchief, no matter how much life you lost."},
+        {"n": 3, "published_at": "2019-07-12", "comment": "If you pay life to cast a spell or activate an ability, you don’t put a +1/+1 counter on Vengeful Warchief until after you’ve finished casting that spell or activating that ability. You put the counter on Vengeful Warchief before that spell or ability resolves."},
+        {"n": 4, "published_at": "2019-07-12", "comment": "If Vengeful Warchief comes under your control after you’ve already lost life in a turn, its ability can’t trigger during that turn."}
+      ]
     },
     "Verdant Force": {
       "first_seen": "2026-09-19",

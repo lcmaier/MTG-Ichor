@@ -40,10 +40,10 @@ use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, set_active_player, setup_game,
     setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::CardType;
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, DiscardChooser, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
@@ -1098,6 +1098,7 @@ fn this_game_sums_every_turn_so_far() {
 /// Paladin of Atonement asks whether you lost life last turn: it reads the
 /// history, so it counts a loss from before it arrived, and it ignores how
 /// much was lost and how much was gained.
+// RULING: Paladin of Atonement #1 - "Paladin of Atonement’s first ability cares only whether you lost life last turn, even ..."
 #[test]
 fn paladin_reads_last_turns_loss_whatever_else_happened() {
     let mut game = setup_two_player_game();
@@ -1119,6 +1120,7 @@ fn paladin_reads_last_turns_loss_whatever_else_happened() {
 /// "Its toughness" as it last existed on the battlefield: a 1/1 with two
 /// +1/+1 counters gains 3 as it dies. At toughness below 0 it gains nothing,
 /// and loses nothing.
+// RULING: Paladin of Atonement #2 - "To determine how much life you gain for the last ability, use Paladin of Atonement’s ..."
 #[test]
 fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
     let mut game = setup_two_player_game();
@@ -1151,6 +1153,8 @@ fn paladin_gains_its_last_toughness_and_nothing_below_zero() {
 
 /// Paying life is losing life, and the Warchief gets one counter however
 /// much was lost.
+// RULING: Vengeful Warchief #1 - "A player loses life if they pay life."
+// RULING: Vengeful Warchief #2 - "You put only one +1/+1 counter on Vengeful Warchief, no matter how much life you lost."
 #[test]
 fn warchief_counts_paid_life_as_lost_life() {
     let mut game = setup_two_player_game();
@@ -1173,6 +1177,7 @@ fn warchief_counts_paid_life_as_lost_life() {
 /// Life paid to activate an ability: the Warchief's trigger goes on the
 /// stack after the activation is complete, above it, so its counter lands
 /// before the ability resolves.
+// RULING: Vengeful Warchief #3 - "If you pay life to cast a spell or activate an ability, you don’t put a +1/+1 counter ..."
 #[test]
 fn warchiefs_counter_goes_on_after_the_activation_and_before_it_resolves() {
     let mut game = setup_two_player_game();
@@ -1195,6 +1200,7 @@ fn warchiefs_counter_goes_on_after_the_activation_and_before_it_resolves() {
 /// A Warchief that comes under your control after your first loss this turn
 /// cannot trigger this turn: the next loss is not the first. That holds
 /// whether it arrives or is stolen, and next turn's first loss triggers it.
+// RULING: Vengeful Warchief #4 - "If Vengeful Warchief comes under your control after you’ve already lost life in a ..."
 #[test]
 fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
     let lose = |game: &mut GameState| {
@@ -1222,6 +1228,7 @@ fn a_warchief_that_arrives_after_the_first_loss_waits_for_next_turn() {
 
 /// However many Elves enter at once, one token: "one or more" is one trigger
 /// per event.
+// RULING: Elvish Warmaster #1 - "It doesn't matter how many Elves enter the battlefield under your control. The ability ..."
 #[test]
 fn warmaster_makes_one_token_however_many_elves_enter() {
     let mut game = setup_two_player_game();
@@ -1237,6 +1244,7 @@ fn warmaster_makes_one_token_however_many_elves_enter() {
 /// Once it has triggered this turn it cannot trigger again: not while the
 /// first trigger waits on the stack, and not after that trigger is
 /// countered. The next turn it can.
+// RULING: Elvish Warmaster #2 - "Once the triggered ability has triggered once during a turn, it can't trigger again, ..."
 #[test]
 fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
     let mut game = setup_two_player_game();
@@ -1275,7 +1283,9 @@ fn warmaster_triggers_once_a_turn_even_while_its_first_trigger_waits() {
 
 /// "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of
 /// turn" affects the Elves the controller controls as it resolves: not a
-/// non-Elf creature, and not an Elf that arrives afterwards.
+/// non-Elf creature, not an Elf that arrives afterwards, and not a creature
+/// that becomes an Elf afterwards; and an Elf that stops being one keeps it.
+// RULING: Elvish Warmaster #3 - "The activated ability affects only Elves you control as the ability resolves. Elves ..."
 #[test]
 fn warmasters_pump_is_fixed_as_it_resolves() {
     let mut game = setup_two_player_game();
@@ -1294,10 +1304,48 @@ fn warmasters_pump_is_fixed_as_it_resolves() {
         *game.battlefield_ids_ordered().last().unwrap()
     };
 
-    assert_eq!(get_effective_power(&game, warmaster), Some(4));
+    retype(&mut game, bear, vec![elf()], Vec::new());
+    retype(&mut game, warmaster, Vec::new(), vec![elf()]);
+
+    assert_eq!(get_effective_power(&game, warmaster), Some(4), "no longer an Elf, and keeps it");
     assert!(has_keyword(&game, warmaster, KeywordFlag::Deathtouch));
-    assert_eq!(get_effective_power(&game, bear), Some(2), "not an Elf");
+    assert_eq!(get_effective_power(&game, bear), Some(2), "became an Elf afterwards");
+    assert!(!has_keyword(&game, bear, KeywordFlag::Deathtouch));
     assert!(!has_keyword(&game, late, KeywordFlag::Deathtouch), "an Elf that arrived afterwards");
+}
+
+fn elf() -> Subtype {
+    Subtype::Creature(CreatureType::Elf)
+}
+
+/// Until end of turn, `id` gains `add` and loses `remove` among its subtypes.
+fn retype(game: &mut GameState, id: ObjectId, add: Vec<Subtype>, remove: Vec<Subtype>) {
+    let change = TypeChange {
+        add_types: Vec::new(),
+        remove_types: Vec::new(),
+        set_types: None,
+        add_subtypes: add,
+        remove_subtypes: remove,
+        set_subtypes: None,
+        add_supertypes: Vec::new(),
+        remove_supertypes: Vec::new(),
+        set_supertypes: None,
+    };
+    let effect = Effect::Atom(
+        Primitive::ChangeType(change, Duration::UntilEndOfTurn),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let source = put_in_hand(game, grizzly_bears(), 0);
+    let ctx = ResolutionContext {
+        source,
+        ability_source: None,
+        controller: 0,
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(id)]),
+        replaced_amount: None,
+        damage_prevented: None,
+        trigger: None,
+    };
+    game.resolve_effect(&effect, &ctx, &test_dp()).expect("the retype");
 }
 
 /// "{T}: Each player draws a card" with P1 active: P1 draws first (CR 121.2c).
@@ -1320,9 +1368,7 @@ fn temple_bell_rings_the_active_player_first() {
 /// a Mountain, which strips its abilities (CR 305.7). Ashaya's own go too, so
 /// it is 0/0 and dies. Immediately before that death Blood Artist had no
 /// abilities, so it does not trigger (CR 603.10a), though it has them back the
-/// moment Ashaya is gone. Found by the dispatch audit in a four-seat stress
-/// game once TR-2a's cards changed the decks: Ashaya's type-changing row was
-/// not an ability-list source, so no look-back snapshot was taken.
+/// moment Ashaya is gone.
 #[test]
 fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
     let mut game = setup_two_player_game();
