@@ -8251,36 +8251,61 @@ and the reading below, which the audit makes and the dispatcher does not.
 kind of reference, and `backlog.md` §2.2 gains constraints on the
 linked-ability records an entry makes.
 
-176. **An "instead" keeps the destination and drops the act: a redirected
-     discard or sacrifice is performed as `Exiled`.** `pipeline.rs`'s
+176. **An "instead" keeps the act and changes only the destination, and
+     `substitute` writes over the act: a redirected discard, sacrifice,
+     destroy, mill or counter is performed as `Exiled`.** `pipeline.rs`'s
      `substitute` builds the modified zone change with the template's `cause`,
      not the event's. `Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to,
      cause })` is the template, and Rest in Peace, Leyline of the Void, Kalitas
      and finality counters all write `Exiled`. So a card discarded under Leyline
      is recorded as `Hand -> Exile [Exiled]`.
 
-     The rulings say otherwise:
-     - Rest in Peace (2018-03-16) and Leyline of the Void (2024-09-20): a card
-       discarded while either is out is still discarded, "even though that card
-       never reaches a graveyard".
-     - Nephalia Academy (2016-07-13): "the card was still discarded".
+     **The rule** (restated at pass 4's close). Destroy, discard, mill,
+     sacrifice and counter are each defined as a move to the graveyard (CR
+     701.8a, 701.9a, 701.17a, 701.21a, 701.6a). CR 614.6 makes the modified
+     event the one that happens, so an "instead" that changes only the
+     destination leaves the act performed. Three sources say so outright:
+     - **discard**: CR 701.9c ("If a card is discarded, but an effect causes it
+       to be put into a hidden zone instead"), and the rulings on Rest in Peace
+       (2018-03-16) and Leyline of the Void (2024-09-20), which say a discarded
+       card still counts "even though that card never reaches a graveyard".
+       Nephalia Academy's (2016-07-13) says "the card was still discarded";
+     - **mill**: CR 701.17c, whose milled card can be found "in the zone it
+       moved to";
+     - **counter**: CR 608.2c's own example, "If that spell is countered this
+       way, put it on top of its owner's library instead". CR 603.10e's "when a
+       spell is countered" watches it.
 
-     CR 614.6 makes the modified event the one that happens. CR 701.9c treats a
-     card put somewhere else in place of the graveyard as still discarded.
+     Sacrifice and destroy follow from the same definitions. Regeneration and
+     shield counters are a different template: they replace the destruction
+     itself (CR 614.8, 122.1c), which changes the event's kind, and they are
+     right today.
 
-     Two readers break:
-     - **CR 616.1f, today.** After Leyline applies, the event is still a
-       discard, so Nephalia Academy ("instead of putting it anywhere else")
-       still applies. The pipeline re-gathers on the rewritten event, whose
-       `cause` no longer matches Academy's `cause: Some(Discarded)`, so Academy
-       is never offered. The order the affected player picks decides whether the
-       card lands in the library or in exile.
-     - **Every sacrifice and discard trigger, once they land.**
+     So the rule covers every `ZoneChangeCause`: **`cause` is the act, `to` is
+     the destination, and a redirect changes only `to`.** The acts that are
+     their own destination (return, put into a hand or a library, exile) are
+     read together with `to`, which every reader already filters on.
+
+     **Three readers, not one:**
+     - **CR 616.1f's re-gather, today.** After Leyline applies, the event is
+       still a discard, so Nephalia Academy ("instead of putting it anywhere
+       else") still applies. The pipeline re-gathers on the rewritten event,
+       whose `cause` no longer matches Academy's `cause: Some(Discarded)`, so
+       Academy is never offered. Academy is the only registered pattern that
+       names a `cause`, and the only reader exposed today.
+     - **Trigger arms matching `cause`.** None is registered yet.
        `triggers-architecture.md` §4 matches a sacrifice or discard by `cause`
-       on the performed `ZoneChange`. `trigger-survey.md` table two counts 555
-       "sacrifices" cards and 436 "discards" cards, and under any of these
-       redirections every one of them misses. Madness is among them: its card is
-       discarded, then exiled instead.
+       on the performed `ZoneChange`, and `trigger-survey.md` table two counts
+       555 "sacrifices" cards and 436 "discards" cards. Madness is among them:
+       its card is discarded, then exiled instead.
+     - **A resolution's own "this way" clauses**, with `game:paper -is:funny`:
+       `o:"destroyed this way"` 54, `o:"milled this way"` 44, `o:"discarded
+       this way"` 38, `o:"countered this way"` 35, `o:"sacrificed this way"`
+       30.
+
+     **Only `ZoneChangeTo` has the defect.** `DrawCards` already carries the
+     event's `cause`, citing CR 614.6. The other five template arms change the
+     event's kind, so the original act really does not happen.
 
      **The second half: which replacement did the redirecting.** Madness's
      trigger reads "when this card is exiled this way", and CR 702.35a says it
@@ -8306,27 +8331,37 @@ linked-ability records an entry makes.
      provider picks either order. The madness half is unreachable: no madness
      card is registered.
 
-     **Sized:** ~60–100 lines with tests.
-     - `substitute` keeps the event's `cause` when it redirects a zone change,
-       and `ZoneChangeTo` names only a destination. The one remaining use of a
-       template cause is an entry turned into a zone change (Containment
-       Priest, Hallowed Moonlight), and the entry's own cause serves there.
-     - `CommanderZoneReplacement` stops being a cause. Nothing reads it; it
-       becomes the second half's redirecting instance.
-     - That touches 11 production template sites and 7 in tests. The regression
-       tests are the probe's two orders and a sacrifice under Rest in Peace
-       recorded as `Sacrificed`.
-     - `fuzz_games`' stack-to-exile note (`fuzz_games.rs:746`) changes.
-     - An A/B whose `differ` is expected: the Academy prompt now comes in both
-       orders, and redirected moves change their label.
+     **Sized:** ~60–100 lines with tests, and four decisions.
+     1. `ZoneChangeTo` names only `to`, and `substitute` keeps the event's
+        `cause`.
+     2. An entry turned into a zone change (Containment Priest, Hallowed
+        Moonlight) keeps the entry's own cause, by the same rule. The act there
+        is destination-defined, a return or a land play, and readers filter on
+        `to`, so it is not a special case.
+     3. `CommanderZoneReplacement` stops being a cause: a bounced commander
+        keeps `Returned`, with `to: Command`. Nothing in `src` reads it, and
+        one test does. It does not become the second half's marker, because
+        that marker names an instance, and a cause names an act.
+     4. The performed record does not name the replacement that redirected
+        it. That is the second half's, below.
+
+     It touches 11 production template sites and 7 in tests (recounted on
+     `ebe9266`). The regression tests are the probe's two orders; a sacrifice,
+     a destroy and a mill under Rest in Peace, each recorded as its act; a
+     countered spell exiled instead, recorded `Countered`; and an entry that
+     Containment Priest exiles. `fuzz_games`' stack-to-exile notes
+     (`fuzz_games.rs:40`, `:747`) change. The A/B's `differ` is expected:
+     Academy's prompt now comes in both orders, and redirected moves change
+     their label.
 
      The second half is either a field on the performed record or a sibling
      event shaped like `DamagePrevented`. That choice belongs to the first
      madness card, not to a field today. Madness is a cast from exile, so it is
      `backlog.md` §2.3's, as item 133 already notes.
 
-     **Back-stop:** before the first card whose trigger reads `Sacrificed` or
-     `Discarded`.
+     **Back-stop:** before the first reader of any cause, a trigger arm on a
+     `cause` or a "this way" clause. It was "the first card whose trigger reads
+     `Sacrificed` or `Discarded`", which missed the "this way" clauses.
 
 ### Found by the type-surface re-sweep, pass 2: triggers (2026-09-24)
 
