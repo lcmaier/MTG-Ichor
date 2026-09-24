@@ -17,8 +17,11 @@ use std::sync::Arc;
 use mtgsim::cards::authoring::{at_beginning_of, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::basic_lands::forest;
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::phase_ld_cards::blood_moon;
 use mtgsim::cards::phase_lg_cards::act_of_treason;
+use mtgsim::cards::phase_li_cards::ashaya_soul_of_the_wild;
 use mtgsim::cards::phase_re_cards::{alms_collector, yawgmoths_bargain};
+use mtgsim::cards::phase_tr1_cards::blood_artist;
 use mtgsim::cards::phase_tr2a_cards::{
     elf_warrior_token, elvish_warmaster, paladin_of_atonement, temple_bell, vengeful_warchief,
 };
@@ -1307,4 +1310,36 @@ fn temple_bell_rings_the_active_player_first() {
     game.activate_ability(0, bell, 0, &RecordingDecisionProvider::picking(0)).expect("{T}");
     drain(&mut game);
     assert_eq!(draw_order(&game), vec![1, 0]);
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.10a through CR 305.7 — a land type is an ability list
+// ---------------------------------------------------------------------------
+
+/// Blood Moon makes every creature Ashaya, Soul of the Wild made a land into
+/// a Mountain, which strips its abilities (CR 305.7). Ashaya's own go too, so
+/// it is 0/0 and dies. Immediately before that death Blood Artist had no
+/// abilities, so it does not trigger (CR 603.10a), though it has them back the
+/// moment Ashaya is gone. Found by the dispatch audit in a four-seat stress
+/// game once TR-2a's cards changed the decks: Ashaya's type-changing row was
+/// not an ability-list source, so no look-back snapshot was taken.
+#[test]
+fn a_survivor_stripped_through_a_land_type_looks_back_to_no_abilities() {
+    let mut game = setup_two_player_game();
+    game.enable_dispatch_audit();
+    let artist = put_on_battlefield(&mut game, blood_artist(), 0);
+    let ashaya = put_on_battlefield(&mut game, ashaya_soul_of_the_wild(), 0);
+    put_on_battlefield(&mut game, blood_moon(), 1);
+    place(&mut game, &test_dp());
+
+    assert_eq!(game.get_object(ashaya).unwrap().zone, Zone::Graveyard, "0/0 under Blood Moon");
+    assert_eq!(game.get_object(artist).unwrap().zone, Zone::Battlefield);
+    assert_eq!(pending(&game) + game.stack.len(), 0, "no ability before the event, so no trigger");
+
+    // And after it Blood Artist is itself again.
+    let bear = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let source = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    game.execute_action(GameAction::Destroy { object: bear, source: DestructionSource::Effect(source) }, &test_ctx())
+        .unwrap();
+    assert_eq!(pending(&game), 1, "a creature dying now");
 }

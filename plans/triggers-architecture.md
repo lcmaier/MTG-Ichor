@@ -1047,22 +1047,23 @@ immediately prior to the event" holds for every look-back source, not only
 one that left: a Blood Artist that survives the wipe that took Humility had
 no abilities before it, and triggers on none of the deaths. A survivor's
 list can differ across the event only if the batch departs the source of a
-row that writes ability lists — a copy, or a Layer 6 grant or removal
-(`RegistryScopeSummary::ability_list_sources`) — so that is the trigger,
-asked of the batch's *decided* members between deciding and performing:
-replacement decides whether anything departs, and the lists are still the
-ones before. The batch then keeps each look-back reader's frame, an `Arc`
-off the memo, as a `LookBackSnapshot` over the records it performs — legs 1,
-3 and 4, read before a departure can end the grant leg 4 walks for — and the
-close asks look-back arms of those frames and every other arm of the live
-list. **A nested batch that joins the window takes its own**, and a record
-reads the outermost snapshot whose batch performed it, since a nested batch
-inside a performer is the enclosing event at finer grain (CR 704.3's one
-event); else the first taken after it, since no list changed in between;
-else the live list, which is then also the list before it. Both signs are
-fixtures: Humility beside a surviving Blood Artist, and a grant whose source
-dies in the wipe, whose carrier triggers for each death. Bridge from Below's
-graveyard half is the zone map's, and waits for main item 173.
+row that writes ability lists — a copy, a Layer 6 grant or removal, or a Layer
+4 type change, since CR 305.6–305.7 give and take abilities with a land's type
+(`RegistryScopeSummary::ability_list_sources`) — so that is the trigger, asked
+of the batch's *decided* members between deciding and performing: replacement
+decides whether anything departs, and the lists are still the ones before. The
+batch then keeps each look-back reader's frame, an `Arc` off the memo, as a
+`LookBackSnapshot` over the records it performs — legs 1, 3 and 4, read before
+a departure can end the grant leg 4 walks for — and the close asks look-back
+arms of those frames and every other arm of the live list. **A nested batch
+that joins the window takes its own**, and a record reads the outermost
+snapshot whose batch performed it, since a nested batch inside a performer is
+the enclosing event at finer grain (CR 704.3's one event); else the first
+taken after it, since no list changed in between; else the live list, which is
+then also the list before it. Both signs are fixtures: Humility beside a
+surviving Blood Artist, and a grant whose source dies in the wipe, whose
+carrier triggers for each death. Bridge from Below's graveyard half is the
+zone map's, and waits for main item 173.
 
 **A source that leaves in the same event** (main item 174, TR-1b's first
 commit). A departure record's frame is taken at the same point, between
@@ -1329,12 +1330,19 @@ so the audit would have fired on it; it is fixed in TR-1b's first commit.
 Item 168 (a departed candidate's identity carries the post-move epoch) is a
 convention the audit shares, so it does not fire. The snapshot's gaps that no
 pooled card reaches — a conditional grant whose condition reads a departing
-permanent, CR 305.7's Layer 4 route to an ability list, a row that arrives
-beside a look-back event — fire the day a pooled card reaches them, which is
-the point. So does the one reading the audit makes and the dispatcher does
-not: each record reads the objects as they were before its own batch
-performed, where the dispatcher asks every departure frame and every live
-list of the window about every record in it (main item 175).
+permanent, a row that arrives beside a look-back event — fire the day a pooled
+card reaches them, which is the point. So does the one reading the audit makes
+and the dispatcher does not: each record reads the objects as they were before
+its own batch performed, where the dispatcher asks every departure frame and
+every live list of the window about every record in it (main item 175).
+
+**The CR 305.7 route fired on 2026-09-24**, in a four-seat stress game dealt
+from TR-2a's pool. Blood Moon beside Ashaya, Soul of the Wild strips every
+creature Ashaya makes a land (CR 305.7). Ashaya itself is left 0/0 and dies.
+Blood Artist was stripped before that death and restored after it, and the
+dispatcher triggered it off the list it had after, where CR 603.10a reads the
+one before. It is closed: a Layer 4 row's source is an ability-list source
+(§4.3).
 
 **Decided** by the owner on 2026-09-22, each as recommended: a runtime switch
 (`fuzz_games --audit`, passed by `fuzz_ab.py`'s threaded counter runs) rather
