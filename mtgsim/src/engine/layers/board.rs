@@ -611,6 +611,8 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
             out.source |= you_channel;
         }
+        // A resolution's count, off `GameState`.
+        Condition::ResolvedThisTurn(_) => {}
         // A conjunction reads whatever its clauses read. No wildcard inside, for
         // this function's own stated reason.
         //

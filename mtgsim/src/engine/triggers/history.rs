@@ -7,15 +7,29 @@
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
-use crate::state::game_state::GameState;
+use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::card_types::CardType;
 use crate::types::ids::PlayerId;
 use crate::types::zones::Zone;
+
+/// Each record's place among its player's records of the same kind this
+/// turn, 1 for the first: what "for the first time each turn" reads (§3.5).
+/// Only the kinds a summary counts events of have one: a cast, a draw, a
+/// gain, a loss.
+#[derive(Debug, Default)]
+pub(crate) struct TurnOrdinals(Vec<(EventSeq, u32)>);
+
+impl TurnOrdinals {
+    pub(crate) fn of(&self, seq: EventSeq) -> Option<u32> {
+        self.0.iter().find(|(s, _)| *s == seq).map(|(_, n)| *n)
+    }
+}
 
 /// What one record adds to whose row, read before anything is written so the
 /// read can take the layer walk.
 enum Tally {
     TurnBegan { player: PlayerId, turn: u32 },
+    AbilityResolved { identity: AbilityIdentity },
     SpellCast { caster: PlayerId, types: Vec<CardType> },
     CardDrawn { player: PlayerId },
     LifeGained { player: PlayerId, amount: u64 },
@@ -26,9 +40,10 @@ enum Tally {
 }
 
 impl Tally {
-    /// Whose row it is counted on.
-    fn player(&self) -> PlayerId {
-        match self {
+    /// Whose row it is counted on; `None` for a count that is the game's.
+    fn player(&self) -> Option<PlayerId> {
+        Some(match self {
+            Tally::AbilityResolved { .. } => return None,
             Tally::TurnBegan { player, .. }
             | Tally::SpellCast { caster: player, .. }
             | Tally::CardDrawn { player }
@@ -37,44 +52,76 @@ impl Tally {
             | Tally::DamageTaken { player, .. }
             | Tally::CreatureDied { controller: player }
             | Tally::AttackersDeclared { player, .. } => *player,
-        }
+        })
     }
 }
 
 impl GameState {
-    /// Advance the summaries of the turn in progress by `window`'s records.
-    pub(crate) fn advance_history(&mut self, window: &[EventSeq]) {
-        let tallies: Vec<Tally> = window.iter().filter_map(|&seq| self.tally(seq)).collect();
+    /// Advance the summaries of the turn in progress by `window`'s records,
+    /// and say where each record the event counts count falls in its turn.
+    pub(crate) fn advance_history(&mut self, window: &[EventSeq]) -> TurnOrdinals {
+        let tallies: Vec<(EventSeq, Tally)> =
+            window.iter().filter_map(|&seq| self.tally(seq).map(|t| (seq, t))).collect();
         let turn = self.turn_number;
-        for tally in tallies {
-            let Some(history) = self.history.get_mut(tally.player()) else { continue };
+        let mut ordinals = TurnOrdinals::default();
+        for (seq, tally) in tallies {
+            if let Tally::AbilityResolved { identity } = tally {
+                let key = (identity.source, identity.ability.definition());
+                *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
+                continue;
+            }
+            let Some(history) = tally.player().and_then(|p| self.history.get_mut(p)) else { continue };
             if let Tally::TurnBegan { turn: began, .. } = tally {
                 history.record_own_turn(began);
                 continue;
             }
             let Some(row) = history.turn_mut(turn) else { continue };
-            match tally {
-                Tally::TurnBegan { .. } => {}
+            let place = match tally {
+                Tally::TurnBegan { .. } | Tally::AbilityResolved { .. } => None,
                 Tally::SpellCast { types, .. } => {
                     row.spells_cast += 1;
                     for card_type in types {
                         row.count_spell_of_type(card_type);
                     }
+                    Some(row.spells_cast)
                 }
-                Tally::CardDrawn { .. } => row.cards_drawn += 1,
+                Tally::CardDrawn { .. } => {
+                    row.cards_drawn += 1;
+                    Some(row.cards_drawn)
+                }
                 Tally::LifeGained { amount, .. } => {
                     row.life_gained += amount;
                     row.life_gain_events += 1;
+                    Some(row.life_gain_events)
                 }
                 Tally::LifeLost { amount, .. } => {
                     row.life_lost += amount;
                     row.life_loss_events += 1;
+                    Some(row.life_loss_events)
                 }
-                Tally::DamageTaken { amount, .. } => row.damage_taken += amount,
-                Tally::CreatureDied { .. } => row.controlled_creatures_died += 1,
-                Tally::AttackersDeclared { count, .. } => row.attackers_declared += count,
+                Tally::DamageTaken { amount, .. } => {
+                    row.damage_taken += amount;
+                    None
+                }
+                Tally::CreatureDied { .. } => {
+                    row.controlled_creatures_died += 1;
+                    None
+                }
+                Tally::AttackersDeclared { count, .. } => {
+                    row.attackers_declared += count;
+                    None
+                }
+            };
+            if let Some(n) = place {
+                ordinals.0.push((seq, n));
             }
         }
+        ordinals
+    }
+
+    /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
+    pub(crate) fn resolutions_this_turn_of(&self, identity: AbilityIdentity) -> u32 {
+        self.resolutions_this_turn.get(&(identity.source, identity.ability.definition())).copied().unwrap_or(0)
     }
 
     /// What `seq` adds, or `None` for a record no summary counts.
@@ -82,6 +129,7 @@ impl GameState {
         let record = self.events.record(seq)?;
         Some(match &record.event {
             GameEvent::TurnBegin { player, turn_number } => Tally::TurnBegan { player: *player, turn: *turn_number },
+            GameEvent::AbilityResolved { identity, .. } => Tally::AbilityResolved { identity: *identity },
             // CR 601.2i: the spell is cast, and on the stack, as this record
             // is dispatched, so its types are the ones it was cast with.
             GameEvent::SpellCast { spell_id, caster } => {

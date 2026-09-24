@@ -513,6 +513,14 @@ is derivable; where each name was read is not, and the gate needs the names.
     leaves. Each fact is counted on the row of the one player the record
     names (`triggers-architecture.md` §3.10). CR 103.5's opening hands are
     drawn before the first turn, so no row holds them.
+  - `action_taken_this_turn`: CR 603.2h's gate, recorded by the resolution
+    that takes the action and keyed by the ability and its controller, since
+    the rule reads "its source's controller" (§3.5).
+  - `triggered_this_turn`: "triggers only once each turn", recorded as the
+    dispatcher queues the ability (Elvish Warmaster's ruling).
+  - `resolutions_this_turn`: CR 603.7h's count, recorded off each
+    `AbilityResolved` and keyed by the ability, not by its controller
+    (Ashling the Pilgrim's ruling). All three end as the next turn begins.
 
 ---
 

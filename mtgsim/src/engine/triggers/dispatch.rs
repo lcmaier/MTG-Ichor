@@ -36,8 +36,10 @@ use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DamageRecipient, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger, TriggerBinding,
-    TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
+    TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
+
+use super::history::TurnOrdinals;
 use crate::types::zones::{Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
@@ -269,6 +271,9 @@ enum Refusal {
     TriggerCondition,
     /// CR 603.4 at the trigger.
     InterveningIf,
+    /// A once-per-turn limit (§3.5): the action was taken, the ability has
+    /// triggered, or the record is not the turn's first of its kind.
+    Limit,
 }
 
 impl Refusal {
@@ -278,6 +283,7 @@ impl Refusal {
             Refusal::Visibility => "visibility",
             Refusal::TriggerCondition => "condition",
             Refusal::InterveningIf => "intervening_if",
+            Refusal::Limit => "limit",
         }
     }
 }
@@ -336,9 +342,9 @@ impl GameState {
         }
         // Every record, before the gate: what happened this turn is read by
         // cards that are not on the battlefield yet (§3.10).
-        self.advance_history(window);
+        let ordinals = self.advance_history(window);
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots, audit);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit, &ordinals);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -380,10 +386,11 @@ impl GameState {
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
+        ordinals: &TurnOrdinals,
     ) -> Result<(), String> {
-        let matches = self.detect(window, snapshots);
+        let matches = self.detect(window, snapshots, ordinals);
         if let Some(audit) = audit {
-            self.audit_dispatch(window, audit, &matches);
+            self.audit_dispatch(window, audit, &matches, ordinals);
         }
         if matches.is_empty() {
             return Ok(());
@@ -392,7 +399,7 @@ impl GameState {
     }
 
     /// Steps 1 to 3: the gate and the match, read-only.
-    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
+    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot], ordinals: &TurnOrdinals) -> Vec<MatchedTrigger> {
         // --- The gate: four probes, and on the old pools nothing else -------
         //
         // The window's kinds first, OR-ed once (§11). A window no arm can
@@ -427,7 +434,7 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, unattributed, snapshots)
+        self.find_matches(window, readers, unattributed, snapshots, ordinals)
     }
 
     /// Steps 4 and 5, for the matches `detect` found.
@@ -435,6 +442,11 @@ impl GameState {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
+            // "Triggers only once each turn" is written as the ability
+            // queues, so a second match in this same window finds it taken.
+            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.triggered_this_turn.insert(m.identity) {
+                continue;
+            }
             let seq = TriggerSeq(self.next_trigger_seq);
             self.next_trigger_seq += 1;
             let binding = TriggerBinding {
@@ -637,6 +649,7 @@ impl GameState {
         readers: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
+        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut live = self.live_candidates(readers, unattributed);
 
@@ -726,7 +739,7 @@ impl GameState {
             });
         }
 
-        let matches = self.match_candidates(&records, &candidates, snapshots);
+        let matches = self.match_candidates(&records, &candidates, snapshots, ordinals);
         self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
         matches
     }
@@ -741,6 +754,7 @@ impl GameState {
         records: &[(EventSeq, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
+        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
@@ -782,7 +796,7 @@ impl GameState {
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, *seq, &record.event);
+                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, ordinals);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -862,6 +876,7 @@ impl GameState {
     /// One def against one record: the first arm that matches, and the
     /// subjects of its occurrences (one per trigger). `Err` names the
     /// predicate that refused.
+    #[allow(clippy::too_many_arguments)]
     fn match_def(
         &self,
         def: &TriggerDef,
@@ -869,6 +884,8 @@ impl GameState {
         asks: Asks,
         seq: EventSeq,
         event: &GameEvent,
+        identity: AbilityIdentity,
+        ordinals: &TurnOrdinals,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
             return Err(Refusal::StateTrigger);
@@ -900,6 +917,20 @@ impl GameState {
             }
         }
         let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
+        // The once-per-turn limits (§3.5), each read at the trigger. CR
+        // 603.2h's gate is its source's controller's; "only once each turn" is
+        // the ability's; "the first time" is this record's place in its turn.
+        let within_limit = match def.limit {
+            None => true,
+            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => {
+                !self.action_taken_this_turn.contains(&(identity, candidate.controller))
+            }
+            Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
+            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.of(seq) == Some(1),
+        };
+        if !within_limit {
+            return Err(Refusal::Limit);
+        }
         // CR 603.4 at the trigger. "You" is the source's controller, read off
         // the source; a condition about the bound facts is TR-2's reader.
         if let Some(condition) = &def.intervening_if

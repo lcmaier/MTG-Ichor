@@ -25,6 +25,7 @@
 use std::sync::Arc;
 
 use super::dispatch::{LookBackSnapshot, MatchedTrigger, ObjectSnapshot, TriggerCandidate, TriggerCandidateFrame};
+use super::history::TurnOrdinals;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::events::event::{BatchId, EventRecord, EventSeq};
 use crate::objects::card_data::CardDataBuilder;
@@ -98,9 +99,15 @@ impl GameState {
 
     /// Answer `window` again with every shortcut off, and panic unless the
     /// answer is the dispatcher's.
-    pub(super) fn audit_dispatch(&mut self, window: &[EventSeq], snapshots: &[LookBackSnapshot], engine: &[MatchedTrigger]) {
+    pub(super) fn audit_dispatch(
+        &mut self,
+        window: &[EventSeq],
+        snapshots: &[LookBackSnapshot],
+        engine: &[MatchedTrigger],
+        ordinals: &TurnOrdinals,
+    ) {
         let saved = self.save_observers();
-        let reference = self.matches_without_shortcuts(window, snapshots);
+        let reference = self.matches_without_shortcuts(window, snapshots, ordinals);
         self.restore_observers(saved);
         let describe = |matches: &[MatchedTrigger]| matches.iter().map(|m| self.describe(m)).collect::<Vec<_>>();
         assert_agree(&self.describe_window(window), describe(engine), describe(&reference));
@@ -145,7 +152,12 @@ impl GameState {
     /// snapshot — a survivor's list from before, or a departed object's —
     /// and every other arm off the list now; a record no batch performed
     /// reads everything off the list now.
-    fn matches_without_shortcuts(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
+    fn matches_without_shortcuts(
+        &self,
+        window: &[EventSeq],
+        snapshots: &[LookBackSnapshot],
+        ordinals: &TurnOrdinals,
+    ) -> Vec<MatchedTrigger> {
         let records: Vec<(EventSeq, &EventRecord)> =
             window.iter().filter_map(|seq| self.events.record(*seq).map(|r| (*seq, r))).collect();
         let every_snapshot: Vec<usize> = (0..snapshots.len()).collect();
@@ -194,7 +206,7 @@ impl GameState {
                 candidates.push(candidate);
             }
         }
-        self.match_candidates(&records, &candidates, snapshots)
+        self.match_candidates(&records, &candidates, snapshots, ordinals)
     }
 
     /// A trigger as the comparison and its report read it.

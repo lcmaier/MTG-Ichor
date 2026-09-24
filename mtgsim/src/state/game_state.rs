@@ -151,6 +151,9 @@ pub struct ResolvingObject {
     pub cast: Option<crate::state::battlefield::CastFacts>,
     /// Its CR 707.10 cost decisions, which a copy keeps. Empty for an ability.
     pub cost_choices: crate::state::battlefield::CostChoices,
+    /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
+    /// ability has resolved this turn". `None` for a spell.
+    pub identity: Option<AbilityIdentity>,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
@@ -567,6 +570,21 @@ pub struct GameState {
     /// "since your last turn" and "this game" read. Indexed by seat; advanced
     /// by the dispatcher, record by record, and by nothing else.
     pub history: Vec<crate::state::history::PlayerHistory>,
+    /// CR 603.2h — "do this only once each turn": each ability whose action
+    /// its controller has taken this turn, with that controller, since the
+    /// rule reads "its source's controller" (`triggers-architecture.md` §3.5).
+    /// Written by the resolution that takes the action; read at the trigger
+    /// and at resolution.
+    pub action_taken_this_turn: IdSet<(AbilityIdentity, PlayerId)>,
+    /// "This ability triggers only once each turn" (Elvish Warmaster's
+    /// ruling): each ability that has triggered this turn. Written by the
+    /// dispatcher as it queues; read at the trigger.
+    pub triggered_this_turn: IdSet<AbilityIdentity>,
+    /// CR 603.7h — how many times each ability has resolved this turn, keyed
+    /// by the ability rather than by who controlled it (Ashling the Pilgrim's
+    /// ruling), so a control change does not restart it. Advanced off
+    /// `AbilityResolved` by the dispatcher.
+    pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
     /// Permanents that *printed* a triggered ability, each against the
     /// record kinds its printed defs read — the dispatcher's fast-path gate,
     /// `replacement_ability_sources`' twin: written by
@@ -859,6 +877,9 @@ impl GameState {
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),
             next_trigger_seq: 0,
+            action_taken_this_turn: IdSet::default(),
+            triggered_this_turn: IdSet::default(),
+            resolutions_this_turn: IdMap::default(),
             // Turn 1 has begun for the starting player, as `last_turn_began` says.
             history: {
                 let mut v = vec![crate::state::history::PlayerHistory::default(); num_players];
@@ -914,6 +935,10 @@ impl GameState {
         self.turn_number = turn;
         self.active_player = player;
         self.last_turn_began[player] = turn;
+        // "Each turn" is the game's turn, not the controller's (§3.5).
+        self.action_taken_this_turn.clear();
+        self.triggered_this_turn.clear();
+        self.resolutions_this_turn.clear();
     }
 
     /// Where `player` sits in **APNAP order**: 0 for the active player, then

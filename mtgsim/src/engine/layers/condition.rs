@@ -165,6 +165,14 @@ pub(super) fn holds(
             history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index)
         }
         Condition::ThisGame(count) => history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index),
+        // CR 603.7h: the resolving ability's count, which its own resolution
+        // has not advanced yet. False outside a resolution, where nothing is
+        // resolving to be counted.
+        Condition::ResolvedThisTurn(n) => game
+            .resolving
+            .as_ref()
+            .and_then(|r| r.identity)
+            .is_some_and(|identity| game.resolutions_this_turn_of(identity) + 1 == *n),
 
         // CR 702.33d, read off the cost decisions and not off the cast: a copy
         // of a kicked spell isn't cast and is kicked (CR 707.10), and so is

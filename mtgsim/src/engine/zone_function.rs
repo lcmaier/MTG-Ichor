@@ -287,7 +287,8 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::ThisTurn(_)
         | Condition::LastTurn(_)
         | Condition::SinceYourLastTurn(_)
-        | Condition::ThisGame(_) => None,
+        | Condition::ThisGame(_)
+        | Condition::ResolvedThisTurn(_) => None,
     }
 }
 

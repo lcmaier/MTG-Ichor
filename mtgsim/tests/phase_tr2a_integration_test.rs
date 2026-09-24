@@ -23,23 +23,25 @@ use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::DamageTarget;
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, PhaseType};
 use mtgsim::state::history::TurnSummary;
 use mtgsim::test_support::{
     creature_with_ability, pass_turn, put_in_hand, put_on_battlefield, setup_two_player_game, stock_libraries, test_ctx,
-    test_dp,
+    test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet, Primitive,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
-use mtgsim::types::triggers::{Multiplicity, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{
+    Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerSubject,
+};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -332,4 +334,251 @@ fn clockwork_trinket() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .mana_cost(ManaCost::build(&[], 1))
         .build()
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.2h, §3.5 — the once-per-turn limits, each read where its rule reads it
+// ---------------------------------------------------------------------------
+
+fn draw_one() -> Effect {
+    Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller)
+}
+
+fn a_creature() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Creature)
+}
+
+/// A triggered ability with a once-per-turn limit.
+fn limited(event: impl Into<TriggerEvent>, limit: TriggerLimit, effect: Effect) -> AbilityDef {
+    triggered_ability(TriggerDef {
+        condition: TriggerCondition::Event(event.into()),
+        intervening_if: None,
+        limit: Some(limit),
+        effect,
+    })
+}
+
+fn enchantment_with(name: &str, ability: AbilityDef) -> Arc<CardData> {
+    CardDataBuilder::new(name).card_type(CardType::Enchantment).ability(ability).build()
+}
+
+/// "Whenever a creature enters, draw a card. Do this only once each turn."
+fn tollkeepers_ledger() -> Arc<CardData> {
+    enchantment_with(
+        "Tollkeeper's Ledger",
+        limited(enters(a_creature()), TriggerLimit::DoThisOnlyOnceEachTurn, draw_one()),
+    )
+}
+
+fn hand(game: &GameState, player: PlayerId) -> usize {
+    game.players[player].hand.len()
+}
+
+/// Resolve everything on the stack and everything that triggers on the way,
+/// taking the first option of any prompt and each player's triggers in the
+/// order they triggered.
+fn drain(game: &mut GameState) {
+    let dp = RecordingDecisionProvider::picking(0);
+    place(game, &dp);
+    while !game.stack.is_empty() {
+        resolve_top(game, &dp);
+        place(game, &dp);
+    }
+}
+
+/// CR 603.2h — once the action is taken, the ability no longer triggers that
+/// turn; the next turn it does again.
+// COVERS: ATOM-603.2h-001
+#[test]
+fn do_this_only_once_stops_triggering_once_the_action_is_taken() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 1);
+    drain(&mut game);
+    assert_eq!(hand(&game, 0), 1, "the first entry draws");
+
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 0, "the action was taken this turn: no trigger");
+
+    pass_turn(&mut game);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 1, "a new turn, a new action");
+}
+
+/// CR 603.2h read at resolution: two instances triggered before either
+/// resolved, and the second resolves and does nothing. ATOM-603.2h-002's own
+/// board is Nykthos Paragon's, whose "may" is TR-2b's.
+// COVERS-PARTIAL: ATOM-603.2h-002
+#[test]
+fn a_second_instance_resolves_and_does_nothing_once_the_action_is_taken() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 2, "nothing had resolved, so both triggered");
+    drain(&mut game);
+    assert_eq!(hand(&game, 0), 1, "only one of the two drew");
+}
+
+/// CR 603.2h reads "its source's controller": after P0 took the action, P1
+/// steals the source, and P1 has not taken it.
+#[test]
+fn do_this_only_once_is_the_controllers_gate() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    let ledger = put_on_battlefield(&mut game, tollkeepers_ledger(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    drain(&mut game);
+    assert_eq!(hand(&game, 0), 1);
+
+    steal(&mut game, ledger, 1);
+    let before = hand(&game, 1);
+    put_on_battlefield(&mut game, grizzly_bears(), 1);
+    assert_eq!(pending(&game), 1, "P1 has not taken the action this turn");
+    drain(&mut game);
+    assert_eq!(hand(&game, 1), before + 1, "and P1 draws");
+}
+
+/// "Whenever a creature enters, you gain 1 life. This ability triggers only
+/// once each turn." The limit counts triggering, not resolving: a second
+/// entry while the first trigger waits does not trigger.
+fn once_bitten_totem() -> Arc<CardData> {
+    enchantment_with(
+        "Once-Bitten Totem",
+        limited(enters(a_creature()), TriggerLimit::TriggersOnlyOnceEachTurn, gain_one()),
+    )
+}
+
+#[test]
+fn triggers_only_once_each_turn_counts_the_trigger() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    put_on_battlefield(&mut game, once_bitten_totem(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 1, "the second entry finds it triggered");
+    drain(&mut game);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 0);
+
+    pass_turn(&mut game);
+    put_on_battlefield(&mut game, grizzly_bears(), 0);
+    assert_eq!(pending(&game), 1, "a new turn");
+}
+
+/// "For the first time each turn" is the record's place in its turn: two
+/// losses in one batch are the first and the second, and a later loss is not
+/// the first.
+#[test]
+fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    let first_loss =
+        TriggerEvent::LosesLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+    let brooder = put_on_battlefield(
+        &mut game,
+        creature_with_ability(
+            "Grudge Brooder",
+            1,
+            1,
+            limited(first_loss, TriggerLimit::FirstTimeEachTurn, counter_on(EffectRecipient::ThisObject)),
+        ),
+        0,
+    );
+    let a = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let b = put_on_battlefield(&mut game, grizzly_bears(), 1);
+    let hit = |source| GameAction::DealDamage {
+        source,
+        target: DamageTarget::Player(0),
+        amount: 1,
+        is_combat: false,
+        unpreventable: false,
+    };
+    game.execute_actions(vec![hit(a), hit(b)], &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 1, "two losses, and only the first is the first");
+    drain(&mut game);
+    assert_eq!(plus_ones(&game, brooder), 1);
+
+    game.execute_action(hit(a), &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 0, "the third loss this turn");
+
+    pass_turn(&mut game);
+    game.execute_action(hit(a), &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 1, "the first loss of a new turn");
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.7h — how many times this ability has resolved this turn (§6.5)
+// ---------------------------------------------------------------------------
+
+/// Ashling the Pilgrim's shape, with a stand-in for its third-time effect
+/// (the card needs two amount leaves no phase has built): "{0}: Put a +1/+1
+/// counter on this creature. If this is the third time this ability has
+/// resolved this turn, you gain 3 life."
+fn kindling_pilgrim() -> Arc<CardData> {
+    let ability = AbilityDef {
+        id: new_ability_id(),
+        instances: Vec::new(),
+        ability_type: AbilityType::Activated,
+        costs: Vec::new(),
+        effect: Effect::Sequence(vec![
+            counter_on(EffectRecipient::ThisObject),
+            Effect::Conditional(
+                Condition::ResolvedThisTurn(3),
+                Box::new(Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(3)), EffectRecipient::Controller)),
+            ),
+        ]),
+        is_characteristic_defining: false,
+        activation_restriction: ActivationRestriction::None,
+    };
+    creature_with_ability("Kindling Pilgrim", 1, 1, ability)
+}
+
+fn life(game: &GameState, player: PlayerId) -> i64 {
+    game.players[player].life_total
+}
+
+/// The count is of resolutions, not activations: two activations on the
+/// stack at once are two resolutions as they resolve, the third resolution
+/// is the one that gains, and the fourth is past it (Ashling the Pilgrim's
+/// second and fourth rulings).
+#[test]
+fn the_nth_resolution_counts_resolutions_not_activations() {
+    let mut game = setup_two_player_game();
+    let pilgrim = put_on_battlefield(&mut game, kindling_pilgrim(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    game.activate_ability(0, pilgrim, 0, &dp).expect("first activation");
+    game.activate_ability(0, pilgrim, 0, &dp).expect("second, in response");
+    drain(&mut game);
+    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (2, 20), "two resolutions, no bonus");
+
+    game.activate_ability(0, pilgrim, 0, &dp).expect("third");
+    drain(&mut game);
+    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (3, 23), "the third resolution");
+
+    game.activate_ability(0, pilgrim, 0, &dp).expect("fourth");
+    drain(&mut game);
+    assert_eq!((plus_ones(&game, pilgrim), life(&game, 0)), (4, 23), "only the third");
+}
+
+/// "It doesn't matter who controlled the creature or the previous abilities
+/// when they resolved" (Ashling the Pilgrim's third ruling): two resolutions
+/// under P0 and one under the thief make the thief's the third. The count is
+/// the ability's, not a row of either player's.
+#[test]
+fn a_control_change_does_not_restart_the_count() {
+    let mut game = setup_two_player_game();
+    let pilgrim = put_on_battlefield(&mut game, kindling_pilgrim(), 0);
+    let dp = RecordingDecisionProvider::picking(0);
+    for _ in 0..2 {
+        game.activate_ability(0, pilgrim, 0, &dp).expect("P0 activates");
+        drain(&mut game);
+    }
+    steal(&mut game, pilgrim, 1);
+    game.activate_ability(1, pilgrim, 0, &dp).expect("the thief activates");
+    drain(&mut game);
+    assert_eq!(life(&game, 1), 23, "the third resolution this turn, whoever controlled the first two");
 }

@@ -518,6 +518,12 @@ pub enum Condition {
     /// "If this spell is the first spell you've cast this game" (First
     /// Contact): every turn so far.
     ThisGame(crate::types::history::HistoryCount),
+    /// "If this is the [Nth] time this ability has resolved this turn"
+    /// (Ashling the Pilgrim; Omnath, Locus of Creation): CR 603.7h's count, read
+    /// inside the resolution. The count advances off `AbilityResolved`, the
+    /// resolution's last step (CR 608.2n), so the Nth resolution reads N - 1.
+    /// A resolution's question, like [`Self::ModeChosen`].
+    ResolvedThisTurn(u32),
 }
 
 /// How many modes to choose (rule 700.2)
