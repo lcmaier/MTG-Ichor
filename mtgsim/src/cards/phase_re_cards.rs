@@ -740,7 +740,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 }
 
 /// Alms Collector — {3}{W}
-/// Creature — Cat Cleric 3/3
+/// Creature — Cat Cleric 3/4
 ///
 /// > Flash
 /// > If an opponent would draw two or more cards, instead you and that player
@@ -799,7 +799,7 @@ pub fn alms_collector() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Cat))
         .subtype(Subtype::Creature(CreatureType::Cleric))
-        .power_toughness(3, 3)
+        .power_toughness(3, 4)
         .rules_text(
             "Flash\nIf an opponent would draw two or more cards, instead you and that player each draw a card.",
         )
