@@ -2161,6 +2161,51 @@ take it from.
 | **Atoms** | none |
 | **Owner** | — ; filed 2026-09-18 from the owner's review of A4c (PR #170) |
 
+### 2.37 Which clause fits which slot — a matrix before any "universal currency" refactor
+
+**The surface that cannot express it.** A card's clauses land in slots, and
+each slot takes its own vocabulary:
+- **"Do X"** takes `Effect`, the whole instruction tree with 50 `Primitive`
+  arms. That covers a resolution, a trigger's effect, the delayed and reflexive
+  triggers TR-3 plans, and a replacement's rider (`ReplacementDef.then`).
+- **"Instead, X"** takes `GameActionTemplate`, 8 event-shaped arms, through
+  `Rewrite::Instead`. CR 616.1f re-gathers replacements on the modified event,
+  so a substitute has to stay a proposal the loop can see. "Instead, do any
+  instruction" is expressible today only as `Rewrite::Prevent` plus a rider,
+  and the rider runs just after the event instead of being it.
+- **"If X would" and "when X"** are two watcher vocabularies over one event
+  model: `EventPattern` (20 arms, over `GameAction` proposals, CR 614) and
+  `TriggerEvent` (12 arms, over `GameEvent` records, CR 603). No rule keeps
+  them in parity.
+- `Condition` leaves, `TemplateAmount` arms and `TurnSummary` fields grow
+  "authored with the card".
+
+Printed cards pair clauses with slots in a small subset of the possible ways,
+so each hole reads as "no card needs it". A custom card (post-v1, the owner,
+2026-09-24) can put any clause in any slot, and then each hole is an engine
+change.
+
+**What the decision is.** Either make the vocabularies uniform across slots,
+or keep one vocabulary per slot and fill holes as they are found. Uniform is
+the owner's "universal currency": anything that fits "do X instead" also fits
+"do X at the beginning of combat". Measure before choosing, in a docs-only
+pass:
+- a matrix of every clause slot against every vocabulary, with each hole
+  marked either CR-forced (a replacement's substitute is an event, CR 614.6)
+  or incidental (a template arm no card has needed yet);
+- a table of `EventPattern` against `TriggerEvent`, arm by arm.
+
+The matrix says whether a refactor would pay.
+
+| Field | |
+|---|---|
+| **Rules** | CR 614.1a and 614.6 (a replacement's substitute is an event); 616.1f (the loop re-gathers on it); 603.2 (any game event can be a trigger event); 608.2c (a resolution follows its instructions). Beyond these, the CR does not limit which instruction a card may place in which clause |
+| **Verdict** | `Rewrite::Instead` takes `GameActionTemplate` (8 arms), while every other "do X" slot takes `Effect`. `EventPattern` and `TriggerEvent` describe the same events for two readers, and no rule keeps them in parity. Several vocabularies grow only as cards need them |
+| **Size** | the matrix is a docs pass, about a session. A refactor, if the matrix argues for one, is phases plus a fixture migration across every trigger and replacement card, and it should wait until TR-2 to TR-6 have landed on today's currencies |
+| **Blocks** | post-v1 custom card support; nothing on the spine |
+| **Atoms** | none; the CR states the slots, not their implementation |
+| **Owner** | — ; filed 2026-09-24, from the owner's question while closing PR #182 (`cr-coverage-audit.md` §4a) |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
