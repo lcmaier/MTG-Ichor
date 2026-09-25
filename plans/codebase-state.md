@@ -6958,6 +6958,65 @@ Commander-scale board closes item 69.
      `tests/priority_fork_test.rs` red, and that is the signal this item is
      due rather than a regression in the card.
 
+     **The harness boundary, which this item is half of (2026-09-25).** A
+     research API wants `step(action) -> observation`, while this engine *asks*
+     from inside rule resolution, down the `DecisionProvider` call stack. A
+     harness bridges that inversion in two ways, and it needs both:
+     - **Suspend the live stack at the prompt** (a thread or a coroutine per
+       game). This works at every prompt, including the 424 inner asks of a
+       Commander game's 692 decisions, and it is what self-play steps with. A
+       suspended stack cannot be cloned, so it does not fork.
+     - **Resume from `GameState` alone.** Item 40's invariant makes the state
+       sufficient, and A4h's `resume_turn_at_priority` and this item add the
+       entry points. This forks, which search needs, but only at priority
+       prompts: round starts today, mid-round with this item, never at an
+       inner ask.
+
+     **The suspension mechanism decides the binding's cost.** A throwaway
+     std-only probe (not committed) had each game's thread block on a channel
+     at every prompt, with one policy thread answering:
+
+     | host | one game, per round trip | 16 / 256 / 1,024 games, per decision |
+     |---|---|---|
+     | Windows 11, native | 0.63 µs | 1.1 / 1.3 / 1.7 µs |
+     | Linux under WSL 2, a VM | 40.7 µs | 12.4 / 12.7 / 13.2 µs |
+
+     Against 64 µs of engine CPU per Commander decision (floor 1's one-thread
+     15,600), that is 1–3% on one host and 20–65% on the other. A thread's
+     wake-up rides the host's scheduler, and virtualized hosts make it
+     expensive; most cloud GPU nodes are VMs too. The alternatives:
+     - **Stackful coroutines.** Each game runs on its own small stack, and the
+       batch loop resumes it on the same worker thread with no kernel
+       involved. Switches are tens of nanoseconds and do not depend on the
+       host. The cost is one small dependency or a little platform assembly,
+       plus `unsafe` code at the switch.
+     - **`async`** would change the signature of every function between a
+       prompt and the turn loop.
+     - **A replay per step** re-simulates too much.
+     - **An explicit state machine** would be a rewrite of the rules code.
+
+     **The rest of the binding's cost is standard engineering**, and item 141's
+     payload rule (ids and small enums, never an engine AST) already enables
+     the hard part. The fixes:
+     - an in-process native module, with no pipe per prompt;
+     - observations and legal-action masks written into preallocated arrays,
+       not JSON;
+     - one call stepping N games, with the interpreter lock released;
+     - forced prompts answered in-process by the middleware stack
+       (`backlog.md` §2.22).
+
+     EnvPool's 15× and item 141's 30–130 ms of RPC against a 51 ms game
+     measure a naive binding, not this engine.
+
+     **Proposed, not adopted: a binding floor** beside
+     `engineering-practices.md` §3.1's three. A batched random policy, driven
+     from Python, reaches at least 90% of the engine's own decisions per
+     core-second, on bare metal and on a stock Linux VM. The benchmark ships
+     with the binding, so a researcher can run it on their own hardware. The
+     number is the owner's to set. The mechanism is chosen by a spike before
+     Phase 10's design: real games through a channel-backed provider, against
+     a coroutine prototype.
+
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
      surface is `ChoiceContext` (one field, `ChoiceKind`, 25 variants),

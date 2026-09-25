@@ -344,7 +344,8 @@ across machines; item 138 sets the
 target as a ratchet — a 2.5-point budget per PR, a dated reading at each
 spine close that may not get worse per decision, cores per GPU as the
 use-case check — and ranks the levers by what each returns per decision,
-item 141 answers the serialization question, and the fork test (main
+item 141 answers the serialization question, item 140 the step boundary's
+shape and cost (2026-09-25), and the fork test (main
 item 41, promoted to a requirement) found the one thing on the stack that
 should not be, main item 139. So the order is: the owner sets the number,
 then pick a lever against it. Network play is a stretch goal. Milestone:
