@@ -16,9 +16,11 @@ use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, wheneve
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::actions::{DestructionSource, GameAction, LifeLossCause};
+use mtgsim::engine::layers::condition::settled_holds;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::events::event::LossReason;
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::{CardData, CardDataBuilder};
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameState, StepType};
@@ -32,10 +34,12 @@ use mtgsim::types::effects::{
     TargetCount,
 };
 use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
+use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{TriggerCondition, TriggerDef};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 // ---------------------------------------------------------------------------
@@ -238,4 +242,120 @@ fn since_your_last_turn_spans_the_other_seats_turns() {
     lose(&mut game);
     advance_to(&mut game, 0, StepType::Upkeep);
     assert_eq!(game.pending_triggers.len(), 1, "lost on player 0's own turn, before the span");
+}
+
+/// Place what has triggered and resolve the stack until it is empty.
+fn resolve_all(game: &mut GameState) {
+    let dp = RecordingDecisionProvider::picking(0);
+    game.perform_sba_and_triggers(&dp).expect("placing");
+    while !game.stack.is_empty() {
+        game.resolve_top_of_stack(&dp).expect("resolving");
+        game.perform_sba_and_triggers(&dp).expect("placing");
+    }
+}
+
+/// "At the beginning of your upkeep, if you lost exactly 5 life, in exactly 3
+/// events, since your last turn, you gain 2 life": Marchesa, Resolute
+/// Monarch's shape, made exact so that a count off by one in either the
+/// amount or the events shows. Four seats:
+/// - a loss on player 0's own turn falls before the span;
+/// - one on each later seat's turn falls inside it;
+/// - another player's loss is on their row, not player 0's;
+/// - a fork taken mid-round counts what the game it came from counts;
+/// - and an extra turn starts the span over, since the turn before it is
+///   player 0's last.
+#[test]
+fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
+    let exactly = |fact, n| {
+        Condition::All(vec![
+            Condition::SinceYourLastTurn(HistoryCount { whose: PlayerSet::You, fact, is: CountIs::AtLeast(n) }),
+            Condition::SinceYourLastTurn(HistoryCount { whose: PlayerSet::You, fact, is: CountIs::AtMost(n) }),
+        ])
+    };
+    let regent = CardDataBuilder::new("Watchful Regent")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability(TriggerDef {
+            condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
+            intervening_if: Some(Condition::All(vec![
+                exactly(TurnFact::LifeLost, 5),
+                exactly(TurnFact::LifeLossEvents, 3),
+            ])),
+            limit: None,
+            effect: Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(2)), EffectRecipient::Controller),
+        }))
+        .build();
+    let lose = |game: &mut GameState, player: PlayerId, amount: u64| {
+        game.execute_action(GameAction::LoseLife { player, amount, cause: LifeLossCause::Effect }, &test_ctx())
+            .expect("the loss");
+    };
+    let since = |game: &GameState, fact| game.players[0].history.since_your_last_turn(0, &game.players[0].history).count(fact);
+
+    let mut game = setup_game(4);
+    let regent = put_on_battlefield(&mut game, regent, 0);
+    lose(&mut game, 0, 3);
+    advance_to(&mut game, 1, StepType::Upkeep);
+    lose(&mut game, 0, 1);
+    advance_to(&mut game, 2, StepType::Upkeep);
+    lose(&mut game, 0, 2);
+    lose(&mut game, 0, 2);
+    let mut fork = game.clone();
+    for branch in [&mut game, &mut fork] {
+        advance_to(branch, 3, StepType::Upkeep);
+        lose(branch, 1, 7);
+        advance_to(branch, 0, StepType::Upkeep);
+        assert_eq!(branch.turn_number, 5);
+        assert_eq!((since(branch, TurnFact::LifeLost), since(branch, TurnFact::LifeLossEvents)), (5, 3));
+        assert_eq!(branch.pending_triggers.len(), 1, "exactly 5, in exactly 3");
+        resolve_all(branch);
+        assert_eq!(branch.players[0].life_total, 20 - 3 - 1 - 2 - 2 + 2);
+    }
+
+    let dp = RecordingDecisionProvider::picking(0);
+    let extra_turn = Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller);
+    game.resolve_effect(&extra_turn, &ResolutionContext::untargeted(regent, 0), &dp).expect("the extra turn");
+    lose(&mut game, 0, 4);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(game.turn_number, 6, "the extra turn");
+    assert_eq!(since(&game, TurnFact::LifeLost), 0, "your last turn is turn 5, just ended");
+    assert_eq!(game.pending_triggers.len(), 0);
+}
+
+/// A {0} instant that does nothing.
+fn free_instant() -> Arc<CardData> {
+    CardDataBuilder::new("Idle Thought")
+        .card_type(CardType::Instant)
+        .mana_cost(ManaCost::build(&[], 0))
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(Vec::new()),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build()
+}
+
+/// CR 800.4i: "If an effect requires information from the game about actions
+/// players have taken, the effect can find actions that were taken by a
+/// player who has left the game." Player 1 casts a spell and leaves; player
+/// 0's "an opponent cast a spell this turn" still finds it, and so does a
+/// count over every player. A departed seat's history is never cleared, and
+/// `PlayerSet` names seats, not players still in the game. The rule has no
+/// atom: session 10 deferred it to Phase 9.
+#[test]
+fn a_departed_players_actions_this_turn_are_still_found() {
+    let mut game = setup_game(4);
+    let source = put_on_battlefield(&mut game, grizzly_bears(), 0);
+    let spell = put_in_hand(&mut game, free_instant(), 1);
+    game.cast_spell(1, spell, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).expect("castable");
+    resolve_all(&mut game);
+    game.execute_action(GameAction::PlayerLoses { player: 1, reason: LossReason::Effect }, &test_ctx())
+        .expect("the loss");
+    assert!(!game.in_game(1), "player 1 has left the game");
+
+    let cast_this_turn = |whose| Condition::ThisTurn(HistoryCount { whose, fact: TurnFact::SpellsCast, is: CountIs::AtLeast(1) });
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source), "an opponent cast a spell this turn");
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source), "a spell was cast this turn");
 }
