@@ -6682,9 +6682,11 @@ Commander-scale board closes item 69.
      say where worse stops being acceptable at all. Their definitions and
      instruments are `engineering-practices.md` §3.1's:
      1. at least 10,000 decisions per loaded physical core-second at
-        Commander scale. It holds today (15,600 on one thread) and is
-        expected to bind after the auto-payer (about ×0.68, `backlog.md`
-        §2.18) and the triggers phase;
+        Commander scale, counted where they reach the agent under the
+        default bot stack (`backlog.md` §2.22). It holds today (15,600 on
+        one thread) and is expected to bind with the triggers phase; a
+        decorator that answers more of a seat's prompts is another
+        operating point, not a re-base (`engineering-practices.md` §3.1);
      2. a full-state clone of at most 10 µs;
      3. at most 128 KB per state.
      Floors 2 and 3 wait on item 42 and item 179, the bounded-state PR.

@@ -1016,12 +1016,17 @@ mechanic rather than a migration, which is why it is here and not in
   The split's ~5 per game are gone; the window's ~7.5 are not.
 - **Atoms** — ATOM-601.2h-002 and ATOM-601.2-001 are claimed partial by
   RC-4b's rewind test; 732.1 has none.
-- **Floor 1 re-bases on it** — the auto-payer answers most inner mana prompts,
-  so decisions get fewer and heavier: at 60 cards, 270 of 464 remain and carry
-  85% of the instructions, and the loaded decisions-per-core-second reading
-  moves by about ×0.68 with no engine slower (`plans/references/ai-performance-floors.md`).
-  A floor 1 reading says which side of this entry it was taken on
-  (`engineering-practices.md` §3.1).
+- **Floor 1 and this entry** — the solver moves floor 1 only through the stack
+  a seat runs. Its decorator (§2.22 row 7) is off by default on a bot's seat,
+  so the reference stack's reading does not move when it lands. Turned on, it
+  answers the window's picks and the splits with surplus, 194 and 41 a game at
+  60 cards (§2.22's counts), about half the default's decisions: the agent and
+  the GPU get half the work per game, and the engine, no slower, becomes the
+  tighter constraint. That is another operating point, not a re-base
+  (`engineering-practices.md` §3.1). The engine's own lever applies under
+  either stack: the window re-enumerates every mana ability once per tap,
+  13.5% of instructions (`layers-architecture.md` §12), where an inventory
+  taken once per cast and a payability check per tap would do.
 - **Owner** — none yet.
 
 ### 2.19 Any-color mana — "Add one mana of any color"

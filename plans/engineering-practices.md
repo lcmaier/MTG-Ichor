@@ -623,9 +623,26 @@ AI use case at all, as derived in `plans/references/ai-performance-floors.md`.
 
 | Floor | Definition | Instrument | Standing, 2026-09-25 |
 |---|---|---|---|
-| **1. ≥ 10,000 decisions per loaded physical core-second, Commander scale** | Board `--deck-size 100 --life 40 --players 4`; a decision as above. Loaded = one-thread rate × (16-thread speed-up ÷ physical cores). The rate at which the 12–14 physical cores a GPU node gives one H100 keep it busy serving a 10M-parameter, 128-token policy | Item 6's close audit, with callgrind instructions per decision recorded beside it so the reading travels | Holds: 15,600 on one thread. Expected to bind after the auto-payer (about ×0.68, `backlog.md` §2.18) and the triggers phase |
+| **1. ≥ 10,000 decisions per loaded physical core-second, Commander scale** | Board `--deck-size 100 --life 40 --players 4`, under the default bot stack (below); a decision as above, counted where it reaches the agent. Loaded = one-thread rate × (16-thread speed-up ÷ physical cores). The rate at which the 12–14 physical cores a GPU node gives one H100 keep it busy serving a 10M-parameter, 128-token policy | Item 6's close audit, counted by a provider innermost in the stack (the `Decisions` cells count in `ui::ask`, above the decorators), with callgrind instructions per decision recorded beside it so the reading travels | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware |
 | **2. Full-state clone ≤ 10 µs** at item 143's checkpoints | Portable form: ≤ 1/6 of one decision's engine CPU. CI proxy: ≤ 64 allocations per clone | The bounded-state PR's committed probe and CI tests | Waits on item 42: 3.7–8.8 µs without the log, up to 131 µs with it |
 | **3. ≤ 128 KB per state** | Deep clone size, bounded by the board's high-water mark and never by the turn count | The same probe, exact bytes with the hash seed pinned | Waits on item 42 and item 179, the history bound |
+
+**Floor 1 is read under a named stack, as it is read on a named board.** Its
+denominator is what reaches the agent, and which prompts reach the agent is
+the seat's middleware, not the engine: `backlog.md` §2.22's default bot stack
+is the reference, `ManaWindowStop` on and the tap-solver decorator off. The
+census's two kinds move the reading in opposite directions. An engine elision
+(its rule 1) can only raise it, since the prompt was never a choice and the
+engine stops building it. A decorator (rule 2) lowers it with no engine
+slower: the engine still asks, the decorator answers, and the agent's
+decisions per game fall. That is the floor measuring what it should. It is a
+balance check, engine CPU per GPU pass, and a stack that hands the agent fewer
+decisions gives the GPU less work per game, so the loop runs more games a
+second while the engine becomes the tighter constraint. A reading under
+another stack is another operating point, never a regression, and floor 1 is
+not compared across a stack change, as nothing is A/B'd across a pool change:
+the unit moved, not the engine. The tap-solver decorator is the first such
+change (`backlog.md` §2.18).
 
 **Determinism.** Everything outside `=== Timing ===` is byte-identical at one
 seed, any `--threads` and any `MTGSIM_HASH_SEED`, and three seeds show an
