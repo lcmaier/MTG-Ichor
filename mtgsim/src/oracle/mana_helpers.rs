@@ -328,14 +328,9 @@ fn passes_timing_check(game: &GameState, player_id: PlayerId, card_id: ObjectId)
         return false;
     }
 
-    // PRE-LAYER ZONE: reads printed types on purpose. This is cast-zone /
-    // play-from-hand legality, which happens before the object is a permanent,
-    // so the layer system has nothing to contribute. Same exemption as
-    // engine/cast.rs -- see "Before Layers" in plans/codebase-state.md.
-    let is_instant = obj.card_data.types.contains(&crate::types::card_types::CardType::Instant);
-    let has_flash = obj.card_data.keyword_flags.contains(&crate::types::keywords::KeywordFlag::Flash);
-
-    if is_instant || has_flash {
+    // Through the layers, as `check_cast_legality` asks it: a row can give a
+    // card in hand flash.
+    if crate::oracle::characteristics::is_instant_or_has_flash(game, card_id) {
         return true; // can cast anytime with priority
     }
 

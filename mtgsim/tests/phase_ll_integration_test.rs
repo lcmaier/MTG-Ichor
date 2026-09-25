@@ -5,7 +5,11 @@
 //! changes its own card everywhere but the battlefield, which applies only
 //! because its card is a member of every pass wherever it is (§13e decision
 //! 2). Every Grist here is `phase_ll_cards::grist_insect_clause`, its first
-//! ability on its printed frame.
+//! ability on its printed frame. Then the replay, and item 182.
+//!
+//! **Two casts go through `cast_spell` from hand**, with exactly the spell's
+//! cost in the pool and the provider under `ManaWindowStop`, as a shipped
+//! client runs it: Grist under Thalia, and a creature card given flash.
 
 use std::sync::Arc;
 
@@ -19,13 +23,15 @@ use mtgsim::oracle::characteristics::{
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     put_in_command_zone, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield,
-    put_spell_on_stack, registered, setup_two_player_game, vanilla_creature, RecordingDecisionProvider,
+    put_spell_on_stack, registered, set_active_player, setup_two_player_game, vanilla_creature,
+    RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::PlayerRef;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::mana::ManaType;
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,6 +40,7 @@ use mtgsim::types::mana::ManaType;
 /// Put exactly `pool` into the player's mana pool, cast `card` from hand, and
 /// report whether it was cast — `phase_cm_integration_test`'s exact-pool
 /// discipline, so a success means the locked total was `pool` and nothing else.
+/// The provider is a shipped client's stack: `ManaWindowStop` over it.
 fn cast_from_pool(game: &mut GameState, player: PlayerId, card: Arc<CardData>, pool: &[(ManaType, u64)]) -> Result<ObjectId, String> {
     let id = put_in_hand(game, card, player);
     for t in [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless] {
@@ -45,7 +52,7 @@ fn cast_from_pool(game: &mut GameState, player: PlayerId, card: Arc<CardData>, p
     for &(t, n) in pool {
         game.players[player].mana_pool.add(t, n);
     }
-    game.cast_spell(player, id, &RecordingDecisionProvider::picking(0)).map(|_| id)
+    game.cast_spell(player, id, &ManaWindowStop::new(RecordingDecisionProvider::picking(0))).map(|_| id)
 }
 
 /// Grist's ruling, as the oracle answers it: a 1/1 Insect creature, still a
@@ -230,4 +237,35 @@ fn test_the_guard_holds_a_library_two_effects_could_depend_through() {
         has_subtype(&game, bear, &Subtype::Creature(CreatureType::Assassin)),
         "the Assassins' effect waited on the artificer's"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Item 182: the cast-timing check reads the card, through the layers
+// ---------------------------------------------------------------------------
+
+/// CR 702.8a's flash, read through the layers: Teferi's clause gives a
+/// creature card in its owner's hand flash, and the owner casts it on the
+/// other player's turn through `cast_spell`. Without the clause the same cast
+/// is refused at sorcery timing (CR 117.1a). On `main` the check read printed
+/// flash, and the clause changed no game.
+// COVERS: ATOM-702.8a-001
+#[test]
+fn test_a_creature_card_given_flash_is_cast_on_the_other_players_turn() {
+    let board = |clause: bool| {
+        let mut game = setup_two_player_game();
+        if clause {
+            put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
+        }
+        set_active_player(&mut game, 1);
+        game
+    };
+
+    let mut game = board(true);
+    let cast = cast_from_pool(&mut game, 0, vanilla_creature(2, 2, &[]), &[(ManaType::Green, 2)]);
+    assert!(cast.is_ok(), "flash lets player 0 cast on player 1's turn: {cast:?}");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool is the cost");
+
+    let mut game = board(false);
+    let refused = cast_from_pool(&mut game, 0, vanilla_creature(2, 2, &[]), &[(ManaType::Green, 2)]);
+    assert!(refused.is_err(), "without flash it waits for sorcery timing");
 }

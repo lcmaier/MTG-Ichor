@@ -17,11 +17,9 @@ use crate::objects::card_data::{AbilityType, ActivationRestriction};
 use crate::types::costs::{AdditionalCost, Cost};
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, PhaseType, StackEntry};
-use crate::types::card_types::CardType;
 use crate::engine::targeting::TargetInstance;
 use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
-use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaSpent};
 use crate::types::zones::Zone;
 use crate::oracle::legality::enumerate_legal_selections_excluding;
@@ -670,12 +668,8 @@ impl GameState {
         // Timing check (rule 117.1a):
         // - Instants and spells with flash: anytime you have priority
         // - Everything else: main phase, stack empty, active player only
-        // PRE-LAYER ZONE: printed types and keywords, for the same reason -- this
-        // decides whether a card in hand may be cast now.
-        let is_instant = obj.card_data.types.contains(&CardType::Instant);
-        let has_flash = obj.card_data.keyword_flags.contains(&KeywordFlag::Flash);
-
-        if !is_instant && !has_flash {
+        // Through the layers: a row can give a card in hand flash.
+        if !crate::oracle::characteristics::is_instant_or_has_flash(self, card_id) {
             self.check_sorcery_timing(player_id)?;
         }
 
