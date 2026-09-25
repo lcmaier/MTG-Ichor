@@ -1778,7 +1778,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         cause: ZoneChangeCause,
-        lki: Option<Box<EffectiveCharacteristics>>,
+        lki: Option<std::sync::Arc<EffectiveCharacteristics>>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });

@@ -62,7 +62,7 @@ impl GameState {
             | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
                 if *object_id == subject.id =>
             {
-                Some(Arc::new((**frame).clone()))
+                Some(Arc::clone(frame))
             }
             _ => compute_characteristics(self, self.bound_object(binding)?),
         }

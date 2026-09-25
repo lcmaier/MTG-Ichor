@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
@@ -46,9 +48,10 @@ pub enum GameEvent {
         /// abilities generated the instant it leaves, so the layer walk a
         /// moment later answers about a graveyard card.
         ///
-        /// Boxed because `EffectiveCharacteristics` is the widest type in the
-        /// engine and every `GameEvent` in the log would otherwise pay for it.
-        lki: Option<Box<EffectiveCharacteristics>>,
+        /// Behind an `Arc`, and the layer memo's own: the widest type in the
+        /// engine is shared rather than copied, so a trigger binding that
+        /// copies this record copies a pointer (`triggers-architecture.md` §3.4).
+        lki: Option<Arc<EffectiveCharacteristics>>,
     },
 
     /// A permanent became tapped (CR 701.26a).
@@ -316,7 +319,7 @@ pub enum GameEvent {
         object_id: ObjectId,
         owner: PlayerId,
         from: Zone,
-        lki: Option<Box<EffectiveCharacteristics>>,
+        lki: Option<Arc<EffectiveCharacteristics>>,
     },
 
     // --- Tokens ---

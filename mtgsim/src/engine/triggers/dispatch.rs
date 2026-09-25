@@ -105,7 +105,7 @@ impl LookBackSnapshot {
 pub struct DepartureFrame {
     object: ObjectRef,
     /// `None` once the move has taken it.
-    frame: Option<Box<EffectiveCharacteristics>>,
+    frame: Option<Arc<EffectiveCharacteristics>>,
 }
 
 /// CR 605.1b's three criteria, derived from the def and never a tag: no
@@ -561,13 +561,13 @@ impl GameState {
             return;
         }
         if let Some(frame) = compute_characteristics(self, id) {
-            self.departure_frames.push(DepartureFrame { object, frame: Some(Box::new((*frame).clone())) });
+            self.departure_frames.push(DepartureFrame { object, frame: Some(frame) });
         }
     }
 
     /// The frame the move of `id` off the battlefield carries, taken before
     /// its batch performed.
-    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Box<EffectiveCharacteristics>> {
+    pub(crate) fn take_departure_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
         let object = self.object_ref(id)?;
         let taken = self
             .departure_frames
@@ -576,7 +576,7 @@ impl GameState {
             .and_then(|d| d.frame.take());
         // Every departure is decided by a batch, which framed it first.
         debug_assert!(taken.is_some(), "{id} left the battlefield with no frame from its batch");
-        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Box::new))
+        taken.or_else(|| crate::engine::layers::compute::compute_characteristics_uncached(self, id).map(Arc::new))
     }
 
     /// The objects the dispatch at the window's close could ask a look-back
