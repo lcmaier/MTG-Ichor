@@ -95,6 +95,8 @@ WATCHLIST = [
     "multiplicity",
     # Added 2026-09-25, the bounded-state PR.
     "flush",
+    # Added 2026-09-25, item 180's review.
+    "fork",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes

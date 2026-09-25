@@ -163,23 +163,16 @@ impl DurationRegistry<RegisteredReplacementEffect> {
     /// Returns the count left, or `None` when the row was not a
     /// [`Uses::NextDamage`] row (or was already gone).
     pub fn spend_next_damage(&mut self, id: RowId, prevented: u64) -> Option<u64> {
-        let mut left = None;
-        self.update_rows(|row| {
-            if row.id != id {
-                return false;
-            }
-            if let Uses::NextDamage(remaining) = row.def.uses {
-                let after = remaining.saturating_sub(prevented);
-                row.def.uses = Uses::NextDamage(after);
-                left = Some(after);
-                return prevented > 0;
-            }
-            false
-        });
-        if left == Some(0) {
+        let Uses::NextDamage(remaining) = self.iter().find(|row| row.id == id)?.def.uses else {
+            return None;
+        };
+        let left = remaining.saturating_sub(prevented);
+        if left == 0 {
             self.remove(id);
+        } else if prevented > 0 {
+            self.update_rows(|row| row.id == id, |row| row.def.uses = Uses::NextDamage(left));
         }
-        left
+        Some(left)
     }
 }
 
@@ -339,6 +332,20 @@ mod tests {
         assert_eq!(reg.spend_next_damage(id, 1), Some(0));
         assert!(reg.is_empty(), "used up");
         assert_eq!(reg.spend_next_damage(id, 1), None, "and gone");
+    }
+
+    // A shield spent on a fork is spent there alone: the original keeps its
+    // count, and the row the fork did not spend is still the original's.
+    #[test]
+    fn a_forks_spent_shield_leaves_the_originals_count() {
+        let mut reg = ReplacementEffectRegistry::new();
+        let id = reg.add(next_damage_row(new_object_id(), 4));
+        reg.add(next_damage_row(new_object_id(), 2));
+        let mut fork = reg.clone();
+
+        assert_eq!(fork.spend_next_damage(id, 3), Some(1));
+        assert_eq!(reg.iter().next().map(|r| r.def.uses), Some(Uses::NextDamage(4)));
+        assert!(std::sync::Arc::ptr_eq(&reg.as_slice()[1], &fork.as_slice()[1]));
     }
 
     // A `Once` row has no count to spend; the caller removes it whole.

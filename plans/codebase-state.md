@@ -8436,43 +8436,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the bounded-state PR's review (2026-09-25)
 
-180. **Every registry row's payload is copied on every fork, and on
-     `close_out.py`'s own board that breaks floor 2's CI proxy.** The
-     bounded-state PR's review measured ten
-     Commander games with eight copies each of four grant and copy cards in
-     every deck, cloned at every priority prompt (`fuzz-record.md`, the
-     bounded-state block, round 2). Sharing the grant and copy payloads took
-     the worst clone from 97 allocations to 65. What is left is each
-     continuous-effect row's own payload, an `ObjectSet::Fixed` list or an
-     `ObjectFilter`'s boxes, copied on every fork: 23 allocations for 11 rows.
-     Bytes stayed under 128 KB, and the committed clone test's boards read at
-     most 46.
-
-     **`close_out.py`'s own board breaks the proxy too** (item 181's
-     measurement, attributed at its review, 2026-09-25). `performance` game
-     12350 at Commander scale reads 63 allocations at turn 80 and 68 at turn
-     100, with no card placed. At turn 100, 28 of the 68 are eight registry
-     rows' filter trees, copied box by box:
-     - five Blood Moon rows at 4 each;
-     - March of the Machines' two rows at 3 each;
-     - Wonder's row at 2.
-
-     The other 40 do not grow with the board: 18 for the players' zone lists
-     and histories, 7 for the zone replacement sources, and one for each other
-     map or list, the memo's included. The clone test plays only `stress`
-     seeds, so CI did not see it.
-
-     **Reachability (2026-09-25):** reachable — not wrong; a floor 2 breach on
-     the board the budget is read on.
-
-     **Proposed: before TR-2b, beside item 181's fix.** `performance` 12350
-     joins the clone test in the same PR, where it fails today.
-
-     **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
-     `Arc::make_mut` in its five mutating methods, which makes each of the three
-     registries' clones one allocation. The callers that take rows back by
-     value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
-     At 12350's turn 100 that takes the clone from 68 allocations to about 40.
+180. **~~Every registry row's payload is copied on every fork.~~ — ✅ CLOSED
+     2026-09-25 (the shared-registry-rows PR).** — archived. Each row behind an
+     `Arc`, written through `Arc::make_mut` on the rows a pick names, and each
+     zone replacement source's list shared: 12350's turn 100 reads 34, not 68.
+     **Reachability (2026-09-25):** closed — the shared-registry-rows PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 180".
 
 181. **A continuous effect that reaches the hand or the library makes every
      layer pass walk every card there, and on a Commander board that fails

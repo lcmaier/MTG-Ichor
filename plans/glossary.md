@@ -620,6 +620,16 @@ consulted: what the sink generates and `plans/trace_spine.py` renders. Not the
 page — the map's questions, the comparison table and the closing section are
 the *argument*, and stay authored. → `engineering-practices.md` §7.1.
 
+**fork** — a clone of `GameState` taken so that one game can go two ways from the
+same point: a search forks at a decision and plays an answer on the fork, and
+from then on neither side sees what the other does. A search takes one per
+decision, so most of a fork is shared rather than copied: each card's data and
+ability list, each registry row until one side writes it (`Arc::make_mut`), and
+the event recorder's stream up to the fork, after which each side records its
+own. `Game::resume_turn_at_priority` finishes the turn a fork was taken in. What a
+fork may cost is floors 2 and 3 (`engineering-practices.md` §3.1), which the
+clone test holds in CI. → `events::recorder`, `DurationRegistry`.
+
 **branch** — of a trace, which fork of a game a record was written by, the
 number every record carries beside `seq`. `TraceHandle`'s hand-written `Clone`
 is the fork marker: a `GameState` clone takes a fresh branch and writes one

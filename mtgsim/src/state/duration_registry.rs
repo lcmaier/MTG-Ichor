@@ -35,6 +35,8 @@
 //! layer slicing, and nothing else. This type deliberately knows nothing about
 //! layers or events.
 
+use std::sync::Arc;
+
 use crate::types::effects::Duration;
 use crate::types::ids::{ObjectId, PlayerId};
 
@@ -93,7 +95,10 @@ pub trait DurationRow {
 /// CR 514.2 expiry hooks.
 #[derive(Debug, Clone)]
 pub struct DurationRegistry<T: DurationRow> {
-    rows: Vec<T>,
+    /// Each row behind its own `Arc`, so a fork shares them: cloning the
+    /// registry is one allocation however deep the rows' payloads are, and a
+    /// write copies only the row it edits (`Arc::make_mut`).
+    rows: Vec<Arc<T>>,
     next_id: RowId,
     /// Bumped by every mutator that changed a row — added one, removed one,
     /// or edited one in place. What a wrapper reads to tell a write from a
@@ -133,33 +138,43 @@ impl<T: DurationRow> DurationRegistry<T> {
 
         let key = (row.sort_key(), id);
         let pos = self.rows.partition_point(|r| (r.sort_key(), r.id()) < key);
-        self.rows.insert(pos, row);
+        self.rows.insert(pos, Arc::new(row));
         self.generation += 1;
         id
     }
 
-    /// Remove one row by id. Returns it if it was there.
-    pub fn remove(&mut self, id: RowId) -> Option<T> {
+    /// Remove one row by id. Returns it if it was there — shared, since no
+    /// caller needs to own it and taking it out of the `Arc` would copy a row
+    /// a fork still holds.
+    pub fn remove(&mut self, id: RowId) -> Option<Arc<T>> {
         let pos = self.rows.iter().position(|r| r.id() == id)?;
         self.generation += 1;
         Some(self.rows.remove(pos))
     }
 
-    /// Edit rows in place: `edit` runs on every row and returns whether it
-    /// changed that row's `SortKey`. Returns how many it changed; when that is
-    /// nonzero the rows are re-sorted — a *stable* sort on `(sort_key, id)`,
-    /// so rows that end up sharing a key keep their id order, which is the
-    /// registration order — and the generation is bumped.
+    /// Edit rows in place: `edit` runs on every row `picks` accepts, and on no
+    /// other. Returns how many it edited; when that is nonzero the rows are
+    /// re-sorted — a *stable* sort on `(sort_key, id)`, so rows that end up
+    /// sharing a key keep their id order, which is the registration order —
+    /// and the generation is bumped.
+    ///
+    /// The pick is read-only because the edit is a copy: a row a fork shares
+    /// is copied before it is written, so `picks` must accept only rows the
+    /// edit will change, or a no-op write copies a row for nothing.
     ///
     /// The one in-place mutator. Exists for CR 613.7a's third sentence: when
     /// an object receives a new timestamp, "each continuous effect generated
     /// by static abilities of that object receives a new timestamp as well,
     /// but the relative order of those timestamps remains the same". Ids
     /// survive, unlike a remove-and-re-add, so nothing holding one dangles.
-    pub fn update_rows(&mut self, mut edit: impl FnMut(&mut T) -> bool) -> usize {
+    pub fn update_rows(&mut self, picks: impl Fn(&T) -> bool, mut edit: impl FnMut(&mut T)) -> usize
+    where
+        T: Clone,
+    {
         let mut changed = 0;
         for row in &mut self.rows {
-            if edit(row) {
+            if picks(row) {
+                edit(Arc::make_mut(row));
                 changed += 1;
             }
         }
@@ -171,7 +186,7 @@ impl<T: DurationRow> DurationRegistry<T> {
     }
 
     /// Remove every row created by a given source object.
-    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<T> {
+    pub fn remove_by_source(&mut self, source: ObjectId) -> Vec<Arc<T>> {
         self.retain(|r| r.source() != source)
     }
 
@@ -181,7 +196,7 @@ impl<T: DurationRow> DurationRegistry<T> {
     /// `O(n²)`, since each `Vec::remove` shifts the tail — and `swap_remove` is
     /// not an option, because it destroys the ordering invariant `add`
     /// maintains and `effects_in_layer` binary-searches.
-    pub fn retain(&mut self, keep: impl Fn(&T) -> bool) -> Vec<T> {
+    pub fn retain(&mut self, keep: impl Fn(&T) -> bool) -> Vec<Arc<T>> {
         let mut removed = Vec::new();
         let mut kept = Vec::with_capacity(self.rows.len());
         for row in self.rows.drain(..) {
@@ -209,7 +224,7 @@ impl<T: DurationRow> DurationRegistry<T> {
         &mut self,
         active_player: PlayerId,
         current_turn: u32,
-    ) -> Vec<T> {
+    ) -> Vec<Arc<T>> {
         // Suppress unused variable warnings until multi-turn durations are added
         // (UntilEndOfYourNextTurn would read both).
         let _ = (active_player, current_turn);
@@ -227,7 +242,7 @@ impl<T: DurationRow> DurationRegistry<T> {
         &mut self,
         active_player: PlayerId,
         current_turn: u32,
-    ) -> Vec<T> {
+    ) -> Vec<Arc<T>> {
         self.retain(|r| {
             !matches!(r.duration(), Duration::UntilYourNextTurn)
                 || r.controller() != active_player
@@ -237,13 +252,13 @@ impl<T: DurationRow> DurationRegistry<T> {
 
     /// Every row, in stored order.
     pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.rows.iter()
+        self.rows.iter().map(|row| &**row)
     }
 
     /// Every row as a slice, for a wrapper that binary-searches the order
     /// `add` maintains. Read-only: no wrapper can reach the `Vec` itself, so
     /// the ordering and id invariants stay this type's to keep.
-    pub fn as_slice(&self) -> &[T] {
+    pub fn as_slice(&self) -> &[Arc<T>] {
         &self.rows
     }
 
@@ -419,15 +434,40 @@ mod tests {
         let c = reg.add(keyed(5));
         let g0 = reg.generation();
 
-        let changed = reg.update_rows(|r| if r.0.rank == 1 { r.0.rank = 9; true } else { false });
+        let changed = reg.update_rows(|r| r.0.rank == 1, |r| r.0.rank = 9);
         assert_eq!(changed, 2);
         assert_eq!(reg.generation(), g0 + 1);
         assert!(reg.is_sorted());
         let ids: Vec<RowId> = reg.iter().map(|r| r.id()).collect();
         assert_eq!(ids, vec![c, a, b], "moved behind c, still in registration order");
 
-        assert_eq!(reg.update_rows(|_| false), 0);
+        assert_eq!(reg.update_rows(|_| false, |_| {}), 0);
         assert_eq!(reg.generation(), g0 + 1, "a pass that changed nothing is not a write");
+    }
+
+    /// A fork shares every row, and `update_rows` copies only the rows `picks`
+    /// accepts: a pass that picks nothing leaves every row shared, and one
+    /// that picks one leaves the rest shared and the original's copy as it was.
+    #[test]
+    fn update_rows_copies_no_row_it_does_not_edit() {
+        let mut reg: DurationRegistry<Row> = DurationRegistry::new();
+        let sources: Vec<ObjectId> = (0..3).map(|_| new_object_id()).collect();
+        for s in &sources {
+            reg.add(Row::new(*s, Duration::UntilEndOfTurn));
+        }
+        let mut fork = reg.clone();
+        let shared = |fork: &DurationRegistry<Row>| -> Vec<bool> {
+            reg.rows.iter().zip(&fork.rows).map(|(a, b)| Arc::ptr_eq(a, b)).collect()
+        };
+        assert_eq!(shared(&fork), vec![true; 3], "a clone copies no row");
+
+        assert_eq!(fork.update_rows(|_| false, |_| {}), 0);
+        assert_eq!(shared(&fork), vec![true; 3]);
+
+        assert_eq!(fork.update_rows(|r| r.source == sources[1], |r| r.created_on_turn = 2), 1);
+        assert_eq!(shared(&fork), vec![true, false, true]);
+        let turns: Vec<u32> = reg.iter().map(|r| r.created_on_turn).collect();
+        assert_eq!(turns, vec![1, 1, 1], "the original is untouched");
     }
 
     /// Every path that changes the rows moves the generation; a removal that
