@@ -676,6 +676,13 @@ critical path, which lists neither; that is the owner's line to add.
   Kenessos, Priest of Thassa's second ability, which is why that card is a
   fixture here and not a registration; and §2.24's "draw and reveal" four.
 - **The trigger survey's customer (2026-09-18, `plans/references/trigger-survey.md`, table one's 603.2f row):** the dispatcher's visibility gate. CR 603.2f is "visible to all players" at the instant after the event — a *global* bit, a subset of this entry's per-viewer query — and until a reveal exists no hidden-zone object is visible, so `Zone::is_public()` is exact and the triggers doc names the predicate per object for this entry to fill. The survey read it as no reason to move this entry up, the RE-8 answer above standing; the owner decides whether the GUI's nearness does.
+- **Slot (2026-09-25)** — **the design, merged with §2.34, sits right after item
+  6's close audit**, ahead of Phase 8, and the owner reviews it before any build
+  (`roadmap-v2.md` A6f). The AI floors' survey
+  (`plans/references/ai-performance-floors.md`) found the query alone
+  insufficient for honest search (§2.34), and the knowledge record it adds is
+  forked state, which floor 3 bounds by the board. The build keeps its
+  back-stop, before Phase 8's reveal cards and Phase 10.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it
@@ -1009,6 +1016,12 @@ mechanic rather than a migration, which is why it is here and not in
   The split's ~5 per game are gone; the window's ~7.5 are not.
 - **Atoms** — ATOM-601.2h-002 and ATOM-601.2-001 are claimed partial by
   RC-4b's rewind test; 732.1 has none.
+- **Floor 1 re-bases on it** — the auto-payer answers most inner mana prompts,
+  so decisions get fewer and heavier: at 60 cards, 270 of 464 remain and carry
+  85% of the instructions, and the loaded decisions-per-core-second reading
+  moves by about ×0.68 with no engine slower (`plans/references/ai-performance-floors.md`).
+  A floor 1 reading says which side of this entry it was taken on
+  (`engineering-practices.md` §3.1).
 - **Owner** — none yet.
 
 ### 2.19 Any-color mana — "Add one mana of any color"
@@ -2087,7 +2100,7 @@ discover this one training run at a time.
 | **Size** | medium, after §2.9: a per-viewer knowledge record written by the reveal, look and scry paths; a redeal from a viewer that shuffles each library's unknown portion and swaps unknown hand cards with unknown library cards, drawing on `GameState.rng` so a determinized branch is itself seeded and replayable; and a test that a searcher over many samples predicts its next draw no better than chance |
 | **Blocks** | Phase 10's search harness — any look-ahead past what the searcher knows, and any training signal from self-play, which otherwise learns to play against known draws. Nothing on the spine |
 | **Atoms** | none; the CR does not speak to a harness's honesty, and none should be written |
-| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review |
+| **Owner** | — ; filed 2026-09-18 by the owner, from A4j's review. Designed together with §2.9, right after item 6's close (`roadmap-v2.md` A6f, 2026-09-25) |
 
 ### 2.35 "Why can't I?" — the permanent that prohibits an action, as an oracle question
 

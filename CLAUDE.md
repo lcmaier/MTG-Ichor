@@ -140,16 +140,16 @@ merges. Route order; numbers are stable labels; `roadmap-v2.md` §3a is the same
 5. Replacement effects (CR 614–616), RA–RE. **RD then RE**, before 6 and commuting with 6b–7:
    triggers read the performed stream, which must be post-replacement truth first
 5b. "Can't" effects (CR 101.2/614.17/613.11), RS-1–RS-4, beside the spine; RS-2 any time, RS-3b needs 7
-5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2 any time, item 10
-   (CR 400.7) + CV-1b after CV-2, CV-7 (merging) back-stopped before Phase 8
+5c. Copy effects (CR 707/712/708/729 + Layer 1), CV-1–CV-7, beside the spine; CV-2, then CV-1b with item 10
+   (CR 400.7), both before TR-3, whose returns make new objects; CV-7 (merging) back-stopped before Phase 8
 6a. CR 113.6 — which abilities function in which zone (`roadmap-v2.md` A5, 1 PR, after layers item 9's
    zone-reaching `ObjectSet`). **Item 6's prerequisite**, and the one facility four docs name and none owns
 6. Triggered abilities (CR 603) — after 5, 6a, 6b and 7; insertion point `perform_sba_and_triggers`.
-   Sized in `triggers-architecture.md` §12 as TR-1–TR-6; `roadmap-v2.md` A6 carries the route
+   TR-1–TR-7 in `triggers-architecture.md` §12, the route in `roadmap-v2.md` A6–A6f; the bounded-state PR
+   (`codebase-state.md` items 42 and 179) before TR-2b; then the information-model design, reviewed before any build
 Interleaved once 5 is in: the Commander track (`cost-architecture.md` and `roadmap-v2.md` B — **CM-3
 then CM-4 before 6**, since §3.11's Ironworks loop is item 6's integration test; CP-1 any time), the
-information model (`backlog.md` §2.9 — before Phase 8's reveal cards and before Phase 10) and mana
-provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, before Phase 8).
+information model's build (`backlog.md` §2.9 with §2.34 — before Phase 8's reveal cards and Phase 10) and mana provenance (`codebase-state.md` main item 33 — T12c, a unit's source, `{S}`; design first, before Phase 8).
 Then Phase 8 breadth → Phase 9 formats and multiplayer → Phase 10: GUI, AI harness, parallel play.
 
 **v1 is two use cases** (owner, 2026-08-24): 4-player Commander through a GUI, and highly parallel
