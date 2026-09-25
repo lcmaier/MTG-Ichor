@@ -700,17 +700,21 @@ pub struct TurnSummary {
 // player: bloodthirst), ControlledCreaturesDied (controlled as it died:
 // morbid sums the rows), AttackersDeclared (raid is at least one)
 
-/// Every turn of the game, for every player — the survey's recommendation
-/// taken: a few dozen counters per player per turn is kilobytes at
-/// Commander scale, "this game" becomes a fold, "last turn" an index, and
-/// "since the beginning of your last turn" a range. Indexed by turn
-/// number: "last turn" (Paladin of Atonement — its ruling: whether you
-/// lost life last turn, whoever's turn it was) is `turns[turn - 1]`, "your
-/// last turn" (CR 730's day/night, Arboria, Concert Kaboomist) is the row
-/// for the turn before `last_turn_began[player]`, which `own_turns` keeps.
+/// One player's history, bounded by the table and never by the turn count
+/// (the bounded-state PR, `codebase-state.md` item 179). "This turn" and
+/// "last turn" (Paladin of Atonement: whether you lost life last turn,
+/// whoever's turn it was) are two rows that move along as a new turn is
+/// counted on; "this game" is a running total; "since your last turn" (CR
+/// 730's day/night, Arboria, Concert Kaboomist) is every player's total
+/// now less their total as your last turn ended, taken as the next turn
+/// began. Your last turn is your most recent to have ended.
 pub struct PlayerHistory {
-    pub turns: Vec<TurnSummary>,
-    pub own_turns: Vec<u32>,
+    turn: u32,                              // the turn `this_turn` counts
+    this_turn: TurnSummary,
+    last_turn: TurnSummary,                 // turn - 1's
+    this_game: TurnSummary,
+    own_turn: Option<u32>,                  // the turn this player last began
+    at_your_last_turn: Vec<TurnSummary>,    // by PlayerId: O(seats²) in all
 }
 // on PlayerState: history: PlayerHistory
 ```
@@ -719,10 +723,13 @@ pub struct PlayerHistory {
 because the pregame sweep that would prune it (the state-tracking doc's
 `RelevantEffects`) is an optimization over a static property of the
 registry and pays only if measured — deferred until a reading says it
-should (the reading came 2026-09-25: `codebase-state.md` item 179 bounds it), with the fallback the doc already names (conjure, wishes: track
-everything). *A game-scoped quantity is a scope on a counter, not a window
-on the log*: Approach of the Second Sun's casts and CR 903.8's commander tax
-are folds over `turns`, and the tax — `cost-architecture.md` §3.8, waiting
+should, with the fallback the doc already names (conjure, wishes: track
+everything). **The reading came 2026-09-25 and the bounded-state PR acted on
+it (item 179):** no reader needed the whole-game rows, so every fact is still
+tracked for every player, and only the turns stopped being kept one row each.
+*A game-scoped quantity is a scope on a counter, not a window on the log*:
+Approach of the Second Sun's casts and CR 903.8's commander tax are
+`this_game` counts, and the tax — `cost-architecture.md` §3.8, waiting
 on designation — becomes the first game-scoped reader, a field
 `commander_casts_from_command_zone` on the summary the day B2 lands. *A
 quantity no field anticipates is a field plus an update arm, authored with
@@ -1738,7 +1745,7 @@ field with one writer:
 
 | Fact | Field | Writer | Readers |
 |---|---|---|---|
-| "this turn" quantities, "last turn", "your last turn", "this game" | `PlayerHistory.turns[..]` (§3.10) | the dispatcher, record by record | `Condition::ThisTurn/LastTurn/SinceYourLastTurn/ThisGame`, `FirstTimeEachTurn` |
+| "this turn" quantities, "last turn", "your last turn", "this game" | `PlayerHistory`'s two rows, total and snapshot (§3.10) | the dispatcher, record by record | `Condition::ThisTurn/LastTurn/SinceYourLastTurn/ThisGame`, `FirstTimeEachTurn` |
 | the action was taken this turn (603.2h) | `action_taken_this_turn`, a set of `(AbilityIdentity, PlayerId)` — "its source's controller" (§3.5) | the resolution | the dispatcher, the resolution |
 | the ability triggered this turn ("only once each turn") | `triggered_this_turn: IdSet<AbilityIdentity>` | the dispatcher | the dispatcher |
 | a state trigger is on the stack (603.8) | `state_triggers_armed_off: IdSet<AbilityIdentity>` | the dispatcher (arm off), `trigger_left_stack` (re-arm) | the state check |

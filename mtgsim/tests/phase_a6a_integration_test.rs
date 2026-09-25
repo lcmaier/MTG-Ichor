@@ -12,25 +12,28 @@
 use std::cell::Cell;
 use std::sync::Arc;
 
-use mtgsim::cards::authoring::{dies, triggered_ability, whenever};
+use mtgsim::cards::authoring::{at_beginning_of, dies, triggered_ability, whenever, Whose};
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::{DestructionSource, GameAction};
+use mtgsim::engine::actions::{DestructionSource, GameAction, LifeLossCause};
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::objects::card_data::CardData;
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::game_state::GameState;
+use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    creature_with_ability, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp,
-    RecordingDecisionProvider,
+    creature_with_ability, put_in_hand, put_on_battlefield, setup_game, setup_two_player_game, stock_libraries,
+    test_ctx, test_dp, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerSet, Primitive, SelectionFilter,
+    TargetCount,
 };
+use mtgsim::types::history::{CountIs, HistoryCount, TurnFact};
 use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::triggers::{TriggerCondition, TriggerDef};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::DecisionProvider;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -177,4 +180,62 @@ fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
 fn a_game_that_records_nothing_has_no_history_to_read() {
     let game = GameState::new(2, 20);
     let _ = game.recorded_events();
+}
+
+// ---------------------------------------------------------------------------
+// Item 179 — the history is bounded by the table
+// ---------------------------------------------------------------------------
+
+/// Walk the turn machinery until `whose` player's `step` begins.
+fn advance_to(game: &mut GameState, whose: PlayerId, step: StepType) {
+    stock_libraries(game, 10);
+    for _ in 0..400 {
+        game.advance_turn(&test_ctx()).expect("advancing");
+        if game.active_player == whose && game.phase.step == Some(step) {
+            return;
+        }
+    }
+    panic!("player {whose}'s {step:?} never began");
+}
+
+/// "At the beginning of your upkeep, if you haven't lost life since your last
+/// turn, draw a card" (Marchesa, Resolute Monarch's shape) at four seats. Your
+/// last turn ends as the next seat's begins, so a loss on the last of the three
+/// turns between two of yours falls inside the span, and one on your own turn
+/// falls before it.
+#[test]
+fn since_your_last_turn_spans_the_other_seats_turns() {
+    let quiet = Condition::SinceYourLastTurn(HistoryCount {
+        whose: PlayerSet::You,
+        fact: TurnFact::LifeLost,
+        is: CountIs::AtMost(0),
+    });
+    let vigil = || {
+        CardDataBuilder::new("Steady Vigil")
+            .card_type(CardType::Enchantment)
+            .ability(triggered_ability(TriggerDef {
+                condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
+                intervening_if: Some(quiet.clone()),
+                limit: None,
+                effect: Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
+            }))
+            .build()
+    };
+    let lose = |game: &mut GameState| {
+        game.execute_action(GameAction::LoseLife { player: 0, amount: 1, cause: LifeLossCause::Effect }, &test_ctx())
+            .expect("the loss");
+    };
+
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, vigil(), 0);
+    advance_to(&mut game, 3, StepType::Upkeep);
+    lose(&mut game);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(game.pending_triggers.len(), 0, "lost on the fourth seat's turn, after player 0's ended");
+
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, vigil(), 0);
+    lose(&mut game);
+    advance_to(&mut game, 0, StepType::Upkeep);
+    assert_eq!(game.pending_triggers.len(), 1, "lost on player 0's own turn, before the span");
 }

@@ -2556,3 +2556,40 @@ Closed by taking the log out of `GameState` (`triggers-architecture.md` §3.4 an
     **Sized:** by sites, 2026-09-25: 89 reads of the log or of `EventSeq`
     outside `events/`, in 19 files. The binding (`engine/triggers/binding.rs`)
     is the one whose shape changes; the PR's brief turns the count into lines.
+
+### Item 179 — closed 2026-09-25 by the bounded-state PR
+
+Closed by the design the item held (`triggers-architecture.md` §3.10, as built). Each `PlayerHistory` keeps this turn's row and last turn's, which move along as a new turn is counted on, the game's running total, and `at_your_last_turn`: every player's total as this player's last turn ended, taken as the next turn begins. "Since your last turn" is a total less that snapshot. That is O(seats²) and never the turn count, one allocation per player against the two that grew. All nine reads mapped onto the three views without a fourth. `layers/condition.rs`'s `history_holds` reads a view per span, the dispatcher's writer counts on the rows and takes the snapshot at `TurnBegan`, and `GameState::new` and `player.rs` construct it as before. The integration tests cover the snapshot at four seats, and the unit tests cover the rows' roll-over and an extra turn.
+
+*Original entry:*
+
+179. **TR-2a's `PlayerHistory` grows with the turn count.** Each player keeps
+     one `TurnSummary` per turn of the game (`state/history.rs`;
+     `triggers-architecture.md` §3.10, "whole game, not two turns"): 192 bytes
+     per player per turn, 99–107 KB at the end of the long Commander games the
+     AI floors report re-took (`plans/references/ai-performance-floors.md`).
+     With every history emptied, no board's state passes 102 KB. With it,
+     three of five Commander-scale games pass floor 3's 128 KB late
+     (`engineering-practices.md` §3.1), and the state's size follows the turn
+     count, which floor 3 forbids.
+
+     **The design.** No reader needs the whole-game rows:
+     - "this game" is a running total;
+     - "last turn" is the previous row;
+     - "since your last turn" is a per-player snapshot of the totals, taken
+       as the turn after each of that player's own turns begins.
+
+     All three are O(seats²), bounded by the table and never by the turn
+     count.
+
+     **Why now.** §3.10 deferred the prune "until a reading says it should",
+     and the report is that reading.
+
+     **Reachability (2026-09-25):** reachable — not wrong; the history gains a
+     row per player per turn, and every clone carries all of it.
+
+     **Scheduled: the bounded-state PR**, with item 42.
+
+     **Sized:** ~80–120 lines: `state/history.rs` (81 lines) re-shaped, and its
+     nine reads in `layers/condition.rs`, `triggers/history.rs`,
+     `game_state.rs` and `player.rs`, plus a test per reading.

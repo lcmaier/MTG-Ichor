@@ -1,10 +1,9 @@
 //! What a card asks about the past: "this turn", "last turn", "since your
 //! last turn", "this game" (`triggers-architecture.md` §3.10).
 //!
-//! The answers are materialized, never scanned: `state::history` holds one
-//! `TurnSummary` per player per turn, advanced record by record as the
-//! dispatcher reads each window. This file is the vocabulary a `Condition`
-//! leaf uses to ask it.
+//! The answers are materialized, never scanned: `state::history` holds each
+//! player's rows and totals, advanced record by record as the dispatcher reads
+//! each window. This file is the vocabulary a `Condition` leaf uses to ask it.
 
 use crate::types::card_types::CardType;
 use crate::types::effects::PlayerSet;

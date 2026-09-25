@@ -8366,33 +8366,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
      fixture with a flicker effect, ~25.
 
-179. **TR-2a's `PlayerHistory` grows with the turn count.** Each player keeps
-     one `TurnSummary` per turn of the game (`state/history.rs`;
-     `triggers-architecture.md` §3.10, "whole game, not two turns"): 192 bytes
-     per player per turn, 99–107 KB at the end of the long Commander games the
-     AI floors report re-took (`plans/references/ai-performance-floors.md`).
-     With every history emptied, no board's state passes 102 KB. With it,
-     three of five Commander-scale games pass floor 3's 128 KB late
-     (`engineering-practices.md` §3.1), and the state's size follows the turn
-     count, which floor 3 forbids.
-
-     **The design.** No reader needs the whole-game rows:
-     - "this game" is a running total;
-     - "last turn" is the previous row;
-     - "since your last turn" is a per-player snapshot of the totals, taken
-       as the turn after each of that player's own turns begins.
-
-     All three are O(seats²), bounded by the table and never by the turn
-     count.
-
-     **Why now.** §3.10 deferred the prune "until a reading says it should",
-     and the report is that reading.
-
-     **Reachability (2026-09-25):** reachable — not wrong; the history gains a
-     row per player per turn, and every clone carries all of it.
-
-     **Scheduled: the bounded-state PR**, with item 42.
-
-     **Sized:** ~80–120 lines: `state/history.rs` (81 lines) re-shaped, and its
-     nine reads in `layers/condition.rs`, `triggers/history.rs`,
-     `game_state.rs` and `player.rs`, plus a test per reading.
+179. **~~TR-2a's `PlayerHistory` grows with the turn count.~~ — ✅ CLOSED
+     2026-09-25 (the bounded-state PR).** — archived. Two rows, a running
+     total and a per-player snapshot taken as the turn after each of that
+     player's own turns begins: O(seats²), never the turn count.
+     **Reachability (2026-09-25):** closed — the bounded-state PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 179".

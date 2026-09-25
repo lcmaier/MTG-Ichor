@@ -42,10 +42,10 @@ pub struct PlayerState {
     // in a separate TurnTracker struct when needed.
     pub has_drawn_from_empty_library: bool,
 
-    /// This player's turns, one row per turn of the game
-    /// (`triggers-architecture.md` §3.10): what "this turn", "last turn",
-    /// "since your last turn" and "this game" read. Advanced by the
-    /// dispatcher, record by record, and by nothing else.
+    /// This player's history (`triggers-architecture.md` §3.10): what "this
+    /// turn", "last turn", "since your last turn" and "this game" read, bounded
+    /// by the table. Advanced by the dispatcher, record by record, and by
+    /// nothing else.
     pub history: PlayerHistory,
 }
 

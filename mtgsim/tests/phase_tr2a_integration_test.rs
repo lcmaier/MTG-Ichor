@@ -127,7 +127,7 @@ fn this_object_finds_nothing_once_its_source_has_left_and_returned() {
 
 /// This turn's row for `player`, all zeros when nothing was counted on it.
 fn this_turns_row(game: &GameState, player: PlayerId) -> TurnSummary {
-    game.players[player].history.turn(game.turn_number).cloned().unwrap_or(TurnSummary::ZERO)
+    game.players[player].history.this_turn(game.turn_number)
 }
 
 fn this_turn(whose: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
@@ -268,7 +268,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     let mut game = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
     game.setup(&test_dp()).unwrap();
     for player in 0..2 {
-        assert_eq!(game.state.players[player].history.sum(TurnFact::CardsDrawn, 1, game.state.turn_number), 0);
+        assert_eq!(game.state.players[player].history.this_game().count(TurnFact::CardsDrawn), 0);
     }
     pass_turn(&mut game.state);
     while game.state.phase.phase_type != PhaseType::Precombat {
@@ -276,7 +276,7 @@ fn the_opening_hands_are_drawn_in_no_turn() {
     }
     let turn = game.state.turn_number;
     assert_eq!(
-        game.state.players[1].history.turn(turn).map_or(0, |r| r.count(TurnFact::CardsDrawn)),
+        game.state.players[1].history.this_turn(turn).count(TurnFact::CardsDrawn),
         1,
         "the second turn's draw step"
     );

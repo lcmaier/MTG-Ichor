@@ -1,13 +1,14 @@
 //! The histories' one writer (`triggers-architecture.md` §3.10, §4.1).
 //!
-//! Every record of every window advances the turn summaries, in window
-//! order, **before the gate** asks whether anything could trigger: a card
-//! that arrives later in the turn reads what happened before it arrived
-//! (Vengeful Warchief's fourth ruling, Paladin of Atonement's first).
+//! Every record of every window advances the histories, in window order,
+//! **before the gate** asks whether anything could trigger: a card that
+//! arrives later in the turn reads what happened before it arrived (Vengeful
+//! Warchief's fourth ruling, Paladin of Atonement's first).
 
 use crate::engine::layers::compute::compute_characteristics;
 use crate::events::event::{DamageTarget, EventSeq, GameEvent};
 use crate::state::game_state::{AbilityIdentity, GameState};
+use crate::state::history::TurnSummary;
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
 use crate::types::ids::PlayerId;
@@ -71,42 +72,45 @@ impl GameState {
                 *self.resolutions_this_turn.entry(key).or_insert(0) += 1;
                 continue;
             }
+            if let HistoryUpdate::TurnBegan { player, turn: began } = update {
+                self.begin_history_turn(began, player);
+                continue;
+            }
+            // CR 103: the opening hands are drawn before any turn, on no row.
+            if turn == 0 {
+                continue;
+            }
             let Some(history) = update.whose_row().and_then(|p| self.players.get_mut(p)).map(|p| &mut p.history)
             else {
                 continue;
             };
-            if let HistoryUpdate::TurnBegan { turn: began, .. } = update {
-                history.record_own_turn(began);
-                continue;
-            }
-            let Some(row) = history.turn_mut(turn) else { continue };
             let place = match update {
                 HistoryUpdate::TurnBegan { .. } | HistoryUpdate::AbilityResolved { .. } => None,
                 HistoryUpdate::SpellCast { types, .. } => {
                     for card_type in types {
-                        row.add(TurnFact::SpellsCastOfType(card_type), 1);
+                        history.add(turn, TurnFact::SpellsCastOfType(card_type), 1);
                     }
-                    Some(row.add(TurnFact::SpellsCast, 1))
+                    Some(history.add(turn, TurnFact::SpellsCast, 1))
                 }
-                HistoryUpdate::CardDrawn { .. } => Some(row.add(TurnFact::CardsDrawn, 1)),
+                HistoryUpdate::CardDrawn { .. } => Some(history.add(turn, TurnFact::CardsDrawn, 1)),
                 HistoryUpdate::LifeGained { amount, .. } => {
-                    row.add(TurnFact::LifeGained, amount);
-                    Some(row.add(TurnFact::LifeGainEvents, 1))
+                    history.add(turn, TurnFact::LifeGained, amount);
+                    Some(history.add(turn, TurnFact::LifeGainEvents, 1))
                 }
                 HistoryUpdate::LifeLost { amount, .. } => {
-                    row.add(TurnFact::LifeLost, amount);
-                    Some(row.add(TurnFact::LifeLossEvents, 1))
+                    history.add(turn, TurnFact::LifeLost, amount);
+                    Some(history.add(turn, TurnFact::LifeLossEvents, 1))
                 }
                 HistoryUpdate::DamageTaken { amount, .. } => {
-                    row.add(TurnFact::DamageTaken, amount);
+                    history.add(turn, TurnFact::DamageTaken, amount);
                     None
                 }
                 HistoryUpdate::CreatureDied { .. } => {
-                    row.add(TurnFact::ControlledCreaturesDied, 1);
+                    history.add(turn, TurnFact::ControlledCreaturesDied, 1);
                     None
                 }
                 HistoryUpdate::AttackersDeclared { count, .. } => {
-                    row.add(TurnFact::AttackersDeclared, count);
+                    history.add(turn, TurnFact::AttackersDeclared, count);
                     None
                 }
             };
@@ -115,6 +119,21 @@ impl GameState {
             }
         }
         ordinals
+    }
+
+    /// Turn `turn` has begun, `active` taking it. Whoever took the turn
+    /// before it has just had their last turn end, so their "since your last
+    /// turn" starts from every player's count now (item 179's snapshot). The
+    /// counts exclude the new turn's own, which a record earlier in the same
+    /// window may already have added.
+    pub(crate) fn begin_history_turn(&mut self, turn: u32, active: PlayerId) {
+        if let Some(previous) = self.players.iter().position(|p| p.history.took_the_turn_before(turn)) {
+            let totals: Vec<TurnSummary> = self.players.iter().map(|p| p.history.before(turn)).collect();
+            self.players[previous].history.last_turn_ended(totals);
+        }
+        if let Some(player) = self.players.get_mut(active) {
+            player.history.record_own_turn(turn);
+        }
     }
 
     /// How many times `identity`'s ability has resolved this turn (CR 603.7h).
