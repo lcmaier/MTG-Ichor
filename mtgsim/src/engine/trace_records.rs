@@ -83,6 +83,9 @@ pub(crate) enum WalkKind {
     Member,
     /// In the battlefield zone with no entity, walked as a member of one pass.
     ZoneOnly,
+    /// A card in a library or a hand the pass leaves out, walked alone by
+    /// replaying the pass's decisions.
+    Replayed,
     /// An object no row reaches, walked alone.
     NonMember,
     /// CR 614.12's look-ahead: the object as it would exist on the battlefield.
@@ -96,6 +99,7 @@ impl WalkKind {
         match self {
             WalkKind::Member => "member",
             WalkKind::ZoneOnly => "zone_only",
+            WalkKind::Replayed => "replayed",
             WalkKind::NonMember => "non_member",
             WalkKind::Entering => "entering",
             WalkKind::Lki => "lki",

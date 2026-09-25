@@ -56,10 +56,13 @@ so the index it carries stays valid. **(2)** One object in the layer walk's
 **working set** — what `Board::members` holds and what a pass computes a frame
 for. Its opposite is a *non-member*, an object no row can reach, which gets
 `compute_non_member`: a solo walk of its own CDAs, exact precisely because
-nothing can reach it. `Membership` is the three-way answer the top-level entry
-dispatches on — `Member`, `NonMember`, and `ZoneOnly` for an object in the
+nothing can reach it. `Membership` is the four-way answer the top-level entry
+dispatches on — `Member`, `NonMember`, `ZoneOnly` for an object in the
 battlefield *zone* with no entity yet (a token mid-creation), which is a member
-of the one pass that asks about it and of no other. Added at LI-1's review
+of the one pass that asks about it and of no other, and `Replayed` for a card
+in a library or a hand a row reaches, which the pass leaves out and the same
+solo walk answers by replaying the pass's decisions (`layers-architecture.md`
+§13e). Added at LI-1's review
 (2026-09-06), renamed from `Query`, because the question is not "what is being
 asked" but "is this thing in the set". → sense 1 is
 `engine/replacement/pipeline.rs`; sense 2 is `engine/layers/board.rs::membership`

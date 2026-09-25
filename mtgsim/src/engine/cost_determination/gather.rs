@@ -195,13 +195,13 @@ fn applies_to(
 /// one `compute_characteristics` on every card in hand at every castability
 /// preview for a mechanic 364 printed cards have.
 ///
-/// **Exact today, and the two flags are the legs that keep it honest.**
-/// `compute_non_member` applies no registry rows, so a non-member's effective
-/// ability list *is* its printed list: neither a Layer 6 grant nor a Layer 1
-/// copy can reach a spell on the stack or a card in hand. The moment one can
-/// — CR 113.6e's second sentence is the rule that would license it — the
-/// caller's `widened` leg is what catches it, which is why this is OR'd with
-/// the summary flags rather than consulted alone.
+/// **Exact, because the two flags are the legs that keep it honest.** A card
+/// no row reaches has its printed ability list, and a Layer 6 grant or a
+/// Layer 1 copy that reaches a spell on the stack or a card in hand — LJ lets
+/// a row name either zone, and LL replays such a row on a card in a hand
+/// (`layers-architecture.md` §13e) — sets one of the summary flags, which is
+/// the caller's `widened` leg. That is why this is OR'd with them rather than
+/// consulted alone.
 fn prints_cost_ability(game: &GameState, spell: ObjectId) -> bool {
     game.objects.get(&spell).is_some_and(|obj| {
         obj.card_data.abilities.iter().any(|ability| {

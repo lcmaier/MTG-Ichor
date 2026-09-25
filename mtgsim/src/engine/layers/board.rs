@@ -29,10 +29,16 @@
 //! (Grist, the Hunger Tide is a creature card in a hand); `Fixed` rows name
 //! what they name, anywhere. So: every battlefield entity, then the
 //! look-ahead's entering object, then whatever `Fixed` rows name and the
-//! sources that join, then the zones filter rows reach. Everything else keeps
-//! a walk of its own that applies only its CDAs (CR 604.3, all zones) and
-//! reads a member's frame from the live board when nested inside a pass, or
-//! from the memo otherwise (`compute::compute_non_member`).
+//! sources that join, then the public zones filter rows reach.
+//!
+//! **A library or a hand a row reaches is left out** (`left_out_zones`).
+//! Nothing in a pass reads a card there unless it is a source that joins, so
+//! the pass records what it decided about each row reaching the zone, and a
+//! card there is walked alone when something asks, replaying those decisions
+//! (`layers-architecture.md` §13e). Everything else keeps a walk of its own
+//! that applies only its CDAs (CR 604.3, all zones) and reads a member's
+//! frame from the live board when nested inside a pass, or from the memo
+//! otherwise (`compute::compute_non_member`).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -99,6 +105,44 @@ pub(super) struct Board<'l> {
     /// old per-call frame cache was, and bounded the way it was: a read at
     /// ceiling `c` only ever requests ceilings below `c`.
     sub: RefCell<IdMap<(ObjectId, usize), Arc<EffectiveCharacteristics>>>,
+    /// The hidden zones this pass leaves out (`left_out_zones`). A card there
+    /// is not a member: it is walked alone, replaying `replay`.
+    left_out: ZoneSet,
+    /// What this pass decided about each row reaching `left_out`, in the order
+    /// it applied them (`layers-architecture.md` §13e decision 1). Empty when
+    /// nothing is left out.
+    replay: Vec<ReplayStep>,
+}
+
+/// One row's decision as a pass made it, for the cards the pass leaves out: a
+/// card in a library or a hand is walked by replaying these against its own
+/// frame (`compute::compute_non_member`).
+#[derive(Debug)]
+pub(crate) struct ReplayStep {
+    pub(super) layer_index: usize,
+    pub(super) row: Arc<ContinuousEffect>,
+    pub(super) decision: RowDecision,
+}
+
+/// What the pass had decided about a row when it applied it.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum RowDecision {
+    /// CR 613.6 — the effect started in an earlier layer or row, so the row
+    /// applies to a card exactly when the card matched where it started.
+    Locked,
+    /// The effect exists (CR 604.2), and this is who "you" was (CR 109.5),
+    /// read off the source's frame as the pass had it then — which a replay
+    /// outside the pass could not recover: under Titania's Song, Mycosynth
+    /// Lattice still has its ability at layer 5 and no longer does at the end.
+    Fresh { you: PlayerId },
+}
+
+/// Whether a pass leaves the hidden zones' cards out, as every pass does, or
+/// holds them as LJ did, which only the debug replay audit asks for.
+#[derive(Clone, Copy, PartialEq)]
+pub(super) enum HiddenCards {
+    LeftOut,
+    Held,
 }
 
 /// A frame handed out by [`Board::frame_of`]: borrowed from the live map, or
@@ -131,6 +175,8 @@ impl<'l> Board<'l> {
             track_started: false,
             lookahead: None,
             sub: RefCell::new(IdMap::default()),
+            left_out: ZoneSet::EMPTY,
+            replay: Vec::new(),
         }
     }
 
@@ -144,7 +190,19 @@ impl<'l> Board<'l> {
     /// presence, and so every other member's frame is the same with it as
     /// without. That is also why two of them never need an order between
     /// them.
-    fn seed(game: &GameState, lookahead: Option<&'l Lookahead>, asked: Option<ObjectId>) -> Self {
+    ///
+    /// `hidden` is `LeftOut` for every pass the engine runs; the debug replay
+    /// audit alone holds the hidden zones, to compare against.
+    fn seed(
+        game: &GameState,
+        lookahead: Option<&'l Lookahead>,
+        asked: Option<ObjectId>,
+        hidden: HiddenCards,
+    ) -> Self {
+        let left_out = match hidden {
+            HiddenCards::LeftOut => left_out_zones(game),
+            HiddenCards::Held => ZoneSet::EMPTY,
+        };
         let mut members = game.battlefield_ids_ordered();
         let battlefield_entities = members.len();
         let mut seen: IdSet<ObjectId> = members.iter().copied().collect();
@@ -164,7 +222,13 @@ impl<'l> Board<'l> {
                     }
                 }
             }
-            if source_joins(effect) && !seen.contains(&effect.source) && game.objects.contains_key(&effect.source) {
+            // A battlefield source is in `seen` already, which settles it
+            // before its zone is looked up.
+            if matches!(effect.origin, EffectOrigin::StaticAbility { .. })
+                && !seen.contains(&effect.source)
+                && let Some(source) = game.objects.get(&effect.source)
+                && source_joins(effect, source.zone, left_out)
+            {
                 seen.insert(effect.source);
                 members.push(effect.source);
             }
@@ -175,9 +239,11 @@ impl<'l> Board<'l> {
         // member outside the battlefield has instead of a timestamp.
         // `beyond_battlefield` is empty on every board that plays no zone-reaching
         // card, which is what makes this loop free rather than cheap — the
-        // alternative is every library in the game. The look-ahead's own rows are
+        // alternative is every library in the game — and `left_out` takes the
+        // libraries and hands back out of it. The look-ahead's own rows are
         // not consulted: a `would_be` row's candidates are `[source]` alone (§5b).
-        for zone in game.continuous_effects.summary().reachable_zones.beyond_battlefield().iter() {
+        let reached = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
+        for zone in reached.without(left_out).iter() {
             for id in game.zone_ids_ordered(zone) {
                 if game.objects.contains_key(&id) && seen.insert(id) {
                     members.push(id);
@@ -197,6 +263,8 @@ impl<'l> Board<'l> {
             track_started,
             lookahead,
             sub: RefCell::new(IdMap::default()),
+            left_out,
+            replay: Vec::new(),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
@@ -290,7 +358,8 @@ impl<'l> Board<'l> {
 
     /// `id`'s frame as the walk should see it *now*: a member's live frame
     /// mid-pass, or its memoized frame from outside one; a non-member walked
-    /// to `ceiling`, the frame as of the end of layer `ceiling - 1`.
+    /// to `ceiling`, the frame as of the end of layer `ceiling - 1`, replaying
+    /// the pass's decisions when it is a card the pass leaves out.
     ///
     /// `None` only when `id` is not in the object store.
     pub(super) fn frame_of(&self, game: &GameState, id: ObjectId, ceiling: usize) -> Option<FrameRef<'_>> {
@@ -301,22 +370,74 @@ impl<'l> Board<'l> {
         // walk. Read through `membership` rather than off `game.battlefield` so
         // it stays the same answer the top-level entry gives: a member need not be
         // a battlefield entity, and answering one here with `compute_non_member`
-        // would drop exactly the zone-reaching row that made it a member.
-        if !self.live && matches!(membership(game, id), Membership::Member) {
-            return crate::engine::layers::compute::compute_characteristics(game, id).map(FrameRef::Shared);
-        }
+        // would drop exactly the zone-reaching row that made it a member. Inside
+        // a pass every member has a frame, so what is left to ask is whether the
+        // card is one this pass leaves out.
+        let replayed = if self.live {
+            game.objects.get(&id).is_some_and(|obj| self.left_out.contains(obj.zone))
+        } else {
+            match membership(game, id) {
+                Membership::Member => {
+                    return crate::engine::layers::compute::compute_characteristics(game, id).map(FrameRef::Shared);
+                }
+                Membership::Replayed => true,
+                Membership::ZoneOnly | Membership::NonMember => false,
+            }
+        };
         if let Some(frame) = self.sub.borrow().get(&(id, ceiling)) {
             return Some(FrameRef::Shared(Arc::clone(frame)));
         }
-        let frame = Arc::new(compute_non_member(game, self, id, ceiling)?);
+        // A live pass's replay is complete below the layer it is in, which is
+        // all a walk to `ceiling` reads.
+        let frame = match (replayed, self.live) {
+            (false, _) => compute_non_member(game, self, id, ceiling, &[])?,
+            (true, true) => compute_non_member(game, self, id, ceiling, &self.replay)?,
+            (true, false) => {
+                let steps = crate::engine::layers::compute::replay_steps(game);
+                compute_non_member(game, self, id, ceiling, &steps)?
+            }
+        };
+        let frame = Arc::new(frame);
         self.sub.borrow_mut().insert((id, ceiling), Arc::clone(&frame));
         Some(FrameRef::Shared(frame))
     }
 
-    /// Hand the frames over, for the memo. Order is a `HashMap`'s and is
-    /// unobservable: the memo is keyed, never iterated.
-    pub(super) fn into_frames(self) -> IdMap<ObjectId, EffectiveCharacteristics> {
-        self.frames
+    /// Hand the frames over, for the memo, and the replay when this pass left
+    /// a zone out: the memo's two halves, stored at one epoch. The frames'
+    /// order is a `HashMap`'s and is unobservable: the memo is keyed, never
+    /// iterated.
+    pub(super) fn into_frames_and_replay(self) -> (IdMap<ObjectId, EffectiveCharacteristics>, Option<Vec<ReplayStep>>) {
+        let replay = (!self.left_out.is_empty()).then_some(self.replay);
+        (self.frames, replay)
+    }
+
+    /// Note what this pass decided about `row` as it applies it, when the row
+    /// reaches a zone the pass leaves out.
+    ///
+    /// The row is found in its registry slice by id, for the `Arc` the replay
+    /// keeps. A look-ahead's own rows are in no registry, and never come here.
+    fn note(&mut self, game: &GameState, layer_index: usize, row: &ContinuousEffect, decision: RowDecision) {
+        let stored = game
+            .continuous_effects
+            .effects_in_layer(LAYER_ORDER[layer_index])
+            .iter()
+            .find(|stored| stored.id == row.id);
+        debug_assert!(stored.is_some(), "a row reaching a left-out zone is a registry row");
+        if let Some(stored) = stored {
+            self.replay.push(ReplayStep { layer_index, row: Arc::clone(stored), decision });
+        }
+    }
+
+    /// Whether `row` reaches a zone this pass leaves out.
+    fn reaches_left_out(&self, row: &ContinuousEffect) -> bool {
+        matches!(&row.affected_objects, ObjectSet::Filter { zones, .. } if !(*zones & self.left_out).is_empty())
+    }
+
+    /// Whether the replay holds the row `group`'s effect started on.
+    fn replay_started(&self, group: EffectGroup) -> bool {
+        self.replay
+            .iter()
+            .any(|step| matches!(step.decision, RowDecision::Fresh { .. }) && step.row.group() == group)
     }
 
     /// One member's frame, consuming the pass.
@@ -673,8 +794,9 @@ fn modification_reads(modification: &EffectModification, out: &mut Reads, you_ch
 }
 
 /// Does resolving this modification read the board at all? The cheap gate
-/// on computing an `Observation`'s outcomes.
-fn is_dynamic(modification: &EffectModification) -> bool {
+/// on computing an `Observation`'s outcomes, and what keeps a row off a
+/// replay (`left_out_zones`' (a)).
+pub(super) fn is_dynamic(modification: &EffectModification) -> bool {
     match modification {
         EffectModification::SetController(_) => true,
         EffectModification::SetPowerToughness { power, toughness }
@@ -1093,11 +1215,32 @@ fn perform(
         Kind::Effect { rows, would_be } => {
             let mut reached: Vec<ObjectId> = Vec::new();
             for row in rows {
-                let (affected, lock) = match row_affected(game, board, row, *would_be, layer_index) {
+                let (affected, fresh) = match row_affected(game, board, row, *would_be, layer_index) {
                     Affected::Gone => continue,
-                    Affected::Locked(affected) => (affected, None),
-                    Affected::Fresh(affected) => (affected, board.track_started.then(|| row.group())),
+                    Affected::Locked(affected) => (affected, false),
+                    Affected::Fresh(affected) => (affected, true),
                 };
+                // A card left out of the pass is walked by replaying this
+                // decision (§13e decision 1), so it is noted for the real
+                // application alone, never under a hypothetical's journal. "You"
+                // is read here, before the row writes anything, which is when
+                // `affected_members` read it. A look-ahead's own row reaches its
+                // source alone (§5b), wherever its filter points. A locked row
+                // is noted wherever it points when its effect started on a
+                // noted row, since CR 613.6 applies it to that start's set.
+                let noted = journal.is_none()
+                    && !*would_be
+                    && !board.left_out.is_empty()
+                    && (board.reaches_left_out(row) || (!fresh && board.replay_started(row.group())));
+                if noted {
+                    let decision = if fresh {
+                        RowDecision::Fresh { you: FilterPlayers::for_row(row, game, board, layer_index).you() }
+                    } else {
+                        RowDecision::Locked
+                    };
+                    board.note(game, layer_index, row, decision);
+                }
+                let lock = (fresh && board.track_started).then(|| row.group());
                 if let Some(group) = lock {
                     // Recorded even when empty: CR 613.6 locks the set at the
                     // layer the effect starts in, and an effect that found
@@ -1354,10 +1497,29 @@ pub(super) fn compute_board_traced<'l>(
     lookahead: Option<&'l Lookahead>,
     asked: Option<ObjectId>,
     ceiling: usize,
+    trace: Option<(usize, &mut Vec<TraceStep>)>,
+) -> Board<'l> {
+    run_pass(game, lookahead, asked, ceiling, trace, HiddenCards::LeftOut)
+}
+
+/// One full pass holding every card in a hidden zone a row reaches, as LJ's
+/// passes did: what the debug replay audit compares a replayed frame against
+/// (`layers-architecture.md` §13e decision 6).
+#[cfg(debug_assertions)]
+pub(super) fn compute_board_holding_hidden(game: &GameState) -> Board<'static> {
+    run_pass(game, None, None, LAYER_ORDER.len(), None, HiddenCards::Held)
+}
+
+fn run_pass<'l>(
+    game: &GameState,
+    lookahead: Option<&'l Lookahead>,
+    asked: Option<ObjectId>,
+    ceiling: usize,
     mut trace: Option<(usize, &mut Vec<TraceStep>)>,
+    hidden: HiddenCards,
 ) -> Board<'l> {
     game.diagnostics.record_board_walk();
-    let mut board = Board::seed(game, lookahead, asked);
+    let mut board = Board::seed(game, lookahead, asked, hidden);
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
         let apps = applications_in_layer(game, &board, layer, layer_index);
         let layer_trace: Option<&mut Vec<TraceStep>> = match trace.as_mut() {
@@ -1373,58 +1535,149 @@ pub(super) fn compute_board_traced<'l>(
 /// top-level entry computes it.
 pub(super) enum Membership {
     /// A battlefield entity, an object a `Fixed` row names, a source that
-    /// joins (`source_joins`), or an object in a zone some row reaches: a
-    /// member of every pass. Rows are scanned rather than summarized — `Fixed`
-    /// rows are few, and a miss is already a walk.
+    /// joins (`source_joins`), or an object in a public zone some row reaches:
+    /// a member of every pass. Rows are scanned rather than summarized —
+    /// `Fixed` rows are few, and a miss is already a walk.
     Member,
     /// In the battlefield zone with no entity: a member of the pass that
     /// asks about it (see [`Board::seed`]).
     ZoneOnly,
+    /// In a library or a hand some row reaches, and left out of every pass
+    /// (`left_out_zones`): its own walk, replaying what the pass decided about
+    /// each row reaching it.
+    Replayed,
     /// Reachable by no row: its own CDA walk.
     NonMember,
 }
 
-/// Whether `effect`'s source is a member of every pass wherever it is.
+/// Whether `effect`'s source, in `source_zone`, is a member of every pass
+/// even where no filter row reaches it (`layers-architecture.md` §13e
+/// decision 2).
 ///
-/// A `SourceOnly` row writes its own source, and `affected_members` reaches
-/// the source only through its frame in the pass. So a static ability that
-/// changes its own card off the battlefield (CR 113.6b) — Grist, the Hunger
-/// Tide being "a 1/1 Insect creature" everywhere but the battlefield — needs
-/// its card in the pass, and a walk of its own would apply no row at all. A
-/// resolution's `SourceOnly` row names a permanent, and leaves with it
-/// (`remove_by_source`; CR 400.7).
-fn source_joins(effect: &ContinuousEffect) -> bool {
+/// The pass reads a static row's source mid-layer — whether the ability still
+/// exists (CR 604.2), who "you" is (CR 109.5) — and writes it when some row
+/// reaches it. A walk of its own could not see what an earlier application in
+/// the same layer did to it, so the source joins whenever a row can write it:
+/// - **its own row, when that row is `SourceOnly`.** `affected_members`
+///   reaches a `SourceOnly` source only through its frame in the pass, so a
+///   static ability that changes its own card off the battlefield (CR 113.6b)
+///   — Grist, the Hunger Tide being "a 1/1 Insect creature" everywhere but the
+///   battlefield — would otherwise apply to nothing;
+/// - **a row reaching its zone, when the pass leaves that zone out.** A
+///   reached public zone is a member already. A hand card that grants flying
+///   from the hand, beside Hollow Hands, is the case: the grant waits on the
+///   strip (CR 613.8a) only if the pass can see the strip reach the source.
+///
+/// A resolution's row is neither: CR 613.7b fixes its "you" and its existence
+/// is unconditional, so the pass never reads its source, and a `SourceOnly`
+/// one names a permanent that it leaves with (`remove_by_source`; CR 400.7).
+fn source_joins(effect: &ContinuousEffect, source_zone: Zone, left_out: ZoneSet) -> bool {
     matches!(effect.origin, EffectOrigin::StaticAbility { .. })
-        && matches!(effect.affected_objects, ObjectSet::SourceOnly)
+        && (matches!(effect.affected_objects, ObjectSet::SourceOnly) || left_out.contains(source_zone))
+}
+
+/// The hidden zones a pass leaves out: every library and hand some row
+/// reaches, less those the guard keeps in (`layers-architecture.md` §13e
+/// decision 4).
+///
+/// A card is left out only where the pass could never read it, and two
+/// things would let it:
+/// - **(a) a row reaching the zone reads the board to resolve** (`is_dynamic`):
+///   a count at 7c, or `SetController`'s "you" at layer 2. A replay outside
+///   the pass cannot see the frames it read mid-layer.
+/// - **(b) two effects of one layer both reach the zone, and the pass's
+///   CR 613.8 pre-check cannot rule the pair out** — `filter_reads` against
+///   `writes_of`, the question `depends_on` asks before any hypothetical.
+///   The hypothetical could then see a change in what one applies to
+///   *through a card there*, and the order the pass decides on its members
+///   would not be the whole board's. No printed card makes such a pair
+///   depend; the pre-check's grain makes some of them look as though they
+///   could (Biotransference's added Artifact beside Arcane Adaptation's
+///   creature cards), and such a board costs what LJ's passes cost.
+///
+/// Only an effect's *filter* is asked in (b): a condition reads the
+/// battlefield, a graveyard or the source, and a dynamic amount is (a)'s.
+///
+/// Rows and nothing else, so `Board::seed` and `membership` both call this
+/// and cannot disagree. Empty, at one compare, on every board with no row
+/// reaching a hidden zone.
+pub(super) fn left_out_zones(game: &GameState) -> ZoneSet {
+    let hidden = game.continuous_effects.summary().reachable_zones & ZoneSet::HIDDEN;
+    if hidden.is_empty() {
+        return ZoneSet::EMPTY;
+    }
+    // Per row reaching a hidden zone: its effect, its layer, the hidden zones
+    // it reaches, and what its filter reads and its modification writes.
+    let mut reaching: Vec<(EffectGroup, Layer, ZoneSet, Channels, Channels)> = Vec::new();
+    let mut held = ZoneSet::EMPTY;
+    for row in game.continuous_effects.iter() {
+        let ObjectSet::Filter { filter, zones } = &row.affected_objects else { continue };
+        let reach = *zones & hidden;
+        if reach.is_empty() {
+            continue;
+        }
+        if is_dynamic(&row.modification) {
+            held |= reach;
+            continue;
+        }
+        let is_static = matches!(row.origin, EffectOrigin::StaticAbility { .. });
+        let you_channel = if is_static { Channels::CONTROLLER } else { Channels::NONE };
+        let mut reads = Reads::default();
+        filter_reads(filter, &mut reads, you_channel);
+        reaching.push((row.group(), row.layer, reach, reads.members, writes_of(&row.modification)));
+    }
+    for (group, layer, reach, reads, _) in &reaching {
+        for (other, other_layer, other_reach, _, writes) in &reaching {
+            // One effect's rows are one application; CR 613.8a(a) pairs only
+            // effects of one layer.
+            if other == group || other_layer != layer {
+                continue;
+            }
+            let shared = *reach & *other_reach;
+            if !shared.is_empty() && reads.intersects(*writes) {
+                held |= shared;
+            }
+        }
+    }
+    hidden.without(held)
 }
 
 pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     if game.battlefield.contains_key(&id) {
         return Membership::Member;
     }
-    if matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
+    let Some(zone) = game.objects.get(&id).map(|obj| obj.zone) else {
+        return Membership::NonMember;
+    };
+    if zone == Zone::Battlefield {
         return Membership::ZoneOnly;
     }
-    // Both halves must agree with `Board::seed`, which appends the same
-    // objects in the same scan.
+    // In a zone some row reaches. Summarized rather than scanned: this is asked
+    // for every card in every hidden zone the oracle ever queries, and the
+    // summary answers `EMPTY` in one compare on any board with no zone-reaching
+    // row. The zones the pass leaves out are worked out only for a card in a
+    // reached hidden zone, the one card whose answer turns on them.
+    let reached = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
+    let left_out = if (reached & ZoneSet::HIDDEN).contains(zone) {
+        left_out_zones(game)
+    } else {
+        ZoneSet::EMPTY
+    };
+    // Every answer must agree with `Board::seed`, which appends the same
+    // objects from the same scan and the same summary: a member the seed adds
+    // and this call reports otherwise would be walked without the row that
+    // made it a member.
     let named = game.continuous_effects.iter().any(|e| {
         matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id))
-            || (e.source == id && source_joins(e))
+            || (e.source == id && source_joins(e, zone, left_out))
     });
     if named {
         return Membership::Member;
     }
-    // In a zone some row reaches. Summarized rather than scanned, unlike
-    // `Fixed` above: this is asked for every card in every hidden zone the
-    // oracle ever queries, and the summary answers `EMPTY` in one compare on
-    // any board with no zone-reaching row. It must agree with `Board::seed`,
-    // which reads the same field — a member the seed adds and this call
-    // reports as a non-member would be walked alone, without the row that
-    // made it a member.
-    let beyond = game.continuous_effects.summary().reachable_zones.beyond_battlefield();
-    if !beyond.is_empty()
-        && matches!(game.objects.get(&id), Some(obj) if beyond.contains(obj.zone))
-    {
+    if left_out.contains(zone) {
+        return Membership::Replayed;
+    }
+    if reached.contains(zone) {
         return Membership::Member;
     }
     Membership::NonMember
@@ -1437,7 +1690,11 @@ pub(super) fn frame_at_ceiling(game: &GameState, id: ObjectId, ceiling: usize) -
     match membership(game, id) {
         Membership::Member => compute_board_to(game, None, None, ceiling).take(id),
         Membership::ZoneOnly => compute_board_to(game, None, Some(id), ceiling).take(id),
-        Membership::NonMember => compute_non_member(game, &Board::settled(), id, ceiling),
+        Membership::Replayed => {
+            let steps = crate::engine::layers::compute::replay_steps(game);
+            compute_non_member(game, &Board::settled(), id, ceiling, &steps)
+        }
+        Membership::NonMember => compute_non_member(game, &Board::settled(), id, ceiling, &[]),
     }
 }
 
@@ -1569,5 +1826,94 @@ mod tests {
             toughness: PtValue::Fixed(1),
         })
         .intersects(Channels::TYPES));
+    }
+
+    /// A board with an object in every zone, and two players' worth of hands
+    /// and libraries.
+    fn every_zone() -> GameState {
+        use crate::test_support::{
+            put_in_command_zone, put_in_exile, put_in_graveyard, put_in_hand, put_in_library, put_spell_on_stack,
+            vanilla_creature,
+        };
+        let mut game = setup_two_player_game();
+        for player in 0..2 {
+            put_on_battlefield(&mut game, creatures::grizzly_bears(), player);
+            put_in_hand(&mut game, vanilla_creature(2, 2, &[]), player);
+            put_in_library(&mut game, vanilla_creature(2, 2, &[]), player);
+            put_in_library(&mut game, basic_lands::forest(), player);
+            put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), player);
+            put_in_exile(&mut game, vanilla_creature(2, 2, &[]), player);
+        }
+        put_in_command_zone(&mut game, vanilla_creature(2, 2, &[]), 0);
+        put_spell_on_stack(&mut game, vanilla_creature(2, 2, &[]), 1);
+        game
+    }
+
+    /// `Board::seed` and `membership` agree on every object in every zone
+    /// (`layers-architecture.md` §13e): a member the seed adds and
+    /// `membership` reports otherwise would be walked without the row that
+    /// made it a member. And a card is `Replayed` exactly when it sits in a
+    /// zone `left_out_zones` names and nothing else makes it a member.
+    #[test]
+    fn seed_and_membership_agree_on_every_zone() {
+        use crate::cards::{phase_lj_cards, phase_ll_cards};
+        use crate::test_support::{put_in_hand, put_in_library, registered};
+
+        let mut boards: Vec<(&str, GameState)> = Vec::new();
+        boards.push(("no row", every_zone()));
+
+        let mut game = every_zone();
+        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
+        boards.push(("Lattice's clause: every zone but the battlefield", game));
+
+        let mut game = every_zone();
+        put_on_battlefield(&mut game, phase_ll_cards::library_assassins(), 0);
+        put_on_battlefield(&mut game, phase_ll_cards::library_artificer(), 1);
+        boards.push(("the guard holds the libraries", game));
+
+        let mut game = every_zone();
+        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
+        put_in_hand(&mut game, phase_ll_cards::pocket_griffin(), 1);
+        boards.push(("a static source in a hand left out", game));
+
+        let mut game = every_zone();
+        put_in_library(&mut game, phase_ll_cards::grist_insect_clause(), 1);
+        boards.push(("a SourceOnly source in a library nothing reaches", game));
+
+        let mut game = every_zone();
+        put_on_battlefield(&mut game, phase_lj_cards::lattice_colorless_clause(), 0);
+        let named = put_in_library(&mut game, creatures::grizzly_bears(), 1);
+        let timestamp = game.allocate_timestamp();
+        game.continuous_effects.add(registered(
+            named,
+            Layer::Layer7cModifyPT,
+            timestamp,
+            EffectModification::ModifyPowerToughness { power: PtValue::Fixed(1), toughness: PtValue::Fixed(1) },
+        ));
+        boards.push(("a Fixed-named card in a library left out", game));
+
+        for (name, game) in &boards {
+            let seeded: IdSet<ObjectId> = Board::seed(game, None, None, HiddenCards::LeftOut).members.into_iter().collect();
+            let left_out = left_out_zones(game);
+            for (&id, obj) in &game.objects {
+                let membership = membership(game, id);
+                let member = matches!(membership, Membership::Member);
+                assert_eq!(seeded.contains(&id), member, "{name}: {} in the {:?}", obj.card_data.name, obj.zone);
+                if !member {
+                    assert_eq!(
+                        matches!(membership, Membership::Replayed),
+                        left_out.contains(obj.zone),
+                        "{name}: {} in the {:?}",
+                        obj.card_data.name,
+                        obj.zone
+                    );
+                }
+            }
+        }
+        // The boards say what they claim to.
+        assert_eq!(left_out_zones(&boards[0].1), ZoneSet::EMPTY);
+        assert_eq!(left_out_zones(&boards[1].1), ZoneSet::HIDDEN);
+        assert_eq!(left_out_zones(&boards[2].1), ZoneSet::EMPTY, "both rows reach libraries alone, and they are held");
+        assert_eq!(left_out_zones(&boards[3].1), ZoneSet::HIDDEN);
     }
 }

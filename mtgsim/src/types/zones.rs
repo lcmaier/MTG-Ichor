@@ -70,6 +70,11 @@ impl ZoneSet {
     /// CR actually names; any other is [`Self::without`].
     pub const EVERYWHERE_BUT_BATTLEFIELD: ZoneSet = ZoneSet(ZoneSet::ALL.0 & !ZoneSet::BATTLEFIELD.0);
 
+    /// CR 400.2's hidden zones, a library and a hand: the zones a layer pass
+    /// leaves out (`layers-architecture.md` §13e). [`Zone::is_public`] is the
+    /// same partition asked of one zone, and a test pins the two together.
+    pub const HIDDEN: ZoneSet = ZoneSet(ZoneSet::LIBRARY.0 | ZoneSet::HAND.0);
+
     /// This set minus `other` — the general complement.
     pub const fn without(self, other: ZoneSet) -> ZoneSet {
         ZoneSet(self.0 & !other.0)
@@ -145,6 +150,13 @@ impl std::ops::BitOr for ZoneSet {
 impl std::ops::BitOrAssign for ZoneSet {
     fn bitor_assign(&mut self, rhs: ZoneSet) {
         self.0 |= rhs.0;
+    }
+}
+
+impl std::ops::BitAnd for ZoneSet {
+    type Output = ZoneSet;
+    fn bitand(self, rhs: ZoneSet) -> ZoneSet {
+        ZoneSet(self.0 & rhs.0)
     }
 }
 
@@ -358,4 +370,18 @@ pub enum DrawCause {
     TurnBased,
     /// A spell, an ability, or a replacement effect's own draw.
     Effect,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `ZoneSet::HIDDEN` and `Zone::is_public` are one partition of CR 400.2's
+    /// seven zones, asked of a set and of a zone.
+    #[test]
+    fn hidden_is_every_zone_that_is_not_public() {
+        for zone in ZoneSet::ALL.iter() {
+            assert_eq!(ZoneSet::HIDDEN.contains(zone), !zone.is_public(), "{zone:?}");
+        }
+    }
 }
