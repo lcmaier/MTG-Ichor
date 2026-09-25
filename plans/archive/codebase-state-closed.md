@@ -2593,3 +2593,49 @@ Closed by the design the item held (`triggers-architecture.md` §3.10, as built)
      **Sized:** ~80–120 lines: `state/history.rs` (81 lines) re-shaped, and its
      nine reads in `layers/condition.rs`, `triggers/history.rs`,
      `game_state.rs` and `player.rs`, plus a test per reading.
+
+### Item 180 — closed 2026-09-25 by the shared-registry-rows PR
+
+Closed by the design the item sized, with the zone replacement sources beside it. `DurationRegistry` keeps each row behind its own `Arc`, so each of the three registries clones in one allocation. `update_rows` takes a read-only pick and edits only the rows it picks, through `Arc::make_mut`, so a write copies only the row it touches, and the removals return the `Arc`s, which no engine caller reads. `zone_replacement_ability_sources` holds an `Arc<[ReplacementDef]>` per source. At `performance` 12350's turn 100 the rows took the clone from 68 allocations to 40 and the lists from 40 to 34: six lists, the map's own table being the seventh allocation the attribution counted. The clone test's worst over its 24 games is 40, at `performance` 12358's turn 50. Unit tests show a fork's write copies only its own row and leaves the original as it was, on `update_rows` and on both of its engine callers.
+
+*Original entry:*
+
+180. **Every registry row's payload is copied on every fork, and on
+     `close_out.py`'s own board that breaks floor 2's CI proxy.** The
+     bounded-state PR's review measured ten
+     Commander games with eight copies each of four grant and copy cards in
+     every deck, cloned at every priority prompt (`fuzz-record.md`, the
+     bounded-state block, round 2). Sharing the grant and copy payloads took
+     the worst clone from 97 allocations to 65. What is left is each
+     continuous-effect row's own payload, an `ObjectSet::Fixed` list or an
+     `ObjectFilter`'s boxes, copied on every fork: 23 allocations for 11 rows.
+     Bytes stayed under 128 KB, and the committed clone test's boards read at
+     most 46.
+
+     **`close_out.py`'s own board breaks the proxy too** (item 181's
+     measurement, attributed at its review, 2026-09-25). `performance` game
+     12350 at Commander scale reads 63 allocations at turn 80 and 68 at turn
+     100, with no card placed. At turn 100, 28 of the 68 are eight registry
+     rows' filter trees, copied box by box:
+     - five Blood Moon rows at 4 each;
+     - March of the Machines' two rows at 3 each;
+     - Wonder's row at 2.
+
+     Of the other 40, the 7 for the zone replacement sources (a list per
+     source) grow with the board too. The rest are 18 for the players' zone
+     lists and histories and one for each other map or list, the memo's
+     included. The clone test played only `stress` seeds, so CI did not see
+     it.
+
+     **Reachability (2026-09-25):** reachable — not wrong; a floor 2 breach on
+     the board the budget is read on.
+
+     **Proposed: before TR-2b.** Its PR's first commit adds `close_out.py`'s
+     20 `performance` games to the clone test, which fails at 12350's turn 100
+     until the fix.
+
+     **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
+     `Arc::make_mut` in its five mutating methods, which makes each of the three
+     registries' clones one allocation. The callers that take rows back by
+     value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
+     At 12350's turn 100 that takes the clone from 68 allocations to about 40.

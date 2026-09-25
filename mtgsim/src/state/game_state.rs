@@ -451,12 +451,14 @@ pub struct GameState {
     /// effective list, a grant and a copy, are the gate's other two legs
     /// (`RegistryScopeSummary`) and a strip only removes. Kept here, at the
     /// one site that already reads printed abilities, so the leg never reads
-    /// `card_data` itself (`CLAUDE.md`'s layer-system invariant).
+    /// `card_data` itself (`CLAUDE.md`'s layer-system invariant). Behind an
+    /// `Arc` because it never changes while the object stays in the zone, so
+    /// a fork shares each list rather than copying one per source.
     ///
     /// **Engine-maintained.** `register_static_effects` inserts from
     /// `arrive_in_zone` and `create_in_zone`; `cleanup_zone_state` removes on
     /// leaving any zone but the battlefield.
-    pub zone_replacement_ability_sources: IdMap<ObjectId, Vec<ReplacementDef>>,
+    pub zone_replacement_ability_sources: IdMap<ObjectId, Arc<[ReplacementDef]>>,
 
     /// Every CR 101.2 "can't" a resolution has created.
     ///
@@ -1640,6 +1642,7 @@ impl GameState {
             return;
         };
         let card_name = card.name.as_str();
+        let mut zone_replacement_defs = Vec::new();
 
         for ability in card.abilities.iter() {
             // CR 603 — a triggered ability generates no row either; what the
@@ -1692,10 +1695,7 @@ impl GameState {
                 if zone == Zone::Battlefield {
                     self.replacement_ability_sources.insert(id);
                 } else {
-                    self.zone_replacement_ability_sources
-                        .entry(id)
-                        .or_default()
-                        .push(def.clone());
+                    zone_replacement_defs.push(def.clone());
                 }
             }
 
@@ -1777,6 +1777,11 @@ impl GameState {
                     self.continuous_effects.add(effect);
                 }
             }
+        }
+
+        if !zone_replacement_defs.is_empty() {
+            let filed = self.zone_replacement_ability_sources.insert(id, zone_replacement_defs.into());
+            debug_assert!(filed.is_none(), "{card_name} was filed in its last zone and never removed");
         }
     }
 
