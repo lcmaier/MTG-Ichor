@@ -228,7 +228,7 @@ pub fn vanilla_creature(power: i32, toughness: i32, keywords: &[KeywordFlag]) ->
 /// **It never declines, and in a mana window that matters.** CR 605.3a's
 /// window runs until the player declines, so a board with a spare untapped
 /// source will be offered again after the cost is covered and this provider
-/// will take it — including the activation's *own* source, whose `Cost::Tap`
+/// will take it — including the activation's *own* source, whose `Cost::TapSelf`
 /// the payment is about to owe (`codebase-state.md` item 83). Wrap it in
 /// [`crate::ui::mana_window_stop::ManaWindowStop`] for any test that
 /// activates an ability or casts a spell with mana sources to spare, as every
@@ -344,6 +344,88 @@ impl DecisionProvider for RecordingDecisionProvider {
         // The kind, as `pick_n` records it: an ordering prompt is a decision
         // site too, and "one prompt, of the right kind" is the assertion.
         self.seen.borrow_mut().push(format!("{:?}", _ctx.kind));
+        (0..items.len()).collect()
+    }
+}
+
+/// A provider that passes at every priority prompt and records what the
+/// stack and the pending-trigger queue held at the **first** one — CR 117.5's
+/// "before any player gets priority" made observable. Every other prompt takes
+/// its minimum, in order.
+pub struct StackWatcher {
+    first: std::cell::RefCell<Option<(usize, usize)>>,
+}
+
+impl StackWatcher {
+    pub fn new() -> Self {
+        StackWatcher { first: std::cell::RefCell::new(None) }
+    }
+
+    /// `(stack length, pending triggers)` at the first priority prompt.
+    pub fn at_first_prompt(&self) -> (usize, usize) {
+        self.first.borrow().expect("a priority prompt was asked")
+    }
+}
+
+impl Default for StackWatcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DecisionProvider for StackWatcher {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        _player: PlayerId,
+        context: &crate::ui::choice_types::ChoiceContext,
+        options: &[crate::ui::choice_types::ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        if matches!(context.kind, crate::ui::choice_types::ChoiceKind::PriorityAction)
+            && self.first.borrow().is_none()
+        {
+            *self.first.borrow_mut() = Some((game.stack.len(), game.pending_triggers.len()));
+        }
+        (0..bounds.0.max(1).min(options.len())).collect()
+    }
+
+    fn pick_number(
+        &self,
+        _: &GameState,
+        _: PlayerId,
+        _: &crate::ui::choice_types::ChoiceContext,
+        min: u64,
+        _: u64,
+    ) -> u64 {
+        min
+    }
+
+    fn allocate(
+        &self,
+        _: &GameState,
+        _: PlayerId,
+        _: &crate::ui::choice_types::ChoiceContext,
+        total: u64,
+        buckets: &[crate::ui::choice_types::ChoiceOption],
+        mins: &[u64],
+        _: Option<&[u64]>,
+    ) -> Vec<u64> {
+        let mut out = mins.to_vec();
+        let spent: u64 = out.iter().sum();
+        if !buckets.is_empty() {
+            out[0] += total.saturating_sub(spent);
+        }
+        out
+    }
+
+    fn choose_ordering(
+        &self,
+        _: &GameState,
+        _: PlayerId,
+        _: &crate::ui::choice_types::ChoiceContext,
+        items: &[crate::ui::choice_types::ChoiceOption],
+    ) -> Vec<usize> {
         (0..items.len()).collect()
     }
 }

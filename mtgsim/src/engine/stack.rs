@@ -82,6 +82,7 @@ impl GameState {
                 additional: entry.additional_costs_paid.clone(),
                 alternative: entry.chosen_alternative_cost.clone(),
             },
+            identity: entry.ability_identity,
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -138,7 +139,7 @@ impl GameState {
         // --- Resolve the effect (rule 608.2c-m) ---
         let ctx = ResolutionContext {
             source: object_id,
-            ability_source: entry.ability_identity.map(|identity| identity.source.id),
+            ability_source: entry.ability_identity.map(|identity| identity.source),
             controller,
             targets: surviving,
             // A resolving spell or ability replaced nothing, so CR 615.5's
@@ -147,7 +148,21 @@ impl GameState {
             damage_prevented: None,
             trigger: entry.trigger.clone(),
         };
-        self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
+        // CR 603.2h at resolution: an instance whose action its controller has
+        // already taken this turn resolves and does nothing (Nykthos Paragon's
+        // fourth ruling); otherwise it acts, and that takes the action.
+        let action_gate = entry
+            .trigger
+            .as_ref()
+            .filter(|binding| binding.def.limit == Some(crate::types::triggers::TriggerLimit::DoThisOnlyOnceEachTurn))
+            .and(entry.ability_identity)
+            .map(|identity| (identity, entry.controller));
+        if action_gate.is_none_or(|key| !self.action_taken_this_turn.contains(&key)) {
+            self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
+            if let Some(key) = action_gate {
+                self.action_taken_this_turn.insert(key);
+            }
+        }
 
         // --- Post-resolution (rule 608.2n) ---
         // The zone change goes through the chokepoint like every other one;

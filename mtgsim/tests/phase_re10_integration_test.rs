@@ -64,7 +64,7 @@ fn resolve_ability(
 ) {
     let ctx = ResolutionContext {
         source,
-        ability_source: Some(source),
+        ability_source: game.object_ref(source),
         controller,
         targets: ChosenTargets::NONE,
         replaced_amount: None,

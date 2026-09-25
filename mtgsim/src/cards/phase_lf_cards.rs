@@ -108,7 +108,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Mana,
-        costs: vec![Cost::Tap],
+        costs: vec![Cost::TapSelf],
         effect: Effect::Atom(
             Primitive::ProduceMana(ManaOutput {
                 mana: vec![(ManaType::Green, AmountExpr::Fixed(1))],

@@ -452,7 +452,7 @@ fn a_shield_chosen_on_a_spell_follows_it_onto_the_battlefield() {
     let dp = RecordingDecisionProvider::picking(1);
     let ctx = ResolutionContext {
         source: circle,
-        ability_source: Some(circle),
+        ability_source: game.object_ref(circle),
         controller: 0,
         targets: ChosenTargets::NONE,
         replaced_amount: None,

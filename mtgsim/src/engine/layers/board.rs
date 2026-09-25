@@ -583,7 +583,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
     match condition {
         // The controller test is the *variant's*, not the filter's, so it
         // reads CONTROLLER on every candidate whatever the filter says.
-        Condition::ControlPermanent(filter) | Condition::OpponentControlsPermanent(filter) => {
+        Condition::YouControlPermanent(filter) | Condition::OpponentControlsPermanent(filter) => {
             out.members |= Channels::CONTROLLER;
             out.source |= you_channel;
             filter_reads(filter, out, you_channel);
@@ -593,27 +593,33 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
         // Life totals are off `GameState`, not off any frame — only a
         // dynamic threshold reads one.
-        Condition::LifeAtLeast(expr) | Condition::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
+        Condition::YourLifeAtLeast(expr) | Condition::YourLifeAtMost(expr) => amount_reads(expr, out, you_channel),
         // A graveyard card is a non-member, which no application reaches —
         // `amount_reads`' `CardTypesAmong` arm is kept exact for the same
         // reason. The source's zone, its tapped status and how it was cast
         // are off `GameState`, and the resolution-only leaf never evaluates
         // at all.
-        Condition::CardInGraveyard(_)
+        Condition::CardInYourGraveyard(_)
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_) => {}
         // A library's card count is off `GameState`, like a life total, and
         // the leaf's threshold is a constant — nothing on any frame.
-        Condition::LibraryEmpty => {}
+        Condition::YourLibraryEmpty => {}
+        // The counts are off `GameState`; "you" is the source's controller.
+        Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
+            out.source |= you_channel;
+        }
+        // A resolution's count, off `GameState`.
+        Condition::ResolvedThisTurn(_) => {}
         // A conjunction reads whatever its clauses read. No wildcard inside, for
         // this function's own stated reason.
         //
         // **`All` alone is not a restriction on what cards can say.** Most printed
         // "or" sits *inside* a clause: Abzan Kin-Guard's "as long as you control a
         // white **or** black permanent" (Scryfall, 2026-09-14) is one
-        // `ControlPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
+        // `YouControlPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
         // disjunction of two whole *conditions* and lands with the first registered
         // card that needs one, together with its arm here and in
         // `zone_function::stated_zones` (`layers-architecture.md` §15.1).

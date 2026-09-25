@@ -295,7 +295,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
         }
         builder
             .ability(static_ability(Effect::Conditional(
-                Condition::ControlPermanent(ObjectFilter::ByColor(Color::White)),
+                Condition::YouControlPermanent(ObjectFilter::ByColor(Color::White)),
                 Box::new(Effect::Sequence(vec![
                     Effect::Atom(
                         Primitive::ChangeType(

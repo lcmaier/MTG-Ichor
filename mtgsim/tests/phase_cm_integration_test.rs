@@ -1404,7 +1404,7 @@ fn test_a_mana_ability_resolves_immediately_and_never_uses_the_stack() {
 /// **Run under a client stack, and it has to be.** Mind Stone prints
 /// "{T}: Add {C}" as well, so once the Forest has covered the {1} the window
 /// offers the Stone's own mana ability — and a provider that keeps picking
-/// takes it, tapping the very permanent whose `Cost::Tap` it is about to owe.
+/// takes it, tapping the very permanent whose `Cost::TapSelf` it is about to owe.
 /// That is legal under CR 605.3a and always a mistake
 /// (`codebase-state.md` item 83); `ManaWindowStop` is what stops it, which is
 /// why every shipped client stacks one. `windows_opened` counts the prompts

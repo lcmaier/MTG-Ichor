@@ -955,7 +955,7 @@ mod tests {
                 ability_type: AbilityType::Spell,
                 costs: Vec::new(),
                 effect: Effect::Atom(
-                    Primitive::DealDamage { amount: AmountExpr::Variable, unpreventable: false },
+                    Primitive::DealDamage { amount: AmountExpr::X, unpreventable: false },
                     EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
                 ),
             })

@@ -1944,7 +1944,7 @@ surface *reads* the filter, and it does not: the `CardFilter` inside
 `Cost::Discard` and `Cost::ExileFromGraveyard` is **inert** — every consumer
 in `engine/costs.rs` matches it as `_`. There is no behavior in the cost half
 to break, only a type the compiler swaps. The one live matcher is the
-three-arm one at `condition.rs:96–98` under `Condition::CardInGraveyard`,
+three-arm one at `condition.rs:96–98` under `Condition::CardInYourGraveyard`,
 which becomes a call to `object_matches_filter`.
 
 **~70 lines, and `engineering-practices.md` §4's RE-4 precedent is exactly
@@ -1982,7 +1982,7 @@ set or on CR 113.6, while A5 gates A6. The route is **LJ → A5 → RE-9/RE-10**
 | `membership()` + `compute_non_member`'s fast exit — both gated on the same mask | `board.rs:1304`, `compute.rs:184` | ~45 |
 | `affected_members` — the gate takes the row's zones | `board.rs:862` | ~25 |
 | `Board::entities` → `battlefield_entities` (decision 0) | `board.rs` × 7 | ~10 |
-| `CardFilter` folded into `ObjectFilter` (decision 5) — two inert `Cost` fields, `Condition::CardInGraveyard`, the three-arm matcher → `object_matches_filter` | `types/costs.rs`, `types/effects.rs`, `condition.rs` | ~70 |
+| `CardFilter` folded into `ObjectFilter` (decision 5) — two inert `Cost` fields, `Condition::CardInYourGraveyard`, the three-arm matcher → `object_matches_filter` | `types/costs.rs`, `types/effects.rs`, `condition.rs` | ~70 |
 | Yixlid Jailer, Scarwood Treefolk, `PERFORMANCE_POOL` entry | `cards/` | ~90 |
 | Tests — the atom, the mask's zero-cost claim, determinism | `tests/`, unit | ~250 |
 | Docs — item 9's eviction, §11 item 9, A5, §5.1 | `plans/` | ~150 |
@@ -2058,7 +2058,7 @@ earn their place: a **rule** reading a zone-reaching change is a third thing
 again, and Tarmogoyf's graveyard P/T is read by almost nothing today.
 
 **A *color* in a graveyard is observable today**, and closing the loop needs
-nothing this PR does not already have. `Condition::CardInGraveyard` reads a
+nothing this PR does not already have. `Condition::CardInYourGraveyard` reads a
 graveyard card's characteristics, and decision 5's fold gave it `ObjectFilter`,
 so it can ask `ByColor`. Two fixtures in `phase_lj_cards.rs` — **Graveyard
 Painter** ("cards in graveyards are red in addition to their other colors",
@@ -2110,7 +2110,7 @@ cleanest statement of decision 1: a source off the battlefield and a timestamp
 it has nowhere to read are the *same* missing facility, so deferring 613.7d
 costs nothing that A5 does not already owe. The `Condition` AST Wonder's "as
 long as … you control an Island" needs already exists — LI-3 landed
-`ControlPermanent`, so that half is not what blocks it.
+`YouControlPermanent`, so that half is not what blocks it.
 
 **Aminatou's crux is reachable as a fixture**, and it is the sharpest test of
 the affected side short of registering the card:
@@ -2337,7 +2337,7 @@ Effect::Conditional(
     Condition::All(vec![
         // CR 113.6b — the clause that says where this ability functions.
         Condition::SourceInZone(ZoneSet::GRAVEYARD),
-        Condition::ControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
+        Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
     ]),
     Box::new(/* Layer 6 grant over creatures you control */),
 )
@@ -2351,7 +2351,7 @@ luck. CR 113.6b is the rule that makes them the same sentence: an ability whose
 text states a zone *functions* only there, so the clause that gates the effect
 and the clause that places the ability are the same clause. The case that would
 break it — a condition about some *other* object's zone — is a different leaf
-already (`CardInGraveyard`), and `SourceInZone` is about the source by name.
+already (`CardInYourGraveyard`), and `SourceInZone` is about the source by name.
 
 **2. CR 613.7d's object timestamp rides. Counters do not.**
 
@@ -2562,7 +2562,7 @@ tests assert: a Wonder in a graveyard grants flying to your creatures, and a
 Wonder **on the battlefield grants nothing**, which is the "only" in "only from
 those zones". Neither half is an oracle query dressed as a test.
 
-Everything else it needs exists: `Condition::ControlPermanent(BySubtype(Island))`
+Everything else it needs exists: `Condition::YouControlPermanent(BySubtype(Island))`
 landed with LI-3, and the grant is an ordinary Layer 6 row over
 `FilteredPermanents(ByController(You) ∧ ByType(Creature))`.
 

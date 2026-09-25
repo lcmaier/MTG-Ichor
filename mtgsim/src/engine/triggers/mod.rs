@@ -27,6 +27,7 @@
 pub mod audit;
 pub mod binding;
 pub mod dispatch;
+pub mod history;
 pub mod placement;
 
 pub use audit::DispatchAudit;

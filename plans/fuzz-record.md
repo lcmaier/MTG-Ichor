@@ -37,6 +37,170 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-24 for TR-2a** (the histories, the gates and each
+player — `triggers-architecture.md` §12, TR-2a; `codebase-state.md` items 122
+and 172 closed, 171 half closed). **Pool change**: `performance` goes 94 → 96
+(Vengeful Warchief, Elvish Warmaster) and `stress` 171 → 175 (plus Paladin of
+Atonement and Temple Bell). The shipped columns are therefore a new baseline,
+and the engine columns are the ones comparable to TR-1b's.
+
+**Predictions, written before any arm ran.**
+- Each engine step against `main` reads every gameplay row `IDENTICAL` on both
+  pools.
+- On `stress`, the rider's new order changes which draw line comes first, not
+  which cards anyone draws.
+- Lifelink's summed gain changes no life total, and no pooled card triggers on
+  a single gain.
+- The Layer 4 fix likely moves no game at seed 12345.
+- The cost rows move up with the histories, which read a spell's types as it
+  is cast.
+- CPU per decision stays inside the budget, and the audit agrees on every arm.
+
+**The A/B, five arms, `fuzz_ab.py`**: `main` at #185's merge (`71b3caa`);
+**each** (`0e5f34a`, item 122, the last commit before lifelink);
+**lifelink** (`925781d`); **engine** (`4c6d469`, the engine complete with the
+four cards unregistered); **shipped** (`dd5d48b`). Both pools at two seats and
+four, 200 games at seed 12345, timing 3×200 on `performance`, and the counter
+runs audited.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, each, lifelink and engine vs `main`, both pools | **IDENTICAL** | **IDENTICAL** |
+| `Layer walks`, `main` → each, `performance` / `stress` | 358 → 380 / 487 → 504 | 764 → 805 / 1,057 → 1,086 |
+| `Candidate visits`, `main` → engine, `performance` / `stress` | 31.0 → 31.0 / 30.2 → 30.3 | 109.0 → 111.0 / 112.7 → 113.9 |
+| `Life changes`, each → lifelink, `performance` | 17.4 → 17.3 | 46.2 → 46.1 |
+| `µs / decision`, engine vs `main` — §3.1's budget | 30.6 → 31.7, +3.8% | 48.0 → 49.4, +2.9% |
+| the same, re-taken at five rounds (three arms) | — | 49.1 → 49.8, **+1.3%**; each +0.1% |
+| audit, engine arms, `performance` / `stress` | 177,397 / 209,234 agreed | 360,439 / 410,372 agreed |
+| deterministic, every arm | yes | yes |
+
+**The budget.** The three-round sitting read the engine arm over the
+four-seat line, at +2.9%. The re-take at five rounds read +1.3%, with the
+each arm at +0.1%, so the first reading sat inside the sitting's own spread
+(~2–6%, `fuzz_ab.py`). Both are recorded here for the reviewer. The review
+asked for another reading: at seven rounds the engine arm read **−0.2%** at
+four seats and −2.4% at two. Three sittings of the same two binaries read
++2.9%, +1.3% and −0.2% at four seats, so TR-2a's cost is below what a timing
+sitting can resolve.
+
+**The cost rows, attributed by bisect** (each commit built alone, 200 games,
+four seats, `performance`):
+- **`Layer walks` +41 (+5.4%) is the histories commit** (`88d78a1`), as
+  predicted: one walk per cast, for a spell the memo has not seen yet. The new
+  walks are cheap. `Frames/walk` falls 19.53 → 18.60 and `ms / 1,000 walks`
+  falls 3–5%, so the rows move more than the time does.
+- **`Candidate visits` +0.6 is the `CastsSpell` commit** (`bf7e08e`), and
+  the prediction missed it. `main` gave `SpellCast` no kind, so a cast's
+  window returned at the kinds probe. With a kind, the window passes that
+  probe. Where a granted or zone-map trigger exists, it then takes the
+  whole-list legs, which the mask does not narrow (§11).
+- **The engine arm's further +1.4 is the Layer 4 fix**, the only runtime
+  change between lifelink and engine. A batch that departs Blood Moon or Urborg
+  now takes a snapshot, so its window reaches the frame legs, and `Windows past
+  gate` goes 70.8 → 70.9.
+
+**Game by game**: the 200-game `--dump-events` streams of neighboring arms,
+diffed per game.
+
+| step | `performance`, 2 / 4 seats | `stress`, 2 / 4 seats |
+|---|---|---|
+| `main` → each | 0 / 0 | 0 / 1 |
+| each → lifelink | 103 / 139, 7 / 16 of them merging | 76 / 115, 2 / 9 of them merging |
+| lifelink → engine | 0 / 0 | 0 / 0 |
+
+- **`main` → each.** The one game is four-seat `stress` game 146. P0 is
+  active and controls Alms Collector, and P1's draw-two is replaced. `main`
+  drew P1's card first, where CR 121.2c draws the active player's first. The
+  lines are the same, reordered.
+- **each → lifelink.** In every differing game, the event sequences are
+  identical once the `LifeChanged` lines are removed. Every player's life
+  total is also identical at every step boundary.
+  - A gain now comes after its batch's other members (CR 120.4c–d).
+  - A lifelinker's simultaneous gains merge (CR 702.15e): 7 / 17 fewer gain
+    lines on `performance` and 2 / 13 on `stress`.
+
+  The prediction foresaw the merge and not the move, which is the larger
+  half: any lifelink damage dealt in one batch with other damage moves its
+  gain.
+- **lifelink → engine.** No game differs.
+
+**The shipped arm is a pool change and is not budgeted.** CPU per decision
+against `main` is −1.2% at two seats and +1.0% at four. `Triggers placed`
+reads 1.2 / 3.6 on `performance` and 1.3 / 3.6 on `stress`. The two pooled
+cards take slots, so fewer TR-1 triggers are dealt.
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Vengeful Warchief — cast / resolved / games / copies per deck | 165 / 164 / 109 (54%) / 1.44 | 123 / 123 / 104 (52%) / 2.90 |
+| Elvish Warmaster | 189 / 187 / 135 (68%) / 1.43 | 119 / 118 / 99 (50%) / 2.88 |
+| `Triggers placed`, with the two forced | 1.7 | 5.1 |
+| board diversity | 200 of 200 | 199 of 200 |
+
+**The audited sittings on the shipped arm found zero disagreements.**
+- A thousand games at seed 777 on both pools, at two seats and four:
+  864,066 / 1,772,511 dispatches on `performance`, and 999,769 / 2,015,689 on
+  `stress`.
+- The four TR-2a cards ×4 on `stress`: 208,865 / 390,836 dispatches, and 6.3 /
+  13.4 triggers placed a game.
+
+Before the Layer 4 fix, the four-seat `stress` sitting at seed 777 panicked in
+game 889. That was the audit's first catch on a shipped pool
+(`triggers-architecture.md` §4.10).
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 29 (58.0%) / 21 (42.0%) | 27 (54.0%) / 22 (44.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 28.7 | 31.4 |
+| Spells cast | 21.8 | 22.6 |
+| Lands played | 17.5 | 18.7 |
+| Combat w/ atk | 9.5 | 9.3 |
+| Creatures died | 6.8 | 5.0 |
+| Damage events | 20.8 | 20.2 |
+| Total damage | 57.3 | 59.4 |
+| Life changes | 13.1 | 16.3 |
+| **Layer walks** | **363** | **510** |
+| **Board walks** | **223** | **313** |
+| **Memo hits** | **56,579** | **97,183** |
+| **Layer frames** | **3,985** | **6,565** |
+| **Frames/walk** | **10.98** | **12.88** |
+| **Dependency checks** | **23** | **20** |
+| **Replacement gathers** | **1032** | **1267** |
+| **Restriction queries** | **1034** | **1271** |
+| Mana productions | 84 | 134 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.10 | 2.64 |
+| Max batch depth | 4 | 4 |
+| Decisions | 220 | 388 |
+| Priority decisions | 83 | 154 |
+| Triggers placed | 0.6 | 1.3 |
+| Windows past gate | 23.3 | 48.1 |
+| Candidate visits | 39.9 | 66.6 |
+| Trigger matches | 2.0 | 2.0 |
+
+The four-seat fixture rows are in the sitting's output (`--players 4`,
+shipped), `performance` / `stress`: `Layer walks` 745 / 1,200, `Memo hits`
+179,434 / 290,725, `Decisions` 431 / 775, `Triggers placed` 2.2 / 2.8, and
+`Turns after a departure` 19.6 / 19.6.
+
+**Determinism**: three `fuzz_games` runs under `MTGSIM_HASH_SEED` 1, 2 and 3
+(200 games, seed 12345, shipped) were identical line for line outside `===
+Timing ===`, on both pools at two seats and four. Every timing round of the
+sitting also reproduced its counter run (`deterministic: yes` on all five
+arms).
+
+**Review round 1** (the owner's review of #186). The round's head was run
+against the first head, both pools, two seats and four. Counters were
+`IDENTICAL`, and the audit agreed on the same dispatches. The round only
+refactored: it changed the history's shape, the recipient's shape, names,
+and the turn the opening hands are drawn in. **Review round 2** (lifelink's
+gain from the batch's own damage, no state) was also `IDENTICAL` against round
+1's head on both pools at two seats and four.
+
 **Re-recorded 2026-09-24 for item 176** (a redirect keeps the act —
 `codebase-state.md` item 176; `GameActionTemplate::ZoneChangeTo` names only a
 destination). **No pool change**, so there is no new fixture table:

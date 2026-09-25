@@ -427,7 +427,7 @@ fn a_single_source_is_prevented_without_an_allocation_prompt() {
 /// facing damage to you and to your blocker at once is one prompt with both
 /// sources as buckets, asked in the first group's loop and read by the
 /// second's. Divine Deflection is this row's printed shape and waits only on
-/// `AmountExpr::Variable`; Harm's Way's 2 is RD-5's.
+/// `AmountExpr::X`; Harm's Way's 2 is RD-5's.
 #[test]
 fn a_count_spanning_you_and_your_permanents_is_allocated_once_divine_deflection_waits_on_variable() {
     let mut game = setup_two_player_game();

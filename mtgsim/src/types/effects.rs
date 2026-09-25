@@ -15,7 +15,7 @@ pub enum AmountExpr {
     /// A constant known at definition time
     Fixed(u64),
     /// X, chosen when the spell/ability is cast/activated (rule 107.3)
-    Variable,
+    X,
     /// "equal to the number of [things matching selector]"
     CountOf(Selector),
     /// "equal to the number of card **types** among [things matching selector]"
@@ -58,12 +58,20 @@ pub enum AmountExpr {
     /// dealt, the mana added. Read through the arm's `amount_of`, so an arm
     /// with no quantity refuses rather than answering 0.
     TriggeringAmount,
+    /// "Its power" on a triggered ability: the bound object's (CR 608.2h),
+    /// read off the record's CR 603.10a frame when the event was its
+    /// departure, and live when it is still where the event left it
+    /// (`triggers-architecture.md` §3.4, §6.3).
+    TriggeringPower,
+    /// "Its toughness", read the same way: Paladin of Atonement's "you gain
+    /// life equal to its toughness" as it last existed on the battlefield.
+    TriggeringToughness,
     /// "equal to that creature's power"
     TargetPower,
     /// "equal to that creature's toughness"
     TargetToughness,
     /// "equal to the damage dealt this way"
-    DamageDealt,
+    DamageDealtThisWay,
     /// CR 615.5's "that much" / "that many" — the amount the *replaced* event
     /// carried when a CR 615.5 rider was queued.
     ///
@@ -73,7 +81,7 @@ pub enum AmountExpr {
     /// other evaluator refuses it rather than reading a number off the board —
     /// there is none to read.
     ///
-    /// Distinct from [`Self::DamageDealt`], which is a resolving spell's
+    /// Distinct from [`Self::DamageDealtThisWay`], which is a resolving spell's
     /// question about damage it dealt itself.
     ReplacedAmount,
     /// "twice that many" — a factor on another amount.
@@ -415,6 +423,39 @@ impl PlayerSet {
     }
 }
 
+/// The players an instruction to several players names: those standing in
+/// `relation` to "you", together with those the effect's context names. A
+/// new printed phrase is a new `NamedPlayers` arm, not a new recipient:
+/// Zurzoth's "you and those players" is `You` with the players its trigger
+/// names.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlayerGroup {
+    pub relation: PlayerSet,
+    pub named: NamedPlayers,
+}
+
+impl PlayerGroup {
+    /// "Each player", "each opponent": the players `relation` names, and no
+    /// others.
+    pub fn set(relation: PlayerSet) -> Self {
+        PlayerGroup { relation, named: NamedPlayers::Nobody }
+    }
+
+    /// "You and that player" (Alms Collector's rider).
+    pub fn you_and_that_player() -> Self {
+        PlayerGroup { relation: PlayerSet::You, named: NamedPlayers::FirstInstance }
+    }
+}
+
+/// Players an effect's context names, rather than their relation to "you".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamedPlayers {
+    Nobody,
+    /// "That player": the player the effect's first instance names, which for
+    /// a CR 615.5 rider is the replaced event's subject.
+    FirstInstance,
+}
+
 /// Duration for continuous effects (rule 611)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Duration {
@@ -442,11 +483,11 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    ControlPermanent(ObjectFilter),
-    LifeAtLeast(AmountExpr),
-    LifeAtMost(AmountExpr),
+    YouControlPermanent(ObjectFilter),
+    YourLifeAtLeast(AmountExpr),
+    YourLifeAtMost(AmountExpr),
     OpponentControlsPermanent(ObjectFilter),
-    CardInGraveyard(ObjectFilter),
+    CardInYourGraveyard(ObjectFilter),
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -459,7 +500,7 @@ pub enum Condition {
     /// ability that states which zones it functions in functions only from
     /// those zones — so the clause that gates the effect is the same sentence
     /// that places the ability. A condition about some *other* object's zone
-    /// is [`Self::CardInGraveyard`], which is why this one says `Source`.
+    /// is [`Self::CardInYourGraveyard`], which is why this one says `Source`.
     ///
     /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
     /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
@@ -494,7 +535,7 @@ pub enum Condition {
     SourceUntapped,
     /// "While your library has no cards in it" — Laboratory Maniac, and its
     /// planeswalker twin Jace, Wielder of Mysteries. "Your" is CR 109.5's
-    /// controller of the source, read the way `LifeAtLeast` reads it.
+    /// controller of the source, read the way `YourLifeAtLeast` reads it.
     ///
     /// **Written for one card and says so.** The leaf's first reader is a
     /// replacement effect's "as long as", evaluated by `replacement::gather`
@@ -503,7 +544,27 @@ pub enum Condition {
     /// conditional static's condition is one question wherever it is asked.
     /// A library is off `GameState`, not off any frame, so
     /// `board::condition_reads` declares nothing for it.
-    LibraryEmpty,
+    YourLibraryEmpty,
+    /// "If you lost life this turn", "if an opponent was dealt damage this
+    /// turn" (bloodthirst): a count over the turn in progress, off the turn
+    /// summaries (`triggers-architecture.md` §3.10).
+    ThisTurn(crate::types::history::HistoryCount),
+    /// "If you lost life last turn" (Paladin of Atonement): the game's
+    /// previous turn, whoever's it was, as that card's ruling reads it.
+    LastTurn(crate::types::history::HistoryCount),
+    /// "If you haven't been dealt combat damage since your last turn"
+    /// (Marchesa, Resolute Monarch): every turn after your most recent one
+    /// before this, through the turn in progress.
+    SinceYourLastTurn(crate::types::history::HistoryCount),
+    /// "If this spell is the first spell you've cast this game" (First
+    /// Contact): every turn so far.
+    ThisGame(crate::types::history::HistoryCount),
+    /// "If this is the [Nth] time this ability has resolved this turn"
+    /// (Ashling the Pilgrim; Omnath, Locus of Creation): CR 603.7h's count, read
+    /// inside the resolution. The count advances off `AbilityResolved`, the
+    /// resolution's last step (CR 608.2n), so the Nth resolution reads N - 1.
+    /// A resolution's question, like [`Self::ModeChosen`].
+    ResolvedThisTurn(u32),
 }
 
 /// How many modes to choose (rule 700.2)
@@ -526,8 +587,21 @@ pub enum ModalCount {
 /// without casting; hexproof/shroud do NOT apply, does NOT fizzle).
 #[derive(Debug, Clone, PartialEq)]
 pub enum EffectRecipient {
-    /// No object involved (e.g. mana abilities, "draw a card" with no target)
+    /// No object involved: a mana ability's production, an instruction to the
+    /// controller that names nothing, a replacement row scoped by its own
+    /// filter and player set. Never "this object", which is [`Self::ThisObject`].
     Implicit,
+    /// "This creature", "this permanent", a card's own name: the object whose
+    /// ability this is (CR 113.7a), or the spell or replacement source itself
+    /// when no ability is resolving. On a static ability it is the source, read
+    /// live (`ObjectSet::SourceOnly`), and CR 604.3a(3) makes it every CDA's
+    /// recipient.
+    ///
+    /// At resolution it is found by identity: an ability's source that left
+    /// its zone and came back is a new object (CR 400.7), and the effect finds
+    /// nothing. A primitive that reads only a fact the move keeps, such as
+    /// `ShuffleLibrary`'s owner (CR 108.3), reads it wherever the object is.
+    ThisObject,
     /// The controller of this spell/ability (e.g. Night's Whisper "you draw",
     /// Angel's Mercy "you gain"). Not targeting.
     Controller,
@@ -587,6 +661,11 @@ pub enum EffectRecipient {
     /// "That player" on a triggered ability — the arm's `player_of` on the
     /// matched records.
     TriggeringPlayer,
+    /// "Each player", "each opponent", "you and that player": every player the
+    /// group names, over the seats still in the game, each once, in CR 101.4's
+    /// APNAP order at resolution. A draw instruction to several players is
+    /// performed one player at a time in that order (CR 121.2c).
+    EachOf(PlayerGroup),
     /// Filter-based recipient: every permanent matching the filter.
     ///
     /// Read by the ETB hook to register a static ability's continuous effect,

@@ -318,8 +318,9 @@ use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PatternFill, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    TokenDef,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
@@ -740,7 +741,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 }
 
 /// Alms Collector — {3}{W}
-/// Creature — Cat Cleric 3/3
+/// Creature — Cat Cleric 3/4
 ///
 /// > Flash
 /// > If an opponent would draw two or more cards, instead you and that player
@@ -751,32 +752,17 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 /// says to count how many times the word "draw" is used, so "draw two cards" is
 /// one event this watches and two cantrips are two events it does not.
 ///
-/// **Only half of it is a rider, and the other half is the modified event.**
-/// §9 filed the whole of "you and that player each draw a card" under `then` on
-/// §3.2d's heterogeneous rule, and its own second ruling refuses that: *"once
-/// Alms Collector's replacement effect has modified the effect of a player's
-/// Divination, Thought Reflection can double that player's resulting card draw
-/// **without Alms Collector's replacement effect applying again**."* CR 614.5
-/// gives an effect one opportunity to affect "an event **or any modified events
-/// that may replace that event**", and the affected player's one draw is such a
-/// modified event — so it has to carry this effect's applied set, which only the
-/// rewrite's own output does. As `Prevent` plus two riders it does not, and the
-/// board is an infinite loop rather than a wrong number: the rider's draw is
-/// doubled back to two, this applies again, and the two effects trade cards
-/// until the game is a draw (CR 104.4b) or the engine's stack runs out.
-///
-/// So the split follows §3.2d's rule read one clause further in. The affected
-/// player's half is the **same event with a smaller count** — homogeneous
-/// multiplicity, which is a count field — and only the controller's draw is a
-/// genuinely new subject, which is what `then` is for. One rider, not two.
+/// **The instruction is prevented, and one rider is "you and that player each
+/// draw a card"**: one instruction to two players, which CR 121.2c performs
+/// the active player's draw first (`PlayerGroup::you_and_that_player`). The
+/// rider carries this effect's applied set (CR 614.5), so the draws it makes
+/// are modified events this cannot apply to again. That is its second ruling:
+/// Thought Reflection doubles the affected player's draw, and this does not
+/// come back for it.
 ///
 /// **Flash is not modeled** (`codebase-state.md`'s timing item), and it costs
 /// this card's tests nothing: every board here puts it on the battlefield
 /// before the draw, which is the only state its replacement reads.
-///
-/// The two draws come out affected-player-first, because a rider resolves after
-/// the event it rides on (§4.1a) — neither the card's text order nor CR 121.2c's
-/// turn order, which `codebase-state.md` item 122 owns and sizes.
 /// # The rulings, and where each is tested
 ///
 /// - *"[Its] replacement effect applies to an instruction to draw more than one
@@ -786,9 +772,9 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
 /// - *"Once a replacement effect has been applied to an event, it can't be
 ///   applied again to the resulting events ... Thought Reflection can double
 ///   that player's resulting card draw without [this] applying again."* →
-///   **the ruling that changed the card's encoding**, and a test. As `Prevent`
-///   plus riders the board is an infinite loop; as an `Instead` on the count it
-///   is three cards. → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
+///   **the ruling that decides the encoding**, and a test: the rider's draws
+///   carry the applied set, so the board is three cards and not a loop.
+///   → `alms_collector_does_not_apply_again_to_the_draws_it_produced`
 /// - *"To determine whether a player is instructed to draw multiple once or
 ///   instructed multiple times to draw one card, count how many times the word
 ///   'draw' is used."* → test. Ancestral Recall (pooled) is one "draw" of three
@@ -814,7 +800,7 @@ pub fn alms_collector() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Cat))
         .subtype(Subtype::Creature(CreatureType::Cleric))
-        .power_toughness(3, 3)
+        .power_toughness(3, 4)
         .rules_text(
             "Flash\nIf an opponent would draw two or more cards, instead you and that player each draw a card.",
         )
@@ -822,20 +808,12 @@ pub fn alms_collector() -> Arc<CardData> {
             ReplacementDef::new(
                 EventPattern::DrawCards { at_least: Some(2) },
                 ObjectSet::NO_OBJECTS,
-                // "That player draws a card": the same instruction with `n`
-                // rewritten to 1, so it keeps this effect's applied set and
-                // whatever doubles it afterwards cannot hand it back.
-                Rewrite::Instead(GameActionTemplate::DrawCards {
-                    n: TemplateAmount::Fixed(1),
-                    player: None,
-                }),
+                Rewrite::Prevent,
             )
             .affecting_players(PlayerSet::Opponents)
-            // "And you draw a card": the half that is a different player's
-            // draw, which nothing about the replaced event can carry.
             .with_then(Effect::Atom(
                 Primitive::DrawCards(AmountExpr::Fixed(1)),
-                EffectRecipient::Controller,
+                EffectRecipient::EachOf(PlayerGroup::you_and_that_player()),
             )),
         ))
         .build()
@@ -1293,7 +1271,7 @@ pub fn skullcrack() -> Arc<CardData> {
 /// The kind-changing substitution from a draw to the game's end, and the first
 /// replacement effect in the crate whose static ability carries a condition —
 /// the card's "while", which is CR 604.2's "as long as" shape:
-/// `Condition::LibraryEmpty` on the ability, asked by the gather at each
+/// `Condition::YourLibraryEmpty` on the ability, asked by the gather at each
 /// proposal (CR 604.2, 614.4). The
 /// draw reaches the pipeline with nothing to draw because CR 121.6a says a
 /// draw replacement applies "even if no cards could be drawn", which is the
@@ -1330,7 +1308,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         )
         .ability(static_conditional_replacement(
-            Condition::LibraryEmpty,
+            Condition::YourLibraryEmpty,
             // Any individual draw, whatever instructed it: the draw step's,
             // a cantrip's, the seventh of Stunning Reversal's. The instruction
             // (`DrawCards`) is not what this watches — CR 121.2 performs the
@@ -1355,8 +1333,8 @@ pub fn laboratory_maniac() -> Arc<CardData> {
 /// `Prevent` with a rider, because "instead exile this creature and ..." is
 /// two effects on two different subjects — the Archangel and you — and a
 /// substitution produces one event about one (§3.2d). The rider's exile names
-/// the Archangel through `EffectRecipient::Implicit`, which is the effect's
-/// own source; its life total is `Primitive::SetLifeTotal` over
+/// the Archangel through `EffectRecipient::ThisObject`, the effect's own
+/// source; its life total is `Primitive::SetLifeTotal` over
 /// `AmountExpr::StartingLifeTotal`, so it is 40 in Commander and a 24-life
 /// *gain* from -4 that Rhox Faithmender doubles (CR 119.5).
 /// # The rulings, and where each is tested
@@ -1430,7 +1408,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You)
             .with_then(Effect::Sequence(vec![
-                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
                 Effect::Atom(
                     Primitive::SetLifeTotal(AmountExpr::StartingLifeTotal),
                     EffectRecipient::Controller,
@@ -1535,7 +1513,7 @@ pub fn stunning_reversal() -> Arc<CardData> {
                     EffectRecipient::Controller,
                 ),
                 // CR 608.2c's second instruction, on the spell itself.
-                Effect::Atom(Primitive::Exile, EffectRecipient::Implicit),
+                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
             ]),
         ))
         .build()

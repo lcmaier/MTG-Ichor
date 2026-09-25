@@ -77,7 +77,7 @@ fn mana_land(name: &str, output: ManaOutput) -> Arc<CardData> {
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![Cost::Tap],
+            costs: vec![Cost::TapSelf],
             effect: Effect::Atom(Primitive::ProduceMana(output), EffectRecipient::Implicit),
         })
         .build()
@@ -150,7 +150,7 @@ fn plain_rock() -> Arc<CardData> {
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![Cost::Tap],
+            costs: vec![Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: vec![(ManaType::Colorless, AmountExpr::Fixed(1))],

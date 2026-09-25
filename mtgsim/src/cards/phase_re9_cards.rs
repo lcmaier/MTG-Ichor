@@ -386,7 +386,7 @@ pub fn doubling_cube() -> Arc<CardData> {
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Mana,
-            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::Tap],
+            costs: vec![Cost::Mana(ManaCost::build(&[], 3)), Cost::TapSelf],
             effect: Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
                     mana: [

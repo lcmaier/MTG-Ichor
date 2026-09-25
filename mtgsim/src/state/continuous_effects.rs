@@ -173,9 +173,12 @@ pub struct RegistryScopeSummary {
     pub unattributed_trigger_zones: ZoneSet,
 
     /// The sources of every row that writes an ability list — a copy (Layer
-    /// 1), or a Layer 6 grant or removal of an ability. A batch that departs
-    /// one of them can leave a surviving object with one list before the
-    /// event and another after it, and CR 603.10 reads the one before
+    /// 1), a Layer 6 grant or removal of an ability, or a Layer 4 type change,
+    /// since CR 305.6 and 305.7 give and take abilities with a land's type
+    /// and a type is what the other rows' filters read (Blood Moon strips
+    /// the lands Ashaya, Soul of the Wild makes). A batch that departs one of
+    /// them can leave a surviving object with one list before the event and
+    /// another after it, and CR 603.10 reads the one before
     /// (`engine::triggers::LookBackSnapshot`). Empty on a board with no such
     /// row, which is then one probe per batch.
     pub ability_list_sources: IdSet<ObjectId>,
@@ -246,6 +249,15 @@ impl RegistryScopeSummary {
                     | EffectModification::GrantAbility(_)
                     | EffectModification::LoseAbility(_)
                     | EffectModification::LoseAllAbilities
+                    | EffectModification::AddType(_)
+                    | EffectModification::RemoveType(_)
+                    | EffectModification::SetTypes(_)
+                    | EffectModification::AddSubtype(_)
+                    | EffectModification::RemoveSubtype(_)
+                    | EffectModification::SetSubtypes(_)
+                    | EffectModification::AddSupertype(_)
+                    | EffectModification::RemoveSupertype(_)
+                    | EffectModification::SetSupertypes(_)
             ) {
                 summary.ability_list_sources.insert(effect.source);
             }

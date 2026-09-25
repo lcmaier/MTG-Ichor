@@ -319,7 +319,7 @@ already planned for them.
 |---|---|---|---|---|
 | The trigger's controller (603.3a) and its ability as it triggered (113.7a) | `PendingTrigger.controller`; `TriggerBinding.def`, cloned out of the effective list | yes, at the dispatch | a later control change or Humility changes neither | no gap |
 | The event's facts: who, and how much (603.2c, 608.2c) | the records, by `EventSeq`; nothing prunes the log within a game | yes | one trigger per occurrence or per window (TR-1); "that many" sums the records | no gap |
-| **The object a move made** (400.7e, 603.6c) | `TriggerBinding.object`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
+| **The object a move made** (400.7e, 603.6c) | `TriggerBinding.subject`, the epoch **at dispatch**; the `ZoneChange` record has none | **no**: the move stamps it and the dispatch reads it later | a second move before the window's dispatch; a `OncePerEvent` "them" (59 cards) | item 177 |
 | The appearance before a departure (603.10a) | `DepartureFrame`, then `ZoneChange.lki`; `LookBackSnapshot` for survivors | yes (TR-1, TR-1b) | status and the other two classes are items 14 and 15 (TR-4) | no gap beyond those |
 | **A source's last known information after it triggered** (113.7a, 608.2h) | planned: §6.1's `departed` frame, typed as §3.11's `LastKnownInformation` | planned | **the cost decisions**: §3.11 carried `cast` only, and #181 moved kicked, bargained and evoked out of it. 72 "if it was kicked" triggers | item 169 sharpened; §3.11 amended |
 | **The intervening "if" at the trigger** (603.4) | `settled_holds` when the window closes | **no**, for a window with a rider: the rider has run (615.5) | a rider that changes the condition; a rider's newcomer asked about an earlier record (603.6a) | item 175 sharpened |
@@ -507,6 +507,25 @@ is derivable; where each name was read is not, and the gate needs the names.
     `zone_replacement_ability_sources`, `zone_trigger_sources`, `layer_epoch`,
     `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
     `next_trigger_seq`, `next_object_id`.
+- **Added by TR-2a (2026-09-24)**, each asked §2's question as it landed:
+  - `history`, which moved onto `PlayerState` in #186's review: every
+    player's "this turn" quantities, one row per turn, recorded as each
+    record is dispatched and read by the `Condition` history leaves. Each
+    fact is counted on the row of the one player the record names
+    (`triggers-architecture.md` §3.10). CR 103.5's opening hands are drawn
+    in turn 0, which has no row.
+  - `action_taken_this_turn`: CR 603.2h's gate, recorded by the resolution
+    that takes the action and keyed by the ability and its controller, since
+    the rule reads "its source's controller" (§3.5).
+  - `triggered_this_turn`: "triggers only once each turn", recorded as the
+    dispatcher queues the ability (Elvish Warmaster's ruling).
+  - `resolutions_this_turn`: CR 603.7h's count, recorded off each
+    `AbilityResolved` and keyed by the ability, not by its controller
+    (Ashling the Pilgrim's ruling). All three end as the next turn begins.
+
+  Lifelink's gain adds no field: each batch sums its own members' damage per
+  source and proposes the gains before it closes (CR 702.15e; #186's review
+  round 2).
 
 ---
 

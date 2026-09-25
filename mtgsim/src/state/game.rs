@@ -106,6 +106,9 @@ impl Game {
         // can be gathered and no choice can arise, and Leylines (CR 103.6)
         // arrive after this point.
         let actx = ActionContext::new(decisions);
+        // No turn has begun while the game is set up (CR 103), so the opening
+        // hands are drawn in turn 0, which has no history row.
+        self.state.turn_number = 0;
         for player_id in 0..num_players {
             for _ in 0..hand_size {
                 self.state.draw_card(player_id, &actx)?;

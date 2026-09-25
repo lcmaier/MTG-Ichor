@@ -21,6 +21,7 @@ use super::phase_rc_cards;
 use super::phase_rd_cards;
 use super::phase_a4i_cards;
 use super::phase_tr1_cards;
+use super::phase_tr2a_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -51,7 +52,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 94] = [
+const PERFORMANCE_POOL: [&str; 96] = [
     "Plains",
     "Island",
     "Swamp",
@@ -435,6 +436,13 @@ const PERFORMANCE_POOL: [&str; 94] = [
     "Soul Warden",
     "Blood Artist",
     "Wild Growth",
+    // TR-2a's two. Vengeful Warchief reads the turn's history record by record
+    // ("for the first time each turn"), which every life loss in a game
+    // advances. Elvish Warmaster is "one or more" behind "triggers only once
+    // each turn", and its pump is a one-shot over a filter; the pool's Elvish
+    // Archers is an Elf for it to see.
+    "Vengeful Warchief",
+    "Elvish Warmaster",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -741,6 +749,12 @@ impl CardRegistry {
         registry.register("Verdant Force", phase_tr1_cards::verdant_force);
         registry.register("Wild Growth", phase_tr1_cards::wild_growth);
         registry.register("Felidar Sovereign", phase_tr1_cards::felidar_sovereign);
+
+        // TR-2a: the histories, the gates and each player.
+        registry.register("Paladin of Atonement", phase_tr2a_cards::paladin_of_atonement);
+        registry.register("Vengeful Warchief", phase_tr2a_cards::vengeful_warchief);
+        registry.register("Elvish Warmaster", phase_tr2a_cards::elvish_warmaster);
+        registry.register("Temple Bell", phase_tr2a_cards::temple_bell);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

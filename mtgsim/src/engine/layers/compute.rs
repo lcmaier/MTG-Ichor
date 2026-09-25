@@ -596,7 +596,7 @@ pub(super) fn object_matches_filter(
 
 /// Resolve one side of a P/T modification against the frame so far.
 ///
-/// `None` means the expression has no meaning in a static context — `Variable`
+/// `None` means the expression has no meaning in a static context — `X`
 /// is CR 107.3's X, chosen as a spell is cast, and the `Target*`/`DamageDealt`
 /// arms read a resolution that already happened. A continuous effect asking for
 /// one of those is a card-authoring error, so it asserts in debug and declines

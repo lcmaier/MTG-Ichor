@@ -101,7 +101,7 @@ pub struct PermanentState {
     pub attached_by: Vec<ObjectId>,
 
     /// CR 400.7d — who cast this permanent and from which zone, kept because
-    /// the spell that became it is gone: `EntersBattlefield { cast }`, "if
+    /// the spell that became it is gone: `EntersBattlefield { was_cast }`, "if
     /// you cast it", Coal Stoker's "from your hand" read it. `None` for a
     /// permanent that was not cast — a land drop, a token, an effect's
     /// entry, the token a copy of a spell becomes. Written once, by the entry

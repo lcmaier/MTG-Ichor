@@ -250,6 +250,49 @@ a mutation happens is not this section's subject. `GameState::
 insert_battlefield_entity` and `set_object_timestamp` are chokepoints, and a
 chokepoint is justified by what it makes impossible, not by what it reads like.
 
+## 2b. Names are read at the call site
+
+Added 2026-09-24, at TR-2's sizing, because renames kept coming back in review.
+`EffectRecipient::This` became `ThisObject` before it was written, and the owner
+asked for the rule rather than the next rename.
+
+**A name is read where it is used**: in a card file, a match arm, a struct
+literal. The reader there has no doc comment and often no type prefix. If the
+use alone does not say what the thing is, rename it. Each check below is one a
+review has already had to make:
+
+1. **Name the noun.** `ThisObject`, not `This`. `to_objects` beside
+   `to_players`, not `to` (RD-4). `earlier_targets`, not `earlier` (A4i). A
+   flag says it is one: `is_state_trigger`, not `state`.
+2. **Say what it does.** `SameInstanceAs(0)`, not `Instance(0)`, which reads as
+   "is instance 0" (A4i).
+3. **Put the subsystem on a generic word in a shared module.** `TriggerTier`
+   and `TriggerSubject`, not `Tier` and `Subject` (TR-1).
+4. **Don't borrow a word someone else owns.** The CR owns counters
+   (`EngineCounters` became `Diagnostics`) and targets (CR 115; what an effect
+   applies to is "affected"). Phase 10 owns "agent" (`MiddlewareConfig`).
+   "Vehicle" is a subtype.
+5. **Don't name a thing by what it isn't, or by a state it can't have.**
+   `EachOther`, not `Other` (LI-2). `NONE`, not `EMPTY` (A4i).
+6. **Name a type by its contents.** `ObjectSet`, not `AffectedSet`.
+7. **Where the card's text has a phrase, use it.** `DoThisOnlyOnceEachTurn`
+   and `TriggersOnlyOnceEachTurn`, not `DoOnceEachTurn` and `OnceEachTurn`,
+   which differ by one word and name two different rules (CR 603.2h, and
+   Elvish Warmaster's ruling).
+8. **Say whose.** A leaf that reads "you" says so: `YourLifeAtLeast` and
+   `YouControlPermanent`, beside `OpponentControlsPermanent`.
+
+**One spelling per concept.** When a second type needs a name the first already
+has, it takes the same one: `TriggerSubject::ThisObject` and
+`EffectRecipient::ThisObject` are the same object.
+
+**No gate.** A script could flag a bare pronoun and nothing else on this list,
+so this is a review checklist, applied to every name a PR adds. **Retrofit
+where a PR reaches**: a phase that extends an enum reads that enum's existing
+names against the list and renames the failures in a mechanical commit of their
+own, counted before it runs. The live docs follow the rename; `plans/archive/`
+does not.
+
 ## 3. Two card pools
 
 `cards/registry.rs` builds two:

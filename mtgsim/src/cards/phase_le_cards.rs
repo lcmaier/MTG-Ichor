@@ -69,7 +69,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
                     AmountExpr::Plus(Box::new(card_types_in_graveyards()), 1),
                     Duration::WhileSourceOnBattlefield,
                 ),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             ),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
@@ -106,7 +106,7 @@ pub fn culling_drone() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
-                EffectRecipient::Implicit,
+                EffectRecipient::ThisObject,
             ),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,

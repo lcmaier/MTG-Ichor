@@ -10,15 +10,14 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, PatternFill,
-    PlayerRef, Primitive,
-    PlayerSet, SelectionFilter, TargetCount,
+    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, NamedPlayers,
+    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
 use crate::state::restrictions::RegisteredRestriction;
 use crate::types::restriction::{Restriction, RestrictionDef};
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::replacement::{EventPattern, ReplacementDef, Rewrite};
 use crate::ui::decision::DecisionProvider;
 
@@ -31,13 +30,14 @@ pub struct ResolutionContext {
     /// The resolving stack object — the spell, or for an ability the
     /// ephemeral object CR 608.2n deletes at the end of resolution.
     pub source: ObjectId,
-    /// CR 113.7a — for an activated ability, the permanent whose ability is
-    /// resolving; `None` for a spell (whose source is `source`) and for a
-    /// CR 615.5 rider. "This permanent" in an ability's text reads this:
-    /// `Primitive::Attach` attaches it. Existing primitives that attribute to
-    /// `source` (`DealDamage`'s source, `Destroy`'s `DestructionSource`) are
-    /// unchanged by this field; nothing registered activates one.
-    pub ability_source: Option<ObjectId>,
+    /// CR 113.7a — for an activated or triggered ability, the permanent whose
+    /// ability is resolving, and which existence of it (CR 400.7); `None` for
+    /// a spell (whose source is `source`) and for a CR 615.5 rider. "This
+    /// permanent" in an ability's text reads this: `Primitive::Attach` attaches
+    /// it and `EffectRecipient::ThisObject` finds it. Existing primitives that
+    /// attribute to `source` (`DealDamage`'s source, `Destroy`'s
+    /// `DestructionSource`) are unchanged by this field.
+    pub ability_source: Option<ObjectRef>,
     /// The player who controls the spell/ability
     pub controller: PlayerId,
     /// What each instance of "target" holds **after** CR 608.2b's re-check —
@@ -162,6 +162,29 @@ impl GameState {
                 let bound = self.bound_targets(recipient, ctx)?;
                 self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
             }
+            // "Each player", "you and that player": every player the group names,
+            // in APNAP order (CR 101.4), handed to the primitive as its players.
+            // Only a primitive that says what several players at once means takes it.
+            Effect::Atom(primitive, recipient @ EffectRecipient::EachOf(group)) => {
+                // A draw is one instruction per player (CR 121.2c); damage to
+                // them is one event, a member each.
+                if !matches!(primitive, Primitive::DrawCards(_) | Primitive::DealDamage { .. }) {
+                    return Err(format!(
+                        "{:?} on {:?} is not built for {:?}; a draw and damage are",
+                        recipient, ctx.source, primitive
+                    ));
+                }
+                let players: Vec<ResolvedTarget> =
+                    self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
+                self.resolve_primitive(primitive, recipient, &players, ctx, dp)
+            }
+            // "This creature": no instance of "target" either (CR 113.7a), and
+            // empty when the source is no longer the object the ability is of.
+            Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
+                let this: Vec<ResolvedTarget> =
+                    self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
+                self.resolve_primitive(primitive, recipient, &this, ctx, dp)
+            }
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, cursor) {
                     Some((ix, clause)) => {
@@ -239,7 +262,7 @@ impl GameState {
             // `resolve_taken`; an `if` anywhere else is this, read against the
             // board as the atom is reached (CR 608.2c's "in the order written").
             Effect::Conditional(condition, inner) => {
-                let source = ctx.ability_source.unwrap_or(ctx.source);
+                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
                 if crate::engine::layers::condition::settled_holds(condition, self, source) {
                     self.resolve_effect_at(inner, ctx, dp, declared, cursor)
                 } else {
@@ -357,20 +380,28 @@ impl GameState {
 
             Primitive::DrawCards(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)?;
-                // Drawing targets the controller (EffectRecipient::Controller or None)
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
-                // **One instruction, whatever `count` is** (CR 121.2a); its performer
-                // does CR 121.2's individual draws. A loop here would make "draw three
-                // cards" three instructions, the distinction Alms Collector's ruling turns
-                // on ("count how many times the word 'draw' is used").
-                self.execute_action(
-                    GameAction::DrawCards {
-                        player: player_id,
-                        n: count,
-                        cause: DrawCause::Effect,
-                    },
-                    &actx,
-                )?;
+                // **One instruction per player, whatever `count` is** (CR 121.2a);
+                // its performer does CR 121.2's individual draws. A loop over the
+                // count would make "draw three cards" three instructions, the
+                // distinction Alms Collector's ruling turns on ("count how many
+                // times the word 'draw' is used"). Several players draw one at a
+                // time, in the APNAP order `players_in` gave them (CR 121.2c).
+                let players: Vec<PlayerId> = match recipient {
+                    EffectRecipient::EachOf(_) => targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Player(pid) => Some(*pid),
+                            ResolvedTarget::Object(_) => None,
+                        })
+                        .collect(),
+                    _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
+                };
+                for player in players {
+                    self.execute_action(
+                        GameAction::DrawCards { player, n: count, cause: DrawCause::Effect },
+                        &actx,
+                    )?;
+                }
                 Ok(())
             }
 
@@ -521,21 +552,18 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 701.13a — move to exile from wherever the object is. Two recipients:
-            // the resolved targets (CR 608.2b has re-checked them) and `Implicit`, the
-            // effect's own source — "exile this creature" on a rider (Exquisite
-            // Archangel) and "Exile Stunning Reversal" as a spell's last instruction,
-            // which CR 608.2m lets finish resolving from exile. A source that has
-            // already left where the effect found it is a new object (CR 400.7) and
-            // nothing moves. One batch, for `Destroy`'s reason (CR 608.2f).
+            // CR 701.13a — move to exile from wherever the object is: the resolved
+            // targets (CR 608.2b has re-checked them), or `ThisObject`'s slice —
+            // "exile this creature" on a rider (Exquisite Archangel) and "Exile
+            // Stunning Reversal" as a spell's last instruction, which CR 608.2m lets
+            // finish resolving from exile. One batch, for `Destroy`'s reason (CR 608.2f).
             Primitive::Exile => {
                 let objects: Vec<ObjectId> = match recipient {
                     EffectRecipient::Implicit => {
-                        let source = ctx.source;
-                        let here = self.battlefield.contains_key(&source)
-                            || self.stack_entries.contains_key(&source)
-                            || self.resolving.as_ref().is_some_and(|r| r.id == source);
-                        if here { vec![source] } else { Vec::new() }
+                        return Err(format!(
+                            "a `Primitive::Exile` on {:?} names nothing to exile; use `ThisObject` or a target",
+                            ctx.source
+                        ));
                     }
                     _ => targets
                         .iter()
@@ -678,7 +706,7 @@ impl GameState {
             Primitive::Attach => {
                 // "Attach this permanent to target ..." (CR 702.6a). The
                 // attachment is the ability's source; a spell has none to attach.
-                let attachment = ctx.ability_source.ok_or_else(|| {
+                let attachment = ctx.ability_source.map(|r| r.id).ok_or_else(|| {
                     "Primitive::Attach resolved from a spell: only an ability has a permanent to attach"
                         .to_string()
                 })?;
@@ -752,7 +780,7 @@ impl GameState {
             Primitive::ModifyPowerToughness(power_expr, toughness_expr, duration) => {
                 let power = self.evaluate_amount(power_expr, ctx)? as i32;
                 let toughness = self.evaluate_amount(toughness_expr, ctx)? as i32;
-                let target_ids = self.collect_battlefield_targets(targets);
+                let target_ids = self.affected_permanents(recipient, targets, ctx);
                 if target_ids.is_empty() {
                     return Ok(());
                 }
@@ -941,9 +969,14 @@ impl GameState {
             // affected set is locked to the targets at resolution (CR 613.7b).
 
             Primitive::GrantKeywordFlag(keyword, duration) => {
+                let affected: Vec<ResolvedTarget> = self
+                    .affected_permanents(recipient, targets, ctx)
+                    .into_iter()
+                    .map(ResolvedTarget::Object)
+                    .collect();
                 self.register_resolution_ability_effect(
                     ctx,
-                    targets,
+                    &affected,
                     *duration,
                     EffectModification::GrantKeywordFlag(*keyword),
                 );
@@ -1081,7 +1114,7 @@ impl GameState {
                 // so a row an activated ability makes names the permanent, not
                 // the ephemeral stack object CR 608.2n deletes at the end of
                 // resolution. A spell's is the spell.
-                let source = ctx.ability_source.unwrap_or(ctx.source);
+                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
 
                 // CR 609.7a — the source is chosen when the effect is created, before the
                 // rows are built, since every row a recipient makes watches the same
@@ -1112,6 +1145,7 @@ impl GameState {
                 let rows: Vec<ReplacementDef> = match recipient {
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
+                    | EffectRecipient::ThisObject
                     | EffectRecipient::TriggeringObject
                     | EffectRecipient::TriggeringPlayer => {
                         debug_assert!(
@@ -1137,6 +1171,13 @@ impl GameState {
                             .collect()
                     }
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // A row per player (Kitsune Palliator) is `codebase-state.md` item 94's.
+                    EffectRecipient::EachOf(_) => {
+                        return Err(format!(
+                            "a `Primitive::CreateReplacement` on {:?} names each of several players; item 94",
+                            ctx.source
+                        ));
+                    }
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
                     // order. A row on a card in another zone is §3.3 source 2 and needs
@@ -1397,10 +1438,11 @@ impl GameState {
             }
 
             // CR 701.24a — whose library is the recipient's whole question.
-            // `Controller` is "shuffle your library"; `Implicit` is the *source's
+            // `Controller` is "shuffle your library"; `ThisObject` is the *source's
             // owner's* — "shuffle it into **its owner's** library" as the rider of
             // a replacement whose substitute has already made the move, where "it"
-            // is the source (Darksteel Colossus). Moving nothing here is CR 701.24c:
+            // is the source (Darksteel Colossus). The owner survives the move (CR
+            // 108.3), so it is read wherever the card went. Moving nothing here is CR 701.24c:
             // a 903.9b that sent a commander to the command zone instead leaves it
             // there, and its owner's library is shuffled all the same. A target is
             // a player, or an object standing for its owner. The filter recipients
@@ -1408,7 +1450,15 @@ impl GameState {
             Primitive::ShuffleLibrary => {
                 let players: Vec<PlayerId> = match recipient {
                     EffectRecipient::Controller => vec![ctx.controller],
-                    EffectRecipient::Implicit => vec![self.get_object(ctx.source)?.owner],
+                    EffectRecipient::ThisObject => {
+                        vec![self.get_object(ctx.ability_source.map_or(ctx.source, |r| r.id))?.owner]
+                    }
+                    EffectRecipient::Implicit => {
+                        return Err(format!(
+                            "a `Primitive::ShuffleLibrary` on {:?} names no library; use `Controller` or `ThisObject`",
+                            ctx.source
+                        ));
+                    }
                     EffectRecipient::Target(..)
                     | EffectRecipient::Choose(..)
                     | EffectRecipient::TriggeringObject
@@ -1422,6 +1472,10 @@ impl GameState {
                         })
                         .collect(),
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
+                    // Refused at the atom: "each player shuffles" waits for its card.
+                    EffectRecipient::EachOf(_) => {
+                        return Err(format!("{:?} on a `Primitive::ShuffleLibrary` is not built", recipient));
+                    }
                     EffectRecipient::FilteredPermanents(_)
                     | EffectRecipient::FilteredObjectsIn(..)
                     | EffectRecipient::Host => {
@@ -1911,6 +1965,27 @@ impl GameState {
         )
     }
 
+    /// The permanents a one-shot continuous effect applies to: its resolved
+    /// targets, or for "each [permanent] you control" every permanent the
+    /// filter matches now. CR 611.2c fixes that set as the effect begins, so
+    /// a creature that becomes an Elf later is not in it (Elvish Warmaster's
+    /// third ruling).
+    fn affected_permanents(
+        &self,
+        recipient: &EffectRecipient,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Vec<ObjectId> {
+        match recipient {
+            EffectRecipient::FilteredPermanents(filter) => self
+                .battlefield_ids_ordered()
+                .into_iter()
+                .filter(|&id| self.object_matches_filter(id, filter, ctx.controller).unwrap_or(false))
+                .collect(),
+            _ => self.collect_battlefield_targets(targets),
+        }
+    }
+
     fn collect_battlefield_targets(&self, targets: &[ResolvedTarget]) -> Vec<ObjectId> {
         targets.iter()
             .filter_map(|t| {
@@ -1954,10 +2029,10 @@ impl GameState {
     ) -> Result<u64, String> {
         match expr {
             AmountExpr::Fixed(n) => Ok(*n),
-            AmountExpr::Variable => {
+            AmountExpr::X => {
                 // `StackEntry::x_value` has held it since the cast; reading it here is main
                 // item 90's PR (`codebase-state.md`), with the card that needs it.
-                Err("Variable (X) amount resolution not yet implemented".to_string())
+                Err("X amount resolution not yet implemented".to_string())
             }
             AmountExpr::CountOf(_selector) => {
                 Err("CountOf amount resolution not yet implemented".to_string())
@@ -1980,6 +2055,25 @@ impl GameState {
                     format!("{:?} carries no amount for TriggeringAmount to read", binding.event())
                 })
             }
+            // "Its power", "its toughness" (CR 608.2h). A negative value is
+            // no amount: Paladin of Atonement's ruling gains nothing, and
+            // loses nothing, for toughness below 0.
+            AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => {
+                let binding = _ctx.trigger.as_ref().ok_or_else(|| {
+                    format!("{:?} has no meaning outside a triggered ability's resolution", expr)
+                })?;
+                let chars = self.bound_characteristics(binding).ok_or_else(|| {
+                    format!(
+                        "{:?}: the bound object has left since the event and no frame answers for it (TR-2b's departed frames)",
+                        expr
+                    )
+                })?;
+                let value = match expr {
+                    AmountExpr::TriggeringPower => chars.power,
+                    _ => chars.toughness,
+                };
+                Ok(value.unwrap_or(0).max(0) as u64)
+            }
             // "This creature's power" is a *replacement effect's* question: CR 614.12
             // asks it of a permanent about to enter, and
             // `replacement::evaluate_enter_template` is the one evaluator that knows
@@ -1991,7 +2085,7 @@ impl GameState {
             AmountExpr::TargetToughness => {
                 Err("TargetToughness amount resolution not yet implemented".to_string())
             }
-            AmountExpr::DamageDealt => {
+            AmountExpr::DamageDealtThisWay => {
                 Err("DamageDealt amount resolution not yet implemented".to_string())
             }
             // CR 615.5's "that much"/"that many". Only a rider sets the field, so
@@ -2081,6 +2175,41 @@ impl GameState {
                 }
             }
         })
+    }
+
+    /// The players `group` names, over the seats still in the game, each once,
+    /// in APNAP order (CR 101.4): the active player first, then the rest in
+    /// turn order.
+    fn players_in(&self, group: &PlayerGroup, ctx: &ResolutionContext) -> Vec<PlayerId> {
+        let named = match group.named {
+            NamedPlayers::Nobody => None,
+            NamedPlayers::FirstInstance => ctx.targets.instance(0).iter().find_map(|t| match t {
+                ResolvedTarget::Player(pid) => Some(*pid),
+                ResolvedTarget::Object(_) => None,
+            }),
+        };
+        let in_group = |player: PlayerId| group.relation.contains(ctx.controller, player) || named == Some(player);
+        let mut players: Vec<PlayerId> =
+            (0..self.num_players()).filter(|&p| self.in_game(p) && in_group(p)).collect();
+        players.sort_by_key(|&p| self.apnap_index(p));
+        players
+    }
+
+    /// CR 113.7a's "this [object]" for a resolution: the ability's source,
+    /// found by identity (CR 400.7), else the spell or replacement source itself
+    /// while it is still where the effect found it. `None` is the object
+    /// being gone, which the primitive meets as an empty target slice.
+    pub(crate) fn this_object(&self, ctx: &ResolutionContext) -> Option<ObjectId> {
+        match ctx.ability_source {
+            Some(source) => (self.object_ref(source.id) == Some(source)).then_some(source.id),
+            None => {
+                let id = ctx.source;
+                let here = self.battlefield.contains_key(&id)
+                    || self.stack_entries.contains_key(&id)
+                    || self.resolving.as_ref().is_some_and(|r| r.id == id);
+                here.then_some(id)
+            }
+        }
     }
 
     fn resolve_player_for_self(

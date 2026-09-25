@@ -178,6 +178,8 @@ one-consumer-per-PR rule and where review findings go. `gh` is installed; openin
   number.** A war story goes in the commit message or the architecture doc, not the source.
   → `engineering-practices.md` §2.
 - Don't refactor speculatively. American spelling, gated by `check_glossary.py`.
+- **Name for the call site:** the use alone must say what a name means, since its doc comment is
+  not there. → `engineering-practices.md` §2b.
 - **Before deferring a rules question, read the rule that *watches* the one you are
   implementing** — it is in another chapter. → `engineering-practices.md` §8.
 - Test cards in `src/cards/phase_XX_cards.rs`; integration tests in `tests/phase_XX_integration_test.rs`.

@@ -11,3 +11,4 @@ pub mod replacement;
 pub mod restriction;
 pub mod cost_modification;
 pub mod triggers;
+pub mod history;

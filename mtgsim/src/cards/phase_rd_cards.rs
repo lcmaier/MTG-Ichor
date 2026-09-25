@@ -567,7 +567,7 @@ pub fn samite_healer() -> Arc<CardData> {
         .rules_text("{T}: Prevent the next 1 damage that would be dealt to any target this turn.")
         .ability(one_shot(
             AbilityType::Activated,
-            vec![Cost::Tap],
+            vec![Cost::TapSelf],
             Effect::Atom(prevent_the_next_this_turn(1), any_target()),
         ))
         .build()
@@ -846,7 +846,7 @@ pub fn dark_sphere() -> Arc<CardData> {
         )
         .ability(one_shot(
             AbilityType::Activated,
-            vec![Cost::Tap, Cost::SacrificeSelf],
+            vec![Cost::TapSelf, Cost::SacrificeSelf],
             Effect::Atom(
                 Primitive::CreateReplacement(
                     Box::new(the_next_damage_from_a_chosen_source(
@@ -1742,7 +1742,7 @@ mod tests {
         let permanent = put_on_battlefield(game, card.clone(), controller);
         let ctx = ResolutionContext {
             source: permanent,
-            ability_source: Some(permanent),
+            ability_source: game.object_ref(permanent),
             controller,
             targets: ChosenTargets::NONE,
             replaced_amount: None,

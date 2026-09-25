@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::engine::keywords::{apply_deathtouch_flag, apply_lifelink};
+use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
@@ -971,13 +971,33 @@ impl GameState {
         });
         let mut performed = Vec::with_capacity(decided.len());
         let mut performed_ok = Ok(());
+        // Lifelink's gain is a result of this batch's damage (CR 120.3f), one
+        // event per source across its members (CR 702.15e), proposed once they
+        // have all performed and inside the batch (CR 120.4c). Damage dealt by a
+        // nested batch or a CR 615.5 rider is summed by that call's own loop, so
+        // it gains in a separate event and is never counted twice.
+        let mut lifelink_gains = Vec::new();
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
             if let Err(e) = self.perform_action(action.clone(), ctx, &applied_to[i]) {
                 performed_ok = Err(e);
                 break;
             }
+            if let GameAction::DealDamage { source, amount, .. } = &action {
+                add_lifelink_gain(self, &mut lifelink_gains, *source, *amount);
+            }
             performed.push(action);
+        }
+        if performed_ok.is_ok() {
+            for gain in lifelink_gains {
+                if let Err(e) = self.execute_action(
+                    GameAction::GainLife { player: gain.player, amount: gain.amount, source: gain.source },
+                    ctx,
+                ) {
+                    performed_ok = Err(e);
+                    break;
+                }
+            }
         }
         self.departure_frames.truncate(frames_from);
         performed_ok?;
@@ -1176,7 +1196,6 @@ impl GameState {
                 }
 
                 apply_deathtouch_flag(self, source, &target);
-                apply_lifelink(self, source, amount, _ctx)?;
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
@@ -2182,7 +2201,9 @@ mod tests {
             unpreventable: false
         }, &test_ctx()).unwrap();
 
-        // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (lifelink gain for P0)
+        // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (the
+        // lifelink gain for P0, which the batch proposes once its damage has
+        // all been dealt, CR 702.15e).
         let life_events: Vec<_> = game.events.events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source, .. } = e {
                 Some((*player_id, *old, *new, *source))
@@ -2193,18 +2214,18 @@ mod tests {
 
         assert_eq!(life_events.len(), 2);
 
-        // P0 gained 2 life from lifelink (emitted first, inside apply_lifelink)
+        // P1 lost 2 life from the damage
         let (pid, old, new, src) = life_events[0];
-        assert_eq!(pid, 0);
-        assert_eq!(old, 20);
-        assert_eq!(new, 22);
-        assert_eq!(src, Some(lifelinker));
-
-        // P1 lost 2 life from damage (emitted after keyword hooks)
-        let (pid, old, new, src) = life_events[1];
         assert_eq!(pid, 1);
         assert_eq!(old, 20);
         assert_eq!(new, 18);
+        assert_eq!(src, Some(lifelinker));
+
+        // P0 gained 2 life from lifelink
+        let (pid, old, new, src) = life_events[1];
+        assert_eq!(pid, 0);
+        assert_eq!(old, 20);
+        assert_eq!(new, 22);
         assert_eq!(src, Some(lifelinker));
     }
 

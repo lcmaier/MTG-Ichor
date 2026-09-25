@@ -102,7 +102,7 @@ pub(crate) fn intrinsic_mana_ability(
         id: intrinsic_ability_id(object_id, land_type),
         instances: Vec::new(),
         ability_type: AbilityType::Mana,
-        costs: vec![Cost::Tap],
+        costs: vec![Cost::TapSelf],
         effect: Effect::Atom(
             Primitive::ProduceMana(ManaOutput {
                 mana: vec![(mana_type, AmountExpr::Fixed(1))],
@@ -238,7 +238,7 @@ mod tests {
                 id: crate::types::ids::new_ability_id(),
                 instances: Vec::new(),
                 ability_type: AbilityType::Mana,
-                costs: vec![Cost::Tap],
+                costs: vec![Cost::TapSelf],
                 effect: Effect::Atom(
                     Primitive::ProduceMana(ManaOutput {
                         mana: vec![(ManaType::Blue, AmountExpr::Fixed(1))],
@@ -308,7 +308,7 @@ mod tests {
             let ability = intrinsic_mana_ability(id, land_type)
                 .unwrap_or_else(|| panic!("{:?} should have an intrinsic ability", land_type));
             assert_eq!(ability.ability_type, AbilityType::Mana);
-            assert_eq!(ability.costs, vec![Cost::Tap]);
+            assert_eq!(ability.costs, vec![Cost::TapSelf]);
             assert_eq!(produced_mana(&ability), Some(mana_type));
         }
     }

@@ -28,6 +28,7 @@ use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
+use crate::types::history::HistoryCount;
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -64,7 +65,7 @@ pub(super) fn holds(
         // controls a creature". The controller test is the *variant's*, not
         // the filter's — that is what separates the two — and it reads the
         // effective controller, so a Layer 2 steal moves the answer.
-        Condition::ControlPermanent(filter) => {
+        Condition::YouControlPermanent(filter) => {
             controls_matching(filter, game, board, source, layer_index, true)
         }
         Condition::OpponentControlsPermanent(filter) => {
@@ -79,8 +80,8 @@ pub(super) fn holds(
         // a speculative arm. What *is* missing is the opponent's total —
         // Bloodghast's "as long as an opponent has 10 or less life" — which
         // wants its own leaf, since these two read the source's controller.
-        Condition::LifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
-        Condition::LifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
+        Condition::YourLifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
+        Condition::YourLifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
 
         // "as long as there's a [X] card in your graveyard". The variant carries
         // no player, and the printed shape it is written for is *your* graveyard;
@@ -91,8 +92,8 @@ pub(super) fn holds(
         // reads every leaf the layer walk reads, and CR 108.4a is what makes that
         // sound off the battlefield: a card with no controller uses its owner
         // wherever a controller is asked for, so `ByController` answers here too.
-        Condition::CardInGraveyard(filter) => {
-            let Some(you) = controller_of(game, board, source, layer_index) else {
+        Condition::CardInYourGraveyard(filter) => {
+            let Some(you) = you_for(game, board, source, layer_index) else {
                 return false;
             };
             let Some(player) = game.players.get(you) else { return false };
@@ -138,7 +139,7 @@ pub(super) fn holds(
         // "While your library has no cards in it" — Laboratory Maniac. The
         // library is off `GameState`; "your" is the source's controller off
         // its live frame, as `life_compare` reads it.
-        Condition::LibraryEmpty => controller_of(game, board, source, layer_index)
+        Condition::YourLibraryEmpty => you_for(game, board, source, layer_index)
             .and_then(|you| game.players.get(you))
             .is_some_and(|player| player.library.is_empty()),
 
@@ -155,6 +156,23 @@ pub(super) fn holds(
             let mut players = FilterPlayers::for_source(source, game, board, layer_index);
             object_matches_filter(filter, host, &chars, &mut players)
         }
+
+        // A turn summary's count (§3.10), for "you" as every leaf here reads it:
+        // the source's controller. The counts are off `GameState`.
+        Condition::ThisTurn(count) => history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index),
+        Condition::LastTurn(count) => history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index),
+        Condition::SinceYourLastTurn(count) => {
+            history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index)
+        }
+        Condition::ThisGame(count) => history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index),
+        // CR 603.7h: the resolving ability's count, which its own resolution
+        // has not advanced yet. False outside a resolution, where nothing is
+        // resolving to be counted.
+        Condition::ResolvedThisTurn(n) => game
+            .resolving
+            .as_ref()
+            .and_then(|r| r.identity)
+            .is_some_and(|identity| game.resolutions_this_turn_of(identity) + 1 == *n),
 
         // CR 702.33d, read off the cost decisions and not off the cast: a copy
         // of a kicked spell isn't cast and is kicked (CR 707.10), and so is
@@ -195,6 +213,47 @@ pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) 
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
 }
 
+/// Which turns a history leaf sums.
+#[derive(Clone, Copy)]
+enum HistorySpan {
+    ThisTurn,
+    LastTurn,
+    SinceYourLastTurn,
+    ThisGame,
+}
+
+/// A history leaf: the rows `count.whose` names, summed over `span`'s turns.
+fn history_holds(
+    count: &HistoryCount,
+    span: HistorySpan,
+    game: &GameState,
+    board: &Board<'_>,
+    source: ObjectId,
+    layer_index: usize,
+) -> bool {
+    let Some(you) = you_for(game, board, source, layer_index) else {
+        return false;
+    };
+    let now = game.turn_number;
+    let (first, last) = match span {
+        HistorySpan::ThisTurn => (now, now),
+        HistorySpan::LastTurn => (now.saturating_sub(1), now.saturating_sub(1)),
+        HistorySpan::SinceYourLastTurn => {
+            let after = game.players.get(you).and_then(|p| p.history.own_turn_before(now)).map_or(1, |t| t + 1);
+            (after, now)
+        }
+        HistorySpan::ThisGame => (1, now),
+    };
+    let total: u64 = game
+        .players
+        .iter()
+        .enumerate()
+        .filter(|(player, _)| count.whose.contains(you, *player))
+        .map(|(_, player)| player.history.sum(count.fact, first, last))
+        .sum();
+    count.is.met_by(total)
+}
+
 /// CR 707.10's cost decisions for `source`: the resolving spell's, whose
 /// `StackEntry` resolution has taken, or the permanent's it became.
 fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
@@ -204,8 +263,12 @@ fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
     }
 }
 
-/// CR 109.5's "you", off the source's live frame.
-fn controller_of(
+/// CR 109.5's "you": the source's controller, off its live frame, or its
+/// owner if it has no controller. `None` only when the source no longer exists
+/// anywhere (a token that has ceased to exist), where no "you" can be read and
+/// a leaf answers false; a trigger's recheck gets its locked controller
+/// instead (item 169, TR-2b).
+fn you_for(
     game: &GameState,
     board: &Board<'_>,
     source: ObjectId,
@@ -274,7 +337,7 @@ fn life_compare(
 // ---------------------------------------------------------------------------
 // The leaves with no registered consumer.
 //
-// Kird Ape covers `ControlPermanent` and the Flight Clause covers
+// Kird Ape covers `YouControlPermanent` and the Flight Clause covers
 // `HostMatches`, both end to end in `tests/phase_li3_integration_test.rs`.
 // The rest are exercised here against a settled board, because a leaf no
 // card reaches is exactly the kind of code that is wrong and quiet — the
@@ -312,41 +375,41 @@ mod tests {
         game.players[0].life_total = 20;
         game.players[1].life_total = 3;
 
-        assert!(settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::LifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
-        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(19)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(20)), &game, bears));
+        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(19)), &game, bears));
 
         // CR 109.5 — the *source's* controller, not either player at large.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
-        assert!(!settled_holds(&Condition::LifeAtMost(AmountExpr::Fixed(3)), &game, bears));
+        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
+        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, bears));
     }
 
     #[test]
     fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
 
         put_in_graveyard(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, bears));
+        assert!(settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
         assert!(settled_holds(
-            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Land)),
+            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Land)),
             &game,
             bears
         ));
         assert!(!settled_holds(
-            &Condition::CardInGraveyard(ObjectFilter::ByType(CardType::Creature)),
+            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Creature)),
             &game,
             bears
         ));
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(!settled_holds(&Condition::CardInGraveyard(ObjectFilter::All), &game, theirs));
+        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, theirs));
     }
 
     #[test]
@@ -357,15 +420,15 @@ mod tests {
             crate::types::card_types::LandType::Forest,
         ));
 
-        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(!settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 1);
-        assert!(!settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::ControlPermanent(forest.clone()), &game, bears));
+        assert!(settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
         assert!(settled_holds(&Condition::OpponentControlsPermanent(forest), &game, bears));
     }
 
@@ -402,7 +465,7 @@ mod tests {
         // Wonder's own condition, clause for clause.
         let wonder = Condition::All(vec![
             Condition::SourceInZone(ZoneSet::GRAVEYARD),
-            Condition::ControlPermanent(island),
+            Condition::YouControlPermanent(island),
         ]);
         assert!(!settled_holds(&wonder, &game, dead), "in the graveyard, no Island");
         put_on_battlefield(&mut game, basic_lands::island(), 0);

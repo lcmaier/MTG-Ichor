@@ -36,8 +36,10 @@ use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
     DamageRecipient, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger, TriggerBinding,
-    TriggerCondition, TriggerDef, TriggerEvent, TriggerOrigin, TriggerSeq, TriggerSubject,
+    TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
 };
+
+use super::history::TurnOrdinals;
 use crate::types::zones::{Zone, ZoneSet};
 
 /// Dispatches nested inside dispatches — a tier-2 trigger's `AbilityTriggered`
@@ -254,7 +256,7 @@ pub(super) struct MatchedTrigger {
     instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
     pub(super) records: Vec<EventSeq>,
-    pub(super) object: Option<ObjectRef>,
+    pub(super) subject: Option<ObjectRef>,
     mana: bool,
 }
 
@@ -262,22 +264,26 @@ pub(super) struct MatchedTrigger {
 #[derive(Clone, Copy)]
 enum Refusal {
     /// The condition is a state trigger, which TR-6 checks.
-    State,
+    StateTrigger,
     /// CR 603.2f.
     Visibility,
     /// The arm does not read this record, or its predicates said no.
-    Condition,
+    TriggerCondition,
     /// CR 603.4 at the trigger.
     InterveningIf,
+    /// A once-per-turn limit (§3.5): the action was taken, the ability has
+    /// triggered, or the record is not the turn's first of its kind.
+    Limit,
 }
 
 impl Refusal {
     fn name(self) -> &'static str {
         match self {
-            Refusal::State => "state",
+            Refusal::StateTrigger => "state",
             Refusal::Visibility => "visibility",
-            Refusal::Condition => "condition",
+            Refusal::TriggerCondition => "condition",
             Refusal::InterveningIf => "intervening_if",
+            Refusal::Limit => "limit",
         }
     }
 }
@@ -334,8 +340,11 @@ impl GameState {
                 self.nesting.dispatch_depth
             ));
         }
+        // Every record, before the gate: what happened this turn is read by
+        // cards that are not on the battlefield yet (§3.10).
+        let ordinals = self.advance_history(window);
         self.nesting.dispatch_depth += 1;
-        let result = self.dispatch_inner(window, ctx, snapshots, audit);
+        let result = self.dispatch_inner(window, ctx, snapshots, audit, &ordinals);
         self.nesting.dispatch_depth -= 1;
         result
     }
@@ -377,10 +386,11 @@ impl GameState {
         ctx: Option<&ActionContext>,
         snapshots: &[LookBackSnapshot],
         audit: Option<&[LookBackSnapshot]>,
+        ordinals: &TurnOrdinals,
     ) -> Result<(), String> {
-        let matches = self.detect(window, snapshots);
+        let matches = self.detect(window, snapshots, ordinals);
         if let Some(audit) = audit {
-            self.audit_dispatch(window, audit, &matches);
+            self.audit_dispatch(window, audit, &matches, ordinals);
         }
         if matches.is_empty() {
             return Ok(());
@@ -389,7 +399,7 @@ impl GameState {
     }
 
     /// Steps 1 to 3: the gate and the match, read-only.
-    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot]) -> Vec<MatchedTrigger> {
+    fn detect(&self, window: &[EventSeq], snapshots: &[LookBackSnapshot], ordinals: &TurnOrdinals) -> Vec<MatchedTrigger> {
         // --- The gate: four probes, and on the old pools nothing else -------
         //
         // The window's kinds first, OR-ed once (§11). A window no arm can
@@ -424,7 +434,7 @@ impl GameState {
         {
             return Vec::new();
         }
-        self.find_matches(window, readers, unattributed, snapshots)
+        self.find_matches(window, readers, unattributed, snapshots, ordinals)
     }
 
     /// Steps 4 and 5, for the matches `detect` found.
@@ -432,14 +442,19 @@ impl GameState {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
+            // "Triggers only once each turn" is written as the ability
+            // queues, so a second match in this same window finds it taken.
+            if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.triggered_this_turn.insert(m.identity) {
+                continue;
+            }
             let seq = TriggerSeq(self.next_trigger_seq);
             self.next_trigger_seq += 1;
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
                 records: m.records.clone(),
                 event: m.event,
-                object: m.object,
-                triggered: None,
+                subject: m.subject,
+                triggered_by: None,
             };
             let caused_by = m.records[0];
             let origin = TriggerOrigin::Object(m.identity);
@@ -450,7 +465,7 @@ impl GameState {
                 source_card: Arc::clone(&m.source_card),
                 instances: m.instances.clone(),
                 binding,
-                state: false,
+                is_state_trigger: false,
             };
             if m.mana {
                 match ctx {
@@ -634,6 +649,7 @@ impl GameState {
         readers: Vec<ObjectId>,
         unattributed: ZoneSet,
         snapshots: &[LookBackSnapshot],
+        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut live = self.live_candidates(readers, unattributed);
 
@@ -723,7 +739,7 @@ impl GameState {
             });
         }
 
-        let matches = self.match_candidates(&records, &candidates, snapshots);
+        let matches = self.match_candidates(&records, &candidates, snapshots, ordinals);
         self.diagnostics.record_trigger_dispatch(candidates.len() as u64, matches.len() as u64);
         matches
     }
@@ -738,6 +754,7 @@ impl GameState {
         records: &[(EventSeq, &EventRecord)],
         candidates: &[TriggerCandidate<'_>],
         snapshots: &[LookBackSnapshot],
+        ordinals: &TurnOrdinals,
     ) -> Vec<MatchedTrigger> {
         let mut matches: Vec<MatchedTrigger> = Vec::new();
         // "One or more" accumulates across the window: (identity, event) -> index into `matches`.
@@ -779,7 +796,7 @@ impl GameState {
                 let Some(asks) = candidate.frame.asks(looks_back_through) else { continue };
                 let identity = row.identity;
                 let def = row.def;
-                let outcome = self.match_def(def, candidate, asks, *seq, &record.event);
+                let outcome = self.match_def(def, candidate, asks, *seq, &record.event, identity, ordinals);
                 let (matched, subjects, refusal) = match outcome {
                     Ok((event, subjects)) => (Some(event), subjects, None),
                     Err(refusal) => (None, Vec::new(), Some(refusal)),
@@ -824,7 +841,7 @@ impl GameState {
                                 instances: row.instances.to_vec(),
                                 event: matched,
                                 records: vec![*seq],
-                                object: subject.and_then(|id| self.object_ref(id)),
+                                subject: subject.and_then(|id| self.object_ref(id)),
                                 mana,
                             });
                         }
@@ -844,7 +861,7 @@ impl GameState {
                                     instances: row.instances.to_vec(),
                                     event: matched,
                                     records: vec![*seq],
-                                    object: None,
+                                    subject: None,
                                     mana,
                                 });
                             }
@@ -866,9 +883,11 @@ impl GameState {
         asks: Asks,
         seq: EventSeq,
         event: &GameEvent,
+        identity: AbilityIdentity,
+        ordinals: &TurnOrdinals,
     ) -> Result<(EventIndex, Vec<Option<ObjectId>>), Refusal> {
         if matches!(def.condition, TriggerCondition::State(_)) {
-            return Err(Refusal::State);
+            return Err(Refusal::StateTrigger);
         }
         // CR 603.2f, per candidate, of the object as the event left it. A frame
         // candidate was a permanent, which is visible.
@@ -896,7 +915,21 @@ impl GameState {
                 break;
             }
         }
-        let (event_index, subjects) = matched.ok_or(Refusal::Condition)?;
+        let (event_index, subjects) = matched.ok_or(Refusal::TriggerCondition)?;
+        // The once-per-turn limits (§3.5), each read at the trigger. CR
+        // 603.2h's gate is its source's controller's; "only once each turn" is
+        // the ability's; "the first time" is this record's place in its turn.
+        let within_limit = match def.limit {
+            None => true,
+            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => {
+                !self.action_taken_this_turn.contains(&(identity, candidate.controller))
+            }
+            Some(TriggerLimit::TriggersOnlyOnceEachTurn) => !self.triggered_this_turn.contains(&identity),
+            Some(TriggerLimit::FirstTimeEachTurn) => ordinals.place_in_turn(seq) == Some(1),
+        };
+        if !within_limit {
+            return Err(Refusal::Limit);
+        }
         // CR 603.4 at the trigger. "You" is the source's controller, read off
         // the source; a condition about the bound facts is TR-2's reader.
         if let Some(condition) = &def.intervening_if
@@ -998,13 +1031,28 @@ impl GameState {
             (TriggerEvent::TurnBegins { whose }, GameEvent::TurnBegin { player, .. }) => {
                 one(whose.as_ref().is_none_or(|p| self.player_ref_is(p, *player, candidate)))
             }
-            // The sign is the split: a loss is TR-2's `LosesLife`. A 0 gain
-            // never reaches the log (CR 119.10, `replacement::never_happens`).
+            // The sign is the split. A 0 gain never reaches the log (CR
+            // 119.10, `replacement::never_happens`).
             (TriggerEvent::GainsLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
                 one(new > old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
             }
+            (TriggerEvent::LosesLife { player: who, .. }, GameEvent::LifeChanged { player_id, old, new, .. }) => {
+                one(new < old && who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
+            }
+            (TriggerEvent::CastsSpell { caster, spell }, GameEvent::SpellCast { spell_id, caster: who }) => {
+                let spell_ok = match spell {
+                    None => true,
+                    Some(filter) => self.subject_matches(
+                        &TriggerSubject::Filter(filter.clone()),
+                        Some(*spell_id),
+                        candidate,
+                        None,
+                    ),
+                };
+                one(spell_ok && caster.as_ref().is_none_or(|p| self.player_ref_is(p, *who, candidate)))
+            }
             (
-                TriggerEvent::EntersBattlefield { subject, controller, from, cast, .. },
+                TriggerEvent::EntersBattlefield { subject, controller, from, was_cast, .. },
                 GameEvent::PermanentEnteredBattlefield { object_id, controller: rc },
             ) => {
                 // The join (§4.4): `from` off the same object's zone change in
@@ -1014,7 +1062,7 @@ impl GameState {
                     None => true,
                     Some(zone) => self.entry_origin(*object_id, seq) == Some(*zone),
                 };
-                let cast_ok = cast.is_none_or(|expected| {
+                let cast_ok = was_cast.is_none_or(|expected| {
                     self.battlefield.get(object_id).is_some_and(|e| e.cast.is_some()) == expected
                 });
                 one(
@@ -1029,8 +1077,8 @@ impl GameState {
                 .filter(|id| self.subject_matches(attacker, Some(**id), candidate, None))
                 .map(|id| Some(*id))
                 .collect(),
-            (TriggerEvent::AbilityTriggers { caused_by, of }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
-                let of_ok = match of {
+            (TriggerEvent::AbilityTriggers { caused_by, source }, GameEvent::AbilityTriggered { origin, caused_by: cause, .. }) => {
+                let source_ok = match source {
                     None => true,
                     Some(filter) => self.subject_matches(
                         &TriggerSubject::Filter(filter.clone()),
@@ -1043,7 +1091,7 @@ impl GameState {
                     None => true,
                     Some(inner) => self.events.record(*cause).is_some_and(|r| inner.reads(&r.event)),
                 };
-                one(of_ok && cause_ok)
+                one(source_ok && cause_ok)
             }
             _ => Vec::new(),
         }
@@ -1062,12 +1110,12 @@ impl GameState {
     ) -> bool {
         match (subject, id) {
             (TriggerSubject::Any, _) => true,
-            (TriggerSubject::This, Some(id)) => id == candidate.id,
+            (TriggerSubject::ThisObject, Some(id)) => id == candidate.id,
             (TriggerSubject::Host, Some(id)) => candidate.host == Some(id),
             (TriggerSubject::Filter(filter), Some(id)) => self
                 .object_matches_filter_of_source(id, filter, candidate.controller, candidate.id, frame)
                 .unwrap_or(false),
-            (TriggerSubject::This | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
+            (TriggerSubject::ThisObject | TriggerSubject::Host | TriggerSubject::Filter(_), None) => false,
         }
     }
 
@@ -1101,7 +1149,9 @@ impl GameState {
         None
     }
 
-    pub(crate) fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
+    /// `id` as the object it is now: its id and its current existence (CR
+    /// 400.7). `None` for an id no longer in the store.
+    pub fn object_ref(&self, id: ObjectId) -> Option<ObjectRef> {
         self.objects.get(&id).map(|o| ObjectRef { id, zone_change_epoch: o.zone_change_epoch })
     }
 
@@ -1137,7 +1187,7 @@ impl GameState {
                     _ => pending.controller,
                 };
                 let mut resolution = ResolutionContext::untargeted(source, player);
-                resolution.ability_source = Some(source);
+                resolution.ability_source = self.object_ref(source);
                 resolution.trigger = Some(pending.binding.clone());
                 let mut mana = Vec::with_capacity(output.mana.len());
                 for (mana_type, amount) in &output.mana {

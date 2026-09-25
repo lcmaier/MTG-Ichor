@@ -58,7 +58,7 @@ impl GameState {
     /// The turn itself is unskippable here by construction rather than by
     /// exemption — CR 614.4 needs the effect to exist before the event, and
     /// before the first turn nothing has resolved and no permanent has entered
-    /// — so it is proposed with the number it already has rather than through
+    /// — so it is proposed as turn 1 (CR 103.8) rather than through
     /// [`Self::next_turn_taker`], which would rotate past the starting player.
     /// Its untap step is proposed like any other.
     ///
@@ -67,7 +67,7 @@ impl GameState {
     /// `codebase-state.md` item 119 owns the seam.
     pub fn start_first_turn(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let player = self.active_player;
-        let turn = self.turn_number;
+        let turn = 1;
         let performed =
             self.execute_actions(vec![GameAction::BeginTurn { player, turn }], ctx)?;
         if performed.is_empty() {
