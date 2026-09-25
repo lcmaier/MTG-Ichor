@@ -705,12 +705,14 @@ critical path, which lists neither; that is the owner's line to add.
   - **The redeal costs 1.7–6.1 µs per fork**, about one clone again, so a
     determinized fork is about twice a plain one and passes floor 2's 10 µs
     early in a game, when the libraries are full.
-  - **The memo stays warm through it unless a registry row reaches a hidden
-    zone the redeal moves cards between**, a check that is one compare
-    (`RegistryScopeSummary::reachable_zones`). No pooled card has such a row,
-    but Painter's Servant, Mycosynth Lattice and Arcane Adaptation do, so the
-    ceiling should assume a cold memo. Cold, the first decision after the
-    redeal spends one board walk more, 10–40 µs from mid-game on.
+  - **The ceiling assumes a cold memo.** The memo stays warm only while no
+    registry row reaches a hidden zone the redeal moves cards between, which
+    is a one-compare check (`RegistryScopeSummary::reachable_zones`). No pooled
+    card has such a row, but Mycosynth Lattice, Painter's Servant and Arcane
+    Adaptation do, and they are played. On our boards a cold first decision
+    spent one board walk more, 10–40 µs from mid-game on. On a board with such
+    a card that walk covers every card in the reached zones, about ten times
+    the objects, and nobody has measured it (`codebase-state.md` item 181).
   - **These are the naive model's numbers.** With no knowledge record, every
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card

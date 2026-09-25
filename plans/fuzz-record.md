@@ -92,20 +92,40 @@ twice a plain one. **The first decision after it:**
   redeal spends.
 - **Cold**, with the epoch bumped, it spends one board walk more, 10–40 µs from
   mid-game on.
-- **The bump is needed only when a registry row reaches a hidden zone the
-  redeal moves cards between.** `layers/board.rs`'s membership makes that the
-  one case a frame depends on which hidden zone its card is in, and it is one
-  compare on `RegistryScopeSummary::reachable_zones`. None of the 39
-  checkpoints had such a row, because no pooled card has one: the pools'
-  zone-reaching effects reach graveyards. That is a fact about these pools, not
-  about the missing information model. Printed Commander cards do reach hands
-  and libraries (Painter's Servant, Mycosynth Lattice, Arcane Adaptation), and
-  with one in play every redeal is cold.
+- **The warm result does not carry to v1.** The bump is needed whenever a
+  registry row reaches a hidden zone the redeal moves cards between
+  (`layers/board.rs`'s membership, one compare on
+  `RegistryScopeSummary::reachable_zones`). None of the 39 checkpoints had
+  such a row only because these pools have no card that makes one: their
+  zone-reaching effects reach graveyards. Mycosynth Lattice, Painter's Servant
+  and Arcane Adaptation do, and they are played. **With one on the table every
+  redeal is cold, and the cold walk is bigger too**, because every card in the
+  zones the row reaches joins every pass: about 400 objects at four seats
+  instead of about 40 (`layers-architecture.md`, LJ). That board is
+  unmeasured, for the redeal and for ordinary play alike (`codebase-state.md`
+  item 181).
 - **What the missing information model does change is the redeal itself.**
   With no knowledge record every hidden card counts as unknown, so the redeal
   shuffles all of them. A real one keeps the known cards in place and pays a
   lookup for each. So these are first readings of the shuffle, and the
   observation above has no visibility query in it either.
+
+**Review round 2: a board heavy in grant and copy rows.** The clone was
+measured at every priority prompt of ten Commander games (`stress`,
+12345–12354), with eight copies each of Citanul Hierophants, Cytoshape,
+Mirrorweave and Mirrorform in every deck:
+
+| | before | after the `Arc`s (`244c64a`) |
+|---|---|---|
+| worst clone, allocations | 97 | 65 |
+| the registry's share, at the prompt with the most rows (10 grant, 1 copy) | 58 | 23 |
+| mean allocations per clone, by game | 36.1–49.7 | 32.0–42.9 |
+| worst clone, KB | 118.0 | 116.6 |
+
+The grant and copy payloads are shared now, and a match shares its trigger's
+def. The one game in ten that is still one over floor 2's proxy is paying for
+the registry's per-row payloads (`codebase-state.md` item 180). `close_out.py`
+on `ddbf5ad` against `main`: every gameplay row **IDENTICAL** on both pools at two seats and four, no cost row moved, and 0.7675 M → 0.7665 M instructions per decision (**−0.14%**). Round 1's arm read 0.7666 M, so on this board, whose pool has few grants and fewer trigger matches, the `Arc`s cost nothing and save little.
 
 **Calibrated 2026-09-25: does a cycle estimate read CPU better than
 instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The

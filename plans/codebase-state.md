@@ -8433,3 +8433,50 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      player's own turns begins: O(seats²), never the turn count.
      **Reachability (2026-09-25):** closed — the bounded-state PR.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 179".
+
+### Found by the bounded-state PR's review (2026-09-25)
+
+180. **A fork of a board heavy in grant and copy rows can take 65
+     allocations, one over floor 2's CI proxy.** The review measured ten
+     Commander games with eight copies each of four grant and copy cards in
+     every deck, cloned at every priority prompt (`fuzz-record.md`, the
+     bounded-state block, round 2). Sharing the grant and copy payloads took
+     the worst clone from 97 allocations to 65. What is left is each
+     continuous-effect row's own payload, an `ObjectSet::Fixed` list or an
+     `ObjectFilter`'s boxes, copied on every fork: 23 allocations for 11 rows.
+     Bytes stayed under 128 KB, and the committed clone test's boards read at
+     most 46.
+
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, on one
+     prompt of one extreme game in ten.
+
+     **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
+     `Arc::make_mut` in its five mutating methods, which makes each of the three
+     registries' clones one allocation. The callers that take rows back by
+     value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
+
+181. **A continuous effect that reaches the hand or the library makes every
+     layer pass walk every card there, and no board has measured it.**
+     Membership seeds every object in a zone some row reaches into every board
+     pass, so at four seats a pass walks about 400 objects instead of about 40
+     (`layers-architecture.md`, LJ, which made the cost exactly zero only on a
+     board with no such row). Every measured board has had none, because the
+     pools' zone-reaching rows reach graveyards. Mycosynth Lattice and
+     Painter's Servant reach every zone, and both are played in Commander. On
+     such a board ordinary play costs more per decision (floor 1), and no
+     redeal can keep the memo warm, so each fork's first decision pays one of
+     those walks (`backlog.md` §2.9's cost section).
+
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, unmeasured.
+
+     **Proposed: before the information-model design (`roadmap-v2.md` A6f)**,
+     whose redeal ceiling needs the cold number on such a board.
+
+     **Sized:** the measurement first, about an hour. Put a Lattice-shaped
+     fixture (LJ's Graveyard Painter at `ZoneSet::ALL`) in every deck on the
+     Commander board, and read instructions per decision against the same
+     board without it, plus the redeal's cold first decision on it. A fix, if
+     the number calls for one, is a design question. A hidden-zone member
+     walked only when something reads it is the obvious shape; a CDA that
+     reads graveyard cards (Tarmogoyf) is why "never walked" is not the answer.
+
