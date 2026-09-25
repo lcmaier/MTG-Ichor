@@ -8480,3 +8480,25 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      walked only when something reads it is the obvious shape; a CDA that
      reads graveyard cards (Tarmogoyf) is why "never walked" is not the answer.
 
+### Found by item 181's measurement (2026-09-25)
+
+182. **A card in a hand is timed by its printed flash, and a row can reach it
+     now.** The cast-timing check reads a hand card's printed types and flash
+     (`put_on_stack.rs:673`, `mana_helpers.rs:331`, both `// PRE-LAYER
+     ZONE:`), on the premise that nothing changes a card before it is a
+     permanent. LJ ended that premise: a row can reach a hand. Teferi, Mage of
+     Zhalfir's "Creature cards you own that aren't on the battlefield have
+     flash" lands on the frame and is never read, so item 181's fixture of that
+     line changes no game. The other cast-path sites ask a card's printed
+     spell ability and whether it is a land, and none of the 13 printed cards
+     with a row reaching off the battlefield (item 181) changes either.
+
+     **Reachability (2026-09-25):** unreachable. No registered card's row
+     reaches a hand, only fixtures do (`teferi_flash_clause`, `hollow_hands`).
+
+     **Sized:** the two reads routed through `oracle/characteristics.rs`,
+     which the memo answers for a card in hand as for any object, ~10 lines;
+     one test that a creature card under Teferi's fixture is offered at
+     instant speed, ~40. With the first registered card whose row reaches a
+     hand, or before it.
+
