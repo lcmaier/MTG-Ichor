@@ -723,7 +723,7 @@ fn rows_in_layer<'a>(
     game.continuous_effects
         .effects_in_layer(layer)
         .iter()
-        .map(|row| (row, None))
+        .map(|row| (&**row, None))
         .chain(
             own.iter()
                 .enumerate()
