@@ -354,3 +354,25 @@ What stayed, and why:
 The performance question from the first sitting was re-taken at seven
 rounds: −0.2% CPU per decision at four seats and −2.4% at two, against
 +2.9% and +3.8% at three rounds.
+
+### Review round 2 (2026-09-24)
+
+The owner asked why CR 702.15e needed a lifelink mechanism at all. It
+doesn't. The rule only fixes the count: one gain event per source per
+simultaneous damage event. So the gain is now the batch's own result. As
+each member performs, `execute_batch_inner` adds that member's damage to a
+per-source sum, then proposes one `GainLife` per source before the batch
+closes.
+
+What went:
+- the `lifelink_gains` field on `GameState`;
+- `note_lifelink`'s write into it;
+- the save/restore around every batch.
+
+Round 1's argument, that item 40 forces the sum onto `GameState`, misread
+the item. A prompt inside a batch is not a fork point (§15 item 13), and the
+batch's own `performed` list already lived on the stack. A nested batch or a
+rider performs its own members, so it still gains separately.
+
+The round's head played the same games as round 1's head: counters
+`IDENTICAL` on both pools at two seats and four.

@@ -508,11 +508,12 @@ is derivable; where each name was read is not, and the gate needs the names.
     `layer_memo`, `diagnostics`, `dispatch_audit`, `trace`, `nesting`,
     `next_trigger_seq`, `next_object_id`.
 - **Added by TR-2a (2026-09-24)**, each asked §2's question as it landed:
-  - `history`: every player's "this turn" quantities, one row per turn,
-    recorded as each record is dispatched and read by the `Condition` history
-    leaves. Each fact is counted on the row of the one player the record
-    names (`triggers-architecture.md` §3.10). CR 103.5's opening hands are
-    drawn before the first turn, so no row holds them.
+  - `history`, which moved onto `PlayerState` in #186's review: every
+    player's "this turn" quantities, one row per turn, recorded as each
+    record is dispatched and read by the `Condition` history leaves. Each
+    fact is counted on the row of the one player the record names
+    (`triggers-architecture.md` §3.10). CR 103.5's opening hands are drawn
+    in turn 0, which has no row.
   - `action_taken_this_turn`: CR 603.2h's gate, recorded by the resolution
     that takes the action and keyed by the ability and its controller, since
     the rule reads "its source's controller" (§3.5).
@@ -521,10 +522,10 @@ is derivable; where each name was read is not, and the gate needs the names.
   - `resolutions_this_turn`: CR 603.7h's count, recorded off each
     `AbilityResolved` and keyed by the ability, not by its controller
     (Ashling the Pilgrim's ruling). All three end as the next turn begins.
-  - `lifelink_gains`: each lifelink source's damage in the batch being
-    performed, recorded as the damage is dealt and gained as one event per
-    source once the batch's members have performed (CR 702.15e). It holds
-    nothing past its batch, as `prevention_allocations` does.
+
+  Lifelink's gain adds no field: each batch sums its own members' damage per
+  source and proposes the gains before it closes (CR 702.15e; #186's review
+  round 2).
 
 ---
 

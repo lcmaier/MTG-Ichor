@@ -197,7 +197,9 @@ arms).
 against the first head, both pools, two seats and four. Counters were
 `IDENTICAL`, and the audit agreed on the same dispatches. The round only
 refactored: it changed the history's shape, the recipient's shape, names,
-and the turn the opening hands are drawn in.
+and the turn the opening hands are drawn in. **Review round 2** (lifelink's
+gain from the batch's own damage, no state) was also `IDENTICAL` against round
+1's head on both pools at two seats and four.
 
 **Re-recorded 2026-09-24 for item 176** (a redirect keeps the act —
 `codebase-state.md` item 176; `GameActionTemplate::ZoneChangeTo` names only a
