@@ -2688,9 +2688,43 @@ this design's decisions:**
 3. No row writing it reads the board to resolve (decision 4 too). A replay runs
    outside the pass and cannot see mid-layer frames.
 
-The brief named the first. The tree adds the other two. None of the thirteen
-printed cards trips the third, and two printed cards, beside one of nine
-others, trip the second (decision 4).
+The brief named the first. The tree adds the other two.
+
+**Is the second real? Yes, and Grist, the Hunger Tide is the printed case**
+(asked at the owner's review). CR 613.8a(b) asks whether applying one effect
+"would change ... what [the other] applies to", and nothing in CR 613.8 limits
+that to permanents. Two additive effects can depend on each other: what makes
+one depend on the other is whether it adds what the other's filter tests, not
+whether either removes anything.
+- Grist's first ability reads "As long as Grist isn't on the battlefield, it's
+  a 1/1 Insect creature in addition to its other types". Arcane Adaptation's
+  second sentence reaches "creature cards you own that aren't on the
+  battlefield".
+- Both apply at layer 4, and neither is a CDA: CR 604.3a(1) does not list card
+  types, and Grist's is conditional besides. With Grist in a hand, applying
+  Grist's effect makes it a creature card, so Arcane's effect now applies to
+  it, and Arcane's depends on Grist's.
+- A Grist drawn after Arcane entered is the younger object (CR 613.7d), so
+  timestamp order alone applies Arcane's first, and Grist misses the chosen
+  type. The dependency is decided through a card in a hand.
+- Grist is the row's own source, so decision 2 carries it: the source joins
+  the pass, and the pass sees the dependency as it does today.
+
+**The guard's case is the other one: a card that is not a source decides the
+dependency.** One hidden-zone row would have to change *other* hidden cards in
+a way another hidden-zone row's filter tests, and no printed card does:
+- The printed writes into hands and libraries are Artifact, onto cards that
+  are already permanent cards (Biotransference, Encroaching Mycosynth);
+  creature types (six cards); Desert (Dune Chanter); and colors (Mycosynth
+  Lattice, Painter's Servant, Celestial Dawn).
+- No hidden-zone filter tests any of those in a way those writes can flip.
+- Biotransference beside Arcane Adaptation, for instance, never depends:
+  Arcane's filter tests Creature, and Biotransference adds Artifact.
+
+So the guard is there for the CR: a custom card, or a future printing
+(`engineering-practices.md` §4: the CR is the customer, and a printed card is the test).
+Neither the second condition nor the third is needed by any printed card, and
+decision 4 is what the guard costs the printed ones.
 
 **Not §12's per-object dirty tracking.** That was deferred because a fine key
 must list every input, and CR 613.8 makes other objects' answers inputs. This
@@ -2775,33 +2809,45 @@ card with "as long as this card is in your hand, creatures you control have
 flying", beside Hollow Hands. Both apply at layer 6, and the grant waits on the
 strip (CR 613.8a), but only if the pass can see the strip reach the source.
 
-**The rule:** a static row's source in a left-out zone joins the pass, as a
-`Fixed`-named object does. `seed` appends it after the `Fixed`-named objects,
-in registry order. `membership` answers `Member` from the same scan it already
-makes for `Fixed` rows, since rows are few. A resolution row's source does not
-join (a buyback spell back in its owner's hand, say): CR 613.7b fixes its "you"
-and its existence is unconditional, so the pass never reads its frame.
+**The rule: a static row's source is a member wherever it is when some row can
+write it.** Two rows can:
+- **its own row, when that row is `SourceOnly`** (Grist);
+- **a row reaching its zone.** A reached public zone is seeded already, so what
+  this adds is a source in a left-out zone.
 
-**A finding, and question Q2 for the owner.** A `SourceOnly` static row off the
-battlefield never applies today. A throwaway probe put a Grist-shaped card
-("as long as this isn't on the battlefield, it's a creature in addition")
-into a graveyard, a hand and a library: three rows registered, and the card
-was a creature in none of the three zones. `affected_members`' `SourceOnly`
-arm needs the source to have a frame. A source no row reaches is a non-member,
-and `compute_non_member` applies no rows. Decision 2 fixes it only where some
-other row reaches a hand or a library, since the source joins there.
+`seed` appends such a source after the `Fixed`-named objects, in registry
+order. `membership` answers `Member` from the scan it already makes for
+`Fixed` rows, since rows are few. A resolution row's source does not join (a
+buyback spell back in its owner's hand, say): CR 613.7b fixes its "you" and
+its existence is unconditional, so the pass never reads its frame.
 
-The rest is one clause: *a static row's source joins wherever it is when its
-own row is `SourceOnly`.*
-- **Folding it in** costs ~5 lines and one test. It is flat on the pools: no
-  pooled static row is `SourceOnly` off the battlefield (Wonder's is a filter
-  row), and the close-out's cost rows would show one. The seed pays one probe
-  of its `seen` set per `SourceOnly` static row, Kird Ape's included.
-- **Filing it** as an item leaves a Grist shape a creature only where some
-  other row happens to reach its zone (beside Mycosynth Lattice, everywhere
-  but the battlefield), until someone picks the item up.
+**The `SourceOnly` half fixes a gap found at design, folded in at the owner's
+review (2026-09-25).** A `SourceOnly` static row off the battlefield never
+applies on `main`. A throwaway probe put a Grist shape into a graveyard, a hand
+and a library: three rows registered, and the card was a creature in none of
+the three zones. `affected_members`' `SourceOnly` arm needs the source to have
+a frame, a source no row reaches is a non-member, and `compute_non_member`
+applies no rows.
+- **Grist is the only printed card with such a row** (Scryfall, two phrasings,
+  2026-09-25), and it is played: 73,469 decks on EDHREC's card page, and it can
+  be a commander.
+- **Its rulings name the zones.** "Anywhere but on the battlefield, Grist is a
+  Legendary Planeswalker Creature — Grist Insect", so Essence Scatter can
+  counter it and Negate cannot. On the stack it is a creature spell, so
+  Thalia, Guardian of Thraben (pooled) does not tax it.
+- **Flat on the pools.** No pooled static row is `SourceOnly` off the
+  battlefield: Wonder's is a filter row, and Darksteel Colossus's and Nexus of
+  Fate's "from anywhere" clauses are replacement bodies with no row. The seed
+  pays one probe of its `seen` set per `SourceOnly` static row, Kird Ape's
+  included.
+- **Registering the real Grist** waits on its three loyalty abilities:
+  `backlog.md` §2.11 (no loyalty ability exists), the −2's reflexive trigger
+  (TR-3) and the +1's repeat. Its commander eligibility, which its first
+  ruling grants "during deck construction", is the Commander track's:
+  `random_deck` reads printed types under `// PRE-LAYER ZONE:`.
 
-Recommendation: fold it in.
+So LL tests Grist through a clause fixture: its printed frame with its first
+ability and none of its loyalty abilities, registered nowhere.
 
 **3. The replayed walk memoizes its frame. Yes.** The cast path asks the same
 card more than once (decision 5). The frame goes into the state's own memo map
@@ -2827,32 +2873,57 @@ Both read rows and nothing else, so `seed` and `membership` call one function,
 `left_out_zones`, and cannot disagree. The guard is exact by construction: it
 seeds exactly where the pass's own machinery could have looked at a card there.
 
-**On the thirteen printed cards, (a) never trips.** (b) trips at layer 4:
-Biotransference and Encroaching Mycosynth add Artifact, and the filters of the
-other layer-4 cards read card types (Arcane Adaptation, Conspiracy, Dune
-Chanter, Leyline of Transformation, Maskwood Nexus, Roshan, Rukarumel, and
-each other). Either of the two beside one of those seeds libraries and hands,
-and that board costs what it costs today. Neither dependency is real: adding
-Artifact never changes whether a card is a creature card. The channel check is
-coarse, and on the battlefield the hypothetical settles such a pair.
+**On the printed cards, (a) never trips, and every trip of (b) is a false
+positive** (the finding above: no printed card makes the dependency the guard
+exists for). What trips it depends on how fine the check is, and that is Q1.
 
-**Q1 for the owner: how fine the guard's check should be.** Two options:
-- **Channel-level, as above.** ~30 lines, reusing `writes_of` and
-  `filter_reads` unchanged. The guard is then literally "would the pass's
-  static check send this pair to a hypothetical", with no second matcher to
-  keep in step. It trips on Biotransference or Encroaching Mycosynth beside
-  one of the other nine.
-- **Value-level.** A write's value against the filter's leaves:
-  `AddType(Artifact)` reaches `ByType(Artifact)` and nothing else. ~70 lines.
-  It adds a finer static matcher over `ObjectFilter` leaves and
-  `EffectModification` values that exists only for the guard and has to track
-  both enums. A missed arm there gives a wrong order, which no test of a leaf's
-  answer catches (`condition_reads`' warning). It trips only on
-  Biotransference beside Encroaching Mycosynth, whose "nonland permanent card"
-  filter reads `ByType(Artifact)`.
+**What a trip costs.** The tripped zones are seeded as LJ seeds them, so a
+tripped board costs exactly what it costs on `main`, and only while both rows
+exist. The next pass after one leaves is back on the replay. For the rows the
+thirteen make, both reach every library and every hand, so a trip seeds the
+zones item 181 measured:
+- ~300 more members per pass at four seats;
+- layer frames ×7.4–8.7 and engine time ×3.0–3.4;
+- **floor 1 back at 4,640–6,810 decisions per second on one thread**;
+- a clone at ~10 µs, floor 2's bound.
 
-Recommendation: channel-level, with value-level named as the next lever if the
-audit (decision 6) or a reading shows the guard tripping.
+A trip never costs more than `main`. What it costs is the lever, on that board.
+
+**Q1 for the owner: how fine the guard's check should be.** Both options are
+exact, and they differ in which printed boards trip. How often those boards
+occur is estimated from EDHREC's deck counts (card pages, fetched 2026-09-25).
+The estimate treats a game as four independent decks, each including a card at
+its share of all decks, and ignores whether both cards reach the battlefield
+together. Tribal and artifact decks run these cards together, so the
+within-deck share is higher than independence gives.
+
+- **Channel-level.** ~30 lines, reusing `writes_of` and `filter_reads`
+  unchanged, so the guard is literally "would the pass's static check send this
+  pair to a hypothetical".
+  - **It trips** on Biotransference or Encroaching Mycosynth beside Arcane
+    Adaptation, Conspiracy, Dune Chanter, Leyline of Transformation, Maskwood
+    Nexus, Roshan, Rukarumel or each other. It trips across seats too, though
+    two "you own" rows under different players share no card: the check is per
+    zone.
+  - **Frequency:** such a pair is in about **0.5% of four-player games**' decks:
+    a writer in 3.1% of games, a reader in 16%. Maskwood Nexus alone, at 2.6%
+    of all decks, is 10 of the 16 points.
+- **Value-level.** A write's value against the leaves the filter tests:
+  `AddType(Artifact)` can flip `ByType(Artifact)` and nothing else. ~70 lines.
+  - **The cost is a second table over `ObjectFilter` and `EffectModification`**
+    that only the guard reads. Exhaustive, with "may change" for every pair it
+    cannot rule out, so a missed case costs a trip rather than an answer. The
+    first cut of this section said a missed arm would give a wrong order,
+    which is true only of a table written the other way round. Decision 6's
+    audit checks either option on every test board.
+  - **It trips** only on Biotransference beside Encroaching Mycosynth, whose
+    "nonland permanent card" filter tests Artifact among the permanent types,
+    although the cards Biotransference writes already pass it.
+  - **Frequency:** about **0.02% of games** by the same estimate.
+
+Recommendation: channel-level. A trip is never worse than `main`, happens in
+about one game in two hundred, and buys correctness only for custom cards.
+Value-level is the next lever if a reading ever shows trips mattering.
 
 **5. Item 182 rides.** The cast-timing check at `put_on_stack.rs:673` and
 `oracle/mana_helpers.rs:331` asks one wrapper in `oracle/characteristics.rs`:
@@ -2899,15 +2970,15 @@ could ignore.
 | the debug audit (decision 6) | `compute.rs` | ~30 |
 | `WalkKind::Replayed` | `trace_records.rs` | ~5 |
 | item 182: the wrapper and its two sites | `oracle/characteristics.rs`, `put_on_stack.rs`, `oracle/mana_helpers.rs` | ~35 |
-| Fixtures: Titania's Song's first sentence, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~130 |
-| Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~380 |
+| Fixtures: Titania's Song's first sentence, Grist's first ability on its printed frame, Arcane Adaptation's clause, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~190 |
+| Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~460 |
 | `zone_reach_cost_test` table 4: members split public / left out | `tests/` | ~25 |
 | Docs: item 181 closed and archived with 182, §3.1's floor 1 standing, this section's stub and eviction, a `fuzz-record.md` block, A6b, `state-of-play.md` | `plans/` | ~250 |
 
-**~900 lines of code and tests, ~1,150 with docs.** Item 181 sized ~500 with
-tests. The difference is decision 4's guard, decision 6's audit, item 182, and
-the tests those three owe. That is below `engineering-practices.md` §4's band,
-so one PR.
+**~1,050 lines of code and tests, ~1,300 with docs.** Item 181 sized ~500 with
+tests. The difference is decision 4's guard, decision 6's audit, item 182,
+decision 2's `SourceOnly` half with Grist, and the tests those owe. That is
+below `engineering-practices.md` §4's band, so one PR.
 
 ### Tests
 
@@ -2920,8 +2991,17 @@ so one PR.
   player 1's creature cards in hand have flash and player 0's do not. A replay
   that read the row's registering controller would answer the reverse.
 - **A hidden source joins the pass.** The hand-functioning Wonder in hand
-  grants flying, and beside Hollow Hands it does not. With Q2, a Grist shape is
-  a creature in a graveyard, a hand and a library.
+  grants flying, and beside Hollow Hands it does not.
+- **Grist, by its rulings** (the owner's choice of card, 2026-09-25):
+  - a 1/1 Insect creature card in a hand, a library, a graveyard, exile and
+    the command zone, and a creature spell on the stack; on the battlefield a
+    planeswalker and nothing else;
+  - cast under Thalia, Guardian of Thraben through `cast_spell`, it costs
+    {1}{B}{G} with exact mana, because on the stack it is a creature spell (on
+    `main` the cast needs {2}{B}{G});
+  - in a hand beside Arcane Adaptation's clause (Elf), Grist the younger, it is
+    an Insect Elf: CR 613.8 decided through a card in a hand;
+  - in a hand under Teferi's clause, it has flash.
 - **`seed` and `membership` agree on every zone** (unit). On a board with an
   object in every zone, under no row, Lattice's clause, a guard trip, a hidden
   static source and a `Fixed`-named hidden card: every object is in the seed's
@@ -2959,9 +3039,10 @@ decisions per second. The range allows for the replays item 182 adds, since
 every hand card the timing check asks about is now read.
 
 **`close_out.py`, both pools, two seats and four:** every gameplay row and every
-cost row `IDENTICAL`, since no pooled row reaches a hidden zone and no pooled
-static row has a source in one. Instructions per decision: **+0.1% to +0.4%**,
-from item 182's gate. Any cost row that moves is a finding.
+cost row `IDENTICAL`. No pooled row reaches a hidden zone, no pooled static row
+has a source in one, and none is `SourceOnly` off the battlefield. Instructions
+per decision: **+0.1% to +0.4%**, from item 182's gate and the seed's `seen`
+probes. Any cost row that moves is a finding.
 
 ---
 
