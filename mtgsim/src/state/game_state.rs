@@ -523,12 +523,6 @@ pub struct GameState {
     /// restored by `execute_batch_inner` with `entry_selection`.
     pub(crate) prevention_allocations: PreventionAllocationScope,
 
-    /// Each lifelink source's damage in the batch being performed, gained as
-    /// one event per source once the batch's members have all performed (CR
-    /// 702.15e). Saved and restored by `execute_batch_inner` around its
-    /// performances, so a nested batch keeps its own.
-    pub(crate) lifelink_gains: Vec<crate::engine::keywords::LifelinkGain>,
-
     /// How deep inside itself the engine is right now, on three axes
     /// ([`NestingGuards`]).
     pub(crate) nesting: NestingGuards,
@@ -878,7 +872,6 @@ impl GameState {
             nesting: NestingGuards::default(),
             rider_lineage: None,
             prevention_allocations: PreventionAllocationScope::default(),
-            lifelink_gains: Vec::new(),
             next_zone_change_epoch: 1,
             last_sba_check_epoch: 1,
             pending_triggers: Vec::new(),

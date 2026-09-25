@@ -34,10 +34,8 @@ pub fn apply_deathtouch_flag(
     }
 }
 
-/// Apply lifelink: controller gains life equal to damage dealt.
-///
-/// One lifelink source's damage in the batch being performed: who gains, and
-/// how much so far (CR 702.15e).
+/// One lifelink source's damage in a batch: who gains, and how much (CR
+/// 702.15e).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LifelinkGain {
     pub source: ObjectId,
@@ -45,28 +43,25 @@ pub struct LifelinkGain {
     pub amount: u64,
 }
 
-/// Record `amount` of damage `source` just dealt, if it has lifelink, for the
-/// gain its batch makes once every member has performed. CR 702.15b / 120.3f:
-/// lifelink's gain is one of the damage's results, part of the same event (CR
-/// 120.4c–d), so the batch proposes it before it closes. CR 702.15e: sources
-/// dealing damage at the same time cause separate life-gain events, so one
-/// source's damage to several recipients at once is one (Nykthos Paragon's
-/// sixth ruling). Multiple instances are redundant (CR 702.15f). The
-/// controller is read now, as the damage is dealt, so a stolen lifelinker
-/// gains for the thief.
-///
-/// The gain is **proposed** by the batch, not written, so a CR 614 watcher
-/// (Tainted Remedy) sees lifelink.
-pub fn note_lifelink(game: &mut GameState, source: ObjectId, amount: u64) {
+/// Add `amount` of damage `source` has just dealt to `gains`, if it has
+/// lifelink. CR 702.15b / 120.3f: the gain is one of the damage's results.
+/// CR 702.15e: sources dealing damage at the same time cause separate
+/// life-gain events, so one source's damage to several recipients at once
+/// sums into one gain (Nykthos Paragon's sixth ruling). Multiple instances are
+/// redundant (CR 702.15f). Who gains is read as the damage is dealt: the
+/// source's controller, or its owner if it has none.
+pub fn add_lifelink_gain(game: &GameState, gains: &mut Vec<LifelinkGain>, source: ObjectId, amount: u64) {
     if !has_keyword(game, source, KeywordFlag::Lifelink) {
         return;
     }
-    let Some(player) = crate::oracle::characteristics::get_effective_controller(game, source) else {
+    let Some(player) = crate::oracle::characteristics::get_effective_controller(game, source)
+        .or_else(|| game.objects.get(&source).map(|obj| obj.owner))
+    else {
         return;
     };
-    match game.lifelink_gains.iter_mut().find(|gain| gain.source == source) {
+    match gains.iter_mut().find(|gain| gain.source == source) {
         Some(gain) => gain.amount += amount,
-        None => game.lifelink_gains.push(LifelinkGain { source, player, amount }),
+        None => gains.push(LifelinkGain { source, player, amount }),
     }
 }
 

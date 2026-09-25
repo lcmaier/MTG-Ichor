@@ -551,12 +551,11 @@ impl EventLog {
     /// Open a batch, returning the stamp to hand back to [`Self::close_batch`].
     ///
     /// **A nested call joins the enclosing batch rather than opening a new
-    /// one.** CR 120.3f and 120.4 are why it has to: lifelink's life gain is one
-    /// of the damage's *results*, CR 120.4c processes the results, and CR 120.4d
-    /// then lets the one damage event occur. Lifelink proposes from inside
-    /// `perform_action(DealDamage)`, so a second batch id would split one event
-    /// into two. The same shape generalizes to CR 120.3's results-of-damage
-    /// decomposition.
+    /// one.** CR 120.3 and 120.4 are why it has to: a damage event's results
+    /// (the life loss, the counters, lifelink's gain) are processed as part of
+    /// that one event (CR 120.4c) before it occurs (CR 120.4d). They are
+    /// proposed from inside the damage's batch, so a second batch id would
+    /// split one event into two.
     ///
     /// `resolution` is not inherited the same way — it comes from the proposing
     /// `ActionContext` every time, because the honest answer to "which

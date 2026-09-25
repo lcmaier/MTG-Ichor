@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::engine::keywords::{apply_deathtouch_flag, note_lifelink};
+use crate::engine::keywords::{add_lifelink_gain, apply_deathtouch_flag};
 use crate::engine::replacement::ReplacementInstanceId;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::engine::resolve::ResolutionContext;
@@ -971,19 +971,22 @@ impl GameState {
         });
         let mut performed = Vec::with_capacity(decided.len());
         let mut performed_ok = Ok(());
-        // Each lifelink source's damage across this batch's members, gained once
-        // they have all performed: one event per source (CR 702.15e), inside the
-        // damage's batch (CR 120.4c). A nested batch keeps its own.
-        let outer_lifelink = std::mem::take(&mut self.lifelink_gains);
+        // Lifelink's gain is a result of this batch's damage (CR 120.3f), one
+        // event per source across its members (CR 702.15e), proposed once they
+        // have all performed and inside the batch (CR 120.4c). A nested batch or
+        // a rider performs its own members and gains for its own damage.
+        let mut gains = Vec::new();
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
             if let Err(e) = self.perform_action(action.clone(), ctx, &applied_to[i]) {
                 performed_ok = Err(e);
                 break;
             }
+            if let GameAction::DealDamage { source, amount, .. } = &action {
+                add_lifelink_gain(self, &mut gains, *source, *amount);
+            }
             performed.push(action);
         }
-        let gains = std::mem::replace(&mut self.lifelink_gains, outer_lifelink);
         if performed_ok.is_ok() {
             for gain in gains {
                 if let Err(e) = self.execute_action(
@@ -1192,8 +1195,6 @@ impl GameState {
                 }
 
                 apply_deathtouch_flag(self, source, &target);
-                // The gain is the batch's, once every member has performed (CR 702.15e).
-                note_lifelink(self, source, amount);
 
                 // CR 903.10a — if a commander deals combat damage to a
                 // player, accumulate it per-commander on the damaged player.
