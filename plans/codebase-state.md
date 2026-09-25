@@ -8508,31 +8508,43 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      brief.
 
      **Sized:** four levers, each read off the measurement:
-     - **Walk a card off the battlefield only when something reads it. This is
-       the lever.**
-       - The seed stops appending zone members, and the look-ahead's boards stop
-         with it.
-       - `membership` answers a reached card with a walk of its own, which
-         applies the rows reaching its zone.
-       - `frame_of` routes a CDA's or a condition's read of that card there, as
-         it routes a non-member's. Tarmogoyf reading graveyards is why "never
-         walked" is not the answer.
-       - Reads are 0.2% of today's seeded frames, so this removes almost all of
-         the extra.
+     - **Walk a card in a hidden zone, a library or a hand, only when something
+       reads it. This is the lever.** It was scoped to the hidden zones at the
+       owner's review.
+       - Those two zones hold 93.4% of the objects off the battlefield: 88.9% in
+         libraries and 4.5% in hands, per prompt over the 23 games. Nothing
+         displays them but the viewer's own hand.
+       - **The public zones stay in the pass, because sources live there.**
+         Seven printed statics function from a graveyard (Wonder, Anger, Brawn,
+         Filth, Valor, Riftstone Portal, Retriever Phoenix). None functions
+         from a hand or a library (Scryfall, three phrasings).
+       - A source has to be in the pass for CR 613.8. Yixlid Jailer's strip and
+         Wonder's grant both apply in layer 6, and Wonder's depends on the
+         Jailer's. So a Wonder walked alone would keep its ability.
+       - A hidden card that is a row's source (CR 113.6b allows one) joins the
+         pass the way a `Fixed`-named object does.
+       - The seed stops appending hidden members, and the look-ahead's boards
+         stop with it. `membership` and `frame_of` answer a hidden card with a
+         walk of its own that applies the rows reaching its zone.
+       - **That walk must see each row as the pass saw it at the row's layer,
+         not the memo's settled frames.** Under Titania's Song, Mycosynth
+         Lattice's colorless line applies at layer 5, though by the end of
+         layer 6 Lattice has lost its abilities. So the pass keeps, per epoch,
+         each such row's decision at its layer: whether it exists, and who
+         "you" is. The hidden card's walk replays that decision against its
+         own frame.
+       - This is not §12's per-object dirty tracking. That was deferred for
+         the battlefield, where every permanent is read anyway (by a GUI, or an
+         observation) and CR 613.8 needs all of them in one pass. Neither
+         reason holds for a library.
+       - Reads are 0.2% of today's seeded frames. The public zones keep about
+         7% of the extra, about 8 µs per decision on `performance`.
        - One layers PR, ~500 lines with its tests.
-       - The design question is what that walk reads of the battlefield: the
-         memo's settled frames, where the pass reads live ones for CR 604.2's
-         existence check and CR 613.6's locked set. This is the question
-         §13b's table already answers for non-members.
      - **A seed that honors the row's owner.** Ownership is the one leaf no
-       layer changes (CR 108.3). So a zone whose every row says "you own" need
-       only seed that seat's cards. The "you" is the source's controller after
-       layer 2, so those members would join the pass there.
-       - On 11 of the thirteen this cuts the extra to about a quarter, and it
-         does nothing for Lattice's or Painter's Servant's.
+       layer changes (CR 108.3), so a zone whose every row says "you own" need
+       only seed that seat's cards.
+       - Once the lever lands, this would narrow only the public zones.
        - ~60 lines.
-       - A type leaf cannot be honored this way: Conspiracy's family changes
-         creature types in the same zones.
      - **A cheaper frame**: the five `HashSet`s as bitsets, and the name and
        mana cost shared.
        - It saves part of the 61–67% share, and today's battlefield passes gain
