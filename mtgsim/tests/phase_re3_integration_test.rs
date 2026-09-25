@@ -73,7 +73,7 @@ fn gain_life(game: &mut GameState, player: PlayerId, n: u64, dp: &dyn DecisionPr
 
 /// Every `LifeChanged` this game has recorded for `player`, as `(old, new)`.
 fn life_changes(game: &GameState, player: PlayerId) -> Vec<(i64, i64)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::LifeChanged { player_id, old, new, .. } if *player_id == player => {
@@ -597,7 +597,7 @@ fn the_full_damage_is_still_dealt_and_only_the_loss_is_clamped() {
     bolt_player(&mut game, source, 0, 10);
 
     let dealt: Vec<u64> = game
-        .events
+        .recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::DamageDealt { amount, .. } => Some(*amount),

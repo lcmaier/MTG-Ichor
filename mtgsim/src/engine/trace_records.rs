@@ -227,7 +227,7 @@ pub(crate) fn pending(
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.id.raw());
     r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
-    let records: Vec<u64> = entry.binding.records.iter().map(|s| s.0 as u64).collect();
+    let records: Vec<u64> = entry.binding.records.iter().map(|r| r.seq.0 as u64).collect();
     r.field_u64s("records", &records);
     r.field_opt_u64("object", object.map(|id| id.raw()));
     r.field_opt_str("refused_by", refused_by);

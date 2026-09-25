@@ -494,6 +494,7 @@ mod tests {
 
     fn setup_with_forest() -> (GameState, crate::types::ids::ObjectId) {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let forest = CardDataBuilder::new("Forest")
             .card_type(CardType::Land)
             .supertype(Supertype::Basic)
@@ -567,7 +568,7 @@ mod tests {
     #[test]
     fn test_paying_life_is_a_life_loss() {
         let (mut game, forest_id) = setup_with_forest();
-        let before = game.events.len();
+        let before = game.recorded_events().len();
 
         plan_and_pay(&mut game, &[Cost::PayLife(3)], 0, forest_id, &test_ctx()).unwrap();
 
@@ -575,7 +576,7 @@ mod tests {
         // silent subtraction — no event at all — so nothing watching life loss
         // could see it. Bloodletter of Aclazotz doubles paid life precisely
         // because it *is* a loss, and it can only do that if this is proposed.
-        let changes: Vec<(i64, i64)> = game.events.records_from(before).iter()
+        let changes: Vec<(i64, i64)> = game.recorded_events().records_from(before).iter()
             .filter_map(|r| match &r.event {
                 crate::events::event::GameEvent::LifeChanged { player_id: 0, old, new, .. }
                     => Some((*old, *new)),
@@ -812,16 +813,17 @@ mod tests {
         // through a single `execute_actions` batch, so a "whenever one or
         // more creatures die" trigger will see one event and not two.
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let a = add_creature(&mut game, 0, "A");
         let b = add_creature(&mut game, 0, "B");
         let costs = [Cost::Sacrifice(creature_filter(), 2)];
-        let before = game.events.len();
+        let before = game.recorded_events().len();
 
         plan_and_pay(&mut game, &costs, 0, a, &test_ctx()).unwrap();
 
         assert!(!game.battlefield.contains_key(&a));
         assert!(!game.battlefield.contains_key(&b));
-        let batches: std::collections::HashSet<_> = game.events.records_from(before)
+        let batches: std::collections::HashSet<_> = game.recorded_events().records_from(before)
             .iter()
             .filter(|r| matches!(
                 r.event,

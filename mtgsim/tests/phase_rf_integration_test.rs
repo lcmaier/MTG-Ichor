@@ -39,7 +39,7 @@ fn zone_of(game: &GameState, id: ObjectId) -> Zone {
 /// How many times `player`'s library was shuffled — CR 701.24a's event, which
 /// is the only line a shuffle writes.
 fn shuffles(game: &GameState, player: PlayerId) -> usize {
-    game.events
+    game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::LibraryShuffled { player_id } if *player_id == player))
         .count()
@@ -90,7 +90,7 @@ fn test_a_colossus_milled_from_a_library_stays_in_it_and_the_library_is_shuffled
     stock(&mut game, 0);
     let colossus = put_in_library(&mut game, darksteel_colossus(), 0);
     assert_eq!(*game.players[0].library.last().unwrap(), colossus, "on top");
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.change_zone(colossus, Zone::Graveyard, ZoneChangeCause::Milled, &test_ctx())
         .unwrap();
@@ -101,7 +101,7 @@ fn test_a_colossus_milled_from_a_library_stays_in_it_and_the_library_is_shuffled
     assert_eq!(shuffles(&game, 0), 1);
     assert!(
         !game
-            .events
+            .recorded_events()
             .records_from(before)
             .iter()
             .any(|r| matches!(r.event, GameEvent::ZoneChange { .. })),
@@ -124,7 +124,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
     let above = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
     // Where the milling spell would be as it resolves.
     let source = put_in_graveyard(&mut game, vanilla_creature(1, 1, &[]), 0);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     let ctx = ResolutionContext {
         source,
@@ -150,7 +150,7 @@ fn test_a_mill_is_one_event_and_the_colossus_replaces_only_its_own_member() {
     assert_eq!(game.players[0].library, vec![colossus], "its own member was replaced");
     assert_eq!(shuffles(&game, 0), 1);
     let order: Vec<&str> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {

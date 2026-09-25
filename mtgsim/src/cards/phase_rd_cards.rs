@@ -1382,7 +1382,7 @@ mod tests {
         let furnace = put_on_battlefield(&mut game, furnace_of_rath(), 0);
         deal(&mut game, &ids, 3);
         let dealt: Vec<_> = game
-            .events
+            .recorded_events()
             .events()
             .filter_map(|e| match e {
                 GameEvent::DamageDealt { source_id, amount, .. } => Some((*source_id, *amount)),
@@ -1422,7 +1422,7 @@ mod tests {
         deal(&mut game, &ids, 1);
         assert_eq!(marked(&game, &ids), 0);
         assert!(!game
-            .events
+            .recorded_events()
             .events()
             .any(|e| matches!(e, GameEvent::DamageDealt { .. })));
     }
@@ -1589,7 +1589,7 @@ mod tests {
     }
 
     fn damage_dealt(game: &GameState) -> usize {
-        game.events.events().filter(|e| matches!(e, GameEvent::DamageDealt { .. })).count()
+        game.recorded_events().events().filter(|e| matches!(e, GameEvent::DamageDealt { .. })).count()
     }
 
     // The plain shield: one row, on the player it targeted, counting four,
@@ -2039,7 +2039,7 @@ mod tests {
         bolt(&mut game, red_source, DamageTarget::Player(1), 3);
         assert_eq!(life(&game, 1), 15, "3 + 2");
         let dealt: Vec<_> = game
-            .events
+            .recorded_events()
             .events()
             .filter_map(|e| match e {
                 GameEvent::DamageDealt { source_id, amount, .. } => Some((*source_id, *amount)),
@@ -2188,13 +2188,13 @@ mod tests {
             ),
         );
 
-        let from = game.events.len();
+        let from = game.recorded_events().len();
         let dp = RecordingDecisionProvider::picking(0);
         let assignments = assign_combat_damage(&game, &dp, 1, false);
         game.apply_combat_damage(assignments, &ActionContext::new(&dp)).unwrap();
 
         let dealt: Vec<DamageTarget> = game
-            .events
+            .recorded_events()
             .records_from(from)
             .iter()
             .filter_map(|r| match &r.event {

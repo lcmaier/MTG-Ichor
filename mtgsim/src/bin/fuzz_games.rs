@@ -1130,6 +1130,9 @@ fn run_one_game(
         let mut config = GameConfig::test();
         config.starting_life = table.life;
         let mut game = Game::new(config, decks).expect("Failed to create game");
+        // The fixture rows are read off the whole stream at the game's end,
+        // and the engine keeps none of it (`codebase-state.md` item 42).
+        game.state.record_events();
         if audit {
             game.state.enable_dispatch_audit();
         }
@@ -1165,14 +1168,15 @@ fn run_one_game(
         }
         finish_trace(&game);
 
+        let recorded = game.state.recorded_events();
         Ok((
             game.result(),
             turns,
             if keep_event_log { Some(game.event_log_snapshot()) } else { None },
-            uncast_resolutions(game.state.events.events(), &game.state),
+            uncast_resolutions(recorded.events(), &game.state),
             {
                 let mut s = extract_stats(
-                    game.state.events.records().iter(),
+                    recorded.records().iter(),
                     &game.state,
                     require_names,
                     &required_colors,

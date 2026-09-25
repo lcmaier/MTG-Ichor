@@ -501,7 +501,7 @@ impl GameState {
         };
         self.trace(|| {
             let mut r = Record::new("event");
-            r.field_u64("index", self.events.len() as u64);
+            r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
             r.field_opt_u64("resolution", stamp.resolution.map(|s| s.source.raw()));
             r.field_str("text", &crate::ui::display::format_event(self, &event));

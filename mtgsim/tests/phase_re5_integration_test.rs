@@ -212,7 +212,7 @@ fn your_permanents_enter_with_a_charge_counter() -> Arc<CardData> {
 
 /// The signed counter changes in the log since `start`.
 fn counter_changes(game: &GameState, start: usize) -> Vec<(CounterSubject, CounterType, i32)> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -421,7 +421,7 @@ fn a_count_halved_to_zero_meets_the_performers_guard_not_never_happens() {
     put_on_battlefield(&mut game, fixture_halver(), 0);
     put_on_battlefield(&mut game, fixture_doubler_by(PlayerSet::Opponents), 0);
     let mine = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let dp = RecordingDecisionProvider::picking(0);
 
     let performed = game
@@ -474,7 +474,7 @@ fn an_entry_kind_halved_to_zero_leaves_the_mods() {
 #[test]
 fn a_player_gets_counters_through_the_same_event() {
     let mut game = setup_two_player_game();
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let effect = Effect::Atom(
         Primitive::GetCounters { counter: CounterType::Energy, amount: AmountExpr::Fixed(2), by: PlayerRef::You },
         EffectRecipient::Controller,
@@ -516,7 +516,7 @@ fn a_player_gets_counters_through_the_same_event() {
 fn a_player_removal_takes_as_much_as_it_can() {
     let mut game = setup_two_player_game();
     game.players[0].add_counters(CounterType::Energy, 3);
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let remove = |n: u32| GameAction::RemoveCounters {
         subject: CounterSubject::Player(0),
         counter: CounterType::Energy,

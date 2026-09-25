@@ -781,11 +781,11 @@ mod tests {
         game.activate_ability(0, thaum, idx, &decisions).unwrap();
         game.resolve_top_of_stack(&decisions).unwrap();
 
-        let activated: Vec<_> = game.events.events().filter_map(|e| match e {
+        let activated: Vec<_> = game.recorded_events().events().filter_map(|e| match e {
             GameEvent::AbilityActivated { identity, .. } => Some(*identity),
             _ => None,
         }).collect();
-        let resolved: Vec<_> = game.events.events().filter_map(|e| match e {
+        let resolved: Vec<_> = game.recorded_events().events().filter_map(|e| match e {
             GameEvent::AbilityResolved { identity, .. } => Some(*identity),
             _ => None,
         }).collect();

@@ -54,7 +54,7 @@ const APPLY_OPTIONAL: ChoiceKind = ChoiceKind::ApplyOptionalReplacement {
 
 /// Every zone change in the log, as `(object, from, to, cause)`.
 fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, .. } => {

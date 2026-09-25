@@ -407,9 +407,9 @@ impl GameState {
             // but its rider does (CR 614.6, 615.5), and Stunning Reversal's ruling
             // that a short library loses "immediately after" needs that to count, or
             // a priority window opens between the draw and the check that reads it.
-            let before = self.events.len();
+            let before = self.events.next_seq();
             self.execute_actions(batch, &actx)?;
-            any_performed |= self.events.len() > before;
+            any_performed |= self.events.next_seq() > before;
         }
 
         // 704.5n — an Equipment or Fortification attached to an illegal
@@ -700,6 +700,7 @@ mod tests {
     fn test_sba_token_ceases_to_exist_in_graveyard() {
         // Token in graveyard is removed from the game entirely
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let data = CardDataBuilder::new("Goblin Token")
             .card_type(CardType::Creature)
@@ -718,7 +719,7 @@ mod tests {
         assert!(!game.players[0].graveyard.contains(&id));
 
         // Should have emitted TokenCeasedToExist event
-        let has_event = game.events.events().any(|e| {
+        let has_event = game.recorded_events().events().any(|e| {
             matches!(e, crate::events::event::GameEvent::TokenCeasedToExist { object_id } if *object_id == id)
         });
         assert!(has_event);
@@ -738,6 +739,7 @@ mod tests {
         // reaches it whenever two of Kalitas's Zombies die in one combat.
         // Eight tokens make a chance match one run in 40,320.
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let tokens: Vec<crate::types::ids::ObjectId> = (0..8)
             .map(|_| {
@@ -765,7 +767,7 @@ mod tests {
         assert!(game.check_state_based_actions(&dp).unwrap());
 
         let ceased: Vec<crate::types::ids::ObjectId> = game
-            .events
+            .recorded_events()
             .events()
             .filter_map(|e| match e {
                 crate::events::event::GameEvent::TokenCeasedToExist { object_id } => {
@@ -849,7 +851,7 @@ mod tests {
         ZoneChangeCause,
         Option<crate::events::event::BatchId>,
     )> {
-        game.events
+        game.recorded_events()
             .records()
             .iter()
             .filter_map(|r| match &r.event {
@@ -866,6 +868,7 @@ mod tests {
     fn test_lethal_damage_deaths_are_one_event() {
         // The atom's board: a 2/2 with 2 damage and a 1/1 with 1 damage.
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let big = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
         let small = crate::test_support::place_vanilla_creature(&mut game, 0, 1, 1, &[]);
         game.battlefield.get_mut(&big).unwrap().damage_marked = 2;
@@ -894,6 +897,7 @@ mod tests {
         // sweeps — perform 704.5g, then look — skips the prompt entirely and
         // silently lets the survivor live.
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let (doomed, healthy) = two_isamarus(&mut game);
         game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
 
@@ -937,6 +941,7 @@ mod tests {
         // collapsed to the first in CR order
         // (`tests/phase_re6_integration_test.rs`, ATOM-704.7-001).
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let (doomed, healthy) = two_isamarus(&mut game);
         game.battlefield.get_mut(&doomed).unwrap().damage_marked = 2;
 
@@ -965,6 +970,7 @@ mod tests {
     #[test]
     fn test_one_check_announces_one_state_based_action_performed() {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let a = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
         let b = crate::test_support::place_vanilla_creature(&mut game, 0, 2, 2, &[]);
         game.battlefield.get_mut(&a).unwrap().damage_marked = 2;
@@ -973,7 +979,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         assert!(game.check_state_based_actions(&dp).unwrap());
 
-        let announced = game.events.events()
+        let announced = game.recorded_events().events()
             .filter(|e| matches!(e, crate::events::event::GameEvent::StateBasedActionPerformed))
             .count();
         assert_eq!(announced, 1, "CR 704.3 performs one event per check");
@@ -1276,6 +1282,7 @@ mod tests {
     fn test_sba_unattached_aura_dies() {
         // 704.5m — An Aura on the battlefield not attached to anything goes to graveyard.
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let aura_data = CardDataBuilder::new("Pacifism")
             .card_type(CardType::Enchantment)
@@ -1295,7 +1302,7 @@ mod tests {
         // Verify the move was recorded, and recorded as 704.5m's doing. There
         // is no `AuraDied` — the zone change plus its cause says more than it
         // did, including where the Aura went.
-        let has_event = game.events.events().any(|e| {
+        let has_event = game.recorded_events().events().any(|e| {
             matches!(
                 e,
                 crate::events::event::GameEvent::ZoneChange {
@@ -1356,6 +1363,7 @@ mod tests {
     fn test_sba_equipment_on_noncreature_unattaches() {
         // 704.5p — Equipment attached to a non-creature unattaches but stays on battlefield.
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         // Create a non-creature permanent (a land)
         let land_data = CardDataBuilder::new("Forest")
@@ -1388,7 +1396,7 @@ mod tests {
         assert!(game.battlefield.get(&land_id).unwrap().attached_by.is_empty());
 
         // Verify EquipmentDetached event
-        let has_event = game.events.events().any(|e| {
+        let has_event = game.recorded_events().events().any(|e| {
             matches!(e, crate::events::event::GameEvent::EquipmentDetached { equipment_id, former_host }
                 if *equipment_id == equip_id && *former_host == land_id)
         });
@@ -1524,6 +1532,7 @@ mod tests {
     fn test_sba_poison_10_loses() {
         // 704.5c — A player with 10 or more poison counters loses the game.
         let mut game = GameState::new(2, 20);
+        game.record_events();
         game.players[0].add_counters(crate::types::effects::CounterType::Poison, 10);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1532,7 +1541,7 @@ mod tests {
         assert!(!game.player_lost[1]);
 
         // Verify correct LossReason
-        let has_event = game.events.events().any(|e| {
+        let has_event = game.recorded_events().events().any(|e| {
             matches!(e, crate::events::event::GameEvent::PlayerLost {
                 player_id: 0,
                 reason: crate::events::event::LossReason::PoisonCounters,
@@ -1558,6 +1567,7 @@ mod tests {
     fn test_sba_commander_damage_21_loses() {
         // Commander variant: 21+ combat damage from a single commander → lose.
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         // Create a fake commander object ID
         let commander_id = crate::types::ids::new_object_id();
@@ -1567,7 +1577,7 @@ mod tests {
         assert!(performed);
         assert!(game.player_lost[1]);
 
-        let has_event = game.events.events().any(|e| {
+        let has_event = game.recorded_events().events().any(|e| {
             matches!(e, crate::events::event::GameEvent::PlayerLost {
                 player_id: 1,
                 reason: crate::events::event::LossReason::CommanderDamage,

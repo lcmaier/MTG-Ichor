@@ -305,7 +305,9 @@ impl Board {
 
     fn new_game(&self) -> Game {
         let deck = build_deck(&self.registry, self.deck_size);
-        Game::new(self.config(), vec![deck; self.players]).expect("game creation")
+        let mut game = Game::new(self.config(), vec![deck; self.players]).expect("game creation");
+        game.state.record_events();
+        game
     }
 }
 

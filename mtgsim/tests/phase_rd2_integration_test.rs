@@ -135,7 +135,7 @@ fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32
 
 /// `(source, amount)` of every damage dealt since `from`.
 fn damage_since(game: &GameState, from: usize) -> Vec<(ObjectId, u64)> {
-    game.events
+    game.recorded_events()
         .events()
         .skip(from)
         .filter_map(|e| match e {
@@ -267,13 +267,13 @@ fn a_rider_on_a_group_reads_the_members_amounts_summed() {
     put_on_battlefield(&mut game, angel_of_suffering(), 1);
     fill_library(&mut game, 1, 20);
     attackers_into(&mut game, &[2, 3]);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.process_combat_damage(&test_dp(), false).unwrap();
 
     assert_eq!(life(&game, 1), 20, "both prevented");
     let mills: Vec<Option<BatchId>> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter(|r| matches!(
@@ -308,7 +308,7 @@ fn a_static_prevent_one_reduces_each_simultaneous_source_separately_guardian_ser
         .affecting_players(PlayerSet::You),
     );
     let attackers = attackers_into(&mut game, &[2, 4]);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.process_combat_damage(&test_dp(), false).unwrap();
 
@@ -387,7 +387,7 @@ fn two_attackers_into_a_shielded_player_prompt_one_allocation_and_any_answer_pre
         bolt(&mut game, pinger, DamageTarget::Player(1), 1);
         assert_eq!(counts(&game), vec![3]);
         let attackers = attackers_into(&mut game, &[2, 4]);
-        let before = game.events.len();
+        let before = game.recorded_events().len();
 
         let dp = ScriptedDecisionProvider::new();
         // Buckets are the sources in batch order; the total is min(3, 6) = 3.
@@ -541,7 +541,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
         trigger: None,
     };
     game.resolve_effect(&effect, &ctx, &test_dp()).unwrap();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt(&mut game, source, DamageTarget::Player(1), 5);
 
@@ -550,7 +550,7 @@ fn a_fixture_rider_reads_the_prevented_amount_until_reverse_damage_lands_in_rd_3
     // Prevention first, the rest immediately afterward: the damage is dealt
     // and its life loss taken before the gain.
     let order: Vec<String> = game
-        .events
+        .recorded_events()
         .events()
         .skip(before)
         .filter_map(|e| match e {
@@ -591,13 +591,13 @@ fn a_once_prevention_that_prevents_nothing_is_not_used_up_dark_sphere_is_rd_3s()
             EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
         )),
     );
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt(&mut game, source, DamageTarget::Player(1), 1);
     assert_eq!(life(&game, 1), 19, "half of 1 rounded down is 0");
     assert_eq!(game.replacement_effects.len(), 1, "chosen, did nothing, not used up");
     let gains = game
-        .events
+        .recorded_events()
         .events()
         .skip(before)
         .filter(|e| matches!(e, GameEvent::LifeChanged { old, new, .. } if new > old))
@@ -621,12 +621,12 @@ fn prevented_damage_never_happens_and_the_trigger_half_is_item_6s() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 1);
     resolve_spell(&mut game, safe_passage(), 0, Vec::new());
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt(&mut game, source, DamageTarget::Player(0), 3);
 
     assert_eq!(life(&game, 0), 20);
-    assert_eq!(game.events.len(), before, "nothing was announced");
+    assert_eq!(game.recorded_events().len(), before, "nothing was announced");
 }
 
 /// > 615.11 Some effects create a prevention shield for each applicable

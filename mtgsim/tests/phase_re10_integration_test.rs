@@ -101,7 +101,7 @@ fn resolve_spell(
 /// turn's last one belongs to the next turn — so a raw range carries one phase
 /// too many. Cut at the `TurnBegin`.
 fn phases_begun_this_turn(game: &GameState, mark: usize) -> Vec<PhaseType> {
-    game.events
+    game.recorded_events()
         .records_from(mark)
         .iter()
         .take_while(|r| !matches!(r.event, GameEvent::TurnBegin { .. }))
@@ -170,7 +170,7 @@ fn two_extra_phases_are_spliced_directly_after_the_phase_that_made_them() {
     );
 
     // And the turn walks them: two combats and two postcombat mains.
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     positions_to_end_of_turn(&mut game, &test_dp());
     assert_eq!(
         phases_begun_this_turn(&game, mark),
@@ -222,7 +222,7 @@ fn a_second_activation_puts_its_phases_ahead_of_the_firsts() {
         "the second splice went in ahead of the first, not after it"
     );
 
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     positions_to_end_of_turn(&mut game, &test_dp());
     assert_eq!(
         phases_begun_this_turn(&game, mark)
@@ -247,7 +247,7 @@ fn extra_phases_do_not_survive_into_the_next_turn() {
         5,
         "the next turn is CR 500.1's five phases again"
     );
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     positions_to_end_of_turn(&mut game, &test_dp());
     assert_eq!(
         phases_begun_this_turn(&game, mark)
@@ -374,7 +374,7 @@ fn untap_all_creatures_you_control_is_one_batch_and_spares_the_opponents() {
         game.battlefield.get_mut(&id).unwrap().tapped = true;
     }
 
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     activate_assault(&mut game, 0);
 
     assert!(!game.battlefield[&mine_a].tapped);
@@ -385,7 +385,7 @@ fn untap_all_creatures_you_control_is_one_batch_and_spares_the_opponents() {
     );
 
     let batches: Vec<_> = game
-        .events
+        .recorded_events()
         .records_from(mark)
         .iter()
         .filter(|r| matches!(r.event, GameEvent::Untapped { .. }))
@@ -424,7 +424,7 @@ fn moment_of_silence_skips_only_the_next_of_two_combat_phases() {
         "the extra combat phase and the natural one"
     );
 
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     positions_to_end_of_turn(&mut game, &test_dp());
     assert_eq!(
         phases_begun_this_turn(&game, mark)
@@ -473,7 +473,7 @@ fn a_skip_cast_during_a_combat_phase_is_spent_on_the_next_one() {
     // Cast inside it. CR 614.10's last sentence: the phase has started, so
     // this row watches nothing here.
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     while game.phase.phase_type == PhaseType::Combat {
         game.advance_turn(&ctx).expect("advancing");
     }
@@ -511,7 +511,7 @@ fn an_extra_phase_belongs_to_the_turn_that_made_it_on_a_four_player_table() {
     assert_eq!(game.turn_plan.phases.len(), 7);
 
     // Player 0's turn has the extra pair.
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     positions_to_end_of_turn(&mut game, &test_dp());
     assert_eq!(
         phases_begun_this_turn(&game, mark)
@@ -525,7 +525,7 @@ fn an_extra_phase_belongs_to_the_turn_that_made_it_on_a_four_player_table() {
     // is still on the battlefield throughout — the plan is per turn, not per
     // permanent.
     for _ in 0..3 {
-        let mark = game.events.len();
+        let mark = game.recorded_events().len();
         assert_eq!(game.turn_plan.phases.len(), 5);
         positions_to_end_of_turn(&mut game, &test_dp());
         assert_eq!(
@@ -554,7 +554,7 @@ fn the_seam_moves_the_cursor_with_the_position() {
     assert_eq!(game.phase.phase_type, PhaseType::Combat);
 
     // And the drainer advances from there rather than from turn 1's beginning.
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     game.advance_turn(&test_ctx()).expect("advancing");
     assert_eq!(
         phases_begun_this_turn(&game, mark),

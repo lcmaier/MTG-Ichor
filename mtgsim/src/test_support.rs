@@ -55,7 +55,8 @@ use crate::state::trace::{TraceHandle, TraceSink};
 // Game setup
 // ---------------------------------------------------------------------------
 
-/// Create a minimal two-player game in precombat main phase with player 0 active.
+/// Create a minimal two-player game in precombat main phase with player 0 active,
+/// recording its events (`GameState::record_events`).
 pub fn setup_two_player_game() -> GameState {
     setup_game(2)
 }
@@ -70,6 +71,7 @@ pub fn setup_game(num_players: usize) -> GameState {
     let mut game = GameState::new(num_players, 20);
     game.set_turn_position(Phase::new(PhaseType::Precombat));
     game.active_player = 0;
+    game.record_events();
     game
 }
 

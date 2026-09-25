@@ -49,7 +49,7 @@ use mtgsim::engine::targeting::{ChosenTargets};
 
 /// Every zone change in the log, as `(object, from, to, cause)`.
 fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
@@ -342,7 +342,7 @@ fn add_counters(game: &mut GameState, id: ObjectId, counter: CounterType, n: u32
 
 /// The signed counter deltas in the log, as `(object, counter, added)`.
 fn counter_changes(game: &GameState) -> Vec<(ObjectId, CounterType, i32)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::CountersChanged {
@@ -375,7 +375,7 @@ fn test_a_stun_counter_replaces_the_untap_with_removing_a_counter() {
     assert!(game.battlefield[&bear].tapped, "it did not untap");
     assert_eq!(game.battlefield[&bear].counter_count(CounterType::Stun), 1);
     assert!(
-        !game.events.events().any(|e| matches!(e, GameEvent::Untapped { .. })),
+        !game.recorded_events().events().any(|e| matches!(e, GameEvent::Untapped { .. })),
         "CR 614.6 — a replaced event never happens, so nothing announced an untap"
     );
     assert_eq!(
@@ -481,7 +481,7 @@ fn test_a_shield_counter_prevents_damage_and_the_rider_removes_a_counter() {
     assert_eq!(game.battlefield[&bear].damage_marked, 0, "prevented");
     assert_eq!(game.battlefield[&bear].counter_count(CounterType::Shield), 0);
     assert!(
-        !game.events.events().any(|e| matches!(e, GameEvent::DamageDealt { .. })),
+        !game.recorded_events().events().any(|e| matches!(e, GameEvent::DamageDealt { .. })),
         "CR 614.6 — the damage event never happened"
     );
 }
@@ -510,7 +510,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let bolt = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     add_counters(&mut game, bear, CounterType::Shield, 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.execute_action(
         GameAction::DealDamage {
@@ -531,7 +531,7 @@ fn test_zero_damage_is_not_an_event_a_prevention_effect_can_see() {
     );
     assert_eq!(game.battlefield[&bear].damage_marked, 0);
     assert_eq!(
-        game.events.len(),
+        game.recorded_events().len(),
         before,
         "CR 120.8 — 0 damage is not dealt at all, so nothing is announced"
     );
@@ -550,7 +550,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     let bear = place_bare(&mut game, vanilla_creature(2, 2, &[]), 0);
     let bolt = place_bare(&mut game, vanilla_creature(1, 1, &[]), 1);
     add_counters(&mut game, bear, CounterType::Shield, 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.execute_action(
         GameAction::DealDamage {
@@ -565,7 +565,7 @@ fn test_the_shield_rider_runs_after_the_event_it_rides_on() {
     .unwrap();
 
     let after: Vec<String> =
-        game.events.events().skip(before).map(|e| format!("{e:?}")).collect();
+        game.recorded_events().events().skip(before).map(|e| format!("{e:?}")).collect();
     assert_eq!(after.len(), 1, "one event: the rider's counter removal, got {after:?}");
     assert!(after[0].starts_with("CountersChanged"), "got {:?}", after[0]);
 }
@@ -1023,7 +1023,7 @@ fn test_every_permanent_the_active_player_controls_untaps_as_one_event() {
     assert!(game.battlefield[&theirs].tapped, "CR 502.1 untaps only the active player's");
 
     let batches: std::collections::HashSet<_> = game
-        .events
+        .recorded_events()
         .records()
         .iter()
         .filter(|r| matches!(r.event, GameEvent::Untapped { .. }))
@@ -1551,13 +1551,13 @@ fn test_the_kalitas_rider_runs_after_the_exile_it_rides_on() {
     let mut game = setup_two_player_game();
     let _kalitas = put_on_battlefield(&mut game, kalitas_traitor_of_ghet(), 0);
     let victim = place_bare(&mut game, vanilla_creature(2, 2, &[]), 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     game.change_zone(victim, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx())
         .unwrap();
 
     let kinds: Vec<&'static str> = game
-        .events
+        .recorded_events()
         .events()
         .skip(before)
         .map(|e| match e {
@@ -1746,7 +1746,7 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
         .unwrap();
     game.change_zone(second, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
         .unwrap();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     let dp = ScriptedDecisionProvider::new();
     dp.expect_pick_n(
@@ -1763,7 +1763,7 @@ fn test_two_commanders_offered_in_one_check_move_as_one_event() {
     assert_eq!(game.get_object(second).unwrap().zone, Zone::Command);
 
     let batches: Vec<_> = game
-        .events
+        .recorded_events()
         .records()
         .iter()
         .skip(before)
@@ -1829,7 +1829,7 @@ fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
         .unwrap();
     game.change_zone(left_behind, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx())
         .unwrap();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     // One owner, so CR 101.4's APNAP sort is a no-op between these two and the
     // stable sort leaves them in `moved_since`'s move order — `kept` died
@@ -1851,8 +1851,8 @@ fn test_partner_commanders_of_one_owner_are_two_separate_offers() {
 
     // And the one acceptance still travels as a member of CR 704.3's batch
     // rather than as its own event.
-    let moves: Vec<_> = game
-        .events
+    let recorded = game.recorded_events();
+    let moves: Vec<_> = recorded
         .records()
         .iter()
         .skip(before)

@@ -86,10 +86,10 @@ fn advance(game: &mut GameState, dp: &dyn DecisionProvider, steps: usize) {
 /// whatever it happened to skip.
 fn to_next_turn(game: &mut GameState, dp: &dyn DecisionProvider) -> (PlayerId, u32) {
     let ctx = ActionContext::new(dp);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     for _ in 0..200 {
         game.advance_turn(&ctx).expect("advancing");
-        if let Some(begun) = game.events.records_from(before).iter().find_map(|r| match &r.event {
+        if let Some(begun) = game.recorded_events().records_from(before).iter().find_map(|r| match &r.event {
             GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
             _ => None,
         }) {
@@ -106,7 +106,7 @@ fn next_turns(game: &mut GameState, dp: &dyn DecisionProvider, n: usize) -> Vec<
 
 /// Every turn that actually began, in order, as `(player, turn number)`.
 fn turns_begun(game: &GameState) -> Vec<(PlayerId, u32)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::TurnBegin { player, turn_number } => Some((*player, *turn_number)),
@@ -117,7 +117,7 @@ fn turns_begun(game: &GameState) -> Vec<(PlayerId, u32)> {
 
 /// Every step that actually began, in order.
 fn steps_begun(game: &GameState) -> Vec<StepType> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::StepBegin { step, .. } => Some(*step),
@@ -128,7 +128,7 @@ fn steps_begun(game: &GameState) -> Vec<StepType> {
 
 /// Every phase that actually began, in order.
 fn phases_begun(game: &GameState) -> Vec<PhaseType> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::PhaseBegin { phase, .. } => Some(*phase),
@@ -138,7 +138,7 @@ fn phases_begun(game: &GameState) -> Vec<PhaseType> {
 }
 
 fn cards_drawn(game: &GameState) -> usize {
-    game.events
+    game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::CardDrawn { .. }))
         .count()
@@ -339,7 +339,7 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
     put_on_battlefield(&mut game, yawgmoths_bargain(), 0);
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let hand_before = game.players[0].hand.len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
 
@@ -348,7 +348,8 @@ fn yawgmoths_bargain_skips_the_whole_draw_step_and_not_just_the_draw() {
     // one that did not happen announced nothing, so the turn goes straight
     // from the upkeep step to the precombat main phase.
     assert_eq!((phase, step), (PhaseType::Precombat, None));
-    let records = game.events.records_from(before);
+    let recorded = game.recorded_events();
+    let records = recorded.records_from(before);
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
@@ -372,12 +373,12 @@ fn eon_hub_takes_the_turn_from_the_untap_step_to_the_draw_step() {
     put_on_battlefield(&mut game, eon_hub(), 0);
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Untap) });
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
     assert_eq!((phase, step), (PhaseType::Beginning, Some(StepType::Draw)));
 
     let steps: Vec<StepType> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
@@ -397,14 +398,15 @@ fn eon_hub_skips_every_players_upkeep_on_a_four_player_table() {
     let mut game = at_the_turn_boundary(4);
     put_on_battlefield(&mut game, eon_hub(), 0);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     assert_eq!(
         next_turns(&mut game, &test_dp(), 4),
         vec![(1, 2), (2, 3), (3, 4), (0, 5)],
         "the rotation is untouched; only the upkeep steps are gone"
     );
 
-    let records = game.events.records_from(before);
+    let recorded = game.recorded_events();
+    let records = recorded.records_from(before);
     assert!(
         !records.iter().any(|r| matches!(
             r.event,
@@ -443,7 +445,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     // Yawgmoth's Bargain enters mid-draw-step. Its controller has already
     // drawn: the step is under way and is not un-started.
     put_on_battlefield(&mut game, yawgmoths_bargain(), 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
     assert_eq!(
         game.phase,
@@ -451,7 +453,7 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
         "the draw step ended the way it would have anyway"
     );
     assert!(
-        !game.events.records_from(before).iter().any(|r| matches!(
+        !game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
             GameEvent::StepBegin { step: StepType::Draw, .. }
         )),
@@ -463,13 +465,13 @@ fn a_skip_that_arrives_mid_step_waits_for_the_next_occurrence_of_it() {
     // it does not happen.
     to_next_turn(&mut game, &test_dp());
     assert_eq!(to_next_turn(&mut game, &test_dp()), (1, 4));
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let drawn_before = cards_drawn(&game);
     while game.phase.phase_type == PhaseType::Beginning {
         game.advance_turn(&ActionContext::new(&test_dp())).unwrap();
     }
     assert!(
-        !game.events.records_from(before).iter().any(|r| matches!(
+        !game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
             GameEvent::StepBegin { step: StepType::Draw, .. }
         )),
@@ -499,14 +501,14 @@ fn a_skip_created_during_the_combat_phase_meets_no_proposal_and_expires() {
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
     assert_eq!(game.replacement_effects.len(), 1);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     // Out of combat and through the ending phase's cleanup step.
     advance(&mut game, &test_dp(), 8);
 
     // The current combat phase is not retroactively ended: its remaining steps
     // all begin.
     let steps: Vec<StepType> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
@@ -533,11 +535,11 @@ fn a_skip_on_a_player_whose_turn_it_is_not_watches_nothing() {
     // Player 0 is the active player; the row is around player 1.
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(1)]);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
     assert_eq!((phase, step), (PhaseType::Combat, Some(StepType::BeginCombat)));
     assert!(
-        game.events.records_from(before).iter().any(|r| matches!(
+        game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
             GameEvent::PhaseBegin { phase: PhaseType::Combat, .. }
         )),
@@ -567,12 +569,13 @@ fn a_skipped_phase_proposes_none_of_its_steps() {
     game.set_turn_position(Phase { phase_type: PhaseType::Precombat, step: None });
     resolve_spell(&mut game, moment_of_silence(), 0, vec![ResolvedTarget::Player(0)]);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
 
     // Straight from the precombat main phase to the postcombat one.
     assert_eq!((phase, step), (PhaseType::Postcombat, None));
-    let records = game.events.records_from(before);
+    let recorded = game.recorded_events();
+    let records = recorded.records_from(before);
     assert!(
         !records.iter().any(|r| matches!(r.event, GameEvent::StepBegin { .. })),
         "the combat phase's six steps were never proposed"
@@ -633,7 +636,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
     put_on_battlefield(&mut game, trigger, 0);
     game.set_turn_position(Phase { phase_type: PhaseType::Beginning, step: Some(StepType::Upkeep) });
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
     assert_eq!(
         (phase, step),
@@ -641,7 +644,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
         "a triggered ability replaces nothing: the draw step begins"
     );
     assert_eq!(
-        game.events
+        game.recorded_events()
             .records_from(before)
             .iter()
             .filter(|r| matches!(r.event, GameEvent::CardDrawn { .. }))
@@ -745,10 +748,11 @@ fn an_ordinary_turn_announces_its_turn_its_five_phases_and_its_steps() {
 
     // One whole turn, cut at its own boundaries: everything the log records
     // between this turn beginning and the next one.
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     to_next_turn(&mut game, &test_dp());
     to_next_turn(&mut game, &test_dp());
-    let all = game.events.records_from(before);
+    let recorded = game.recorded_events();
+    let all = recorded.records_from(before);
     let records: Vec<_> = all
         .iter()
         .skip_while(|r| !matches!(r.event, GameEvent::TurnBegin { .. }))
@@ -808,7 +812,7 @@ fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
     game.set_turn_position(Phase { phase_type: PhaseType::Combat, step: Some(StepType::DeclareAttackers) });
     assert!(!game.attacks_declared);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     let (phase, step) = game.advance_turn(&test_ctx()).unwrap();
     assert_eq!((phase, step), (PhaseType::Combat, Some(StepType::EndCombat)));
     assert_eq!(
@@ -819,7 +823,7 @@ fn with_no_attackers_the_blocker_and_damage_steps_never_begin() {
 }
 
 fn steps_begun_from(game: &GameState, from: usize) -> Vec<StepType> {
-    game.events
+    game.recorded_events()
         .records_from(from)
         .iter()
         .filter_map(|r| match &r.event {
@@ -859,6 +863,7 @@ fn the_first_turn_and_its_untap_step_are_proposed() {
     let deck: Vec<Arc<CardData>> =
         (0..40).map(|_| mtgsim::cards::basic_lands::forest()).collect();
     let mut g = Game::new(GameConfig::standard(), vec![deck.clone(), deck]).unwrap();
+    g.state.record_events();
     g.reseed(7);
     g.setup(&test_dp()).unwrap();
 
@@ -890,6 +895,7 @@ fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
     let deck: Vec<Arc<CardData>> =
         (0..20).map(|_| mtgsim::cards::basic_lands::forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    g.state.record_events();
     let dp = RandomDecisionProvider::seeded(514);
     g.setup(&dp).unwrap();
     g.state.set_turn_position(Phase {
@@ -901,13 +907,13 @@ fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
     // cleanup step's own check — the case 514.3a describes.
     let doomed = place_bare(&mut g.state, vanilla_creature(0, 0, &[]), 0);
 
-    let before = g.state.events.len();
+    let before = g.state.recorded_events().len();
     g.run_turn(&dp).unwrap();
 
     assert_eq!(g.state.get_object(doomed).unwrap().zone, Zone::Graveyard);
     let cleanups = g
         .state
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup, .. }))

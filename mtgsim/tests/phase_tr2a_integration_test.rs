@@ -745,7 +745,7 @@ fn a_filtered_one_shot_reads_you_as_its_spell_resolves() {
 
 /// Who drew, in the order the log recorded it.
 fn draw_order(game: &GameState) -> Vec<PlayerId> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::CardDrawn { player_id, .. } => Some(*player_id),

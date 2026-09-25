@@ -357,21 +357,23 @@ creature's power". CR 608.2k says the reference survives characteristic
 changes; CR 603.6 says a zone-change trigger looks for the object in the
 zone it moved to and finds nothing if it left; CR 113.7a and 608.2h say
 information about an object that is gone is its last known information.
-The engine's answer is a struct that **points at the records and copies
-nothing they hold**, filled at dispatch and carried on the `PendingTrigger`
-and then the `StackEntry`. **Amended 2026-09-25:** the log leaves
-`GameState` in the bounded-state PR (`codebase-state.md` item 42), so that
-PR has the binding copy the facts it reads at dispatch instead:
+The engine's answer is a struct filled at dispatch and carried on the
+`PendingTrigger` and then the `StackEntry`. It was built to **point at the
+records and copy nothing they hold**. **As built in the bounded-state PR
+(2026-09-25; `codebase-state.md` item 42):** the log has left `GameState`, so
+the binding **copies the records it matched, whole**. A projection of the
+facts each reader needs would be a second schema for an event, with a second
+chance to drop a fact. The copy is cheap because a record's CR 603.10a frame
+is the layer memo's own `Arc`, which the same PR made it:
 
 ```rust
 pub struct TriggerBinding {
-    /// The records that matched: one for a `PerOccurrence` trigger, every
-    /// matching record of the window for a `OncePerEvent` one. By stable
-    /// id, never by `Vec` index — `EventSeq` is the log's monotonic
-    /// sequence number (today the index; the trace's `seq` already), and
-    /// `EventLog::record(seq)` is the read. Their `EventStamp` is what the
+    /// The records that matched, copied at dispatch: one for a
+    /// `PerOccurrence` trigger, every matching record of the window for a
+    /// `OncePerEvent` one. Each carries its `EventSeq`, the stream's
+    /// monotonic number and never an index, and its `EventStamp`, which the
     /// reflexive check and CR 603.7h's "this ability" read.
-    pub records: Vec<EventSeq>,
+    pub records: Vec<EventRecord>,
     /// Which of the condition's events matched — the `TriggerEvent` whose
     /// projections (below) say what "that object", "that player" and
     /// "that many" are for these records.
@@ -411,11 +413,11 @@ three leaves ship in TR-1 because the type that carries them opens there.
 **Why no stored amount.** A single `Option<u64>` on the binding would mean
 a different field per arm with nothing forcing a new arm to declare which,
 and a number copied at dispatch is a second copy of a fact the record
-already materializes. Pointing at the record keeps one copy, and the frame
-comes with it. The cost is one constraint on item 42's future window: **no
-record a pending or stacked trigger references may be evicted** — the
-window's floor is the oldest referenced `EventSeq`, which a trigger holds
-for at most the few batches between its dispatch and its resolution.
+already materializes. Holding the record keeps one copy of each fact, and the
+frame comes with it. Pointing at the record cost one constraint, that no
+record a pending or stacked trigger referenced could be evicted. Copying the
+record removed it, and with it the last reason for the log to outlive a
+dispatch.
 
 ### 3.5 `TriggerLimit` — the two once-per-turn gates, and "first time"
 
@@ -881,9 +883,24 @@ display and nothing reads its types (an ability on the stack has none —
 with one `BatchId`, run when the outermost `execute_actions` that opened
 that batch is about to return, after its riders; or one unbatched record,
 run inside `emit_event` before it returns.** The window is
-`records_from(mark)` with `mark` taken at the outermost `open_batch` — the
-suffix `EventLog` was built to hand the matcher (item 42: "the trigger
-matcher's suffix as the window's only in-state consumer").
+`records_since(mark)`, with `mark` the stream's sequence number at the
+outermost `open_batch`.
+
+**Where the records live, and when they go (the bounded-state PR,
+2026-09-25; item 42).** `GameState.events` is an `EventWindow`. It holds each
+record until the outermost dispatch that reads it has returned with no batch
+open, then flushes it, to a recorder if one is attached
+(`events::recorder`) and otherwise nowhere. Every other reader runs inside
+that dispatch and flushes nothing:
+- the tier-2 `AbilityTriggered` dispatch, which reads the record it names;
+- a mana trigger's batch;
+- an auxiliary batch's window, which closes mid-phase-1 of the batch it
+  interrupts.
+
+An entry's zone change, which `EntersBattlefield { from }` joins, is emitted
+by the entry's own performer, so it is in the window whenever the entry is.
+Priority is given outside every batch and dispatch, so at every priority
+prompt the window is empty and a clone copies no record.
 
 This is a deliberate refinement of "at `emit_event`, once per record", and
 CR 603.6a is the rule that forces it: "each time an event puts one or more
@@ -1734,13 +1751,12 @@ field with one writer:
 | an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
-| the trigger's event, subject, amount, frame | `TriggerBinding` (record ids, the matched event, the subject's epoch — nothing the records hold) | the dispatcher | the resolution, through the arm's projections |
+| the trigger's event, subject, amount, frame | `TriggerBinding` (the matched records, copied whole; the matched event; the subject's epoch) | the dispatcher | the resolution, through the arm's projections |
 
 The pending queue, the delayed registry, the histories and the four sets
-are `GameState` fields, cloned with a fork. The window (`records_from`) is
-read at dispatch and never later: a resolution that wants "what happened"
-reads its binding, not the log. Item 42's bounded window stays open and
-unblocked by this — nothing here reads further back than one batch.
+are `GameState` fields, cloned with a fork. The window (`EventWindow`) is
+read at dispatch and never later, since the outermost dispatch flushes it
+(§4.1). A resolution that wants "what happened" reads its binding's records.
 
 ---
 

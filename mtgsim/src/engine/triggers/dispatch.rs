@@ -71,7 +71,7 @@ pub const DISPATCH_NESTING_LIMIT: usize = 16;
 #[derive(Debug, Clone)]
 pub struct LookBackSnapshot {
     pub(crate) window: Option<BatchId>,
-    /// The records the batch performed, as event-log indices.
+    /// The records the batch performed, by sequence number.
     pub(crate) performed: std::ops::Range<usize>,
     pub(crate) frames: Vec<ObjectSnapshot>,
 }
@@ -255,7 +255,7 @@ pub(super) struct MatchedTrigger {
     source_card: Arc<CardData>,
     instances: Vec<EffectRecipient>,
     pub(super) event: EventIndex,
-    pub(super) records: Vec<EventSeq>,
+    pub(super) records: Vec<EventRecord>,
     pub(super) subject: Option<ObjectRef>,
     mana: bool,
 }
@@ -295,20 +295,25 @@ impl GameState {
     /// are `AbilityTriggered`s, dispatched as they were emitted.
     pub(crate) fn dispatch_batch(
         &mut self,
-        mark: usize,
+        mark: EventSeq,
         batch: Option<BatchId>,
         ctx: &ActionContext,
     ) -> Result<(), String> {
-        let window: Vec<EventSeq> = (mark..self.events.len())
-            .map(EventSeq)
-            .filter(|seq| self.events.record(*seq).is_some_and(|r| r.stamp.batch == batch))
+        let window: Vec<EventSeq> = self
+            .events
+            .records_since(mark)
+            .iter()
+            .filter(|r| r.stamp.batch == batch)
+            .map(|r| r.seq)
             .collect();
         let (snapshots, others): (Vec<_>, Vec<_>) = std::mem::take(&mut self.look_back_snapshots)
             .into_iter()
             .partition(|s| s.window == batch);
         self.look_back_snapshots = others;
         let audit = self.take_audit_snapshots(batch);
-        self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref())
+        let result = self.dispatch(&window, Some(ctx), &snapshots, audit.as_deref());
+        self.flush_window_unless_nested();
+        result
     }
 
     /// One record emitted outside any batch — a phase beginning, a cast, an
@@ -319,6 +324,18 @@ impl GameState {
         // only path that resolves at dispatch never runs here.
         let audit = self.dispatch_audit.is_some().then(Vec::new);
         let _ = self.dispatch(&[seq], None, &[], audit.as_deref());
+        self.flush_window_unless_nested();
+    }
+
+    /// Flush the window once the outermost dispatch has returned and no batch
+    /// is open (§4.1). Its records' readers were that dispatch and the ones
+    /// nested inside it, and a trigger took copies of the records it binds.
+    /// An auxiliary batch's dispatch runs inside the batch it interrupts,
+    /// whose records are still to be dispatched, so it flushes nothing.
+    fn flush_window_unless_nested(&mut self) {
+        if self.nesting.dispatch_depth == 0 && self.nesting.batch_depth == 0 {
+            self.events.flush();
+        }
     }
 
     fn dispatch(
@@ -442,6 +459,7 @@ impl GameState {
         // --- Queue, or resolve a mana trigger at once (CR 605.4a) ----------
         let mut queued: Vec<(TriggerSeq, TriggerOrigin, PlayerId, EventSeq)> = Vec::new();
         for m in matches {
+            let caused_by = m.records[0].seq;
             // "Triggers only once each turn" is written as the ability
             // queues, so a second match in this same window finds it taken.
             if m.def.limit == Some(TriggerLimit::TriggersOnlyOnceEachTurn) && !self.triggered_this_turn.insert(m.identity) {
@@ -451,12 +469,11 @@ impl GameState {
             self.next_trigger_seq += 1;
             let binding = TriggerBinding {
                 def: Arc::clone(&m.def),
-                records: m.records.clone(),
+                records: m.records,
                 event: m.event,
                 subject: m.subject,
                 triggered_by: None,
             };
-            let caused_by = m.records[0];
             let origin = TriggerOrigin::Object(m.identity);
             let pending = PendingTrigger {
                 seq,
@@ -840,7 +857,7 @@ impl GameState {
                                 source_card: Arc::clone(&candidate.card),
                                 instances: row.instances.to_vec(),
                                 event: matched,
-                                records: vec![*seq],
+                                records: vec![(*record).clone()],
                                 subject: subject.and_then(|id| self.object_ref(id)),
                                 mana,
                             });
@@ -850,7 +867,7 @@ impl GameState {
                     // matching record in its binding, no one object.
                     Multiplicity::OncePerEvent => {
                         match once.iter().find(|((i, e), _)| *i == identity && *e == matched) {
-                            Some((_, at)) => matches[*at].records.push(*seq),
+                            Some((_, at)) => matches[*at].records.push((*record).clone()),
                             None => {
                                 once.push(((identity, matched), matches.len()));
                                 matches.push(MatchedTrigger {
@@ -860,7 +877,7 @@ impl GameState {
                                     source_card: Arc::clone(&candidate.card),
                                     instances: row.instances.to_vec(),
                                     event: matched,
-                                    records: vec![*seq],
+                                    records: vec![(*record).clone()],
                                     subject: None,
                                     mana,
                                 });
@@ -1132,12 +1149,12 @@ impl GameState {
 
     /// The zone the permanent at `id` entered from, off its own zone change
     /// earlier in the same window — `None` for a token, which came from
-    /// nowhere (CR 111.2).
+    /// nowhere (CR 111.2). The entry's performer announces both, so the
+    /// window holds the move whenever it holds the entry.
     fn entry_origin(&self, id: ObjectId, entered_at: EventSeq) -> Option<Zone> {
-        let mut seq = entered_at.0;
-        while seq > 0 {
-            seq -= 1;
-            let record = self.events.record(EventSeq(seq))?;
+        let held = self.events.held();
+        let before = held.partition_point(|r| r.seq < entered_at);
+        for record in held[..before].iter().rev() {
             match &record.event {
                 GameEvent::ZoneChange { object_id, to: Zone::Battlefield, from, .. } if *object_id == id => {
                     return Some(*from)

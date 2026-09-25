@@ -642,6 +642,7 @@ mod tests {
     #[test]
     fn test_untap_step_announces_only_the_permanents_it_actually_untapped() {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         stock_libraries(&mut game, 5);
 
         let land = |name: &str| CardDataBuilder::new(name)
@@ -658,13 +659,13 @@ mod tests {
             land("Untapped Forest"), 0, crate::types::zones::Zone::Battlefield));
         game.place_on_battlefield(untapped_id, 0, &EnterMods::NONE).tapped = false;
 
-        let before = game.events.len();
+        let before = game.recorded_events().len();
         // Walk to player 0's next untap step.
         for _ in 0..26 {
             game.advance_turn(&test_ctx()).unwrap();
         }
 
-        let untapped: Vec<crate::types::ids::ObjectId> = game.events.records_from(before).iter()
+        let untapped: Vec<crate::types::ids::ObjectId> = game.recorded_events().records_from(before).iter()
             .filter_map(|r| match &r.event {
                 crate::events::event::GameEvent::Untapped { object_id } => Some(*object_id),
                 _ => None,
@@ -681,6 +682,7 @@ mod tests {
     #[test]
     fn test_the_untap_step_is_one_batch() {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         stock_libraries(&mut game, 5);
 
         let land = |name: &str| CardDataBuilder::new(name)
@@ -695,7 +697,7 @@ mod tests {
             game.place_on_battlefield(id, 0, &EnterMods::NONE).tapped = true;
         }
 
-        let before = game.events.len();
+        let before = game.recorded_events().len();
         for _ in 0..26 {
             game.advance_turn(&test_ctx()).unwrap();
         }
@@ -703,7 +705,7 @@ mod tests {
         // CR 502.1: "all the permanents untap simultaneously." One batch id is
         // what lets CR 603.2c's "whenever one or more permanents untap" fire
         // once for the step instead of once per permanent.
-        let batches: Vec<_> = game.events.records_from(before).iter()
+        let batches: Vec<_> = game.recorded_events().records_from(before).iter()
             .filter(|r| matches!(r.event, crate::events::event::GameEvent::Untapped { .. }))
             .map(|r| r.batch())
             .collect();

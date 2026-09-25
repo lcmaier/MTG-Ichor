@@ -4,7 +4,7 @@ use std::sync::Arc;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::events::event::EventLog;
+use crate::events::event::EventWindow;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::PermanentState;
 use crate::state::continuous_effects::ContinuousEffectRegistry;
@@ -615,8 +615,13 @@ pub struct GameState {
     /// or a batch pays.
     pub(crate) dispatch_audit: Option<Box<crate::engine::triggers::DispatchAudit>>,
 
-    // --- Event log ---
-    pub events: EventLog,
+    // --- The performed stream ---
+    /// The records the dispatches in progress have yet to finish reading,
+    /// flushed when the outermost returns (`triggers-architecture.md` §4.1):
+    /// empty at every decision outside a batch, so a clone carries none. The
+    /// whole stream is a recorder's (`events::recorder`), attached by whoever
+    /// reads it.
+    pub events: EventWindow,
 
     /// The trace sink's handle, if a sink is attached — see
     /// [`crate::state::trace`]. `None` in every game nobody traces, which
@@ -884,7 +889,7 @@ impl GameState {
             look_back_snapshots: Vec::new(),
             departure_frames: Vec::new(),
             dispatch_audit: None,
-            events: EventLog::new(),
+            events: EventWindow::new(),
             trace: None,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }

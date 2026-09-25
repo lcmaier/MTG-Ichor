@@ -108,14 +108,14 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
 /// hand sizes: a hand can be filled by a tutor, and CR 121.5 is exactly the
 /// difference this file keeps asserting.
 fn drawn_by(game: &GameState, player: PlayerId) -> usize {
-    game.events
+    game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::CardDrawn { player_id, .. } if *player_id == player))
         .count()
 }
 
 fn total_drawn(game: &GameState) -> usize {
-    game.events
+    game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::CardDrawn { .. }))
         .count()
@@ -583,7 +583,7 @@ fn a_riders_draws_resolve_before_the_next_instruction_begins() {
     resolve_for(&mut game, 1, &twice, &test_dp());
 
     let order: Vec<PlayerId> = game
-        .events
+        .recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::CardDrawn { player_id, .. } => Some(*player_id),

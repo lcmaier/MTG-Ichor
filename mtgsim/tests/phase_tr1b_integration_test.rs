@@ -350,6 +350,7 @@ fn an_audited_game_counts_and_traces_what_an_unaudited_one_does() {
             deck.extend([plains(), swamp(), forest()]);
         }
         let mut g = Game::new(GameConfig::test(), vec![deck; 2]).unwrap();
+        g.state.record_events();
         if audit {
             g.state.enable_dispatch_audit();
         }

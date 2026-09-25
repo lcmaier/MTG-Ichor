@@ -74,7 +74,7 @@ fn self_anthem_creature() -> Arc<CardData> {
 
 /// Every `ZoneChange` in the log, as `(object, from, to, cause)`.
 fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
@@ -86,13 +86,13 @@ fn zone_changes(game: &GameState) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)
 }
 
 /// The LKI frame on the single `ZoneChange` that moved `id`.
-fn lki_for(game: &GameState, id: ObjectId) -> Option<&EffectiveCharacteristics> {
+fn lki_for(game: &GameState, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
     let mut found = None;
-    for e in game.events.events() {
+    for e in game.recorded_events().events() {
         if let GameEvent::ZoneChange { object_id, lki, .. } = e
             && *object_id == id {
             assert!(found.is_none(), "expected exactly one zone change for {}", id);
-            found = Some(lki.as_deref());
+            found = Some(lki.clone());
         }
     }
     found.expect("no zone change for that object")
@@ -326,7 +326,7 @@ fn test_the_only_payable_split_is_taken_and_never_offered() {
     assert!(game.stack.contains(&bear));
     assert_eq!(game.players[0].mana_pool.total(), 0, "both mana paid the cost");
     assert!(
-        game.events.events().any(|e| matches!(
+        game.recorded_events().events().any(|e| matches!(
             e,
             GameEvent::SpellCast { spell_id, .. } if *spell_id == bear
         )),
@@ -386,8 +386,8 @@ fn test_an_event_names_the_resolution_that_proposed_it() {
     game.cast_spell(0, bolt, &decisions).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
 
-    let damage = game
-        .events
+    let recorded = game.recorded_events();
+    let damage = recorded
         .records()
         .iter()
         .find(|r| matches!(r.event, GameEvent::DamageDealt { .. }))
@@ -410,10 +410,11 @@ fn test_a_turn_based_action_belongs_to_no_resolution() {
     let id = put_on_battlefield(&mut game, self_anthem_creature(), 0);
     game.battlefield.get_mut(&id).unwrap().tapped = true;
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.execute_action(GameAction::Untap { object: id }, &test_ctx()).unwrap();
 
-    let untap = &game.events.records_from(before)[0];
+    let recorded = game.recorded_events();
+    let untap = &recorded.records_from(before)[0];
     assert!(matches!(untap.event, GameEvent::Untapped { .. }));
     assert_eq!(
         untap.resolution(),
@@ -440,7 +441,7 @@ fn test_a_board_wipe_of_state_based_deaths_is_one_batch() {
     assert!(game.check_state_based_actions(&decisions).unwrap());
 
     let batches: Vec<Option<BatchId>> = game
-        .events
+        .recorded_events()
         .records()
         .iter()
         .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
@@ -468,7 +469,7 @@ fn test_a_land_play_and_a_later_one_are_separate_batches() {
     game.play_land(0, second, Zone::Hand, &ctx).unwrap();
 
     let batches: Vec<Option<BatchId>> = game
-        .events
+        .recorded_events()
         .records()
         .iter()
         .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
@@ -572,7 +573,7 @@ fn test_a_fizzling_spell_moves_through_the_chokepoint() {
     game.change_zone(victim, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
     game.resolve_top_of_stack(&decisions).unwrap();
 
-    assert!(game.events.events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
+    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::SpellFizzled { .. })));
     assert_eq!(
         zone_changes(&game).last().copied(),
         Some((bolt, Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)),
@@ -588,11 +589,11 @@ fn test_a_resolving_ability_leaves_no_zone_change() {
     let mut game = setup_two_player_game();
     let (land, ability) = mtgsim::test_support::place_forest(&mut game, 0);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.activate_mana_ability(0, land, ability, &test_ctx()).unwrap();
 
     assert!(
-        !game.events.records_from(before).iter().any(|r| matches!(
+        !game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
             GameEvent::ZoneChange { to: Zone::Graveyard, .. }
         )),
@@ -662,8 +663,8 @@ fn test_the_zone_change_carries_everything_the_death_events_did() {
     let kept = game.battlefield_ids_ordered()[0];
     let died = if kept == doomed { other } else { doomed };
 
-    let record = game
-        .events
+    let recorded = game.recorded_events();
+    let record = recorded
         .records()
         .iter()
         .find_map(|r| match &r.event {
@@ -715,7 +716,7 @@ fn test_an_ability_resolving_is_not_a_spell_resolving() {
     game.resolve_top_of_stack(&decisions).unwrap();
 
     assert!(
-        game.events.events().any(|e| matches!(e, GameEvent::AbilityResolved { .. })),
+        game.recorded_events().events().any(|e| matches!(e, GameEvent::AbilityResolved { .. })),
         "an ability announces itself by its durable identity, which is what a \
          CR 603.7h counter reads",
     );
@@ -795,7 +796,7 @@ fn test_a_multi_target_destroy_is_one_event() {
         &dp,
     ).unwrap();
 
-    let batches: Vec<_> = game.events.records().iter()
+    let batches: Vec<_> = game.recorded_events().records().iter()
         .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))
         .map(|r| r.batch())
         .collect();
@@ -823,7 +824,7 @@ fn test_tapping_for_mana_is_recorded() {
 
     assert!(game.battlefield.get(&land).unwrap().tapped);
     assert!(
-        game.events.events().any(|e| matches!(e, GameEvent::Tapped { object_id } if *object_id == land)),
+        game.recorded_events().events().any(|e| matches!(e, GameEvent::Tapped { object_id } if *object_id == land)),
         "CR 603.2e: becoming tapped is a transition, and it is announced",
     );
 }

@@ -2470,38 +2470,13 @@ section never asked.
     branch's prompt watcher, three boards, the reseed guard and the sweep. No
     id mask, and no replaying provider — cloning the random one is the replay.
 
-42. **`EventLog` is on `GameState` and grows monotonically.** Every clone
-    carries every `EventRecord` the game has emitted, though the only in-state
-    reader, the trigger matcher, reads the current batch's suffix
-    (`records_from`).
-
-    **Rescoped 2026-09-25: no retained log.** The log leaves `GameState`
-    entirely. The performed stream already reaches the sink through one door,
-    `GameState::emit_event` (A4c, PR #170), so everything that wants the whole
-    history reads the sink: trace pages, `--dump-events`, the fork test, a
-    GUI's game log. Trigger bindings point at records today
-    (`triggers-architecture.md` §3.4); they copy the facts they bind at
-    dispatch instead, so no pending or stacked trigger refers to a record by
-    id. What the rules need from the past is already materialized as TR-2a's
-    per-player turn summaries (§3.10), and item 179 bounds those.
-
-    **Reachability (2026-09-25):** reachable — not wrong. The AI floors report
-    re-took item 143's clone table (`plans/references/ai-performance-floors.md`):
-    with the log, a Commander-scale clone passes 10 µs by turn 20 and reaches
-    131 µs and 1,176 KB at the end of a 184-turn game; without it, 3.7–8.8 µs.
-    Floors 2 and 3 (`engineering-practices.md` §3.1) wait on it.
-
-    **Scheduled: the bounded-state PR**, next after the process PR and before
-    TR-2b, together with item 179, the committed clone probe and CI checks on
-    allocations and bytes per clone. Its throwaway probe also measures the
-    observation cost k and a naive redeal (`backlog.md` §2.34) at item 143's
-    checkpoints, reading the first decision after a redeal against a warm and a
-    cold layer memo, so the information-model design's cost section (§2.9)
-    starts from numbers.
-
-    **Sized:** by sites, 2026-09-25: 89 reads of the log or of `EventSeq`
-    outside `events/`, in 19 files. The binding (`engine/triggers/binding.rs`)
-    is the one whose shape changes; the PR's brief turns the count into lines.
+42. **~~`EventLog` is on `GameState` and grows monotonically.~~ — ✅ CLOSED
+    2026-09-25 (the bounded-state PR).** — archived. `GameState.events` is an
+    `EventWindow`, flushed when the outermost dispatch returns; a trigger
+    binding copies the records it matched; the whole stream is a recorder's,
+    attached by whatever reads it.
+    **Reachability (2026-09-25):** closed — the bounded-state PR.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 42".
 
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
     2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and

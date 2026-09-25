@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::recorder::RecorderHandle;
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::effects::CounterType;
 use crate::types::zones::Zone;
@@ -21,7 +22,7 @@ use crate::types::triggers::{TriggerOrigin, TriggerSeq};
 /// in the module docs for details.
 ///
 /// The engine emits these; triggered abilities and logging subscribe to them.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GameEvent {
     // --- Zone transitions ---
     ZoneChange {
@@ -405,13 +406,9 @@ pub enum CounterSubject {
     Player(PlayerId),
 }
 
-/// A record's position in the log — its monotonic sequence number, which is
-/// today the index and is the trace's `seq`. What a [`TriggerBinding`]
-/// points at instead of copying the record: `EventLog::record(seq)` is the
-/// read, and no record a pending or stacked trigger references may be
-/// evicted (`triggers-architecture.md` §3.4).
-///
-/// [`TriggerBinding`]: crate::types::triggers::TriggerBinding
+/// A record's place in the performed stream: its monotonic sequence number,
+/// the trace's `index`, and never a position in a buffer. The window flushes
+/// and the recorder forks, and a record keeps its number through both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EventSeq(pub usize);
 
@@ -470,9 +467,16 @@ pub struct EventStamp {
     pub resolution: Option<ResolutionStamp>,
 }
 
-/// One entry in the event log: what happened, and the context it happened in.
-#[derive(Debug, Clone)]
+/// One performed event: what happened, where in the stream, and the context
+/// it happened in. A [`TriggerBinding`] copies the records it binds, so a
+/// record outlives the window it was read in wherever a trigger needs it
+/// (`triggers-architecture.md` §3.4).
+///
+/// [`TriggerBinding`]: crate::types::triggers::TriggerBinding
+#[derive(Debug, Clone, PartialEq)]
 pub struct EventRecord {
+    /// Its place in the stream.
+    pub seq: EventSeq,
     /// What happened.
     pub event: GameEvent,
     /// See [`EventStamp`].
@@ -491,15 +495,23 @@ impl EventRecord {
     }
 }
 
-/// An event log that records game events in order.
+/// The performed stream's records until their last reader has run, and the
+/// context the next one is stamped with (`triggers-architecture.md` §4.1).
 ///
-/// This serves multiple purposes:
-/// 1. Triggered ability checking ("when X happens" — scan recent events)
-/// 2. Game history / replay
-/// 3. UI display
+/// **A window, not a log** (`codebase-state.md` item 42). A record is read by
+/// the dispatch whose window it belongs to and by the dispatches nested inside
+/// that one: an entry's own zone change, the record a tier-2 trigger's
+/// `AbilityTriggered` names. Nothing reads it after the outermost of those
+/// returns, which is where [`Self::flush`] runs, so at a decision outside a
+/// batch this holds nothing and a clone copies nothing. What the rules read
+/// from the past is materialized instead: the turn summaries (§3.10), and the
+/// records a trigger binds (§3.4). What wants the whole stream attaches a
+/// recorder, and the flush hands it every record in order.
 #[derive(Debug, Clone, Default)]
-pub struct EventLog {
+pub struct EventWindow {
     records: Vec<EventRecord>,
+    /// The sequence number the next record takes.
+    next_seq: usize,
     /// Stamped onto everything emitted while it is installed.
     ///
     /// **Ambient, and deliberately so.** The alternative is an
@@ -511,38 +523,61 @@ pub struct EventLog {
     /// This is not the ambient state `CLAUDE.md` bans. That rule is about
     /// `rand::rng()`: an ambient *source* silently changes the game's outcome
     /// and destroys replayability. This is an ambient *label* on a record —
-    /// it changes what the log says about a mutation, never whether the mutation
+    /// it changes what a record says about a mutation, never whether the mutation
     /// happens — and its lifetime is a single `open_batch`/`close_batch` pair
     /// that `execute_actions` opens and closes on the same code path.
     stamp: EventStamp,
     /// Allocator for [`BatchId`]. Monotonic, never reused within a game.
     next_batch: u64,
+    /// Where a flushed record goes, if anything wants the whole stream.
+    recorder: Option<RecorderHandle>,
 }
 
-impl EventLog {
+impl EventWindow {
     pub fn new() -> Self {
-        EventLog::default()
+        EventWindow::default()
     }
 
     pub fn emit(&mut self, event: GameEvent) {
-        self.records.push(EventRecord { event, stamp: self.stamp });
+        let stamp = self.stamp;
+        self.push(event, stamp);
     }
 
     /// Emit with no batch and no resolution whatever is ambient — for a
     /// record that is a consequence of an event rather than part of it
     /// (`GameEvent::AbilityTriggered`, §4.8).
     pub(crate) fn emit_unstamped(&mut self, event: GameEvent) {
-        self.records.push(EventRecord { event, stamp: EventStamp::default() });
+        self.push(event, EventStamp::default());
     }
 
-    /// The record at `seq`, or `None` for a sequence the log does not hold.
+    fn push(&mut self, event: GameEvent, stamp: EventStamp) {
+        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp });
+        self.next_seq += 1;
+    }
+
+    /// The record at `seq`, or `None` for one the window no longer holds.
     pub fn record(&self, seq: EventSeq) -> Option<&EventRecord> {
-        self.records.get(seq.0)
+        let first = self.records.first()?.seq;
+        self.records.get(seq.0.checked_sub(first.0)?)
+    }
+
+    /// The records from `mark` on — pass an earlier [`Self::next_seq`] to ask
+    /// "what has been performed since". A dispatch's mark is taken inside the
+    /// window it reads, so nothing it asks for has been flushed.
+    pub fn records_since(&self, mark: EventSeq) -> &[EventRecord] {
+        let first = self.records.first().map_or(self.next_seq, |r| r.seq.0);
+        debug_assert!(mark.0 >= first, "a mark from before the window's last flush");
+        &self.records[mark.0.saturating_sub(first).min(self.records.len())..]
+    }
+
+    /// Every record the window holds, oldest first.
+    pub fn held(&self) -> &[EventRecord] {
+        &self.records
     }
 
     /// The sequence number the next emitted record will carry.
     pub fn next_seq(&self) -> EventSeq {
-        EventSeq(self.records.len())
+        EventSeq(self.next_seq)
     }
 
     /// The stamp the next emitted event will carry — the trace sink's join
@@ -593,48 +628,21 @@ impl EventLog {
         self.stamp = previous;
     }
 
-    /// The log. `records()` is the whole of it; [`Self::events`] is a
-    /// convenience over the same data for readers that do not want the stamp.
-    ///
-    /// The trigger matcher (critical path item 6) is the production consumer;
-    /// keep the surface small until it lands.
-    pub fn records(&self) -> &[EventRecord] {
-        &self.records
-    }
-
-    /// Just the events, for readers that do not care which batch or resolution
-    /// they came from — the display path, and most assertions.
-    pub fn events(&self) -> impl Iterator<Item = &GameEvent> + '_ {
-        self.records.iter().map(|r| &r.event)
-    }
-
-    /// The records since `index` — pass an earlier [`Self::len`] to ask "what
-    /// happened since I last looked".
-    ///
-    /// Clamped rather than sliced, so a stale mark returns nothing instead of
-    /// panicking. That matters for the trigger matcher, whose mark is taken
-    /// before a resolution that may clear the log.
-    pub fn records_from(&self, index: usize) -> &[EventRecord] {
-        if index >= self.records.len() {
-            &[]
-        } else {
-            &self.records[index..]
+    /// Hand every held record to the recorder, or drop it when none is
+    /// attached. The numbering carries on.
+    pub(crate) fn flush(&mut self) {
+        match &self.recorder {
+            Some(recorder) => recorder.extend(self.records.drain(..)),
+            None => self.records.clear(),
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.records.len()
+    pub(crate) fn attach_recorder(&mut self, recorder: RecorderHandle) {
+        self.recorder = Some(recorder);
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.records.is_empty()
-    }
-
-    /// Clear the log (e.g., between games)
-    pub fn clear(&mut self) {
-        self.records.clear();
-        self.stamp = EventStamp::default();
-        self.next_batch = 0;
+    pub(crate) fn recorder(&self) -> Option<&RecorderHandle> {
+        self.recorder.as_ref()
     }
 }
 
@@ -643,50 +651,65 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_event_log_basic() {
-        let mut log = EventLog::new();
-        assert!(log.is_empty());
+    fn a_record_carries_its_place_in_the_stream() {
+        let mut window = EventWindow::new();
+        assert!(window.held().is_empty());
 
-        log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
+        window.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
+        window.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
 
-        assert_eq!(log.len(), 2);
-        assert!(!log.is_empty());
+        assert_eq!(window.held().len(), 2);
+        assert_eq!(window.held()[1].seq, EventSeq(1));
+        assert_eq!(window.next_seq(), EventSeq(2));
     }
 
     #[test]
-    fn test_event_log_since() {
-        let mut log = EventLog::new();
-        log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        log.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
-        log.emit(GameEvent::StepBegin { step: StepType::Untap, player: 0 });
+    fn records_since_a_mark_are_the_ones_after_it() {
+        let mut window = EventWindow::new();
+        window.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
+        window.emit(GameEvent::PhaseBegin { phase: PhaseType::Beginning, player: 0 });
+        window.emit(GameEvent::StepBegin { step: StepType::Untap, player: 0 });
 
-        let since = log.records_from(1);
-        assert_eq!(since.len(), 2);
+        assert_eq!(window.records_since(EventSeq(1)).len(), 2);
+        assert_eq!(window.records_since(EventSeq(3)).len(), 0);
+    }
 
-        let since_end = log.records_from(3);
-        assert_eq!(since_end.len(), 0);
+    /// A flush empties the window and the numbering carries on, so a record
+    /// is found by its number and never by where it sits.
+    #[test]
+    fn a_flushed_window_keeps_numbering_where_it_left_off() {
+        let mut window = EventWindow::new();
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.flush();
+        assert!(window.held().is_empty());
+        assert_eq!(window.record(EventSeq(1)), None, "a flushed record is gone");
+
+        window.emit(GameEvent::StateBasedActionPerformed);
+        assert_eq!(window.held()[0].seq, EventSeq(2));
+        assert_eq!(window.record(EventSeq(2)).map(|r| r.seq), Some(EventSeq(2)));
+        assert_eq!(window.records_since(EventSeq(2)).len(), 1);
     }
 
     #[test]
     fn test_events_outside_a_batch_carry_no_batch_id() {
-        let mut log = EventLog::new();
-        log.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
-        assert_eq!(log.records()[0].batch(), None);
+        let mut window = EventWindow::new();
+        window.emit(GameEvent::TurnBegin { player: 0, turn_number: 1 });
+        assert_eq!(window.held()[0].batch(), None);
     }
 
     #[test]
     fn test_a_batch_stamps_every_event_it_emits() {
-        let mut log = EventLog::new();
-        let outer = log.open_batch(None);
-        log.emit(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED });
-        log.emit(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED });
-        log.close_batch(outer);
-        log.emit(GameEvent::StateBasedActionPerformed);
+        let mut window = EventWindow::new();
+        let outer = window.open_batch(None);
+        window.emit(GameEvent::Tapped { object_id: ObjectId::UNASSIGNED });
+        window.emit(GameEvent::Untapped { object_id: ObjectId::UNASSIGNED });
+        window.close_batch(outer);
+        window.emit(GameEvent::StateBasedActionPerformed);
 
-        let b = log.records()[0].batch().expect("inside a batch");
-        assert_eq!(log.records()[1].batch(), Some(b), "one batch, one id");
-        assert_eq!(log.records()[2].batch(), None, "closing restores the outer context");
+        let b = window.held()[0].batch().expect("inside a batch");
+        assert_eq!(window.held()[1].batch(), Some(b), "one batch, one id");
+        assert_eq!(window.held()[2].batch(), None, "closing restores the outer context");
     }
 
     #[test]
@@ -695,30 +718,30 @@ mod tests {
         // lets the one damage event occur after its results are processed. The
         // gain is proposed from inside the damage's performance, so it must not
         // open a batch of its own.
-        let mut log = EventLog::new();
-        let outer = log.open_batch(None);
-        log.emit(GameEvent::StateBasedActionPerformed);
-        let inner = log.open_batch(None);
-        log.emit(GameEvent::StateBasedActionPerformed);
-        log.close_batch(inner);
-        log.emit(GameEvent::StateBasedActionPerformed);
-        log.close_batch(outer);
+        let mut window = EventWindow::new();
+        let outer = window.open_batch(None);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        let inner = window.open_batch(None);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.close_batch(inner);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.close_batch(outer);
 
-        let b = log.records()[0].batch().expect("inside a batch");
-        assert!(log.records().iter().all(|r| r.batch() == Some(b)),
+        let b = window.held()[0].batch().expect("inside a batch");
+        assert!(window.held().iter().all(|r| r.batch() == Some(b)),
                 "a nested batch joins the enclosing one rather than opening its own");
     }
 
     #[test]
     fn test_separate_batches_get_separate_ids() {
-        let mut log = EventLog::new();
-        let prev = log.open_batch(None);
-        log.emit(GameEvent::StateBasedActionPerformed);
-        log.close_batch(prev);
-        let prev = log.open_batch(None);
-        log.emit(GameEvent::StateBasedActionPerformed);
-        log.close_batch(prev);
+        let mut window = EventWindow::new();
+        let prev = window.open_batch(None);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.close_batch(prev);
+        let prev = window.open_batch(None);
+        window.emit(GameEvent::StateBasedActionPerformed);
+        window.close_batch(prev);
 
-        assert_ne!(log.records()[0].batch(), log.records()[1].batch());
+        assert_ne!(window.held()[0].batch(), window.held()[1].batch());
     }
 }

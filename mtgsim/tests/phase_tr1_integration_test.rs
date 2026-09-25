@@ -232,8 +232,8 @@ fn soul_warden_triggers_when_a_creature_spell_resolves_and_nothing_happens_yet()
     assert_eq!(entry.tier(), TriggerTier::First);
 
     // CR 603.3b's record, and its stamp: a consequence of the entry, not part of it.
-    let triggered = game
-        .events
+    let recorded = game.recorded_events();
+    let triggered = recorded
         .records()
         .iter()
         .find(|r| matches!(r.event, GameEvent::AbilityTriggered { .. }))
@@ -1132,14 +1132,14 @@ fn a_trigger_with_no_legal_target_is_removed_and_never_reaches_the_stack() {
     );
     assert_eq!(pending(&game), 1);
     let objects = game.objects.len();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     place(&mut game, &test_dp());
 
     assert!(game.stack.is_empty());
     assert_eq!(pending(&game), 0);
     assert_eq!(game.objects.len(), objects, "no stack object was created");
-    assert_eq!(game.events.len(), before, "and nothing announced: a removal is not a counter");
+    assert_eq!(game.recorded_events().len(), before, "and nothing announced: a removal is not a counter");
 }
 
 // ---------------------------------------------------------------------------
@@ -1196,7 +1196,7 @@ fn felidar_sovereign_does_nothing_when_life_drops_before_it_resolves() {
     let bolt = put_on_battlefield(&mut game, vanilla_creature(5, 5, &[]), 1);
     deal(&mut game, bolt, DamageTarget::Player(0), 5, false);
     assert_eq!(life(&game, 0), 37);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     resolve_top(&mut game, &test_dp());
 
@@ -1204,7 +1204,7 @@ fn felidar_sovereign_does_nothing_when_life_drops_before_it_resolves() {
     assert!(game.stack.is_empty());
     assert!(game.get_object(ability).is_err(), "the object is gone");
     assert!(
-        !game.events.records_from(before).iter().any(|r| matches!(r.event, GameEvent::AbilityResolved { .. })),
+        !game.recorded_events().records_from(before).iter().any(|r| matches!(r.event, GameEvent::AbilityResolved { .. })),
         "it did not resolve"
     );
 }
@@ -1250,11 +1250,11 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     place(&mut game, &dp);
     game.players[0].life_total = 10;
     game.change_zone(target, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     resolve_top(&mut game, &dp);
     assert!(game.stack.is_empty());
     assert!(
-        !game.events.records_from(before).iter().any(|r| matches!(
+        !game.recorded_events().records_from(before).iter().any(|r| matches!(
             r.event,
             GameEvent::SpellFizzled { .. } | GameEvent::AbilityResolved { .. }
         )),
@@ -1276,10 +1276,10 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
     );
     place(&mut game, &dp);
     let ability = *game.stack.last().unwrap();
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     resolve_top(&mut game, &dp);
     let kinds: Vec<&str> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter_map(|r| match &r.event {
@@ -1371,7 +1371,7 @@ fn wild_growth_adds_its_mana_at_once_without_the_stack() {
     assert_eq!(pending(&game), 0, "CR 605.4a — never queued");
     assert!(game.stack.is_empty());
     let added: Vec<(ObjectId, bool)> = game
-        .events
+        .recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ManaAdded { source_id, tapped_for_mana, .. } => Some((*source_id, *tapped_for_mana)),
@@ -1524,7 +1524,7 @@ fn an_effect_that_counters_abilities_counters_a_triggered_ability() {
     );
 
     assert!(game.stack.is_empty());
-    assert!(game.events.events().any(|e| matches!(e, GameEvent::AbilityCountered { ability_id, .. } if *ability_id == ability)));
+    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::AbilityCountered { ability_id, .. } if *ability_id == ability)));
     assert_eq!(life(&game, 0), 20);
 }
 
@@ -1543,6 +1543,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
 
     let deck: Vec<Arc<CardData>> = (0..20).map(|_| forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    g.state.record_events();
     let dp = RandomDecisionProvider::seeded(603);
     g.setup(&dp).unwrap();
     g.state.set_turn_position(Phase { phase_type: PhaseType::Ending, step: Some(StepType::Cleanup) });
@@ -1566,14 +1567,14 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
     );
     put_in_hand(&mut g.state, forest(), 0);
     assert_eq!(g.state.players[0].hand.len(), 8);
-    let before = g.state.events.len();
+    let before = g.state.recorded_events().len();
 
     g.run_turn(&dp).unwrap();
 
     assert_eq!(g.state.players[0].life_total, 21, "the trigger resolved during the granted priority");
     let cleanups = g
         .state
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter(|r| matches!(r.event, GameEvent::StepBegin { step: StepType::Cleanup, .. }))
@@ -1625,7 +1626,7 @@ fn under_eon_hub_an_upkeep_trigger_never_triggers() {
 
     advance_to(&mut game, 1, StepType::Draw);
 
-    assert!(!game.events.events().any(|e| matches!(e, GameEvent::StepBegin { step: StepType::Upkeep, .. })));
+    assert!(!game.recorded_events().events().any(|e| matches!(e, GameEvent::StepBegin { step: StepType::Upkeep, .. })));
     assert_eq!(pending(&game), 0);
 }
 
