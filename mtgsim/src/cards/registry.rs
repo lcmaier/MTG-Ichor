@@ -884,7 +884,9 @@ impl CardRegistry {
         // opens no engine path, so it is registered and unpooled.
         // `phase_lj_cards::graveyard_painter` and `graveyard_reveler` — the
         // pair that proves a rule can *read* a zone-reaching change — are
-        // fixtures registered nowhere.
+        // fixtures registered nowhere, and so are `teferi_flash_clause` and
+        // `lattice_colorless_clause`, the two rows item 181's measurement
+        // places into a game: registering either would move every stress game.
         registry.register("Yixlid Jailer", phase_lj_cards::yixlid_jailer);
         registry.register("Scarwood Treefolk", phase_lj_cards::scarwood_treefolk);
 

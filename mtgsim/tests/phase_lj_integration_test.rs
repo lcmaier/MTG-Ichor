@@ -14,20 +14,27 @@
 
 use mtgsim::cards::phase_le_cards::tarmogoyf;
 use mtgsim::cards::phase_lf_cards::humility;
+use std::collections::HashSet;
+
+use mtgsim::cards::alpha::lightning_bolt;
 use mtgsim::cards::phase_lj_cards::{
-    graveyard_painter, graveyard_reveler, scarwood_treefolk, yixlid_jailer,
+    graveyard_painter, graveyard_reveler, lattice_colorless_clause, scarwood_treefolk,
+    teferi_flash_clause, yixlid_jailer,
 };
 use mtgsim::engine::actions::ZoneChangeCause;
 use mtgsim::oracle::characteristics::{
-    get_effective_abilities, get_effective_power, get_effective_toughness,
+    get_effective_abilities, get_effective_colors, get_effective_power, get_effective_toughness,
+    has_keyword,
 };
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx,
-    vanilla_creature,
+    put_in_graveyard, put_in_hand, put_in_library, put_on_battlefield, setup_two_player_game,
+    test_ctx, vanilla_creature,
 };
+use mtgsim::types::colors::Color;
 use mtgsim::types::effects::ObjectSet;
 use mtgsim::types::ids::ObjectId;
+use mtgsim::types::keywords::KeywordFlag;
 use mtgsim::types::zones::{Zone, ZoneSet};
 
 /// Move a card from its owner's graveyard onto the battlefield, the way a
@@ -566,5 +573,59 @@ fn test_the_jailer_does_not_touch_a_tarmogoyf_on_the_battlefield() {
         (get_effective_power(&game, goyf), get_effective_toughness(&game, goyf)),
         (Some(1), Some(2)),
         "one card type in graveyards (the land); the Goyf is a permanent, so the row misses it"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Every zone but the battlefield — the two rows item 181's measurement places
+// ---------------------------------------------------------------------------
+
+/// Teferi's clause matches its owner's creature cards in a library, a hand and
+/// a graveyard, and nothing else. What it matches is narrower than what it
+/// costs: every card beyond the battlefield joins the pass, which is what
+/// `tests/zone_reach_cost_test.rs` prices.
+#[test]
+fn test_teferis_clause_grants_flash_to_its_owners_creature_cards_off_the_battlefield() {
+    let mut game = setup_two_player_game();
+
+    let in_library = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let in_hand = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let in_graveyard = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let theirs = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let instant = put_in_hand(&mut game, lightning_bolt(), 0);
+    let permanent = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    put_on_battlefield(&mut game, teferi_flash_clause(), 0);
+
+    assert_eq!(
+        game.continuous_effects.summary().reachable_zones.beyond_battlefield(),
+        ZoneSet::EVERYWHERE_BUT_BATTLEFIELD
+    );
+    for card in [in_library, in_hand, in_graveyard] {
+        assert!(has_keyword(&game, card, KeywordFlag::Flash), "the owner's creature card has flash");
+    }
+    assert!(!has_keyword(&game, theirs, KeywordFlag::Flash), "the opponent owns this one");
+    assert!(!has_keyword(&game, instant, KeywordFlag::Flash), "an instant card is not a creature card");
+    assert!(!has_keyword(&game, permanent, KeywordFlag::Flash), "a permanent is not a card off the battlefield");
+}
+
+/// Lattice's clause makes every card off the battlefield colorless, whoever
+/// owns it, and leaves a permanent its color.
+#[test]
+fn test_lattices_clause_makes_every_card_off_the_battlefield_colorless() {
+    let mut game = setup_two_player_game();
+
+    let in_library = put_in_library(&mut game, lightning_bolt(), 1);
+    let in_hand = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);
+    let in_graveyard = put_in_graveyard(&mut game, lightning_bolt(), 1);
+    let permanent = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    put_on_battlefield(&mut game, lattice_colorless_clause(), 0);
+
+    for card in [in_library, in_hand, in_graveyard] {
+        assert!(get_effective_colors(&game, card).is_empty(), "a card off the battlefield is colorless");
+    }
+    assert_eq!(
+        get_effective_colors(&game, permanent),
+        HashSet::from([Color::Green]),
+        "the clause leaves out permanents"
     );
 }

@@ -19,9 +19,10 @@ use crate::types::card_types::{CardType, CreatureType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
     AmountExpr, ColorChange, Condition, Duration, Effect, EffectRecipient, ObjectFilter,
-    Primitive,
+    PlayerRef, Primitive,
 };
 use crate::types::ids::AbilityId;
+use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
@@ -209,6 +210,63 @@ pub fn graveyard_reveler() -> Arc<CardData> {
                 ),
                 EffectRecipient::ThisObject,
             )),
+        )))
+        .build()
+}
+
+// ---------------------------------------------------------------------------
+// Two fixtures, for the question "what does a row reaching the hidden zones
+// cost?" (`codebase-state.md` item 181, `tests/zone_reach_cost_test.rs`)
+// ---------------------------------------------------------------------------
+
+/// **Fixture.** "Creature cards you own that aren't on the battlefield have
+/// flash." Teferi, Mage of Zhalfir's second line, alone.
+///
+/// The narrow shape, and the common one: 11 of the 13 printed cards whose
+/// text reaches "cards … that aren't on the battlefield" name only cards
+/// their controller owns (Scryfall `o:"that aren't on the battlefield"`,
+/// 2026-09-25). The row matches one seat's creature cards, and the working set
+/// it brings is every card in every zone it names, every seat's.
+///
+/// **Nothing reads the grant yet.** The cast-timing check reads a card's
+/// printed flash (`// PRE-LAYER ZONE:`), so a game with this fixture plays as
+/// it does without it, and the difference is cost alone (item 182).
+///
+/// Registered nowhere: either of these two in the stress pool moves every
+/// game there.
+pub fn teferi_flash_clause() -> Arc<CardData> {
+    CardDataBuilder::new("Teferi's Flash Clause")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("Creature cards you own that aren't on the battlefield have flash.")
+        .ability(static_ability(Effect::Atom(
+            Primitive::GrantKeywordFlag(KeywordFlag::Flash, Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredObjectsIn(
+                ObjectFilter::And(
+                    Box::new(ObjectFilter::ByType(CardType::Creature)),
+                    Box::new(ObjectFilter::ByOwner(PlayerRef::You)),
+                ),
+                ZoneSet::EVERYWHERE_BUT_BATTLEFIELD,
+            ),
+        )))
+        .build()
+}
+
+/// **Fixture.** "All cards that aren't on the battlefield are colorless."
+/// Mycosynth Lattice's second line without its "and permanents", so the
+/// battlefield plays as it does without the fixture.
+///
+/// The wide shape: every card in every zone but the battlefield, every
+/// seat's, which is also the stack's spells and abilities. Painter's Servant's
+/// second line reaches the same objects.
+pub fn lattice_colorless_clause() -> Arc<CardData> {
+    CardDataBuilder::new("Lattice's Colorless Clause")
+        .mana_cost(ManaCost::build(&[], 2))
+        .card_type(CardType::Artifact)
+        .rules_text("All cards that aren't on the battlefield are colorless.")
+        .ability(static_ability(Effect::Atom(
+            Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
+            EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
         )))
         .build()
 }

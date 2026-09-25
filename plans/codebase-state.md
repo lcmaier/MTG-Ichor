@@ -8436,8 +8436,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the bounded-state PR's review (2026-09-25)
 
-180. **A fork of a board heavy in grant and copy rows can take 65
-     allocations, one over floor 2's CI proxy.** The review measured ten
+180. **Every registry row's payload is copied on every fork, and on
+     `close_out.py`'s own board that breaks floor 2's CI proxy.** The
+     bounded-state PR's review measured ten
      Commander games with eight copies each of four grant and copy cards in
      every deck, cloned at every priority prompt (`fuzz-record.md`, the
      bounded-state block, round 2). Sharing the grant and copy payloads took
@@ -8447,36 +8448,134 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Bytes stayed under 128 KB, and the committed clone test's boards read at
      most 46.
 
-     **Reachability (2026-09-25):** reachable — not wrong; a cost, on one
-     prompt of one extreme game in ten.
+     **`close_out.py`'s own board breaks the proxy too** (item 181's
+     measurement, attributed at its review, 2026-09-25). `performance` game
+     12350 at Commander scale reads 63 allocations at turn 80 and 68 at turn
+     100, with no card placed. At turn 100, 28 of the 68 are eight registry
+     rows' filter trees, copied box by box:
+     - five Blood Moon rows at 4 each;
+     - March of the Machines' two rows at 3 each;
+     - Wonder's row at 2.
+
+     The other 40 do not grow with the board: 18 for the players' zone lists
+     and histories, 7 for the zone replacement sources, and one for each other
+     map or list, the memo's included. The clone test plays only `stress`
+     seeds, so CI did not see it.
+
+     **Reachability (2026-09-25):** reachable — not wrong; a floor 2 breach on
+     the board the budget is read on.
+
+     **Proposed: before TR-2b, beside item 181's fix.** `performance` 12350
+     joins the clone test in the same PR, where it fails today.
 
      **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
      `Arc::make_mut` in its five mutating methods, which makes each of the three
      registries' clones one allocation. The callers that take rows back by
      value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
+     At 12350's turn 100 that takes the clone from 68 allocations to about 40.
 
 181. **A continuous effect that reaches the hand or the library makes every
-     layer pass walk every card there, and no board has measured it.**
-     Membership seeds every object in a zone some row reaches into every board
-     pass, so at four seats a pass walks about 400 objects instead of about 40
-     (`layers-architecture.md`, LJ, which made the cost exactly zero only on a
-     board with no such row). Every measured board has had none, because the
-     pools' zone-reaching rows reach graveyards. Mycosynth Lattice and
-     Painter's Servant reach every zone, and both are played in Commander. On
-     such a board ordinary play costs more per decision (floor 1), and no
-     redeal can keep the memo warm, so each fork's first decision pays one of
-     those walks (`backlog.md` §2.9's cost section).
+     layer pass walk every card there, and on a Commander board that fails
+     floor 1.** Membership seeds every object in a zone some row reaches into
+     every board pass (`layers-architecture.md`, LJ, which made the cost zero
+     only on a board with no such row). Thirteen printed cards make such a row,
+     all Commander-legal (Scryfall `o:"that aren't on the battlefield"`),
+     Teferi, Mage of Zhalfir, Mycosynth Lattice and Painter's Servant among
+     them. No pooled card does: the pools' zone-reaching rows reach graveyards.
 
-     **Reachability (2026-09-25):** reachable — not wrong; a cost, unmeasured.
+     **Measured (2026-09-25)** by `tests/zone_reach_cost_test.rs` (`fuzz-record.md`,
+     "Measured 2026-09-25 for item 181"), with a fixture of Teferi's or
+     Lattice's clause under player 0:
+     - Each pass seeds 333–354 objects more. Layer frames per decision rise
+       ×7.4–8.7, and engine time per decision ×3.0–3.4 while the card is on the
+       battlefield.
+     - **Floor 1 reads 4,600–6,800 decisions per second on one thread**, against
+       10,000.
+     - Floors 2 and 3 hold on the proxies. Floor 2's time sits at its bound
+       (10.0–10.1 µs).
+     - `backlog.md` §2.9's cold redeal costs one walk of ~400 objects, 76–224 µs
+       over a warm first decision, against 3–39 µs without the row.
+     - A throwaway probe put 61–67% of the extra in frames built and thrown
+       away, and the rest in the layer loop.
+     - Only 0.22–0.28% of the frames seeded off the battlefield are read
+       before the next bump.
 
-     **Proposed: before the information-model design (`roadmap-v2.md` A6f)**,
-     whose redeal ceiling needs the cold number on such a board.
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, and a floor 1
+     failure on any Commander board that plays one of the thirteen.
 
-     **Sized:** the measurement first, about an hour. Put a Lattice-shaped
-     fixture (LJ's Graveyard Painter at `ZoneSet::ALL`) in every deck on the
-     Commander board, and read instructions per decision against the same
-     board without it, plus the redeal's cold first decision on it. A fix, if
-     the number calls for one, is a design question. A hidden-zone member
-     walked only when something reads it is the obvious shape; a CDA that
-     reads graveyard cards (Tarmogoyf) is why "never walked" is not the answer.
+     **Proposed: before TR-2b** (`roadmap-v2.md` A6b), by the rule the
+     measurement's brief set: floor 1 broke. The fix is its own PR with its own
+     brief.
+
+     **Sized:** four levers, each read off the measurement:
+     - **Walk a card in a hidden zone, a library or a hand, only when something
+       reads it. This is the lever.** It was scoped to the hidden zones at the
+       owner's review.
+       - Those two zones hold 93.4% of the objects off the battlefield: 88.9% in
+         libraries and 4.5% in hands, per prompt over the 23 games. Nothing
+         displays them but the viewer's own hand.
+       - **The public zones stay in the pass, because sources live there.**
+         Seven printed statics function from a graveyard (Wonder, Anger, Brawn,
+         Filth, Valor, Riftstone Portal, Retriever Phoenix). None functions
+         from a hand or a library (Scryfall, three phrasings).
+       - A source has to be in the pass for CR 613.8. Yixlid Jailer's strip and
+         Wonder's grant both apply in layer 6, and Wonder's depends on the
+         Jailer's. So a Wonder walked alone would keep its ability.
+       - A hidden card that is a row's source (CR 113.6b allows one) joins the
+         pass the way a `Fixed`-named object does.
+       - The seed stops appending hidden members, and the look-ahead's boards
+         stop with it. `membership` and `frame_of` answer a hidden card with a
+         walk of its own that applies the rows reaching its zone.
+       - **That walk must see each row as the pass saw it at the row's layer,
+         not the memo's settled frames.** Under Titania's Song, Mycosynth
+         Lattice's colorless line applies at layer 5, though by the end of
+         layer 6 Lattice has lost its abilities. So the pass keeps, per epoch,
+         each such row's decision at its layer: whether it exists, and who
+         "you" is. The hidden card's walk replays that decision against its
+         own frame.
+       - This is not §12's per-object dirty tracking, which was deferred
+         because a fine key must list every input, and CR 613.8 makes other
+         objects' answers inputs. On the battlefield it would also buy
+         little, since a GUI or an observation reads every permanent. A
+         library is the opposite case on both counts: nothing reads it, and
+         no source lives there.
+       - Reads are 0.2% of today's seeded frames. The public zones keep about
+         7% of the extra, about 8 µs per decision on `performance`.
+       - One layers PR, ~500 lines with its tests.
+     - **A seed that honors the row's owner.** Ownership is the one leaf no
+       layer changes (CR 108.3), so a zone whose every row says "you own" need
+       only seed that seat's cards.
+       - Once the lever lands, this would narrow only the public zones.
+       - ~60 lines.
+     - **A cheaper frame**: the five `HashSet`s as bitsets, and the name and
+       mana cost shared.
+       - It saves part of the 61–67% share, and today's battlefield passes gain
+         a little too.
+       - Alone it leaves floor 1 failing, at about ×2.
+       - A type change read at ~110 sites in the layer walk and the oracle.
+     - **A separate cache key for frames off the battlefield**: not worth one.
+       Only 1.3–3.9% of passes follow nothing but writes such a key could
+       ignore.
+
+### Found by item 181's measurement (2026-09-25)
+
+182. **A card in a hand is timed by its printed flash, and a row can reach it
+     now.** The cast-timing check reads a hand card's printed types and flash
+     (`put_on_stack.rs:673`, `mana_helpers.rs:331`, both `// PRE-LAYER
+     ZONE:`), on the premise that nothing changes a card before it is a
+     permanent. LJ ended that premise: a row can reach a hand. Teferi, Mage of
+     Zhalfir's "Creature cards you own that aren't on the battlefield have
+     flash" lands on the frame and is never read, so item 181's fixture of that
+     line changes no game. The other cast-path sites ask a card's printed
+     spell ability and whether it is a land, and none of the 13 printed cards
+     with a row reaching off the battlefield (item 181) changes either.
+
+     **Reachability (2026-09-25):** unreachable. No registered card's row
+     reaches a hand, only fixtures do (`teferi_flash_clause`, `hollow_hands`).
+
+     **Sized:** the two reads routed through `oracle/characteristics.rs`,
+     which the memo answers for a card in hand as for any object, ~10 lines;
+     one test that a creature card under Teferi's fixture is offered at
+     instant speed, ~40. With the first registered card whose row reaches a
+     hand, or before it.
 
