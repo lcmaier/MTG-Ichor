@@ -711,8 +711,12 @@ critical path, which lists neither; that is the owner's line to add.
     card has such a row, but Mycosynth Lattice, Painter's Servant and Arcane
     Adaptation do, and they are played. On our boards a cold first decision
     spent one board walk more, 10–40 µs from mid-game on. On a board with such
-    a card that walk covers every card in the reached zones, about ten times
-    the objects, and nobody has measured it (`codebase-state.md` item 181).
+    a card that walk covers every card in the reached zones, about 400
+    objects. It costs 76–224 µs over a warm first decision at every stage of
+    the game, against 3–39 µs without the row (`codebase-state.md` item 181,
+    measured 2026-09-25). Item 181's lever, walking a card off the
+    battlefield only when something reads it, would bring it back to the
+    battlefield's walk.
   - **These are the naive model's numbers.** With no knowledge record, every
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card

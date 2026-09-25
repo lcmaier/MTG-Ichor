@@ -8447,6 +8447,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      Bytes stayed under 128 KB, and the committed clone test's boards read at
      most 46.
 
+     **`close_out.py`'s own board goes over the proxy too** (item 181's
+     measurement, 2026-09-25): `performance` game 12350 at Commander scale reads
+     68 allocations at turn 100 with no card placed. The clone test plays only
+     `stress` seeds, so CI does not see it; the allocations are not attributed.
+
      **Reachability (2026-09-25):** reachable — not wrong; a cost, on one
      prompt of one extreme game in ten.
 
@@ -8456,29 +8461,73 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
 
 181. **A continuous effect that reaches the hand or the library makes every
-     layer pass walk every card there, and no board has measured it.**
-     Membership seeds every object in a zone some row reaches into every board
-     pass, so at four seats a pass walks about 400 objects instead of about 40
-     (`layers-architecture.md`, LJ, which made the cost exactly zero only on a
-     board with no such row). Every measured board has had none, because the
-     pools' zone-reaching rows reach graveyards. Mycosynth Lattice and
-     Painter's Servant reach every zone, and both are played in Commander. On
-     such a board ordinary play costs more per decision (floor 1), and no
-     redeal can keep the memo warm, so each fork's first decision pays one of
-     those walks (`backlog.md` §2.9's cost section).
+     layer pass walk every card there, and on a Commander board that fails
+     floor 1.** Membership seeds every object in a zone some row reaches into
+     every board pass (`layers-architecture.md`, LJ, which made the cost zero
+     only on a board with no such row). Thirteen printed cards make such a row,
+     all Commander-legal (Scryfall `o:"that aren't on the battlefield"`),
+     Teferi, Mage of Zhalfir, Mycosynth Lattice and Painter's Servant among
+     them. No pooled card does: the pools' zone-reaching rows reach graveyards.
 
-     **Reachability (2026-09-25):** reachable — not wrong; a cost, unmeasured.
+     **Measured (2026-09-25)** by `tests/zone_reach_cost_test.rs` (`fuzz-record.md`,
+     "Measured 2026-09-25 for item 181"), with a fixture of Teferi's or
+     Lattice's clause under player 0:
+     - Each pass seeds 333–354 objects more. Layer frames per decision rise
+       ×7.4–8.7, and engine time per decision ×3.0–3.4 while the card is on the
+       battlefield.
+     - **Floor 1 reads 4,600–6,800 decisions per second on one thread**, against
+       10,000.
+     - Floors 2 and 3 hold on the proxies. Floor 2's time sits at its bound
+       (10.0–10.1 µs).
+     - `backlog.md` §2.9's cold redeal costs one walk of ~400 objects, 76–224 µs
+       over a warm first decision, against 3–39 µs without the row.
+     - A throwaway probe put 61–67% of the extra in frames built and thrown
+       away, and the rest in the layer loop.
+     - Only 0.22–0.28% of the frames seeded off the battlefield are read
+       before the next bump.
 
-     **Proposed: before the information-model design (`roadmap-v2.md` A6f)**,
-     whose redeal ceiling needs the cold number on such a board.
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, and a floor 1
+     failure on any Commander board that plays one of the thirteen.
 
-     **Sized:** the measurement first, about an hour. Put a Lattice-shaped
-     fixture (LJ's Graveyard Painter at `ZoneSet::ALL`) in every deck on the
-     Commander board, and read instructions per decision against the same
-     board without it, plus the redeal's cold first decision on it. A fix, if
-     the number calls for one, is a design question. A hidden-zone member
-     walked only when something reads it is the obvious shape; a CDA that
-     reads graveyard cards (Tarmogoyf) is why "never walked" is not the answer.
+     **Proposed: before TR-2b** (`roadmap-v2.md` A6b), by the rule the
+     measurement's brief set: floor 1 broke. The fix is its own PR with its own
+     brief.
+
+     **Sized:** four levers, each read off the measurement:
+     - **Walk a card off the battlefield only when something reads it. This is
+       the lever.**
+       - The seed stops appending zone members, and the look-ahead's boards stop
+         with it.
+       - `membership` answers a reached card with a walk of its own, which
+         applies the rows reaching its zone.
+       - `frame_of` routes a CDA's or a condition's read of that card there, as
+         it routes a non-member's. Tarmogoyf reading graveyards is why "never
+         walked" is not the answer.
+       - Reads are 0.2% of today's seeded frames, so this removes almost all of
+         the extra.
+       - One layers PR, ~500 lines with its tests.
+       - The design question is what that walk reads of the battlefield: the
+         memo's settled frames, where the pass reads live ones for CR 604.2's
+         existence check and CR 613.6's locked set. This is the question
+         §13b's table already answers for non-members.
+     - **A seed that honors the row's owner.** Ownership is the one leaf no
+       layer changes (CR 108.3). So a zone whose every row says "you own" need
+       only seed that seat's cards. The "you" is the source's controller after
+       layer 2, so those members would join the pass there.
+       - On 11 of the thirteen this cuts the extra to about a quarter, and it
+         does nothing for Lattice's or Painter's Servant's.
+       - ~60 lines.
+       - A type leaf cannot be honored this way: Conspiracy's family changes
+         creature types in the same zones.
+     - **A cheaper frame**: the five `HashSet`s as bitsets, and the name and
+       mana cost shared.
+       - It saves part of the 61–67% share, and today's battlefield passes gain
+         a little too.
+       - Alone it leaves floor 1 failing, at about ×2.
+       - A type change read at ~110 sites in the layer walk and the oracle.
+     - **A separate cache key for frames off the battlefield**: not worth one.
+       Only 1.3–3.9% of passes follow nothing but writes such a key could
+       ignore.
 
 ### Found by item 181's measurement (2026-09-25)
 

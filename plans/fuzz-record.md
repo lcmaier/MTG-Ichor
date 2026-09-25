@@ -37,6 +37,70 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-09-25 for item 181** (a row reaching the hidden zones;
+`codebase-state.md` items 181 and 182). No engine or pool change.
+`tests/zone_reach_cost_test.rs`, 64 s in release: `close_out.py`'s 20
+`performance` games and the clone test's three `stress` seeds at Commander scale,
+each played with a blank {2} artifact under player 0 from setup on, and with each
+of two fixtures in its place: **Teferi's clause** (player 0's creature cards off
+the battlefield have flash) and **Lattice's** (every card off it is colorless).
+Time is the median of five interleaved rounds; "card on" counts the turns the card
+stayed on the battlefield, 82–89% of decisions. Cells read `performance` / `stress`:
+
+| | no row | Teferi's clause | Lattice's clause |
+|---|---|---|---|
+| board walks / decision | 1.01 / 0.70 | 1.01 / 0.70 | 1.01 / 0.71 |
+| layer frames / decision | 41.5 / 25.1 | 307.7 / 214.1 (×7.4 / ×8.5) | 307.7 / 218.6 (×7.4 / ×8.7) |
+| µs / decision, whole games | 68.7 / 50.1 | 188.1 / 133.6 (×2.74 / ×2.66) | 195.7 / 142.6 (×2.85 / ×2.84) |
+| µs / decision, card on | 62.7 / 49.6 | 206.2 / 146.8 (×3.29 / ×2.96) | 215.3 / 154.4 (×3.43 / ×3.11) |
+| floor 1, decisions / s on one thread, card on | 15,950 / 20,160 | **4,850 / 6,810** | **4,640 / 6,480** |
+| games diverging from the no-row arm | | 0 of 20 / 0 of 3 | 0 of 20 / 1 of 3 |
+| worst clone on `performance`: KB, allocations, µs | 102.7, 65, 7.8 | 112.4, 65, 10.0 | 112.4, 65, 10.1 |
+| worst clone on `stress` | 92.9, 43, 6.8 | 102.1, 45, 9.7 | 101.8, 42, 9.7 |
+| redeal, first decision cold − warm, by-turn medians from turn 10, µs | 3–37 / 3–39 | 76–146 / 119–179 | 84–159 / 137–224 |
+
+- **Floor 1 fails with either row.** Board walks per decision did not move; each
+  walk seeds every object off the battlefield, 333–354 at the checkpoints, of
+  which Teferi's filter matches 7.0–8.3%.
+- **Floors 2 and 3 hold on the proxies, and floor 2's time is at its bound.** The
+  memo holds a frame for every card from the first pass: 0–19 KB more at each
+  game's end, no allocations more on Lattice's board and two on Teferi's (its
+  `And` filter's boxes), and 1.5–4 µs more for a clone and its drop, which count
+  every memoized `Arc` up and down. The 65 allocations at `performance` 12350's
+  turn 100 are the board's: with no card placed, that game reads 68 there (item 180).
+- **The cold redeal is one walk of about 400 objects** at every stage of the game;
+  without the row it grows with the battlefield. The redeal itself took 0.5–3.4 µs.
+- Teferi's row changes no game, since the cast-timing check reads printed flash
+  (item 182); Lattice's changed one of 23, at its 129th decision.
+
+**Where the extra goes**, from a throwaway probe: thread-local timers and
+counters, the median of three rounds, totals 4% over the instrument's. µs per
+decision on `performance`:
+
+| | no row | Teferi's | Lattice's |
+|---|---:|---:|---:|
+| seeding members off the battlefield / collecting them | 0.5 / 0.7 | 49.1 / 6.0 | 46.6 / 5.8 |
+| seeding battlefield members | 5.3 | 6.8 | 6.6 |
+| the layer loop | 14.6 | 52.4 | 61.8 |
+| storing frames in the memo, the stale ones dropped | 3.7 | 30.9 | 30.5 |
+
+- **Frames built and thrown away are 61–67% of the extra**, counting seeding,
+  collecting and storing. The layer loop is the rest: every row's zone gate over
+  ~270 more members, and the fixture's own row.
+- **0.22% of the frames seeded off the battlefield are read before the next
+  bump**, and 0.28% on `stress`, under one read per pass. The cast path asks a
+  hand card's printed characteristics, and nothing asks a library card's.
+- **6–13% of epoch writes are ones no frame off the battlefield depends on**
+  (counters, attachments, an entity's arrival, battlefield-only rows): every zone
+  move has one end off the battlefield, and only 1.3–3.9% of passes follow nothing
+  but such writes. The look-ahead's boards seed the same members (14,512 seeds
+  against 12,189 memo misses).
+
+**Against the PR body's predictions**, three moves nobody predicted: reads at 0.2%
+against "10% or fewer", floor 3 holding (+0–19 KB against +12–40), and floor 2's
+proxy broken without the row. Frames came in under their range (×7.4–8.7 against
+×10–16), time at its low end (×3.0–3.4 with the card on, against ×3–5).
+
 **Measured 2026-09-25 for the bounded-state PR** (`roadmap-v2.md` A6a;
 `codebase-state.md` items 42 and 179 closed). No pool change. `close_out.py`,
 `main` = `e5ec152` against the engine arm `2f1860c`:
