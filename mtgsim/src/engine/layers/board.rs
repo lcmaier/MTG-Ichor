@@ -24,15 +24,15 @@
 //! (`depends_on`).
 //!
 //! **What is a member: every object some row can reach**, read off the
-//! `ObjectSet` variants. `Filter` and `Host` rows reach the battlefield;
-//! `SourceOnly` rows reach their source, a permanent; `Fixed` rows name what
-//! they name, anywhere. So: every battlefield entity, then the look-ahead's
-//! entering object, then whatever `Fixed` rows name. A variant that reaches
-//! another zone — `codebase-state.md` layers item 9, Wonder's graveyard
-//! static — extends `Board::seed` by one clause. Everything else keeps a
-//! walk of its own that applies only its CDAs (CR 604.3, all zones) and reads
-//! a member's frame from the live board when nested inside a pass, or from
-//! the memo otherwise (`compute::compute_non_member`).
+//! `ObjectSet` variants. `Filter` rows reach the zones they name; `Host` rows
+//! reach a permanent; `SourceOnly` rows reach their source, wherever it is
+//! (Grist, the Hunger Tide is a creature card in a hand); `Fixed` rows name
+//! what they name, anywhere. So: every battlefield entity, then the
+//! look-ahead's entering object, then whatever `Fixed` rows name and the
+//! sources that join, then the zones filter rows reach. Everything else keeps
+//! a walk of its own that applies only its CDAs (CR 604.3, all zones) and
+//! reads a member's frame from the live board when nested inside a pass, or
+//! from the memo otherwise (`compute::compute_non_member`).
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -66,8 +66,9 @@ use crate::types::zones::{Zone, ZoneSet};
 /// The evaluators ask [`Board::frame_of`] and never care which.
 pub(super) struct Board<'l> {
     /// Members in walk order: battlefield entities by CR 613.7 timestamp,
-    /// then the entering object, then `Fixed`-named objects in row order,
-    /// then the objects a zone-reaching row names, in their zones' own order.
+    /// then the entering object, then `Fixed`-named objects and joining
+    /// sources in row order, then the objects a zone-reaching row names, in
+    /// their zones' own order.
     members: Vec<ObjectId>,
     /// How many of `members`, from the front, are battlefield entities —
     /// the prefix a count over the battlefield enumerates (§5b's boundary:
@@ -162,6 +163,10 @@ impl<'l> Board<'l> {
                         members.push(*id);
                     }
                 }
+            }
+            if source_joins(effect) && !seen.contains(&effect.source) && game.objects.contains_key(&effect.source) {
+                seen.insert(effect.source);
+                members.push(effect.source);
             }
         }
         // The objects a zone-reaching row can name. Appended **last**, so
@@ -1367,15 +1372,30 @@ pub(super) fn compute_board_traced<'l>(
 /// Whether `id` belongs to the working set, which decides how the
 /// top-level entry computes it.
 pub(super) enum Membership {
-    /// A battlefield entity, an object a `Fixed` row names, or an object in a
-    /// zone some row reaches: a member of every pass. Rows are scanned rather
-    /// than summarized — `Fixed` rows are few, and a miss is already a walk.
+    /// A battlefield entity, an object a `Fixed` row names, a source that
+    /// joins (`source_joins`), or an object in a zone some row reaches: a
+    /// member of every pass. Rows are scanned rather than summarized — `Fixed`
+    /// rows are few, and a miss is already a walk.
     Member,
     /// In the battlefield zone with no entity: a member of the pass that
     /// asks about it (see [`Board::seed`]).
     ZoneOnly,
     /// Reachable by no row: its own CDA walk.
     NonMember,
+}
+
+/// Whether `effect`'s source is a member of every pass wherever it is.
+///
+/// A `SourceOnly` row writes its own source, and `affected_members` reaches
+/// the source only through its frame in the pass. So a static ability that
+/// changes its own card off the battlefield (CR 113.6b) — Grist, the Hunger
+/// Tide being "a 1/1 Insect creature" everywhere but the battlefield — needs
+/// its card in the pass, and a walk of its own would apply no row at all. A
+/// resolution's `SourceOnly` row names a permanent, and leaves with it
+/// (`remove_by_source`; CR 400.7).
+fn source_joins(effect: &ContinuousEffect) -> bool {
+    matches!(effect.origin, EffectOrigin::StaticAbility { .. })
+        && matches!(effect.affected_objects, ObjectSet::SourceOnly)
 }
 
 pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
@@ -1385,11 +1405,13 @@ pub(super) fn membership(game: &GameState, id: ObjectId) -> Membership {
     if matches!(game.objects.get(&id), Some(obj) if obj.zone == Zone::Battlefield) {
         return Membership::ZoneOnly;
     }
-    let fixed_named = game
-        .continuous_effects
-        .iter()
-        .any(|e| matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id)));
-    if fixed_named {
+    // Both halves must agree with `Board::seed`, which appends the same
+    // objects in the same scan.
+    let named = game.continuous_effects.iter().any(|e| {
+        matches!(&e.affected_objects, ObjectSet::Fixed(ids) if ids.contains(&id))
+            || (e.source == id && source_joins(e))
+    });
+    if named {
         return Membership::Member;
     }
     // In a zone some row reaches. Summarized rather than scanned, unlike
