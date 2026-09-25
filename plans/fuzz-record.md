@@ -37,6 +37,40 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-25 for item 180** (registry rows shared across a fork;
+`codebase-state.md` item 180 closed; `roadmap-v2.md` A6b). No pool change.
+`close_out.py`, `main` = `be6e181` against the engine arm `e710961`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 174,774 / 195,883 | 343,421 / 393,287 |
+| instructions / decision, engine vs main, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7663 M → 0.7654 M, **−0.12%** |
+
+Every counter file is byte-identical to `main`'s outside `=== Timing ===`, the
+cost rows included, as predicted.
+
+**The clone**, read by `tests/clone_bound_test.rs` itself: 24 games, 211
+checkpoints, `MTGSIM_HASH_SEED=1`, allocations and KB.
+
+| | before (`e8c8316`) | rows shared (`4c76f1a`) | and the zone lists (`e710961`) |
+|---|---|---|---|
+| `performance` 12350, turn 100 | 68, 100.4 | 40, 97.8 | **34, 93.3** |
+| worst allocations | 68 (12350, turn 100) | 43 (12350's turns 30–60; 12358's turn 50) | **40** (12358, turn 50) |
+| worst KB | 102.2 (12350's end) | 100.0 (`stress` 12351's end) | 99.9 (the same) |
+| mean allocations per checkpoint | 36.3 | | 29.9 |
+
+Every checkpoint fell or held, by 0–34 allocations. **Three moves nobody
+predicted:**
+- **34 at 12350, not 33.** The rows took exactly the 28. The lists took six,
+  not seven: the seventh allocation #189's attribution put under that field is
+  the map's own table, which stays.
+- **The worst clone is `performance` 12358's turn 50**, not a `stress` seed or
+  12349. Its rows and lists held three allocations between them: 43 → 40.
+- **Instructions fell 0.12%**, against a predicted small rise. Not attributed.
+  One place the change does less work is `add`'s insert, `retain`'s rebuild and
+  `update_rows`' re-sort, which now move pointers rather than rows.
+
 **Measured 2026-09-25 for item 181** (a row reaching the hidden zones;
 `codebase-state.md` items 181 and 182). No engine or pool change.
 `tests/zone_reach_cost_test.rs`, 64 s in release: `close_out.py`'s 20
