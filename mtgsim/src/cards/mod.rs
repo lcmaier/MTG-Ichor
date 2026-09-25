@@ -1,5 +1,6 @@
 pub mod authoring;
 pub mod registry;
+pub mod random_deck;
 pub mod basic_lands;
 pub mod dual_lands;
 pub mod alpha;
