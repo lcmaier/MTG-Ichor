@@ -96,6 +96,19 @@ decision on `performance`:
   but such writes. The look-ahead's boards seed the same members (14,512 seeds
   against 12,189 memo misses).
 
+**Attributed at the review**, with a throwaway that clones each field and
+each registry row of one state alone:
+- **`performance` 12350's 68 allocations at turn 100.** 28 are eight registry
+  rows' filter trees: five Blood Moon rows at 4 each, March of the Machines' two
+  rows at 3 each, and Wonder's row at 2 (item 180). The other 40 do not grow
+  with the board.
+- **The row's clone cost is the memo alone.** At `performance` 12351's end,
+  every public field clones the same with and without Teferi's clause. The rest
+  goes from 6.3 KB and 1.67 µs to 25.0 KB and 3.36 µs.
+- **Objects off the battlefield per prompt**, over the 23 games: 280.6 in
+  libraries (88.9%), 14.3 in hands (4.5%), 17.7 in graveyards, 2.9 in exile
+  and 0.3 on the stack.
+
 **Against the PR body's predictions**, three moves nobody predicted: reads at 0.2%
 against "10% or fewer", floor 3 holding (+0–19 KB against +12–40), and floor 2's
 proxy broken without the row. Frames came in under their range (×7.4–8.7 against
