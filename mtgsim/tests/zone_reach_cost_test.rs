@@ -194,16 +194,34 @@ impl Counts {
     }
 }
 
-/// One game to its end, and the time of its turn loop.
-fn play_timed(board: &Board, seed: u64, arm: Arm) -> (Duration, Counts) {
-    let (mut game, dp, _) = deal(board, seed, arm);
-    let started = Instant::now();
+/// One game's time: the whole turn loop, and the turns the arm's card was on
+/// the battlefield from start to end, with their decisions.
+#[derive(Clone, Copy, Default)]
+struct Timed {
+    total: Duration,
+    card_on: Duration,
+    card_on_decisions: u64,
+}
+
+/// One game to its end, timed turn by turn.
+fn play_timed(board: &Board, seed: u64, arm: Arm) -> (Timed, Counts) {
+    let (mut game, dp, card) = deal(board, seed, arm);
+    let mut timed = Timed::default();
     let mut turns = 0;
     while !game.is_over() && turns < MAX_TURNS {
+        let on_before = game.state.battlefield.contains_key(&card);
+        let decisions = game.state.diagnostics.decisions();
+        let started = Instant::now();
         game.run_turn(&dp).expect("turn");
+        let elapsed = started.elapsed();
+        timed.total += elapsed;
+        if on_before && game.state.battlefield.contains_key(&card) {
+            timed.card_on += elapsed;
+            timed.card_on_decisions += game.state.diagnostics.decisions() - decisions;
+        }
         turns += 1;
     }
-    (started.elapsed(), Counts::of(&game.state))
+    (timed, Counts::of(&game.state))
 }
 
 // ---------------------------------------------------------------------------
@@ -246,13 +264,29 @@ impl Watcher {
         }
     }
 
-    /// The prompt and its answer, keyed by the decisions made before it: ids
-    /// and not names, so the blank arm's prints compare with a fixture's.
+    /// The prompt and its answer, keyed by the decisions made before it.
     fn print(&self, game: &GameState, prompt: std::fmt::Arguments) {
         let mut hasher = DefaultHasher::new();
-        std::fmt::format(prompt).hash(&mut hasher);
+        without_grant_rows(&std::fmt::format(prompt)).hash(&mut hasher);
         self.prints.borrow_mut().push((game.diagnostics.decisions(), hasher.finish()));
     }
+}
+
+/// `text` with every `AbilityId`'s `grant` blanked. A granted ability's id
+/// carries its registry row's number, and a fixture's own row moves every
+/// later row's number by one, where the blank arm registers none: the same
+/// game, told apart by a counter.
+fn without_grant_rows(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find("grant: ") {
+        let (head, tail) = rest.split_at(at + "grant: ".len());
+        out.push_str(head);
+        out.push('_');
+        rest = tail.trim_start_matches(|c: char| c.is_ascii_digit());
+    }
+    out.push_str(rest);
+    out
 }
 
 /// A prompt `Game::resume_turn_at_priority` can take over from — the fork
@@ -552,6 +586,9 @@ fn median(mut values: Vec<f64>) -> f64 {
 #[derive(Default)]
 struct Reading {
     rounds: Vec<f64>,
+    /// Per round: the time of the turns the card stayed on the battlefield.
+    rounds_card_on: Vec<f64>,
+    card_on_decisions: u64,
     counts: Counts,
     prompts: u64,
     prompts_with_card: u64,
@@ -592,10 +629,14 @@ fn zone_reaching_row_cost_on_the_commander_board() {
         for _ in 0..ROUNDS {
             for (a, &arm) in Arm::ALL.iter().enumerate() {
                 let mut total = Duration::ZERO;
+                let mut card_on = Duration::ZERO;
+                let mut card_on_decisions = 0;
                 let mut counts = Counts::default();
                 for &seed in &board.seeds {
-                    let (elapsed, game_counts) = play_timed(&board, seed, arm);
-                    total += elapsed;
+                    let (timed, game_counts) = play_timed(&board, seed, arm);
+                    total += timed.total;
+                    card_on += timed.card_on;
+                    card_on_decisions += timed.card_on_decisions;
                     counts.add(game_counts);
                 }
                 let reading = &mut readings[a];
@@ -606,7 +647,9 @@ fn zone_reaching_row_cost_on_the_commander_board() {
                     arm.name()
                 );
                 reading.counts = counts;
+                reading.card_on_decisions = card_on_decisions;
                 reading.rounds.push(total.as_secs_f64());
+                reading.rounds_card_on.push(card_on.as_secs_f64());
             }
         }
 
@@ -652,9 +695,10 @@ fn report(board: &Board, readings: &[Reading]) {
     println!("\n=== {}: {} games at Commander scale ===", board.name, board.seeds.len());
 
     println!("\n1. floor 1 — per decision, medians of {ROUNDS} rounds");
+    let blank_on = median(blank.rounds_card_on.clone()) * 1e6 / blank.card_on_decisions as f64;
     println!(
-        "{:<17} {:>9} {:>8} {:>8} {:>9} {:>9} {:>8} {:>7} {:>11} {:>8} {:>14}",
-        "arm", "decisions", "b.walks", "l.walks", "frames", "hits", "µs", "×", "decisions/s", "row on", "diverged"
+        "{:<17} {:>9} {:>8} {:>8} {:>9} {:>9} {:>8} {:>7} {:>11} {:>8} {:>14} {:>9} {:>7}",
+        "arm", "decisions", "b.walks", "l.walks", "frames", "hits", "µs", "×", "decisions/s", "row on", "diverged", "µs, on", "×, on"
     );
     for (arm, r) in Arm::ALL.iter().zip(readings) {
         let c = r.counts;
@@ -670,8 +714,9 @@ fn report(board: &Board, readings: &[Reading]) {
         } else {
             format!("{} of {}", diverged.len(), r.divergence.len())
         };
+        let micros_on = median(r.rounds_card_on.clone()) * 1e6 / r.card_on_decisions as f64;
         println!(
-            "{:<17} {:>9} {:>8.2} {:>8.2} {:>9.1} {:>9.1} {:>8.1} {:>7.2} {:>11.0} {:>8} {:>14}",
+            "{:<17} {:>9} {:>8.2} {:>8.2} {:>9.1} {:>9.1} {:>8.1} {:>7.2} {:>11.0} {:>8} {:>14} {:>9.1} {:>7.2}",
             arm.name(),
             c.decisions,
             c.per_decision(c.board_walks),
@@ -683,17 +728,21 @@ fn report(board: &Board, readings: &[Reading]) {
             1e6 / micros,
             row_on,
             diverged,
+            micros_on,
+            micros_on / blank_on,
         );
     }
     for (arm, r) in Arm::ALL.iter().zip(readings).skip(1) {
         let frames = r.counts.per_decision(r.counts.frames);
-        let micros = median(r.rounds.clone()) * 1e6 / r.counts.decisions as f64;
+        let micros = median(r.rounds_card_on.clone()) * 1e6 / r.card_on_decisions as f64;
         println!(
-            "  {}: frames ×{:.1}; floor 1 {} at {:.0} decisions/s on one thread",
+            "  {}: frames ×{:.1}; with the row on, floor 1 {} at {:.0} decisions/s on one thread ({} of {} decisions)",
             arm.name(),
             frames / blank_frames,
             if 1e6 / micros >= FLOOR_1 { "holds" } else { "fails" },
-            1e6 / micros
+            1e6 / micros,
+            r.card_on_decisions,
+            r.counts.decisions
         );
         let mut firsts: Vec<String> = r
             .divergence
