@@ -32,7 +32,7 @@ test-support = []
 # the code made on purpose, and the reason is beside it. Allow a sixth here,
 # with its reason, rather than at the site.
 [lints.clippy]
-# 8 sites. A performer or an `ask_*` takes the board, the actor, the event and
+# 11 sites. A performer or an `ask_*` takes the board, the actor, the event and
 # each bound as its own parameter on purpose; a parameter struct is a signature
 # change at every caller and hides which bound a site forgot. The one to
 # revisit is `DecisionProvider::allocate`, and Phase 10 does, when it
