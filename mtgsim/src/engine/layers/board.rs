@@ -138,10 +138,12 @@ pub(super) enum RowDecision {
 }
 
 /// Whether a pass leaves the hidden zones' cards out, as every pass does, or
-/// holds them as LJ did, which only the debug replay audit asks for.
+/// holds them as LJ did, which only the debug replay audit asks for — so
+/// `Held` exists only in a build that has the audit.
 #[derive(Clone, Copy, PartialEq)]
 pub(super) enum HiddenCards {
     LeftOut,
+    #[cfg(debug_assertions)]
     Held,
 }
 
@@ -201,6 +203,7 @@ impl<'l> Board<'l> {
     ) -> Self {
         let left_out = match hidden {
             HiddenCards::LeftOut => left_out_zones(game),
+            #[cfg(debug_assertions)]
             HiddenCards::Held => ZoneSet::EMPTY,
         };
         let mut members = game.battlefield_ids_ordered();
