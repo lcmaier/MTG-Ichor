@@ -399,7 +399,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
             bears,
             Layer::Layer6Ability,
             ts,
-            EffectModification::GrantAbility(Box::new(tax)),
+            EffectModification::GrantAbility(std::sync::Arc::new(tax)),
         ));
         assert!(game.cost_modification_ability_sources.is_empty(), "nothing printed one");
         assert!(game.continuous_effects.summary().any_granted_cost_modification);

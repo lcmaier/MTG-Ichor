@@ -1798,7 +1798,7 @@ impl GameState {
             created_on_turn: self.turn_number,
             timestamp,
             affected_objects: ObjectSet::Fixed(affected.clone()),
-            modification: EffectModification::CopyFrom(Box::new(values.clone())),
+            modification: EffectModification::CopyFrom(std::sync::Arc::new(values.clone())),
         });
 
         // `copy-effects-architecture.md` §4.7 leg 2: the row alone makes the

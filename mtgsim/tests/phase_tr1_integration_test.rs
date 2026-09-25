@@ -401,7 +401,7 @@ fn a_grant_ending_in_the_wipe_still_sees_the_creatures_die() {
             granter,
             Layer::Layer6Ability,
             100,
-            EffectModification::GrantAbility(Box::new(granted)),
+            EffectModification::GrantAbility(std::sync::Arc::new(granted)),
         )
     });
     let source = put_on_battlefield(&mut game, sol_ring(), 1);
@@ -1983,7 +1983,7 @@ fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
                 granter,
                 Layer::Layer6Ability,
                 timestamp,
-                EffectModification::GrantAbility(Box::new(granted.clone())),
+                EffectModification::GrantAbility(std::sync::Arc::new(granted.clone())),
             )
         });
     }

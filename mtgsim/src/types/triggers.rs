@@ -2,7 +2,7 @@
 //! (`triggers-architecture.md` §3).
 //!
 //! A triggered ability is an [`AbilityDef`](crate::objects::card_data::AbilityDef)
-//! whose effect is `Effect::Triggered(Box<TriggerDef>)`, the shape
+//! whose effect is `Effect::Triggered(Arc<TriggerDef>)`, the shape
 //! `Effect::Replacement` gave static replacement abilities: a card is data and
 //! adding one touches `src/cards/*.rs` alone. **The one growth axis is
 //! [`TriggerEvent`]**, one arm per performed `GameEvent` kind and no other —

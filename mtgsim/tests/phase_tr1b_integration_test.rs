@@ -230,7 +230,7 @@ fn grant(game: &mut GameState, granter: ObjectId, carrier: ObjectId, event: impl
     game.continuous_effects.add(ContinuousEffect {
         duration: Duration::WhileSourceOnBattlefield,
         affected_objects: ObjectSet::Fixed(vec![carrier]),
-        ..registered(granter, Layer::Layer6Ability, 100, EffectModification::GrantAbility(Box::new(granted)))
+        ..registered(granter, Layer::Layer6Ability, 100, EffectModification::GrantAbility(std::sync::Arc::new(granted)))
     });
 }
 

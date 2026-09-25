@@ -235,7 +235,7 @@ struct TriggerCandidateDef<'a> {
     /// Index into the candidate list.
     candidate: usize,
     identity: AbilityIdentity,
-    def: &'a TriggerDef,
+    def: &'a Arc<TriggerDef>,
     instances: &'a [EffectRecipient],
 }
 
@@ -853,10 +853,10 @@ impl GameState {
                 let (identity, def) = (row.identity, row.def);
                 let mana = is_mana_ability(def);
                 let arm = &def.condition.events()[matched.0];
-                // Cloned here rather than in the pre-pass: a match is under 1%
-                // of visits, so one clone per matching record is cheaper than
-                // one per candidate def whether or not it ever matches.
-                let def_arc: Arc<TriggerDef> = Arc::new(def.clone());
+                // The ability's own def, shared: nothing writes it once the card
+                // is built, so a Humility landing before placement still cannot
+                // un-trigger it (CR 113.7a).
+                let def_arc: Arc<TriggerDef> = Arc::clone(def);
                 match arm.multiplicity() {
                     Multiplicity::PerOccurrence => {
                         for subject in subjects {

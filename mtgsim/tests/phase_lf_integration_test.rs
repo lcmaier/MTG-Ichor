@@ -82,7 +82,7 @@ fn test_losing_an_ability_removes_every_instance_of_it() {
     game.continuous_effects.add(row(
         id,
         1,
-        EffectModification::GrantAbility(Box::new(printed.clone())),
+        EffectModification::GrantAbility(std::sync::Arc::new(printed.clone())),
     ));
     let ids = ability_ids(&game, id);
     assert_eq!(
@@ -182,7 +182,7 @@ fn test_granting_an_ability_clears_its_characteristic_defining_flag() {
     cda.is_characteristic_defining = true;
 
     game.continuous_effects
-        .add(row(id, 1, EffectModification::GrantAbility(Box::new(cda))));
+        .add(row(id, 1, EffectModification::GrantAbility(std::sync::Arc::new(cda))));
 
     let granted = get_effective_abilities(&game, id);
     assert_eq!(granted.len(), 1);
@@ -459,7 +459,7 @@ fn test_a_granted_static_ability_takes_the_granting_effects_timestamp() {
         EffectRecipient::ThisObject,
     ));
     let spell = Effect::Atom(
-        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        Primitive::GrantAbility(std::sync::Arc::new(granted), Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
@@ -501,7 +501,7 @@ fn test_stripping_a_granted_ability_retires_the_effect_it_generated() {
     ));
     let granted_id = granted.id;
     let spell = Effect::Atom(
-        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        Primitive::GrantAbility(std::sync::Arc::new(granted), Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
@@ -540,7 +540,7 @@ fn test_granting_a_non_static_ability_registers_no_derived_effect() {
     activated.ability_type = mtgsim::objects::card_data::AbilityType::Activated;
 
     let spell = Effect::Atom(
-        Primitive::GrantAbility(Box::new(activated), Duration::UntilEndOfTurn),
+        Primitive::GrantAbility(std::sync::Arc::new(activated), Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {
@@ -594,7 +594,7 @@ fn test_a_card_authors_cda_flag_does_not_suppress_a_granted_abilitys_effect() {
     granted.is_characteristic_defining = true;
 
     let spell = Effect::Atom(
-        Primitive::GrantAbility(Box::new(granted), Duration::UntilEndOfTurn),
+        Primitive::GrantAbility(std::sync::Arc::new(granted), Duration::UntilEndOfTurn),
         EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
     );
     let ctx = ResolutionContext {

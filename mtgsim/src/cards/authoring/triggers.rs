@@ -25,7 +25,7 @@ pub fn triggered_ability(def: TriggerDef) -> AbilityDef {
         instances: Vec::new(),
         ability_type: AbilityType::Triggered,
         costs: Vec::new(),
-        effect: Effect::Triggered(Box::new(def)),
+        effect: Effect::Triggered(std::sync::Arc::new(def)),
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::None,
     }

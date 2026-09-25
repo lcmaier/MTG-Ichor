@@ -45,7 +45,7 @@ fn equipped_creature_has_flying() -> mtgsim::objects::card_data::AbilityDef {
 /// Grant `ability` to `target` by resolution, from `source`, until end of turn.
 fn grant(game: &mut GameState, source: ObjectId, target: ObjectId, ability: mtgsim::objects::card_data::AbilityDef) {
     let spell = Effect::Atom(
-        Primitive::GrantAbility(Box::new(ability), Duration::UntilEndOfTurn),
+        Primitive::GrantAbility(std::sync::Arc::new(ability), Duration::UntilEndOfTurn),
         EffectRecipient::Target(
             SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Artifact)),
             TargetCount::Exactly(1),

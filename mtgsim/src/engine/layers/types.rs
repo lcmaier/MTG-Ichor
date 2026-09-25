@@ -123,14 +123,17 @@ pub enum EffectModification {
     // --- Layer 1a (CR 613.2a) ---
     /// CR 707 — the affected object becomes a copy of the captured values.
     ///
-    /// **Boxed, and the numbers say why.** `CopiableValues` is 328 bytes (a
-    /// `String`, five `HashSet`s, a `Vec<AbilityDef>` and two `Option<i32>`);
-    /// boxed it is 8. Inline, this arm would take `EffectModification` from 72
-    /// bytes to ~336 and `ContinuousEffect` from 168 to ~432 — paid by *every*
-    /// row, including the thousands that carry two `i32`s, because
-    /// `effects_in_layer` hands the walk a contiguous slice it re-iterates per
-    /// layer per object. Row size is the layer walk's memory traffic. Same
-    /// reason `GrantAbility` is boxed.
+    /// **Behind a pointer, and the numbers say why.** `CopiableValues` is 328
+    /// bytes (a `String`, five `HashSet`s, a `Vec<AbilityDef>` and two
+    /// `Option<i32>`); behind one it is 8. Inline, this arm would take
+    /// `EffectModification` from 72 bytes to ~336 and `ContinuousEffect` from
+    /// 168 to ~432 — paid by *every* row, including the thousands that carry
+    /// two `i32`s, because `effects_in_layer` hands the walk a contiguous slice
+    /// it re-iterates per layer per object. Row size is the layer walk's memory
+    /// traffic. **An `Arc` rather than a `Box`** because the registry is cloned
+    /// with every fork and nothing writes the values after registration: a box
+    /// cost a clone ten or more allocations per copy row. `GrantAbility` is the
+    /// same for both reasons.
     ///
     /// **Growth contract.** `EffectModification` grows one arm per
     /// *characteristic channel*, and this one replaces every channel at once,
@@ -138,7 +141,7 @@ pub enum EffectModification {
     /// 613.2 has a third sublayer; it has two, and the other is face-down,
     /// which CV-6 derives from `PermanentState` state rather than from a row
     /// (`copy-effects-architecture.md` §4.6).
-    CopyFrom(Box<crate::engine::layers::copy::CopiableValues>),
+    CopyFrom(Arc<crate::engine::layers::copy::CopiableValues>),
 
     // --- Layer 2 ---
     /// CR 613.1b. A `PlayerRef` rather than a resolved `PlayerId`, for the
@@ -172,9 +175,11 @@ pub enum EffectModification {
     // goes through `GrantAbility`. See `KeywordFlag`'s docs for the map.
     GrantKeywordFlag(KeywordFlag),
     RemoveKeywordFlag(KeywordFlag),
-    /// Boxed: `AbilityDef` carries a `Vec<Cost>` and an `Effect` tree, and this
-    /// enum is stored per registry row and matched at every layer.
-    GrantAbility(Box<AbilityDef>),
+    /// Behind an `Arc`: `AbilityDef` carries a `Vec<Cost>` and an `Effect`
+    /// tree, this enum is stored per registry row and matched at every layer,
+    /// and the row is cloned with every fork. A box cost a clone about five
+    /// allocations per grant row; the `Arc` is the card's own def, shared.
+    GrantAbility(Arc<AbilityDef>),
     /// CR 113.10b — removes *all* instances of the ability, not the first.
     LoseAbility(AbilityId),
     LoseAllAbilities,
