@@ -95,8 +95,17 @@ twice a plain one. **The first decision after it:**
 - **The bump is needed only when a registry row reaches a hidden zone the
   redeal moves cards between.** `layers/board.rs`'s membership makes that the
   one case a frame depends on which hidden zone its card is in, and it is one
-  compare on `RegistryScopeSummary::reachable_zones`. None of the 39 checkpoints
-  had such a row.
+  compare on `RegistryScopeSummary::reachable_zones`. None of the 39
+  checkpoints had such a row, because no pooled card has one: the pools'
+  zone-reaching effects reach graveyards. That is a fact about these pools, not
+  about the missing information model. Printed Commander cards do reach hands
+  and libraries (Painter's Servant, Mycosynth Lattice, Arcane Adaptation), and
+  with one in play every redeal is cold.
+- **What the missing information model does change is the redeal itself.**
+  With no knowledge record every hidden card counts as unknown, so the redeal
+  shuffles all of them. A real one keeps the known cards in place and pays a
+  lookup for each. So these are first readings of the shuffle, and the
+  observation above has no visibility query in it either.
 
 **Calibrated 2026-09-25: does a cycle estimate read CPU better than
 instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The

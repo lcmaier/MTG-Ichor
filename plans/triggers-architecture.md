@@ -739,6 +739,15 @@ too. The `Condition` leaves that read it are `ThisTurn(TurnFact, Cmp)`,
 (the variant, the `holds` arm, the `condition_reads` arm, which for a
 summary read is "nothing" — no frame is read).
 
+**A departed player's counts stay readable (CR 800.4i).** The rule says that
+"if an effect requires information from the game about actions players have
+taken, the effect can find actions that were taken by a player who has left
+the game." `GameState.players` never shrinks, so a departed player's history
+keeps its counts. A read over every player (`PlayerSet::Everyone`) sums them,
+"an opponent" includes them, and the snapshot "since your last turn"
+subtracts holds their totals too. No test pins this yet: session 10 deferred
+CR 800.4i to Phase 9 with no atom.
+
 **As built (TR-2a, 2026-09-24).** The owner had each field named at the
 sizing for the side it counts, chosen from the cards that read it:
 - `damage_taken` is damage dealt *to* the player, which bloodthirst reads.

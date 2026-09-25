@@ -707,9 +707,14 @@ critical path, which lists neither; that is the owner's line to add.
     early in a game, when the libraries are full.
   - **The memo stays warm through it unless a registry row reaches a hidden
     zone the redeal moves cards between**, a check that is one compare
-    (`RegistryScopeSummary::reachable_zones`). No measured board had one.
-    Cold, the first decision after it spends one board walk more, 10–40 µs
-    from mid-game on.
+    (`RegistryScopeSummary::reachable_zones`). No pooled card has such a row,
+    but Painter's Servant, Mycosynth Lattice and Arcane Adaptation do, so the
+    ceiling should assume a cold memo. Cold, the first decision after the
+    redeal spends one board walk more, 10–40 µs from mid-game on.
+  - **These are the naive model's numbers.** With no knowledge record, every
+    hidden card is unknown, so the redeal shuffles all of them, and the
+    observation makes no visibility query. The build pays a lookup per card
+    for the first and the per-viewer query for the second.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it
