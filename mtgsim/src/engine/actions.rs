@@ -973,9 +973,10 @@ impl GameState {
         let mut performed_ok = Ok(());
         // Lifelink's gain is a result of this batch's damage (CR 120.3f), one
         // event per source across its members (CR 702.15e), proposed once they
-        // have all performed and inside the batch (CR 120.4c). A nested batch or
-        // a rider performs its own members and gains for its own damage.
-        let mut gains = Vec::new();
+        // have all performed and inside the batch (CR 120.4c). Damage dealt by a
+        // nested batch or a CR 615.5 rider is summed by that call's own loop, so
+        // it gains in a separate event and is never counted twice.
+        let mut lifelink_gains = Vec::new();
         for (i, action) in decided.into_iter().enumerate() {
             let Some(action) = action else { continue };
             if let Err(e) = self.perform_action(action.clone(), ctx, &applied_to[i]) {
@@ -983,12 +984,12 @@ impl GameState {
                 break;
             }
             if let GameAction::DealDamage { source, amount, .. } = &action {
-                add_lifelink_gain(self, &mut gains, *source, *amount);
+                add_lifelink_gain(self, &mut lifelink_gains, *source, *amount);
             }
             performed.push(action);
         }
         if performed_ok.is_ok() {
-            for gain in gains {
+            for gain in lifelink_gains {
                 if let Err(e) = self.execute_action(
                     GameAction::GainLife { player: gain.player, amount: gain.amount, source: gain.source },
                     ctx,
