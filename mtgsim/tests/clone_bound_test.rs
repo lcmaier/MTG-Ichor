@@ -13,19 +13,21 @@
 //! could reach the count, and one test means one thread to switch it.
 //!
 //! **Release only**, as CI's own step runs it (`cargo test --release --test
-//! clone_bound_test`): under a second there, and 675 s in a debug build (three
-//! games), where the layer memo's audit re-walks every memo hit
+//! clone_bound_test`): about two seconds there, and 675 s in a debug build
+//! (three games), where the layer memo's audit re-walks every memo hit
 //! (`compute_characteristics`).
 //!
 //! **The games are `fuzz_games`'**: its deck builder and its three seed
-//! derivations, four seats of 100 cards at 40 life on the `stress` pool.
-//! Seeds 12345 and 777 are item 143's; 12351 is game 7 of the 100-game sweep at
+//! derivations, four seats of 100 cards at 40 life. Three are `stress` seeds.
+//! 12345 and 777 are item 143's; 12351 is game 7 of the 100-game sweep at
 //! 12345, which ran 184 turns on the tree this test was written on, and a long
 //! game is what shows a size bounded by the board rather than the turn count.
 //! The `stress` pool grows with every registered card, so its games change
-//! with it; the test reads whatever checkpoints they reach, and `fuzz_games
-//! --pool stress --players 4 --deck-size 100 --life 40 --seed <seed> --games 1`
-//! plays the same game.
+//! with it; the test reads whatever checkpoints they reach. **The rest are
+//! `close_out.py`'s 20 `performance` games**, the board the budget is read on,
+//! so the floors are checked where the budget is. `fuzz_games --pool <pool>
+//! --players 4 --deck-size 100 --life 40 --seed <seed> --games 1` plays any of
+//! them.
 //!
 //! **The fourth game is 12351 again, with Teferi's clause under player 0 from
 //! setup on** (`phase_lj_cards::teferi_flash_clause`, `codebase-state.md` item
@@ -97,18 +99,25 @@ fn a_commander_clone_stays_under_the_allocation_and_byte_floors() {
     // that could read the environment.
     unsafe { std::env::set_var("MTGSIM_HASH_SEED", "1") };
 
-    let registry = CardRegistry::default_registry();
+    let stress = CardRegistry::default_registry();
+    let performance = CardRegistry::performance_pool();
     let mut readings = Vec::new();
     let mut over = Vec::new();
-    let games: [(u64, Option<fn() -> Arc<CardData>>); 4] =
-        [(12345, None), (777, None), (12351, None), (12351, Some(teferi_flash_clause))];
-    for (seed, row) in games {
-        let (mut game, dp) = commander_game(&registry, seed, row.map(|card| card()));
+    let mut games: Vec<(&str, &CardRegistry, u64, Option<fn() -> Arc<CardData>>)> = vec![
+        ("stress", &stress, 12345, None),
+        ("stress", &stress, 777, None),
+        ("stress", &stress, 12351, None),
+        ("stress", &stress, 12351, Some(teferi_flash_clause)),
+    ];
+    // `close_out.py`'s `--games 20 --seed 12345 --pool performance`.
+    games.extend((12345..12365).map(|seed| ("performance", &performance, seed, None)));
+    for (pool, registry, seed, row) in games {
+        let (mut game, dp) = commander_game(registry, seed, row.map(|card| card()));
         let with = if row.is_some() { " with Teferi's clause" } else { "" };
         let mut turns = 0;
         let mut read = |game: &Game, at: String| {
             let (allocations, bytes) = clone_cost(&game.state);
-            let line = format!("seed {seed}{with}, {at}: {allocations} allocations, {:.1} KB", bytes as f64 / 1024.0);
+            let line = format!("{pool} {seed}{with}, {at}: {allocations} allocations, {:.1} KB", bytes as f64 / 1024.0);
             if allocations > MAX_ALLOCATIONS || bytes > MAX_BYTES {
                 over.push(line.clone());
             }

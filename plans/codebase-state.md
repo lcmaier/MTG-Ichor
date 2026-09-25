@@ -8465,8 +8465,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-09-25):** reachable — not wrong; a floor 2 breach on
      the board the budget is read on.
 
-     **Proposed: before TR-2b, beside item 181's fix.** `performance` 12350
-     joins the clone test in the same PR, where it fails today.
+     **Proposed: before TR-2b.** Its PR's first commit adds `close_out.py`'s
+     20 `performance` games to the clone test, which fails at 12350's turn 100
+     until the fix.
 
      **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
      `Arc::make_mut` in its five mutating methods, which makes each of the three
