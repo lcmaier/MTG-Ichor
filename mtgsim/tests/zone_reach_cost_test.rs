@@ -24,7 +24,8 @@
 //!    checkpoints;
 //! 3. `backlog.md` §2.9's ceiling: the naive redeal, and the first decision
 //!    after it with the memo warm and cold;
-//! 4. how many members a zone row adds to each pass, and how many of those
+//! 4. how many members a zone row adds to each pass, how many cards the pass
+//!    leaves out (`layers-architecture.md` §13e), and how many of them
 //!    Teferi's filter matches.
 
 use std::cell::{Cell, RefCell};
@@ -372,23 +373,27 @@ fn read_clone(state: &GameState) -> CloneReading {
     }
 }
 
-/// The objects a row reaching every zone but the battlefield adds to each
-/// pass, and how many of them Teferi's filter matches: player 0's creature
-/// cards. Printed types, since no row on these boards changes a type off the
-/// battlefield, and reading them walks nothing.
-fn off_battlefield(state: &GameState) -> (u64, u64) {
-    let mut members = 0;
-    let mut matched = 0;
+/// What a row reaching every zone but the battlefield does to each pass: the
+/// objects in public zones it adds as members, the cards in libraries and
+/// hands the pass leaves out, and how many of all those Teferi's filter
+/// matches (player 0's creature cards). Printed types, since no row on these
+/// boards changes a type off the battlefield, and reading them walks nothing.
+fn off_battlefield(state: &GameState) -> (u64, u64, u64) {
+    let (mut members, mut left_out, mut matched) = (0, 0, 0);
     for zone in ZoneSet::EVERYWHERE_BUT_BATTLEFIELD.iter() {
         for id in state.zone_ids_ordered(zone) {
             let Some(obj) = state.objects.get(&id) else { continue };
-            members += 1;
+            if ZoneSet::HIDDEN.contains(zone) {
+                left_out += 1;
+            } else {
+                members += 1;
+            }
             if obj.owner == 0 && obj.card_data.types.contains(&CardType::Creature) {
                 matched += 1;
             }
         }
     }
-    (members, matched)
+    (members, left_out, matched)
 }
 
 /// What the watched pass of one game read.
@@ -398,7 +403,7 @@ struct Watched {
     prompts: u64,
     prompts_with_card: u64,
     clones: Vec<(String, CloneReading)>,
-    members: Vec<(u64, u64)>,
+    members: Vec<(u64, u64, u64)>,
     forks: Vec<Fork>,
 }
 
@@ -597,7 +602,7 @@ struct Reading {
     divergence: Vec<(Option<u64>, u64)>,
     /// Per checkpoint: the game's seed, where in it, and the clone.
     clones: Vec<(u64, String, CloneReading)>,
-    members: Vec<(u64, u64)>,
+    members: Vec<(u64, u64, u64)>,
     forks: Vec<ForkReading>,
 }
 
@@ -846,12 +851,19 @@ fn report(board: &Board, readings: &[Reading]) {
     }
 
     println!("\n4. what a zone row adds to each pass, at the checkpoints (the no-row arm's games)");
-    let (members, matched): (u64, u64) = blank.members.iter().fold((0, 0), |(m, t), (a, b)| (m + a, t + b));
+    let (members, left_out, matched): (u64, u64, u64) =
+        blank.members.iter().fold((0, 0, 0), |(m, l, t), (a, b, c)| (m + a, l + b, t + c));
     let n = blank.members.len().max(1) as f64;
+    let off = (members + left_out).max(1) as f64;
     println!(
-        "  {:.0} objects off the battlefield per checkpoint; Teferi's filter matches {:.1} of them ({:.1}%)",
+        "  {:.0} objects off the battlefield per checkpoint: {:.1} join each pass, {:.1} are left out",
+        off / n,
         members as f64 / n,
+        left_out as f64 / n,
+    );
+    println!(
+        "  Teferi's filter matches {:.1} of them ({:.1}%)",
         matched as f64 / n,
-        100.0 * matched as f64 / members.max(1) as f64
+        100.0 * matched as f64 / off
     );
 }
