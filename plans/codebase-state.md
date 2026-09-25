@@ -8457,10 +8457,11 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - March of the Machines' two rows at 3 each;
      - Wonder's row at 2.
 
-     The other 40 do not grow with the board: 18 for the players' zone lists
-     and histories, 7 for the zone replacement sources, and one for each other
-     map or list, the memo's included. The clone test plays only `stress`
-     seeds, so CI did not see it.
+     Of the other 40, the 7 for the zone replacement sources (a list per
+     source) grow with the board too. The rest are 18 for the players' zone
+     lists and histories and one for each other map or list, the memo's
+     included. The clone test played only `stress` seeds, so CI did not see
+     it.
 
      **Reachability (2026-09-25):** reachable — not wrong; a floor 2 breach on
      the board the budget is read on.

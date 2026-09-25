@@ -100,8 +100,8 @@ decision on `performance`:
 each registry row of one state alone:
 - **`performance` 12350's 68 allocations at turn 100.** 28 are eight registry
   rows' filter trees: five Blood Moon rows at 4 each, March of the Machines' two
-  rows at 3 each, and Wonder's row at 2 (item 180). The other 40 do not grow
-  with the board.
+  rows at 3 each, and Wonder's row at 2 (item 180). Of the other 40, only the
+  zone replacement sources' 7 grow with the board.
 - **The row's clone cost is the memo alone.** At `performance` 12351's end,
   every public field clones the same with and without Teferi's clause. The rest
   goes from 6.3 KB and 1.67 µs to 25.0 KB and 3.36 µs.
