@@ -1,8 +1,8 @@
 //! The bound facts, read back at resolution (`triggers-architecture.md` §3.4, §6.3).
 //!
-//! A [`TriggerBinding`] points at the records and copies nothing they hold,
-//! so every read here goes back to the log through the matched arm's
-//! projection — one copy of each fact, and the frame comes with the record.
+//! A [`TriggerBinding`] holds the records it matched, copied at dispatch, so
+//! every read here is of the binding's own records through the matched arm's
+//! projection, and the frame comes with the record.
 
 use std::sync::Arc;
 
@@ -28,9 +28,7 @@ impl GameState {
 
     /// "That player" — the matched event's `player_of` on the first record.
     pub fn bound_player(&self, binding: &TriggerBinding) -> Option<PlayerId> {
-        let first = binding.records.first()?;
-        let record = self.events.record(*first)?;
-        binding.event().player_of(&record.event)
+        binding.event().player_of(&binding.records.first()?.event)
     }
 
     /// "That many" — the arm's `amount_of`, summed over the matched records
@@ -39,8 +37,7 @@ impl GameState {
     pub fn bound_amount(&self, binding: &TriggerBinding) -> Option<u64> {
         let event = binding.event();
         let mut total: Option<u64> = None;
-        for seq in &binding.records {
-            let record = self.events.record(*seq)?;
+        for record in &binding.records {
             let n = event.amount_of(&record.event)?;
             total = Some(total.unwrap_or(0) + n);
         }
@@ -56,13 +53,12 @@ impl GameState {
     /// the last known information TR-2b's `departed` frames hold.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
-        let first = self.events.record(*binding.records.first()?)?;
-        match &first.event {
+        match &binding.records.first()?.event {
             GameEvent::ZoneChange { object_id, lki: Some(frame), .. }
             | GameEvent::LeftTheGame { object_id, lki: Some(frame), .. }
                 if *object_id == subject.id =>
             {
-                Some(Arc::new((**frame).clone()))
+                Some(Arc::clone(frame))
             }
             _ => compute_characteristics(self, self.bound_object(binding)?),
         }

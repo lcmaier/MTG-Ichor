@@ -72,7 +72,7 @@ fn cast_battlegrowth_at_the_only_creature(game: &mut GameState, player: usize) -
 
 /// Every `CountersAnnihilated` in the log, as `(object, pairs_removed)`.
 fn annihilations(game: &GameState) -> Vec<(ObjectId, u32)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::CountersAnnihilated { object_id, pairs_removed } => {

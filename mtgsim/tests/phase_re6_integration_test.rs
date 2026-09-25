@@ -156,7 +156,7 @@ fn sba(game: &mut GameState, dp: &dyn DecisionProvider) -> bool {
 
 /// Every `PlayerLost` this game has recorded, in order.
 fn losses(game: &GameState) -> Vec<(PlayerId, LossReason)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::PlayerLost { player_id, reason } => Some((*player_id, *reason)),
@@ -167,7 +167,7 @@ fn losses(game: &GameState) -> Vec<(PlayerId, LossReason)> {
 
 /// Every `PlayerWon` this game has recorded, in order.
 fn wins(game: &GameState) -> Vec<PlayerId> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::PlayerWon { player_id } => Some(*player_id),
@@ -178,7 +178,7 @@ fn wins(game: &GameState) -> Vec<PlayerId> {
 
 /// Every `LifeChanged` for `player`, as `(old, new)`.
 fn life_changes(game: &GameState, player: PlayerId) -> Vec<(i64, i64)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::LifeChanged { player_id, old, new, .. } if *player_id == player => {
@@ -190,7 +190,7 @@ fn life_changes(game: &GameState, player: PlayerId) -> Vec<(i64, i64)> {
 }
 
 fn cards_drawn(game: &GameState, player: PlayerId) -> usize {
-    game.events
+    game.recorded_events()
         .events()
         .filter(|e| matches!(e, GameEvent::CardDrawn { player_id, .. } if *player_id == player))
         .count()
@@ -544,6 +544,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
 fn laboratory_maniac_wins_a_whole_game_at_the_draw_step() {
     let deck: Vec<Arc<CardData>> = (0..40).map(|_| forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    g.state.record_events();
     g.reseed(3);
     g.setup(&test_dp()).unwrap();
     put_on_battlefield(&mut g.state, laboratory_maniac(), 0);
@@ -581,6 +582,7 @@ fn a_departed_active_players_turn_continues_without_them() {
     let deck: Vec<Arc<CardData>> = (0..40).map(|_| forest()).collect();
     let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck.clone(), deck.clone(), deck])
         .unwrap();
+    g.state.record_events();
     g.reseed(11);
     g.setup(&test_dp()).unwrap();
     put_on_battlefield(&mut g.state, vanilla_creature(2, 2, &[]), 0);
@@ -647,7 +649,7 @@ fn setting_a_life_total_lower_is_a_loss_of_the_difference() {
 
     assert_eq!(life_changes(&game, 0), vec![(15, 10)]);
     // An effect's loss carries no source; a gain carries the effect's.
-    let source = game.events.events().find_map(|e| match e {
+    let source = game.recorded_events().events().find_map(|e| match e {
         GameEvent::LifeChanged { player_id: 0, source, .. } => Some(*source),
         _ => None,
     });
@@ -662,7 +664,7 @@ fn setting_a_life_total_higher_is_a_gain_of_the_difference() {
     set_life(&mut game, 0, 20, &test_dp());
 
     assert_eq!(life_changes(&game, 0), vec![(10, 20)]);
-    let source = game.events.events().find_map(|e| match e {
+    let source = game.recorded_events().events().find_map(|e| match e {
         GameEvent::LifeChanged { player_id: 0, source, .. } => Some(*source),
         _ => None,
     });

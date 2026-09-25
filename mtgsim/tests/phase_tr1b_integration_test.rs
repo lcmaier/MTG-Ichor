@@ -230,7 +230,7 @@ fn grant(game: &mut GameState, granter: ObjectId, carrier: ObjectId, event: impl
     game.continuous_effects.add(ContinuousEffect {
         duration: Duration::WhileSourceOnBattlefield,
         affected_objects: ObjectSet::Fixed(vec![carrier]),
-        ..registered(granter, Layer::Layer6Ability, 100, EffectModification::GrantAbility(Box::new(granted)))
+        ..registered(granter, Layer::Layer6Ability, 100, EffectModification::GrantAbility(std::sync::Arc::new(granted)))
     });
 }
 
@@ -350,6 +350,7 @@ fn an_audited_game_counts_and_traces_what_an_unaudited_one_does() {
             deck.extend([plains(), swamp(), forest()]);
         }
         let mut g = Game::new(GameConfig::test(), vec![deck; 2]).unwrap();
+        g.state.record_events();
         if audit {
             g.state.enable_dispatch_audit();
         }

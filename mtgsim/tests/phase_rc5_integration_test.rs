@@ -61,7 +61,7 @@ fn zone_changes(
     game: &GameState,
     start: usize,
 ) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -75,7 +75,7 @@ fn zone_changes(
 
 /// A one-word kind for each record since `start`, paired with its batch id.
 fn kinds_and_batches(game: &GameState, start: usize) -> Vec<(&'static str, Option<BatchId>)> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| {
@@ -621,7 +621,7 @@ fn test_devour_sacrifices_happen_before_the_entry_and_set_its_counters() {
         vec![0, 1],
     );
 
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
         .expect("it enters");
 
@@ -671,7 +671,7 @@ fn test_the_auxiliary_moves_are_their_own_batch() {
         vec![0],
     );
 
-    let mark = game.events.len();
+    let mark = game.recorded_events().len();
     game.change_zone(elder, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
         .expect("it enters");
 

@@ -695,8 +695,28 @@ critical path, which lists neither; that is the owner's line to add.
     it. The memo keys on one global epoch (`state/layer_memo.rs`), so a redeal
     that writes a walk input starts every fork cold;
   - the visibility query's instructions per decision.
-  The bounded-state PR's probe measures k and a naive redeal first
-  (`roadmap-v2.md` A6a), so the ceilings start from numbers.
+  The bounded-state PR's probe measured k and a naive redeal first
+  (`roadmap-v2.md` A6a; `fuzz-record.md`, its block), so the ceilings start
+  from numbers:
+  - **k = 0.106** on floor 1's board: a naive observation of every public
+    object, the decider's hand and the hidden-zone counts, written into a
+    reused buffer, is 7.7 µs against 66.3 µs of engine per decision, and
+    0.139 on three `stress` games. Floor 1's 15,600 becomes about 14,100.
+  - **The redeal costs 1.7–6.1 µs per fork**, about one clone again, so a
+    determinized fork is about twice a plain one and passes floor 2's 10 µs
+    early in a game, when the libraries are full.
+  - **The ceiling assumes a cold memo.** The memo stays warm only while no
+    registry row reaches a hidden zone the redeal moves cards between, which
+    is a one-compare check (`RegistryScopeSummary::reachable_zones`). No pooled
+    card has such a row, but Mycosynth Lattice, Painter's Servant and Arcane
+    Adaptation do, and they are played. On our boards a cold first decision
+    spent one board walk more, 10–40 µs from mid-game on. On a board with such
+    a card that walk covers every card in the reached zones, about ten times
+    the objects, and nobody has measured it (`codebase-state.md` item 181).
+  - **These are the naive model's numbers.** With no knowledge record, every
+    hidden card is unknown, so the redeal shuffles all of them, and the
+    observation makes no visibility query. The build pays a lookup per card
+    for the first and the per-viewer query for the second.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

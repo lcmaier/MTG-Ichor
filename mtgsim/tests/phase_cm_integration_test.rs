@@ -399,7 +399,7 @@ fn test_a_granted_cost_effect_is_found_through_the_registry_summary() {
             bears,
             Layer::Layer6Ability,
             ts,
-            EffectModification::GrantAbility(Box::new(tax)),
+            EffectModification::GrantAbility(std::sync::Arc::new(tax)),
         ));
         assert!(game.cost_modification_ability_sources.is_empty(), "nothing printed one");
         assert!(game.continuous_effects.summary().any_granted_cost_modification);
@@ -961,14 +961,14 @@ fn test_one_cost_taking_two_creatures_is_one_event() {
     let offering = put_in_hand(&mut game, phase_cm_cards::twin_offering(), 0);
     game.players[0].mana_pool.add(ManaType::Black, 1);
     game.players[0].mana_pool.add(ManaType::Colorless, 2);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.cast_spell(0, offering, &dp).expect("castable for {2}{B} with two creatures");
 
     assert!(!game.battlefield.contains_key(&a));
     assert!(!game.battlefield.contains_key(&b));
     assert!(game.battlefield.contains_key(&c), "only the two chosen");
 
-    let batches: std::collections::HashSet<_> = game.events.records_from(before)
+    let batches: std::collections::HashSet<_> = game.recorded_events().records_from(before)
         .iter()
         .filter(|r| matches!(
             r.event,

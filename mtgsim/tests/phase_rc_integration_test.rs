@@ -36,7 +36,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 /// Every `PermanentEnteredBattlefield` in the log, as `(object, controller)`.
 fn entries(game: &GameState) -> Vec<(ObjectId, usize)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::PermanentEnteredBattlefield { object_id, controller } => {
@@ -583,7 +583,7 @@ fn test_zone_change_is_announced_before_the_entry() {
     let id = reanimate(&mut game, vanilla_creature(2, 2, &[]), 0);
 
     let kinds: Vec<&'static str> = game
-        .events
+        .recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, to: Zone::Battlefield, .. } if *object_id == id => {
@@ -598,7 +598,7 @@ fn test_zone_change_is_announced_before_the_entry() {
     assert_eq!(kinds, vec!["zone-change", "entered"]);
 
     let batches: Vec<_> = game
-        .events
+        .recorded_events()
         .records()
         .iter()
         .filter(|r| {

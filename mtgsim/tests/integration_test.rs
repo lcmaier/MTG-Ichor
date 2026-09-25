@@ -149,22 +149,23 @@ fn test_two_turn_land_and_mana_cycle() {
 #[test]
 fn test_event_log_records_zone_changes() {
     let mut game = GameState::new(2, 20);
+    game.record_events();
     build_test_deck(&mut game, 0, basic_lands::forest, 5);
 
-    let initial_events = game.events.len();
+    let initial_events = game.recorded_events().len();
 
     game.advance_turn(&test_ctx()).unwrap(); // Untap -> Upkeep
     game.advance_turn(&test_ctx()).unwrap(); // Upkeep -> Draw
 
-    assert!(game.events.len() > initial_events, "Should have emitted events");
+    assert!(game.recorded_events().len() > initial_events, "Should have emitted events");
 
-    let events_before_play = game.events.len();
+    let events_before_play = game.recorded_events().len();
     game.advance_turn(&test_ctx()).unwrap(); // Draw -> Precombat
 
     let land_id = game.players[0].hand[0];
     game.play_land(0, land_id, Zone::Hand, &test_ctx()).unwrap();
 
-    assert!(game.events.len() > events_before_play, "Playing a land should emit a zone change event");
+    assert!(game.recorded_events().len() > events_before_play, "Playing a land should emit a zone change event");
 }
 
 #[test]

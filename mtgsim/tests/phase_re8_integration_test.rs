@@ -200,6 +200,7 @@ fn cleanup_game(hand: usize, academy: bool) -> (Game, ScriptedDecisionProvider) 
     let decklist: Vec<Arc<CardData>> = (0..30).map(|i| blank(&format!("Deck {i}"))).collect();
     let mut game = Game::new(GameConfig::test(), vec![decklist.clone(), decklist])
         .expect("game creation");
+    game.state.record_events();
     let dp = ScriptedDecisionProvider::new();
     game.setup(&dp).expect("setup");
     let active = game.state.active_player;
@@ -214,8 +215,8 @@ fn cleanup_game(hand: usize, academy: bool) -> (Game, ScriptedDecisionProvider) 
 }
 
 /// Every `GameEvent::ZoneChange` with a discard's cause, in log order.
-fn discards(game: &GameState) -> Vec<&EventRecord> {
-    game.events
+fn discards(game: &GameState) -> Vec<EventRecord> {
+    game.recorded_events()
         .records()
         .iter()
         .filter(|r| {
@@ -224,6 +225,7 @@ fn discards(game: &GameState) -> Vec<&EventRecord> {
                 GameEvent::ZoneChange { cause: ZoneChangeCause::Discarded, .. }
             )
         })
+        .cloned()
         .collect()
 }
 
@@ -350,16 +352,15 @@ fn test_a_random_discard_is_reproducible_from_the_seed() {
 fn test_a_cleanup_discard_of_three_is_one_prompt_and_one_batch() {
     let (mut game, dp) = cleanup_game(10, false);
     let active = game.state.active_player;
-    let before = game.state.events.len();
+    let before = game.state.recorded_events().len();
     // Eleven after the draw step against a maximum of seven: four go, in one
     // prompt.
     dp.expect_pick_n(PICK_DISCARD, vec![0, 1, 2, 3]);
     game.run_turn(&dp).expect("turn");
 
     assert_eq!(game.state.players[active].hand.len(), 7);
-    let moved: Vec<&EventRecord> = game
-        .state
-        .events
+    let recorded = game.state.recorded_events();
+    let moved: Vec<&EventRecord> = recorded
         .records_from(before)
         .iter()
         .filter(|r| {
@@ -560,7 +561,7 @@ fn test_scry_zero_is_no_event_at_all() {
     assert_eq!(library_top_down(&game, 0), before, "nothing moved");
     assert!(dp.is_empty(), "nothing was looked at, so nobody was asked");
     assert!(
-        !game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })),
+        !game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { .. })),
         "CR 701.22b: no scry event occurs"
     );
 }
@@ -580,7 +581,7 @@ fn test_a_short_library_still_scrys() {
 
     assert_eq!(game.players[0].library.len(), 1);
     assert!(
-        game.events.events().any(|e| matches!(e, GameEvent::Scried { n: 3, .. })),
+        game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { n: 3, .. })),
         "the event carries the instruction's number, not the count looked at"
     );
 }
@@ -596,7 +597,7 @@ fn test_an_empty_library_still_scrys_and_asks_nobody() {
     resolve_spell_at(&mut game, scry2, 0, 0, &dp);
 
     assert!(dp.is_empty());
-    assert!(game.events.events().any(|e| matches!(e, GameEvent::Scried { n: 2, .. })));
+    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { n: 2, .. })));
 }
 
 /// Elrond, Master of Healing's ruling is that its trigger "cares about the
@@ -621,7 +622,7 @@ fn test_a_scry_announces_what_was_actually_looked_at() {
     resolve_spell_at(&mut game, scry3, 0, 0, &dp);
 
     let scried: Vec<(u64, u64)> = game
-        .events
+        .recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::Scried { n, looked_at, .. } => Some((*n, *looked_at)),
@@ -651,7 +652,7 @@ fn test_the_count_looked_at_survives_the_library_it_counted() {
 
     assert!(game.players[0].library.is_empty(), "the scried card was then drawn");
     assert!(
-        game.events
+        game.recorded_events()
             .events()
             .any(|e| matches!(e, GameEvent::Scried { n: 1, looked_at: 1, .. })),
         "the event still says one card was looked at, which no later read could recover"
@@ -672,7 +673,7 @@ fn test_a_scry_with_cards_to_spare_looked_at_all_of_them() {
     resolve_spell_at(&mut game, scry3, 0, 0, &dp);
 
     assert!(game
-        .events
+        .recorded_events()
         .events()
         .any(|e| matches!(e, GameEvent::Scried { n: 3, looked_at: 3, .. })));
 }
@@ -727,7 +728,7 @@ fn test_an_amount_rewrite_over_a_scry_makes_it_bigger() {
     resolve_spell(&mut game, opt(), 0, &dp);
 
     assert!(
-        game.events
+        game.recorded_events()
             .events()
             .any(|e| matches!(e, GameEvent::Scried { n: 2, looked_at: 2, .. })),
         "scry 1 plus one is scry 2"
@@ -754,7 +755,7 @@ fn test_an_amount_rewrite_has_no_scry_zero_to_enlarge() {
     resolve_spell_at(&mut game, scry0, 0, 0, &dp);
 
     assert_eq!(library_top_down(&game, 0), before, "nothing was looked at");
-    assert!(!game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })));
+    assert!(!game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { .. })));
     assert!(dp.is_empty());
 }
 
@@ -777,7 +778,7 @@ fn test_a_scry_doubler_beside_eligeth_is_a_real_choice() {
     resolve_spell_at(&mut game, scry1, 0, 0, &dp);
 
     assert_eq!(game.players[0].hand.len(), 2, "plus one, then draw that many");
-    assert!(!game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })));
+    assert!(!game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { .. })));
     assert!(dp.is_empty());
 }
 
@@ -803,7 +804,7 @@ fn test_opt_with_eligeth_draws_two_and_never_scrys() {
     assert_eq!(game.players[0].hand[0], before[0]);
     assert_eq!(game.players[0].hand[1], before[1]);
     assert!(
-        !game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })),
+        !game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { .. })),
         "CR 614.6: the replaced event never happened"
     );
     assert!(dp.is_empty(), "no scry prompt, because there was no scry");
@@ -839,7 +840,7 @@ fn test_eligeth_leaves_an_opponents_scry_alone() {
     resolve_spell_at(&mut game, scry1, 1, 1, &dp);
 
     assert!(game.players[1].hand.is_empty(), "the opponent scried rather than drew");
-    assert!(game.events.events().any(|e| matches!(e, GameEvent::Scried { .. })));
+    assert!(game.recorded_events().events().any(|e| matches!(e, GameEvent::Scried { .. })));
 }
 
 /// CR 701.22b ahead of the pipeline: a scry 0 is no event, so there is nothing

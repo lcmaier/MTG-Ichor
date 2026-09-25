@@ -91,7 +91,7 @@ fn life(game: &GameState, player: PlayerId) -> i64 {
 fn damage_to_a_player_proposes_a_contained_life_loss_in_the_damages_batch() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt_player(&mut game, source, 1, 3);
 
@@ -99,7 +99,8 @@ fn damage_to_a_player_proposes_a_contained_life_loss_in_the_damages_batch() {
     // 3 damage from a source without infect and is at 17. The batch assertions
     // below are this phase's; this line is the atom's.
     assert_eq!(life(&game, 1), 17);
-    let records = game.events.records_from(before);
+    let recorded = game.recorded_events();
+    let records = recorded.records_from(before);
     let damage: Vec<Option<BatchId>> = records
         .iter()
         .filter(|r| matches!(r.event, GameEvent::DamageDealt { .. }))
@@ -164,12 +165,12 @@ fn the_life_loss_is_a_proposal_and_reaches_the_pipeline() {
 fn the_life_change_from_damage_still_names_the_damage_source() {
     let mut game = setup_two_player_game();
     let source = source_for(&mut game, 0);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt_player(&mut game, source, 1, 4);
 
     let sources: Vec<Option<ObjectId>> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter_map(|r| match r.event {
@@ -190,14 +191,14 @@ fn prevented_damage_proposes_no_life_loss() {
     put_on_battlefield(&mut game, angel_of_suffering(), 0);
     fill_library(&mut game, 0, 20);
     let source = source_for(&mut game, 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt_player(&mut game, source, 0, 3);
 
     assert_eq!(life(&game, 0), 20);
     assert!(
         !game
-            .events
+            .recorded_events()
             .records_from(before)
             .iter()
             .any(|r| matches!(r.event, GameEvent::LifeChanged { .. })),
@@ -661,12 +662,12 @@ fn a_mill_is_one_batch_of_many_moves() {
     put_on_battlefield(&mut game, angel_of_suffering(), 0);
     fill_library(&mut game, 0, 20);
     let source = source_for(&mut game, 1);
-    let before = game.events.len();
+    let before = game.recorded_events().len();
 
     bolt_player(&mut game, source, 0, 3);
 
     let batches: Vec<Option<BatchId>> = game
-        .events
+        .recorded_events()
         .records_from(before)
         .iter()
         .filter(|r| matches!(r.event, GameEvent::ZoneChange { .. }))

@@ -213,7 +213,7 @@ pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) 
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
 }
 
-/// Which turns a history leaf sums.
+/// Which turns a history leaf reads.
 #[derive(Clone, Copy)]
 enum HistorySpan {
     ThisTurn,
@@ -222,7 +222,7 @@ enum HistorySpan {
     ThisGame,
 }
 
-/// A history leaf: the rows `count.whose` names, summed over `span`'s turns.
+/// A history leaf: the counts `count.whose` names, each over `span`, summed.
 fn history_holds(
     count: &HistoryCount,
     span: HistorySpan,
@@ -235,21 +235,22 @@ fn history_holds(
         return false;
     };
     let now = game.turn_number;
-    let (first, last) = match span {
-        HistorySpan::ThisTurn => (now, now),
-        HistorySpan::LastTurn => (now.saturating_sub(1), now.saturating_sub(1)),
-        HistorySpan::SinceYourLastTurn => {
-            let after = game.players.get(you).and_then(|p| p.history.own_turn_before(now)).map_or(1, |t| t + 1);
-            (after, now)
-        }
-        HistorySpan::ThisGame => (1, now),
-    };
+    let yours = game.players.get(you).map(|p| &p.history);
     let total: u64 = game
         .players
         .iter()
         .enumerate()
         .filter(|(player, _)| count.whose.contains(you, *player))
-        .map(|(_, player)| player.history.sum(count.fact, first, last))
+        .map(|(player, state)| {
+            let theirs = &state.history;
+            let counts = match (span, yours) {
+                (HistorySpan::ThisTurn, _) => theirs.this_turn(now),
+                (HistorySpan::LastTurn, _) => theirs.last_turn(now),
+                (HistorySpan::SinceYourLastTurn, Some(yours)) => yours.since_your_last_turn(player, theirs),
+                (HistorySpan::ThisGame, _) | (HistorySpan::SinceYourLastTurn, None) => theirs.this_game(),
+            };
+            counts.count(count.fact)
+        })
         .sum();
     count.is.met_by(total)
 }

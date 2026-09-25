@@ -616,7 +616,7 @@ fn incremental_growth_does_not_resolve_with_every_creature_gone() {
         "countered by game rules (CR 608.2b)"
     );
     assert!(
-        game.events
+        game.recorded_events()
             .events()
             .any(|e| matches!(e, mtgsim::events::event::GameEvent::SpellFizzled { .. })),
         "and it says so"

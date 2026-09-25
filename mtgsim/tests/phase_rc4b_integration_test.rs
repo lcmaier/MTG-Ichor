@@ -47,13 +47,14 @@ use mtgsim::engine::targeting::{ChosenTargets};
 /// The events recorded from `start` on. Fixtures placed with
 /// `put_on_battlefield` announce their own entry, so every reader here starts
 /// after a test's setup and reads only what the action under test emitted.
-fn log_after(game: &GameState, start: usize) -> impl Iterator<Item = &GameEvent> {
-    game.events.records_from(start).iter().map(|r| &r.event)
+fn log_after(game: &GameState, start: usize) -> Vec<GameEvent> {
+    game.recorded_events().records_from(start).iter().map(|r| r.event.clone()).collect()
 }
 
 /// Every `ZoneChange` since `start`, as `(object, from, to, cause)`.
 fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, ZoneChangeCause)> {
     log_after(game, start)
+        .iter()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, .. } => {
                 Some((*object_id, *from, *to, *cause))
@@ -66,6 +67,7 @@ fn zone_changes(game: &GameState, start: usize) -> Vec<(ObjectId, Zone, Zone, Zo
 /// The zone changes of one object, as `(from, to, cause, carries an LKI frame)`.
 fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeCause, bool)> {
     log_after(game, start)
+        .iter()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, lki, .. } if *object_id == id => {
                 Some((*from, *to, *cause, lki.is_some()))
@@ -78,6 +80,7 @@ fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone, Zo
 /// Every `PermanentEnteredBattlefield` since `start`, by object.
 fn entries(game: &GameState, start: usize) -> Vec<ObjectId> {
     log_after(game, start)
+        .iter()
         .filter_map(|e| match e {
             GameEvent::PermanentEnteredBattlefield { object_id, .. } => Some(*object_id),
             _ => None,
@@ -89,6 +92,7 @@ fn entries(game: &GameState, start: usize) -> Vec<ObjectId> {
 /// test here does not read left out.
 fn kinds(game: &GameState, start: usize) -> Vec<&'static str> {
     log_after(game, start)
+        .iter()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { .. } => Some("zone-change"),
             GameEvent::PermanentEnteredBattlefield { .. } => Some("entered"),
@@ -240,7 +244,7 @@ fn test_containment_priest_exiles_from_the_graveyard_in_one_move() {
     game.change_zone(probe, Zone::Exile, ZoneChangeCause::Exiled, &test_ctx()).unwrap();
     let epoch_before = game.get_object(probe).unwrap().zone_change_epoch;
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
     game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
         .expect("the entry is replaced, and that is not an error");
@@ -271,7 +275,7 @@ fn test_an_entry_from_hand_is_one_move_and_one_entry_in_one_batch() {
     let mut game = setup_two_player_game();
     let land = put_in_hand(&mut game, forest(), 0);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     game.play_land(0, land, Zone::Hand, &test_ctx()).unwrap();
 
     assert_eq!(
@@ -280,7 +284,7 @@ fn test_an_entry_from_hand_is_one_move_and_one_entry_in_one_batch() {
     );
     assert_eq!(entries(&game, start), vec![land]);
     assert_eq!(kinds(&game, start), vec!["zone-change", "entered"]);
-    let batches: Vec<_> = game.events.records_from(start).iter().map(|r| r.stamp.batch).collect();
+    let batches: Vec<_> = game.recorded_events().records_from(start).iter().map(|r| r.stamp.batch).collect();
     assert_eq!(batches.len(), 2);
     assert_eq!(batches[0], batches[1], "one event, one batch");
 }
@@ -299,7 +303,7 @@ fn test_a_dropped_entry_leaves_the_card_where_it_was() {
     put_on_battlefield(&mut game, static_restriction("Creatures can't enter", creatures_cant_enter()), 1);
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 0);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
         .expect("a refused entry is not an error");
 
@@ -319,7 +323,7 @@ fn test_worms_of_the_earth_still_refuses_a_returned_forest() {
     put_on_battlefield(&mut game, static_restriction("Lands can't enter", lands_cant_enter()), 1);
     let land = put_in_graveyard(&mut game, forest(), 0);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     game.change_zone(land, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx()).unwrap();
 
     assert_eq!(game.get_object(land).unwrap().zone, Zone::Graveyard);
@@ -342,7 +346,7 @@ fn test_a_resolved_spell_whose_entry_is_refused_goes_to_the_graveyard() {
     let bear = put_in_hand(&mut game, bear_costing(0), 0);
     game.players[0].mana_pool.add(ManaType::Green, 1);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     game.cast_spell(0, bear, &test_dp()).expect("nothing stops the cast (CR 601.3)");
     game.resolve_top_of_stack(&test_dp()).expect("it resolves; it just cannot arrive");
 
@@ -397,7 +401,7 @@ fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
     let mut game = setup_two_player_game();
     let moonlight = put_on_battlefield(&mut game, moonlight_shaped(), 0);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     create_zombie(&mut game, 0, moonlight).expect("the token is created — in exile");
 
     let token = *game.exile.last().expect("it is in exile");
@@ -409,6 +413,7 @@ fn test_an_exiled_instead_token_never_had_a_battlefield_to_leave() {
         "no zone change: there was nowhere to move from"
     );
     let created: Vec<(ObjectId, Zone)> = log_after(&game, start)
+        .iter()
         .filter_map(|e| match e {
             GameEvent::TokenCreated { object_id, zone, .. } => Some((*object_id, *zone)),
             _ => None,
@@ -429,12 +434,12 @@ fn test_a_dropped_token_entry_creates_nothing() {
     let wall = put_on_battlefield(&mut game, static_restriction("Creatures can't enter", creatures_cant_enter()), 0);
     let objects_before = game.objects.len();
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     create_zombie(&mut game, 0, wall).expect("CR 111.5 is not an error");
 
     assert_eq!(game.objects.len(), objects_before, "not created");
     assert!(game.exile.is_empty());
-    assert!(log_after(&game, start).next().is_none(), "and nothing was announced");
+    assert!(log_after(&game, start).is_empty(), "and nothing was announced");
 }
 
 // ---------------------------------------------------------------------------
@@ -491,7 +496,7 @@ fn test_a_cast_is_announced_at_601_2i_after_its_mana_abilities() {
         },
         vec![0],
     );
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     game.cast_spell(0, bear, &dp).expect("the Forest pays for it");
     assert!(dp.is_empty());
 
@@ -534,7 +539,7 @@ fn test_a_rewound_cast_keeps_its_mana_abilities_and_leaves_no_zone_change() {
         },
         vec![0],
     );
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bear, &dp).is_err(), "{{1}}{{G}} against one Forest");
     assert!(dp.is_empty());
 
@@ -565,9 +570,9 @@ fn test_a_rewound_cast_leaves_no_zone_change() {
         },
         vec![1],
     );
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     assert!(game.cast_spell(0, bolt, &dp).is_err());
 
     assert_eq!(game.get_object(bolt).unwrap().zone, Zone::Hand);
-    assert!(log_after(&game, start).next().is_none(), "a rewound cast is not an event, in either direction");
+    assert!(log_after(&game, start).is_empty(), "a rewound cast is not an event, in either direction");
 }

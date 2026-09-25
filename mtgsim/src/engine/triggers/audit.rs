@@ -212,7 +212,7 @@ impl GameState {
     /// A trigger as the comparison and its report read it.
     fn describe(&self, matched: &MatchedTrigger) -> String {
         let source = matched.identity.source;
-        let mut records: Vec<usize> = matched.records.iter().map(|s| s.0).collect();
+        let mut records: Vec<usize> = matched.records.iter().map(|r| r.seq.0).collect();
         records.sort_unstable();
         format!(
             "{} {}@{} ability {} arm {} records {records:?} subject {:?} controller {}",

@@ -93,6 +93,8 @@ WATCHLIST = [
     # Added 2026-09-20, TR-1's review: two words a reader read as one.
     "condition", "trigger condition", "diagnostics rows",
     "multiplicity",
+    # Added 2026-09-25, the bounded-state PR.
+    "flush",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes
@@ -132,6 +134,7 @@ POLYSEMOUS = {
     "plan": 2, "splice": 2, "window": 2, "tier": 2, "probe": 2,
     "member": 2,
     "instance": 2,
+    "flush": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

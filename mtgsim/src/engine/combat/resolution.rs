@@ -330,6 +330,7 @@ mod tests {
     #[test]
     fn test_combat_damage_is_dealt_as_one_batch() {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let attacker = place_creature_with_pt(&mut game, 0, 3, 3);
         let blocker = place_creature_with_pt(&mut game, 1, 2, 2);
 
@@ -350,7 +351,7 @@ mod tests {
         // CR 510.2 deals it all at one instant, and CR 615.7's "two or more
         // applicable sources at the same time" shield allocation is only
         // askable if the pipeline sees the set rather than the members.
-        let batches: Vec<_> = game.events.records().iter()
+        let batches: Vec<_> = game.recorded_events().records().iter()
             .filter(|r| matches!(r.event, crate::events::event::GameEvent::DamageDealt { .. }))
             .map(|r| r.batch())
             .collect();

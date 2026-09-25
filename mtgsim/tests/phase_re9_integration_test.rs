@@ -273,7 +273,7 @@ fn activate_deep_water(game: &mut GameState, player: PlayerId, dp: &dyn Decision
 
 /// Every `ManaAdded` the game announced, as `(source, mana, tapped_for_mana)`.
 fn mana_added(game: &GameState) -> Vec<(ObjectId, Vec<(ManaType, u64)>, bool)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ManaAdded { source_id, mana, tapped_for_mana, .. } => {
@@ -351,14 +351,13 @@ fn the_tap_and_the_production_are_two_batches() {
     let mut game = setup_two_player_game();
     let id = tap_for_mana(&mut game, forest(), 0, &test_dp()).unwrap();
 
-    let tapped = game
-        .events
+    let recorded = game.recorded_events();
+    let tapped = recorded
         .records()
         .iter()
         .find(|r| matches!(r.event, GameEvent::Tapped { object_id } if object_id == id))
         .expect("the Forest tapped");
-    let produced = game
-        .events
+    let produced = recorded
         .records()
         .iter()
         .find(|r| matches!(r.event, GameEvent::ManaAdded { .. }))

@@ -120,13 +120,22 @@ lands on sense 1.
 
 **window** — **(1)** the records one dispatch matches over: every record one
 batch stamped, read at the close of the outermost `execute_actions`, or the
-one record of an unbatched emission — `EventLog::records_from(mark)` filtered
-by the batch's id. CR 603.2c's "one or more" is one trigger per window; CR
+one record of an unbatched emission — `EventWindow::records_since(mark)`
+filtered by the batch's id. `GameState.events` holds the records until the
+outermost dispatch returns and flushes them. CR 603.2c's "one or more" is one trigger per window; CR
 603.6a's "all permanents ... are checked" is why the window is the event and
 not the record (`triggers-architecture.md` §4.1). **(2)** CR 601.2g's mana
 ability window, `run_mana_ability_window`: the chance to activate mana
 abilities while a cost is being paid — the older sense, and the one "inside
 the mana window" means.
+
+**flush** — **(1)** `EventWindow::flush`: the window hands every record it
+holds to the recorder, or drops them when none is attached, once the outermost
+dispatch has returned with no batch open. Nothing reads a record after that,
+so no priority prompt finds one held (`triggers-architecture.md` §4.1;
+`codebase-state.md` item 42). Not *drain*, which is the turn drainer's word.
+**(2)** `TraceSink::flush`: the writer's ordinary sense, putting buffered
+lines into the trace file.
 
 **tier** — **(1)** CR 603.3b's two-part placement, `TriggerTier::First` and
 `TriggerTier::Second`: a trigger whose condition is another ability triggering goes
@@ -158,13 +167,15 @@ writing it, and recording the number so the prediction can be scored afterwards.
 Sense 2 is what missed lifelink's first helper — it censused `emit` sites, and
 the helper wrote `life_total` by hand while emitting loudly.
 
-**history** — `PlayerState.history`: one `TurnSummary` per player per turn
-of the game, a count for each `TurnFact` (`triggers-architecture.md` §3.10).
-It is what "this turn", "last turn", "since your last turn" and "this game"
-read. The dispatcher is its one writer: `advance_history` turns each record it
+**history** — `PlayerState.history`: a count for each `TurnFact` over this
+turn, last turn and the whole game, and every player's total as this player's
+last turn ended (`triggers-architecture.md` §3.10). It is what "this turn",
+"last turn", "since your last turn" and "this game" read, and its size is the
+table's, never the turn count's. The dispatcher is its one writer: `advance_history` turns each record it
 dispatches into a `HistoryUpdate`, which says what that record adds to whose
-row. **Not the event log**: the log is the performed stream (`EventLog`), and
-no rule reads a past turn from it.
+row. **Not the event stream**: the stream is flushed from `EventWindow` once
+dispatched, a recorder keeps it only for whoever reads it, and no rule reads a
+past turn from it.
 
 **registry** — three tables wear the name and only two are game state.
 **(1)** `CardRegistry`: card name → constructor, the definitions themselves,

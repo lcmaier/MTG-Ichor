@@ -529,9 +529,11 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
     }
 }
 
-/// Format the entire event log with resolved card names.
+/// Format every recorded event with resolved card names. The game must be
+/// recording (`GameState::record_events`).
 pub fn format_event_log(game: &GameState) -> Vec<String> {
-    game.events.events()
+    game.recorded_events()
+        .events()
         .map(|e| format_event(game, e))
         .collect()
 }

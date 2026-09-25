@@ -37,6 +37,96 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-09-25 for the bounded-state PR** (`roadmap-v2.md` A6a;
+`codebase-state.md` items 42 and 179 closed). No pool change. `close_out.py`,
+`main` = `e5ec152` against the engine arm `2f1860c`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 174,774 / 195,883 | 343,421 / 393,287 |
+| instructions / decision, engine vs main, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7674 M → 0.7666 M, **−0.11%** |
+
+No cost row moved, and the fixture rows, read off the recorder now, match to
+the digit. All three held as predicted, the budget line as "flat".
+
+**The clone, by item 143's method**, from a throwaway probe: time is the median
+of five means of 2,000 clone-and-drops, in a release build on one thread;
+bytes and allocations come from one held clone; `MTGSIM_HASH_SEED=1`. On
+`main` the probe first reproduced the floors report's KB and allocation
+columns exactly, once a checkpoint was named by the turn about to be played.
+Each game's end, and this branch's worst checkpoint over three sittings:
+
+| game, turns | `main`: with the log / without | this branch | branch worst: µs / KB / allocs |
+|---|---|---|---|
+| `stress` 12345, 70 | 39.6 µs, 430.0 KB, 580 / 4.4, 136.9, 33 | 3.7 µs, 92.9 KB, 29 | 8.5 / 92.9 / 46 |
+| `stress` 777, 49 | 32.2, 347.7, 417 / 4.0, 96.2, 30 | 3.3, 68.6, 26 | 6.0 / 73.0 / 36 |
+| `stress` 12351, 184 | 135.7, 1,175.9, 1,479 / 7.3, 194.5, 45 | 4.9, 101.0, 41 | 6.6 / 101.0 / 44 |
+| `performance` 12345, 64 | 40.5, 395.2, 554 / 4.3, 101.9, 29 | 3.5, 66.6, 25 | 6.1 / 72.0 / 42 |
+| `performance` 12387, 168 | 110.2, 834.9, 1,022 / 7.6, 209.0, 34 | 4.9, 107.1, 30 | 7.9 / 107.1 / 46 |
+
+The window held no record at any checkpoint. The bounded history costs 5.2 KB
+and four allocations against an emptied one, at every size of game. Bytes and
+allocations repeat exactly across sittings. The worst µs moves between them,
+by up to 2 µs at one checkpoint: it is 8.5, 8.2 and 6.4 µs at `stress` 12345's
+turn 10 in three sittings, and timing a clone of a fresh clone reads the same.
+
+**The observation cost k** (`backlog.md` §2.9's cost section). The naive
+Commander observation is every public object's effective characteristics, the
+decider's hand and every player's hidden-zone counts. It is written into a
+reused buffer, as item 140's binding would write it, at every prompt with two
+or more answers that reaches the provider below `ManaWindowStop`. k is its time
+over the engine time of the same games unobserved, medians of five:
+
+| board | games | decisions (`ui::ask`) | observed | engine µs / decision | observation µs | u32s | k |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `performance`, Commander | 20 | 14,022 | 12,738 | 66.3 | 7.7 | 1,002 | **0.106** |
+| `stress`, Commander, the three above | 3 | 4,833 | 4,013 | 54.0 | 9.0 | 1,109 | 0.139 |
+
+**The naive redeal** (§2.34), at the same checkpoints. It shuffles the viewer's
+library and redeals each opponent's hand from their hand and library together,
+drawing on `GameState.rng`. It took **1.7–6.1 µs**, falling as the libraries
+empty: about one clone again (3.7–8.5 µs), so a determinized fork is about
+twice a plain one. **The first decision after it:**
+- **Warm**, with no epoch bump, it spends the layer walks a fork without a
+  redeal spends.
+- **Cold**, with the epoch bumped, it spends one board walk more, 10–40 µs from
+  mid-game on.
+- **The warm result does not carry to v1.** The bump is needed whenever a
+  registry row reaches a hidden zone the redeal moves cards between
+  (`layers/board.rs`'s membership, one compare on
+  `RegistryScopeSummary::reachable_zones`). None of the 39 checkpoints had
+  such a row only because these pools have no card that makes one: their
+  zone-reaching effects reach graveyards. Mycosynth Lattice, Painter's Servant
+  and Arcane Adaptation do, and they are played. **With one on the table every
+  redeal is cold, and the cold walk is bigger too**, because every card in the
+  zones the row reaches joins every pass: about 400 objects at four seats
+  instead of about 40 (`layers-architecture.md`, LJ). That board is
+  unmeasured, for the redeal and for ordinary play alike (`codebase-state.md`
+  item 181).
+- **What the missing information model does change is the redeal itself.**
+  With no knowledge record every hidden card counts as unknown, so the redeal
+  shuffles all of them. A real one keeps the known cards in place and pays a
+  lookup for each. So these are first readings of the shuffle, and the
+  observation above has no visibility query in it either.
+
+**Review round 2: a board heavy in grant and copy rows.** The clone was
+measured at every priority prompt of ten Commander games (`stress`,
+12345–12354), with eight copies each of Citanul Hierophants, Cytoshape,
+Mirrorweave and Mirrorform in every deck:
+
+| | before | after the `Arc`s (`244c64a`) |
+|---|---|---|
+| worst clone, allocations | 97 | 65 |
+| the registry's share, at the prompt with the most rows (10 grant, 1 copy) | 58 | 23 |
+| mean allocations per clone, by game | 36.1–49.7 | 32.0–42.9 |
+| worst clone, KB | 118.0 | 116.6 |
+
+The grant and copy payloads are shared now, and a match shares its trigger's
+def. The one game in ten that is still one over floor 2's proxy is paying for
+the registry's per-row payloads (`codebase-state.md` item 180). `close_out.py`
+on `ddbf5ad` against `main`: every gameplay row **IDENTICAL** on both pools at two seats and four, no cost row moved, and 0.7675 M → 0.7665 M instructions per decision (**−0.14%**). Round 1's arm read 0.7666 M, so on this board, whose pool has few grants and fewer trigger matches, the `Arc`s cost nothing and save little.
+
 **Calibrated 2026-09-25: does a cycle estimate read CPU better than
 instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The
 owner adopted callgrind for the per-PR budget on one condition: any cycle

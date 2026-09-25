@@ -133,7 +133,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
             costs: Vec::new(),
             effect: Effect::Atom(
                 Primitive::GrantAbility(
-                    Box::new(granted),
+                    std::sync::Arc::new(granted),
                     Duration::WhileSourceOnBattlefield,
                 ),
                 EffectRecipient::FilteredPermanents(ObjectFilter::And(

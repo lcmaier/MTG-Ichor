@@ -2470,38 +2470,13 @@ section never asked.
     branch's prompt watcher, three boards, the reseed guard and the sweep. No
     id mask, and no replaying provider — cloning the random one is the replay.
 
-42. **`EventLog` is on `GameState` and grows monotonically.** Every clone
-    carries every `EventRecord` the game has emitted, though the only in-state
-    reader, the trigger matcher, reads the current batch's suffix
-    (`records_from`).
-
-    **Rescoped 2026-09-25: no retained log.** The log leaves `GameState`
-    entirely. The performed stream already reaches the sink through one door,
-    `GameState::emit_event` (A4c, PR #170), so everything that wants the whole
-    history reads the sink: trace pages, `--dump-events`, the fork test, a
-    GUI's game log. Trigger bindings point at records today
-    (`triggers-architecture.md` §3.4); they copy the facts they bind at
-    dispatch instead, so no pending or stacked trigger refers to a record by
-    id. What the rules need from the past is already materialized as TR-2a's
-    per-player turn summaries (§3.10), and item 179 bounds those.
-
-    **Reachability (2026-09-25):** reachable — not wrong. The AI floors report
-    re-took item 143's clone table (`plans/references/ai-performance-floors.md`):
-    with the log, a Commander-scale clone passes 10 µs by turn 20 and reaches
-    131 µs and 1,176 KB at the end of a 184-turn game; without it, 3.7–8.8 µs.
-    Floors 2 and 3 (`engineering-practices.md` §3.1) wait on it.
-
-    **Scheduled: the bounded-state PR**, next after the process PR and before
-    TR-2b, together with item 179, the committed clone probe and CI checks on
-    allocations and bytes per clone. Its throwaway probe also measures the
-    observation cost k and a naive redeal (`backlog.md` §2.34) at item 143's
-    checkpoints, reading the first decision after a redeal against a warm and a
-    cold layer memo, so the information-model design's cost section (§2.9)
-    starts from numbers.
-
-    **Sized:** by sites, 2026-09-25: 89 reads of the log or of `EventSeq`
-    outside `events/`, in 19 files. The binding (`engine/triggers/binding.rs`)
-    is the one whose shape changes; the PR's brief turns the count into lines.
+42. **~~`EventLog` is on `GameState` and grows monotonically.~~ — ✅ CLOSED
+    2026-09-25 (the bounded-state PR).** — archived. `GameState.events` is an
+    `EventWindow`, flushed when the outermost dispatch returns; a trigger
+    binding copies the records it matched; the whole stream is a recorder's,
+    attached by whatever reads it.
+    **Reachability (2026-09-25):** closed — the bounded-state PR.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 42".
 
 43. **~~CR 122.6a names a player and `EnterMods` does not carry one~~ ✅ CLOSED
     2026-09-14 (RE-5's review, theme A) — built.** `EntryCounters.by` and
@@ -6693,7 +6668,9 @@ Commander-scale board closes item 69.
         operating point, not a re-base (`engineering-practices.md` §3.1);
      2. a full-state clone of at most 10 µs;
      3. at most 128 KB per state.
-     Floors 2 and 3 wait on item 42 and item 179, the bounded-state PR.
+     Floors 2 and 3 hold since the bounded-state PR closed items 42 and 179
+     (2026-09-25; `fuzz-record.md`, its block), checked in CI by
+     `tests/clone_bound_test.rs`.
 
      **The instrument, built 2026-09-16 (A4e, PR #155).** Two cells on
      `Diagnostics`, `decisions` and `priority_decisions`, recorded in
@@ -6982,6 +6959,65 @@ Commander-scale board closes item 69.
      activation fails for a reason `activatable_abilities` cannot read turns
      `tests/priority_fork_test.rs` red, and that is the signal this item is
      due rather than a regression in the card.
+
+     **The harness boundary, which this item is half of (2026-09-25).** A
+     research API wants `step(action) -> observation`, while this engine *asks*
+     from inside rule resolution, down the `DecisionProvider` call stack. A
+     harness bridges that inversion in two ways, and it needs both:
+     - **Suspend the live stack at the prompt** (a thread or a coroutine per
+       game). This works at every prompt, including the 424 inner asks of a
+       Commander game's 692 decisions, and it is what self-play steps with. A
+       suspended stack cannot be cloned, so it does not fork.
+     - **Resume from `GameState` alone.** Item 40's invariant makes the state
+       sufficient, and A4h's `resume_turn_at_priority` and this item add the
+       entry points. This forks, which search needs, but only at priority
+       prompts: round starts today, mid-round with this item, never at an
+       inner ask.
+
+     **The suspension mechanism decides the binding's cost.** A throwaway
+     std-only probe (not committed) had each game's thread block on a channel
+     at every prompt, with one policy thread answering:
+
+     | host | one game, per round trip | 16 / 256 / 1,024 games, per decision |
+     |---|---|---|
+     | Windows 11, native | 0.63 µs | 1.1 / 1.3 / 1.7 µs |
+     | Linux under WSL 2, a VM | 40.7 µs | 12.4 / 12.7 / 13.2 µs |
+
+     Against 64 µs of engine CPU per Commander decision (floor 1's one-thread
+     15,600), that is 1–3% on one host and 20–65% on the other. A thread's
+     wake-up rides the host's scheduler, and virtualized hosts make it
+     expensive; most cloud GPU nodes are VMs too. The alternatives:
+     - **Stackful coroutines.** Each game runs on its own small stack, and the
+       batch loop resumes it on the same worker thread with no kernel
+       involved. Switches are tens of nanoseconds and do not depend on the
+       host. The cost is one small dependency or a little platform assembly,
+       plus `unsafe` code at the switch.
+     - **`async`** would change the signature of every function between a
+       prompt and the turn loop.
+     - **A replay per step** re-simulates too much.
+     - **An explicit state machine** would be a rewrite of the rules code.
+
+     **The rest of the binding's cost is standard engineering**, and item 141's
+     payload rule (ids and small enums, never an engine AST) already enables
+     the hard part. The fixes:
+     - an in-process native module, with no pipe per prompt;
+     - observations and legal-action masks written into preallocated arrays,
+       not JSON;
+     - one call stepping N games, with the interpreter lock released;
+     - forced prompts answered in-process by the middleware stack
+       (`backlog.md` §2.22).
+
+     EnvPool's 15× and item 141's 30–130 ms of RPC against a 51 ms game
+     measure a naive binding, not this engine.
+
+     **Proposed, not adopted: a binding floor** beside
+     `engineering-practices.md` §3.1's three. A batched random policy, driven
+     from Python, reaches at least 90% of the engine's own decisions per
+     core-second, on bare metal and on a stock Linux VM. The benchmark ships
+     with the binding, so a researcher can run it on their own hardware. The
+     number is the owner's to set. The mechanism is chosen by a spike before
+     Phase 10's design: real games through a channel-backed provider, against
+     a coroutine prototype.
 
 141. **The `DecisionProvider` boundary, serialized: which fields, which
      crate, what it costs — and the `&GameState` parameter stays.** The wire
@@ -8391,33 +8427,56 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** ~5 lines, `this_object(ctx)` in place of the id, and a
      fixture with a flicker effect, ~25.
 
-179. **TR-2a's `PlayerHistory` grows with the turn count.** Each player keeps
-     one `TurnSummary` per turn of the game (`state/history.rs`;
-     `triggers-architecture.md` §3.10, "whole game, not two turns"): 192 bytes
-     per player per turn, 99–107 KB at the end of the long Commander games the
-     AI floors report re-took (`plans/references/ai-performance-floors.md`).
-     With every history emptied, no board's state passes 102 KB. With it,
-     three of five Commander-scale games pass floor 3's 128 KB late
-     (`engineering-practices.md` §3.1), and the state's size follows the turn
-     count, which floor 3 forbids.
+179. **~~TR-2a's `PlayerHistory` grows with the turn count.~~ — ✅ CLOSED
+     2026-09-25 (the bounded-state PR).** — archived. Two rows, a running
+     total and a per-player snapshot taken as the turn after each of that
+     player's own turns begins: O(seats²), never the turn count.
+     **Reachability (2026-09-25):** closed — the bounded-state PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 179".
 
-     **The design.** No reader needs the whole-game rows:
-     - "this game" is a running total;
-     - "last turn" is the previous row;
-     - "since your last turn" is a per-player snapshot of the totals, taken
-       as the turn after each of that player's own turns begins.
+### Found by the bounded-state PR's review (2026-09-25)
 
-     All three are O(seats²), bounded by the table and never by the turn
-     count.
+180. **A fork of a board heavy in grant and copy rows can take 65
+     allocations, one over floor 2's CI proxy.** The review measured ten
+     Commander games with eight copies each of four grant and copy cards in
+     every deck, cloned at every priority prompt (`fuzz-record.md`, the
+     bounded-state block, round 2). Sharing the grant and copy payloads took
+     the worst clone from 97 allocations to 65. What is left is each
+     continuous-effect row's own payload, an `ObjectSet::Fixed` list or an
+     `ObjectFilter`'s boxes, copied on every fork: 23 allocations for 11 rows.
+     Bytes stayed under 128 KB, and the committed clone test's boards read at
+     most 46.
 
-     **Why now.** §3.10 deferred the prune "until a reading says it should",
-     and the report is that reading.
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, on one
+     prompt of one extreme game in ten.
 
-     **Reachability (2026-09-25):** reachable — not wrong; the history gains a
-     row per player per turn, and every clone carries all of it.
+     **Sized:** rows behind an `Arc` inside `DurationRegistry`, written through
+     `Arc::make_mut` in its five mutating methods, which makes each of the three
+     registries' clones one allocation. The callers that take rows back by
+     value (`remove`, `retain`, `remove_by_source`) are the rest of the diff.
 
-     **Scheduled: the bounded-state PR**, with item 42.
+181. **A continuous effect that reaches the hand or the library makes every
+     layer pass walk every card there, and no board has measured it.**
+     Membership seeds every object in a zone some row reaches into every board
+     pass, so at four seats a pass walks about 400 objects instead of about 40
+     (`layers-architecture.md`, LJ, which made the cost exactly zero only on a
+     board with no such row). Every measured board has had none, because the
+     pools' zone-reaching rows reach graveyards. Mycosynth Lattice and
+     Painter's Servant reach every zone, and both are played in Commander. On
+     such a board ordinary play costs more per decision (floor 1), and no
+     redeal can keep the memo warm, so each fork's first decision pays one of
+     those walks (`backlog.md` §2.9's cost section).
 
-     **Sized:** ~80–120 lines: `state/history.rs` (81 lines) re-shaped, and its
-     nine reads in `layers/condition.rs`, `triggers/history.rs`,
-     `game_state.rs` and `player.rs`, plus a test per reading.
+     **Reachability (2026-09-25):** reachable — not wrong; a cost, unmeasured.
+
+     **Proposed: before the information-model design (`roadmap-v2.md` A6f)**,
+     whose redeal ceiling needs the cold number on such a board.
+
+     **Sized:** the measurement first, about an hour. Put a Lattice-shaped
+     fixture (LJ's Graveyard Painter at `ZoneSet::ALL`) in every deck on the
+     Commander board, and read instructions per decision against the same
+     board without it, plus the redeal's cold first decision on it. A fix, if
+     the number calls for one, is a design question. A hidden-zone member
+     walked only when something reads it is the obvious shape; a CDA that
+     reads graveyard cards (Tarmogoyf) is why "never walked" is not the answer.
+

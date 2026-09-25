@@ -1091,7 +1091,7 @@ mod tests {
             id,
             Layer::Layer6Ability,
             1,
-            EffectModification::GrantAbility(Box::new(granted)),
+            EffectModification::GrantAbility(std::sync::Arc::new(granted)),
         ));
 
         let chars = compute_characteristics(&game, id).unwrap();

@@ -62,7 +62,7 @@ use mtgsim::ui::decision::ScriptedDecisionProvider;
 /// Fixtures placed with `put_on_battlefield` announce themselves too, so a
 /// test about one card filters by id — `entries_of`.
 fn entries(game: &GameState) -> Vec<(ObjectId, usize)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::PermanentEnteredBattlefield { object_id, controller } => {

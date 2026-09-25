@@ -650,7 +650,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
+        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
         // A rider's proposals continue the replaced event's applied set
         // (CR 614.5, `Rider::lineage`); every other batch starts fresh. Taken, not
         // read: the batches nested inside the rider's own event are contained and
@@ -682,7 +682,7 @@ impl GameState {
     fn dispatch_after_batch(
         &mut self,
         result: Result<Vec<GameAction>, String>,
-        mark: usize,
+        mark: crate::events::event::EventSeq,
         window: Option<crate::events::event::BatchId>,
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
@@ -736,7 +736,7 @@ impl GameState {
             inherited.len()
         );
         let previous = self.events.open_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
+        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
         self.nesting.batch_depth += 1;
         let result = self.execute_batch_inner(batch, ctx, inherited);
         self.nesting.batch_depth -= 1;
@@ -768,7 +768,7 @@ impl GameState {
         ctx: &ActionContext,
     ) -> Result<Vec<GameAction>, String> {
         let previous = self.events.open_new_batch(ctx.resolution_stamp());
-        let (mark, window) = (self.events.len(), self.events.current_stamp().batch);
+        let (mark, window) = (self.events.next_seq(), self.events.current_stamp().batch);
         // A new lineage, as in `execute_actions`.
         let outer_lineage = std::mem::replace(&mut self.nesting.decomposition_depth, 0);
         self.nesting.batch_depth += 1;
@@ -954,7 +954,7 @@ impl GameState {
         // The dispatch audit's snapshot of every object that could carry a
         // triggered ability, when it is on (§4.10).
         let audit_frames = self.audit_frames();
-        let performed_from = self.events.len();
+        let performed_from = self.events.next_seq().0;
 
         // --- Phase 2: perform, in batch order -------------------------------
         //
@@ -1005,7 +1005,7 @@ impl GameState {
             trace_records::batch_end(self, decided_rendered.as_deref().unwrap_or(&[]), riders.len())
         });
         let window = self.events.current_stamp().batch;
-        let performed_range = performed_from..self.events.len();
+        let performed_range = performed_from..self.events.next_seq().0;
         if let Some(frames) = snapshot {
             self.look_back_snapshots.push(crate::engine::triggers::LookBackSnapshot {
                 window,
@@ -1778,7 +1778,7 @@ impl GameState {
         from: Zone,
         to: Zone,
         cause: ZoneChangeCause,
-        lki: Option<Box<EffectiveCharacteristics>>,
+        lki: Option<std::sync::Arc<EffectiveCharacteristics>>,
     ) -> Result<(), String> {
         let owner = self.get_object(object)?.owner;
         self.emit_event(GameEvent::ZoneChange { object_id: object, owner, from, to, cause, lki });
@@ -1956,6 +1956,7 @@ mod tests {
 
     fn setup_game_with_creature() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let bears = CardDataBuilder::new("Grizzly Bears")
             .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::Green], 1))
@@ -1975,7 +1976,7 @@ mod tests {
     }
 
     fn tap_events(game: &GameState) -> Vec<&'static str> {
-        game.events.events().filter_map(|e| match e {
+        game.recorded_events().events().filter_map(|e| match e {
             GameEvent::Tapped { .. } => Some("tapped"),
             GameEvent::Untapped { .. } => Some("untapped"),
             _ => None,
@@ -2038,7 +2039,7 @@ mod tests {
 
         assert_eq!(game.battlefield.get(&bears_id).unwrap().damage_marked, 3);
         // Should have emitted a DamageDealt event
-        assert_eq!(game.events.len(), 1);
+        assert_eq!(game.recorded_events().len(), 1);
     }
 
     #[test]
@@ -2055,7 +2056,7 @@ mod tests {
 
         assert_eq!(game.players[1].life_total, 17);
         // DamageDealt + LifeChanged
-        assert_eq!(game.events.len(), 2);
+        assert_eq!(game.recorded_events().len(), 2);
     }
 
     #[test]
@@ -2071,7 +2072,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[1].life_total, 20);
-        assert_eq!(game.events.len(), 0);
+        assert_eq!(game.recorded_events().len(), 0);
     }
 
     #[test]
@@ -2085,7 +2086,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 25);
-        assert_eq!(game.events.len(), 1);
+        assert_eq!(game.recorded_events().len(), 1);
     }
 
     #[test]
@@ -2099,7 +2100,7 @@ mod tests {
         }, &test_ctx()).unwrap();
 
         assert_eq!(game.players[0].life_total, 17);
-        assert_eq!(game.events.len(), 1);
+        assert_eq!(game.recorded_events().len(), 1);
     }
 
     #[test]
@@ -2118,6 +2119,7 @@ mod tests {
 
     fn setup_game_with_lifelink_creature() -> (GameState, ObjectId) {
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let data = CardDataBuilder::new("Lifelink Creature")
             .mana_cost(crate::types::mana::ManaCost::build(&[ManaType::White], 1))
@@ -2204,7 +2206,7 @@ mod tests {
         // Events: DamageDealt, LifeChanged (damage to P1), LifeChanged (the
         // lifelink gain for P0, which the batch proposes once its damage has
         // all been dealt, CR 702.15e).
-        let life_events: Vec<_> = game.events.events().filter_map(|e| {
+        let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id, old, new, source, .. } = e {
                 Some((*player_id, *old, *new, *source))
             } else {
@@ -2233,6 +2235,7 @@ mod tests {
     fn test_simultaneous_lifelink() {
         // Two lifelink creatures deal damage; each produces its own LifeChanged event.
         let mut game = GameState::new(2, 20);
+        game.record_events();
 
         let make_lifelinker = |game: &mut GameState, name: &str| -> ObjectId {
             let data = CardDataBuilder::new(name)
@@ -2273,7 +2276,7 @@ mod tests {
         assert_eq!(game.players[0].life_total, 24);
 
         // Collect all LifeChanged events for P0 (lifelink gains)
-        let lifelink_gains: Vec<_> = game.events.events().filter_map(|e| {
+        let lifelink_gains: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { player_id: 0, source, .. } = e {
                 Some(*source)
             } else {
@@ -2417,7 +2420,7 @@ mod tests {
             cause: LifeLossCause::Cost,
         }, &test_ctx()).unwrap();
 
-        let life_events: Vec<_> = game.events.events().filter_map(|e| {
+        let life_events: Vec<_> = game.recorded_events().events().filter_map(|e| {
             if let GameEvent::LifeChanged { source, .. } = e {
                 Some(*source)
             } else {

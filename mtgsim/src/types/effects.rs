@@ -1455,16 +1455,18 @@ pub enum Primitive {
     /// that says "gains equip {2}" comes through here, not through
     /// `GrantKeywordFlag`.
     ///
-    /// Boxed because `AbilityDef` contains an `Effect`, which contains
+    /// Behind an `Arc` because `AbilityDef` contains an `Effect`, which contains
     /// `Primitive` — the recursion is real and needs an indirection. It also
-    /// keeps `Primitive` small, since this variant is otherwise the largest.
+    /// keeps `Primitive` small, since this variant is otherwise the largest,
+    /// and registering the grant shares the def rather than copying it
+    /// (`EffectModification::GrantAbility`).
     ///
     /// CR 604.3a(2): the granted def's `is_characteristic_defining` is cleared
     /// when it is applied, whatever the card author wrote. A Layer 6 grant is
     /// none of 604.3a(2)'s routes to a CDA — printed, granted to a token by the
     /// effect that created it, or acquired through a copy or text-changing
     /// effect.
-    GrantAbility(Box<crate::objects::card_data::AbilityDef>, Duration),
+    GrantAbility(std::sync::Arc<crate::objects::card_data::AbilityDef>, Duration),
     /// Remove one ability by id (layer 6). CR 113.10b — *all* instances of it.
     LoseAbility(crate::types::ids::AbilityId, Duration),
     /// Remove every ability and keyword (layer 6). Humility, Merfolk Trickster.
@@ -1608,8 +1610,10 @@ pub enum Effect {
     /// what reaches the stack is the def's inner `effect` with the binding
     /// beside it. Reaching this arm in `resolve_effect` is a wiring error.
     ///
-    /// Boxed because `TriggerDef` carries an `Effect` of its own.
-    Triggered(Box<crate::types::triggers::TriggerDef>),
+    /// Behind an `Arc` because `TriggerDef` carries an `Effect` of its own, and
+    /// so that a trigger's binding shares the def the dispatcher matched
+    /// rather than copying it at every match.
+    Triggered(std::sync::Arc<crate::types::triggers::TriggerDef>),
 
     // Future phases:
     // ApplyContinuous(ContinuousEffectDef),
@@ -1632,6 +1636,9 @@ impl Effect {
         use crate::types::replacement::{GameActionTemplate, Rewrite};
         match self {
             Effect::Atom(Primitive::GrantAbility(def, _), _) => {
+                // A card's defs are built before anything shares them, so
+                // `make_mut` writes in place here.
+                let def = std::sync::Arc::make_mut(def);
                 f(def);
                 def.effect.for_each_ability_def_mut(f);
             }
@@ -1664,7 +1671,7 @@ impl Effect {
                     then.for_each_ability_def_mut(f);
                 }
             }
-            Effect::Triggered(def) => def.effect.for_each_ability_def_mut(f),
+            Effect::Triggered(def) => std::sync::Arc::make_mut(def).effect.for_each_ability_def_mut(f),
         }
     }
 

@@ -53,6 +53,7 @@ fn play_seeded_game_with(seed: u64, players: usize) -> Vec<String> {
 
     let mut game = Game::new(GameConfig::test(), vec![deck; players])
         .expect("game creation");
+    game.state.record_events();
     game.reseed(seed);
     let dp = RandomDecisionProvider::seeded(seed);
     game.setup(&dp).expect("setup");

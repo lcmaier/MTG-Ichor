@@ -163,14 +163,15 @@ mod tests {
     #[test]
     fn test_lifelink_gain_is_attributed_to_the_source() {
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let source = setup_creature(&mut game, &[KeywordFlag::Lifelink]);
 
         deal_to_player_one(&mut game, source, 2);
 
         // The gain goes through a `GainLife` proposal rather than being written
         // into life_total, so a CR 614 watcher (Tainted Remedy) sees it.
-        let gains: Vec<&GameEvent> = game
-            .events
+        let recorded = game.recorded_events();
+        let gains: Vec<&GameEvent> = recorded
             .events()
             .filter(|e| matches!(e, GameEvent::LifeChanged { player_id: 0, .. }))
             .collect();
@@ -191,6 +192,7 @@ mod tests {
         // rather than opening one of its own: two batch ids would tell a
         // CR 603.2c trigger that two events happened.
         let mut game = GameState::new(2, 20);
+        game.record_events();
         let source = crate::test_support::place_vanilla_creature(
             &mut game, 0, 2, 2, &[KeywordFlag::Lifelink]);
 
@@ -205,7 +207,7 @@ mod tests {
             &test_ctx(),
         ).unwrap();
 
-        let batches: Vec<_> = game.events.records().iter().map(|r| r.batch()).collect();
+        let batches: Vec<_> = game.recorded_events().records().iter().map(|r| r.batch()).collect();
         assert!(batches.len() >= 2, "damage plus the life it gains");
         let first = batches[0].expect("a performed action is in a batch");
         assert!(

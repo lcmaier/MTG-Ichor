@@ -138,7 +138,7 @@ fn counts(game: &GameState) -> Vec<u64> {
 
 /// The `BatchId` of every damage event since `from`.
 fn damage_batches(game: &GameState, from: usize) -> Vec<Option<BatchId>> {
-    game.events
+    game.recorded_events()
         .records_from(from)
         .iter()
         .filter(|r| matches!(r.event, GameEvent::DamageDealt { .. }))
@@ -194,7 +194,7 @@ fn pyroclasm_deals_its_damage_to_every_creature_as_one_event() {
     place_vanilla_creature(&mut game, 0, 3, 3, &[]);
     place_vanilla_creature(&mut game, 1, 3, 3, &[]);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     resolve_spell(&mut game, pyroclasm(), 1);
 
     let batches = damage_batches(&game, before);
@@ -370,7 +370,7 @@ fn fog_empties_a_combat_damage_step() {
     set_blocking(&mut game, blocker, vec![attacker]);
     resolve_spell(&mut game, fog(), 0);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.process_combat_damage(&test_dp(), false).unwrap();
 
     assert_eq!(marked(&game, attacker), 0);
@@ -501,7 +501,7 @@ fn fog_prevents_damage_from_a_creature_that_entered_after_it_resolved() {
     let attacker = place_vanilla_creature(&mut game, 1, 3, 3, &[]);
     set_attacking(&mut game, attacker, 0);
 
-    let before = game.events.len();
+    let before = game.recorded_events().len();
     game.process_combat_damage(&test_dp(), false).unwrap();
 
     assert_eq!(life(&game, 0), 20, "CR 611.2c — the set was not fixed at resolution");

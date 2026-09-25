@@ -2517,3 +2517,79 @@ Closed by `AmountExpr::TriggeringPower` and `AmountExpr::TriggeringToughness` ov
 
      **Reachability (2026-09-19):** nothing owed — a record for TR-2, whose
      `TriggeringToughness` is the same leaf with the other box.
+
+### Item 42 — closed 2026-09-25 by the bounded-state PR
+
+Closed by taking the log out of `GameState` (`triggers-architecture.md` §3.4 and §4.1, as built). `GameState.events` is an `EventWindow`. It holds a record until the outermost dispatch that reads it has returned with no batch open, then flushes it, to a recorder (`events::recorder`) when one is attached and nowhere otherwise. It is empty at every priority prompt, so a clone copies no record. `EventSeq` is a number each record carries, never an index. A `TriggerBinding` copies the records it matched, whole, and their CR 603.10a frames are the layer memo's `Arc`, so the copy shares them. Whatever reads the whole stream attaches a recorder: `fuzz_games`, whose fixture rows are read off it; `Game::event_log_snapshot`; the fork and determinism tests; and every test built by `setup_two_player_game` or `setup_game`. The recorder's handle forks with the state, as the trace sink's does: a clone reads its parent's stream up to the fork, then its own. The clone table taken after it is the bounded-state block in `fuzz-record.md`.
+
+*Original entry:*
+
+42. **`EventLog` is on `GameState` and grows monotonically.** Every clone
+    carries every `EventRecord` the game has emitted, though the only in-state
+    reader, the trigger matcher, reads the current batch's suffix
+    (`records_from`).
+
+    **Rescoped 2026-09-25: no retained log.** The log leaves `GameState`
+    entirely. The performed stream already reaches the sink through one door,
+    `GameState::emit_event` (A4c, PR #170), so everything that wants the whole
+    history reads the sink: trace pages, `--dump-events`, the fork test, a
+    GUI's game log. Trigger bindings point at records today
+    (`triggers-architecture.md` §3.4); they copy the facts they bind at
+    dispatch instead, so no pending or stacked trigger refers to a record by
+    id. What the rules need from the past is already materialized as TR-2a's
+    per-player turn summaries (§3.10), and item 179 bounds those.
+
+    **Reachability (2026-09-25):** reachable — not wrong. The AI floors report
+    re-took item 143's clone table (`plans/references/ai-performance-floors.md`):
+    with the log, a Commander-scale clone passes 10 µs by turn 20 and reaches
+    131 µs and 1,176 KB at the end of a 184-turn game; without it, 3.7–8.8 µs.
+    Floors 2 and 3 (`engineering-practices.md` §3.1) wait on it.
+
+    **Scheduled: the bounded-state PR**, next after the process PR and before
+    TR-2b, together with item 179, the committed clone probe and CI checks on
+    allocations and bytes per clone. Its throwaway probe also measures the
+    observation cost k and a naive redeal (`backlog.md` §2.34) at item 143's
+    checkpoints, reading the first decision after a redeal against a warm and a
+    cold layer memo, so the information-model design's cost section (§2.9)
+    starts from numbers.
+
+    **Sized:** by sites, 2026-09-25: 89 reads of the log or of `EventSeq`
+    outside `events/`, in 19 files. The binding (`engine/triggers/binding.rs`)
+    is the one whose shape changes; the PR's brief turns the count into lines.
+
+### Item 179 — closed 2026-09-25 by the bounded-state PR
+
+Closed by the design the item held (`triggers-architecture.md` §3.10, as built). Each `PlayerHistory` keeps this turn's row and last turn's, which move along as a new turn is counted on, the game's running total, and `at_your_last_turn`: every player's total as this player's last turn ended, taken as the next turn begins. "Since your last turn" is a total less that snapshot. That is O(seats²) and never the turn count, one allocation per player against the two that grew. All nine reads mapped onto the three views without a fourth. `layers/condition.rs`'s `history_holds` reads a view per span, the dispatcher's writer counts on the rows and takes the snapshot at `TurnBegan`, and `GameState::new` and `player.rs` construct it as before. The integration tests cover the snapshot at four seats, and the unit tests cover the rows' roll-over and an extra turn.
+
+*Original entry:*
+
+179. **TR-2a's `PlayerHistory` grows with the turn count.** Each player keeps
+     one `TurnSummary` per turn of the game (`state/history.rs`;
+     `triggers-architecture.md` §3.10, "whole game, not two turns"): 192 bytes
+     per player per turn, 99–107 KB at the end of the long Commander games the
+     AI floors report re-took (`plans/references/ai-performance-floors.md`).
+     With every history emptied, no board's state passes 102 KB. With it,
+     three of five Commander-scale games pass floor 3's 128 KB late
+     (`engineering-practices.md` §3.1), and the state's size follows the turn
+     count, which floor 3 forbids.
+
+     **The design.** No reader needs the whole-game rows:
+     - "this game" is a running total;
+     - "last turn" is the previous row;
+     - "since your last turn" is a per-player snapshot of the totals, taken
+       as the turn after each of that player's own turns begins.
+
+     All three are O(seats²), bounded by the table and never by the turn
+     count.
+
+     **Why now.** §3.10 deferred the prune "until a reading says it should",
+     and the report is that reading.
+
+     **Reachability (2026-09-25):** reachable — not wrong; the history gains a
+     row per player per turn, and every clone carries all of it.
+
+     **Scheduled: the bounded-state PR**, with item 42.
+
+     **Sized:** ~80–120 lines: `state/history.rs` (81 lines) re-shaped, and its
+     nine reads in `layers/condition.rs`, `triggers/history.rs`,
+     `game_state.rs` and `player.rs`, plus a test per reading.

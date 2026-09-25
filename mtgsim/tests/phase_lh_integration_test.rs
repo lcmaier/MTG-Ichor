@@ -85,7 +85,7 @@ fn destroy(game: &mut GameState, id: ObjectId) {
 
 /// Every zone change of `id`, as `(from, to, cause)`.
 fn moves_of(game: &GameState, id: ObjectId) -> Vec<(Zone, Zone, ZoneChangeCause)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::ZoneChange { object_id, from, to, cause, .. } if *object_id == id => {
@@ -227,7 +227,7 @@ fn test_an_aura_whose_target_left_fizzles() {
         vec![(Zone::Stack, Zone::Graveyard, ZoneChangeCause::Fizzled)]
     );
     assert!(game
-        .events
+        .recorded_events()
         .events()
         .any(|e| matches!(e, GameEvent::SpellFizzled { spell_id } if *spell_id == aura)));
 }
@@ -380,7 +380,7 @@ fn offered_to(game: &GameState, player: PlayerId, equipment: ObjectId) -> bool {
 }
 
 fn attaches_of(game: &GameState, attachment: ObjectId) -> Vec<(ObjectId, Option<ObjectId>)> {
-    game.events
+    game.recorded_events()
         .events()
         .filter_map(|e| match e {
             GameEvent::Attached { attachment: a, host, former_host } if *a == attachment => {

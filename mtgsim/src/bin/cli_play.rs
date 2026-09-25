@@ -2,6 +2,12 @@
 //
 // Usage: cargo run --bin cli_play
 //        cargo run --bin cli_play -- --no-auto-pay
+//        cargo run --bin cli_play -- --dump-events game.log
+//
+// The game keeps its event log in a recorder beside the state
+// (`events::recorder`). `--dump-events PATH` writes it when the game ends, and
+// an engine error prints the events of the turn it happened in, whether or not
+// the flag was given.
 //
 // **The two seats stack different decorators, and that is the point of a
 // stack.** The human seat takes `AutoPayer` over `ManaWindowStop`: it has no
@@ -22,6 +28,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
@@ -30,6 +37,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::cli::CliDecisionProvider;
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::display::format_event;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -81,8 +89,10 @@ fn main() {
     // A `GameState` is seeded to a fixed default so tests replay; an actual game
     // of Magic wants a different shuffle every time.
     game.reseed_from_entropy();
+    game.state.record_events();
     // `--trace PATH` — the trace sink, one JSON line per engine step.
     let args: Vec<String> = std::env::args().collect();
+    let dump_events = args.iter().position(|a| a == "--dump-events").and_then(|i| args.get(i + 1)).cloned();
     let trace = args
         .iter()
         .position(|a| a == "--trace")
@@ -126,7 +136,22 @@ fn main() {
             }
             GameResult::Draw => println!("\n*** DRAW ***"),
         },
-        Err(e) => println!("\nGame error: {}", e),
+        Err(e) => {
+            println!("\nGame error: {}", e);
+            let recorded = game.state.recorded_events();
+            let records = recorded.records();
+            let turn_began = records.iter().rposition(|r| matches!(r.event, GameEvent::TurnBegin { .. })).unwrap_or(0);
+            println!("This turn's events, up to the error:");
+            for record in &records[turn_began..] {
+                println!("  {}", format_event(&game.state, &record.event));
+            }
+        }
+    }
+    if let Some(path) = dump_events {
+        match std::fs::write(&path, game.event_log_snapshot().join("\n") + "\n") {
+            Ok(()) => println!("Event log written to {}", path),
+            Err(e) => println!("Could not write the event log to {}: {}", path, e),
+        }
     }
     if let Some(sink) = trace {
         game.state.trace_objects();

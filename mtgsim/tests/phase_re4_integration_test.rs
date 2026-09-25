@@ -110,7 +110,7 @@ fn tokens(game: &GameState) -> Vec<ObjectId> {
 
 /// Every `TokenCreated` since `start`, as `(token, zone)`.
 fn creations(game: &GameState, start: usize) -> Vec<(ObjectId, Zone)> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -122,7 +122,7 @@ fn creations(game: &GameState, start: usize) -> Vec<(ObjectId, Zone)> {
 
 /// Every `PermanentEnteredBattlefield` since `start`.
 fn entered(game: &GameState, start: usize) -> Vec<ObjectId> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -134,7 +134,7 @@ fn entered(game: &GameState, start: usize) -> Vec<ObjectId> {
 
 /// Every `TokenCeasedToExist` since `start`.
 fn ceased(game: &GameState, start: usize) -> Vec<ObjectId> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -146,7 +146,7 @@ fn ceased(game: &GameState, start: usize) -> Vec<ObjectId> {
 
 /// Every `ZoneChange` of `id` since `start`, as `(from, to)`.
 fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone)> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter_map(|r| match &r.event {
@@ -160,7 +160,7 @@ fn moves_of(game: &GameState, start: usize, id: ObjectId) -> Vec<(Zone, Zone)> {
 
 /// The batch id of every token line since `start` — creations and entries.
 fn token_batches(game: &GameState, start: usize) -> Vec<Option<BatchId>> {
-    game.events
+    game.recorded_events()
         .records_from(start)
         .iter()
         .filter(|r| {
@@ -207,7 +207,7 @@ fn enchantment_with(name: &str, ability: mtgsim::objects::card_data::AbilityDef)
 #[test]
 fn raise_the_alarm_creates_two_soldiers_named_by_their_subtype() {
     let mut game = setup_two_player_game();
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
 
     resolve_card(&mut game, 0, raise_the_alarm(), &test_dp());
 
@@ -245,7 +245,7 @@ fn raise_the_alarm_creates_two_soldiers_named_by_their_subtype() {
 #[test]
 fn a_plural_creation_is_one_event_and_its_entries_join_it() {
     let mut game = setup_two_player_game();
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
 
     resolve_card(&mut game, 0, hordeling_outburst(), &test_dp());
 
@@ -471,7 +471,7 @@ fn hallowed_moonlight_beside_master_biomancer_asks_nothing_because_the_exile_win
     put_on_battlefield(&mut game, master_biomancer(), 0);
     resolve_card(&mut game, 0, hallowed_moonlight(), &test_dp());
     let dp = RecordingDecisionProvider::picking(0);
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
 
     resolve_card(&mut game, 0, raise_the_alarm(), &dp);
 
@@ -546,11 +546,11 @@ fn two_devour_tokens_created_together_are_each_asked_and_never_offered_each_othe
 fn hallowed_moonlight_creates_the_token_in_exile_and_it_ceases_to_exist() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 3);
-    let drawn_before = game.events.events().filter(|e| matches!(e, GameEvent::CardDrawn { .. })).count();
+    let drawn_before = game.recorded_events().events().filter(|e| matches!(e, GameEvent::CardDrawn { .. })).count();
     resolve_card(&mut game, 0, hallowed_moonlight(), &test_dp());
-    let drawn_after = game.events.events().filter(|e| matches!(e, GameEvent::CardDrawn { .. })).count();
+    let drawn_after = game.recorded_events().events().filter(|e| matches!(e, GameEvent::CardDrawn { .. })).count();
     assert_eq!(drawn_after, drawn_before + 1, "Draw a card");
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let objects_before = game.objects.len();
 
     resolve_card(&mut game, 1, raise_the_alarm(), &test_dp());
@@ -613,7 +613,7 @@ fn hallowed_moonlight_exiles_a_returned_card_in_one_move() {
     let mut game = setup_two_player_game();
     fill_library(&mut game, 0, 3);
     resolve_card(&mut game, 0, hallowed_moonlight(), &test_dp());
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let bear = put_in_graveyard(&mut game, vanilla_creature(2, 2, &[]), 1);
 
     game.change_zone(bear, Zone::Battlefield, ZoneChangeCause::Returned, &test_ctx())
@@ -651,7 +651,7 @@ fn a_token_that_cannot_enter_is_not_created() {
         },
     ))));
     put_on_battlefield(&mut game, enchantment_with("No Creatures May Enter", no_creatures), 1);
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let objects_before = game.objects.len();
 
     resolve_card(&mut game, 0, raise_the_alarm(), &test_dp());
@@ -702,7 +702,7 @@ fn a_creation_is_reported_as_decided_and_the_log_counts_what_was_created() {
         ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: gate },
         vec![],
     );
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     let objects_before = game.objects.len();
     let proposed = GameAction::CreateTokens { defs: vec![soldier_token(); 2], controller: 0 };
 
@@ -1174,7 +1174,7 @@ fn a_multiplier_on_a_kind_repeats_only_that_kind() {
     let names: Vec<String> = tokens(&game).iter().map(|id| get_effective_name(&game, *id)).collect();
     assert_eq!(names, vec!["Trinket", "Soldier Token", "Soldier Token"]);
 
-    let start = game.events.records().len();
+    let start = game.recorded_events().records().len();
     create(&mut game, 0, trinket(), 1, &test_dp());
     assert_eq!(creations(&game, start).len(), 1, "no creature in it: the pattern does not match at all");
 }

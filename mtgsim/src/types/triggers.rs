@@ -2,7 +2,7 @@
 //! (`triggers-architecture.md` §3).
 //!
 //! A triggered ability is an [`AbilityDef`](crate::objects::card_data::AbilityDef)
-//! whose effect is `Effect::Triggered(Box<TriggerDef>)`, the shape
+//! whose effect is `Effect::Triggered(Arc<TriggerDef>)`, the shape
 //! `Effect::Replacement` gave static replacement abilities: a card is data and
 //! adding one touches `src/cards/*.rs` alone. **The one growth axis is
 //! [`TriggerEvent`]**, one arm per performed `GameEvent` kind and no other —
@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use crate::events::event::{DamageTarget, EventSeq, GameEvent};
+use crate::events::event::{DamageTarget, EventRecord, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
 use crate::types::effects::{Condition, Effect, EffectRecipient, ObjectFilter, PlayerRef};
@@ -546,9 +546,10 @@ pub struct EventIndex(pub usize);
 pub struct TriggerSeq(pub u64);
 
 /// The bound facts of a trigger, filled at dispatch and carried onto the
-/// `PendingTrigger` and then the `StackEntry` (§3.4). **Indices and one
-/// `Arc`**: it points at the records and copies nothing they hold, so the
-/// frame comes with the record and there is one copy of every fact.
+/// `PendingTrigger` and then the `StackEntry` (§3.4). **The matched records,
+/// copied whole**: the window that held them flushes when the dispatch returns,
+/// so the binding keeps its own, each fact once and its frame behind the
+/// memo's `Arc`, rather than a projection that could drop one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TriggerBinding {
     /// The def, shared: cloned out of the source's effective list once at
@@ -557,7 +558,7 @@ pub struct TriggerBinding {
     pub def: Arc<TriggerDef>,
     /// The records that matched: one for a `PerOccurrence` trigger, every
     /// matching record of the window for a `OncePerEvent` one.
-    pub records: Vec<EventSeq>,
+    pub records: Vec<EventRecord>,
     /// Which event matched — whose projections say what the bound facts are.
     pub event: EventIndex,
     /// The subject's epoch at dispatch. `None` for an event about no object
@@ -626,6 +627,7 @@ impl PendingTrigger {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::event::EventSeq;
     use crate::state::game_state::AbilityIdentity;
     use crate::types::ids::{AbilityId, ObjectRef};
 
