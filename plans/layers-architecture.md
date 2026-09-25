@@ -2641,6 +2641,330 @@ tell a 16% regression from a shorter game, and it very nearly did not.
 
 ---
 
+## 13e. Phase LL — a card in a library or a hand is walked only when something reads it (live plan, 2026-09-25)
+
+#### LL — hidden walks
+
+`codebase-state.md` item 181's fix, and the second of the two PRs `roadmap-v2.md`
+A6b puts ahead of TR-2b. Lettered as §13d says a phase implementing part of a
+row is. Written before code the way §13a–§13d were: the finding that sets the
+scope, the decisions, the pieces, and a size measured against the tree.
+
+**What it fixes.** Floor 1 fails on a Commander board with a row reaching the
+hidden zones: 4,600–6,800 decisions per second on one thread, against 15,950
+without one (`fuzz-record.md`, "Measured 2026-09-25 for item 181"). LJ made
+every object in a reached zone a member of every pass (`Board::seed`,
+`board.rs:175`). Libraries and hands hold 93.4% of the objects off the
+battlefield, and 0.22% of the frames seeded there are read before the next bump.
+Thirteen printed cards make such a row, all Commander-legal.
+
+### The finding that sets the scope: the pass reads a hidden card in three ways
+
+Item 181's lever leaves hidden cards out of the pass and replays each row's
+decision on the card's own frame. That is exact for a card the pass only
+*writes*. So the first question is which hidden cards the pass *reads*, and the
+tree answers it by enumeration. A pass reads another object through
+`Board::frame_of` and through a row's affected set:
+
+| The read | Whose frame | A card in a library or a hand? |
+|---|---|---|
+| CR 604.2's existence, CR 109.5's "you", a condition's reads (`static_ability_still_exists`, `FilterPlayers::you`, `conditional_reads_of`) | a static row's **source** | **Yes.** CR 113.6b lets a static function there, and `register_static_effects` registers one on arrival (`exiled_ancestor`'s text; `zone_function.rs`'s Grist shape) |
+| `ObjectSet::Fixed`, `SourceOnly`, `Host` | the named object, the source, the host | A `Fixed` target is a member wherever it is. A `SourceOnly` source, yes. A host, no |
+| `AmountExpr::CountOf`, `YouControlPermanent`, `OpponentControlsPermanent` | `battlefield_ids` | No |
+| `CardTypesAmong`, `CardInYourGraveyard` | graveyard cards | No: a public zone, which stays in the pass |
+| `HostMatches`, a CDA's amounts | the host; as above | No |
+| CR 613.8's hypothetical (`depends_on` → `observe`) | every member the observed row **affects** | **Yes**, when two rows of one layer both reach the zone |
+
+Everything else the pass does to a hidden card is a write. A write on a card
+nothing reads can be replayed: its outcome depends on the card's own frame and
+on three things the pass decided about the row at that moment: whether it
+exists, who "you" is, and whether CR 613.6 had locked it. None of the three
+depends on the card.
+
+**So the lever is exact for a hidden card when three things hold, and they are
+this design's decisions:**
+1. The card is not a static row's source (decision 2).
+2. No CR 613.8 decision can turn on a card in its zone (decision 4).
+3. No row writing it reads the board to resolve (decision 4 too). A replay runs
+   outside the pass and cannot see mid-layer frames.
+
+The brief named the first. The tree adds the other two. None of the thirteen
+printed cards trips the third, and two printed cards, beside one of nine
+others, trip the second (decision 4).
+
+**Not §12's per-object dirty tracking.** That was deferred because a fine key
+must list every input, and CR 613.8 makes other objects' answers inputs. This
+keeps the coarse epoch: the record is invalidated with it, and every replayed
+frame is stored at it. What changes is who is in the pass, which is LJ's
+question answered narrower.
+
+### Decisions — numbered by what the tree poses
+
+**1. The replay: what the pass records, where it lives, what a clone pays.**
+
+For each row reaching a left-out zone, as the pass performs it (in `perform`,
+and never under a hypothetical's journal), the pass records the row, its layer
+and its decision then:
+
+```rust
+pub(crate) struct ReplayStep {
+    layer_index: u8,
+    row: Arc<ContinuousEffect>,   // #190 put every row behind one
+    decision: RowDecision,
+}
+
+pub(crate) enum RowDecision {
+    /// CR 613.6: the effect started earlier. It applies to the card iff the
+    /// card matched where the effect started.
+    Locked,
+    /// The effect exists now (CR 604.2), and this is "you" as CR 109.5 read
+    /// it off the source's live frame.
+    Fresh { you: PlayerId },
+}
+```
+
+A row the pass found gone is not recorded, since skipping it is the replay's
+answer too. The steps are in the order the pass applied them, which is CR
+613.8's order as decided on the members. Decision 4 is why that order is the
+whole board's.
+
+**A replayed walk** is the card's printed seed and then, for each layer below
+the ceiling, its own CDAs first (CR 613.3), then that layer's steps in order:
+- the zone gate;
+- the filter against the card's own frame, with `you` from the step;
+- the modification, applied as `apply_resolved` applies it.
+
+That is `compute_non_member` with one more argument. A non-member is a card
+with no steps, so one function answers both, and its fast exit becomes "no CDA
+and no step".
+
+**Titania's Song is the board that makes the per-layer decision necessary.**
+Mycosynth Lattice's colorless line applies at layer 5, though Lattice has lost
+its abilities by the end of layer 6. A replay that asked the memo's settled
+Lattice would find no ability and skip the row.
+
+**Where.** `LayerMemo` gets `replay: RefCell<Option<(u64, Arc<[ReplayStep]>)>>`
+beside its frames. The pass that fills the memo stores it, and it is read only
+at its own epoch. A live pass reads its own record in progress: a read at
+ceiling `c` needs only the layers below `c`, and those are complete.
+
+**What it costs.** A board with no row reaching a hidden zone records nothing.
+Otherwise each pass builds one list of a few steps, one per row reaching the
+zone per layer. One allocation outlives the pass, the `Arc`, and a fork bumps
+its count and allocates nothing. Floor 2's 64 does not move, and
+`clone_bound_test.rs` reads it.
+
+**What a replayed card reads of other objects.** Its CDAs read them as
+`compute_non_member` already does: from outside a pass, the settled frames.
+As a member the card read live mid-pass frames. The answers agree under
+`cda.rs`'s standing premise: every CDA reads information from strictly lower
+layers, which is final by its own layer. A non-member's walk already rests on
+that premise, so nothing new is approximated.
+
+**Hidden information** (§13c decision 4's constraint): strictly less exposure
+than today. The record holds rows, never cards. Replayed frames sit in the
+memo, which is never iterated, and the pass no longer holds a library's order
+at all.
+
+**2. A hidden card the pass reads joins the pass: a static row's source.**
+
+The pass reads a static row's source mid-layer, and a replay reads it only at a
+ceiling. So a replay misses what an earlier application in the same layer did.
+That is item 181's Wonder and Yixlid Jailer argument, one zone over: a hand
+card with "as long as this card is in your hand, creatures you control have
+flying", beside Hollow Hands. Both apply at layer 6, and the grant waits on the
+strip (CR 613.8a), but only if the pass can see the strip reach the source.
+
+**The rule:** a static row's source in a left-out zone joins the pass, as a
+`Fixed`-named object does. `seed` appends it after the `Fixed`-named objects,
+in registry order. `membership` answers `Member` from the same scan it already
+makes for `Fixed` rows, since rows are few. A resolution row's source does not
+join (a buyback spell back in its owner's hand, say): CR 613.7b fixes its "you"
+and its existence is unconditional, so the pass never reads its frame.
+
+**A finding, and question Q2 for the owner.** A `SourceOnly` static row off the
+battlefield never applies today. A throwaway probe put a Grist-shaped card
+("as long as this isn't on the battlefield, it's a creature in addition")
+into a graveyard, a hand and a library: three rows registered, and the card
+was a creature in none of the three zones. `affected_members`' `SourceOnly`
+arm needs the source to have a frame. A source no row reaches is a non-member,
+and `compute_non_member` applies no rows. Decision 2 fixes it only where some
+other row reaches a hand or a library, since the source joins there.
+
+The rest is one clause: *a static row's source joins wherever it is when its
+own row is `SourceOnly`.*
+- **Folding it in** costs ~5 lines and one test. It is flat on the pools: no
+  pooled static row is `SourceOnly` off the battlefield (Wonder's is a filter
+  row), and the close-out's cost rows would show one. The seed pays one probe
+  of its `seen` set per `SourceOnly` static row, Kird Ape's included.
+- **Filing it** as an item leaves a Grist shape a creature only where some
+  other row happens to reach its zone (beside Mycosynth Lattice, everywhere
+  but the battlefield), until someone picks the item up.
+
+Recommendation: fold it in.
+
+**3. The replayed walk memoizes its frame. Yes.** The cast path asks the same
+card more than once (decision 5). The frame goes into the state's own memo map
+and never into the shared record, so a fork that reads a hidden card leaves the
+original's memo as it was. A test pins that. Only cards something reads are
+stored, so floor 3 falls back toward the no-row board (item 181 measured
++0–19 KB).
+
+**4. When a hidden zone stays in the pass: the guard.** Two conditions seed a
+reached hidden zone as LJ seeds it today:
+- **(a) A row reaching it has a dynamic modification** (`is_dynamic`). Its
+  resolution reads other objects mid-layer: a count at 7c, or "you" at layer 2
+  for `SetController`. A replay outside the pass cannot see those frames.
+- **(b) Two rows of one layer both reach it, and one's filter reads a channel
+  the other writes.** That is `filter_reads` against `writes_of`, the pass's own
+  static half of CR 613.8a(b). CR 613.8's hypothetical could then see a change
+  in what the first row applies to *through a card there*, and the order the
+  pass decides on its members would not be the whole board's. A pair that
+  depends only through a card in a library changes the order everywhere, the
+  battlefield included.
+
+Both read rows and nothing else, so `seed` and `membership` call one function,
+`left_out_zones`, and cannot disagree. The guard is exact by construction: it
+seeds exactly where the pass's own machinery could have looked at a card there.
+
+**On the thirteen printed cards, (a) never trips.** (b) trips at layer 4:
+Biotransference and Encroaching Mycosynth add Artifact, and the filters of the
+other layer-4 cards read card types (Arcane Adaptation, Conspiracy, Dune
+Chanter, Leyline of Transformation, Maskwood Nexus, Roshan, Rukarumel, and
+each other). Either of the two beside one of those seeds libraries and hands,
+and that board costs what it costs today. Neither dependency is real: adding
+Artifact never changes whether a card is a creature card. The channel check is
+coarse, and on the battlefield the hypothetical settles such a pair.
+
+**Q1 for the owner: how fine the guard's check should be.** Two options:
+- **Channel-level, as above.** ~30 lines, reusing `writes_of` and
+  `filter_reads` unchanged. The guard is then literally "would the pass's
+  static check send this pair to a hypothetical", with no second matcher to
+  keep in step. It trips on Biotransference or Encroaching Mycosynth beside
+  one of the other nine.
+- **Value-level.** A write's value against the filter's leaves:
+  `AddType(Artifact)` reaches `ByType(Artifact)` and nothing else. ~70 lines.
+  It adds a finer static matcher over `ObjectFilter` leaves and
+  `EffectModification` values that exists only for the guard and has to track
+  both enums. A missed arm there gives a wrong order, which no test of a leaf's
+  answer catches (`condition_reads`' warning). It trips only on
+  Biotransference beside Encroaching Mycosynth, whose "nonland permanent card"
+  filter reads `ByType(Artifact)`.
+
+Recommendation: channel-level, with value-level named as the next lever if the
+audit (decision 6) or a reading shows the guard tripping.
+
+**5. Item 182 rides.** The cast-timing check at `put_on_stack.rs:673` and
+`oracle/mana_helpers.rs:331` asks one wrapper in `oracle/characteristics.rs`:
+is the card an instant, or does it have flash (CR 117.1a, 702.8a)?
+- **Gated.** When `no_row_reaches` the card, its printed types and keywords are
+  exact (CR 604.3a(1): a CDA defines neither). So pooled games walk no hand
+  card, and their cost rows stay identical. The price is one `membership` call
+  per nonland hand card per `castable_spells`, which is one registry scan.
+- **The tags.** The two sites lose their `// PRE-LAYER ZONE:` tags. The
+  cast path's other reads (is it a land, its spell ability) keep theirs, for
+  item 182's reason: none of the thirteen changes them.
+- **The end-to-end test:** a creature card cast from hand at instant speed
+  under `teferi_flash_clause`, through `cast_spell`, with exact mana under
+  `ManaWindowStop`.
+- **A consequence to expect:** the Teferi arm of `zone_reach_cost_test` starts
+  changing games, and its "card on" timings then compare different games.
+
+**6. The audit: the same code with the shortcut off.** A debug build checks
+every replayed miss against a pass that seeds the hidden zones as LJ does (a
+knob on `Board::seed`), with the counts rewound as `audit_memo_hit` rewinds
+them. That makes the whole suite the replay's test on every board with such a
+row, as §12's audit made it the memo's. It is the one place a wrong replay would
+show before a reading.
+
+**7. Out, as item 181 scoped them.** The seed that honors the row's owner would
+narrow only the public zones once this lands. The cheaper frame leaves floor 1
+failing on its own, at about ×2. A separate cache key for frames off the
+battlefield is not worth one: 1.3–3.9% of passes follow nothing but writes it
+could ignore.
+
+### The pieces
+
+**One PR, `LL`, with no `LL-2`.**
+
+| | Site | Size |
+|---|---|---:|
+| `ZoneSet::HIDDEN`, pinned to `Zone::is_public` by a test | `types/zones.rs` | ~15 |
+| `left_out_zones`, the guard's (a) and (b) | `board.rs` | ~50 |
+| `Board::seed`: reached public zones as LJ seeds them, left-out zones not, the sources that join, the knob | `board.rs` | ~45 |
+| `membership`: `Membership::Replayed`, the joining sources | `board.rs` | ~30 |
+| the record, in `perform` | `board.rs` | ~35 |
+| `compute_non_member` replays steps; the arms in `frame_of`, `frame_at_ceiling`, `walk_uncached` and `compute_characteristics` | `compute.rs`, `board.rs` | ~90 |
+| the record in `LayerMemo` | `state/layer_memo.rs` | ~30 |
+| the debug audit (decision 6) | `compute.rs` | ~30 |
+| `WalkKind::Replayed` | `trace_records.rs` | ~5 |
+| item 182: the wrapper and its two sites | `oracle/characteristics.rs`, `put_on_stack.rs`, `oracle/mana_helpers.rs` | ~35 |
+| Fixtures: Titania's Song's first sentence, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~130 |
+| Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~380 |
+| `zone_reach_cost_test` table 4: members split public / left out | `tests/` | ~25 |
+| Docs: item 181 closed and archived with 182, §3.1's floor 1 standing, this section's stub and eviction, a `fuzz-record.md` block, A6b, `state-of-play.md` | `plans/` | ~250 |
+
+**~900 lines of code and tests, ~1,150 with docs.** Item 181 sized ~500 with
+tests. The difference is decision 4's guard, decision 6's audit, item 182, and
+the tests those three owe. That is below `engineering-practices.md` §4's band,
+so one PR.
+
+### Tests
+
+- **The replay, per layer.** Titania's Song's first sentence and Lattice's
+  clause on the battlefield: a red card in a library and one in a hand are
+  colorless (the layer-5 row existed when it applied). Beside it, Teferi's
+  clause under the same Song: a creature card in hand has no flash, because the
+  layer-6 grant waited on the strip (CR 613.8a) and was gone.
+- **Who "you" is.** Teferi's clause under a layer-2 row giving it to player 1:
+  player 1's creature cards in hand have flash and player 0's do not. A replay
+  that read the row's registering controller would answer the reverse.
+- **A hidden source joins the pass.** The hand-functioning Wonder in hand
+  grants flying, and beside Hollow Hands it does not. With Q2, a Grist shape is
+  a creature in a graveyard, a hand and a library.
+- **`seed` and `membership` agree on every zone** (unit). On a board with an
+  object in every zone, under no row, Lattice's clause, a guard trip, a hidden
+  static source and a `Fixed`-named hidden card: every object is in the seed's
+  members exactly when `membership` answers `Member`.
+- **A fork.** A clone reads a library card. The original's memo holds no frame
+  for it at the epoch, and the two share one record.
+- **The guard.** Two library rows at layer 4: "creature cards in libraries are
+  artifacts" and, older, "artifact creature cards in libraries are Assassins".
+  A creature card in a library is an Artifact Assassin, because the second
+  waited on the first (CR 613.8a). Without the guard it would not be: the pass
+  would see no dependency and apply the older row first.
+- **Item 182.** A creature card is cast from hand at instant speed under
+  `teferi_flash_clause`, through `cast_spell`. Without the clause, the same cast
+  is refused.
+
+### Measure: the predictions
+
+Written here before any arm runs, and copied into the PR body.
+
+**`zone_reach_cost_test`, card on, `performance` / `stress`:**
+
+| | item 181 | predicted |
+|---|---|---|
+| members off the battlefield per pass | 333–354 | ~15–30: the public zones |
+| layer frames per decision | 307.7 / 214.1 | ~60–80 / ~40–55 |
+| µs per decision | 206.2 / 146.8 | ~70–78 / ~54–60 |
+| **floor 1**, decisions per second on one thread | 4,850 / 6,810 | **≥ 12,800 / ≥ 16,500** |
+| worst clone on `performance`: µs, KB, allocations | 10.0, 112.4, 65 | ~8, ~103, 65 |
+| redeal, first decision cold − warm, µs | 76–146 / 119–179 | ~5–50 |
+| games diverging from the no-row arm, Teferi / Lattice | 0 of 20 / 0 of 20 | most of 20 (item 182) / 0 of 20 |
+
+Floor 1 is the reading that matters. Item 181 put what remains at about 8 µs
+per decision on `performance`, which is 62.7 + 8 ≈ 71 µs and about 14,100
+decisions per second. The range allows for the replays item 182 adds, since
+every hand card the timing check asks about is now read.
+
+**`close_out.py`, both pools, two seats and four:** every gameplay row and every
+cost row `IDENTICAL`, since no pooled row reaches a hidden zone and no pooled
+static row has a source in one. Instructions per decision: **+0.1% to +0.4%**,
+from item 182's gate. Any cost row that moves is a finding.
+
+---
+
 ## 14. Testing Strategy
 
 Per phase:
