@@ -2918,17 +2918,40 @@ holding such a pair trips in every game: a training setup on Maskwood Nexus
 beside Encroaching Mycosynth would see floor 1 at `main`'s 3,770–4,550 for as
 long as both are out.
 
-**Q1 for the owner: how fine the guard's check should be.** Both options are
-exact, and they differ in which printed boards trip. How often those boards
-occur is estimated from EDHREC's deck counts (card pages, fetched 2026-09-25).
-The estimate treats a game as four independent decks, each including a card at
-its share of all decks, and ignores whether both cards reach the battlefield
-together. Tribal and artifact decks run these cards together, so the
-within-deck share is higher than independence gives.
+**Why the pass looks at cards for a pair that cannot depend** (asked at the
+owner's third pass). The static half of the pass's CR 613.8a(b) check records
+*which characteristic* an effect reads and writes, not *which value*.
+- `writes_of(AddType(Artifact))` is `TYPES`, and `filter_reads(ByType(Creature))`
+  is `TYPES`. At that grain, "adds a card type" and "tests a card type" might
+  interact, so the check falls back to the exact test: apply one under a
+  journal, re-read the other, compare.
+- The fallback is always right. It was cheap while the pass held about 40
+  permanents. With every library and hand in the pass it reads ~370 objects,
+  which is the ~50 µs above.
 
-- **Channel-level.** ~30 lines, reusing `writes_of` and `filter_reads`
-  unchanged, so the guard is literally "would the pass's static check send this
-  pair to a hypothetical".
+**The owner's rule, stated exactly, is what makes the elision sound.** An added
+card type can only change whether a card matches a filter that tests that
+type. So "adds Artifact" is independent of "creature cards", and no card needs
+to be read to know it. Additions do create dependencies when the other filter
+tests what they add:
+- Grist adds Creature, and Arcane Adaptation tests Creature;
+- a filter testing an absence ("nonartifact creature cards") depends on an
+  added Artifact.
+
+The rule is per value, not "additions never interact".
+
+**Q1 for the owner: how fine the check should be, and where it lives.** Both
+options below are exact. They differ in which boards still read cards, and so
+in which boards trip the guard. The frequencies are estimated from EDHREC's
+deck counts (card pages, fetched 2026-09-25). The estimate treats a game as
+four independent decks, each including a card at its share of all decks, and
+ignores whether both cards reach the battlefield together. Tribal and artifact
+decks run these cards together, so the within-deck share is higher than
+independence gives.
+
+- **Channel-level, as the pass's check is today.** ~30 lines, reusing
+  `writes_of` and `filter_reads` unchanged: the guard asks whether the pass's
+  static check would send a pair to a hypothetical.
   - **It trips** on Biotransference or Encroaching Mycosynth beside Arcane
     Adaptation, Conspiracy, Dune Chanter, Leyline of Transformation, Maskwood
     Nexus, Roshan, Rukarumel or each other. It trips across seats too, though
@@ -2936,35 +2959,40 @@ within-deck share is higher than independence gives.
     zone.
   - **Frequency:** such a pair is in about **0.5% of four-player games**' decks:
     a writer in 3.1% of games, a reader in 16%. Maskwood Nexus alone, at 2.6%
-    of all decks, is 10 of the 16 points.
-- **Value-level.** A write's value against the leaves the filter tests:
-  `AddType(Artifact)` can flip `ByType(Artifact)` and nothing else. ~70 lines.
-  - **The cost is a second table over `ObjectFilter` and `EffectModification`**
-    that only the guard reads. Exhaustive, with "may change" for every pair it
-    cannot rule out, so a missed case costs a trip rather than an answer. The
-    first cut of this section said a missed arm would give a wrong order,
-    which is true only of a table written the other way round. Decision 6's
-    audit checks either option on every test board.
+    of all decks, is 10 of the 16 points. A run replaying one such deck trips
+    in every game.
+- **Value-level, in the pass's own static check.** The static half carries
+  which card types, supertypes and colors a read tests and a write adds,
+  removes or sets: a bitmask each, over enums of 15, 5 and 5. `SetTypes`,
+  `CopyFrom` and a type count (`CardTypesAmong`) name every value. Subtypes
+  stay per characteristic: the enum is large, and no printed pair through a
+  hidden card needs it.
+  - **One table, not two.** The guard asks the pass's check as before, and
+    inherits the precision. The first cut costed value-level as a second table
+    only the guard read; putting it in the pass is what makes that table
+    unnecessary.
+  - **The elision is everywhere.** The Biotransference and Arcane pair never
+    reaches a hypothetical, on any board, `main`'s battlefield boards
+    included, and never trips the guard.
   - **It trips** only on Biotransference beside Encroaching Mycosynth, whose
     "nonland permanent card" filter tests Artifact among the permanent types,
-    although the cards Biotransference writes already pass it.
-  - **Frequency:** about **0.02% of games** by the same estimate.
+    although the cards Biotransference writes already pass it: about **0.02%
+    of games**.
+  - **Its safety is an audit.** The check is sound when every read and write
+    names its values or "every value". A debug build runs the exact
+    hypothetical whenever the finer check says "independent" where the coarse
+    one would have looked, and asserts it finds no change. The suite then
+    proves the elision never moves an order, on the battlefield as in a hand.
+  - **Its cost:** ~150 lines and ~60 of tests in `board.rs`, and it changes the
+    pass's CR 613.8 static half on the battlefield path. Every gameplay row
+    stays identical. The `Dependency checks` cost row falls on both pools
+    wherever a pooled pair differed in value only, a predicted move.
 
-**Recommendation, revised after the measurement: value-level.** Both levels
-cost the same on a board that does not trip, and they differ only in which
-decks lose the lever:
-- **Channel-level** loses it for any deck pairing Biotransference or
-  Encroaching Mycosynth with one of the seven, Maskwood Nexus (2.6% of all
-  decks) among them. A trip there costs ×3.1–3.7 per decision while both are
-  out.
-- **Value-level** loses it only for a deck holding both Biotransference and
-  Encroaching Mycosynth. Its price is ~40 more lines, and a missed case in
-  its table costs a trip, never an answer.
-
-The first cut recommended channel-level, before a trip had been measured
-and before the deck mix was considered. In random pods the aggregate
-difference is under half a percent of engine time, so channel-level would
-do if that were the only workload.
+**Recommendation, revised at the owner's third pass: value-level, in the
+pass's check, in LL.** The guard is what needs it, and a trip costs ×3.1–3.7
+per decision while both cards are out. The alternative is LL with
+channel-level and the value masks as their own PR after it; the guard would
+pick them up without a change.
 
 **5. Item 182 rides.** The cast-timing check at `put_on_stack.rs:673` and
 `oracle/mana_helpers.rs:331` asks one wrapper in `oracle/characteristics.rs`:
@@ -3003,6 +3031,7 @@ could ignore.
 |---|---|---:|
 | `ZoneSet::HIDDEN`, pinned to `Zone::is_public` by a test | `types/zones.rs` | ~15 |
 | `left_out_zones`, the guard's (a) and (b) | `board.rs` | ~50 |
+| Q1: card types, supertypes and colors as value masks in the pass's static check, and its debug audit | `board.rs` | ~150 |
 | `Board::seed`: reached public zones as LJ seeds them, left-out zones not, the sources that join, the knob | `board.rs` | ~45 |
 | `membership`: `Membership::Replayed`, the joining sources | `board.rs` | ~30 |
 | the record, in `perform` | `board.rs` | ~35 |
@@ -3012,14 +3041,15 @@ could ignore.
 | `WalkKind::Replayed` | `trace_records.rs` | ~5 |
 | item 182: the wrapper and its two sites | `oracle/characteristics.rs`, `put_on_stack.rs`, `oracle/mana_helpers.rs` | ~35 |
 | Fixtures: Titania's Song's first sentence, Grist's first ability on its printed frame, Arcane Adaptation's clause, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~190 |
-| Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~460 |
+| Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~520 |
 | `zone_reach_cost_test` table 4: members split public / left out | `tests/` | ~25 |
 | Docs: item 181 closed and archived with 182, §3.1's floor 1 standing, this section's stub and eviction, a `fuzz-record.md` block, A6b, `state-of-play.md` | `plans/` | ~250 |
 
-**~1,050 lines of code and tests, ~1,300 with docs.** Item 181 sized ~500 with
-tests. The difference is decision 4's guard, decision 6's audit, item 182,
-decision 2's `SourceOnly` half with Grist, and the tests those owe. That is
-below `engineering-practices.md` §4's band, so one PR.
+**~1,260 lines of code and tests, ~1,510 with docs.** Item 181 sized ~500 with
+tests. The difference is decision 4's guard and Q1's value masks, decision
+6's audit, item 182, decision 2's `SourceOnly` half with Grist, and the tests
+those owe. That is at the floor of `engineering-practices.md` §4's band, so
+one PR.
 
 ### Tests
 
@@ -3054,6 +3084,10 @@ below `engineering-practices.md` §4's band, so one PR.
   A creature card in a library is an Artifact Assassin, because the second
   waited on the first (CR 613.8a). Without the guard it would not be: the pass
   would see no dependency and apply the older row first.
+- **Q1's value masks** (unit). The Biotransference and Arcane pair runs no
+  CR 613.8 check. A card-type addition a filter tests (March of the Machines'
+  Creature beside a creature-type anthem) and one a filter tests the absence
+  of ("nonartifact") are still ordered by the check.
 - **Item 182.** A creature card is cast from hand at instant speed under
   `teferi_flash_clause`, through `cast_spell`. Without the clause, the same cast
   is refused.
@@ -3079,11 +3113,14 @@ per decision on `performance`, which is 62.7 + 8 ≈ 71 µs and about 14,100
 decisions per second. The range allows for the replays item 182 adds, since
 every hand card the timing check asks about is now read.
 
-**`close_out.py`, both pools, two seats and four:** every gameplay row and every
-cost row `IDENTICAL`. No pooled row reaches a hidden zone, no pooled static row
-has a source in one, and none is `SourceOnly` off the battlefield. Instructions
-per decision: **+0.1% to +0.4%**, from item 182's gate and the seed's `seen`
-probes. Any cost row that moves is a finding.
+**`close_out.py`, both pools, two seats and four:** every gameplay row
+`IDENTICAL`. Every cost row `IDENTICAL` but `Dependency checks`, which falls
+wherever a pooled pair differs in value only (Q1). No pooled row reaches a
+hidden zone, no pooled static row has a source in one, and none is
+`SourceOnly` off the battlefield. Instructions per decision: **−0.5% to
++0.4%**. Item 182's gate and the seed's `seen` probes add, and the
+hypotheticals Q1 elides take away. Any other cost row that moves is a
+finding.
 
 ---
 
