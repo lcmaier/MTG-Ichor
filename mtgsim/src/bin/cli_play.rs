@@ -6,7 +6,8 @@
 //
 // The game keeps its event log in a recorder beside the state
 // (`events::recorder`). `--dump-events PATH` writes it when the game ends, and
-// an engine error prints its last lines whether or not the flag was given.
+// an engine error prints the events of the turn it happened in, whether or not
+// the flag was given.
 //
 // **The two seats stack different decorators, and that is the point of a
 // stack.** The human seat takes `AutoPayer` over `ManaWindowStop`: it has no
@@ -27,6 +28,7 @@
 use std::sync::Arc;
 
 use mtgsim::cards::registry::CardRegistry;
+use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
@@ -35,6 +37,7 @@ use mtgsim::state::game_config::GameConfig;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::cli::CliDecisionProvider;
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::display::format_event;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -70,9 +73,6 @@ fn build_test_deck(registry: &CardRegistry) -> Vec<Arc<CardData>> {
 
     deck
 }
-
-/// How much of the event log an engine error prints.
-const ERROR_CONTEXT_EVENTS: usize = 30;
 
 fn main() {
     println!("=== MTG Simulator — CLI Play ===");
@@ -138,10 +138,12 @@ fn main() {
         },
         Err(e) => {
             println!("\nGame error: {}", e);
-            let log = game.event_log_snapshot();
-            println!("The last events before it:");
-            for line in &log[log.len().saturating_sub(ERROR_CONTEXT_EVENTS)..] {
-                println!("  {}", line);
+            let recorded = game.state.recorded_events();
+            let records = recorded.records();
+            let turn_began = records.iter().rposition(|r| matches!(r.event, GameEvent::TurnBegin { .. })).unwrap_or(0);
+            println!("This turn's events, up to the error:");
+            for record in &records[turn_began..] {
+                println!("  {}", format_event(&game.state, &record.event));
             }
         }
     }
