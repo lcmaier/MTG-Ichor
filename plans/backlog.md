@@ -695,8 +695,21 @@ critical path, which lists neither; that is the owner's line to add.
     it. The memo keys on one global epoch (`state/layer_memo.rs`), so a redeal
     that writes a walk input starts every fork cold;
   - the visibility query's instructions per decision.
-  The bounded-state PR's probe measures k and a naive redeal first
-  (`roadmap-v2.md` A6a), so the ceilings start from numbers.
+  The bounded-state PR's probe measured k and a naive redeal first
+  (`roadmap-v2.md` A6a; `fuzz-record.md`, its block), so the ceilings start
+  from numbers:
+  - **k = 0.106** on floor 1's board: a naive observation of every public
+    object, the decider's hand and the hidden-zone counts, written into a
+    reused buffer, is 7.7 µs against 66.3 µs of engine per decision, and
+    0.139 on three `stress` games. Floor 1's 15,600 becomes about 14,100.
+  - **The redeal costs 1.7–6.1 µs per fork**, about one clone again, so a
+    determinized fork is about twice a plain one and passes floor 2's 10 µs
+    early in a game, when the libraries are full.
+  - **The memo stays warm through it unless a registry row reaches a hidden
+    zone the redeal moves cards between**, a check that is one compare
+    (`RegistryScopeSummary::reachable_zones`). No measured board had one.
+    Cold, the first decision after it spends one board walk more, 10–40 µs
+    from mid-game on.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

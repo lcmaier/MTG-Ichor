@@ -129,6 +129,14 @@ ability window, `run_mana_ability_window`: the chance to activate mana
 abilities while a cost is being paid — the older sense, and the one "inside
 the mana window" means.
 
+**flush** — **(1)** `EventWindow::flush`: the window hands every record it
+holds to the recorder, or drops them when none is attached, once the outermost
+dispatch has returned with no batch open. Nothing reads a record after that,
+so no priority prompt finds one held (`triggers-architecture.md` §4.1;
+`codebase-state.md` item 42). Not *drain*, which is the turn drainer's word.
+**(2)** `TraceSink::flush`: the writer's ordinary sense, putting buffered
+lines into the trace file.
+
 **tier** — **(1)** CR 603.3b's two-part placement, `TriggerTier::First` and
 `TriggerTier::Second`: a trigger whose condition is another ability triggering goes
 on the stack after the ones that are not, whatever APNAP says

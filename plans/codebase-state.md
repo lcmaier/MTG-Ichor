@@ -6668,7 +6668,9 @@ Commander-scale board closes item 69.
         operating point, not a re-base (`engineering-practices.md` §3.1);
      2. a full-state clone of at most 10 µs;
      3. at most 128 KB per state.
-     Floors 2 and 3 wait on item 42 and item 179, the bounded-state PR.
+     Floors 2 and 3 hold since the bounded-state PR closed items 42 and 179
+     (2026-09-25; `fuzz-record.md`, its block), checked in CI by
+     `tests/clone_bound_test.rs`.
 
      **The instrument, built 2026-09-16 (A4e, PR #155).** Two cells on
      `Diagnostics`, `decisions` and `priority_decisions`, recorded in
