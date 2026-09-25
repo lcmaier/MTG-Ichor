@@ -2877,17 +2877,46 @@ seeds exactly where the pass's own machinery could have looked at a card there.
 positive** (the finding above: no printed card makes the dependency the guard
 exists for). What trips it depends on how fine the check is, and that is Q1.
 
-**What a trip costs.** The tripped zones are seeded as LJ seeds them, so a
-tripped board costs exactly what it costs on `main`, and only while both rows
-exist. The next pass after one leaves is back on the replay. For the rows the
-thirteen make, both reach every library and every hand, so a trip seeds the
-zones item 181 measured:
-- ~300 more members per pass at four seats;
-- layer frames ×7.4–8.7 and engine time ×3.0–3.4;
-- **floor 1 back at 4,640–6,810 decisions per second on one thread**;
-- a clone at ~10 µs, floor 2's bound.
+**What a trip costs, measured 2026-09-25.** The tripped zones are seeded as LJ
+seeds them, so a tripped board costs exactly what it costs on `main`, and only
+while both rows exist. The next pass after one leaves is back on the replay.
+`main`'s engine therefore measures a trip directly. A throwaway copy of
+`zone_reach_cost_test` (not committed) gave player 0 one {2} artifact carrying
+Biotransference's and Arcane Adaptation's clauses, both reaching every library
+and hand, in either registration order. Readings are with the pair on the
+battlefield, medians of five rounds; cells read `performance` / `stress`:
 
-A trip never costs more than `main`. What it costs is the lever, on that board.
+| | µs per decision | floor 1, decisions per second on one thread | CR 613.8 checks per decision |
+|---|---|---|---|
+| no row | 60.5 / 49.9 | 16,530 / 20,040 | 0.54 / 0.36 |
+| Teferi's clause, one row (item 181's board, reproduced within 3%) | 200.9 / 146.9 | 4,980 / 6,810 | 0.56 / 0.36 |
+| **a trip, the writer older** | **219.9 / 156.9** | **4,550 / 6,370** | 0.77 / 0.36 |
+| **a trip, the reader older** | **265.1 / 187.2** | **3,770 / 5,340** | 1.62 / 0.98 |
+| LL, untripped (predicted above) | ~70–78 / ~54–60 | ≥ 12,800 / ≥ 16,500 | |
+
+- **A trip is item 181's board plus one hypothetical per pass.** When the
+  reader (Arcane's clause) is older, it heads layer 4, and the static check
+  cannot rule out Biotransference's Artifact. So every pass applies it to
+  player 0's ~27 creature cards under a journal and re-reads the reader's
+  filter over ~370 members. That is about 50 µs a check, and it always answers
+  "no". `main` pays the same on this board today.
+- **Beside the lever the trip is ×3.1–3.7 per decision**, 220–265 µs against a
+  predicted ~71, for the decisions both rows are out.
+- **The other floors on a tripped board:** the worst clone read 9.0–10.9 µs on
+  `performance`, at floor 2's 10 µs bound, since the memo holds a frame for
+  every hidden card. Floor 3 read 110.9 KB, against 128. The first decision
+  after a cold redeal read up to 420 µs over a warm one, against 120 µs with
+  no row.
+- **Correctness does not move.** A trip is `main`'s path, and decision 6's audit
+  compares the replay against exactly that path.
+
+**How often it trips is the deck mix's question, not the engine's.** In random
+four-player pods, EDHREC's counts below put a channel-level pair in about 0.5%
+of games' decks. Some fraction of those have both cards out at once, so it is a
+fraction of a percent of a large run's engine time. A run that replays one deck
+holding such a pair trips in every game: a training setup on Maskwood Nexus
+beside Encroaching Mycosynth would see floor 1 at `main`'s 3,770–4,550 for as
+long as both are out.
 
 **Q1 for the owner: how fine the guard's check should be.** Both options are
 exact, and they differ in which printed boards trip. How often those boards
@@ -2921,9 +2950,21 @@ within-deck share is higher than independence gives.
     although the cards Biotransference writes already pass it.
   - **Frequency:** about **0.02% of games** by the same estimate.
 
-Recommendation: channel-level. A trip is never worse than `main`, happens in
-about one game in two hundred, and buys correctness only for custom cards.
-Value-level is the next lever if a reading ever shows trips mattering.
+**Recommendation, revised after the measurement: value-level.** Both levels
+cost the same on a board that does not trip, and they differ only in which
+decks lose the lever:
+- **Channel-level** loses it for any deck pairing Biotransference or
+  Encroaching Mycosynth with one of the seven, Maskwood Nexus (2.6% of all
+  decks) among them. A trip there costs ×3.1–3.7 per decision while both are
+  out.
+- **Value-level** loses it only for a deck holding both Biotransference and
+  Encroaching Mycosynth. Its price is ~40 more lines, and a missed case in
+  its table costs a trip, never an answer.
+
+The first cut recommended channel-level, before a trip had been measured
+and before the deck mix was considered. In random pods the aggregate
+difference is under half a percent of engine time, so channel-level would
+do if that were the only workload.
 
 **5. Item 182 rides.** The cast-timing check at `put_on_stack.rs:673` and
 `oracle/mana_helpers.rs:331` asks one wrapper in `oracle/characteristics.rs`:
