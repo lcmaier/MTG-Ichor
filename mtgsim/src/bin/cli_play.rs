@@ -2,6 +2,11 @@
 //
 // Usage: cargo run --bin cli_play
 //        cargo run --bin cli_play -- --no-auto-pay
+//        cargo run --bin cli_play -- --dump-events game.log
+//
+// The game keeps its event log in a recorder beside the state
+// (`events::recorder`). `--dump-events PATH` writes it when the game ends, and
+// an engine error prints its last lines whether or not the flag was given.
 //
 // **The two seats stack different decorators, and that is the point of a
 // stack.** The human seat takes `AutoPayer` over `ManaWindowStop`: it has no
@@ -66,6 +71,9 @@ fn build_test_deck(registry: &CardRegistry) -> Vec<Arc<CardData>> {
     deck
 }
 
+/// How much of the event log an engine error prints.
+const ERROR_CONTEXT_EVENTS: usize = 30;
+
 fn main() {
     println!("=== MTG Simulator — CLI Play ===");
     println!("You are Player 0. Your opponent (Player 1) is a random bot.");
@@ -81,8 +89,10 @@ fn main() {
     // A `GameState` is seeded to a fixed default so tests replay; an actual game
     // of Magic wants a different shuffle every time.
     game.reseed_from_entropy();
+    game.state.record_events();
     // `--trace PATH` — the trace sink, one JSON line per engine step.
     let args: Vec<String> = std::env::args().collect();
+    let dump_events = args.iter().position(|a| a == "--dump-events").and_then(|i| args.get(i + 1)).cloned();
     let trace = args
         .iter()
         .position(|a| a == "--trace")
@@ -126,7 +136,20 @@ fn main() {
             }
             GameResult::Draw => println!("\n*** DRAW ***"),
         },
-        Err(e) => println!("\nGame error: {}", e),
+        Err(e) => {
+            println!("\nGame error: {}", e);
+            let log = game.event_log_snapshot();
+            println!("The last events before it:");
+            for line in &log[log.len().saturating_sub(ERROR_CONTEXT_EVENTS)..] {
+                println!("  {}", line);
+            }
+        }
+    }
+    if let Some(path) = dump_events {
+        match std::fs::write(&path, game.event_log_snapshot().join("\n") + "\n") {
+            Ok(()) => println!("Event log written to {}", path),
+            Err(e) => println!("Could not write the event log to {}: {}", path, e),
+        }
     }
     if let Some(sink) = trace {
         game.state.trace_objects();
