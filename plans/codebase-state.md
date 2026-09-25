@@ -8533,10 +8533,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
          each such row's decision at its layer: whether it exists, and who
          "you" is. The hidden card's walk replays that decision against its
          own frame.
-       - This is not §12's per-object dirty tracking. That was deferred for
-         the battlefield, where every permanent is read anyway (by a GUI, or an
-         observation) and CR 613.8 needs all of them in one pass. Neither
-         reason holds for a library.
+       - This is not §12's per-object dirty tracking, which was deferred
+         because a fine key must list every input, and CR 613.8 makes other
+         objects' answers inputs. On the battlefield it would also buy
+         little, since a GUI or an observation reads every permanent. A
+         library is the opposite case on both counts: nothing reads it, and
+         no source lives there.
        - Reads are 0.2% of today's seeded frames. The public zones keep about
          7% of the extra, about 8 µs per decision on `performance`.
        - One layers PR, ~500 lines with its tests.
