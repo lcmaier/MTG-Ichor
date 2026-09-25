@@ -188,7 +188,6 @@ fn choice_kind_name(kind: &ChoiceKind) -> &'static str {
 /// zone, whether it matched, and which predicate refused it when it did not.
 /// `mana` says the match resolved at dispatch and never reached the queue
 /// (CR 605.4a).
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn trigger(
     game: &GameState,
     record: EventSeq,

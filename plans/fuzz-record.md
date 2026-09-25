@@ -37,6 +37,50 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Calibrated 2026-09-25: does a cycle estimate read CPU better than
+instructions?** (the process PR; `engineering-practices.md` §3.1's budget). The
+owner adopted callgrind for the per-PR budget on one condition: any cycle
+estimate had to rest on data. The sample was six engine builds whose layouts
+differ: 2026-09-15 (UUID ids), A4g's two 2026-09-16 arms, `28a1d18`, `45d32e7`
+and `e0e5ed0`. They ran on four boards at seed 12345: `performance` at two seats
+(40 games), `performance` and `stress` at four (20 each), and Commander scale
+(10). That is 23 samples, since the 2026-09-15 build predates `--deck-size`.
+
+Each sample ran once under `valgrind --tool=callgrind --cache-sim=yes
+--branch-sim=yes`, with the reference machine's L1 and L2 pinned
+(`--I1=32768,8,64 --D1=32768,8,64 --LL=1048576,8,64`). It then ran seven times
+natively, interleaved and serial, for its median CPU time. `MTGSIM_HASH_SEED=1`
+was set throughout. Each pair of builds on one board, 55 pairs, was predicted
+three ways:
+
+| predictor of the measured delta | error in points, mean / median / max |
+|---|---|
+| instructions alone | **1.76 / 1.40 / 5.19** |
+| KCachegrind's weights: instructions, plus 10 per L1 miss, 100 per last-level miss and 10 per mispredict | 2.89 / 2.81 / 9.08 |
+| weights fitted to the 23 times by least squares, refit without both builds of each pair | 2.39 / 2.21 / 6.12 |
+
+- The fit is not physical. Against 0.07 ns an instruction, its L1-miss weight
+  comes out negative (−1.6 ns), an L2 miss 44 ns, and a mispredict 4.5 ns.
+- The simulation costs 2.6× a plain run (18.2 s against 6.9 s on five
+  Commander games). Its miss counts repeat to 0.1%.
+- A plain instruction count repeats to 0.05% run to run, and to 0.01% with the
+  hasher's seed pinned; std's `RandomState` keys vary the rest.
+- The stopwatch is the noisy side. Seven-run spreads were 4–16% on runs of
+  0.2–1.6 s, so part of every error above is the timing's.
+
+**So the budget reads instructions per decision**, and stalls are read in time
+at the readiness pass. The probe script is not committed: it read WSL-local arm
+builds that exist on this machine only.
+
+**The wrapper's first reading.** `plans/close_out.py` was validated on TR-2a's
+arms, `71b3caa` against `0e5f34a` and `4c6d469`, and reproduced every recorded
+row. TR-2a's engine arm reads **+0.18% instructions per decision** on the
+20-game Commander board (0.7256 M → 0.7269 M; +0.19% in one of three runs).
+Three timing sittings had put that cost at +2.9%, +1.3% and −0.2%. The
+wrapper's verdict names `Life changes` on `performance` (17.4 → 17.3,
+lifelink's merged gain lines). TR-2a's block below kept that row out of its
+IDENTICAL line and gave it a row of its own.
+
 **Re-recorded 2026-09-24 for TR-2a** (the histories, the gates and each
 player — `triggers-architecture.md` §12, TR-2a; `codebase-state.md` items 122
 and 172 closed, 171 half closed). **Pool change**: `performance` goes 94 → 96

@@ -548,39 +548,14 @@ predict. §3's rule is unchanged — the first phase whose engine path *is* an
 activated ability pools one deliberately and re-records the table — and item
 104's numbers are the expected direction, not a reason to decline.
 
-### 3.1 The gate: run both pools, and read them differently
+### 3.1 The gate: both pools, one checklist, and the budget
 
 Each pool answers a question the other cannot, so a PR runs both. **They are
 different instruments, not a cheap and an expensive version of one.**
 
-```bash
-python plans/fuzz_ab.py --arm main=../mtgsim_v2_main/mtgsim/target/release/fuzz_games.exe --arm new=mtgsim/target/release/fuzz_games.exe
-```
-
-**One sitting, sized to what each number needs (2026-09-03).** The script runs
-three kinds of number at the cheapest setting that is still the same number:
-the counters and the §3 fixture rows threaded on both pools, because they are
-identical at every thread count; the timing rounds serial and interleaved on
-`performance` only, because `stress` milliseconds are a threshold that is never
-compared; and still 200 games and medians of three, because that is where the
-run-to-run spread sits at ~2.4% and cutting either is what raises it. A
-three-arm sitting is about four minutes where the hand-run version had grown
-past twenty. `--require NAMES` adds the reachability rows; `--arm` is
-repeatable, and the first arm is the baseline every other is diffed against —
-which is how "registered but not pooled reproduces `main`" is checked by
-construction. `--deck-size 100 --life 40 --players 4` is the Commander-scale
-board `codebase-state.md` item 138 reads the ratchet on; both flags pass
-through to `fuzz_games`, and at their defaults — 60 and 20 — they change no RNG
-draw, so every number recorded before they existed is the same run. By hand, the two runs it replaces are:
-
-```bash
-cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1
-cd mtgsim && cargo run --release --bin fuzz_games -- --games 200 --seed 12345 --threads 1 --pool stress
-```
-
 | Pool | Question | Read | Grows with the card list? |
 |---|---|---|---|
-| **performance** | *Did my change make the engine slower?* | A **delta**, measured as an interleaved A/B in one sitting — never against a stored number | Deliberately: one card per new engine path, with a re-record |
+| **performance** | *Did my change make the engine slower?* | A **delta** between two builds, read in one run — never against a stored number | Deliberately: one card per new engine path, with a re-record |
 | **stress** | *Is there a card shape that makes the engine fall over?* | An **absolute threshold**: 0 errors, 0 panics, 0 turn-limit hits, and no tail number off its scale | Yes, by design |
 
 **Never A/B any number across a pool change.** It moves for two reasons at once
@@ -590,51 +565,91 @@ addition is the one moment a delta is not readable, so it is a decision with a
 re-record attached rather than a side effect of registering a card. A stress run
 is pass/fail against a ceiling; only the performance pool measures a delta.
 
-**The budget (adopted 2026-09-15, on the review of the post-RE audit's pass 3).**
-A phase's `performance` delta at four seats may cost at most **2.5 points of
-CPU per game at identical counters** — CPU per *decision* since item 138's
-counters landed (A4e, 2026-09-16), a decision count being a fixture row like
-the rest — or the PR says why in its `fuzz-record.md` block and the reviewer
-decides. RE-9 used the number as its gate
-(`replacement-architecture.md` §11 item 54); this makes it the rule. It is the
-per-PR half of a ratchet: the other half is the readiness pass of each
-spine-phase audit, which records decisions per core-second on both boards as a
-dated reading beside the previous close's and may not read worse per decision
-without a written reason. The owner chose a ratchet over an absolute rate
-because today's pool has few abilities per permanent and no triggers, so a
-number about this board is a floor of Commander's cost rather than a target;
-"as little as possible" is the goal, and this is the form of it that can be
-watched. **The reading that travels across machines is an instruction
-count**, not a millisecond: `valgrind --tool=callgrind` over `fuzz_games` at a
-fixed seed in the WSL Ubuntu distro (a four-seat `stress` game is ~2.8 s under
-it, so 200 games take ten minutes, and the counters outside `=== Timing ===`
-come out identical to the native run's), first taken by item 138 on
-2026-09-15 and read in `layers-architecture.md` §12; milliseconds stay in the
-A/B sitting. The scripts are `plans/profile/` since TR-1b: `launch_prof.sh`
-starts an arm detached, `prof_arm.sh` builds and plays one board (its flags
-are the board), and `read_prof.sh` prints the total and the top inclusive
-rows. The Commander-scale baseline is `fuzz-record.md`'s TR-1b block.
+**The close-out, as one checklist (2026-09-25)**, which a brief points to rather
+than restating. Each step answers a question nothing else on the list answers.
 
-**Determinism check.** Everything outside `fuzz_games`' `=== Timing ===` block is
-byte-identical across runs at one seed and at any `--threads`, so `fuzz_ab.py`
-gets the three-run check in `CLAUDE.md` for free — every timing round must
-reproduce the threaded counter run outside that block, and it prints `NO` under
-`deterministic` when one does not. By hand it is a diff of two regions rather
-than a hunt for scattered lines. Strip the block and the runs must match
-exactly. **Under three hasher seeds, since A4g (2026-09-16):** ids are
-process-stable and the id-keyed maps hash with `types::ids::IdHash`, seeded
-once per process from `MTGSIM_HASH_SEED`, so three runs under one seed would
-iterate every map in the same order and agree with each other whether or not a
-sweep is ordered. A different seed per run restores the property the check had
-under `RandomState`; `fuzz_ab.py` sets one per timing round and CI's step sets
-one per run. **Its counter runs are audited** (`fuzz_games --audit`,
-`triggers-architecture.md` §4.10) on every arm whose binary has the flag, and
-its timing rounds never are, so `deterministic: yes` there also says the
-audit changed nothing; a disagreement is a panic, which `Panics` flags.
+While building: **predictions** go in the PR body before any arm runs, one
+expected line per arm; **the band** is tracked at every commit (`git diff
+--numstat <merge-base> HEAD -- mtgsim/src mtgsim/tests` against §4's
+1,500–2,500, flagged the moment it crosses, the total with docs beside it); and
+**docs go in the commit that changes what they describe**.
 
-```bash
-cd mtgsim && for i in 1 2 3; do MTGSIM_HASH_SEED=$i cargo run --release --bin fuzz_games -- --games 50 --seed 12345 | sed '/^=== Timing ===$/,/^$/d' > run$i.txt; done && diff run1.txt run2.txt && diff run1.txt run3.txt
-```
+After the last code commit, each once:
+1. `cargo build --all-targets` (zero warnings), `cargo clippy --all-targets --
+   -D warnings` and `cargo test`, never again after a docs-only commit; then
+   the check scripts on `CLAUDE.md`'s line.
+2. `python plans/close_out.py --arm main=origin/main --arm engine=<sha>
+   [--arm shipped=HEAD] [--require "<newly pooled cards>"]`, in the background
+   while the docs are written, about two minutes cold: each arm built apart,
+   the audited counters on both pools at two seats and four, the budget below,
+   the reachability read, and the record block's table.
+3. **Game-by-game dump attribution only when a gameplay row moves that the
+   predictions did not** (200-game `--dump-events` per arm, diffed per game);
+   a moved cost row (§3's bold rows, the dispatcher's) is a reading.
+4. **The big audited smoke only when the PR touches the dispatcher or the
+   audit**: `fuzz_games --audit`, 1,000 games at seed 777, both pools and seats.
+5. What the close-out itself writes: the phase's stub and archive eviction (§4),
+   a `fuzz-record.md` block of about 50 lines (the table and only the moves
+   nobody predicted), the `roadmap-v2.md` row if the route changed, the PR body.
+
+Dropped, each covered elsewhere: separate determinism runs (CI's step, below),
+status prose in `roadmap-v2.md` (`state-of-play.md` and the stub carry it), a
+timing sitting (the budget reads instructions), and readings a round does not need.
+
+**The budget (adopted 2026-09-15; read in instructions since 2026-09-25).** A
+phase's engine arm may cost at most **2.5 points of callgrind instructions per
+decision at identical counters** against `main` on `close_out.py`'s board
+(Commander scale, 20 games, the hasher's seed pinned), or the PR says why in its
+`fuzz-record.md` block and the reviewer decides. A decision is a prompt with two
+or more legal answers (`codebase-state.md` item 138). This is the per-PR half of
+a ratchet; the other half is each spine close's readiness pass (§9), a dated
+reading of decisions per core-second, never worse without a written reason. The
+owner chose a ratchet because today's pool is a floor of Commander's cost.
+
+**Why instructions.** A timing sitting's spread, ~2–6%, is wider than the
+budget: TR-2a's same two binaries read +2.9%, +1.3% and −0.2% in three sittings,
+and +0.18% in instructions, a count that repeats to ~0.01% with the seed pinned
+and on any machine. **Its blind spot is stalls, and a cycle estimate does not
+close it**: across six builds and four boards, instructions alone predicted the
+measured time deltas within 1.8 points on average, and weighting callgrind's
+simulated misses did worse (`fuzz-record.md`, "Calibrated 2026-09-25"). Time and
+a loaded machine's contention are read at the readiness pass. CI does not run
+the budget: two arm builds and two callgrind runs a push would triple its three
+minutes.
+
+**Three floors under the ratchet (adopted 2026-09-25).** The ratchet stops a
+change making the engine worse; the floors say where it stops being fit for v1's
+AI use case at all, as derived in `plans/references/ai-performance-floors.md`.
+
+| Floor | Definition | Instrument | Standing, 2026-09-25 |
+|---|---|---|---|
+| **1. ≥ 10,000 decisions per loaded physical core-second, Commander scale** | Board `--deck-size 100 --life 40 --players 4`, under the default bot stack (below); a decision as above, counted where it reaches the agent. Loaded = one-thread rate × (16-thread speed-up ÷ physical cores). The rate at which the 12–14 physical cores a GPU node gives one H100 keep it busy serving a 10M-parameter, 128-token policy | Item 6's close audit, counted by a provider innermost in the stack (the `Decisions` cells count in `ui::ask`, above the decorators), with callgrind instructions per decision recorded beside it so the reading travels | Holds: 15,600 on one thread, an upper bound, since `ui::ask`'s count includes the window prompts `ManaWindowStop` answers. Expected to bind with the triggers phase, not with a middleware |
+| **2. Full-state clone ≤ 10 µs** at item 143's checkpoints | Portable form: ≤ 1/6 of one decision's engine CPU. CI proxy: ≤ 64 allocations per clone | The bounded-state PR's committed probe and CI tests | Waits on item 42: 3.7–8.8 µs without the log, up to 131 µs with it |
+| **3. ≤ 128 KB per state** | Deep clone size, bounded by the board's high-water mark and never by the turn count | The same probe, exact bytes with the hash seed pinned | Waits on item 42 and item 179, the history bound |
+
+**Floor 1 is read under a named stack, as it is read on a named board.** Its
+denominator is what reaches the agent, and which prompts reach the agent is
+the seat's middleware, not the engine: `backlog.md` §2.22's default bot stack
+is the reference, `ManaWindowStop` on and the tap-solver decorator off. The
+census's two kinds move the reading in opposite directions. An engine elision
+(its rule 1) can only raise it, since the prompt was never a choice and the
+engine stops building it. A decorator (rule 2) lowers it with no engine
+slower: the engine still asks, the decorator answers, and the agent's
+decisions per game fall. That is the floor measuring what it should. It is a
+balance check, engine CPU per GPU pass, and a stack that hands the agent fewer
+decisions gives the GPU less work per game, so the loop runs more games a
+second while the engine becomes the tighter constraint. A reading under
+another stack is another operating point, never a regression, and floor 1 is
+not compared across a stack change, as nothing is A/B'd across a pool change:
+the unit moved, not the engine. The tap-solver decorator is the first such
+change (`backlog.md` §2.18).
+
+**Determinism.** Everything outside `=== Timing ===` is byte-identical at one
+seed, any `--threads` and any `MTGSIM_HASH_SEED`, and three seeds show an
+unordered sweep as a diff (A4g). CI checks it on every push, `prof_arm.sh`
+checks its native run against valgrind's, and the wrapper's counter runs are
+audited (`triggers-architecture.md` §4.10). `fuzz_ab.py` stays the tool for what
+the wrapper does not run: timing rounds, and `--copies` for a heavy board.
 
 ### 3.2 Reading the tail, and why the mean cannot do this job
 
@@ -710,10 +725,10 @@ longer game. **The p99 equals the max below 100 games** — nearest-rank on 50
 samples puts rank 50 at the last element — so run 200 when the tail is the thing
 you are reading.
 
-**The mean is still the benchmarking number.** `CPU/game` on the performance
-pool at `--threads 1` is what an A/B compares — *within one sitting, against a
-binary built from the other tree*, never against a figure in this file. The tail
-says whether a *new* cost appeared, not whether an existing one grew.
+**A timing mean is compared only within one sitting**, against a binary built
+from the other tree, and never against a figure in this file; the per-PR
+budget reads instructions (§3.1). The tail says whether a *new* cost appeared,
+not whether an existing one grew.
 
 ### 3.3 How many cards a mechanic owes — ask the rule, not a quota
 
@@ -1079,6 +1094,14 @@ docs reported beside it — what the phases before TR-1 were held to (RE-8 2,225
 RE-9 1,797, A4i 2,463, each 3,000–3,300 whole), since a phase's docs figure
 follows from its trace page and the eviction rule below, not from its design
 (the TR-1 review, 2026-09-22).
+
+**Hunt the gaps card by card before counting.** For each card a phase names,
+read every clause against the tree and list each facility it needs that the
+phase's rows do not name: a chooser, a mask's width, a source-relative
+"another". The triggers track's re-count (`triggers-architecture.md` §12,
+2026-09-24) found 3–11 such facilities in every phase and tests at about
+twice their row, with one read-only agent per phase; a sizing without the
+hunt is the one that misses.
 
 Sub-phases are numbered (`RA-1`, `RC-2`), not lettered.
 
@@ -1564,7 +1587,7 @@ needs the close-out and readiness.
    duty is the ratchet's re-reading** (§3.1): decisions per core-second on
    both boards at four seats and one thread, recorded as a dated reading
    beside the previous close's, and it may not read worse per decision without
-   a written reason. Instruments: **the census provider** (item 138's two
+   a written reason; then §3.1's three floors. Instruments: **the census provider** (item 138's two
    counters once they land; a throwaway counting provider around
    `fuzz_games`' own decks and streams until then), **the clone timer** with a
    counting allocator (item 143's table, extended at each close), **the fork
@@ -1577,7 +1600,7 @@ needs the close-out and readiness.
    7) and **callgrind under WSL** (`layers-architecture.md` §12's instrument
    paragraph: `valgrind --tool=callgrind` over `fuzz_games` at a fixed seed,
    `callgrind_annotate --inclusive=yes`; the instruction count is the reading
-   that travels between machines, the milliseconds stay in the A/B sitting).
+   that travels between machines, the milliseconds stay in this pass).
    Produces the lever list re-ranked by instruction share, each lever sized in
    its item.
 5. **Scheduling.** **One table**: each open track phase and lattice entry, what

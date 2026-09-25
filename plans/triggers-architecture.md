@@ -20,7 +20,7 @@
 > `Condition` this reuses; `state-tracking-architecture.md`'s resolution
 > postscript is the owner's decision on the substrate, which this document
 > builds on and does not reopen; `cost-architecture.md` §3.11 is the
-> integration test.
+> integration test (TR-7).
 
 ---
 
@@ -312,7 +312,7 @@ sibling of A4i's `OtherThanInstance`. "Whose" is `PlayerRef` (`You`,
 | `PlayerWon` | **no arm** — no printed trigger; recorded so the projection stays one-to-one | — | — |
 | `Scried` | `Scries { player }` — Elrond's X is `TriggerBinding.amount = looked_at` | no | TR-5 (fixture) |
 | `LibraryShuffled` | `ShufflesLibrary { player }` — two printed watchers, Cosi's Trickster and Psychic Surgery ("whenever an opponent shuffles their library"; the survey's 168 on this row is the substring over-count); one record per shuffle, an empty or one-card library included, and never for cascade's random bottom (Cosi's Trickster's rulings) | no | TR-2b |
-| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, multiplicity }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count and `OncePerEvent` is Simic Ascendancy's "one or more" | no | TR-5 |
+| `CountersChanged` | `CountersPutOn { subject, kind: Option<CounterType>, by: Option<PlayerRef>, nth: Option<u32>, multiplicity }` / `CountersRemovedFrom { .. }` — the sign splits the arm as it does life; `nth` is CR 122.7's before/after read live (count now minus `added`); **an occurrence is a counter, not a record** — Protean Hydra's ruling: several +1/+1 counters removed at once trigger "whenever a +1/+1 counter is removed" that many times, so `PerOccurrence` on these arms multiplies by the count. Simic Ascendancy's "one or more ... on a creature" is once per creature, §4.4's third multiplicity (corrected 2026-09-24; it read `OncePerEvent`) | no | TR-5 |
 | `CountersAnnihilated` | **no arm, and the variant goes** — CR 704.5q's annihilation *is* a removal of counters: Protean Hydra's ruling has a -1/-1 counter meeting a +1/+1 counter trigger "whenever a +1/+1 counter is removed". Today the state-based sweep writes both kinds directly and announces this variant (Deferred Migrations item 6's counter half, `sba.rs:484`); TR-5 routes it through two `RemoveCounters` proposals in the state-based batch, so the annihilation is two `CountersChanged` records the removal arm reads, and the variant is deleted with item 18's three | — | TR-5 |
 | `Attached` | `BecomesAttached { attachment: Option<ObjectFilter>, host: Option<ObjectFilter> }` — transition-only (701.3b), so re-equipping the same creature announces nothing (603.2e-002) | no | TR-4 |
 | `EquipmentDetached` → **`Unattached`** | `BecomesUnattached { attachment, former_host }` — one record for CR 701.3d's three routes (question 5), replacing `EquipmentDetached` | yes (603.10c): the frame is the attachment's, with `attached_to` from item 14 | TR-4 |
@@ -359,7 +359,9 @@ zone it moved to and finds nothing if it left; CR 113.7a and 608.2h say
 information about an object that is gone is its last known information.
 The engine's answer is a struct that **points at the records and copies
 nothing they hold**, filled at dispatch and carried on the `PendingTrigger`
-and then the `StackEntry`:
+and then the `StackEntry`. **Amended 2026-09-25:** the log leaves
+`GameState` in the bounded-state PR (`codebase-state.md` item 42), so that
+PR has the binding copy the facts it reads at dispatch instead:
 
 ```rust
 pub struct TriggerBinding {
@@ -399,7 +401,7 @@ the attack shapes). The readers resolve through them at resolution:
 object's epoch — CR 603.6's "unable to be found" and CR 400.7 in one
 comparison; `EffectRecipient::TriggeringPlayer` is `player_of` on the
 records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
-(Simic Ascendancy's "that many" across a batch); and
+(one creature's records for Simic Ascendancy's "that many", §4.4); and
 `AmountExpr::TriggeringPower` reads the live object when it is where the
 event left it and its last known information otherwise (CR 608.2h) — the
 record's `lki` frame when the event was the departure, the entry's
@@ -715,7 +717,7 @@ pub struct PlayerHistory {
 because the pregame sweep that would prune it (the state-tracking doc's
 `RelevantEffects`) is an optimization over a static property of the
 registry and pays only if measured — deferred until a reading says it
-should, with the fallback the doc already names (conjure, wishes: track
+should (the reading came 2026-09-25: `codebase-state.md` item 179 bounds it), with the fallback the doc already names (conjure, wishes: track
 everything). *A game-scoped quantity is a scope on a counter, not a window
 on the log*: Approach of the Second Sun's casts and CR 903.8's commander tax
 are folds over `turns`, and the tax — `cost-architecture.md` §3.8, waiting
@@ -1119,6 +1121,11 @@ the project's, and `plans/glossary.md` carries it.
   `TriggeringAmount` is `amount_of` summed over them, and `subject` is `None`.
   CR 603.2c's boundary is the `BatchId`, which the envelope was built to
   carry (`events/event.rs` says so in as many words).
+- **Per subject** ("one or more ... on a creature"): one trigger per
+  subject in the window, `TriggeringAmount` summed over that subject's
+  records. Simic Ascendancy's "one or more" collapses the counters on one
+  creature, not the creatures: counters put on three creatures at once are
+  three occurrences (CR 603.2c). Added 2026-09-24; TR-5b builds it.
 - **The join** for `EntersBattlefield { from, cast }`: the entry record and
   the same object's `ZoneChange` or `TokenCreated` are both in the window;
   the matcher reads `from` off the zone change and "cast" off
@@ -1286,7 +1293,10 @@ a fixture, §12). `LoopDetector` on
 prompt of two or more options — A4e's definition of a decision, already
 counted — and a run past the threshold (configurable, default 15) settles
 `GameResult::Draw` through the same batch settlement CR 104.4a uses. A
-decision resets it. Tiers 2 and 3 need the state hash item 40's discipline
+decision resets it. A prompt with one legal answer, such as a priority
+window where passing is all a player can do, is not a decision and does not
+(corrected 2026-09-24: the count is item 138's decisions, never prompts).
+Tiers 2 and 3 need the state hash item 40's discipline
 makes possible and stay in `backlog.md` §2.28 with the fork harness; the voluntary
 shortcut (D26) stays there too. `fuzz_games`' turn limit keeps standing in
 for what Tier 1 cannot see.
@@ -1634,7 +1644,11 @@ For a def with `TriggerLimit::DoThisOnlyOnceEachTurn`, the resolver checks
 before performing the effect: present means the
 instance does nothing (Nykthos Paragon's fourth ruling — a second instance
 on the stack resolves and no prompt is asked); absent means perform, then
-insert. Two Paragons are two identities and act twice (second ruling).
+insert only if the action was taken. A declined "may" leaves the gate open:
+CR 603.2h asks whether the controller "has not yet taken the indicated
+action", and Paragon's first and third rulings count only a choice to put
+the counters (corrected 2026-09-24; TR-2b's writer). Two Paragons are two
+identities and act twice (second ruling).
 
 ### 6.5 CR 603.7h's count, and the copy (S3, CR 707.10b)
 
@@ -1963,7 +1977,7 @@ decision at identical counters:
 | TR-3 | `IDENTICAL` both pools | `differ` | the registry is empty on the old pools |
 | TR-4 | `Layer walks` up by the widened captures on `stress`, `Memo hits` up on both (the control sweep runs while Act of Treason's row lives); every gameplay counter `IDENTICAL` | `differ` | the sweep is gated on `any_control_changing`; captures gate on `from`/`to` |
 | TR-5 | `IDENTICAL` counters; `--dump-events` gains `Targeted`, `DamagePrevented` and entry `CountersChanged` lines | `differ` | records announced, no decision moved |
-| TR-6 | `IDENTICAL` both pools | `differ` | no state trigger on the old pools; Tier 1 counts prompts and settles nothing on them |
+| TR-6 | `IDENTICAL` both pools | `differ` | no state trigger on the old pools; Tier 1 counts decisions and settles nothing on them |
 
 Each phase's `fuzz-record.md` block re-records both pools when its
 `PERFORMANCE_POOL` entry lands, and the reachability rows (`--require`)
@@ -1972,19 +1986,25 @@ inside a phase is its own PR, as §9 of the practices requires.
 
 ---
 
-## 12. Sizing and the phase plan — TR-1 to TR-6
+## 12. Sizing and the phase plan — TR-1 to TR-7
 
 Sized against the tree on 2026-09-18 (`engineering-practices.md` §4: count
-first). Six PRs at the top of row A6's 4–6; each carries at least one
-registered consumer of what it builds; each closes against `specdb owed`
-for the atoms §13 assigns it. The order is the dependency order: TR-1 is
-the spine every later phase reads; TR-2's histories are what TR-3's
-"this turn" durations and TR-5's `FirstTimeEachTurn` read; TR-3 builds
-`ReturnToBattlefield`, which TR-4's persist and Rancor need; TR-4 widens
-the frame TR-5's combat shapes never read; TR-6 is last because the loop
-detector reads every prompt the earlier phases add. **Between TR-3 and
-TR-4, `codebase-state.md` item 176's zone-change record design** (the
-owner, 2026-09-24): what was done, who did it, which replacement redirected
+first) and re-counted on 2026-09-24 (the last subsection). Each PR carries
+at least one registered consumer of what it builds, and each closes against
+`specdb owed` for the atoms §13 assigns it. The order is the dependency order:
+- TR-1 is the spine every later phase reads.
+- TR-2's histories are what TR-3's "this turn" durations and TR-5's
+  `FirstTimeEachTurn` read.
+- TR-3 builds `ReturnToBattlefield`, which TR-4's persist and Rancor need.
+  A return makes a new object, so **TR-3 waits for CV-2, then CV-1b with
+  `codebase-state.md` item 10 (CR 400.7)**.
+- TR-4 widens the frame TR-5's combat shapes never read. TR-5a needs only
+  TR-2b, so it may move up to just after it.
+- TR-6's loop detector counts the decisions every earlier phase adds.
+- TR-7 is last because the Ironworks loop reads all of them.
+
+**Between TR-3b and TR-4a, `codebase-state.md` item 176's zone-change
+record design** (the owner, 2026-09-24): what was done, who did it, which replacement redirected
 it, the object the move made (item 177) and the moment each fact is taken
 at (item 175), designed and reviewed before code. TR-4 widens that record,
 and no earlier phase's card reads the parts it settles.
@@ -2093,7 +2113,7 @@ thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
-### TR-2b — "may", CR 118.12's answer, and the `departed` frames (~1,500–1,700)
+### TR-2b — "may", CR 118.12's answer, and the `departed` frames (1,720–2,180)
 
 Split from TR-2 on 2026-09-24; it builds on TR-2a's gates and histories.
 
@@ -2107,7 +2127,7 @@ from two lands stop prompting when the effect ignores the land. That is a
 fixture migration, so it is sized and raised with the owner before it is
 built.
 
-### TR-3 — delayed, reflexive, and "until" (~2,300)
+### TR-3 — delayed, reflexive, and "until" — TR-3a and TR-3b (2,800–3,600)
 
 | Piece | ~additions |
 |---|---|
@@ -2117,12 +2137,11 @@ built.
 | tests, 30: §13's 20 TR-3 atoms (513.2 both ways, 603.7f through a rider fixture and 603.7g's fixture among them); Heart-Piercer Manticore's four trigger rulings as fixtures (the LKI power read); Tatsumasa's simultaneous choice as a fixture; Sneak Attack's ruling as a fixture board (the card waits for an indefinite haste, CV-1b); the three card rulings above — Final Fortune's, Flickerwisp's second, Banishing Light's Aura; `refs` under Parallel Lives, each token made exiled (§3.9's amendment) | ~1,110 |
 | docs, ledger, record | ~250 |
 
-**Candidate seam**, taken only if the brief's re-count puts code plus tests
-past 2,500 (the re-count below reads 2,060–2,530): the registry and
-reflexive with Final Fortune, Flickerwisp and Cornered Crook, then "until"
-(610.3) with Banishing Light. Each half carries its consumer.
+**Split 2026-09-24**, by the re-count below. **TR-3a** is the delayed
+registry, with Final Fortune. **TR-3b** is reflexive triggers, the returns
+and "until" (610.3), with Flickerwisp, Cornered Crook and Banishing Light.
 
-### TR-4 — the look-back list, the frame, unattach, control (~2,200)
+### TR-4 — the look-back list, the frame, unattach, control — TR-4a and TR-4b (2,640–3,460)
 
 | Piece | ~additions |
 |---|---|
@@ -2131,12 +2150,15 @@ reflexive with Final Fortune, Flickerwisp and Cornered Crook, then "until"
 | tests, 29: §13's 14 TR-4 atoms (122.8 and 122.9 off the frame among them); Kitchen Finks' eight persist rulings as undying's tests (the same shape with the counter's sign flipped); Grafted Wargear's three; Guile's two boards with Yixlid Jailer for the second class (its rulings name both cards); item 173's Bridge from Below in a graveyard, and the Jailer fixture that follows it | ~1,070 |
 | docs, ledger, record; trace page decided at close (the look-back reads changed) | ~300 |
 
+**Split 2026-09-24**, by the re-count below: **TR-4a** is the frame and
+**TR-4b** the records.
+
 **Prerequisite if TR-4 registers Ichorid or Bloodghast:** both return
 themselves from a graveyard, which CR 113.6m places in that zone and
 `zone_function` does not derive (Ichorid's intervening "if" is also main
 item 173's 113.6b statement).
 
-### TR-5 — combat's shapes, targeting, counters, prevention, the multiplier (~2,350)
+### TR-5 — combat's shapes, targeting, counters, prevention, the multiplier — TR-5a and TR-5b (3,080–4,350)
 
 | Piece | ~additions |
 |---|---|
@@ -2145,12 +2167,11 @@ item 173's 113.6b statement).
 | tests, 32: §13's 4 TR-5 atoms; 509.3a–g's seven readings; Panharmonicon's ten rulings (its edges); Protean Hydra's six; Selfless Squire's second; 508.4's "put onto the battlefield attacking never attacked" as a fixture over item 128's field; Frost Titan's once-per-spell as a fixture (the card waits for "unless pays"); Ajani, Nacatl Avenger's two reflexive rulings as fixtures, under the registered Doubling Season and Divine Visitation (§3.3's amendment) | ~1,180 |
 | docs, ledger, record | ~250 |
 
-**Candidate seam**, on TR-3's terms (the re-count below reads 2,100–2,600):
-combat's shapes and targeting with Hellrider, Loyal Sentry and Cephalid
-Aristocrat, then counters, prevention and the multiplier with Simic
-Ascendancy, Selfless Squire, Panharmonicon and Protean Hydra.
+**Split 2026-09-24**, by the re-count below. **TR-5a** is combat,
+targeting, ability damage and excess damage. **TR-5b** is counters,
+prevention, the multiplier, tokens and scry.
 
-### TR-6 — state triggers, the loop, and the rule-owned arm (~1,150)
+### TR-6 — state triggers, the loop, and the rule-owned arm (935–1,360)
 
 | Piece | ~additions |
 |---|---|
@@ -2159,47 +2180,64 @@ Ascendancy, Selfless Squire, Panharmonicon and Protean Hydra.
 | tests, 9: §13's 2 TR-6 atoms; Emperor Crocodile's two rulings; the Coil's three trigger rulings on the fixture; the draw at threshold, with Platinum Angel registered; the draw at the nesting bound (§4.8). The ratchet's reading at the phase's close (§9 of the practices) is a reading, not a test | ~300 |
 | docs, the close-out, §16's deferrals re-read, ledger, record | ~400 |
 
-**Not five and not seven.** TR-1 and TR-2 sum past the band and their
-consumers differ in kind (an event matcher against a history); TR-3's
-registry is the one algorithm a review should read alone; TR-4 and TR-5
-are two different seams — the frame and the record — each with its own
-literal sweep; TR-6 is small on purpose, because the state check and the
-loop detector are the two things most likely to surprise a measurement and
-are cheapest to revert alone. Every number above is a starting point: the
-phase re-counts against the tree before it starts, and A4n's rider is the
-precedent for a count being wrong by a factor.
+### TR-7 — the Krark-Clan Ironworks loop, the track's showcase (1,020–1,420)
 
-**Re-counted 2026-09-22 (the TR-1 review, theme D).** TR-1 missed on two
-rows: the dispatcher (~520 sized, ~970 landed, 1.9×) and the tests (~700
-sized, 1,871 landed — fifty tests at 37 lines each, for §13's 46 atoms plus
-the cards' rulings and the named fixtures, none of which a flat row
-counted). So each test row above states its count: §13's atoms, re-read
-from `spec.sqlite` on this date and unchanged, plus the ruling and fixture
-tests the row names, at 37 lines a test. The band is code plus tests
-(`engineering-practices.md` §4):
+`cost-architecture.md` §3.11's judged loop, walked step by step as item 6's
+integration test. It moved here from TR-2 on 2026-09-24: the loop's triggers
+are the easy part. The re-count found five facilities that no earlier row
+lists:
+- graveyard targets, for Scrap Trawler's and Myr Retriever's returns (with
+  §17's `ManaValueLessThanSource`);
+- any-color mana, for Mox Opal and Chromatic Sphere (`backlog.md` §2.19);
+- metalcraft, an activation restriction with a count condition (§2.8);
+- a draw inside a mana ability's effect (step 5);
+- a mana window inside a mana ability's activation (step 3).
 
-| Phase | code rows | largest row ×1.9 | tests (count) | code + tests |
-|---|---|---|---|---|
-| TR-2 | 1,190 | 1,685 | ~890 (24) | 2,080–2,575 |
-| TR-3 | 960 | 1,430 | ~1,110 (30) | 2,070–2,540 |
-| TR-4 | 930 | 1,390 | ~1,070 (29) | 2,000–2,460 |
-| TR-5 | 1,015 | 1,530 | ~1,180 (32) | 2,195–2,710 |
-| TR-6 | 440 | 730 | ~300 (9) | 740–1,030 |
+Not split yet. Its brief re-counts it against the tree TR-6 leaves.
 
-No re-plan. TR-3 and TR-5 are the two whose top end passes 2,500, and each
-names a candidate seam under its table, used only if its brief's re-count
-says so.
+### Re-counted 2026-09-24 — the splits, and why the plan keeps missing
 
-**Re-counted 2026-09-23 (the rulings pass).** The rows above carry its
-amendments (§6.1, §6.2, §3.9, §3.11, §3.3) and item 173, scheduled into
-TR-4; item 30's capture is its own PR ahead of TR-2 and in no row. TR-2's
-top end now passes 2,500 too, so it gets a candidate seam on the same
-terms: the histories and the gates with Paladin of Atonement, Vengeful
-Warchief and Elvish Warmaster, then "may", CR 118.12's answer, the
-`departed` frames and each player with Nykthos Paragon, Psychosis Crawler,
-Temple Bell and Cosi's Trickster. No phase moves: the one ordering question
-the pass raised, `CreatesToken` for a reflexive on a creation, is a few
-cards and waits for TR-5.
+One read-only agent per phase checked every clause of every named card
+against the code. The counts below replace the 2026-09-22 and 2026-09-23
+re-counts. Figures are code plus tests, the band `engineering-practices.md`
+§4 sets:
+
+| Phase | Was | Re-count | Split into |
+|---|---|---|---|
+| TR-2b | 1,500–1,700 | 1,720–2,180 | no split |
+| TR-3 | 2,070–2,540 | 2,800–3,600 | **TR-3a**: the delayed registry, with Final Fortune, 1,600–1,980. **TR-3b**: reflexive triggers, the returns and "until", with Flickerwisp, Cornered Crook and Banishing Light, 1,410–1,640 |
+| items 176/177 | — | 800–1,050 | their own PR, between TR-3b and TR-4a |
+| TR-4 | 2,000–2,460 | 2,640–3,460 | **TR-4a**: the frame, 1,360–1,620. **TR-4b**: the records, 1,430–1,790 |
+| TR-5 | 2,195–2,710 | 3,080–4,350 | **TR-5a**: combat, targeting, ability damage and excess damage, 1,200–2,050. **TR-5b**: counters, prevention, the multiplier, tokens and scry, 1,870–2,380 |
+| TR-6 | 740–1,030 | 935–1,360 | no split |
+| TR-7 | — | 1,020–1,420 | not yet |
+
+Each half keeps the cards that read its facilities, so each half still
+carries a consumer.
+
+**Why the plan keeps missing.** The agents found the same two causes in every
+phase. First, tests run about twice the row's estimate. Second, every phase's
+cards hit 3–11 facilities its row never listed, such as a sacrifice by a
+chooser, a kind mask past sixteen kinds, or a source-relative "another". So
+the card-by-card gap hunt is now a sizing step (`engineering-practices.md`
+§4), not a review finding.
+
+**Build once.** Four facilities recur across phases, so each is built whole
+where it first appears:
+- a complete `Primitive::Sacrifice` (the source itself, a named object, or a
+  chooser over a filter), in TR-2b;
+- `EventKindMask` widened past `u16`, in TR-2b;
+- "another target" (targeting refuses `NotSource`), by TR-3b;
+- damage an ability deals, dealt by its source permanent (CR 113.7a), by
+  TR-5a.
+
+**Design corrections the re-count made.**
+- TR-2b's CR 603.2h writer records the action only when it was taken (§6.4).
+- Simic Ascendancy triggers once per creature, not once per window (§3.3,
+  §4.4).
+- TR-6's loop detector counts decisions as item 138 defines them, never
+  prompts (§4.9).
+- The Ironworks loop is TR-7's test, not TR-2's (§17).
 
 ---
 
@@ -2227,7 +2265,7 @@ the two from outside the phase TR-1 claims, 121.2c-001, which TR-2a claims,
 and the one TR-2b claims in part),
 forty-one are deferred with an owner each; 92 + 41 = 133, no atom listed twice and none unlisted — checked
 against `spec.sqlite` on 2026-09-18, and worth re-checking the same way
-at each close. The deferrals are re-read at TR-6's close-out
+at each close. The deferrals are re-read at item 6's close audit
 (`engineering-practices.md` §9 pass 1) and any whose owner has landed by
 then is claimed there.
 
@@ -2437,7 +2475,7 @@ Recorded here at authoring; a finding that becomes a code item moves to
   cited above and get their pointer when their phase lands.
 - `copy-effects-architecture.md` owes nothing new; §6.5 is the sentence
   CV-4's §4.4 asked this document for.
-- `cost-architecture.md` §3.11's Ironworks loop is TR-2's integration test
+- `cost-architecture.md` §3.11's Ironworks loop is TR-7's integration test
   — every step but the triggers exists, and step 6's "with lesser mana
   value" is the one selection leaf this document adds when Scrap Trawler
   registers (a graveyard target compared against the trigger's source:
