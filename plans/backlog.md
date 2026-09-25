@@ -683,6 +683,20 @@ critical path, which lists neither; that is the owner's line to add.
   insufficient for honest search (§2.34), and the knowledge record it adds is
   forked state, which floor 3 bounds by the board. The build keeps its
   back-stop, before Phase 8's reveal cards and Phase 10.
+- **Its cost section (the owner, 2026-09-25)** — before review, the design
+  sets a ceiling on each cost against a floor (`engineering-practices.md` §3.1),
+  and its build PRs are held to those ceilings:
+  - the observation cost k per decision: floor 1 scales by 1 + k, so at
+    today's 15,600 a k above ~0.56 fails it before triggers add anything;
+  - the knowledge record's bytes and allocations per clone (floors 2 and 3):
+    bits on each object stay under 1 KB with no allocation, and a per-viewer
+    event history breaks both floors;
+  - the redeal's µs per fork, and whether the layer memo stays warm through
+    it. The memo keys on one global epoch (`state/layer_memo.rs`), so a redeal
+    that writes a walk input starts every fork cold;
+  - the visibility query's instructions per decision.
+  The bounded-state PR's probe measures k and a naive redeal first
+  (`roadmap-v2.md` A6a), so the ceilings start from numbers.
 - **Owner** — none yet.
 
 ### 2.10 color is a derived characteristic, and the engine stores it

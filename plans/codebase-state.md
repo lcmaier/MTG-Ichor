@@ -2493,7 +2493,11 @@ section never asked.
 
     **Scheduled: the bounded-state PR**, next after the process PR and before
     TR-2b, together with item 179, the committed clone probe and CI checks on
-    allocations and bytes per clone.
+    allocations and bytes per clone. Its throwaway probe also measures the
+    observation cost k and a naive redeal (`backlog.md` §2.34) at item 143's
+    checkpoints, reading the first decision after a redeal against a warm and a
+    cold layer memo, so the information-model design's cost section (§2.9)
+    starts from numbers.
 
     **Sized:** by sites, 2026-09-25: 89 reads of the log or of `EventSeq`
     outside `events/`, in 19 files. The binding (`engine/triggers/binding.rs`)
