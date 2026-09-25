@@ -6,7 +6,7 @@
 //! (`plans/references/ai-performance-floors.md`). Time is machine-bound and
 //! read at the readiness pass; this test asserts the portable proxies:
 //! **at most 64 allocations** (floor 2's CI form) and **at most 128 KB** (floor
-//! 3), counted exactly by the allocator below.
+//! 3), counted exactly by `support/counting_allocator.rs`.
 //!
 //! **Its own binary, with one test.** The global allocator counts only while
 //! the measuring thread has switched it on, so nothing else in the process
@@ -26,9 +26,6 @@
 //! --pool stress --players 4 --deck-size 100 --life 40 --seed <seed> --games 1`
 //! plays the same game.
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::cell::Cell;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use rand::rngs::StdRng;
@@ -39,55 +36,12 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::state::game::Game;
 use mtgsim::state::game_config::GameConfig;
-use mtgsim::state::game_state::GameState;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
-/// `System`, counting the allocations a thread asks for while it has
-/// [`COUNTING`] on. Requested sizes, so the count is the program's and not an
-/// allocator's rounding, and the same under any allocator.
-struct CountingAllocator;
-
-thread_local! {
-    static COUNTING: Cell<bool> = const { Cell::new(false) };
-}
-static ALLOCATIONS: AtomicU64 = AtomicU64::new(0);
-static BYTES: AtomicU64 = AtomicU64::new(0);
-
-fn count(size: usize) {
-    // `try_with`: a thread being torn down has no flag left to read.
-    if COUNTING.try_with(Cell::get).unwrap_or(false) {
-        ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-        BYTES.fetch_add(size as u64, Ordering::Relaxed);
-    }
-}
-
-// SAFETY: every call is forwarded to `System` unchanged; the counting beside it
-// touches only atomics and a const-initialized thread-local, and allocates
-// nothing.
-unsafe impl GlobalAlloc for CountingAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        count(layout.size());
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        count(layout.size());
-        unsafe { System.alloc_zeroed(layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        count(new_size);
-        unsafe { System.realloc(ptr, layout, new_size) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        unsafe { System.dealloc(ptr, layout) }
-    }
-}
-
-#[global_allocator]
-static ALLOCATOR: CountingAllocator = CountingAllocator;
+#[path = "support/counting_allocator.rs"]
+mod counting_allocator;
+use counting_allocator::clone_cost;
 
 /// Floor 2's CI proxy.
 const MAX_ALLOCATIONS: u64 = 64;
@@ -100,18 +54,6 @@ const CHECKPOINTS: [u32; 10] = [1, 10, 20, 30, 40, 50, 60, 80, 100, 150];
 
 /// `fuzz_games`' turn limit.
 const MAX_TURNS: u32 = 200;
-
-/// The allocations and bytes of one clone of `state`, held until counted.
-fn clone_cost(state: &GameState) -> (u64, u64) {
-    ALLOCATIONS.store(0, Ordering::Relaxed);
-    BYTES.store(0, Ordering::Relaxed);
-    COUNTING.with(|on| on.set(true));
-    let held = state.clone();
-    COUNTING.with(|on| on.set(false));
-    let cost = (ALLOCATIONS.load(Ordering::Relaxed), BYTES.load(Ordering::Relaxed));
-    drop(held);
-    cost
-}
 
 /// `fuzz_games`' game `game_seed` on the Commander board, set up.
 fn commander_game(registry: &CardRegistry, game_seed: u64) -> (Game, ManaWindowStop<RandomDecisionProvider>) {
