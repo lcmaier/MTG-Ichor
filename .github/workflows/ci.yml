@@ -177,3 +177,11 @@ jobs:
       - name: Type surface
         working-directory: .
         run: python3 plans/check_type_surface.py
+
+      # An inline `allow(clippy::X)` for a lint Cargo.toml's `[lints.clippy]`
+      # already allows silences nothing, and it outlives the table's entry: the
+      # day the table drops X to revisit it, the inline allow still hides its
+      # site. The clippy step's comment above says where an allow goes.
+      - name: Clippy allows
+        working-directory: .
+        run: python3 plans/check_clippy_allows.py
