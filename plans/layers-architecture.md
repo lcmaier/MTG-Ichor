@@ -2695,8 +2695,9 @@ these lines.
 - **What the guard's precision decides.** Only how rarely a board falls back
   to today's cost, never an answer. With the pre-check as it is, a fallback
   happens in about 0.5% of four-player games' decks and costs exactly `main`'s
-  price while both cards are out. Sharpening the pre-check to card-type values
-  cuts that to about 0.02%, and it is its own PR (decision 4).
+  price while both cards are out. Sharpening the pre-check (card-type values
+  would cut that to about 0.02%) is a performance lever of its own, which the
+  landing PR measures before any backlog entry is written (decision 4).
 
 ### The finding that sets the scope: the pass reads a hidden card in three ways
 
@@ -2950,10 +2951,10 @@ order. Readings are with the pair out, medians of five rounds; cells read
   whether both cards are out together. A run that replays one deck holding
   such a pair trips in every game.
 
-**Recommended at the owner's fourth pass: reuse the pre-check as it is, and
-sharpen it in its own PR.** The owner's rule is what would elide the false
-positive: an added card type can only change whether a card matches a filter
-that tests that type. The rule is per value, not "additions never interact":
+**Settled at the owner's fourth pass: reuse the pre-check as it is, and treat
+its grain as a performance lever of its own.** The owner's rule is what would
+elide the false positive: an added card type can only change whether a card
+matches a filter that tests that type. The rule is per value, not "additions never interact":
 Grist adds Creature and Arcane tests Creature, so they depend. Encoded in
 `Channels`, it is card types, supertypes and colors as value masks, a bitmask
 each over enums of 15, 5 and 5. That is a change to the pass's pre-check on
@@ -2966,8 +2967,20 @@ every board, not a part of this lever, so it is its own PR:
 - the guard inherits it with no change, and its printed trips shrink to
   Biotransference beside Encroaching Mycosynth, about 0.02% of games.
 
-LL's landing PR files it as a `codebase-state.md` item, proposed for right
-after LL.
+**Card-type values are one grain among several** (the owner, at approval).
+Every hypothetical the pre-check sends on that answers "no" is work a finer
+grain might have skipped:
+- values of subtypes, not only of types, supertypes and colors;
+- two rows whose reach shares no zone;
+- two "you own" or "you control" rows under different players.
+
+**So the landing PR measures before anything is filed.** A throwaway probe
+classifies every `Dependency checks` hypothetical by its answer, and each "no"
+by the grain that would have ruled it out. It reads what they cost, on both
+pools at four seats and on the tripped board above. If wasted hypotheticals are
+a readable share of engine time, `backlog.md` gets an entry for the
+pre-check's grain as a performance lever, with that data. If they are not, the
+reading goes in the `fuzz-record.md` block and nothing is filed.
 
 **5. Item 182 rides.** The cast-timing check at `put_on_stack.rs:673` and
 `oracle/mana_helpers.rs:331` asks one wrapper in `oracle/characteristics.rs`:
@@ -3017,7 +3030,7 @@ could ignore.
 | Fixtures: Titania's Song's first sentence, Grist's first ability on its printed frame, Arcane Adaptation's clause, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~190 |
 | Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~460 |
 | `zone_reach_cost_test` table 4: members split public / left out | `tests/` | ~25 |
-| Docs: item 181 closed and archived with 182, §3.1's floor 1 standing, this section's stub and eviction, a `fuzz-record.md` block, A6b, `state-of-play.md` | `plans/` | ~250 |
+| Docs: item 181 closed and archived with 182, §3.1's floor 1 standing, this section's stub and eviction, a `fuzz-record.md` block with the pre-check's waste, a `backlog.md` entry if that supports one, A6b, `state-of-play.md` | `plans/` | ~250 |
 
 **~1,050 lines of code and tests, ~1,300 with docs.** Item 181 sized ~500 with
 tests. The difference is decision 4's guard, decision 6's audit, item 182,
