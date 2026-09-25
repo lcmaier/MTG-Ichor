@@ -55,9 +55,14 @@ pub struct PlayerHistory {
     this_game: TurnSummary,
     /// The turn this player most recently began.
     own_turn: Option<u32>,
-    /// Every player's `this_game`, by `PlayerId`, as it stood when this
-    /// player's last turn ended, taken as the next turn began. Empty until
-    /// then, which reads as all zeros.
+    /// What "since your last turn" subtracts: every player's `this_game`, by
+    /// `PlayerId`, as it stood when this player's most recent turn ended,
+    /// taken as the next turn began. The span crosses the other seats' turns,
+    /// which no row keeps, so it is read as a total now less this one: after
+    /// player 0's turn 5, "since your last turn" on turn 9 is turns 6 to 9.
+    /// One row per player, because "an opponent lost life since your last
+    /// turn" reads the other players' counts. Empty until this player's first
+    /// turn has ended, which reads as zeros.
     at_your_last_turn: Vec<TurnSummary>,
 }
 
@@ -170,12 +175,12 @@ mod tests {
     fn since_your_last_turn_starts_when_your_turn_ends() {
         let mut game = GameState::new(2, 20);
         game.players[1].history.add(1, DRAWN, 5);
-        game.begin_history_turn(2, 1);
+        game.begin_turn_history(2, 1);
         game.players[1].history.add(2, DRAWN, 1);
         let since = |game: &GameState| game.players[0].history.since_your_last_turn(1, &game.players[1].history);
         assert_eq!(since(&game).count(DRAWN), 1);
 
-        game.begin_history_turn(3, 0);
+        game.begin_turn_history(3, 0);
         game.players[1].history.add(3, DRAWN, 1);
         assert_eq!(since(&game).count(DRAWN), 2, "on your own turn, your last turn is the one before");
     }
@@ -186,7 +191,7 @@ mod tests {
     fn after_an_extra_turn_your_last_turn_is_the_one_just_ended() {
         let mut game = GameState::new(2, 20);
         game.players[0].history.add(1, DRAWN, 4);
-        game.begin_history_turn(2, 0);
+        game.begin_turn_history(2, 0);
         game.players[0].history.add(2, DRAWN, 1);
         let mine = &game.players[0].history;
         assert_eq!(mine.since_your_last_turn(0, mine).count(DRAWN), 1);

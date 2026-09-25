@@ -327,11 +327,21 @@ impl GameState {
         self.flush_window_unless_nested();
     }
 
-    /// Flush the window once the outermost dispatch has returned and no batch
-    /// is open (§4.1). Its records' readers were that dispatch and the ones
-    /// nested inside it, and a trigger took copies of the records it binds.
-    /// An auxiliary batch's dispatch runs inside the batch it interrupts,
-    /// whose records are still to be dispatched, so it flushes nothing.
+    /// Flush the window when nothing can still read it: the dispatch that just
+    /// returned was the outermost one, and no batch is open (§4.1).
+    ///
+    /// Anywhere else a record in the window still has a reader to come:
+    /// - **Inside another dispatch.** A dispatch that queues two triggers
+    ///   emits two `AbilityTriggered` records, and each one's own dispatch
+    ///   reads the record that caused it. A flush after the first would take
+    ///   away the cause the second reads.
+    /// - **Inside an open batch.** An auxiliary batch (CR 614.13's devour
+    ///   sacrifice) is dispatched while the batch it interrupts is still open,
+    ///   and that batch's records are dispatched only when it closes. A flush
+    ///   there would take them out of the window before their dispatch.
+    ///
+    /// A trigger keeps copies of the records it binds, so nothing reads the
+    /// window after this.
     fn flush_window_unless_nested(&mut self) {
         if self.nesting.dispatch_depth == 0 && self.nesting.batch_depth == 0 {
             self.events.flush();

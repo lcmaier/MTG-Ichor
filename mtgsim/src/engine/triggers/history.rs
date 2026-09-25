@@ -73,7 +73,7 @@ impl GameState {
                 continue;
             }
             if let HistoryUpdate::TurnBegan { player, turn: began } = update {
-                self.begin_history_turn(began, player);
+                self.begin_turn_history(began, player);
                 continue;
             }
             // CR 103: the opening hands are drawn before any turn, on no row.
@@ -126,7 +126,7 @@ impl GameState {
     /// turn" starts from every player's count now (item 179's snapshot). The
     /// counts exclude the new turn's own, which a record earlier in the same
     /// window may already have added.
-    pub(crate) fn begin_history_turn(&mut self, turn: u32, active: PlayerId) {
+    pub(crate) fn begin_turn_history(&mut self, turn: u32, active: PlayerId) {
         if let Some(previous) = self.players.iter().position(|p| p.history.took_the_turn_before(turn)) {
             let totals: Vec<TurnSummary> = self.players.iter().map(|p| p.history.before(turn)).collect();
             self.players[previous].history.last_turn_ended(totals);

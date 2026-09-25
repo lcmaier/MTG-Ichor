@@ -83,6 +83,9 @@ impl RecorderHandle {
     }
 }
 
+/// The fork, which is why it is written out: a derived `Clone` would give the
+/// copy the same branch, and two games would record into one stream. This one
+/// opens a branch that inherits the parent's stream as it stands.
 impl Clone for RecorderHandle {
     fn clone(&self) -> Self {
         let mut branches = self.recorder.lock();
@@ -104,8 +107,10 @@ impl fmt::Debug for RecorderHandle {
     }
 }
 
-/// One branch's stream, read at one moment: the read API the window does not
-/// have.
+/// One branch's stream, copied out when read: the read API the window does not
+/// have. Nothing in the engine reads a recorder, since what the rules need from
+/// the past is materialized on the state. This is for observers: a harness's
+/// rows, a game log, a test's assertions.
 #[derive(Debug, Clone)]
 pub struct RecordedEvents {
     records: Vec<EventRecord>,
