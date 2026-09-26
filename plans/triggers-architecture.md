@@ -1487,16 +1487,24 @@ by construction, at the fork model's own boundary, a priority grant.
 **The ordering prompt is `ChoiceKind::OrderTriggers { player, tier }`**,
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
 through `choose_ordering` with the pending entries as `ChoiceOption`s in
-`seq` order, two or more only. **Its elision is item 163's, inherited and
-not re-derived**: one player's entries give the same game in either order,
+`seq` order, two or more only. **Its elision is item 163's, as TR-2b
+corrected it**: one player's entries give the same game in either order,
 and the engine does not ask, when every one of these holds — each the
 reason the prompt is asked otherwise:
 
 - **Equal defs.** Different abilities do different things. Compared as
   defs, not ids, since the TR-1 review's theme E: two grants of one ability
   carry two ids (§3.6), and are still one ability twice.
-- **Identical bindings** — the same records and the same subject — since
-  "that creature" or "that much" is otherwise a different object or number.
+- **Agreement on every fact the def reads** (TR-2b's decision 6), since
+  "that creature" or "that much" is otherwise a different object or number,
+  and "this creature" a different source. `TriggerDef::bound_reads()` walks
+  the effect, the intervening "if" and CR 603.2h's gate, exhaustively, and
+  names the columns: the subject, "that player", "that many", "its power"
+  (the subject and the record its frame comes from), the source (the
+  origin), and "this ability" (its gate and its count). A fact it does not
+  read may differ: Soul Warden's two triggers for two Soldiers are one game.
+  TR-1 compared the records and the subject whatever the def read, and no
+  source.
 - **No instance of "target".** CR 603.3d's choice is made per object as
   each goes on the stack, so the order decides who chooses against what.
 - **No mode.** CR 603.3c's choice, the same way.

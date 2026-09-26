@@ -53,7 +53,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
+    ObjectSet, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
@@ -266,9 +266,9 @@ fn soul_warden_entering_beside_two_creatures_triggers_for_each_of_them() {
     .unwrap();
 
     assert_eq!(pending(&game), 2, "two other creatures, two triggers, none for itself");
-    // Two bindings differ (two subjects), so the order is the player's.
+    // Two subjects, but "you gain 1 life" reads neither, so the order is not
+    // asked (item 163): the provider has nothing scripted.
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     place(&mut game, &dp);
     resolve_top(&mut game, &dp);
     resolve_top(&mut game, &dp);
@@ -355,7 +355,6 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
     assert_eq!(game.get_object(relic).unwrap().zone, Zone::Graveyard);
     assert_eq!(pending(&game), 2, "once per creature, off the frame");
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_ordering(ChoiceKind::OrderTriggers { player: 0, tier: TriggerTier::First }, vec![0, 1]);
     place(&mut game, &dp);
     resolve_top(&mut game, &dp);
     resolve_top(&mut game, &dp);
@@ -606,13 +605,18 @@ fn two_triggers_with_targets_are_asked_their_order() {
     assert_eq!(game.stack.len(), 2);
 }
 
-/// The elision's other expiry: identical abilities with **different**
-/// bindings — two Soul Wardens see one entry (same binding, elided), but two
-/// per-creature death triggers on two deaths differ in their records.
+/// The elision's other expiry: one def whose entries differ in a fact it
+/// reads. "Whenever a creature dies, each opponent loses life equal to its
+/// power" on two deaths reads two subjects, so the order is asked; the same
+/// trigger gaining 1 life reads neither, and is not (item 163).
 #[test]
-fn identical_triggers_with_different_bindings_are_asked_their_order() {
+fn identical_triggers_that_read_different_bindings_are_asked_their_order() {
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), gain_one()), 0);
+    let loses_its_power = Effect::Atom(
+        Primitive::LoseLife(AmountExpr::TriggeringPower),
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
+    );
+    put_on_battlefield(&mut game, watcher("Mourner", dies(a_creature()), loses_its_power), 0);
     let a = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let b = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
     let source = put_on_battlefield(&mut game, sol_ring(), 1);

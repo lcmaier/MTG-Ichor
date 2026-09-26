@@ -35,7 +35,7 @@ use mtgsim::types::effects::{
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -543,4 +543,59 @@ fn an_ability_that_sacrifices_its_own_source_reads_the_power_it_left_with() {
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.get_object(martyr).unwrap().zone, Zone::Graveyard);
     assert_eq!(game.players[1].life_total, 17);
+}
+
+// ---------------------------------------------------------------------------
+// CR 603.3b — the order, not asked when it cannot matter (item 163)
+// ---------------------------------------------------------------------------
+
+/// The source row: two artifacts' "whenever a creature enters, put a +1/+1
+/// counter on this artifact" read two sources, so their order is asked, since
+/// between the two resolutions the board shows which has its counter. The same
+/// two gaining 1 life read nothing their entries differ on, and are not asked.
+#[test]
+fn two_sources_are_asked_their_order_only_when_the_def_reads_the_source() {
+    for reads_source in [true, false] {
+        let mut game = setup_two_player_game();
+        let counter_on_this = Effect::Atom(
+            Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
+            EffectRecipient::ThisObject,
+        );
+        let effect = if reads_source { counter_on_this } else { gain_one() };
+        let idol = CardDataBuilder::new("Growing Idol")
+            .card_type(CardType::Artifact)
+            .ability(triggered_ability(whenever(enters(ObjectFilter::ByType(CardType::Creature)), effect)))
+            .build();
+        put_on_battlefield(&mut game, Arc::clone(&idol), 0);
+        put_on_battlefield(&mut game, idol, 0);
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+        assert_eq!(pending(&game), 2);
+
+        let dp = RecordingDecisionProvider::picking(0);
+        place(&mut game, &dp);
+        assert_eq!(dp.prompts(), usize::from(reads_source), "reads the source: {reads_source}");
+    }
+}
+
+/// The amount row: "whenever you gain life, each opponent loses that much
+/// life" on two gains in one batch reads two amounts. Equal, the order is not
+/// asked; unequal, it is.
+#[test]
+fn two_entries_are_asked_their_order_only_when_the_amounts_they_read_differ() {
+    for (first, second) in [(2, 2), (1, 2)] {
+        let mut game = setup_two_player_game();
+        let gains = TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence };
+        let drain = Effect::Atom(
+            Primitive::LoseLife(AmountExpr::TriggeringAmount),
+            EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
+        );
+        let pact = put_on_battlefield(&mut game, watcher("Blood Pact", gains, drain), 0);
+        let gain = |amount| GameAction::GainLife { player: 0, amount, source: pact };
+        game.execute_actions(vec![gain(first), gain(second)], &test_ctx()).unwrap();
+        assert_eq!(pending(&game), 2);
+
+        let dp = RecordingDecisionProvider::picking(0);
+        place(&mut game, &dp);
+        assert_eq!(dp.prompts(), usize::from(first != second), "gains of {first} and {second}");
+    }
 }
