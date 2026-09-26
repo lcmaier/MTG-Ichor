@@ -939,9 +939,7 @@ ability by the end of layer 6. A replay that asked the memo's settled source
 would find no ability and skip the row. The test board is Titania's Song on
 Mycosynth Lattice, the same shape on item 181's fixtures. The decision costs
 nothing the pass does not do already: the pass decides existence at every
-layer (CR 604.2, `CLAUDE.md`), and the note keeps its answer. (Reworded at
-review, 2026-09-26: this said Titania's Song, which read as one card's
-indulgence.)
+layer (CR 604.2, `CLAUDE.md`), and the note keeps its answer.
 
 **Where.** `LayerMemo` gets `notes: RefCell<Option<(u64, Arc<[RowNote]>)>>`
 beside its frames. The pass that fills the memo stores it, and it is read only
@@ -1228,10 +1226,12 @@ probes. Any cost row that moves is a finding.
 
 #### What the building changed
 
-- **Size: +1,289 −128 lines of code and tests**, against ~1,050. The fixtures
+- **Size: +1,412 −160 lines of code and tests**, against ~1,050. The fixtures
   and the tests ran over, and the replay itself came in near its estimate.
   Five commits: the `SourceOnly` join with Grist, the replay, item 182, the
-  cost test's table 4, and a release-build fix.
+  cost test's table 4, and a release-build fix. Three more at review, +314
+  −226 of the total: the renames, the command zone helper's wording, and
+  item 183's clone half.
 - **A locked row is noted wherever it points** when its effect started on a
   noted row, and the replay applies it exactly when the card matched that
   start. That is what the pass does (CR 613.6's set), found while writing the
@@ -1251,6 +1251,11 @@ probes. Any cost row that moves is a finding.
 - **Five sabotages each fail the test built for them**: no notes, existence
   re-read off the settled source, the row's own controller as "you", no
   hidden join, and no guard. Four of them fail at the debug audit first.
+- **Item 183's clone half landed at review.** A clone rebuilds a map whose
+  capacity is past twice its length (`types::ids::FitOnClone`, on `objects`,
+  `battlefield` and `stack_entries`), so floor 3 holds on the board item 182
+  deepened. A clone taken during a deep stack is the item's open half,
+  `roadmap-v2.md` B10.
 
 #### Measured
 
@@ -1270,11 +1275,10 @@ the predictions:
 | redeal, cold − warm, by turn from turn 10, µs | ~5–50 | 5.5–50.8 / 5.4–63.8 |
 | games diverging, Teferi / Lattice | most / 0 of 20 | 20 / 0 of 20 |
 
-- **Floor 1 holds, under the predicted range.** The no-row arm read 68.4 /
-  55.8 µs in this sitting, against 60.5 / 49.9 in the trip sitting and 62.7 /
-  49.6 in item 181's. Against its own sitting's no-row arm the lever is ×1.15
-  (Teferi) and ×1.23 (Lattice), which is what the prediction's ~71 µs against
-  62.7 says. The absolute fell short with the machine.
+- **Floor 1 holds, above the predicted range on an idle machine**:
+  14,290–15,756 / 18,092–18,922, re-read at review. This sitting read under
+  it, with its no-row arm at 68.4 / 55.8 µs against 60.7 / 44.6 idle: it ran
+  straight after a batch of builds.
 - **Layer walks per decision rose from 1.1 to 5.2–5.8**, which the prediction
   allowed for without sizing: item 182's gate asks about every nonland hand
   card at each castability check, and on these boards each is a replayed walk
@@ -1282,26 +1286,8 @@ the predictions:
 - **Floor 3 breaks on one fixture game**, which nobody predicted.
   `stress` 12351 under Teferi's clause, a game item 182 changed, built a
   stack 29 deep and reads 150.4 KB at its end (`codebase-state.md` item
-  183). LL's memo is about 9 KB of the breach.
+  183). LL's memo is about 9 KB of the breach; with item 183's clone half
+  the game reads 73.2 KB.
 - **The pre-check's grain, measured for the owner's note**: about 1% of
   engine time on `performance`, 0.7% on `stress` (`backlog.md` §2.38).
 
-#### At the owner's review (PR #191, 2026-09-26)
-
-- **CI failed on floor 3**, at `clone_bound_test.rs`'s fourth game, the
-  one the breach above was read on. `zone_reach_cost_test` read it first,
-  and the release-only gate was not run before the push. The owner's call:
-  the floors hold a deep stack. A clone now rebuilds a map whose capacity is
-  past twice its length (`types::ids::FitOnClone`, on `objects`,
-  `battlefield` and `stack_entries`): that game reads 73.2 KB, and the worst
-  of the gate's 210 readings 90.7 KB, from 150.4. A clone taken during a
-  deep stack is item 183's open half, back-stopped before Phase 8
-  (`roadmap-v2.md` B10).
-- **Why the close-out's sitting read slow.** It ran seconds after about four
-  minutes of full-core builds and a debug test suite on the native Windows
-  machine, which ran no other load of this session's. Two re-reads on an idle
-  machine read the no-row arm at 60.7 / 44.6 µs and floor 1 at 14,290–15,756
-  / 18,092–18,922 decisions per second with the card out, above the
-  prediction. The second, with `FitOnClone`, reads the worst clone at 7.8 µs
-  (6.8 before it) and 91.3 KB.
-- **The names**, as the note at the top of this entry says.

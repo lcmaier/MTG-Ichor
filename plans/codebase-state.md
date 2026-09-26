@@ -8480,9 +8480,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - allocations stay at 27–29, under floor 2's CI proxy.
 
      **Reachability (2026-09-25):** reachable — not wrong; a floor 3 breach on
-     a fixture board, `clone_bound_test.rs`'s fourth game, which failed CI on
-     PR #191. It was first read in `zone_reach_cost_test`, which plays the
-     same game, and the release-only gate was not run before the push.
+     a fixture board, `clone_bound_test.rs`'s fourth game.
 
      **The owner's call (2026-09-26): the floors hold a deep stack.** A
      29-deep stack is ordinary: a cEDH turn can put a whole winning line on

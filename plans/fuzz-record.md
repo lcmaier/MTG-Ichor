@@ -86,9 +86,8 @@ A pass now adds 15.4 / 12.1 objects off the battlefield, and leaves 317.6 /
   664 bytes, and the battlefield map at 112 of 360: 138.3 KB at turn 80 and
   150.4 KB at the end, against 75.1 and 76.9 without the clause. A throwaway
   that cloned each public field alone put 54.5 KB on the two maps and about 9
-  on LL's memo (`codebase-state.md` item 183). It failed CI's release-only
-  gate on the pushed PR, which was not run before the push. **Fixed at
-  review:** a clone rebuilds a map whose capacity is past twice its length
+  on LL's memo (`codebase-state.md` item 183). **Fixed at review:** a clone
+  rebuilds a map whose capacity is past twice its length
   (`types::ids::FitOnClone`), and the game reads 73.2 KB, the worst of the
   gate's 210 readings 90.7 KB, and the worst clone 7.8 µs, from 6.8. A clone
   taken during a deep stack is `roadmap-v2.md` B10's.
