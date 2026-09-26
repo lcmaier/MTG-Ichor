@@ -1495,29 +1495,13 @@ registered card returns an object.
     counter on a card outside the battlefield; suspend, off-battlefield keyword
     counters and Skullbriar are all unregistered.
 
-24. **`ReplacementDef.then` is rich enough; the `Effect` tree is not
-    (`rb-review.md` F4).** A rider like "you may put a +1/+1 counter on each of
-    them. If you don't, draw a card" needs `Effect::Optional`, which is
-    unimplemented, plus a conditional on that optional's *outcome*, for which
-    there is no vocabulary at all. **Recorded here so it is not mistaken for a
-    replacement-vocabulary gap:** `then` is an `Effect`, which is §3.2's whole
-    point — per-mechanic variety goes in the existing tree — so nothing in
-    `types/replacement.rs` changes when this lands. The demand is not
-    replacement-shaped either: **1,249 cards print "if you do" and 165 print
-    "if you don't"**, against 35 that print both "if you do" and "instead"
-    (Scryfall 2026-08-30). Owed by the `Effect` tree, on behalf of the whole
-    card pool, and `replacement-architecture.md` §11 item 11 records the
-    matching authoring rule — an "if you do" written as a bare unconditional
-    `then` is a card bug, not a modelling choice.
-
-    **Reachability (2026-09-03):** unreachable — no registered card uses
-    `Effect::Optional` (it is `Err("not yet implemented")` at `resolve.rs:119`)
-    or an outcome conditional.
-
-    **Sized:** `Effect::Optional` is a yes/no `DecisionProvider`
-    prompt around the inner effect, ~60 lines in `resolve.rs`; the outcome
-    conditional (`Effect::IfYouDo { did, didnt }`) ~80 more; both land with the
-    first "if you do" card, which RD's prevention riders or Phase 8 will bring.
+24. **~~`ReplacementDef.then` is rich enough; the `Effect` tree is not
+    (`rb-review.md` F4).~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
+    `Effect::Optional { chooser, effect }` asks, and CR 118.12's answer rides
+    the resolver's walk for `Condition::CostAnswer` to read, so "if you do" and
+    "if you don't" are two conditionals over one answer. `then` is untouched.
+    **Reachability (2026-09-26):** closed — TR-2b, `bc59f71`.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 24".
 
 25. **Phase 1 runs each batch member's CR 616.1f loop to completion, so
     CR 101.4d's restart cannot happen (`rb-review.md` F6).**
@@ -7856,6 +7840,14 @@ the file.
      (`two_identical_triggers_are_placed_without_an_ordering_prompt` and the two
      that reopen it). The reversal half is untouched.
 
+     **Built in part 2026-09-26 (TR-2b):** the elision compares only what a def
+     reads (`TriggerDef::bound_reads`, `triggers-architecture.md` §5.2), and
+     the source where it reads its source, which TR-1's predicate never
+     compared. The decorator's half and the reversal are untouched.
+
+     **Reachability (2026-09-26):** reachable — not wrong: the engine's half is
+     built; the decorator and CR 732.1's reversal prompt do not exist.
+
      **Reachability (2026-09-19):** reachable — not wrong: the ordering prompt exists
      and is asked or elided per the predicate; the reversal prompt does not exist,
      and CR 732.1's option is simply never offered.
@@ -8023,83 +8015,15 @@ amended, and `fuzz-record.md`'s theme E block (PR #178).
      **Sized:** the frame gains the epoch when it becomes
      `LastKnownInformation` (TR-4), ~5 lines at the two captures.
 
-169. **The intervening "if" reads CR 109.5's "you" off the source's frame and
-     answers false for a source that has left.** `settled_holds(condition,
-     game, source)` is the evaluator at both instants (`match_def`,
-     `resolve_taken`), and `holds` returns false for an object not in the
-     store or with no frame to read "you" from — right for Felidar Sovereign,
-     wrong for a dies-trigger with a clause (persist's shape, TR-4).
-
-     **The frame needs the cost decisions too (the type-surface re-sweep,
-     2026-09-24, `cr-coverage-audit.md` §4a pass 2).** The widening below writes
-     the departed frame for a source that leaves after it triggered. The frame
-     the recheck will read is §3.11's `LastKnownInformation`, and it carries
-     `cast` only. PR #181 moved kicked, bargained and evoked out of `cast` into
-     `CostChoices` the next day, because CR 707.10 copies them to a copy that
-     was never cast. So an "if it was kicked" recheck after the permanent
-     leaves (CR 603.4, 113.7a) would read not kicked. So would a token a copy of
-     a kicked spell became, whose `cast` is `None`. 72 enters triggers print
-     that clause (`(o:"when " or o:"whenever ") o:"if it was kicked"`; Gatekeeper
-     of Malakir), and 6 more print "if it was bargained".
-     `triggers-architecture.md` §3.11 now carries `cost_choices` beside `cast`.
-     The capture copies it off `PermanentState` beside `cast`, about 2 lines on
-     top of the size below.
-
-     **And from every zone, not only the battlefield (the type-surface
-     re-sweep, 2026-09-24, `cr-coverage-audit.md` §4a pass 4).** The widening
-     below writes the `departed` frame from `capture_departure_frames`, which
-     frames what leaves the battlefield, and TR-4 widens that capture to CR
-     603.10a's three classes only. CR 113.7a and 608.2h use last known
-     information for an object gone from whatever zone it was expected in, and
-     two printed readers leave from zones no class covers:
-     - **A hand.** God-Eternal Kefnet's trigger copies a revealed card, and its
-       ruling (2019-05-03) copies "using its last known information" if the
-       card leaves the hand first. 3 triggers copy a card
-       (`(o:"when " or o:"whenever ") o:"copy that card"`).
-     - **The stack.** Double Vision's ruling (2020-06-23) and Galvanic
-       Iteration's (2021-09-24) say the copy is made even if the spell "has
-       been countered by the time that ability resolves". 70 triggers copy a
-       spell (`(o:"when " or o:"whenever ") o:"copy that spell"`). A spell's
-       frame is more than its characteristics: CR 707.10 copies its targets,
-       modes, X and costs, and CV-4's `copy_of` clones a `StackEntry` that is
-       gone once the spell has left.
-
-     TR-4's `IsCountered` arm, a look-back under CR 603.10e, reads the same
-     missing frame of a countered spell. `triggers-architecture.md` §6.1 now
-     writes the frame wherever a named object leaves, §3.11 gives a stack
-     object's frame its entry, and `copy-effects-architecture.md` §4.4 copies
-     from it. **Sized:** ~40–60 lines on top of the widening's ~50: the write
-     moves into `move_object`, gated on a queued or stacked entry naming the
-     mover; a stack object's frame keeps its entry; one fixture per zone.
-
-     **Reachability (2026-09-24, pass 4):** unreachable — no registered trigger
-     binds a card in a hand or copies a spell, and CV-4 is not built.
-
-     **Reachability (2026-09-24):** unreachable — no registered card has an "if
-     it was kicked" trigger (`Condition::SpellWasKicked` appears only in tests),
-     and the frame is TR-4's.
-
-     **Reachability (2026-09-19):** unreachable — no registered trigger with an
-     intervening "if" leaves the battlefield before its check.
-
-     **Sized:** TR-2's `TriggerContext` evaluator (§6.1): the trigger's
-     locked controller as "you" and the binding's frame for a clause about
-     the bound object, ~40 lines.
-
-     **Widened 2026-09-23 (the trigger rulings pass):** the binding's frame
-     exists only when the triggering event was the departure. A source that
-     leaves *after* it triggered — Vibrance's evoke sacrifice resolving
-     first, or any "deals damage equal to its power" enters trigger answered
-     by removal — has no frame any binding points at, and CR 608.2h and
-     113.7a answer from its last known information. `triggers-architecture.md`
-     §6.1's amendment: `capture_departure_frames` writes a `departed` frame
-     onto every queued or stacked entry naming the departing object, ~50
-     lines more, in TR-2.
-
-     **Scheduled 2026-09-24 (TR-2's split): TR-2b**, with the `departed`
-     frames. TR-2a's `bound_characteristics` answers only when the matched
-     event was the departure, and the `Triggering*` leaves refuse by name
-     where a `departed` frame would answer.
+169. **~~The intervening "if" reads CR 109.5's "you" off the source's frame and
+     answers false for a source that has left.~~ — ✅ CLOSED 2026-09-26 (TR-2b).** — archived.
+     The asker names "you": the candidate's controller at dispatch, the locked
+     controller at the recheck, the resolution's in an effect's own "if". The
+     `departed` frames carry an object's last known information from any zone
+     to each entry naming it. Its cost decisions and a stack object's entry
+     are §3.11's fields, TR-4a's row.
+     **Reachability (2026-09-26):** closed — TR-2b, `c4d508a`.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 169".
 
 170. **`OrderTriggers` offers the entries' sources, so two entries of one
      source are indistinguishable to a human client.** `ask_order_triggers`

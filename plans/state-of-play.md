@@ -88,6 +88,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `TR-1` — plans/triggers-architecture.md
 - `TR-1b` — plans/triggers-architecture.md
 - `TR-2a` — plans/triggers-architecture.md
+- `TR-2b` — plans/triggers-architecture.md
 
 ## Counts
 
@@ -104,13 +105,13 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 | | |
 |---|---:|
 | Numbered items | 244 |
-| …closed, still recorded | 83 |
-| …open — unreachable, and says why | 104 |
+| …closed, still recorded | 85 |
+| …open — unreachable, and says why | 102 |
 | **…open — reachable, wrong today** | **2** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 26 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 156 of 161 |
+| …open, carrying an explicit `**Sized:**` | 154 of 159 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

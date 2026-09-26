@@ -37,6 +37,133 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-26 for TR-2b** ("may", CR 118.12's answer, and the
+`departed` frames — `triggers-architecture.md` §12, TR-2b; `codebase-state.md`
+items 24 and 169 closed, 163's elision half built). **Pool change**:
+`performance` goes 96 → 98 (Psychosis Crawler, Cosi's Trickster) and `stress`
+175 → 178 (plus Nykthos Paragon). The shipped columns are therefore a new
+baseline, and the engine columns are the ones comparable to TR-2a's.
+
+**Predictions, written before any arm ran** (§12's TR-2b section, now
+archived).
+- **engine vs `main`.** Every gameplay row `IDENTICAL` on both pools at both
+  seat counts, and the dumps identical game by game. `Windows past gate` and
+  `Candidate visits` identical, or up where a zone-map or granted trigger
+  exists. Every other row identical. CPU per decision inside the budget.
+- **elision vs engine.** `differ`, and each diverging game's first difference
+  an `OrderTriggers` prompt one arm asks and the other does not. Only the
+  engine arm asks Soul Warden's triggers for creatures entering together; only
+  the elision arm asks two Vengeful Warchiefs on one first life loss, and on
+  `stress` two Paladins of Atonement at one upkeep.
+- **shipped.** A pool change. `Triggers placed` rises with Crawler's draws,
+  and the Trickster's trigger is rare: its only shuffle on `performance` is an
+  opponent's Darksteel Colossus shuffled back in.
+- **audit.** Agrees on every arm.
+
+**The A/B, four arms, `close_out.py`**: `main` at #191's merge (`5fdf342`);
+**engine** (`c4d508a`, TR-2b with TR-1's predicate, the cards unregistered);
+**elision** (`808147c`, the new predicate, the cards still unregistered);
+**shipped** (`02edc7a`). Both pools at two seats and four, 200 games at seed
+12345, the counter runs audited; timing 3 × 200 on `performance`.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, both pools | **IDENTICAL** | **IDENTICAL** |
+| dumps, engine vs `main`, games differing of 200, `performance` / `stress` | 0 / 0 | 0 / 0 |
+| `Memo hits`, `main` → engine, `performance` / `stress` | 62,169 → 62,167 / 82,694 → 82,693 | 182,102 → 182,093 / 244,473 → 244,465 |
+| instructions / decision, engine vs `main`, callgrind, the Commander board | — | 0.7677 M → 0.7674 M, **−0.03%** |
+| `µs / decision`, engine vs `main`, `performance` — §3.1's budget | 28.7 → 27.9, −2.7% | — |
+| audit, engine, `performance` / `stress` | 174,774 / 195,883 agreed | 343,421 / 393,287 agreed |
+| audit, elision | 175,298 / 195,722 agreed | 343,380 / 395,064 agreed |
+| audit, shipped | 175,494 / 194,377 agreed | 346,773 / 401,732 agreed |
+| deterministic, every arm | yes | yes |
+
+**The cost rows, attributed.**
+- **`Memo hits` fell by 1–9, which the prediction missed.** A probe rebuilt
+  the engine arm with the old reads restored, and every reading came back
+  within 1 of `main`'s. Most of it is the edict's choice. It reads its filter
+  only for the chooser's own permanents, where `main`'s enumeration read every
+  creature's. The rest is CR 109.5's named "you", which skips the source's
+  frame: 2 of four-seat `stress`'s 8.
+- **The first sitting read `Restriction queries` 2,216 → 2,217** at four seats
+  on `performance`. `Sacrifice` re-ran `admits` on a permanent its choice's
+  candidate filter had just admitted, with nothing moved in between. The
+  re-check was folded out of the choice's commit (`2369229`), and the re-run
+  sitting reads the row identical to `main`'s. Every number in this block is
+  the re-run's.
+
+**Game by game, elision vs engine.** The 200-game `--dump-events` streams
+diffed per game, then each diverging game traced on both arms (`--trace-game`)
+and its first differing trace record read.
+
+| the first difference | `performance`, 2 / 4 seats | `stress`, 2 / 4 seats |
+|---|---|---|
+| engine asks one Soul Warden's triggers for creatures entering together, and elision does not | 2 / 9 | 3 / 12 |
+| elision asks two Vengeful Warchiefs of one player on one first life loss, and engine does not | 0 / 1 | 0 / 0 |
+| anything else | 0 / 0 | 0 / 0 |
+
+27 of 800 games diverge, each at an `OrderTriggers` decision one arm asks and
+the other does not. No game put two Paladins of Atonement's triggers in one
+upkeep, so that predicted case never arose.
+
+**The shipped arm is a pool change and is not budgeted.** `Triggers placed`
+reads 2.2 / 5.0 on `performance` (`main` 1.2 / 3.6) and 1.4 / 4.0 on `stress`
+(1.3 / 3.6). In the two-seat `performance` dump, Psychosis Crawler places 142
+triggers in 200 games, one per card drawn, and Cosi's Trickster places 1. All
+ten shuffles in those games are a Darksteel Colossus shuffled into its owner's
+library, and the Trickster's one trigger follows an opponent's.
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Psychosis Crawler — cast / resolved / games / copies per deck | 202 / 200 / 131 (66%) / 1.46 | 129 / 128 / 115 (58%) / 2.94 |
+| Cosi's Trickster | 212 / 211 / 139 (70%) / 1.47 | 107 / 106 / 90 (45%) / 2.86 |
+| board diversity | 200 of 200 | 200 of 200 |
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 31 (62.0%) / 19 (38.0%) | 29 (58.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.2 | 28.8 |
+| Spells cast | 22.3 | 20.2 |
+| Lands played | 17.3 | 17.8 |
+| Combat w/ atk | 10.6 | 9.0 |
+| Creatures died | 6.7 | 4.6 |
+| Damage events | 22.9 | 19.9 |
+| Total damage | 67.4 | 61.4 |
+| Life changes | 15.7 | 14.1 |
+| **Layer walks** | **375** | **495** |
+| **Board walks** | **240** | **290** |
+| **Memo hits** | **61,114** | **88,340** |
+| **Layer frames** | **4,446** | **6,423** |
+| **Frames/walk** | **11.85** | **12.99** |
+| **Dependency checks** | **11** | **33** |
+| **Replacement gathers** | **1065** | **1167** |
+| **Restriction queries** | **1067** | **1169** |
+| Mana productions | 85 | 122 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.44 | 0.78 |
+| Max batch depth | 4 | 5 |
+| Decisions | 233 | 362 |
+| Priority decisions | 88 | 144 |
+| Triggers placed | 2.2 | 0.9 |
+| Windows past gate | 26.3 | 35.3 |
+| Candidate visits | 46.8 | 67.3 |
+| Trigger matches | 3.3 | 1.5 |
+
+The four-seat rows are in the sitting's output (`--players 4`, shipped, 200
+games), `performance` / `stress`: `Layer walks` 772 / 1,077, `Memo hits`
+183,013 / 257,828, `Decisions` 445 / 706, `Triggers placed` 5.0 / 4.0, and
+`Turns after a departure` 20.4 / 18.0.
+
+**Determinism**: three `fuzz_games` runs under `MTGSIM_HASH_SEED` 1, 2 and 3
+(200 games, seed 12345, shipped) were identical line for line outside `===
+Timing ===`, on both pools at two seats and four. Every timing round of the
+sitting also reproduced its counter run.
+
 **Re-recorded 2026-09-25 for LL** (a card in a library or a hand walked only
 when something reads it; `layers-architecture.md` §13e; `codebase-state.md`
 items 181 and 182 closed, 183 and 184 filed; `roadmap-v2.md` A6b). No pool
