@@ -774,9 +774,14 @@ pub fn put_in_exile(game: &mut GameState, card_data: Arc<CardData>, player: Play
 
 /// Put a card straight into the command zone, registered as
 /// [`put_in_graveyard`] is: a commander before the first turn (CR 903.6).
+///
+/// Which cards may start there is the format's rule, not the zone's: CR
+/// 903.3's legendary creature for Commander, something else for a custom
+/// format, which `roadmap-v2.md` B2's designation owns. This skips it, as a
+/// test board skips building a deck.
 pub fn put_in_command_zone(game: &mut GameState, card_data: Arc<CardData>, player: PlayerId) -> ObjectId {
     game.create_in_zone(GameObject::new(card_data, player, Zone::Command))
-        .expect("the command zone takes any card")
+        .expect("create_in_zone refuses only the battlefield")
 }
 
 /// Put a permanent onto the battlefield with ETB hooks, entering **this** turn — so it
