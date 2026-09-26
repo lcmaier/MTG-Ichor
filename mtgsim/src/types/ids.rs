@@ -349,11 +349,14 @@ pub type IdSet<K> = HashSet<K, IdHash>;
 /// the stack's entries.
 ///
 /// A `HashMap` keeps its high-water capacity, which saves a reallocation in
-/// play and costs every fork: after a stack 29 deep, `stack_entries` kept 64
-/// slots of 664 bytes for the rest of the game, and each clone copied them
-/// (`codebase-state.md` item 183, floor 3). So a clone of a map whose
-/// `capacity` is past twice its length is rebuilt at its length, and any
-/// other is `HashMap`'s own, which copies the table without rehashing.
+/// play and costs every fork, which copies it (floor 3, `codebase-state.md`
+/// item 183). So a clone of a map whose `capacity` is past twice its length
+/// is rebuilt at its length, and any other is `HashMap`'s own, which copies
+/// the table without rehashing. Twice is where growth leaves a map: its
+/// table doubles when it fills, so from its first doubling on it holds at
+/// least half its capacity, and the bar trips for a map that has shrunk
+/// below its last doubling, whose rebuilt table is at most half the size.
+///
 /// Removals leave tombstones that `capacity` does not count, so a table
 /// churned dense can read under the bar and be copied whole; a spike that
 /// empties, the case this is for, reads over it. A rebuilt map iterates in
