@@ -740,7 +740,8 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
-        | Condition::ModeChosen(_) => {}
+        | Condition::ModeChosen(_)
+        | Condition::CostAnswer(_) => {}
         // The counts are off `GameState`; "you" is the source's controller.
         Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
             out.source |= you_channel;

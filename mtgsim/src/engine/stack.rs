@@ -158,8 +158,12 @@ impl GameState {
             .and(entry.ability_identity)
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.action_taken_this_turn.contains(&key)) {
-            self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
-            if let Some(key) = action_gate {
+            let answer = self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
+            // CR 603.2h asks whether the action was *taken*: a declined "may"
+            // leaves the gate open (Nykthos Paragon's first and third rulings).
+            if let Some(key) = action_gate
+                && answer == Some(crate::types::effects::CostAnswer::Does)
+            {
                 self.action_taken_this_turn.insert(key);
             }
         }

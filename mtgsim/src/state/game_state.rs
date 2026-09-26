@@ -2360,7 +2360,7 @@ mod tests {
         fn test_a_conditional_wrapping_an_unlowerable_body_is_loud() {
             let ability = static_ability(Effect::Conditional(
                 Condition::SourceInZone(crate::types::zones::ZoneSet::BATTLEFIELD),
-                Box::new(Effect::Optional(Box::new(anthem_atom()))),
+                Box::new(Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) }),
             ));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }
@@ -2385,7 +2385,7 @@ mod tests {
         fn test_non_atom_inside_a_sequence_is_loud() {
             let ability = static_ability(Effect::Sequence(vec![
                 anthem_atom(),
-                Effect::Optional(Box::new(anthem_atom())),
+                Effect::Optional { chooser: crate::types::effects::PlayerRef::You, effect: Box::new(anthem_atom()) },
             ]));
             let _ = GameState::static_ability_atoms(&ability, "Test Card");
         }

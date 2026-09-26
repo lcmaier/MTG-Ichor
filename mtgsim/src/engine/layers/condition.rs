@@ -135,6 +135,14 @@ pub(super) fn holds(
             choices.additional.iter().any(|c| matches!(c, AdditionalCost::Kicker(_)))
         }),
 
+        // CR 118.12's answer is the resolver's walk's, which answers it before
+        // any evaluator is asked; reaching here is a condition the walk never
+        // saw, so it has no answer.
+        Condition::CostAnswer(_) => {
+            debug_assert!(false, "{:?} is answered by the resolver's walk, and nothing else has an answer", condition);
+            false
+        }
+
         // An answer a *resolution* had and a static ability never does:
         // CR 700.2's modes are chosen as a spell is cast, and nothing carries
         // them past it. A card author reaching for one on a static ability is

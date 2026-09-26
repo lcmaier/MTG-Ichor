@@ -1065,7 +1065,7 @@ mod instance_references {
                         stack.extend(subs.iter())
                     }
                     Effect::Conditional(_, inner)
-                    | Effect::Optional(inner)
+                    | Effect::Optional { effect: inner, .. }
                     | Effect::ForEach(_, inner)
                     | Effect::Repeat(_, inner) => stack.push(inner),
                     Effect::Triggered(def) => stack.push(&def.effect),

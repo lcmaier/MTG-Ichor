@@ -10,8 +10,8 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, CopyRoles, DiscardChooser, Duration, Effect, EffectRecipient, NamedPlayers,
-    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Condition, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect, EffectRecipient,
+    NamedPlayers, PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -90,6 +90,17 @@ impl ResolutionContext {
     }
 }
 
+/// One resolution's walk over its effect tree: its place among the instances
+/// of "target" the effect declares (the glossary's *cursor*, sense 2), and
+/// CR 118.12's answer for the clause after an action. Each resolution makes a
+/// fresh one, so a rider never reads its parent's answer
+/// (`triggers-architecture.md` §6.2).
+#[derive(Debug, Default)]
+struct ResolutionWalk {
+    instance_cursor: usize,
+    last_cost_answer: Option<CostAnswer>,
+}
+
 /// A resolved target — validated as legal when the spell/ability was put on the
 /// stack. Legality is re-checked at resolution time (rule 608.2b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,8 +128,8 @@ impl GameState {
         // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
         // clause off the tree (`DeclaredInstances::Effect`). The stack's path
         // is [`Self::resolve_effect_with_announced_targets`].
-        let mut cursor = 0usize;
-        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut cursor)
+        let mut walk = ResolutionWalk::default();
+        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut walk)
     }
 
     /// [`Self::resolve_effect`] for a spell or ability leaving the stack.
@@ -126,18 +137,22 @@ impl GameState {
     /// `announced` is the entry's CR 601.2c record, so an atom finds its own
     /// targets by the index the announcement filled and nothing is derived
     /// from the tree — see `DeclaredInstances`.
+    ///
+    /// Returns CR 118.12's last answer, which CR 603.2h's writer reads: an
+    /// action declined is not an action taken.
     pub fn resolve_effect_with_announced_targets(
         &mut self,
         effect: &Effect,
         announced: &[TargetInstance],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<(), String> {
-        let mut cursor = 0usize;
-        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut cursor)
+    ) -> Result<Option<CostAnswer>, String> {
+        let mut walk = ResolutionWalk::default();
+        self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
+        Ok(walk.last_cost_answer)
     }
 
-    /// [`Self::resolve_effect`]'s body, carrying CR 601.2c's instance cursor.
+    /// [`Self::resolve_effect`]'s body, carrying the walk.
     ///
     /// **The one place `ctx.targets` is indexed.** Each atom is handed its own
     /// instance as a flat slice, so no primitive can reach a neighboring
@@ -149,8 +164,13 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
         declared: DeclaredInstances<'_>,
-        cursor: &mut usize,
+        walk: &mut ResolutionWalk,
     ) -> Result<(), String> {
+        // Every atom takes its action, which is CR 118.12's "started to pay"
+        // for the clause after it.
+        if let Effect::Atom(..) = effect {
+            walk.last_cost_answer = Some(CostAnswer::Does);
+        }
         match effect {
             // "That creature", "that player": not an instance of "target" but
             // a fact bound at dispatch, handed to the primitive as the target
@@ -186,7 +206,7 @@ impl GameState {
                 self.resolve_primitive(primitive, recipient, &this, ctx, dp)
             }
             Effect::Atom(primitive, recipient) => {
-                match instance_of(recipient, declared, cursor) {
+                match instance_of(recipient, declared, &mut walk.instance_cursor) {
                     Some((ix, clause)) => {
                         self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp)
                     }
@@ -206,7 +226,7 @@ impl GameState {
 
             Effect::Sequence(effects) => {
                 for sub in effects {
-                    self.resolve_effect_at(sub, ctx, dp, declared, cursor)?;
+                    self.resolve_effect_at(sub, ctx, dp, declared, walk)?;
                 }
                 Ok(())
             }
@@ -261,13 +281,15 @@ impl GameState {
             // intervening "if" is the def's own field and is checked in
             // `resolve_taken`; an `if` anywhere else is this, read against the
             // board as the atom is reached (CR 608.2c's "in the order written").
+            // The clause's own atoms don't answer for the action before it, so
+            // "if you do … if you don't …" reads one answer.
             Effect::Conditional(condition, inner) => {
-                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
-                if crate::engine::layers::condition::settled_holds(condition, self, source) {
-                    self.resolve_effect_at(inner, ctx, dp, declared, cursor)
-                } else {
-                    Ok(())
+                if self.resolution_condition_holds(condition, ctx, walk) {
+                    let answer = walk.last_cost_answer;
+                    self.resolve_effect_at(inner, ctx, dp, declared, walk)?;
+                    walk.last_cost_answer = answer;
                 }
+                Ok(())
             }
 
             // A triggered ability is never resolved as written: the
@@ -280,9 +302,23 @@ impl GameState {
                 ctx.source
             )),
 
-            Effect::Optional(_inner) => {
-                // A yes/no ask — `codebase-state.md` main item 24.
-                Err("Optional effects not yet implemented".to_string())
+            // CR 603.5 — "you may" is chosen as the effect resolves. The answer
+            // is the choice: declined is `Doesnt`, and taken is the action's
+            // own, with a `Cant` becoming `Doesnt`, since CR 118.3 lets no
+            // player pay a cost they can't.
+            Effect::Optional { chooser, effect: inner } => {
+                let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
+                if !crate::ui::ask::ask_optional_effect(dp, self, chooser, ctx.source) {
+                    walk.last_cost_answer = Some(CostAnswer::Doesnt);
+                    return Ok(());
+                }
+                walk.last_cost_answer = None;
+                self.resolve_effect_at(inner, ctx, dp, declared, walk)?;
+                walk.last_cost_answer = Some(match walk.last_cost_answer {
+                    Some(CostAnswer::Cant | CostAnswer::Doesnt) => CostAnswer::Doesnt,
+                    Some(CostAnswer::Does) | None => CostAnswer::Does,
+                });
+                Ok(())
             }
 
             Effect::Modal { .. } => {
@@ -1383,7 +1419,7 @@ impl GameState {
 
             Primitive::AddCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx)? as u32;
-                let by = self.resolve_putter(by, targets, ctx)?;
+                let by = self.resolve_player_ref(by, targets, ctx)?;
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously, which is what lets a single CR 614.16
                 // doubler see all of them.
@@ -1422,7 +1458,7 @@ impl GameState {
             Primitive::GetCounters { counter, amount, by } => {
                 let n = self.evaluate_amount(amount, ctx)? as u32;
                 let player = self.resolve_player_for_self(recipient, targets, ctx);
-                let by = self.resolve_putter(by, targets, ctx)?;
+                let by = self.resolve_player_ref(by, targets, ctx)?;
                 self.execute_action(
                     GameAction::AddCounters {
                         subject: CounterSubject::Player(player),
@@ -2151,11 +2187,9 @@ impl GameState {
 
     // --- Helper: determine which player an effect applies to ---
 
-    /// For effects that target "you" (the controller) or use EffectRecipient::Implicit,
-    /// returns the controller. For targeted player effects, returns the first
-    /// player target.
-    /// Who puts the counters on, for `Primitive::AddCounters` and
-    /// `GetCounters` (CR 122.6a's shape on a proposal).
+    /// The player a `PlayerRef` names at resolution: who puts the counters on
+    /// for `Primitive::AddCounters` and `GetCounters` (CR 122.6a's shape on a
+    /// proposal), and who chooses for `Effect::Optional`.
     ///
     /// `You` is the effect's controller — every printed one-shot, and the
     /// card writes it. `Opponent` is the resolution's player target when it
@@ -2163,7 +2197,7 @@ impl GameState {
     /// no target it is an authoring error and loud. Bold Plagiarist's
     /// "*they* put" is the printed customer, a trigger whose effect names the
     /// player who triggered it — `Player(id)` once CR 603 fills it.
-    fn resolve_putter(
+    fn resolve_player_ref(
         &self,
         by: &PlayerRef,
         targets: &[ResolvedTarget],
@@ -2218,6 +2252,24 @@ impl GameState {
             (0..self.num_players()).filter(|&p| self.in_game(p) && in_group(p)).collect();
         players.sort_by_key(|&p| self.apnap_index(p));
         players
+    }
+
+    /// A resolving effect's own "if" (CR 608.2c). CR 118.12's answer is the
+    /// walk's to give, inside `All` too; every other leaf is the board's.
+    fn resolution_condition_holds(
+        &self,
+        condition: &Condition,
+        ctx: &ResolutionContext,
+        walk: &ResolutionWalk,
+    ) -> bool {
+        match condition {
+            Condition::CostAnswer(answer) => walk.last_cost_answer == Some(*answer),
+            Condition::All(clauses) => clauses.iter().all(|c| self.resolution_condition_holds(c, ctx, walk)),
+            other => {
+                let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
+                crate::engine::layers::condition::settled_holds(other, self, source)
+            }
+        }
     }
 
     /// CR 113.7a's "this [object]" for a resolution: the ability's source,

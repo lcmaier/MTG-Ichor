@@ -558,6 +558,27 @@ pub enum Condition {
     /// resolution's last step (CR 608.2n), so the Nth resolution reads N - 1.
     /// A resolution's question, like [`Self::ModeChosen`].
     ResolvedThisTurn(u32),
+    /// "If you do", "if you don't", "if you can't" (CR 118.12): the answer the
+    /// action before the clause gave. Only the resolver's walk has it, so the
+    /// walk answers this leaf before any evaluator sees it; a static ability
+    /// never has one.
+    CostAnswer(CostAnswer),
+}
+
+/// CR 118.12's answer, in the rule's words: whether the player "does,
+/// doesn't, or can't" take the action a clause after it asks about. It is
+/// the choice or the start of the action, "regardless of what events
+/// actually occurred": a "may" whose damage is prevented is still `Does`
+/// (Wicked Guardian's ruling).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CostAnswer {
+    /// The optional action was chosen, or the mandatory one was started.
+    Does,
+    /// The optional action was declined, or could not be chosen.
+    Doesnt,
+    /// The mandatory action could not be started: Standstill, exiled before
+    /// its trigger resolves, is not there to sacrifice.
+    Cant,
 }
 
 /// A fact about one player now, which [`Condition::Player`] asks of each
@@ -1551,8 +1572,12 @@ pub enum Effect {
     /// "If [condition], [effect]" — intervening if (rule 603.4)
     Conditional(Condition, Box<Effect>),
 
-    /// "You may [effect]" (rule 603.5)
-    Optional(Box<Effect>),
+    /// "[Chooser] may [effect]" (CR 603.5): asked as the effect resolves,
+    /// never as the ability triggers. The chooser is `You` unless the text
+    /// names another player. The answer it leaves (CR 118.12) is the choice:
+    /// declined is `Doesnt`, and taken is the action's own, since CR 118.3
+    /// lets no player pay a cost they can't (`triggers-architecture.md` §6.2).
+    Optional { chooser: PlayerRef, effect: Box<Effect> },
 
     /// "Choose N mode(s):" (rule 700.2)
     Modal {
@@ -1679,7 +1704,7 @@ impl Effect {
                 }
             }
             Effect::Conditional(_, effect)
-            | Effect::Optional(effect)
+            | Effect::Optional { effect, .. }
             | Effect::ForEach(_, effect)
             | Effect::Repeat(_, effect) => effect.for_each_ability_def_mut(f),
             Effect::Replacement(def) => {

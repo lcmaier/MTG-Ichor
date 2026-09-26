@@ -279,6 +279,7 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
+        | Condition::CostAnswer(_)
         | Condition::ThisTurn(_)
         | Condition::LastTurn(_)
         | Condition::SinceYourLastTurn(_)
