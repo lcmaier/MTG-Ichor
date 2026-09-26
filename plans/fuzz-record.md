@@ -100,7 +100,7 @@ plus one CR 613.8 exact test per pass, about 50 µs, which always answers
 "no". **The pre-check's grain on the pools**, for the owner's note at
 approval: 1,337 / 1,844 exact tests in 20 Commander games answered "no",
 about 1% and 0.7% of engine time, and a value grain and a direction grain
-would have skipped most of them (`backlog.md` §2.38).
+would have skipped most of them (`backlog.md` §2.39).
 
 **Re-recorded 2026-09-25 for item 180** (registry rows shared across a fork;
 `codebase-state.md` item 180 closed; `roadmap-v2.md` A6b). No pool change.

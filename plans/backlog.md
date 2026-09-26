@@ -2277,7 +2277,85 @@ the matrix waits for the design that needs it.
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
-### 2.38 The grain of the CR 613.8 pre-check — a performance lever
+### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and two open questions
+
+**The surface that cannot serve it.** v1's first use case is four-player
+Commander through a GUI, and `roadmap-v2.md` §6 puts the target between
+XMage's function and Arena's polish: a board that resizes with what is on it,
+and moves that animate. Four things stand between the engine and that client:
+
+- **Nothing answers "what may this seat see".** That is §2.9, built as B4, and
+  a GUI for one human renders one player's view.
+- **The wire surface is not serializable.** `serde` is not a dependency, and
+  `codebase-state.md` main item 141's payload rule is unmet in two places:
+  `SelectRecipients` carries an `EffectRecipient` tree, and `ChoiceOption`'s
+  cost options carry `Cost` trees.
+- **The decision loop needs a thread that can block.** `Game::run(&dp)` calls
+  the provider and waits for the answer. Forge and XMage share the design:
+  Forge's game thread waits on a `CountDownLatch`, and XMage's sleeps in
+  `HumanPlayer.waitForResponse` until the client answers. Natively that costs
+  a thread and a channel; a browser tab's main thread cannot block, which is
+  open question 1.
+- **A Commander client needs state the engine does not have yet:** mulligans
+  (§2.32), deck validation (§2.13), and Phase 9's Commander state.
+
+**What a client already gets**, so Phase 10's design starts from it: prompts
+that name their subject (`ChoiceKind::subject()`, matched exhaustively); a
+post-replacement stream of performed events to animate from; an `ObjectId`
+that survives a zone change, which main item 10's plan keeps, so a card moving
+from hand to battlefield animates as one object; effective characteristics
+through `oracle/characteristics.rs`; and a measured board to lay out, about 30
+permanents at a priority prompt on a Commander board and up to about 80
+(`roadmap-v2.md` §E, the post-RE audit's pass 3).
+
+**Open question 1: where the engine runs.** `roadmap-v2.md` §E and §6 named
+Wasm; they point here now and leave it open. In a browser tab the blocking
+provider needs one of four things:
+
+- a Web Worker waiting on `Atomics.wait`, which needs cross-origin isolation,
+  and isolation also restricts cross-origin card images;
+- JSPI, which lets synchronous Wasm suspend on a JavaScript promise with no
+  engine change; its browser support is checked at Phase 10;
+- an engine that suspends and resumes by replay. Most of it exists: a fork at
+  a priority prompt is proven sound at round starts (`tests/priority_fork_test.rs`,
+  main item 41) and resumes through `Game::resume_turn_at_priority`, and main
+  item 140 extends it to any priority prompt. What a suspend adds is the
+  unwinding: the chokepoints already return `Result` up to `Game::run`, so it
+  rides the existing `?` chains, and the 27 `ask_*` call sites and the four
+  trait methods change, with either a sentinel error or a typed one in place
+  of the 135 `Result<_, String>` signatures. One or two PRs, mostly mechanical;
+- an async rewrite, the textbook answer and the largest: 82 engine signatures
+  in 20 files carry the provider (38 directly, 44 inside `ActionContext`),
+  recursion needs boxing, and the cost lands on the AI harness's in-process
+  path.
+
+None of the four is needed if the engine runs natively on a host, with the UI
+in a browser or a Tauri window. That is the recommendation, with Wasm as an
+optional later target such as offline single-player.
+
+**Open question 2: are v1's four seats four machines?** `roadmap-v2.md` §1
+says "peer-to-peer 4-player Commander through a GUI" and §6 says "Network play
+is a stretch goal". If they are, the GUI gains host and join, reconnection,
+and a way through home routers. Reconnection does not need main item 40: the
+host's engine thread is still blocked on the pending prompt and sends it again.
+
+**One client, not the interface.** Nothing in the engine is shaped for this
+GUI beyond what any client is owed: item 141's payload rule and §2.22's census.
+The stack is a recommendation for Phase 10's design, not a decision: a
+TypeScript frontend (Svelte 5, or React with Motion), a Rust host behind a
+WebSocket with `serde` and `ts-rs` generating the shared types, and Tauri 2 for
+the desktop app.
+
+| Field | |
+|---|---|
+| **Rules** | none of its own; CR 400.2's public and hidden zones are §2.9's |
+| **Verdict** | nothing answers a per-viewer query (§2.9); `serde` is absent and item 141's payload rule is unmet at `SelectRecipients` and the cost options; `Game::run`'s provider needs a thread that can block |
+| **Size** | a judgment, ±50%: the frontend ~12,000–20,000 lines, the protocol and host ~2,500–4,000; about 5–8 weeks at the rate measured 2026-08-19 → 09-25 (151 PRs, ~2,200 net Rust lines a calendar day), about a third of it writing and the rest tuning; plus 2–3 weeks if the seats are four machines. Re-derive from A6g's measured rate before scheduling |
+| **Blocks** | v1's first use case. Nothing on the spine |
+| **Atoms** | none; the CR does not speak to interfaces |
+| **Owner** | — ; Phase 10 (`roadmap-v2.md` §E), with A6g's dev GUI as its first slice. Filed 2026-09-25 from the owner's question about a GUI |
+
+### 2.39 The grain of the CR 613.8 pre-check — a performance lever
 
 **What the pre-check is.** `layers/board.rs` decides CR 613.8a(b) in two
 steps. `Channels` compares what one application reads with what another

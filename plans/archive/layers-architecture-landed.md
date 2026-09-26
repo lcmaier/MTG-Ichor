@@ -1289,5 +1289,5 @@ the predictions:
   183). LL's memo is about 9 KB of the breach; with item 183's clone half
   the game reads 73.2 KB.
 - **The pre-check's grain, measured for the owner's note**: about 1% of
-  engine time on `performance`, 0.7% on `stress` (`backlog.md` §2.38).
+  engine time on `performance`, 0.7% on `stress` (`backlog.md` §2.39).
 

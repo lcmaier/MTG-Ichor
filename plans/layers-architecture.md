@@ -2669,7 +2669,7 @@ from 4,640–6,810, and the pools are `IDENTICAL` in every row at +0.36%
 instructions per decision. Closes `codebase-state.md` items 181 and 182, and
 half of 183 (a clone copied the high-water capacity of the state's maps,
 which broke floor 3 on one fixture game); files 184 (CR 613.6's lock within
-a layer) and `backlog.md` §2.38 (the pre-check's grain).
+a layer) and `backlog.md` §2.39 (the pre-check's grain).
 
 → The section as written at the close, what the building changed and the
 measurement: `plans/archive/layers-architecture-landed.md`, "LL" (evicted

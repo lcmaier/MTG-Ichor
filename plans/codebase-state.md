@@ -7787,7 +7787,8 @@ the file.
      command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
      review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
      `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
-     step 3.
+     step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
+     GUI, which is the first GUI to need it.
 
 162. **The tap solver's two halves — the matching and its two customers.**
      §2.18's oracle half is a bipartite matching from the pips
@@ -7886,6 +7887,14 @@ the file.
      Size the migration by running it before scheduling; if most of the 148
      are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
      was not, and cheap.
+
+     **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g** (the dev GUI),
+     whose seats should never be handed a `[Pass]`-only prompt; the migration
+     is still counted by running it first. **It is not the floor lever.** In
+     process it saves the provider round trip, item 138's lever 10 at ~2%;
+     proving a list is `[Pass]` is lever 4's enumeration, 19.2% of
+     instructions when last measured (2026-09-16), and this item leaves it in
+     place.
 
 165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
      should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
