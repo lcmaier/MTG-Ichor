@@ -10,8 +10,9 @@ use crate::objects::card_data::AbilityDef;
 use crate::types::zones::Zone;
 use crate::state::game_state::{GameState, PlannedPhase};
 use crate::types::effects::{
-    AmountExpr, Condition, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect, EffectRecipient,
-    NamedPlayers, PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Choice, ChoiceScope, Condition, CopyRoles, CostAnswer, DiscardChooser, Duration, Effect,
+    EffectRecipient, NamedPlayers, PatternFill, PickCount, PlayerGroup, PlayerRef, PlayerSet, Primitive,
+    SelectionFilter, TargetCount,
 };
 use crate::oracle::characteristics::{controls, get_effective_controller};
 use crate::state::replacement_effects::RegisteredReplacementEffect;
@@ -180,7 +181,7 @@ impl GameState {
                 recipient @ (EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer),
             ) => {
                 let bound = self.bound_targets(recipient, ctx)?;
-                self.resolve_primitive(primitive, recipient, &bound, ctx, dp)
+                self.resolve_primitive(primitive, recipient, &bound, ctx, dp, walk)
             }
             // "Each player", "you and that player": every player the group names,
             // in APNAP order (CR 101.4), handed to the primitive as its players.
@@ -196,19 +197,26 @@ impl GameState {
                 }
                 let players: Vec<ResolvedTarget> =
                     self.players_in(group, ctx).into_iter().map(ResolvedTarget::Player).collect();
-                self.resolve_primitive(primitive, recipient, &players, ctx, dp)
+                self.resolve_primitive(primitive, recipient, &players, ctx, dp, walk)
             }
             // "This creature": no instance of "target" either (CR 113.7a), and
             // empty when the source is no longer the object the ability is of.
             Effect::Atom(primitive, recipient @ EffectRecipient::ThisObject) => {
                 let this: Vec<ResolvedTarget> =
                     self.this_object(ctx).map(ResolvedTarget::Object).into_iter().collect();
-                self.resolve_primitive(primitive, recipient, &this, ctx, dp)
+                self.resolve_primitive(primitive, recipient, &this, ctx, dp, walk)
+            }
+            // CR 608.2d — objects a player chooses as the effect applies,
+            // checked against the verb's own event (CR 101.2), so a "can't"
+            // removes a candidate rather than refusing a choice.
+            Effect::Atom(primitive, recipient @ EffectRecipient::ChosenBy(choice)) => {
+                let chosen = self.choose_as_it_applies(primitive, choice, declared, walk, ctx, dp)?;
+                self.resolve_primitive(primitive, recipient, &chosen, ctx, dp, walk)
             }
             Effect::Atom(primitive, recipient) => {
                 match instance_of(recipient, declared, &mut walk.instance_cursor) {
                     Some((ix, clause)) => {
-                        self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp)
+                        self.resolve_primitive(primitive, clause, ctx.targets.instance(ix), ctx, dp, walk)
                     }
                     // `Instance(ix)` naming a clause that does not exist: a
                     // card-authoring error, loud rather than silently
@@ -220,7 +228,7 @@ impl GameState {
                     )),
                     // Implicit, Controller, the filtered sweeps, Host — none
                     // reads a chosen target.
-                    None => self.resolve_primitive(primitive, recipient, &[], ctx, dp),
+                    None => self.resolve_primitive(primitive, recipient, &[], ctx, dp, walk),
                 }
             }
 
@@ -350,6 +358,7 @@ impl GameState {
         targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
+        walk: &mut ResolutionWalk,
     ) -> Result<(), String> {
         // Every mutation a primitive proposes belongs to *this* resolution
         // (CR 614.15 / the resolution stamp on each emitted event).
@@ -619,31 +628,13 @@ impl GameState {
             // Stunning Reversal" as a spell's last instruction, which CR 608.2m lets
             // finish resolving from exile. One batch, for `Destroy`'s reason (CR 608.2f).
             Primitive::Exile => {
-                let objects: Vec<ObjectId> = match recipient {
-                    EffectRecipient::Implicit => {
-                        return Err(format!(
-                            "a `Primitive::Exile` on {:?} names nothing to exile; use `ThisObject` or a target",
-                            ctx.source
-                        ));
-                    }
-                    _ => targets
-                        .iter()
-                        .filter_map(|t| match t {
-                            ResolvedTarget::Object(id) if self.objects.contains_key(id) => Some(*id),
-                            _ => None,
-                        })
-                        .collect(),
-                };
-                let mut batch = Vec::with_capacity(objects.len());
-                for object in objects {
-                    let from = self.get_object(object)?.zone;
-                    batch.push(GameAction::ZoneChange {
-                        object,
-                        from,
-                        to: Zone::Exile,
-                        cause: ZoneChangeCause::Exiled,
-                    });
+                if let EffectRecipient::Implicit = recipient {
+                    return Err(format!(
+                        "a `Primitive::Exile` on {:?} names nothing to exile; use `ThisObject` or a target",
+                        ctx.source
+                    ));
                 }
+                let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
@@ -749,17 +740,8 @@ impl GameState {
                 // (CR 614.17), asked ahead of the pipeline by
                 // `engine::restriction::is_prohibited`, so a CR 614.15 self-replacement
                 // (614.17c) can still see the proposal.
-                let mut batch = Vec::new();
-                for target in targets {
-                    if let ResolvedTarget::Object(id) = target
-                        && self.battlefield.contains_key(id) {
-                        batch.push(GameAction::Destroy {
-                            object: *id,
-                            source: DestructionSource::Effect(ctx.source),
-                        });
-                    }
-                        // If not on battlefield, destroy does nothing (rule 701.8b)
-                }
+                // Off the battlefield, destroy does nothing (rule 701.8b).
+                let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
@@ -829,10 +811,9 @@ impl GameState {
                 // and CR 603.2c's "whenever one or more permanents untap"
                 // reads the batch rather than its members — the same argument
                 // the untap step's own sweep makes.
-                self.execute_actions(
-                    ids.into_iter().map(|object| GameAction::Untap { object }).collect(),
-                    &actx,
-                )?;
+                let objects: Vec<ResolvedTarget> = ids.into_iter().map(ResolvedTarget::Object).collect();
+                let batch = self.events_for(primitive, &objects, ctx)?;
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 
@@ -1239,6 +1220,10 @@ impl GameState {
                             ctx.source
                         ));
                     }
+                    // A row on a permanent of a player's choice waits for its card.
+                    EffectRecipient::ChosenBy(_) => {
+                        return Err(format!("{:?} on a `Primitive::CreateReplacement` is not built", recipient));
+                    }
                     // CR 615.11 — one row per applicable *permanent*, fixed at resolution and
                     // ordered because the rows are offered to CR 616.1 prompts in registration
                     // order. A row on a card in another zone is §3.3 source 2 and needs
@@ -1358,14 +1343,27 @@ impl GameState {
             // filter in, so Sigarda produces no prompt rather than a refused one.
             // Not destruction (CR 701.21b): regeneration and indestructible do not
             // apply, which is why the cause is its own `ZoneChangeCause` variant.
-            Primitive::Sacrifice(filter, amount) => {
-                let count = self.evaluate_amount(amount, ctx)?;
+            Primitive::Sacrifice => {
+                // A named permanent is the resolution's controller's to
+                // sacrifice, and only while they control it and no "can't"
+                // forbids it; a chosen one was chosen from its chooser's own,
+                // past the same "can't".
+                let named = !matches!(recipient, EffectRecipient::ChosenBy(_));
+                let mut batch = Vec::new();
                 for target in targets {
-                    let ResolvedTarget::Player(player) = target else {
+                    let ResolvedTarget::Object(id) = *target else { continue };
+                    if named && (!controls(self, id, ctx.controller) || !self.admits(primitive, id, targets, ctx)?) {
                         continue;
-                    };
-                    self.sacrifice_of_choice(*player, filter, count, ctx, dp)?;
+                    }
+                    batch.extend(self.event_for(primitive, id, targets, ctx)?);
                 }
+                // CR 118.12 — nothing to sacrifice is an action that could not
+                // be started.
+                if batch.is_empty() {
+                    walk.last_cost_answer = Some(CostAnswer::Cant);
+                    return Ok(());
+                }
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 
@@ -1374,11 +1372,7 @@ impl GameState {
             Primitive::Tap => {
                 // One batch: CR 608.2f processes a spell's actions over several
                 // objects simultaneously.
-                let batch = self
-                    .collect_battlefield_targets(targets)
-                    .into_iter()
-                    .map(|object| GameAction::Tap { object })
-                    .collect();
+                let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
@@ -1417,37 +1411,11 @@ impl GameState {
             // doublers replace a counter mutation, and CR 122.1c/d's own replacement
             // effects *produce* one ("instead remove a stun counter from it").
 
-            Primitive::AddCounters { counter, amount, by } => {
-                let n = self.evaluate_amount(amount, ctx)? as u32;
-                let by = self.resolve_player_ref(by, targets, ctx)?;
-                // One batch: CR 608.2f processes a spell's actions over several
-                // objects simultaneously, which is what lets a single CR 614.16
-                // doubler see all of them.
-                let batch = self
-                    .collect_battlefield_targets(targets)
-                    .into_iter()
-                    .map(|object| GameAction::AddCounters {
-                        subject: CounterSubject::Object(object),
-                        counter: *counter,
-                        n,
-                        by,
-                    })
-                    .collect();
-                self.execute_actions(batch, &actx)?;
-                Ok(())
-            }
-
-            Primitive::RemoveCounters(counter_type, amount_expr) => {
-                let n = self.evaluate_amount(amount_expr, ctx)? as u32;
-                let batch = self
-                    .collect_battlefield_targets(targets)
-                    .into_iter()
-                    .map(|object| GameAction::RemoveCounters {
-                        subject: CounterSubject::Object(object),
-                        counter: *counter_type,
-                        n,
-                    })
-                    .collect();
+            // One batch: CR 608.2f processes a spell's actions over several
+            // objects simultaneously, which is what lets a single CR 614.16
+            // doubler see all of them.
+            Primitive::AddCounters { .. } | Primitive::RemoveCounters(..) => {
+                let batch = self.events_for(primitive, targets, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }
@@ -1533,8 +1501,9 @@ impl GameState {
                         })
                         .collect(),
                     EffectRecipient::SameInstanceAs(_) => return Err(back_reference(recipient, ctx)),
-                    // Refused at the atom: "each player shuffles" waits for its card.
-                    EffectRecipient::EachOf(_) => {
+                    // Refused at the atom: "each player shuffles" waits for its card,
+                    // and a library is no object to choose.
+                    EffectRecipient::EachOf(_) | EffectRecipient::ChosenBy(_) => {
                         return Err(format!("{:?} on a `Primitive::ShuffleLibrary` is not built", recipient));
                     }
                     EffectRecipient::FilteredPermanents(_)
@@ -1948,82 +1917,168 @@ impl GameState {
         Ok(Some(filled))
     }
 
-    fn sacrifice_of_choice(
+    /// [`EffectRecipient::ChosenBy`]: each player the chooser names picks, in
+    /// APNAP order (CR 101.4), from the choice's scope, and every pick comes
+    /// back in that order for the verb to act on at once. A candidate is one
+    /// the verb's own event may act on (CR 101.2).
+    fn choose_as_it_applies(
         &mut self,
-        player: PlayerId,
-        filter: &SelectionFilter,
-        count: u64,
+        primitive: &Primitive,
+        choice: &Choice,
+        declared: DeclaredInstances<'_>,
+        walk: &mut ResolutionWalk,
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
-    ) -> Result<(), String> {
-        let candidates: Vec<ResolvedTarget> =
-            crate::oracle::legality::enumerate_legal_selections(self, filter, None, player)
+    ) -> Result<Vec<ResolvedTarget>, String> {
+        let choosers: Vec<PlayerId> = match &choice.chooser {
+            EffectRecipient::Controller => vec![ctx.controller],
+            EffectRecipient::EachOf(group) => self.players_in(group, ctx),
+            EffectRecipient::TriggeringPlayer => self
+                .bound_targets(&choice.chooser, ctx)?
                 .into_iter()
-                .filter(|t| match t {
-                    // "Its controller moves it": only your own permanents.
-                    ResolvedTarget::Object(id) => {
-                        controls(self, *id, player)
-                            && !self.sacrifice_is_prohibited(*id, ctx.controller)
-                    }
-                    ResolvedTarget::Player(_) => false,
+                .filter_map(|t| match t {
+                    ResolvedTarget::Player(pid) => Some(pid),
+                    ResolvedTarget::Object(_) => None,
                 })
-                .collect();
-
-        // CR 101.3 — "if a player is instructed to do something impossible,
-        // only the possible portion is performed". Blasphemous Edict asks for
-        // thirteen and a player with two sacrifices two; the same clamp is what
-        // makes an empty pool a silent no-op rather than an error.
-        let n = (count as usize).min(candidates.len());
-        if n == 0 {
-            return Ok(());
+                .collect(),
+            chooser @ (EffectRecipient::Target(..) | EffectRecipient::Choose(..) | EffectRecipient::SameInstanceAs(_)) => {
+                match instance_of(chooser, declared, &mut walk.instance_cursor) {
+                    Some((ix, _)) => ctx
+                        .targets
+                        .instance(ix)
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Player(pid) => Some(*pid),
+                            ResolvedTarget::Object(_) => None,
+                        })
+                        .collect(),
+                    None => Vec::new(),
+                }
+            }
+            other => return Err(format!("{:?} names no player to make a choice", other)),
+        };
+        let mut chosen = Vec::new();
+        for player in choosers {
+            for pick in &choice.picks {
+                let mut candidates = Vec::new();
+                match choice.among {
+                    ChoiceScope::ChoosersPermanents => {
+                        for id in self.battlefield_ids_ordered() {
+                            if controls(self, id, player)
+                                && self.object_matches_filter(id, &pick.filter, ctx.controller).unwrap_or(false)
+                                && self.admits(primitive, id, &[], ctx)?
+                            {
+                                candidates.push(ResolvedTarget::Object(id));
+                            }
+                        }
+                    }
+                }
+                let count = match &pick.count {
+                    PickCount::Exactly(amount) => self.evaluate_amount(amount, ctx)? as usize,
+                };
+                let n = count.min(candidates.len());
+                let asked = EffectRecipient::Choose(
+                    SelectionFilter::Permanent(pick.filter.clone()),
+                    TargetCount::Exactly(n as u32),
+                );
+                chosen.extend(crate::ui::ask::ask_select_recipients(
+                    dp, self, player, &asked, ctx.source, &candidates, n, n,
+                ));
+            }
         }
-
-        let recipient =
-            EffectRecipient::Choose(filter.clone(), TargetCount::Exactly(n as u32));
-        let chosen = crate::ui::ask::ask_select_recipients(
-            dp, self, player, &recipient, ctx.source, &candidates, n, n,
-        );
-
-        // One batch, not a loop: CR 701.21 sacrifices happen simultaneously
-        // (Barter in Blood's two creatures die as one event), and CR 704.3's
-        // single event and CR 615.7's allocation are unreachable from a loop.
-        let actx = ActionContext::resolving(dp, ctx);
-        let batch: Vec<GameAction> = chosen
-            .iter()
-            .filter_map(|t| match t {
-                ResolvedTarget::Object(id) => Some(GameAction::ZoneChange {
-                    object: *id,
-                    from: Zone::Battlefield,
-                    to: Zone::Graveyard,
-                    cause: ZoneChangeCause::Sacrificed,
-                }),
-                ResolvedTarget::Player(_) => None,
-            })
-            .collect();
-        self.execute_actions(batch, &actx)?;
-        Ok(())
+        Ok(chosen)
     }
 
-    /// Would sacrificing this permanent be prohibited (CR 101.2)?
-    ///
-    /// The candidate-filter half of §4.9, asked of the event the choice would
-    /// produce rather than of the choice — which is what keeps this an axis-1
-    /// question and leaves the axis-2 choice sites to RS-2.
-    fn sacrifice_is_prohibited(&self, id: ObjectId, cause: PlayerId) -> bool {
-        let action = GameAction::ZoneChange {
-            object: id,
-            from: Zone::Battlefield,
-            to: Zone::Graveyard,
-            cause: ZoneChangeCause::Sacrificed,
-        };
-        crate::engine::restriction::is_prohibited(
-            self,
-            &crate::engine::restriction::Query::Event {
-                action: &action,
-                cause: Some(cause),
-                lookahead: None,
+    /// The event `primitive` proposes for one object: the one table an object
+    /// verb's batch and a choice's "can't" check both read, so the event a
+    /// candidate is checked against is the event performed. `None` for an
+    /// object the verb cannot act on where it is; `Err` for a verb that acts
+    /// on no object.
+    fn event_for(
+        &self,
+        primitive: &Primitive,
+        object: ObjectId,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Result<Option<GameAction>, String> {
+        let permanent = self.battlefield.contains_key(&object);
+        Ok(match primitive {
+            Primitive::Destroy => {
+                permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.source) })
+            }
+            // CR 701.13a — from wherever the object is.
+            Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {
+                object,
+                from: obj.zone,
+                to: Zone::Exile,
+                cause: ZoneChangeCause::Exiled,
+            }),
+            Primitive::Sacrifice => permanent.then_some(GameAction::ZoneChange {
+                object,
+                from: Zone::Battlefield,
+                to: Zone::Graveyard,
+                cause: ZoneChangeCause::Sacrificed,
+            }),
+            Primitive::Tap => permanent.then_some(GameAction::Tap { object }),
+            Primitive::Untap => permanent.then_some(GameAction::Untap { object }),
+            Primitive::AddCounters { counter, amount, by } => match permanent {
+                false => None,
+                true => Some(GameAction::AddCounters {
+                    subject: CounterSubject::Object(object),
+                    counter: *counter,
+                    n: self.evaluate_amount(amount, ctx)? as u32,
+                    by: self.resolve_player_ref(by, targets, ctx)?,
+                }),
             },
-        )
+            Primitive::RemoveCounters(counter, amount) => match permanent {
+                false => None,
+                true => Some(GameAction::RemoveCounters {
+                    subject: CounterSubject::Object(object),
+                    counter: *counter,
+                    n: self.evaluate_amount(amount, ctx)? as u32,
+                }),
+            },
+            other => return Err(format!("{:?} acts on no object, so it has no event for {}", other, object)),
+        })
+    }
+
+    /// [`Self::event_for`] over the objects of a target slice, in its order.
+    fn events_for(
+        &self,
+        primitive: &Primitive,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Result<Vec<GameAction>, String> {
+        let mut batch = Vec::new();
+        for target in targets {
+            if let ResolvedTarget::Object(id) = *target {
+                batch.extend(self.event_for(primitive, id, targets, ctx)?);
+            }
+        }
+        Ok(batch)
+    }
+
+    /// May the verb act on `object` at all: it has an event there, and no
+    /// "can't" forbids the event this resolution would cause (CR 101.2 —
+    /// `cant-effects-architecture.md` §4.9's candidate filter).
+    fn admits(
+        &self,
+        primitive: &Primitive,
+        object: ObjectId,
+        targets: &[ResolvedTarget],
+        ctx: &ResolutionContext,
+    ) -> Result<bool, String> {
+        Ok(match self.event_for(primitive, object, targets, ctx)? {
+            None => false,
+            Some(action) => !crate::engine::restriction::is_prohibited(
+                self,
+                &crate::engine::restriction::Query::Event {
+                    action: &action,
+                    cause: Some(ctx.controller),
+                    lookahead: None,
+                },
+            ),
+        })
     }
 
     /// The permanents a one-shot continuous effect applies to: its resolved

@@ -15,18 +15,27 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, draws_a_card, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::safe_passage;
-use mtgsim::engine::resolve::ResolutionContext;
+use mtgsim::engine::actions::GameAction;
+use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
+use mtgsim::engine::targeting::ChosenTargets;
 use mtgsim::events::event::GameEvent;
-use mtgsim::objects::card_data::CardData;
+use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    creature_with_ability, fill_library, put_on_battlefield, setup_two_player_game, stock_libraries,
-    test_ctx, test_dp,
+    card_of_type, creature_with_ability, fill_library, put_in_hand, put_on_battlefield, set_active_player,
+    setup_game, setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature,
+    RecordingDecisionProvider,
 };
-use mtgsim::types::effects::{AmountExpr, Condition, CostAnswer, Effect, EffectRecipient, PlayerRef, Primitive};
-use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::card_types::CardType;
+use mtgsim::types::effects::{
+    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, Effect, EffectRecipient, ObjectFilter,
+    Pick, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+};
+use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
+use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{TriggerEvent, TriggerSubject};
-use mtgsim::types::zones::Zone;
+use mtgsim::types::zones::{Zone, ZoneChangeCause};
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
@@ -88,6 +97,51 @@ fn place(game: &mut GameState, dp: &dyn DecisionProvider) {
 /// script the prompt its resolution asks.
 fn top_of_stack(game: &GameState) -> ObjectId {
     *game.stack.last().expect("something on the stack")
+}
+
+/// "[Chooser] sacrifices [n] creature(s) of their choice", chosen as it
+/// resolves from the chooser's own.
+fn sacrifices(chooser: EffectRecipient, n: u64) -> Effect {
+    Effect::Atom(
+        Primitive::Sacrifice,
+        EffectRecipient::ChosenBy(Box::new(Choice {
+            chooser,
+            among: ChoiceScope::ChoosersPermanents,
+            picks: vec![Pick::exactly(n, ObjectFilter::ByType(CardType::Creature))],
+            acts_on: ChoiceSide::Chosen,
+        })),
+    )
+}
+
+/// Cast a {0} instant that does nothing, from `player`'s hand.
+fn cast_a_spell(game: &mut GameState, player: PlayerId) {
+    let spell = CardDataBuilder::new("Idle Thought")
+        .mana_cost(ManaCost::build(&[], 0))
+        .card_type(CardType::Instant)
+        .ability(AbilityDef {
+            id: new_ability_id(),
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Sequence(Vec::new()),
+            is_characteristic_defining: false,
+            activation_restriction: ActivationRestriction::None,
+        })
+        .build();
+    let id = put_in_hand(game, spell, player);
+    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
+    game.cast_spell(player, id, &dp).expect("castable");
+}
+
+fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::BatchId>)> {
+    game.recorded_events()
+        .records()
+        .iter()
+        .filter_map(|r| match r.event {
+            GameEvent::ZoneChange { object_id, cause: ZoneChangeCause::Sacrificed, .. } => Some((object_id, r.stamp.batch)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Walk the turn machinery until `whose` player's `step` begins.
@@ -218,4 +272,148 @@ fn two_clauses_after_one_may_read_its_one_answer() {
             assert_eq!((game.players[0].life_total, game.players[0].hand.len()), (19, hand + 1), "both clauses ran");
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// CR 701.21a, 608.2d — sacrifice, and a choice made as the effect applies
+// ---------------------------------------------------------------------------
+
+/// Standstill's board (ATOM-118.12-001): "When a player casts a spell,
+/// sacrifice this enchantment. If you do, each player draws three cards",
+/// with the enchantment exiled before its triggers resolve. It is not there
+/// to sacrifice, so CR 118.12's answer is `Cant`, "if you do" fails, and
+/// nobody draws, for either trigger. The fixture draws for each player where
+/// Standstill draws for "that player's opponents": no `PlayerGroup` can say
+/// the second yet, and the atom's claim is that nobody draws.
+// COVERS: ATOM-118.12-001
+#[test]
+fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
+    let mut game = setup_two_player_game();
+    stock_libraries(&mut game, 10);
+    let draw_three = Effect::Atom(
+        Primitive::DrawCards(AmountExpr::Fixed(3)),
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone)),
+    );
+    let standing = CardDataBuilder::new("Standing Stillness")
+        .card_type(CardType::Enchantment)
+        .ability(triggered_ability(whenever(
+            TriggerEvent::CastsSpell { caster: None, spell: None },
+            Effect::Sequence(vec![Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject), if_you(CostAnswer::Does, draw_three)]),
+        )))
+        .build();
+    let stillness = put_on_battlefield(&mut game, standing, 0);
+    cast_a_spell(&mut game, 1);
+    cast_a_spell(&mut game, 1);
+    place(&mut game, &RecordingDecisionProvider::picking(0));
+    assert_eq!(game.stack.len(), 4, "two spells, and the two triggers above them");
+
+    game.execute_action(
+        GameAction::ZoneChange { object: stillness, from: Zone::Battlefield, to: Zone::Exile, cause: ZoneChangeCause::Exiled },
+        &test_ctx(),
+    )
+    .unwrap();
+    let hands = (game.players[0].hand.len(), game.players[1].hand.len());
+    for _ in 0..2 {
+        game.resolve_top_of_stack(&test_dp()).unwrap();
+    }
+    assert_eq!((game.players[0].hand.len(), game.players[1].hand.len()), hands, "nobody draws");
+}
+
+/// "If you can't" reads an action that could not be started: an edict on
+/// yourself with no creature, and "sacrifice this" once someone else controls
+/// it (CR 701.21a — a player can't sacrifice what they don't control).
+#[test]
+fn if_you_cant_reads_a_sacrifice_that_could_not_start() {
+    let lose_five = Effect::Atom(Primitive::LoseLife(AmountExpr::Fixed(5)), EffectRecipient::Controller);
+
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, card_of_type("Hungry Idol", CardType::Artifact), 0);
+    let effect = Effect::Sequence(vec![sacrifices(EffectRecipient::Controller, 1), if_you(CostAnswer::Cant, lose_five.clone())]);
+    resolve_as(&mut game, source, effect.clone());
+    assert_eq!(game.players[0].life_total, 15, "no creature to sacrifice: 5 life");
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    resolve_as(&mut game, source, effect);
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.players[0].life_total, 15, "a creature sacrificed: no loss");
+
+    // The trigger's controller is 0; the permanent is now 1's.
+    let stolen = put_on_battlefield(&mut game, card_of_type("Wandering Idol", CardType::Artifact), 1);
+    let ctx = ResolutionContext {
+        ability_source: Some(ObjectRef { id: stolen, zone_change_epoch: game.get_object(stolen).unwrap().zone_change_epoch }),
+        ..ResolutionContext::untargeted(stolen, 0)
+    };
+    let sacrifice_this = Effect::Sequence(vec![
+        Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+        if_you(CostAnswer::Cant, lose_five),
+    ]);
+    game.resolve_effect(&sacrifice_this, &ctx, &test_dp()).unwrap();
+    assert_eq!(game.get_object(stolen).unwrap().zone, Zone::Battlefield, "not theirs to sacrifice");
+    assert_eq!(game.players[0].life_total, 10);
+}
+
+/// "Sacrifice that creature": the bound object, found by identity.
+#[test]
+fn a_trigger_sacrifices_the_object_its_event_named() {
+    let mut game = setup_two_player_game();
+    let sacrifice_it = Effect::Atom(Primitive::Sacrifice, EffectRecipient::TriggeringObject);
+    put_on_battlefield(
+        &mut game,
+        watcher("Ravenous Gate", enters(ObjectFilter::ByType(CardType::Creature)), sacrifice_it),
+        0,
+    );
+    game.pending_triggers.clear();
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+    place(&mut game, &test_dp());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Graveyard);
+}
+
+/// "Each opponent sacrifices a creature" at four seats: each chooses in turn,
+/// the active player first (CR 101.4, Soul Shatter's ruling), and all three
+/// are sacrificed at once, in one batch.
+#[test]
+fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
+    let mut game = setup_game(4);
+    game.record_events();
+    set_active_player(&mut game, 2);
+    let source = put_on_battlefield(&mut game, card_of_type("Grim Decree", CardType::Artifact), 0);
+    let mut first = Vec::new();
+    for seat in 1..4 {
+        first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
+    }
+    let dp = RecordingDecisionProvider::picking(0);
+    let each_opponent = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents));
+    let ctx = ResolutionContext::untargeted(source, 0);
+    game.resolve_effect(&sacrifices(each_opponent, 1), &ctx, &dp).unwrap();
+
+    assert_eq!(dp.prompts(), 3, "each opponent chose one of two");
+    let gone = sacrificed(&game);
+    let order: Vec<ObjectId> = gone.iter().map(|(id, _)| *id).collect();
+    assert_eq!(order, vec![first[1], first[2], first[0]], "seat 2, the active player, first");
+    assert!(gone.windows(2).all(|pair| pair[0].1 == pair[1].1), "one batch");
+}
+
+/// The choice is every object verb's, not sacrifice's: "target player exiles
+/// a creature of their choice" through the same recipient.
+#[test]
+fn an_exile_edict_chooses_through_the_same_recipient() {
+    let mut game = setup_two_player_game();
+    let source = put_on_battlefield(&mut game, card_of_type("Banishing Decree", CardType::Artifact), 0);
+    let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
+    let exiles = Effect::Atom(
+        Primitive::Exile,
+        EffectRecipient::ChosenBy(Box::new(Choice {
+            chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            among: ChoiceScope::ChoosersPermanents,
+            picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
+            acts_on: ChoiceSide::Chosen,
+        })),
+    );
+    let ctx = ResolutionContext {
+        targets: ChosenTargets::one(vec![ResolvedTarget::Player(1)]),
+        ..ResolutionContext::untargeted(source, 0)
+    };
+    game.resolve_effect(&exiles, &ctx, &test_dp()).unwrap();
+    assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
 }

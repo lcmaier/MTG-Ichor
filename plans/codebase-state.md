@@ -400,7 +400,7 @@ measurement; this is the state ledger. What landed:
   `{ from, to }` product was rejected — two of its four combinations are
   unreachable states.
 - **`ChoiceKind::ChooseCopySource`**, its own decision site rather than
-  `SelectRecipients`, which `sacrifice_of_choice` reuses. There the chosen object
+  `SelectRecipients`, which a choice at resolution reuses. There the chosen object
   is what the primitive acts on; here it is the opposite, and a DP heuristic
   keyed on the recipient kind would read the donor as the victim. Item 40 holds
   by construction: one prompt, and the chosen id is a local that never spans a

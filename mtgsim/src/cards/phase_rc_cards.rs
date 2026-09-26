@@ -627,7 +627,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
 /// candidate for it. What the pair does measure is that the `cause` the
 /// candidate filter asks CR 101.2 with is the *effect's* controller: get that
 /// wrong and Sigarda silently switches devour off for the player who controls
-/// her. The filter itself is `sacrifice_of_choice`'s axis-1 shape — a
+/// her. The filter itself is the resolution-time choice's axis-1 shape — a
 /// prohibited move removes the candidate rather than being chosen and then
 /// refused, which would leave the Elder counting creatures that never went
 /// anywhere.

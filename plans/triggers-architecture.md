@@ -2203,7 +2203,7 @@ pub enum PlayerFact {
 ```
 
 - **It holds when any player `whose` names meets the fact**, over the
-  players still in the game, as `EachOf` and `resolve_putter` already read a
+  players still in the game, as `EachOf` and `resolve_player_ref` already read a
   set. "An opponent controls a creature" asks whether one opponent does, and
   `You` is one player.
 - **It quantifies and does not sum.** `HistoryCount` sums its rows, and has
