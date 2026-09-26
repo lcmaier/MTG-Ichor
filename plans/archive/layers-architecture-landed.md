@@ -744,6 +744,8 @@ test of the leaf itself would catch it.
 
 *Evicted 2026-09-25 from `plans/layers-architecture.md`, where the heading and a stub remain.*
 
+*Renamed at PR #191's review (2026-09-26): the design's "replay" is the code's notes, since a replay already meant a replayed game in this tree and a decision a player's. RowNote was ReplayStep, AffectedSet was RowDecision, `PassMembership::LeftOut` was Membership::Replayed, `WalkKind::LeftOut` was Replayed, and `HiddenCards::InPass` was Held. Identifiers below are the code's; the prose keeps the design's word.*
+
 `codebase-state.md` item 181's fix, and the second of the two PRs `roadmap-v2.md`
 A6b puts ahead of TR-2b. Lettered as §13d says a phase implementing part of a
 row is. Written before code the way §13a–§13d were: the finding that sets the
@@ -844,9 +846,13 @@ whether either removes anything.
   types, and Grist's is conditional besides. With Grist in a hand, applying
   Grist's effect makes it a creature card, so Arcane's effect now applies to
   it, and Arcane's depends on Grist's.
-- A Grist drawn after Arcane entered is the younger object (CR 613.7d), so
-  timestamp order alone applies Arcane's first, and Grist misses the chosen
-  type. The dependency is decided through a card in a hand.
+- Timestamps alone would get it wrong, and CR 613.8b is what gets it right.
+  A Grist drawn after Arcane entered is the younger object (CR 613.7d), so
+  timestamp order would apply Arcane's effect first, while Grist is not yet a
+  creature card, and Grist would miss the chosen type. The dependency
+  overrides that: Arcane's effect waits until just after Grist's, whatever
+  the timestamps, and Grist is the chosen type. A pass sees the dependency
+  only with the card in the hand in it.
 - Grist is the row's own source, so decision 2 carries it: the source joins
   the pass, and the pass sees the dependency as it does today.
 
@@ -864,7 +870,20 @@ a way another hidden-zone row's filter tests, and no printed card does:
 So the guard is there for the CR: a custom card, or a future printing
 (`engineering-practices.md` §4: the CR is the customer, and a printed card is the test).
 Neither the second condition nor the third is needed by any printed card, and
-decision 4 is what the guard costs the printed ones.
+decision 4 is what the guard costs the printed ones. What each would take, in
+custom text (asked at the owner's review of PR #191):
+- **The second, a dependency decided through a card that is not a source.**
+  "Cards in your library are creature cards in addition to their other
+  types", beside Arcane Adaptation. Arcane's filter tests Creature and the
+  new row writes it, so Arcane's effect depends on it through every library
+  card and nothing on the battlefield. A pass without the library would order
+  the two by timestamp, and with Arcane the older, a library card would miss
+  the chosen type.
+- **The third, a row reaching the zone that reads the board to resolve.**
+  "Creature cards in your hand have base power and toughness each equal to
+  the greatest power among creatures you control" is a 7b amount read while
+  7c can still change those creatures. The pass reads it mid-layer; a walk
+  after the pass would read the settled powers instead.
 
 **Not §12's per-object dirty tracking.** That was deferred because a fine key
 must list every input, and CR 613.8 makes other objects' answers inputs. This
@@ -881,13 +900,13 @@ and never under a hypothetical's journal), the pass records the row, its layer
 and its decision then:
 
 ```rust
-pub(crate) struct ReplayStep {
+pub(crate) struct RowNote {
     layer_index: u8,
     row: Arc<ContinuousEffect>,   // #190 put every row behind one
-    decision: RowDecision,
+    affected: AffectedSet,
 }
 
-pub(crate) enum RowDecision {
+pub(crate) enum AffectedSet {
     /// CR 613.6: the effect started earlier. It applies to the card iff the
     /// card matched where the effect started.
     Locked,
@@ -912,12 +931,19 @@ That is `compute_non_member` with one more argument. A non-member is a card
 with no steps, so one function answers both, and its fast exit becomes "no CDA
 and no step".
 
-**Titania's Song is the board that makes the per-layer decision necessary.**
-Mycosynth Lattice's colorless line applies at layer 5, though Lattice has lost
-its abilities by the end of layer 6. A replay that asked the memo's settled
-Lattice would find no ability and skip the row.
+**Every layer-6 "loses all abilities" makes the per-layer decision
+necessary.** An ability removed at layer 6 still made its effect at an earlier
+layer: Painter's Servant under Humility, Kenrith's Transformation or Oko,
+Thief of Crowns' +1 colors every card in a library at layer 5, and has no
+ability by the end of layer 6. A replay that asked the memo's settled source
+would find no ability and skip the row. The test board is Titania's Song on
+Mycosynth Lattice, the same shape on item 181's fixtures. The decision costs
+nothing the pass does not do already: the pass decides existence at every
+layer (CR 604.2, `CLAUDE.md`), and the note keeps its answer. (Reworded at
+review, 2026-09-26: this said Titania's Song, which read as one card's
+indulgence.)
 
-**Where.** `LayerMemo` gets `replay: RefCell<Option<(u64, Arc<[ReplayStep]>)>>`
+**Where.** `LayerMemo` gets `notes: RefCell<Option<(u64, Arc<[RowNote]>)>>`
 beside its frames. The pass that fills the memo stores it, and it is read only
 at its own epoch. A live pass reads its own record in progress: a read at
 ceiling `c` needs only the layers below `c`, and those are complete.
@@ -1119,12 +1145,12 @@ could ignore.
 | `ZoneSet::HIDDEN`, pinned to `Zone::is_public` by a test | `types/zones.rs` | ~15 |
 | `left_out_zones`, the guard's (a) and (b) | `board.rs` | ~50 |
 | `Board::seed`: reached public zones as LJ seeds them, left-out zones not, the sources that join, the knob | `board.rs` | ~45 |
-| `membership`: `Membership::Replayed`, the joining sources | `board.rs` | ~30 |
+| `pass_membership`: `PassMembership::LeftOut`, the joining sources | `board.rs` | ~30 |
 | the record, in `perform` | `board.rs` | ~35 |
-| `compute_non_member` replays steps; the arms in `frame_of`, `frame_at_ceiling`, `walk_uncached` and `compute_characteristics` | `compute.rs`, `board.rs` | ~90 |
+| `compute_non_member` walks the notes; the arms in `frame_of`, `frame_at_ceiling`, `walk_uncached` and `compute_characteristics` | `compute.rs`, `board.rs` | ~90 |
 | the record in `LayerMemo` | `state/layer_memo.rs` | ~30 |
 | the debug audit (decision 6) | `compute.rs` | ~30 |
-| `WalkKind::Replayed` | `trace_records.rs` | ~5 |
+| `WalkKind::LeftOut` | `trace_records.rs` | ~5 |
 | item 182: the wrapper and its two sites | `oracle/characteristics.rs`, `put_on_stack.rs`, `oracle/mana_helpers.rs` | ~35 |
 | Fixtures: Titania's Song's first sentence, Grist's first ability on its printed frame, Arcane Adaptation's clause, a hand-functioning Wonder, the guard's two library rows | `cards/phase_ll_cards.rs` | ~190 |
 | Tests (below) | `tests/phase_ll_integration_test.rs`, unit | ~460 |
@@ -1211,12 +1237,12 @@ probes. Any cost row that moves is a finding.
   start. That is what the pass does (CR 613.6's set), found while writing the
   replay. The pass's lock has its own defect within a layer, which the replay
   mirrors: `codebase-state.md` item 184.
-- **`HiddenCards::Held` exists only in a debug build**, beside its audit. A
+- **`HiddenCards::InPass` exists only in a debug build**, beside its audit. A
   release build of the probe warned that it was never constructed, which
   `cargo build --all-targets`, a debug build, cannot show.
 - **Names:**
-  - `Membership::Replayed`, `ReplayStep`, `RowDecision::{Locked, Fresh}`,
-    `left_out_zones`, and `source_joins`;
+  - `PassMembership::LeftOut`, `RowNote`, `AffectedSet::{Locked, Fresh}`,
+    `left_out_zones`, and `source_joins`, as renamed at review;
   - `oracle::characteristics::is_instant_or_has_flash` for item 182;
   - the fixtures `grist_insect_clause`, `titanias_song_clause`,
     `arcane_adaptation_elf_clause`, `pocket_griffin`, `library_artificer`
@@ -1259,3 +1285,23 @@ the predictions:
   183). LL's memo is about 9 KB of the breach.
 - **The pre-check's grain, measured for the owner's note**: about 1% of
   engine time on `performance`, 0.7% on `stress` (`backlog.md` §2.38).
+
+#### At the owner's review (PR #191, 2026-09-26)
+
+- **CI failed on floor 3**, at `clone_bound_test.rs`'s fourth game, the
+  one the breach above was read on. `zone_reach_cost_test` read it first,
+  and the release-only gate was not run before the push. The owner's call:
+  the floors hold a deep stack. A clone now rebuilds a map whose capacity is
+  past twice its length (`types::ids::FitOnClone`, on `objects`,
+  `battlefield` and `stack_entries`): that game reads 73.2 KB, and the worst
+  of the gate's 210 readings 90.7 KB, from 150.4. A clone taken during a
+  deep stack is item 183's open half, back-stopped before Phase 8
+  (`roadmap-v2.md` B10).
+- **Why the close-out's sitting read slow.** It ran seconds after about four
+  minutes of full-core builds and a debug test suite on the native Windows
+  machine, which ran no other load of this session's. Two re-reads on an idle
+  machine read the no-row arm at 60.7 / 44.6 µs and floor 1 at 14,290–15,756
+  / 18,092–18,922 decisions per second with the card out, above the
+  prediction. The second, with `FitOnClone`, reads the worst clone at 7.8 µs
+  (6.8 before it) and 91.3 KB.
+- **The names**, as the note at the top of this entry says.

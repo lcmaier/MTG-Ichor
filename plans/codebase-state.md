@@ -8468,9 +8468,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      floor 3 over its bound for the rest of the game.** On `stress` 12351
      under Teferi's clause, a game item 182 changed (the clause now gives
      player 0's creature cards flash), the stack held more than 28 objects at
-     once during turn 79. `stack_entries` grew to 56 slots of 664-byte
-     `StackEntry`s, and the battlefield, past 56 permanents at turn 72, to 112
-     slots of 360 bytes. Neither shrinks:
+     once during turn 79. `stack_entries` grew to a table of 64 slots of
+     664-byte `StackEntry`s, room for 56, and the battlefield, past 56
+     permanents at turn 72, to 128 slots of 360 bytes, room for 112. Neither
+     shrinks:
      - the clone reads 138.3 KB at turn 80 and 150.4 KB at the game's end, 89
        turns, against floor 3's 128 KB; the same seed without the clause
        reads 75.1 and 76.9 KB;
@@ -8479,15 +8480,42 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - allocations stay at 27–29, under floor 2's CI proxy.
 
      **Reachability (2026-09-25):** reachable — not wrong; a floor 3 breach on
-     a fixture board (`zone_reach_cost_test`'s `stress` 12351 with Teferi's
-     clause). No pooled game has built such a stack: the clone test's boards
-     read at most 107.1 KB.
+     a fixture board, `clone_bound_test.rs`'s fourth game, which failed CI on
+     PR #191. It was first read in `zone_reach_cost_test`, which plays the
+     same game, and the release-only gate was not run before the push.
 
-     **Sized:** not yet. Floor 3 is "bounded by the board's high-water mark",
-     and this is the mark: whether a 29-deep stack is a board the floor must
-     hold is the owner's call. Two shapes if it is: the maps rebuilt at their
-     length when a state is cloned, a copy per map per clone; or
-     `stack_entries` shrunk when the stack empties, a reallocation in play.
+     **The owner's call (2026-09-26): the floors hold a deep stack.** A
+     29-deep stack is ordinary: a cEDH turn can put a whole winning line on
+     the stack at once, storm copies and a batch of triggers go on together
+     even in two-player games, and some decks win by putting a very large
+     number of triggers or activations on the stack. **Hard back-stopped
+     before Phase 8's breadth, possibly sooner** (`roadmap-v2.md` B10).
+
+     **Half closed at PR #191's review (2026-09-26): what a clone copies after
+     the spike.** `types::ids::FitOnClone` wraps `objects`, `battlefield` and
+     `stack_entries`: a clone of a map whose capacity is past twice its
+     length is rebuilt at its length. Over `clone_bound_test`'s 210 readings,
+     `MTGSIM_HASH_SEED=1`:
+     - this game reads 73.2 KB at turn 80 and 71.0 at its end, from 138.3
+       and 150.4;
+     - the worst reading is 90.7 KB, from 150.4, and 99.9 without the clause;
+     - allocations are at most 39, from 40.
+     Nothing in play clones a state, so no counter moved.
+
+     **Open: a clone during the spike — the back-stop.** Floors 2 and 3 are
+     read between turns, where the stack is empty, and a search clones
+     mid-turn as well. A clone copies every stack object: a thousand of them
+     is 664 KB of `StackEntry` alone, with their `GameObject`s and whatever
+     each holds on the heap, where the floors are 10 µs and 128 KB. The
+     shape to design is objects shared between forks, copied on write, so a
+     clone copies a pointer per stack object. The design also reads the layer
+     memo: stale frames are overwritten, never evicted, so every object ever
+     asked about keeps one.
+
+     **Sized:** small (2026-09-26). `stack_entries` is written at one
+     `get_mut` and nine inserts, and `objects` at three `get_mut`s. Whether a
+     clone then meets floor 2 with a thousand objects on the stack, at one
+     count bump each, is the design's first measurement.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row

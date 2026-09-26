@@ -715,9 +715,14 @@ critical path, which lists neither; that is the owner's line to add.
     objects. It costs 76–224 µs over a warm first decision at every stage of
     the game, against 3–39 µs without the row (`codebase-state.md` item 181,
     measured 2026-09-25). Item 181's lever, walking a card in a library or a
-    hand only when something reads it, landed as LL (2026-09-25): the cold
-    first decision now costs 5.5–63.8 µs over a warm one on those boards, by
-    turn from turn 10, against 2.9–35.3 µs without the row.
+    hand only when something reads it, landed as LL (2026-09-25). Most of
+    what a cold first decision still costs is not the row's: every one
+    re-walks the battlefield, 2.9–35.3 µs by turn without the row. The
+    row's own part fell from about 70–190 µs to 2–32, by turn from turn 10:
+    5.5–63.8 µs over a warm decision on those boards, the top a two-game
+    median at turn 50. Wall-clock on the native Windows machine, medians of
+    seven per fork; LL's gain proper is floor 1, every decision rather
+    than a fork's first (`fuzz-record.md`, LL).
   - **These are the naive model's numbers.** With no knowledge record, every
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card
@@ -2316,6 +2321,15 @@ reads every card in it, about 50 µs a test on the tripped board LL measured.
 Card-type values would also shrink the guard's printed trips from seven cards
 beside Biotransference or Encroaching Mycosynth to Biotransference beside
 Encroaching.
+
+**For custom cards (post-v1)**, asked at PR #191's review. A trip never
+changes an answer, only what a decision costs: on a tripped board, `main`'s
+price before LL, about 0.25 ms a decision, which a player at a GUI cannot
+notice. It matters to a research pool built for throughput, and two shapes
+trip it: a row reaching a library or a hand that reads the board to resolve
+(a power by an amount, a control change), and two effects of one layer
+reaching one where the first writes a characteristic the second's filter
+reads. The custom-card design lists both; this grain narrows the second.
 
 | Field | |
 |---|---|

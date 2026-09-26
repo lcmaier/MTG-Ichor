@@ -2651,24 +2651,25 @@ decisions and the owner's four passes over them, the pieces, the tests, the
 predictions, what the building changed and the measurement.*
 
 **Shipped:** a pass leaves out every library and hand a row reaches
-(`board::left_out_zones`) and notes what it decided about each row reaching
-them (`ReplayStep`: whether it existed, who "you" was, whether CR 613.6 had
-locked it). A card there is walked alone when something asks —
-`compute_non_member` given the notes, `Membership::Replayed` — and its frame
-is memoized, the notes beside the memo's frames at their epoch. A static
-row's source joins the pass when a row can write it (its own `SourceOnly`
-row, anywhere, or a row reaching its left-out zone), which fixed Grist, the
+(`board::left_out_zones`) and notes what it found about each row reaching
+them (`RowNote`: whether it existed, who "you" was, whether CR 613.6 had
+locked it). A card there is walked alone with the notes when something asks
+— `compute_non_member`, `PassMembership::LeftOut` — and its frame is
+memoized, the notes beside the memo's frames at their epoch. A static row's
+source joins the pass when a row can write it (its own `SourceOnly` row,
+anywhere, or a row reaching its left-out zone), which fixed Grist, the
 Hunger Tide in every zone. A zone stays in the pass when a row reaching it
 is dynamic, or when two effects of one layer reach it and `Channels` cannot
 rule the pair out; no printed card needs that, and a trip costs `main`'s
-price. A debug build checks every replayed frame against a pass that holds
-the zone. Item 182 rode along: the cast-timing check reads
-`is_instant_or_has_flash`. Floor 1 holds on the fixture boards, 11,907–15,435
-decisions per second on one thread with the card out, from 4,640–6,810, and
-the pools are `IDENTICAL` in every row at +0.36% instructions per decision.
-Closes `codebase-state.md` items 181 and 182, and files 183 (floor 3 on one
-fixture game), 184 (CR 613.6's lock within a layer) and `backlog.md` §2.38
-(the pre-check's grain).
+price. A debug build checks every left-out card's frame against a pass with
+the zone in it. Item 182 rode along: the cast-timing check reads
+`is_instant_or_has_flash`. Floor 1 holds on the fixture boards, 14,290–18,863
+decisions per second on one thread with the card out on an idle machine,
+from 4,640–6,810, and the pools are `IDENTICAL` in every row at +0.36%
+instructions per decision. Closes `codebase-state.md` items 181 and 182, and
+half of 183 (a clone copied the high-water capacity of the state's maps,
+which broke floor 3 on one fixture game); files 184 (CR 613.6's lock within
+a layer) and `backlog.md` §2.38 (the pre-check's grain).
 
 → The section as written at the close, what the building changed and the
 measurement: `plans/archive/layers-architecture-landed.md`, "LL" (evicted

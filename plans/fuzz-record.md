@@ -69,10 +69,15 @@ static row. The last commit, `0c5e313`, only gates a debug-only enum variant.
 
 A pass now adds 15.4 / 12.1 objects off the battlefield, and leaves 317.6 /
 342.0 cards in libraries and hands out. Three moves nobody predicted:
-- **Floor 1 holds, under the predicted ≥ 12,800 / ≥ 16,500.** This sitting's
-  no-row arm read 9–13% slower than the two sittings before it. Against it,
-  the lever costs ×1.15 (Teferi) and ×1.23 (Lattice), which is the
-  prediction's ratio.
+- **Floor 1 holds; this sitting read it under the predicted ≥ 12,800 /
+  ≥ 16,500, and the machine was why.** The sitting ran seconds after about
+  four minutes of full-core builds and a debug test suite, on the native
+  Windows machine: a wall-clock reading, where callgrind's count above is
+  not one. Every arm read slow, the no-row arm 9–13% under the two sittings
+  before it. Two re-reads on an idle machine at review (2026-09-26) put the
+  no-row arm at 60.7 / 44.6 µs and floor 1 at **14,290–15,756 /
+  18,092–18,922**, above the prediction. The lever's ratio moved between
+  sittings too, ×1.05–1.24 against this sitting's ×1.15–1.23.
 - **Layer walks per decision rose to 5–6.** Item 182's gate asks about every
   nonland hand card at each castability check, and on these boards each is a
   replayed walk once per epoch.
@@ -81,7 +86,12 @@ A pass now adds 15.4 / 12.1 objects off the battlefield, and leaves 317.6 /
   664 bytes, and the battlefield map at 112 of 360: 138.3 KB at turn 80 and
   150.4 KB at the end, against 75.1 and 76.9 without the clause. A throwaway
   that cloned each public field alone put 54.5 KB on the two maps and about 9
-  on LL's memo (`codebase-state.md` item 183).
+  on LL's memo (`codebase-state.md` item 183). It failed CI's release-only
+  gate on the pushed PR, which was not run before the push. **Fixed at
+  review:** a clone rebuilds a map whose capacity is past twice its length
+  (`types::ids::FitOnClone`), and the game reads 73.2 KB, the worst of the
+  gate's 210 readings 90.7 KB, and the worst clone 7.8 µs, from 6.8. A clone
+  taken during a deep stack is `roadmap-v2.md` B10's.
 
 **A tripped board**, where the guard holds the hidden zones, costs `main`'s
 price. `main`'s engine measured one: a {2} artifact carrying Biotransference's
