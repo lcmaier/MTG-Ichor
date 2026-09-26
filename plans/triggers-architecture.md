@@ -2167,8 +2167,9 @@ and the largest code row at ×1.9 for the top end.
 | **Total** | ~920, top end ~1,110 | 27, ~1,060 with the edits |
 
 **1,980–2,170 in code and tests**, inside §4's band, against the
-2026-09-24 count's 1,720–2,180. The close-out adds ~400 of docs, this
-section's own lines included. What the count moved:
+2026-09-24 count's 1,720–2,180. Docs add ~500 more: this section,
+archived at landing, with the stub, the record and the items. What the count
+moved:
 - `EachOf` refuses `LoseLife` by name today, and Crawler needs it.
 - The fold is six leaves, not five: `CardInYourGraveyard` says "your" too.
 - The predicate compares the source when the def reads it (decision 6).
