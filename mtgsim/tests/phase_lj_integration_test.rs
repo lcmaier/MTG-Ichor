@@ -349,7 +349,7 @@ fn test_the_jailers_registered_row_is_graveyard_scoped() {
 /// are each gated on CR 113.6, which is A5. So the Jailer's tests above assert
 /// the mechanism directly, and something had to assert a *consequence*.
 ///
-/// A **color** in a graveyard is read today, by `Condition::CardInYourGraveyard`,
+/// A **color** in a graveyard is read today, by `PlayerFact::CardInGraveyard`,
 /// and since this PR folded `CardFilter` into `ObjectFilter` that condition can
 /// ask `ByColor`. The loop is therefore: Graveyard Painter's row reaches the
 /// graveyard at Layer 5, so a black card there is now also red; Graveyard

@@ -53,7 +53,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::costs::{AdditionalCost, Cost};
 use mtgsim::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ManaOutput, ObjectFilter,
-    ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
+    ObjectSet, PlayerFact, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaSpent, ManaType};
@@ -1224,7 +1224,10 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
             1,
             triggered_ability(TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
-                intervening_if: Some(Condition::YourLifeAtLeast(AmountExpr::Fixed(20))),
+                intervening_if: Some(Condition::Player {
+                    whose: PlayerSet::You,
+                    fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(20)),
+                }),
                 limit: None,
                 effect: Effect::Atom(
                     Primitive::Destroy,

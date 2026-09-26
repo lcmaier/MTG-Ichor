@@ -483,11 +483,16 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    YouControlPermanent(ObjectFilter),
-    YourLifeAtLeast(AmountExpr),
-    YourLifeAtMost(AmountExpr),
-    OpponentControlsPermanent(ObjectFilter),
-    CardInYourGraveyard(ObjectFilter),
+    /// "[Whose] [fact]": a fact about each player `whose` names, now — "you
+    /// control a Forest", "an opponent has 10 or less life". It holds when any
+    /// player the set names, among those still in the game, meets the fact: an
+    /// opponent is one opponent, and `PlayerSet::You` is CR 109.5's "you".
+    ///
+    /// **It quantifies and does not sum**, which is how it differs from the
+    /// history leaves' [`crate::types::history::HistoryCount`]: "a creature
+    /// died this turn" is every row added up, while a life total is not a
+    /// count and "an opponent controls three artifacts" is one opponent's three.
+    Player { whose: PlayerSet, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -500,7 +505,7 @@ pub enum Condition {
     /// ability that states which zones it functions in functions only from
     /// those zones — so the clause that gates the effect is the same sentence
     /// that places the ability. A condition about some *other* object's zone
-    /// is [`Self::CardInYourGraveyard`], which is why this one says `Source`.
+    /// is [`PlayerFact::CardInGraveyard`], which is why this one says `Source`.
     ///
     /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
     /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
@@ -533,18 +538,6 @@ pub enum Condition {
     /// no layer writes it and `board::condition_reads` declares nothing for
     /// it: it can never be a CR 613.8 dependency.
     SourceUntapped,
-    /// "While your library has no cards in it" — Laboratory Maniac, and its
-    /// planeswalker twin Jace, Wielder of Mysteries. "Your" is CR 109.5's
-    /// controller of the source, read the way `YourLifeAtLeast` reads it.
-    ///
-    /// **Written for one card and says so.** The leaf's first reader is a
-    /// replacement effect's "as long as", evaluated by `replacement::gather`
-    /// at each proposal through `condition::settled_holds` — the same
-    /// evaluator the layer pass and CR 613.11's cost effects use, so a
-    /// conditional static's condition is one question wherever it is asked.
-    /// A library is off `GameState`, not off any frame, so
-    /// `board::condition_reads` declares nothing for it.
-    YourLibraryEmpty,
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -565,6 +558,32 @@ pub enum Condition {
     /// resolution's last step (CR 608.2n), so the Nth resolution reads N - 1.
     /// A resolution's question, like [`Self::ModeChosen`].
     ResolvedThisTurn(u32),
+}
+
+/// A fact about one player now, which [`Condition::Player`] asks of each
+/// player its `whose` names. Each arm is one printed shape; a new fact is one
+/// arm here and one in `engine::layers::condition`, and a new "whose" costs
+/// nothing.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerFact {
+    /// "Controls a [filter]": a permanent on the battlefield (Kird Ape's
+    /// Forest). The controller test is the fact's and not the filter's, and it
+    /// reads the effective controller, so a Layer 2 steal moves the answer.
+    ControlsPermanent(ObjectFilter),
+    /// "Has N or more life": Felidar Sovereign, Divinity of Pride.
+    LifeAtLeast(AmountExpr),
+    /// "Has N or less life": the fateful hour cycle, Phyrexian Unlife, and
+    /// Bloodghast's "an opponent has 10 or less life".
+    LifeAtMost(AmountExpr),
+    /// "[Whose] library has no cards in it": Laboratory Maniac and Jace,
+    /// Wielder of Mysteries. Its first reader is a replacement effect's "as
+    /// long as", asked by `replacement::gather` at each proposal through
+    /// `condition::settled_holds`, the evaluator every condition shares.
+    LibraryEmpty,
+    /// "There's a [filter] card in [whose] graveyard". The filter is an
+    /// `ObjectFilter`, and CR 108.4a makes `ByController` answer off the
+    /// battlefield too: a card with no controller uses its owner.
+    CardInGraveyard(ObjectFilter),
 }
 
 /// How many modes to choose (rule 700.2)

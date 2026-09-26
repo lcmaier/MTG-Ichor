@@ -26,8 +26,9 @@ use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::compute::{evaluate_amount, object_matches_filter, FilterPlayers};
 use crate::state::battlefield::CostChoices;
 use crate::state::game_state::GameState;
+use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
-use crate::types::effects::{AmountExpr, Condition, ObjectFilter};
+use crate::types::effects::{Condition, ObjectFilter, PlayerFact, PlayerSet};
 use crate::types::history::HistoryCount;
 use crate::types::ids::{ObjectId, PlayerId};
 
@@ -61,49 +62,9 @@ pub(super) fn holds(
     // CR 613.8's hypothetical. `phase_li3_integration_test`'s Simian Clause
     // board is what that failure looks like.
     match condition {
-        // "as long as you control a Forest" / "as long as an opponent
-        // controls a creature". The controller test is the *variant's*, not
-        // the filter's — that is what separates the two — and it reads the
-        // effective controller, so a Layer 2 steal moves the answer.
-        Condition::YouControlPermanent(filter) => {
-            controls_matching(filter, game, board, source, layer_index, true)
-        }
-        Condition::OpponentControlsPermanent(filter) => {
-            controls_matching(filter, game, board, source, layer_index, false)
-        }
-
-        // Both halves are printed. "Or more" is Divinity of Pride, Angel of
-        // Vitality, Caduceus; "or less" is the **fateful hour** cycle —
-        // Gavony Ironwright, Thraben Doomsayer and Village Survivors are all
-        // "as long as you have 5 or less life", and Phyrexian Unlife is "as
-        // long as you have 0 or less life" (Scryfall, 2026-09-07). Neither is
-        // a speculative arm. What *is* missing is the opponent's total —
-        // Bloodghast's "as long as an opponent has 10 or less life" — which
-        // wants its own leaf, since these two read the source's controller.
-        Condition::YourLifeAtLeast(expr) => life_compare(expr, game, board, source, layer_index, true),
-        Condition::YourLifeAtMost(expr) => life_compare(expr, game, board, source, layer_index, false),
-
-        // "as long as there's a [X] card in your graveyard". The variant carries
-        // no player, and the printed shape it is written for is *your* graveyard;
-        // a condition over somebody else's is §15.1's `ZoneContainsCard`, which
-        // has an owner on it, when a card wants one. A graveyard card may be a
-        // non-member of the pass, in which case its frame is its own CDA walk at
-        // this ceiling (CR 604.3). The filter is an `ObjectFilter`, so this arm
-        // reads every leaf the layer walk reads, and CR 108.4a is what makes that
-        // sound off the battlefield: a card with no controller uses its owner
-        // wherever a controller is asked for, so `ByController` answers here too.
-        Condition::CardInYourGraveyard(filter) => {
-            let Some(you) = you_for(game, board, source, layer_index) else {
-                return false;
-            };
-            let Some(player) = game.players.get(you) else { return false };
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index);
-            player.graveyard.iter().any(|&card| {
-                board
-                    .frame_of(game, card, layer_index)
-                    .is_some_and(|chars| object_matches_filter(filter, card, &chars, &mut players))
-            })
-        }
+        // "As long as you control a Forest", "as long as an opponent has 10 or
+        // less life": a fact about each player the set names.
+        Condition::Player { whose, fact } => player_fact_holds(whose, fact, game, board, source, layer_index),
 
         // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
         // grant exists while the card is in the graveyard, and this is asked at
@@ -135,13 +96,6 @@ pub(super) fn holds(
         // layer writes it. A source with no entity is not on the battlefield
         // and so is not untapped either.
         Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
-
-        // "While your library has no cards in it" — Laboratory Maniac. The
-        // library is off `GameState`; "your" is the source's controller off
-        // its live frame, as `life_compare` reads it.
-        Condition::YourLibraryEmpty => you_for(game, board, source, layer_index)
-            .and_then(|you| game.players.get(you))
-            .is_some_and(|player| player.library.is_empty()),
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `ObjectSet::Host` is. An unattached
@@ -281,8 +235,64 @@ fn you_for(
         .or_else(|| game.objects.get(&source).map(|obj| obj.owner))
 }
 
-/// Is there a battlefield permanent matching `filter` that "you" control
-/// (`mine`), or that somebody else does?
+/// [`Condition::Player`]: does any player `whose` names, among those still in
+/// the game, meet `fact`? "Whose" is resolved against CR 109.5's "you", the
+/// source's controller off its live frame. A departed player's permanents
+/// left with them (CR 800.4a), so no fact about the board can name them.
+fn player_fact_holds(
+    whose: &PlayerSet,
+    fact: &PlayerFact,
+    game: &GameState,
+    board: &Board<'_>,
+    source: ObjectId,
+    layer_index: usize,
+) -> bool {
+    let Some(you) = you_for(game, board, source, layer_index) else {
+        return false;
+    };
+    let named = |player: PlayerId| game.in_game(player) && whose.contains(you, player);
+    let any_named = |meets: &dyn Fn(&PlayerState) -> bool| {
+        game.players.iter().enumerate().any(|(player, state)| named(player) && meets(state))
+    };
+    match fact {
+        PlayerFact::ControlsPermanent(filter) => {
+            controls_matching(filter, game, board, source, layer_index, &named)
+        }
+        // The threshold is resolved against the source's own frame, which is
+        // where a static ability's dynamic number is read everywhere else.
+        PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => {
+            let Some(chars) = board.frame_of(game, source, layer_index) else {
+                return false;
+            };
+            let Some(threshold) = evaluate_amount(expr, game, &chars, source, layer_index, board, None)
+            else {
+                return false;
+            };
+            let threshold = threshold as i64;
+            match fact {
+                PlayerFact::LifeAtLeast(_) => any_named(&|state| state.life_total >= threshold),
+                _ => any_named(&|state| state.life_total <= threshold),
+            }
+        }
+        PlayerFact::LibraryEmpty => any_named(&|state| state.library.is_empty()),
+        // A graveyard card may be a non-member of the pass, in which case its
+        // frame is its own CDA walk at this ceiling (CR 604.3).
+        PlayerFact::CardInGraveyard(filter) => {
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index);
+            game.players.iter().enumerate().any(|(player, state)| {
+                named(player)
+                    && state.graveyard.iter().any(|&card| {
+                        board
+                            .frame_of(game, card, layer_index)
+                            .is_some_and(|chars| object_matches_filter(filter, card, &chars, &mut players))
+                    })
+            })
+        }
+    }
+}
+
+/// Is there a battlefield permanent matching `filter` whose controller
+/// `named` accepts?
 ///
 /// `Board::battlefield_ids` rather than the working set: this is a look over
 /// the battlefield, and §5b's boundary makes a merely *entering* permanent
@@ -293,52 +303,21 @@ fn controls_matching(
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
-    mine: bool,
+    named: &dyn Fn(PlayerId) -> bool,
 ) -> bool {
     let mut players = FilterPlayers::for_source(source, game, board, layer_index);
-    let you = players.you();
     board.battlefield_ids(game).into_iter().any(|id| {
         let Some(chars) = board.frame_of(game, id, layer_index) else {
             return false;
         };
-        // CR 102.2/102.3 — "an opponent" is "somebody who isn't you", the
-        // same answer in two-player and multiplayer without the type having
-        // to name a player.
-        (chars.controller == you) == mine
-            && object_matches_filter(filter, id, &chars, &mut players)
+        named(chars.controller) && object_matches_filter(filter, id, &chars, &mut players)
     })
-}
-
-/// "as long as you have N or more life", and its mirror. The amount is
-/// resolved against the source's own frame, which is where a static
-/// ability's dynamic number is read everywhere else.
-fn life_compare(
-    expr: &AmountExpr,
-    game: &GameState,
-    board: &Board<'_>,
-    source: ObjectId,
-    layer_index: usize,
-    at_least: bool,
-) -> bool {
-    let Some(chars) = board.frame_of(game, source, layer_index) else {
-        return false;
-    };
-    let Some(threshold) = evaluate_amount(expr, game, &chars, source, layer_index, board, None)
-    else {
-        return false;
-    };
-    let Some(player) = game.players.get(chars.controller) else { return false };
-    if at_least {
-        player.life_total >= threshold as i64
-    } else {
-        player.life_total <= threshold as i64
-    }
 }
 
 // ---------------------------------------------------------------------------
 // The leaves with no registered consumer.
 //
-// Kird Ape covers `YouControlPermanent` and the Flight Clause covers
+// Kird Ape covers `PlayerFact::ControlsPermanent` and the Flight Clause covers
 // `HostMatches`, both end to end in `tests/phase_li3_integration_test.rs`.
 // The rest are exercised here against a settled board, because a leaf no
 // card reaches is exactly the kind of code that is wrong and quiet — the
@@ -349,7 +328,8 @@ mod tests {
     use super::*;
     use crate::cards::{basic_lands, creatures};
     use crate::test_support::{
-        card_of_type, put_in_graveyard, put_on_battlefield, setup_two_player_game, vanilla_creature,
+        card_of_type, put_in_graveyard, put_on_battlefield, setup_game, setup_two_player_game,
+        vanilla_creature,
     };
     use crate::types::card_types::CardType;
     use crate::types::colors::Color;
@@ -369,6 +349,14 @@ mod tests {
         assert!(!settled_holds(&Condition::SourceUntapped, &game, dead), "no entity, not untapped");
     }
 
+    fn yours(fact: PlayerFact) -> Condition {
+        Condition::Player { whose: PlayerSet::You, fact }
+    }
+
+    fn an_opponents(fact: PlayerFact) -> Condition {
+        Condition::Player { whose: PlayerSet::Opponents, fact }
+    }
+
     #[test]
     fn life_thresholds_read_the_source_controllers_total() {
         let mut game = setup_two_player_game();
@@ -376,61 +364,77 @@ mod tests {
         game.players[0].life_total = 20;
         game.players[1].life_total = 3;
 
-        assert!(settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::YourLifeAtLeast(AmountExpr::Fixed(21)), &game, bears));
-        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(20)), &game, bears));
-        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(19)), &game, bears));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(20))), &game, bears));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtLeast(AmountExpr::Fixed(21))), &game, bears));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(20))), &game, bears));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(19))), &game, bears));
 
         // CR 109.5 — the *source's* controller, not either player at large.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, theirs));
-        assert!(!settled_holds(&Condition::YourLifeAtMost(AmountExpr::Fixed(3)), &game, bears));
+        assert!(settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, theirs));
+        assert!(!settled_holds(&yours(PlayerFact::LifeAtMost(AmountExpr::Fixed(3))), &game, bears));
+    }
+
+    /// A set of players asks each one alone: Bloodghast's "an opponent has 10
+    /// or less life" is one opponent at 10, not the opponents' total, and a
+    /// player who has left the game is no opponent (CR 800.4a).
+    #[test]
+    fn an_opponent_is_any_one_opponent_still_in_the_game() {
+        let mut game = setup_game(4);
+        let ghast = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        for seat in 1..4 {
+            game.players[seat].life_total = 12;
+        }
+        let ten_or_less = an_opponents(PlayerFact::LifeAtMost(AmountExpr::Fixed(10)));
+        assert!(!settled_holds(&ten_or_less, &game, ghast), "three at 12, and no sum");
+
+        game.players[2].life_total = 0;
+        game.player_lost[2] = true;
+        assert!(!settled_holds(&ten_or_less, &game, ghast), "the one at 0 has left the game");
+
+        game.players[3].life_total = 10;
+        assert!(settled_holds(&ten_or_less, &game, ghast), "one opponent at 10 is enough");
     }
 
     #[test]
     fn card_in_graveyard_reads_your_graveyard_through_the_card_filter() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
-        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
+        let card_in_yours = |filter: ObjectFilter| yours(PlayerFact::CardInGraveyard(filter));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, bears));
 
         put_in_graveyard(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, bears));
-        assert!(settled_holds(
-            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Land)),
-            &game,
-            bears
-        ));
-        assert!(!settled_holds(
-            &Condition::CardInYourGraveyard(ObjectFilter::ByType(CardType::Creature)),
-            &game,
-            bears
-        ));
-        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::ByColor(Color::Red)), &game, bears));
+        assert!(settled_holds(&card_in_yours(ObjectFilter::All), &game, bears));
+        assert!(settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Land)), &game, bears));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByType(CardType::Creature)), &game, bears));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::ByColor(Color::Red)), &game, bears));
 
         // Your graveyard, not everybody's: the same card under the opponent
         // answers for their graveyard, which is empty.
         let theirs = put_on_battlefield(&mut game, creatures::grizzly_bears(), 1);
-        assert!(!settled_holds(&Condition::CardInYourGraveyard(ObjectFilter::All), &game, theirs));
+        assert!(!settled_holds(&card_in_yours(ObjectFilter::All), &game, theirs));
     }
 
     #[test]
-    fn the_two_control_leaves_are_each_others_complement() {
+    fn you_and_an_opponent_control_each_others_complement() {
         let mut game = setup_two_player_game();
         let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
         let forest = ObjectFilter::BySubtype(crate::types::card_types::Subtype::Land(
             crate::types::card_types::LandType::Forest,
         ));
+        let you_control = yours(PlayerFact::ControlsPermanent(forest.clone()));
+        let an_opponent_controls = an_opponents(PlayerFact::ControlsPermanent(forest));
 
-        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
-        assert!(!settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&you_control, &game, bears));
+        assert!(!settled_holds(&an_opponent_controls, &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 1);
-        assert!(!settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
-        assert!(settled_holds(&Condition::OpponentControlsPermanent(forest.clone()), &game, bears));
+        assert!(!settled_holds(&you_control, &game, bears));
+        assert!(settled_holds(&an_opponent_controls, &game, bears));
 
         put_on_battlefield(&mut game, basic_lands::forest(), 0);
-        assert!(settled_holds(&Condition::YouControlPermanent(forest.clone()), &game, bears));
-        assert!(settled_holds(&Condition::OpponentControlsPermanent(forest), &game, bears));
+        assert!(settled_holds(&you_control, &game, bears));
+        assert!(settled_holds(&an_opponent_controls, &game, bears));
     }
 
     /// CR 113.6b's leaf, both directions: the battlefield spelling answers
@@ -466,7 +470,7 @@ mod tests {
         // Wonder's own condition, clause for clause.
         let wonder = Condition::All(vec![
             Condition::SourceInZone(ZoneSet::GRAVEYARD),
-            Condition::YouControlPermanent(island),
+            yours(PlayerFact::ControlsPermanent(island)),
         ]);
         assert!(!settled_holds(&wonder, &game, dead), "in the graveyard, no Island");
         put_on_battlefield(&mut game, basic_lands::island(), 0);

@@ -2337,7 +2337,7 @@ Effect::Conditional(
     Condition::All(vec![
         // CR 113.6b — the clause that says where this ability functions.
         Condition::SourceInZone(ZoneSet::GRAVEYARD),
-        Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
+        Condition::Player { whose: PlayerSet::You, fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))) },
     ]),
     Box::new(/* Layer 6 grant over creatures you control */),
 )
@@ -2562,8 +2562,8 @@ tests assert: a Wonder in a graveyard grants flying to your creatures, and a
 Wonder **on the battlefield grants nothing**, which is the "only" in "only from
 those zones". Neither half is an oracle query dressed as a test.
 
-Everything else it needs exists: `Condition::YouControlPermanent(BySubtype(Island))`
-landed with LI-3, and the grant is an ordinary Layer 6 row over
+Everything else it needs exists: "you control an Island" landed with LI-3
+(`Condition::Player` since TR-2b's fold), and the grant is an ordinary Layer 6 row over
 `FilteredPermanents(ByController(You) ∧ ByType(Creature))`.
 
 **And the interaction test is already in the pool.** Yixlid Jailer — LJ's own
