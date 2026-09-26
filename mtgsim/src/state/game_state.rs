@@ -19,7 +19,7 @@ use crate::types::costs::{AdditionalCost, AlternativeCost};
 use crate::types::effects::{CounterType, Effect};
 use crate::types::mana::ManaSpent;
 use crate::types::ids::{
-    AbilityId, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
+    AbilityId, FitOnClone, IdMap, IdSet, ObjectId, ObjectRef, PlayerId, Timestamp, ZoneChangeEpoch,
 };
 use crate::types::zones::Zone;
 use crate::types::replacement::{EnterMods, ReplacementDef};
@@ -238,7 +238,7 @@ pub(crate) struct NestingGuards {
 pub struct GameState {
     // --- Central object store ---
     /// All game objects indexed by ID
-    pub objects: IdMap<ObjectId, GameObject>,
+    pub objects: FitOnClone<IdMap<ObjectId, GameObject>>,
 
     // --- Players ---
     pub players: Vec<PlayerState>,
@@ -247,7 +247,7 @@ pub struct GameState {
     /// The stack — LIFO order (last element = top of stack)
     pub stack: Vec<ObjectId>,
     /// Stack entry metadata — keyed by ObjectId
-    pub stack_entries: IdMap<ObjectId, StackEntry>,
+    pub stack_entries: FitOnClone<IdMap<ObjectId, StackEntry>>,
     /// The stack object currently resolving, if any.
     ///
     /// A rules question, not an engine artifact: `default_enter_controller`
@@ -261,7 +261,7 @@ pub struct GameState {
     /// every exit path, including the error ones.
     pub(crate) resolving: Option<ResolvingObject>,
     /// Battlefield state — keyed by ObjectId
-    pub battlefield: IdMap<ObjectId, PermanentState>,
+    pub battlefield: FitOnClone<IdMap<ObjectId, PermanentState>>,
 
     /// How much work the engine has done this game — see
     /// [`Diagnostics`].
@@ -827,12 +827,12 @@ impl GameState {
         }
 
         GameState {
-            objects: IdMap::default(),
+            objects: FitOnClone::default(),
             players,
             stack: Vec::new(),
-            stack_entries: IdMap::default(),
+            stack_entries: FitOnClone::default(),
             resolving: None,
-            battlefield: IdMap::default(),
+            battlefield: FitOnClone::default(),
             diagnostics: Default::default(),
             layer_epoch: 0,
             layer_memo: LayerMemo::default(),

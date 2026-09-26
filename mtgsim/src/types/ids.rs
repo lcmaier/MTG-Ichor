@@ -17,7 +17,9 @@
 //! than taken from a crate, is `plans/id-hasher.md`.
 
 use std::collections::{HashMap, HashSet};
-use std::hash::{BuildHasher, Hasher};
+use std::fmt;
+use std::hash::{BuildHasher, Hash, Hasher};
+use std::ops::{Deref, DerefMut};
 use std::sync::OnceLock;
 
 /// Player identifier — index into the players array
@@ -342,6 +344,56 @@ pub type IdMap<K, V> = HashMap<K, V, IdHash>;
 /// A `HashSet` of ids or id pairs.
 pub type IdSet<K> = HashSet<K, IdHash>;
 
+/// A map whose clone holds what the map holds, not the most it ever held: a
+/// state map a game fills and empties — the object store, the battlefield,
+/// the stack's entries.
+///
+/// A `HashMap` keeps its high-water capacity, which saves a reallocation in
+/// play and costs every fork: after a stack 29 deep, `stack_entries` kept 64
+/// slots of 664 bytes for the rest of the game, and each clone copied them
+/// (`codebase-state.md` item 183, floor 3). So a clone of a map whose
+/// `capacity` is past twice its length is rebuilt at its length, and any
+/// other is `HashMap`'s own, which copies the table without rehashing.
+/// Removals leave tombstones that `capacity` does not count, so a table
+/// churned dense can read under the bar and be copied whole; a spike that
+/// empties, the case this is for, reads over it. A rebuilt map iterates in
+/// another order, which nothing may observe (`CLAUDE.md`, "Determinism at
+/// the decision boundary").
+#[derive(Default)]
+pub struct FitOnClone<M>(M);
+
+impl<K: Eq + Hash + Clone, V: Clone, S: BuildHasher + Clone> Clone for FitOnClone<HashMap<K, V, S>> {
+    fn clone(&self) -> Self {
+        let map = &self.0;
+        if map.capacity() <= 2 * map.len() {
+            return FitOnClone(map.clone());
+        }
+        let mut fit = HashMap::with_capacity_and_hasher(map.len(), map.hasher().clone());
+        fit.extend(map.iter().map(|(key, value)| (key.clone(), value.clone())));
+        FitOnClone(fit)
+    }
+}
+
+impl<M> Deref for FitOnClone<M> {
+    type Target = M;
+    fn deref(&self) -> &M {
+        &self.0
+    }
+}
+
+impl<M> DerefMut for FitOnClone<M> {
+    fn deref_mut(&mut self) -> &mut M {
+        &mut self.0
+    }
+}
+
+/// The map's own, so a state prints as it did.
+impl<M: fmt::Debug> fmt::Debug for FitOnClone<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,6 +458,24 @@ mod tests {
             .map(|i| build.hash_one(ObjectId(i)) >> 57)
             .collect();
         assert!(tags.len() > 16, "{} distinct tags over 64 sequential ids", tags.len());
+    }
+
+    /// Item 183: a map that once held a hundred entries and holds three
+    /// clones at three's size, and the original keeps its capacity for play.
+    #[test]
+    fn a_clone_holds_what_the_map_holds_not_the_most_it_held() {
+        let mut map: FitOnClone<IdMap<ObjectId, u64>> = FitOnClone::default();
+        for i in 1..=100u64 {
+            map.insert(ObjectId(i), i);
+        }
+        map.retain(|id, _| id.0 <= 3);
+        let fork = map.clone();
+        assert_eq!(*fork, *map, "the same entries");
+        assert!(fork.capacity() < 8, "{} slots for three entries", fork.capacity());
+        assert!(map.capacity() > 2 * map.len(), "the original keeps its table for play");
+        // A map at its steady size is cloned as `HashMap` clones it.
+        let steady = fork.clone();
+        assert_eq!(steady.capacity(), fork.capacity());
     }
 
     /// The seed is what CI's three-run step varies: a seed that did not
