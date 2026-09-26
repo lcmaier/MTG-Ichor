@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::engine::layers::compute::compute_characteristics;
+use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardType, Subtype, Supertype};
@@ -19,6 +19,26 @@ pub fn has_keyword(game: &GameState, id: ObjectId, keyword: KeywordFlag) -> bool
     compute_characteristics(game, id)
         .map(|chars| chars.keyword_flags.contains(&keyword))
         .unwrap_or(false)
+}
+
+/// Is `card` an instant, or does it have flash? What CR 117.1a's timing asks
+/// of a card being cast: either may be cast any time its caster could cast an
+/// instant (CR 702.8a).
+///
+/// Through the layers, because a row can reach a hand — Teferi, Mage of
+/// Zhalfir's "creature cards you own that aren't on the battlefield have
+/// flash" — and gated: with no row reaching the card, its printed types and
+/// keywords are its effective ones, since a CDA defines neither
+/// (CR 604.3a(1)), so an ordinary hand costs no walk.
+pub fn is_instant_or_has_flash(game: &GameState, card: ObjectId) -> bool {
+    if no_row_reaches(game, card) {
+        return game.objects.get(&card).is_some_and(|obj| {
+            obj.card_data.types.contains(&CardType::Instant) || obj.card_data.keyword_flags.contains(&KeywordFlag::Flash)
+        });
+    }
+    compute_characteristics(game, card).is_some_and(|chars| {
+        chars.types.contains(&CardType::Instant) || chars.keyword_flags.contains(&KeywordFlag::Flash)
+    })
 }
 
 /// Get the effective name of a game object.

@@ -14,7 +14,9 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use crate::engine::layers::board::{compute_board, compute_board_to, membership, Board, Membership};
+use crate::engine::layers::board::{
+    compute_board, compute_board_to, is_dynamic, pass_membership, Board, PassMembership, RowNote, AffectedSet,
+};
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
 use crate::engine::layers::types::*;
@@ -80,7 +82,9 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
 ///
 /// **A miss for a member of the working set runs the whole pass and stores
 /// every member's frame** at this epoch, so the next member asked is a hit
-/// (§13b, decision 2). A miss for anything else walks that object alone.
+/// (§13b, decision 2), and the pass's notes beside them. A miss for anything
+/// else walks that object alone: a card the pass leaves out is walked with the
+/// pass's notes (§13e), and stored as a member's frame is.
 ///
 /// One reader bypasses the memo on purpose: the CR 614.12 look-ahead
 /// (`lookahead::compute_as_entering`) computes a hypothetical board. The CR
@@ -100,29 +104,30 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     game.objects.get(&id)?;
     let frames_before = game.diagnostics.layer_frames();
 
-    let membership = membership(game, id);
+    let membership = pass_membership(game, id);
     let asked = match membership {
-        Membership::Member => None,
-        Membership::ZoneOnly => Some(id),
-        Membership::NonMember => {
-            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len())?);
+        PassMembership::Member => None,
+        PassMembership::ZoneOnly => Some(id),
+        PassMembership::LeftOut | PassMembership::NonMember => {
+            let is_left_out = matches!(membership, PassMembership::LeftOut);
+            let notes = is_left_out.then(|| pass_notes(game));
+            let notes: &[RowNote] = notes.as_deref().unwrap_or(&[]);
+            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), notes)?);
+            #[cfg(debug_assertions)]
+            if is_left_out {
+                audit_left_out(game, id, &frame);
+            }
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
-            game.trace(|| trace_records::layer_walk(game, id, WalkKind::NonMember, frames_before, &frame));
+            let kind = if is_left_out { WalkKind::LeftOut } else { WalkKind::NonMember };
+            game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, &frame));
             return Some(frame);
         }
     };
-    let mut wanted = None;
-    for (member, frame) in compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames() {
-        let frame = Arc::new(frame);
-        if member == id {
-            wanted = Some(Arc::clone(&frame));
-        }
-        game.layer_memo.insert(member, epoch, frame);
-    }
+    let wanted = pass_into_memo(game, epoch, asked, Some(id));
     debug_assert!(wanted.is_some(), "a member's frame comes out of the pass");
     if let Some(frame) = &wanted {
         let kind = match membership {
-            Membership::Member => WalkKind::Member,
+            PassMembership::Member => WalkKind::Member,
             _ => WalkKind::ZoneOnly,
         };
         game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, frame));
@@ -130,12 +135,49 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     wanted
 }
 
+/// One pass, stored at `epoch`: every member's frame, and the pass's notes
+/// when it left a zone out. Returns `wanted`'s frame when that is a member.
+fn pass_into_memo(
+    game: &GameState,
+    epoch: u64,
+    asked: Option<ObjectId>,
+    wanted: Option<ObjectId>,
+) -> Option<Arc<EffectiveCharacteristics>> {
+    let (frames, notes) = compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames_and_notes();
+    if let Some(notes) = notes {
+        game.layer_memo.insert_notes(epoch, notes.into());
+    }
+    let mut out = None;
+    for (member, frame) in frames {
+        let frame = Arc::new(frame);
+        if Some(member) == wanted {
+            out = Some(Arc::clone(&frame));
+        }
+        game.layer_memo.insert(member, epoch, frame);
+    }
+    out
+}
+
+/// The notes a card left out of the pass is walked with, at the current
+/// epoch: the memo's, or a pass's when the memo has none, which stores every
+/// member's frame besides.
+pub(super) fn pass_notes(game: &GameState) -> Arc<[RowNote]> {
+    let epoch = game.layer_epoch();
+    if let Some(notes) = game.layer_memo.notes(epoch) {
+        return notes;
+    }
+    pass_into_memo(game, epoch, None, None);
+    game.layer_memo
+        .notes(epoch)
+        .expect("a pass that leaves a zone out stores its notes")
+}
+
 /// Whether no continuous effect can reach `id`: its effective characteristics
 /// are then its printed ones and its own CDAs (`compute_non_member`), and a
 /// CDA defines what a mana cost, type line or power/toughness box would, never
 /// an ability (CR 604.3).
 pub(crate) fn no_row_reaches(game: &GameState, id: ObjectId) -> bool {
-    matches!(membership(game, id), Membership::NonMember)
+    matches!(pass_membership(game, id), PassMembership::NonMember)
 }
 
 /// The debug mode §12 required in the same commit as the cache: every hit is
@@ -166,6 +208,30 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
     );
 }
 
+/// The debug mode §13e decision 6 requires beside the notes: every frame of a
+/// card the pass leaves out is checked against a pass with the card's zone
+/// in it, as LJ's passes had it. The two agree exactly when the guard
+/// (`left_out_zones`) left out only cards the pass would never have read,
+/// which is the claim the notes rest on; the counts are rewound as the memo
+/// audit's are.
+#[cfg(debug_assertions)]
+fn audit_left_out(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
+    let (walks, board_walks, frames, checks) = (
+        game.diagnostics.layer_walks(),
+        game.diagnostics.board_walks(),
+        game.diagnostics.layer_frames(),
+        game.diagnostics.dependency_checks(),
+    );
+    let in_pass = crate::engine::layers::board::compute_board_with_hidden_cards(game).take(id);
+    game.diagnostics.rewind_layer_work(walks, board_walks, frames, checks);
+    debug_assert_eq!(
+        in_pass.as_ref(),
+        Some(served),
+        "the frame of left-out card {} differs from a pass with its zone in",
+        id
+    );
+}
+
 /// One full layer walk of `id`, owned by the caller — a memo **miss**, and
 /// the walk `Diagnostics::layer_walks` counts. For a member that is a
 /// whole pass, of which one frame is kept.
@@ -191,30 +257,49 @@ pub(crate) fn compute_characteristics_uncached(
 fn walk_uncached(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
-    match membership(game, id) {
-        Membership::Member => compute_board(game, None).take(id),
-        Membership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
-        Membership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len()),
+    match pass_membership(game, id) {
+        PassMembership::Member => compute_board(game, None).take(id),
+        PassMembership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
+        PassMembership::LeftOut => {
+            let (_, notes) = compute_board(game, None).into_frames_and_notes();
+            let notes = notes.expect("a card the pass leaves out has a pass that leaves its zone out");
+            compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &notes)
+        }
+        PassMembership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &[]),
     }
 }
 
-/// The walk of an object no row can reach — a card in a hand, library or
-/// graveyard, or a spell — up to `ceiling`: its printed characteristics and
-/// its own CDAs, which CR 604.3 makes function in every zone.
+/// The walk of an object no pass holds — a card in a hand, library or
+/// graveyard, or a spell — up to `ceiling`: its printed characteristics, its
+/// own CDAs, which CR 604.3 makes function in every zone, and `notes`, what a
+/// pass noted about each row reaching a zone it leaves out (§13e).
 ///
-/// No row applies here by construction of the working set: a filter row needs
-/// one of the zones it names and an object in such a zone is a member (LJ —
-/// before it, a filter row needed the battlefield and this sentence read
-/// "needs the battlefield zone"), a `Fixed` row's targets are members, a
-/// `Host` row's host is a permanent. What a CDA here reads of *another* object goes
-/// through `board.frame_of` — a member's live frame inside a pass, its
-/// memoized frame outside one, and another non-member at a strictly lower
-/// ceiling, which is what bounds the recursion (§13b, decision 4).
+/// **No other row applies here, by construction of the working set:** a
+/// filter row's zones are members unless the pass leaves them out, and then
+/// the row is in `notes`; a `Fixed` row's targets and a joining source are
+/// members; a `Host` row's host is a permanent. A card no row reaches passes
+/// no notes.
+///
+/// **The notes are each row as the pass saw it at the row's layer**, which
+/// the memo's settled frames are not: whether the row existed, who "you" was,
+/// whether CR 613.6 had locked it. At each layer the card's own CDAs apply
+/// first (CR 613.3), then that layer's notes in the order the pass applied
+/// them; a locked row applies exactly when the card matched where its effect
+/// started. Only a modification that carries its own answer is ever noted
+/// (`left_out_zones`' (a)), so a note resolves without reading the board.
+///
+/// What a CDA here reads of *another* object goes through `board.frame_of` —
+/// a member's live frame inside a pass, its memoized frame outside one, and
+/// another non-member at a strictly lower ceiling, which is what bounds the
+/// recursion (§13b, decision 4). Reading a member's settled frame where the
+/// pass would read its live one is exact while every CDA reads what strictly
+/// lower layers wrote, `layers::cda`'s standing premise.
 pub(super) fn compute_non_member(
     game: &GameState,
     board: &Board<'_>,
     id: ObjectId,
     ceiling: usize,
+    notes: &[RowNote],
 ) -> Option<EffectiveCharacteristics> {
     let obj = game.objects.get(&id)?;
     debug_assert!(
@@ -226,23 +311,53 @@ pub(super) fn compute_non_member(
     let controller = base_controller(game, id, board.lookahead).unwrap_or(obj.owner);
     let mut chars = seed_frame(&obj.card_data, controller, 0);
 
-    // The common case, and worth its own exit: with no CDA there is nothing
-    // any layer can do to an object **no row reaches** — which is what being a
-    // non-member means. Before LJ this said "off the battlefield", and that
-    // was the same statement only because no row could reach further.
-    if !crate::engine::layers::cda::has_any_cda(&chars) {
+    // The common case, and worth its own exit: with no CDA and no row reaching
+    // its zone there is nothing any layer can do to the object. Before LJ this
+    // said "off the battlefield", and that was the same statement only because
+    // no row could reach further.
+    let reaches = |note: &RowNote| {
+        matches!(&note.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
+    };
+    let starts_here = |note: &RowNote| {
+        note.layer_index < ceiling && matches!(note.affected, AffectedSet::Fresh { .. }) && reaches(note)
+    };
+    if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
         return Some(chars);
     }
 
+    // CR 613.6's groups this card matched where their effects started.
+    let mut matched: Vec<EffectGroup> = Vec::new();
     for (layer_index, &layer) in LAYER_ORDER.iter().enumerate().take(ceiling) {
-        if !crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
-            continue;
+        if crate::engine::layers::cda::CDA_LAYERS.contains(&layer) {
+            // Collected before applying, because applying mutates the list
+            // being read.
+            for (_, modification) in crate::engine::layers::cda::cda_modifications(&chars, layer) {
+                let resolved = resolve_modification(&modification, game, board, id, layer_index, None);
+                apply_resolved(&resolved, &mut chars, id);
+            }
         }
-        // Collected before applying, because applying mutates the list
-        // being read.
-        for (_, modification) in crate::engine::layers::cda::cda_modifications(&chars, layer) {
-            let resolved = resolve_modification(&modification, game, board, id, layer_index, None);
-            apply_resolved(&resolved, &mut chars, id);
+        for note in notes.iter().filter(|note| note.layer_index == layer_index) {
+            let row = &*note.row;
+            let applies = match note.affected {
+                // Wherever the locked row itself points: CR 613.6 applies it to
+                // the set its effect started with.
+                AffectedSet::Locked => matched.contains(&row.group()),
+                AffectedSet::Fresh { you } => {
+                    let ObjectSet::Filter { filter, .. } = &row.affected_objects else { continue };
+                    if !reaches(note) {
+                        continue;
+                    }
+                    let mut players = FilterPlayers::for_noted_row(row, game, board, layer_index, you);
+                    let hit = object_matches_filter(filter, id, &chars, &mut players);
+                    if hit {
+                        matched.push(row.group());
+                    }
+                    hit
+                }
+            };
+            if applies {
+                apply_resolved(&resolve_without_reads(&row.modification, row), &mut chars, id);
+            }
         }
     }
     Some(chars)
@@ -379,6 +494,27 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
             .map(|frame| frame.controller)
             .or(owner);
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
+    }
+
+    /// The players of a noted row, applied to a card the pass left out (§13e):
+    /// "you" is the one the pass read when it applied the row, and the owner is
+    /// derived as a row's is.
+    pub(super) fn for_noted_row(
+        effect: &'a ContinuousEffect,
+        game: &'a GameState,
+        board: &'a Board<'l>,
+        layer_index: usize,
+        you: PlayerId,
+    ) -> Self {
+        FilterPlayers {
+            effect: Some(effect),
+            source: effect.source,
+            game,
+            board,
+            layer_index,
+            you: Some(you),
+            owner: None,
+        }
     }
 
     /// CR 109.5's "you".
@@ -881,6 +1017,24 @@ pub(super) fn resolve_modification<'m>(
             };
             Resolved::Grant(def, def.id.granted_by(effect.id))
         }
+        other => Resolved::AsIs(other),
+    }
+}
+
+/// A modification that carries its own answer, resolved without a read: the
+/// only kind a note holds, since `left_out_zones` keeps a zone in the pass
+/// wherever a row reaching it is dynamic. The arms are `resolve_modification`'s
+/// with every amount a constant.
+fn resolve_without_reads<'m>(modification: &'m EffectModification, row: &ContinuousEffect) -> Resolved<'m> {
+    debug_assert!(!is_dynamic(modification), "a noted row reads nothing");
+    match modification {
+        EffectModification::SetPowerToughness { power: PtValue::Fixed(p), toughness: PtValue::Fixed(t) } => {
+            Resolved::SetPt(Some((*p, *t)))
+        }
+        EffectModification::ModifyPowerToughness { power: PtValue::Fixed(p), toughness: PtValue::Fixed(t) } => {
+            Resolved::ModifyPt(Some(*p), Some(*t))
+        }
+        EffectModification::GrantAbility(def) => Resolved::Grant(def, def.id.granted_by(row.id)),
         other => Resolved::AsIs(other),
     }
 }

@@ -196,7 +196,10 @@ pub struct RegistryScopeSummary {
     /// `compute_non_member` cost what they would without the field. That is a
     /// structural zero rather than a measured one, which matters because the
     /// alternative is walking every card in every library: four seats is ~400
-    /// members a pass instead of ~40.
+    /// members a pass instead of ~40. Where a row does reach a library or a
+    /// hand, the pass leaves those zones out (`layers::board::left_out_zones`)
+    /// and a card there is walked only when something asks about it
+    /// (`layers-architecture.md` §13e).
     ///
     /// A set rather than a `touches_hidden_zones: bool` confines the sweep to the
     /// zone a card actually reaches — Yixlid Jailer costs graveyards, not

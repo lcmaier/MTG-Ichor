@@ -546,7 +546,7 @@ The single entry point all oracle queries route through.
 - Do **not** add reconcile-the-registry machinery at state-mutation chokepoints. It was tried and discarded; it needs an iteration cap and invents oscillation the CR does not have.
 - CR 613.6 rides on the same step: once an effect has started applying, the pass records the *set of members* it applied to (keyed on `EffectGroup`, not `EffectId` — one CR-level effect is several registry rows), and its rows in later layers apply to that set without re-running the filter or the existence check.
 
-**One pass per board, not one walk per object (LI-1).** `compute_characteristics` is the memoized entry; on a miss for a permanent it runs `board::compute_board`, which walks every member of the working set — the battlefield, the entering object under a look-ahead, anything a `Fixed` row names — through the layers together, and stores every member's frame. An object no row can reach (a card in a hand or graveyard, a spell) keeps a walk of its own that applies only its CDAs (`compute_non_member`). Layer 1a is an ordinary registry slice carrying `CopyFrom` rows and 1b will read `PermanentState.face_down` from inside the loop the way 7c reads counters (§7); neither is special-cased ahead of the walk.
+**One pass per board, not one walk per object (LI-1).** `compute_characteristics` is the memoized entry; on a miss for a permanent it runs `board::compute_board`, which walks every member of the working set — the battlefield, the entering object under a look-ahead, anything a `Fixed` row names — through the layers together, and stores every member's frame. An object no row can reach (a card in a hand or graveyard, a spell) keeps a walk of its own that applies only its CDAs (`compute_non_member`). A card in a library or a hand that a row does reach is left out of the pass too, and the same walk replays what the pass decided about each row reaching it (§13e, LL). Layer 1a is an ordinary registry slice carrying `CopyFrom` rows and 1b will read `PermanentState.face_down` from inside the loop the way 7c reads counters (§7); neither is special-cased ahead of the walk.
 
 ```
 compute_board(game, lookahead) -> a frame for every member:
@@ -2638,6 +2638,42 @@ construction (`replacement-architecture.md` §11 item 80's technique). That arm
 read **+16.5%**, which is how decision 2's field move was caught. Post-fix it
 reads −2.5%. **Build that arm first next time**: the pool-moving arm cannot
 tell a 16% regression from a shorter game, and it very nearly did not.
+
+---
+
+## 13e. Phase LL — a card in a library or a hand is walked only when something reads it (landed 2026-09-25)
+
+#### LL — hidden walks — ✅ landed 2026-09-25
+
+*Body evicted to `plans/archive/layers-architecture-landed.md` under the same
+heading: the design on one page, the finding that sets the scope, the seven
+decisions and the owner's four passes over them, the pieces, the tests, the
+predictions, what the building changed and the measurement.*
+
+**Shipped:** a pass leaves out every library and hand a row reaches
+(`board::left_out_zones`) and notes what it found about each row reaching
+them (`RowNote`: whether it existed, who "you" was, whether CR 613.6 had
+locked it). A card there is walked alone with the notes when something asks
+— `compute_non_member`, `PassMembership::LeftOut` — and its frame is
+memoized, the notes beside the memo's frames at their epoch. A static row's
+source joins the pass when a row can write it (its own `SourceOnly` row,
+anywhere, or a row reaching its left-out zone), which fixed Grist, the
+Hunger Tide in every zone. A zone stays in the pass when a row reaching it
+is dynamic, or when two effects of one layer reach it and `Channels` cannot
+rule the pair out; no printed card needs that, and a trip costs `main`'s
+price. A debug build checks every left-out card's frame against a pass with
+the zone in it. Item 182 rode along: the cast-timing check reads
+`is_instant_or_has_flash`. Floor 1 holds on the fixture boards, 14,290–18,863
+decisions per second on one thread with the card out on an idle machine,
+from 4,640–6,810, and the pools are `IDENTICAL` in every row at +0.36%
+instructions per decision. Closes `codebase-state.md` items 181 and 182, and
+half of 183 (a clone copied the high-water capacity of the state's maps,
+which broke floor 3 on one fixture game); files 184 (CR 613.6's lock within
+a layer) and `backlog.md` §2.39 (the pre-check's grain).
+
+→ The section as written at the close, what the building changed and the
+measurement: `plans/archive/layers-architecture-landed.md`, "LL" (evicted
+2026-09-25).
 
 ---
 

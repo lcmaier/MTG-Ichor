@@ -8452,108 +8452,113 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Reachability (2026-09-25):** closed — the shared-registry-rows PR.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 180".
 
-181. **A continuous effect that reaches the hand or the library makes every
-     layer pass walk every card there, and on a Commander board that fails
-     floor 1.** Membership seeds every object in a zone some row reaches into
-     every board pass (`layers-architecture.md`, LJ, which made the cost zero
-     only on a board with no such row). Thirteen printed cards make such a row,
-     all Commander-legal (Scryfall `o:"that aren't on the battlefield"`),
-     Teferi, Mage of Zhalfir, Mycosynth Lattice and Painter's Servant among
-     them. No pooled card does: the pools' zone-reaching rows reach graveyards.
-
-     **Measured (2026-09-25)** by `tests/zone_reach_cost_test.rs` (`fuzz-record.md`,
-     "Measured 2026-09-25 for item 181"), with a fixture of Teferi's or
-     Lattice's clause under player 0:
-     - Each pass seeds 333–354 objects more. Layer frames per decision rise
-       ×7.4–8.7, and engine time per decision ×3.0–3.4 while the card is on the
-       battlefield.
-     - **Floor 1 reads 4,600–6,800 decisions per second on one thread**, against
-       10,000.
-     - Floors 2 and 3 hold on the proxies. Floor 2's time sits at its bound
-       (10.0–10.1 µs).
-     - `backlog.md` §2.9's cold redeal costs one walk of ~400 objects, 76–224 µs
-       over a warm first decision, against 3–39 µs without the row.
-     - A throwaway probe put 61–67% of the extra in frames built and thrown
-       away, and the rest in the layer loop.
-     - Only 0.22–0.28% of the frames seeded off the battlefield are read
-       before the next bump.
-
-     **Reachability (2026-09-25):** reachable — not wrong; a cost, and a floor 1
-     failure on any Commander board that plays one of the thirteen.
-
-     **Proposed: before TR-2b** (`roadmap-v2.md` A6b), by the rule the
-     measurement's brief set: floor 1 broke. The fix is its own PR with its own
-     brief.
-
-     **Sized:** four levers, each read off the measurement:
-     - **Walk a card in a hidden zone, a library or a hand, only when something
-       reads it. This is the lever.** It was scoped to the hidden zones at the
-       owner's review.
-       - Those two zones hold 93.4% of the objects off the battlefield: 88.9% in
-         libraries and 4.5% in hands, per prompt over the 23 games. Nothing
-         displays them but the viewer's own hand.
-       - **The public zones stay in the pass, because sources live there.**
-         Seven printed statics function from a graveyard (Wonder, Anger, Brawn,
-         Filth, Valor, Riftstone Portal, Retriever Phoenix). None functions
-         from a hand or a library (Scryfall, three phrasings).
-       - A source has to be in the pass for CR 613.8. Yixlid Jailer's strip and
-         Wonder's grant both apply in layer 6, and Wonder's depends on the
-         Jailer's. So a Wonder walked alone would keep its ability.
-       - A hidden card that is a row's source (CR 113.6b allows one) joins the
-         pass the way a `Fixed`-named object does.
-       - The seed stops appending hidden members, and the look-ahead's boards
-         stop with it. `membership` and `frame_of` answer a hidden card with a
-         walk of its own that applies the rows reaching its zone.
-       - **That walk must see each row as the pass saw it at the row's layer,
-         not the memo's settled frames.** Under Titania's Song, Mycosynth
-         Lattice's colorless line applies at layer 5, though by the end of
-         layer 6 Lattice has lost its abilities. So the pass keeps, per epoch,
-         each such row's decision at its layer: whether it exists, and who
-         "you" is. The hidden card's walk replays that decision against its
-         own frame.
-       - This is not §12's per-object dirty tracking, which was deferred
-         because a fine key must list every input, and CR 613.8 makes other
-         objects' answers inputs. On the battlefield it would also buy
-         little, since a GUI or an observation reads every permanent. A
-         library is the opposite case on both counts: nothing reads it, and
-         no source lives there.
-       - Reads are 0.2% of today's seeded frames. The public zones keep about
-         7% of the extra, about 8 µs per decision on `performance`.
-       - One layers PR, ~500 lines with its tests.
-     - **A seed that honors the row's owner.** Ownership is the one leaf no
-       layer changes (CR 108.3), so a zone whose every row says "you own" need
-       only seed that seat's cards.
-       - Once the lever lands, this would narrow only the public zones.
-       - ~60 lines.
-     - **A cheaper frame**: the five `HashSet`s as bitsets, and the name and
-       mana cost shared.
-       - It saves part of the 61–67% share, and today's battlefield passes gain
-         a little too.
-       - Alone it leaves floor 1 failing, at about ×2.
-       - A type change read at ~110 sites in the layer walk and the oracle.
-     - **A separate cache key for frames off the battlefield**: not worth one.
-       Only 1.3–3.9% of passes follow nothing but writes such a key could
-       ignore.
+181. **~~A continuous effect that reaches the hand or the library makes every
+     layer pass walk every card there.~~ — ✅ CLOSED 2026-09-25 (LL,
+     `layers/hidden-walks`).** — archived. A pass leaves libraries and hands
+     out, and a card there is walked when something asks, replaying what the
+     pass decided about each row reaching it: floor 1 holds on the fixture
+     boards, 11,907–15,435 decisions per second on one thread against
+     4,640–6,810.
+     **Reachability (2026-09-25):** closed — LL (`layers-architecture.md` §13e).
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 181".
 
 ### Found by item 181's measurement (2026-09-25)
 
-182. **A card in a hand is timed by its printed flash, and a row can reach it
-     now.** The cast-timing check reads a hand card's printed types and flash
-     (`put_on_stack.rs:673`, `mana_helpers.rs:331`, both `// PRE-LAYER
-     ZONE:`), on the premise that nothing changes a card before it is a
-     permanent. LJ ended that premise: a row can reach a hand. Teferi, Mage of
-     Zhalfir's "Creature cards you own that aren't on the battlefield have
-     flash" lands on the frame and is never read, so item 181's fixture of that
-     line changes no game. The other cast-path sites ask a card's printed
-     spell ability and whether it is a land, and none of the 13 printed cards
-     with a row reaching off the battlefield (item 181) changes either.
+182. **~~A card in a hand is timed by its printed flash, and a row can reach
+     it now.~~ — ✅ CLOSED 2026-09-25 (LL).** — archived. Both cast-timing
+     reads ask `oracle::characteristics::is_instant_or_has_flash`, gated on
+     `no_row_reaches`, so Teferi's clause changes games.
+     **Reachability (2026-09-25):** closed — LL.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 182".
 
-     **Reachability (2026-09-25):** unreachable. No registered card's row
-     reaches a hand, only fixtures do (`teferi_flash_clause`, `hollow_hands`).
+### Found by LL (2026-09-25)
 
-     **Sized:** the two reads routed through `oracle/characteristics.rs`,
-     which the memo answers for a card in hand as for any object, ~10 lines;
-     one test that a creature card under Teferi's fixture is offered at
-     instant speed, ~40. With the first registered card whose row reaches a
-     hand, or before it.
+183. **A state's maps keep their high-water capacity, so one deep stack holds
+     floor 3 over its bound for the rest of the game.** On `stress` 12351
+     under Teferi's clause, a game item 182 changed (the clause now gives
+     player 0's creature cards flash), the stack held more than 28 objects at
+     once during turn 79. `stack_entries` grew to a table of 64 slots of
+     664-byte `StackEntry`s, room for 56, and the battlefield, past 56
+     permanents at turn 72, to 128 slots of 360 bytes, room for 112. Neither
+     shrinks:
+     - the clone reads 138.3 KB at turn 80 and 150.4 KB at the game's end, 89
+       turns, against floor 3's 128 KB; the same seed without the clause
+       reads 75.1 and 76.9 KB;
+     - of the 63 KB between them, the two maps are 54.5 and LL's memo about
+       9, from a throwaway that cloned each public field alone;
+     - allocations stay at 27–29, under floor 2's CI proxy.
 
+     **Reachability (2026-09-25):** reachable — not wrong; a floor 3 breach on
+     a fixture board, `clone_bound_test.rs`'s fourth game.
+
+     **The owner's call (2026-09-26): the floors hold a deep stack.** A
+     29-deep stack is ordinary: a cEDH turn can put a whole winning line on
+     the stack at once, storm copies and a batch of triggers go on together
+     even in two-player games, and some decks win by putting a very large
+     number of triggers or activations on the stack. **Hard back-stopped
+     before Phase 8's breadth, possibly sooner** (`roadmap-v2.md` B10).
+
+     **Half closed at PR #191's review (2026-09-26): what a clone copies after
+     the spike.** `types::ids::FitOnClone` wraps `objects`, `battlefield` and
+     `stack_entries`: a clone of a map whose capacity is past twice its
+     length is rebuilt at its length. Over `clone_bound_test`'s 210 readings,
+     `MTGSIM_HASH_SEED=1`:
+     - this game reads 73.2 KB at turn 80 and 71.0 at its end, from 138.3
+       and 150.4;
+     - the worst reading is 90.7 KB, from 150.4, and 99.9 without the clause;
+     - allocations are at most 39, from 40.
+     Nothing in play clones a state, so no counter moved.
+
+     **Open: a clone during the spike — the back-stop.** Floors 2 and 3 are
+     read between turns, where the stack is empty, and a search clones
+     mid-turn as well. A clone copies every stack object: a thousand of them
+     is 664 KB of `StackEntry` alone, with their `GameObject`s and whatever
+     each holds on the heap, where the floors are 10 µs and 128 KB. The
+     shape to design is objects shared between forks, copied on write, so a
+     clone copies a pointer per stack object. The design also reads the layer
+     memo: stale frames are overwritten, never evicted, so every object ever
+     asked about keeps one.
+
+     **Sized:** small (2026-09-26). `stack_entries` is written at one
+     `get_mut` and nine inserts, and `objects` at three `get_mut`s. Whether a
+     clone then meets floor 2 with a thousand objects on the stack, at one
+     count bump each, is the design's first measurement.
+
+     **B10's design also settles `FitOnClone`'s rule** (the owner,
+     2026-09-26). Its bar, capacity past twice the length, is derived from
+     hashbrown's doubling, not measured. It leaves three costs:
+     - every clone of one state rebuilds again, where shrinking the
+       original once, when the stack empties or at a turn's end, would pay
+       once;
+     - a rebuilt fork has no headroom, so its first inserts in play
+       reallocate;
+     - tombstones can hide a bloated table from `capacity`.
+     None binds a floor today (the worst clone went from 6.8 µs to 7.8),
+     and shared stack objects make a spare slot 16 bytes instead of 664,
+     so the design reads the rule after its own change.
+
+184. **CR 613.6's lock carries one row's set to another row of the same
+     effect in the same layer.** `row_affected` answers `Locked` for every row
+     of a group after its first fresh one, in any layer, but CR 613.6 locks a
+     set across layers ("If an effect should be applied in different
+     layers..."). A static ability whose atoms have different recipients in
+     one layer applies its first row's set to the rest:
+     - Encroaching Mycosynth's "nonland permanents you control" and
+       "nonland permanent cards you own that aren't on the battlefield" are
+       both layer 4, so its second half would reach nothing;
+     - a throwaway fixture of that shape made a battlefield creature an
+       artifact and a creature card in hand not.
+
+     The replay mirrors the pass here (a locked row applies to a hidden card
+     only if the card matched where its effect started), so the debug audit
+     agrees with it.
+
+     **Reachability (2026-09-25):** unreachable. No registered card's static
+     ability has atoms with different recipients (all 175 scanned). Encroaching
+     Mycosynth and the six "creature cards you own" cards of item 181 print
+     exactly this shape, so it is reachable the day one is registered.
+
+     **Sized:** ~30 lines and a test: within the layer an effect starts in,
+     each row evaluates its own filter and the lock records their union; later
+     layers apply the union. With the first registered card of the shape, or
+     before it.
