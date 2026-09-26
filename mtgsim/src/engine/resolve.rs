@@ -188,10 +188,13 @@ impl GameState {
             // Only a primitive that says what several players at once means takes it.
             Effect::Atom(primitive, recipient @ EffectRecipient::EachOf(group)) => {
                 // A draw is one instruction per player (CR 121.2c); damage to
-                // them is one event, a member each.
-                if !matches!(primitive, Primitive::DrawCards(_) | Primitive::DealDamage { .. }) {
+                // them, or a loss of life, is one event, a member each.
+                if !matches!(
+                    primitive,
+                    Primitive::DrawCards(_) | Primitive::DealDamage { .. } | Primitive::LoseLife(_)
+                ) {
                     return Err(format!(
-                        "{:?} on {:?} is not built for {:?}; a draw and damage are",
+                        "{:?} on {:?} is not built for {:?}; a draw, damage and a life loss are",
                         recipient, ctx.source, primitive
                     ));
                 }
@@ -564,14 +567,25 @@ impl GameState {
                 Ok(())
             }
 
+            // "Each opponent loses 1 life" is one event, a member each, in the
+            // APNAP order `players_in` gave them.
             Primitive::LoseLife(amount_expr) => {
                 let amount = self.evaluate_amount(amount_expr, ctx)?;
-                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
-                self.execute_action(GameAction::LoseLife {
-                    player: player_id,
-                    amount,
-                    cause: LifeLossCause::Effect,
-                }, &actx)?;
+                let players: Vec<PlayerId> = match recipient {
+                    EffectRecipient::EachOf(_) => targets
+                        .iter()
+                        .filter_map(|t| match t {
+                            ResolvedTarget::Player(pid) => Some(*pid),
+                            ResolvedTarget::Object(_) => None,
+                        })
+                        .collect(),
+                    _ => vec![self.resolve_player_for_self(recipient, targets, ctx)],
+                };
+                let batch = players
+                    .into_iter()
+                    .map(|player| GameAction::LoseLife { player, amount, cause: LifeLossCause::Effect })
+                    .collect();
+                self.execute_actions(batch, &actx)?;
                 Ok(())
             }
 
@@ -1414,8 +1428,15 @@ impl GameState {
             // One batch: CR 608.2f processes a spell's actions over several
             // objects simultaneously, which is what lets a single CR 614.16
             // doubler see all of them.
+            // "Each creature you control" is the permanents the filter matches
+            // as the effect resolves (CR 611.2c's set, fixed then).
             Primitive::AddCounters { .. } | Primitive::RemoveCounters(..) => {
-                let batch = self.events_for(primitive, targets, ctx)?;
+                let objects: Vec<ResolvedTarget> = self
+                    .affected_permanents(recipient, targets, ctx)
+                    .into_iter()
+                    .map(ResolvedTarget::Object)
+                    .collect();
+                let batch = self.events_for(primitive, &objects, ctx)?;
                 self.execute_actions(batch, &actx)?;
                 Ok(())
             }

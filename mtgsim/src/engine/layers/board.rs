@@ -690,6 +690,8 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
             out.members |= Channels::TYPES | Channels::CONTROLLER;
             out.source |= you_channel;
         }
+        // A hand's size is off `GameState`; whose hand is "you".
+        AmountExpr::CountOf(Selector::CardsInHand(_)) => out.source |= you_channel,
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
