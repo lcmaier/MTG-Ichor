@@ -37,6 +37,62 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-25 for LL** (a card in a library or a hand walked only
+when something reads it; `layers-architecture.md` §13e; `codebase-state.md`
+items 181 and 182 closed, 183 and 184 filed; `roadmap-v2.md` A6b). No pool
+change. `close_out.py`, `main` = `3656382` against the engine arm `0a69aa4`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 174,774 / 195,883 | 343,421 / 393,287 |
+| instructions / decision, engine vs main, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7655 M → 0.7682 M, **+0.36%** |
+
+Every counter file is byte-identical to `main`'s outside `=== Timing ===`, the
+cost rows included, as predicted. The +0.36% is at the top of the predicted
++0.1% to +0.4%: item 182's gate scans the registry once per nonland hand card
+per castability check, and the seed probes `seen` once per `SourceOnly`
+static row. The last commit, `0c5e313`, only gates a debug-only enum variant.
+
+**`zone_reach_cost_test`**, re-read, with the card out; cells read
+`performance` / `stress`, and item 181's reading is the "before":
+
+| | no row | Teferi's clause, before → LL | Lattice's clause, before → LL |
+|---|---|---|---|
+| µs / decision | 68.4 / 55.8 | 206.2 / 146.8 → **78.5 / 64.8** | 215.3 / 154.4 → **84.0 / 71.2** |
+| floor 1, decisions / s on one thread | 14,620 / 17,920 | 4,850 / 6,810 → **12,734 / 15,435** | 4,640 / 6,480 → **11,907 / 14,054** |
+| layer frames / decision | 41.5 / 25.1 | 307.7 / 214.1 → 55.1 / 47.0 | 307.7 / 218.6 → 58.9 / 43.4 |
+| layer walks / decision | 1.61 / 1.21 | 1.14 / 0.74 → 5.83 / 5.05 | 1.14 / 0.74 → 5.21 / 5.90 |
+| worst clone on `performance`: µs, KB, allocations | 7.3, 98.2, 40 | 10.0, 112.4, 65 → 9.3, 94.5, 39 | 10.1, 112.4, 65 → 7.9, 98.4, 40 |
+| redeal cold − warm, by-turn medians from turn 10, µs | 3.1–30.4 / 2.9–35.3 | 76–146 / 119–179 → 5.5–50.8 / 5.4–63.8 | 84–159 / 137–224 → 6.0–40.5 / 7.1–49.3 |
+| games diverging from the no-row arm | | 0 → 20 of 20 / 0 → 3 of 3 | 0 → 0 of 20 / 1 → 1 of 3 |
+
+A pass now adds 15.4 / 12.1 objects off the battlefield, and leaves 317.6 /
+342.0 cards in libraries and hands out. Three moves nobody predicted:
+- **Floor 1 holds, under the predicted ≥ 12,800 / ≥ 16,500.** This sitting's
+  no-row arm read 9–13% slower than the two sittings before it. Against it,
+  the lever costs ×1.15 (Teferi) and ×1.23 (Lattice), which is the
+  prediction's ratio.
+- **Layer walks per decision rose to 5–6.** Item 182's gate asks about every
+  nonland hand card at each castability check, and on these boards each is a
+  replayed walk once per epoch.
+- **Floor 3 breaks on `stress` 12351 under Teferi's clause**, a game item 182
+  changed. A stack 29 deep during turn 79 left `stack_entries` at 56 slots of
+  664 bytes, and the battlefield map at 112 of 360: 138.3 KB at turn 80 and
+  150.4 KB at the end, against 75.1 and 76.9 without the clause. A throwaway
+  that cloned each public field alone put 54.5 KB on the two maps and about 9
+  on LL's memo (`codebase-state.md` item 183).
+
+**A tripped board**, where the guard holds the hidden zones, costs `main`'s
+price. `main`'s engine measured one: a {2} artifact carrying Biotransference's
+and Arcane Adaptation's clauses read 219.9–265.1 / 156.9–187.2 µs per decision,
+3,770–4,550 / 5,340–6,370 per second. The worse order is item 181's board
+plus one CR 613.8 exact test per pass, about 50 µs, which always answers
+"no". **The pre-check's grain on the pools**, for the owner's note at
+approval: 1,337 / 1,844 exact tests in 20 Commander games answered "no",
+about 1% and 0.7% of engine time, and a value grain and a direction grain
+would have skipped most of them (`backlog.md` §2.38).
+
 **Re-recorded 2026-09-25 for item 180** (registry rows shared across a fork;
 `codebase-state.md` item 180 closed; `roadmap-v2.md` A6b). No pool change.
 `close_out.py`, `main` = `be6e181` against the engine arm `e710961`:

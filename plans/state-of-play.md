@@ -58,6 +58,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `LI-3` — plans/layers-architecture.md
 - `LJ` — plans/layers-architecture.md
 - `LK` — plans/layers-architecture.md
+- `LL` — plans/layers-architecture.md
 - `RA-1` — plans/replacement-architecture.md
 - `RA-2` — plans/replacement-architecture.md
 - `RA-3` — plans/replacement-architecture.md
@@ -94,7 +95,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 175 |
 | …of them in `PERFORMANCE_POOL` | 96 |
-| `#[test]` functions | 1752 |
+| `#[test]` functions | 1764 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -102,8 +103,8 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Numbered items | 242 |
-| …closed, still recorded | 81 |
+| Numbered items | 244 |
+| …closed, still recorded | 83 |
 | …open — unreachable, and says why | 104 |
 | **…open — reachable, wrong today** | **2** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |

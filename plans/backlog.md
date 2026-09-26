@@ -714,9 +714,10 @@ critical path, which lists neither; that is the owner's line to add.
     a card that walk covers every card in the reached zones, about 400
     objects. It costs 76–224 µs over a warm first decision at every stage of
     the game, against 3–39 µs without the row (`codebase-state.md` item 181,
-    measured 2026-09-25). Item 181's lever, walking a card off the
-    battlefield only when something reads it, would bring it back to the
-    battlefield's walk.
+    measured 2026-09-25). Item 181's lever, walking a card in a library or a
+    hand only when something reads it, landed as LL (2026-09-25): the cold
+    first decision now costs 5.5–63.8 µs over a warm one on those boards, by
+    turn from turn 10, against 2.9–35.3 µs without the row.
   - **These are the naive model's numbers.** With no knowledge record, every
     hidden card is unknown, so the redeal shuffles all of them, and the
     observation makes no visibility query. The build pays a lookup per card
@@ -758,7 +759,10 @@ critical path, which lists neither; that is the owner's line to add.
 - **Size** — small, but it is **downstream of §2.8**: "activate only as a
   sorcery" is exactly the activation restriction that entry adds to
   `AbilityDef`. The per-turn limit needs per-permanent turn-scoped state.
-- **Blocks** — every planeswalker card, which is a whole card type.
+- **Blocks** — every planeswalker card, which is a whole card type. Among
+  them Grist, the Hunger Tide, whose first ability LL tests through a clause
+  fixture (`phase_ll_cards::grist_insect_clause`); the card waits on these
+  abilities, and its −2 on TR-3's reflexive trigger.
 - **Atoms** — 12, across CR 306 (10) and CR 209 (2).
 - **Owner** — none yet.
 
@@ -2267,6 +2271,60 @@ the matrix waits for the design that needs it.
 | **Blocks** | the matrix blocks post-v1 custom card support. Nothing on the spine |
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
+
+### 2.38 The grain of the CR 613.8 pre-check — a performance lever
+
+**What the pre-check is.** `layers/board.rs` decides CR 613.8a(b) in two
+steps. `Channels` compares what one application reads with what another
+writes, one bit per characteristic. Any pair that comparison cannot rule out
+goes to the exact test: apply the other under a journal, observe, restore. The
+exact test is always right, and the grain only decides how often it runs. LL
+(`layers-architecture.md` §13e) reuses the same comparison as its guard, so
+the grain also decides which boards keep their hidden zones in the pass.
+
+**What the grain costs, measured 2026-09-25** with a throwaway probe on LL's
+tree that timed and classified every exact test. It ran 20 Commander games at
+four seats per pool (`--games 20 --seed 12345 --players 4 --deck-size 100
+--life 40 --threads 1`):
+
+| | `performance` | `stress` |
+|---|---:|---:|
+| exact tests, answered yes / no | 3,283 / 1,337 | 2,336 / 1,844 |
+| time in them, yes / no | 19.4 / 11.9 ms | 29.2 / 7.8 ms |
+| engine time, 20 games | ~880 ms | ~1,070 ms |
+
+Two finer grains would have ruled out most of the "no"s without applying
+anything:
+- **Values of card types, supertypes and colors.** An added type changes only
+  a filter that tests that type. That would catch Blood Moon's "nonbasic
+  lands" and Urborg's "each land" asked of March of the Machines' or
+  Opalescence's added Creature, and Opalescence's "non-Aura enchantments" of
+  another Opalescence. 476 of `performance`'s no's (2.2 ms) and 1,736 of
+  `stress`'s (7.4 ms).
+- **Direction.** An application that only adds an ability cannot end
+  another's existence, which CR 604.2 reads off the source's abilities. That
+  would catch a second Urborg's Swamp mana ability asked of the first, and
+  Ashaya's and Citanul Hierophants' grants asked of their own copies. 643 of
+  `performance`'s (7.8 ms) and 23 of `stress`'s (0.2 ms).
+
+The rest, 218 and 85, answer "no" on this board and "yes" on another
+(Urborg beside Blood Moon), which no static grain can decide.
+
+**So about 1% of engine time on `performance` and 0.7% on `stress`**, and
+more on a board where LL's guard holds a hidden zone: there the exact test
+reads every card in it, about 50 µs a test on the tripped board LL measured.
+Card-type values would also shrink the guard's printed trips from seven cards
+beside Biotransference or Encroaching Mycosynth to Biotransference beside
+Encroaching.
+
+| Field | |
+|---|---|
+| **Rules** | CR 613.8a(b) (what makes one effect depend on another), 604.2 (existence read off the source), 613.6 (a locked set) |
+| **Verdict** | `Channels` is one bit per characteristic. `AddType(Artifact)` and `ByType(Creature)` share `TYPES`, and a grant and an existence check share `ABILITIES`, so the pre-check sends pairs that cannot depend to the exact test |
+| **Size** | ~150 lines and ~60 of tests in `board.rs` for card-type, supertype and color values, with a debug audit that runs the exact test wherever the finer grain says "independent" and the coarse one would have looked. Direction is ~40 more. Subtypes (a large enum) and seats ("you own" rows under different players, which share no card) are further grains with no measured waste yet |
+| **Blocks** | nothing; a performance lever. `Dependency checks` falls on the pools, and every gameplay row stays identical |
+| **Atoms** | none; the rule is implemented, and this is its cost |
+| **Owner** | — ; `layers-architecture.md` when taken. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
 
 ## 3. Dispositioned — sections that need no entry of their own
 
