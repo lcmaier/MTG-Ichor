@@ -22,6 +22,7 @@ use super::phase_rd_cards;
 use super::phase_a4i_cards;
 use super::phase_tr1_cards;
 use super::phase_tr2a_cards;
+use super::phase_tr2b_cards;
 use super::phase_lj_cards;
 use super::phase_re10_cards;
 use super::phase_re8_cards;
@@ -52,7 +53,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 96] = [
+const PERFORMANCE_POOL: [&str; 98] = [
     "Plains",
     "Island",
     "Swamp",
@@ -443,6 +444,13 @@ const PERFORMANCE_POOL: [&str; 96] = [
     // Archers is an Elf for it to see.
     "Vengeful Warchief",
     "Elvish Warmaster",
+    // TR-2b's two. Psychosis Crawler is a hand's count in the layer walk,
+    // which every draw and discard moves, and the draw arm. Cosi's Trickster
+    // is the shuffle arm and a "may" asked at resolution. Nykthos Paragon
+    // stays out: its trigger is TR-2a's life-gain arm and its "may" is the
+    // Trickster's, so it opens no path the two do not.
+    "Psychosis Crawler",
+    "Cosi's Trickster",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -755,6 +763,11 @@ impl CardRegistry {
         registry.register("Vengeful Warchief", phase_tr2a_cards::vengeful_warchief);
         registry.register("Elvish Warmaster", phase_tr2a_cards::elvish_warmaster);
         registry.register("Temple Bell", phase_tr2a_cards::temple_bell);
+
+        // TR-2b: "may", CR 118.12's answer, and the departed frames.
+        registry.register("Nykthos Paragon", phase_tr2b_cards::nykthos_paragon);
+        registry.register("Psychosis Crawler", phase_tr2b_cards::psychosis_crawler);
+        registry.register("Cosi's Trickster", phase_tr2b_cards::cosis_trickster);
         registry.register(
             "Torbran, Thane of Red Fell",
             phase_rd_cards::torbran_thane_of_red_fell,

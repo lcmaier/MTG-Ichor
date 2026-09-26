@@ -15,11 +15,12 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, draws_a_card, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::safe_passage;
-use mtgsim::oracle::characteristics::get_effective_controller;
+use mtgsim::cards::phase_tr2b_cards::{cosis_trickster, nykthos_paragon, psychosis_crawler};
+use mtgsim::oracle::characteristics::{get_effective_controller, get_effective_power, get_effective_toughness};
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::{CounterSubject, GameEvent};
+use mtgsim::events::event::{CounterSubject, DamageTarget, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
@@ -34,7 +35,8 @@ use mtgsim::types::effects::{
     TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
-use mtgsim::types::mana::ManaCost;
+use mtgsim::types::keywords::KeywordFlag;
+use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::triggers::{Multiplicity, TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
@@ -598,4 +600,165 @@ fn two_entries_are_asked_their_order_only_when_the_amounts_they_read_differ() {
         place(&mut game, &dp);
         assert_eq!(dp.prompts(), usize::from(first != second), "gains of {first} and {second}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// The cards: Nykthos Paragon, Cosi's Trickster, Psychosis Crawler
+// ---------------------------------------------------------------------------
+
+fn plus_counters(game: &GameState, id: ObjectId) -> u32 {
+    game.battlefield.get(&id).map_or(0, |e| e.counter_count(CounterType::PlusOnePlusOne))
+}
+
+fn gain(game: &mut GameState, amount: u64, source: ObjectId) {
+    game.execute_action(GameAction::GainLife { player: 0, amount, source }, &test_ctx()).unwrap();
+}
+
+/// A 1/1 of player 0's with lifelink.
+fn lifelinker(game: &mut GameState) -> ObjectId {
+    put_on_battlefield(game, vanilla_creature(1, 1, &[KeywordFlag::Lifelink]), 0)
+}
+
+fn hit(source: ObjectId, target: DamageTarget, is_combat: bool) -> GameAction {
+    GameAction::DealDamage { source, target, amount: 1, is_combat, unpreventable: false }
+}
+
+/// Resolve the top of the stack, answering its "may".
+fn resolve_answering(game: &mut GameState, yes: bool) {
+    let ability = top_of_stack(game);
+    game.resolve_top_of_stack(&answering_may(ability, yes)).unwrap();
+}
+
+// RULING: Nykthos Paragon #1 - "As long as you haven't yet chosen to put +1/+1 counters on your creatures with it, all instances of gaining life will cause Nykthos Paragon's ability to trigger."
+// RULING: Nykthos Paragon #3 - "Once you have chosen to put +1/+1 counters on your creatures, further instances of gaining life will not cause the ability to trigger."
+#[test]
+fn paragon_triggers_until_you_choose_and_then_does_not() {
+    let mut game = setup_two_player_game();
+    let paragon = put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    for (amount, yes) in [(2, false), (3, true)] {
+        gain(&mut game, amount, paragon);
+        place(&mut game, &test_dp());
+        resolve_answering(&mut game, yes);
+    }
+    assert_eq!(plus_counters(&game, paragon), 3, "declined the 2, took the 3");
+    gain(&mut game, 1, paragon);
+    assert_eq!(pending(&game), 0, "the action is taken this turn");
+}
+
+/// Two Paragons are two abilities with a gate each. Their triggers on one gain
+/// agree on everything they read, so their order is not asked.
+// RULING: Nykthos Paragon #2 - "if you control multiple Nykthos Paragons, you will be able to do this once for each of them."
+#[test]
+fn two_paragons_each_put_their_counters_once() {
+    let mut game = setup_two_player_game();
+    let first = put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    let second = put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    gain(&mut game, 1, first);
+    assert_eq!(pending(&game), 2);
+    place(&mut game, &ScriptedDecisionProvider::new());
+    resolve_answering(&mut game, true);
+    resolve_answering(&mut game, true);
+    assert_eq!((plus_counters(&game, first), plus_counters(&game, second)), (2, 2));
+    gain(&mut game, 1, first);
+    assert_eq!(pending(&game), 0, "both gates are closed");
+}
+
+/// ATOM-603.2h-002's board: two lifelink creatures deal combat damage at once,
+/// two gains (CR 702.15e), two triggers. The first asks and puts the counters;
+/// the second resolves, does nothing and asks nothing.
+// RULING: Nykthos Paragon #4 - "If multiple instances of the ability are on the stack, you will be able to put +1/+1 counters for only one of those instances."
+// RULING: Nykthos Paragon #6 - "if two creatures you control with lifelink deal combat damage at the same time and you haven't used it yet, Nykthos Paragon's ability will trigger twice."
+// COVERS: ATOM-603.2h-002
+#[test]
+fn two_lifelink_creatures_trigger_paragon_twice_and_only_the_first_acts() {
+    let mut game = setup_two_player_game();
+    let paragon = put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    let (a, b) = (lifelinker(&mut game), lifelinker(&mut game));
+    let hits = vec![hit(a, DamageTarget::Player(1), true), hit(b, DamageTarget::Player(1), true)];
+    game.execute_actions(hits, &test_ctx()).unwrap();
+    assert_eq!(pending(&game), 2, "two sources, two gains");
+    place(&mut game, &ScriptedDecisionProvider::new());
+
+    resolve_answering(&mut game, true);
+    game.resolve_top_of_stack(&ScriptedDecisionProvider::new()).unwrap();
+    assert_eq!([paragon, a, b].map(|id| plus_counters(&game, id)), [1, 1, 1], "one instance acted");
+}
+
+/// A lifelink creature deals its controller's other creature lethal damage:
+/// the gain comes with the damage, and state-based actions take the creature
+/// before the trigger resolves.
+// RULING: Nykthos Paragon #5 - "If a creature you control is dealt lethal damage at the same time that you gain life, it won't receive +1/+1 counters from Nykthos Paragon's ability in time to save it."
+#[test]
+fn a_creature_dealt_lethal_damage_as_you_gain_life_gets_no_counters() {
+    let mut game = setup_two_player_game();
+    let paragon = put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    let source = lifelinker(&mut game);
+    let doomed = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
+    game.execute_action(hit(source, DamageTarget::Object(doomed), false), &test_ctx()).unwrap();
+    place(&mut game, &test_dp());
+    assert_eq!(game.get_object(doomed).unwrap().zone, Zone::Graveyard);
+    resolve_answering(&mut game, true);
+    assert_eq!((plus_counters(&game, paragon), plus_counters(&game, source)), (1, 1));
+}
+
+/// One lifelink creature dealing damage to two recipients at once is one gain,
+/// and one trigger.
+// RULING: Nykthos Paragon #6 - "if a single creature you control with lifelink deals combat damage to multiple creatures, players, and/or planeswalkers at the same time ..., the ability will trigger only once."
+#[test]
+fn one_lifelink_creature_dealing_damage_twice_at_once_is_one_gain() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, nykthos_paragon(), 0);
+    let trampler = lifelinker(&mut game);
+    let blocker = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
+    let hits = vec![hit(trampler, DamageTarget::Object(blocker), true), hit(trampler, DamageTarget::Player(1), true)];
+    game.execute_actions(hits, &test_ctx()).unwrap();
+    assert_eq!((pending(&game), game.players[0].life_total), (1, 22));
+}
+
+/// An opponent's shuffle triggers the Trickster, of an empty library too (CR
+/// 701.24e); its controller's own does not.
+// RULING: Cosi's Trickster #1 - "Cosi's Trickster's ability triggers when an opponent shuffles their library because that player was instructed to do so by a spell or ability that specifically contains the word 'shuffle'."
+// RULING: Cosi's Trickster #3 - "If an opponent's library is empty or has just a single card in it when a spell or ability instructs that player to shuffle their library, Cosi's Trickster's ability will still trigger."
+#[test]
+fn cosis_trickster_sees_an_opponents_shuffle_even_of_an_empty_library() {
+    let mut game = setup_two_player_game();
+    let trickster = put_on_battlefield(&mut game, cosis_trickster(), 0);
+    let shuffle = Effect::Atom(Primitive::ShuffleLibrary, EffectRecipient::Controller);
+    resolve_as(&mut game, trickster, shuffle.clone());
+    assert_eq!(pending(&game), 0, "its controller's own shuffle");
+
+    assert!(game.players[1].library.is_empty());
+    let idol = put_on_battlefield(&mut game, card_of_type("Shuffling Idol", CardType::Artifact), 1);
+    game.resolve_effect(&shuffle, &ResolutionContext::untargeted(idol, 1), &test_dp()).unwrap();
+    assert_eq!(pending(&game), 1);
+    place(&mut game, &test_dp());
+    resolve_answering(&mut game, true);
+    assert_eq!(plus_counters(&game, trickster), 1);
+}
+
+/// Cast from hand out of exactly {5}: the Crawler is as large as its
+/// controller's hand, and a draw of two drains each opponent twice.
+// RULING: Psychosis Crawler #1 - "If an effect causes you to draw multiple cards, Psychosis Crawler will trigger that many times."
+#[test]
+fn psychosis_crawler_cast_from_hand_drains_once_per_card_drawn() {
+    let mut game = setup_two_player_game();
+    fill_library(&mut game, 0, 5);
+    let crawler = put_in_hand(&mut game, psychosis_crawler(), 0);
+    put_in_hand(&mut game, vanilla_creature(1, 1, &[]), 0);
+    game.players[0].mana_pool.add(ManaType::Colorless, 5);
+    let dp = ManaWindowStop::new(ScriptedDecisionProvider::new());
+    game.cast_spell(0, crawler, &dp).expect("cast from an exact pool");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "the pool was exactly the cost");
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    let size = |game: &GameState| (get_effective_power(game, crawler), get_effective_toughness(game, crawler));
+    assert_eq!(size(&game), (Some(1), Some(1)), "one card in hand");
+
+    let draw_two = Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(2)), EffectRecipient::Controller);
+    resolve_as(&mut game, crawler, draw_two);
+    assert_eq!(pending(&game), 2, "a draw of two triggers twice");
+    place(&mut game, &ScriptedDecisionProvider::new());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[1].life_total, 18);
+    assert_eq!(size(&game), (Some(3), Some(3)));
 }
