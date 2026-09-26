@@ -8515,6 +8515,19 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      clone then meets floor 2 with a thousand objects on the stack, at one
      count bump each, is the design's first measurement.
 
+     **B10's design also settles `FitOnClone`'s rule** (the owner,
+     2026-09-26). Its bar, capacity past twice the length, is derived from
+     hashbrown's doubling, not measured. It leaves three costs:
+     - every clone of one state rebuilds again, where shrinking the
+       original once, when the stack empties or at a turn's end, would pay
+       once;
+     - a rebuilt fork has no headroom, so its first inserts in play
+       reallocate;
+     - tombstones can hide a bloated table from `capacity`.
+     None binds a floor today (the worst clone went from 6.8 µs to 7.8),
+     and shared stack objects make a spare slot 16 bytes instead of 664,
+     so the design reads the rule after its own change.
+
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
      of a group after its first fresh one, in any layer, but CR 613.6 locks a
