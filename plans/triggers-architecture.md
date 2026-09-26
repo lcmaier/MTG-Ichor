@@ -2145,7 +2145,7 @@ thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
-### TR-2b — "may", CR 118.12's answer, and the `departed` frames (2,060–2,250)
+### TR-2b — "may", CR 118.12's answer, and the `departed` frames (2,165–2,355)
 
 Split from TR-2 on 2026-09-24; it builds on TR-2a's gates and histories.
 **Designed 2026-09-26**, against the tree after the bounded-state PR, #190 and
@@ -2159,14 +2159,15 @@ and the largest code row at ×1.9 for the top end.
 | The fold: six `Condition` leaves become one (decision 1) | ~130 | the leaves' unit tests, rewritten |
 | `EventKindMask` at a width that follows `EventKind` (decision 5); the arms `DrawsCard` and `ShufflesLibrary`, their projections, matching and authoring words | ~90 | 1: ATOM-121.5-001 made full — a move to the hand without "draw" fires no draw trigger |
 | `Effect::Optional` with its chooser, the walk's answer, `Condition::CostAnswer`, `OptionalEffect`, and CR 603.2h's writer reading the answer (decision 2) | ~210 | 3: ATOM-603.5-001; ATOM-118.12-002's partial, a "may" whose damage is prevented still answering `Does`; "if you do" and "if you don't" reading one answer |
-| A player's choice at resolution, `EffectRecipient::ChosenBy`, and `Sacrifice` on it (decision 4) | ~120 | 5: ATOM-118.12-001 on Standstill's board, as a fixture; the "if you can't" fixture; a stolen source answering `Cant`; "sacrifice that creature"; each opponent choosing in turn and sacrificing at once, at four seats |
+| A player's choice at resolution, `EffectRecipient::ChosenBy` with a slot for each shape the census found, and `Sacrifice` on it (decision 4) | ~150 | 5: ATOM-118.12-001 on Standstill's board, as a fixture; the "if you can't" fixture; a stolen source answering `Cant`; "sacrifice that creature"; each opponent choosing in turn and sacrificing at once, at four seats |
+| `Primitive::event_for`, and the six object verbs moved onto it (decision 4) | ~50 | 1: an exile edict through the same choice, which shows the choice belongs to every verb and not to sacrifice |
 | `AddCounters` over a filter; `CountOf(CardsInHand)` in the layer walk; `EachOf` over `LoseLife`, which Crawler's "each opponent loses 1 life" needs and the row did not list | ~40 | through the cards' tests |
 | The `departed` frames, one capture and one writer, and CR 109.5's "you" at both instants and in a resolving "if" (decision 3) | ~140 | 5: an enters trigger's "if" and power read after its source is sacrificed in response; the recheck of a stolen source; a frame from the stack, from a hand, and from an effect that moved its own source |
 | Item 163's predicate over the facts a def reads (decision 6) | ~120 | 3: the binding-read board, the source row, equal and unequal amounts; the three migrated tests are edits |
 | **Nykthos Paragon**, **Psychosis Crawler**, **Cosi's Trickster**; Crawler and Trickster pooled (175 → 178 registered, 96 → 98 pooled) | ~105 | 11: Paragon's six rulings (the fourth is ATOM-603.2h-002, made full), Trickster's three, Crawler's one, and Crawler cast from hand with exact mana under `ManaWindowStop` |
-| **Total** | ~960, top end ~1,150 | 28, ~1,100 with the edits |
+| **Total** | ~1,035, top end ~1,225 | 29, ~1,130 with the edits |
 
-**2,060–2,250 in code and tests**, inside §4's band, against the
+**2,165–2,355 in code and tests**, inside §4's band, against the
 2026-09-24 count's 1,720–2,180. Docs add ~500 more: this section,
 archived at landing, with the stub, the record and the items. What the count
 moved:
@@ -2174,8 +2175,12 @@ moved:
 - The fold is six leaves, not five: `CardInYourGraveyard` says "your" too.
 - The predicate compares the source when the def reads it (decision 6).
 - The owner's review (2026-09-26) moved the choice out of `Sacrifice` into
-  a recipient every verb can take, and made the mask's width follow
-  `EventKind` (decisions 4 and 5). Together they add about 80 lines.
+  a recipient every verb can take, gave it a slot for each shape a census
+  of the pool found, and put `event_for` under the object verbs. It also
+  made the mask's width follow `EventKind` (decisions 4 and 5).
+  - Together these add about 185 lines.
+  - Soul Shatter, offered, would add 100 more. That puts the top at 2,455,
+    against the band's 2,500.
 - Standstill and Wicked Guardian stay fixtures. Standstill's "each of that
   player's opponents" is a group relative to the bound player, which
   `PlayerGroup` cannot say. Wicked Guardian's "another creature you control"
@@ -2319,57 +2324,95 @@ reach the entry as the object leaves.
 **Decision 4 — a player's choice at resolution is a recipient, and
 `Sacrifice` takes `Destroy`'s grammar.** An edict's "a creature" is one of
 many objects a player chooses as the effect applies (CR 608.2d), from a set
-defined relative to that player. The shape is not sacrifice's. Counted on
-Scryfall:
-- 218 cards have a player sacrifice:
-  `o:/(each|target) (player|opponent) sacrifices/`.
-- 83 have a player exile: `o:/(each|target) (player|opponent) exiles/`.
-- 121 return one of your own:
-  `o:/return (a|an|two) [a-z ]*you control to (its|their) owner.s hand/`.
-- 24 bolster: `o:bolster`.
-- 337 print "… of their choice" across the verbs:
-  `o:/(sacrifices?|exiles?|returns?|destroys?|taps?|untaps?|discards?) [^.]* of (their|his or her|your) choice/`.
+defined relative to that player. The shape is not sacrifice's: 209 cards have
+a player sacrifice, 81 a player exile, and 332 print "… of their choice"
+across the verbs.
 
-Some rank the choice. Soul Shatter's is "with the greatest mana value among
-creatures and planeswalkers they control", Crackling Doom's "the greatest
-power", bolster's "the least toughness". No `ObjectFilter` leaf can say a
-rank, because it is a fact about the set, not about one object.
-- 16 are ranked sacrifices:
-  `o:/sacrifices? (a|an|one|two|three|x) [^.]*(greatest|highest|least|lowest) (mana value|power|toughness)/`.
-- 148 say "greatest … among" or "least … among" in all:
-  `o:/(greatest|highest|least|lowest) (mana value|power|toughness) among/`.
-  Some of those are amounts, such as "damage equal to the greatest power
-  among creatures you control".
+**The census, taken at the owner's review (2026-09-26)**, because the first
+draft missed Soul Shatter's rank. Nine Scryfall queries for the family
+returned 2,291 cards, and 783 of them carry a clause where a verb acts on
+objects a player picks. Every printed shape found:
+
+| Shape | Cards | Examples | Its slot in the type | Built |
+|---|---:|---|---|---|
+| a filter and a number, over the chooser's permanents | ~420 | Diabolic Edict, Abyssal Gorestalker, Azorius Chancery | `Pick { filter, count }`, the scope's first arm | TR-2b |
+| a rank: "with the greatest … among" | 22 | Soul Shatter, Crackling Doom, Blot Out, Bounce Chamber | a constructor on `Pick` | with its first card |
+| "up to N" | 47 | Covetous Elegy, Archfiend of Depravity | a count arm | with its first card |
+| a fraction, rounded | 10 | Pox, Curse of the Cabal, Rakdos the Defiler | a count arm | with its first card |
+| keep the chosen, and act on the rest | 21, and 2 where you choose for each player | Balance, Cataclysm, Breakthrough, Tragic Arrogance | a side arm | with its first card |
+| one pick per card type | 6 | Cataclysm, Catch // Release, Mythos of Snapdax | several `Pick`s; one permanent may answer two (Cataclysm's rulings) | with its first card |
+| another player's objects: an opponent chooses yours; you choose from their hand | 6; 88 | Wormfang Crab, Forgotten Lore; Duress, Coercion | a scope arm; a hand's waits for the reveal (`backlog.md` §2.9) | with its first card |
+| a graveyard | 13 | Augusta, Order Returned; Curse of Oblivion | a scope arm | with its first card |
+| a status in the filter | 20 | Celestial Flare's "attacking or blocking creature" | `ObjectFilter` leaves, which every filter shares | with its first card |
+| piles | 18 | Make an Example | CR 700.3's piles, not this recipient | — |
+
+Queries, each plus `game:paper -is:funny`:
+- the three counts above: `o:/(each|target) (player|opponent) sacrifices/`;
+  `o:/(each|target) (player|opponent) exiles/`;
+  `o:/(sacrifices?|exiles?|returns?|destroys?|taps?|untaps?|discards?) [^.]* of (their|his or her|your) choice/`.
+- the census's nine, together 2,291 cards:
+  `o:/(each|target|that|defending|chosen|the chosen) (player|opponent)s? sacrifices?/`;
+  `o:/(each|target|that|defending) (player|opponent)s? exiles?/`;
+  `o:/(each|target|that) (player|opponent)s? returns? /`;
+  `o:/return (a|an|two|three) [a-z ]*you control to (its|their) owner.s hand/`;
+  `o:/(sacrifices?|destroy|exiles?|returns?|discards?) (the rest|all (other|others|the rest))/`;
+  `o:/chooses? (a|an|one|two|three|x|up to|any number of|from among) /`;
+  `o:/(greatest|highest|least|lowest) (mana value|power|toughness)/`;
+  the "of their choice" query above; and `o:bolster`.
+  - The 783 are the cards with a clause where one of the verbs meets a
+    number, a choice or "the rest".
+  - The ~420 is what no shape tagged: plain edicts, the bounce lands and
+    bolster, with some noise ("a source of your choice", choosing a
+    counter).
+- a rank: `o:/(sacrifices?|exiles?|returns?) (a|an|one) [^.]*(greatest|highest|least|lowest) (mana value|power|toughness)/`
+- up to: `o:/(chooses?|sacrifices?|exiles?|returns?) up to (one|two|three|x) [^.]*(they|you) control/`
+- a fraction: `o:/(sacrifices?|discards?|exiles?) (half|a third|one third) /`
+- the rest: `o:/chooses? [^.]*,? then (sacrifices?|discards?|exiles?|returns?|destroys?|puts?) (the rest|all other)/`,
+  and `o:/you choose [^.]*(that player|each player) controls/ o:/(sacrifices?|destroy|exile) all other/`
+- per type: `o:/(chooses?|sacrifices?) (from among [^.]* )?an artifact, a creature, an enchantment/`
+- another player's: `o:/(an opponent|target opponent|each opponent) chooses [^.]*(you control|your graveyard|your hand|you own)/`;
+  `o:/you choose [^.]*(card|nonland card|creature card|land card) from (it|their hand|that player.s hand)/`
+- a graveyard: `o:/(each|target) (player|opponent)s? exiles? [^.]*from (their|his or her) graveyard/`
+- a status: `o:/(sacrifices?|exiles?|returns?) (an?|one|two) (attacking|blocking|tapped|untapped)/`
+- piles: `o:/(separates?|piles?)/ o:/(sacrifices?|chooses?)/`
+
+**So every axis has a slot now, and each later row is one more arm.** A row
+adds an arm on an enum the type already has, or a constructor on `Pick`. No
+row restructures the type. `Pick`s are built through constructors, so a field
+added later changes no card's literal:
 
 ```rust
-EffectRecipient::ChosenBy { chooser: Box<EffectRecipient>, choice: ObjectChoice }
-pub struct ObjectChoice {
-    pub filter: ObjectFilter,  // over the permanents the chooser controls; "you" is the chooser
-    pub count: AmountExpr,     // "a" is 1
-    pub rank: Option<Rank>,    // with its first card: Rank::{Greatest, Least}(ManaValue | Power | Toughness)
+EffectRecipient::ChosenBy(Box<Choice>)
+pub struct Choice {
+    pub chooser: EffectRecipient,  // who picks: Controller, a target player, EachOf(..)
+    pub among: ChoiceScope,        // whose objects, and where; TR-2b: the chooser's permanents
+    pub picks: Vec<Pick>,          // an edict's one; Cataclysm's four
+    pub acts_on: ChoiceSide,       // TR-2b: the chosen; later, the rest
 }
-// Diabolic Edict: Atom(Sacrifice, ChosenBy { chooser: Target(Player, Exactly(1)), choice: { filter: Creature, count: Fixed(1), rank: None } })
-// Soul Shatter:   Atom(Sacrifice, ChosenBy { chooser: EachOf(Opponents), choice: { filter: Or(Creature, Planeswalker), count: Fixed(1), rank: Some(Greatest(ManaValue)) } })
+pub struct Pick { pub filter: ObjectFilter, pub count: PickCount }   // TR-2b: PickCount::Exactly(AmountExpr)
+// Diabolic Edict: Atom(Sacrifice, ChosenBy(Choice { chooser: Target(Player, Exactly(1)), among: ChoosersPermanents, picks: [Pick::exactly(1, Creature)], acts_on: Chosen }))
 // Standstill:     Atom(Sacrifice, ThisObject)
 ```
 
 - **Who chooses, and when.** Each player `chooser` names chooses in APNAP
-  order, knowing the choices before them (CR 101.4, 101.4b). The primitive
-  then acts on every chosen object in one batch.
-  - That is CR 101.4's "then the actions happen simultaneously", and Soul
-    Shatter's ruling: "then all of the chosen permanents are sacrificed at
-    the same time".
+  order (CR 101.4). The verb then acts on everything chosen in one batch,
+  which is CR 101.4's "then the actions happen simultaneously" and Soul
+  Shatter's ruling.
+  - **A later chooser knows the earlier choices only where they are public**
+    (101.4b). A choice in a hidden zone stays face down (101.4a). Balance's
+    first ruling makes its lands and creatures known as they are chosen, and
+    reveals its discards only once every player has chosen.
+  - Which earlier choices a prompt may show is the information model's
+    (`backlog.md` §2.9). TR-2b's choices are all on the battlefield.
   - Today's edict performs one batch per player, so a four-seat "each
-    opponent sacrifices" would split. It is unreachable, since the one
+    opponent sacrifices" would split. That is unreachable, since the one
     registered edict targets one player.
-- **The candidates** are the permanents the chooser controls that match the
-  filter, read with the chooser as "you".
-  - Removed from them: any the primitive's own event would be prohibited on
-    (CR 101.2, `cant-effects-architecture.md` §4.9). Under Sigarda an
-    opponent's edict finds no candidate at all, and an exile edict is
-    untouched.
-  - Narrowed by the rank: to those tied for the greatest or least value, with
-    ties the chooser's (Crackling Doom's fourth ruling).
+- **The candidates** are the scope's objects that match the pick's filter.
+  - The filter reads "you" as the effect's controller, as every filter does.
+    Wormfang Crab is why: "an opponent chooses a permanent you control".
+  - Removed: any the verb's own event would be prohibited on (CR 101.2,
+    `cant-effects-architecture.md` §4.9). Under Sigarda an opponent's edict
+    finds no candidate at all, and an exile edict is untouched.
   - Asked with two or more, and forced when there are only as many as the
     count.
 - **`Sacrifice` takes no payload.** Its recipient is the object, as
@@ -2382,21 +2425,32 @@ pub struct ObjectChoice {
     source, and an empty choice.
   - "Its controller sacrifices it", a named object and another player, is a
     field with its first card.
-- **Every verb that acts on objects can take it.** TR-2b builds it for
-  `Sacrifice`. Each other verb gains it with its first card, which supplies
-  the verb's event for the candidates' "can't" check:
-  - `Exile`, for an exile edict;
-  - `ReturnToHand` (TR-3), for "return a land you control";
-  - `AddCounters`, for bolster.
-
-  `Discard`'s own chooser is the same idea over a hand. It folds in with
-  Coercion's "you choose a card from it", which waits for the reveal
-  (`backlog.md` §2.9).
+- **One abstraction under the object verbs, and the choice is its first
+  reader.**
+  - A verb applied to objects has three parts. The recipient names the
+    objects (targets, "this", "that", a filter, a choice). The verb names one
+    object's event. One batch performs them all (CR 608.2f).
+  - `Destroy`, `Exile`, `Tap`, `Untap`, `AddCounters` and `RemoveCounters`
+    each write the middle part inline today.
+  - The choice needs that part before anything is chosen, for the "can't"
+    check. So it becomes one method,
+    `Primitive::event_for(object) -> Option<GameAction>`, which the performer
+    and the check both read. One table, so the event Sigarda is asked about
+    is the event performed.
+  - This design moves those six arms onto the method here: about 50 lines,
+    with no behavior change, since the engine arm stays `IDENTICAL`. The
+    choice then works for every verb that has an `event_for` arm.
+    `ReturnToHand` gets its arm with TR-3.
+  - The smaller option builds the method for `Sacrifice` alone and moves
+    each other verb with its first chosen card. It is 50 lines fewer, but it
+    leaves two mappings per verb that must agree until then.
 - **The rank lands with its first card.** Soul Shatter could be that card
   here: about 100 lines with its ruling's test, and 175 → 179 registered.
-  That is offered, and not counted above.
+  That is offered and not counted above. Without it, the rank needs no
+  retrofit: it is one constructor on `Pick` and one narrowing step.
 - **Rejected: the first draft's `Sacrifice(Sacrificed)` payload.** It made
-  the choice sacrifice's own, and every verb above would have grown a copy.
+  the choice sacrifice's own, and every verb in the census would have grown a
+  copy.
 
 **Decision 5 — the mask: a width that follows `EventKind`.** The fourteen
 kinds with `CardDrawn` and `LibraryShuffled` fill `u16`. The question is how
@@ -2508,7 +2562,8 @@ as TR-2a's was.
 1. The fold, A6b's first commit.
 2. The mask and the two arms.
 3. "May" and CR 118.12's answer.
-4. The choice at resolution, and `Sacrifice` on it.
+4. The choice at resolution, `event_for` under the object verbs, and
+   `Sacrifice` on them.
 5. The three small facilities.
 6. The `departed` frames and "you". This head is the engine arm.
 7. The predicate and the migration. This head is the elision arm.
