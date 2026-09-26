@@ -15,7 +15,7 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::engine::layers::board::{
-    compute_board, compute_board_to, is_dynamic, membership, Board, Membership, ReplayStep, RowDecision,
+    compute_board, compute_board_to, is_dynamic, pass_membership, Board, PassMembership, RowNote, AffectedSet,
 };
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::trace_records::{self, WalkKind};
@@ -82,9 +82,9 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
 ///
 /// **A miss for a member of the working set runs the whole pass and stores
 /// every member's frame** at this epoch, so the next member asked is a hit
-/// (§13b, decision 2), and the pass's replay beside them. A miss for anything
-/// else walks that object alone: a card the pass leaves out replays the
-/// pass's decisions (§13e), and is stored as a member's frame is.
+/// (§13b, decision 2), and the pass's notes beside them. A miss for anything
+/// else walks that object alone: a card the pass leaves out is walked with the
+/// pass's notes (§13e), and stored as a member's frame is.
 ///
 /// One reader bypasses the memo on purpose: the CR 614.12 look-ahead
 /// (`lookahead::compute_as_entering`) computes a hypothetical board. The CR
@@ -104,21 +104,21 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     game.objects.get(&id)?;
     let frames_before = game.diagnostics.layer_frames();
 
-    let membership = membership(game, id);
+    let membership = pass_membership(game, id);
     let asked = match membership {
-        Membership::Member => None,
-        Membership::ZoneOnly => Some(id),
-        Membership::Replayed | Membership::NonMember => {
-            let replayed = matches!(membership, Membership::Replayed);
-            let steps = replayed.then(|| replay_steps(game));
-            let steps: &[ReplayStep] = steps.as_deref().unwrap_or(&[]);
-            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), steps)?);
+        PassMembership::Member => None,
+        PassMembership::ZoneOnly => Some(id),
+        PassMembership::LeftOut | PassMembership::NonMember => {
+            let is_left_out = matches!(membership, PassMembership::LeftOut);
+            let notes = is_left_out.then(|| pass_notes(game));
+            let notes: &[RowNote] = notes.as_deref().unwrap_or(&[]);
+            let frame = Arc::new(compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), notes)?);
             #[cfg(debug_assertions)]
-            if replayed {
-                audit_replay(game, id, &frame);
+            if is_left_out {
+                audit_left_out(game, id, &frame);
             }
             game.layer_memo.insert(id, epoch, Arc::clone(&frame));
-            let kind = if replayed { WalkKind::Replayed } else { WalkKind::NonMember };
+            let kind = if is_left_out { WalkKind::LeftOut } else { WalkKind::NonMember };
             game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, &frame));
             return Some(frame);
         }
@@ -127,7 +127,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     debug_assert!(wanted.is_some(), "a member's frame comes out of the pass");
     if let Some(frame) = &wanted {
         let kind = match membership {
-            Membership::Member => WalkKind::Member,
+            PassMembership::Member => WalkKind::Member,
             _ => WalkKind::ZoneOnly,
         };
         game.trace(|| trace_records::layer_walk(game, id, kind, frames_before, frame));
@@ -135,7 +135,7 @@ pub fn compute_characteristics(game: &GameState, id: ObjectId) -> Option<Arc<Eff
     wanted
 }
 
-/// One pass, stored at `epoch`: every member's frame, and the pass's replay
+/// One pass, stored at `epoch`: every member's frame, and the pass's notes
 /// when it left a zone out. Returns `wanted`'s frame when that is a member.
 fn pass_into_memo(
     game: &GameState,
@@ -143,9 +143,9 @@ fn pass_into_memo(
     asked: Option<ObjectId>,
     wanted: Option<ObjectId>,
 ) -> Option<Arc<EffectiveCharacteristics>> {
-    let (frames, replay) = compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames_and_replay();
-    if let Some(steps) = replay {
-        game.layer_memo.insert_replay(epoch, steps.into());
+    let (frames, notes) = compute_board_to(game, None, asked, LAYER_ORDER.len()).into_frames_and_notes();
+    if let Some(notes) = notes {
+        game.layer_memo.insert_notes(epoch, notes.into());
     }
     let mut out = None;
     for (member, frame) in frames {
@@ -158,18 +158,18 @@ fn pass_into_memo(
     out
 }
 
-/// The replay a card left out of the pass is walked with, at the current
+/// The notes a card left out of the pass is walked with, at the current
 /// epoch: the memo's, or a pass's when the memo has none, which stores every
 /// member's frame besides.
-pub(super) fn replay_steps(game: &GameState) -> Arc<[ReplayStep]> {
+pub(super) fn pass_notes(game: &GameState) -> Arc<[RowNote]> {
     let epoch = game.layer_epoch();
-    if let Some(steps) = game.layer_memo.replay(epoch) {
-        return steps;
+    if let Some(notes) = game.layer_memo.notes(epoch) {
+        return notes;
     }
     pass_into_memo(game, epoch, None, None);
     game.layer_memo
-        .replay(epoch)
-        .expect("a pass that leaves a zone out stores its replay")
+        .notes(epoch)
+        .expect("a pass that leaves a zone out stores its notes")
 }
 
 /// Whether no continuous effect can reach `id`: its effective characteristics
@@ -177,7 +177,7 @@ pub(super) fn replay_steps(game: &GameState) -> Arc<[ReplayStep]> {
 /// CDA defines what a mana cost, type line or power/toughness box would, never
 /// an ability (CR 604.3).
 pub(crate) fn no_row_reaches(game: &GameState, id: ObjectId) -> bool {
-    matches!(membership(game, id), Membership::NonMember)
+    matches!(pass_membership(game, id), PassMembership::NonMember)
 }
 
 /// The debug mode §12 required in the same commit as the cache: every hit is
@@ -208,25 +208,26 @@ fn audit_memo_hit(game: &GameState, id: ObjectId, served: &EffectiveCharacterist
     );
 }
 
-/// The debug mode §13e decision 6 requires beside the replay: every frame a
-/// replay serves is checked against a pass that holds the card's zone, as
-/// LJ's passes did. The two agree exactly when the guard (`left_out_zones`)
-/// left out only cards the pass would never have read, which is the claim the
-/// replay rests on; the counts are rewound as the memo audit's are.
+/// The debug mode §13e decision 6 requires beside the notes: every frame of a
+/// card the pass leaves out is checked against a pass with the card's zone
+/// in it, as LJ's passes had it. The two agree exactly when the guard
+/// (`left_out_zones`) left out only cards the pass would never have read,
+/// which is the claim the notes rest on; the counts are rewound as the memo
+/// audit's are.
 #[cfg(debug_assertions)]
-fn audit_replay(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
+fn audit_left_out(game: &GameState, id: ObjectId, served: &EffectiveCharacteristics) {
     let (walks, board_walks, frames, checks) = (
         game.diagnostics.layer_walks(),
         game.diagnostics.board_walks(),
         game.diagnostics.layer_frames(),
         game.diagnostics.dependency_checks(),
     );
-    let held = crate::engine::layers::board::compute_board_holding_hidden(game).take(id);
+    let in_pass = crate::engine::layers::board::compute_board_with_hidden_cards(game).take(id);
     game.diagnostics.rewind_layer_work(walks, board_walks, frames, checks);
     debug_assert_eq!(
-        held.as_ref(),
+        in_pass.as_ref(),
         Some(served),
-        "replayed frame of {} differs from a pass holding its zone",
+        "the frame of left-out card {} differs from a pass with its zone in",
         id
     );
 }
@@ -256,36 +257,36 @@ pub(crate) fn compute_characteristics_uncached(
 fn walk_uncached(game: &GameState, id: ObjectId) -> Option<EffectiveCharacteristics> {
     game.diagnostics.record_layer_walk();
     game.objects.get(&id)?;
-    match membership(game, id) {
-        Membership::Member => compute_board(game, None).take(id),
-        Membership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
-        Membership::Replayed => {
-            let (_, replay) = compute_board(game, None).into_frames_and_replay();
-            let steps = replay.expect("a card the pass leaves out has a pass that leaves its zone out");
-            compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &steps)
+    match pass_membership(game, id) {
+        PassMembership::Member => compute_board(game, None).take(id),
+        PassMembership::ZoneOnly => compute_board_to(game, None, Some(id), LAYER_ORDER.len()).take(id),
+        PassMembership::LeftOut => {
+            let (_, notes) = compute_board(game, None).into_frames_and_notes();
+            let notes = notes.expect("a card the pass leaves out has a pass that leaves its zone out");
+            compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &notes)
         }
-        Membership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &[]),
+        PassMembership::NonMember => compute_non_member(game, &Board::settled(), id, LAYER_ORDER.len(), &[]),
     }
 }
 
 /// The walk of an object no pass holds — a card in a hand, library or
 /// graveyard, or a spell — up to `ceiling`: its printed characteristics, its
-/// own CDAs, which CR 604.3 makes function in every zone, and `steps`, what a
-/// pass decided about each row reaching a zone it leaves out (§13e).
+/// own CDAs, which CR 604.3 makes function in every zone, and `notes`, what a
+/// pass noted about each row reaching a zone it leaves out (§13e).
 ///
 /// **No other row applies here, by construction of the working set:** a
 /// filter row's zones are members unless the pass leaves them out, and then
-/// the row is in `steps`; a `Fixed` row's targets and a joining source are
+/// the row is in `notes`; a `Fixed` row's targets and a joining source are
 /// members; a `Host` row's host is a permanent. A card no row reaches passes
-/// no steps.
+/// no notes.
 ///
-/// **The replay is each row as the pass saw it at the row's layer**, which
+/// **The notes are each row as the pass saw it at the row's layer**, which
 /// the memo's settled frames are not: whether the row existed, who "you" was,
 /// whether CR 613.6 had locked it. At each layer the card's own CDAs apply
-/// first (CR 613.3), then that layer's steps in the order the pass applied
+/// first (CR 613.3), then that layer's notes in the order the pass applied
 /// them; a locked row applies exactly when the card matched where its effect
-/// started. Only a modification that carries its own answer is ever a step
-/// (`left_out_zones`' (a)), so a step resolves without reading the board.
+/// started. Only a modification that carries its own answer is ever noted
+/// (`left_out_zones`' (a)), so a note resolves without reading the board.
 ///
 /// What a CDA here reads of *another* object goes through `board.frame_of` —
 /// a member's live frame inside a pass, its memoized frame outside one, and
@@ -298,7 +299,7 @@ pub(super) fn compute_non_member(
     board: &Board<'_>,
     id: ObjectId,
     ceiling: usize,
-    steps: &[ReplayStep],
+    notes: &[RowNote],
 ) -> Option<EffectiveCharacteristics> {
     let obj = game.objects.get(&id)?;
     debug_assert!(
@@ -314,13 +315,13 @@ pub(super) fn compute_non_member(
     // its zone there is nothing any layer can do to the object. Before LJ this
     // said "off the battlefield", and that was the same statement only because
     // no row could reach further.
-    let reaches = |step: &ReplayStep| {
-        matches!(&step.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
+    let reaches = |note: &RowNote| {
+        matches!(&note.row.affected_objects, ObjectSet::Filter { zones, .. } if zones.contains(obj.zone))
     };
-    let starts_here = |step: &ReplayStep| {
-        step.layer_index < ceiling && matches!(step.decision, RowDecision::Fresh { .. }) && reaches(step)
+    let starts_here = |note: &RowNote| {
+        note.layer_index < ceiling && matches!(note.affected, AffectedSet::Fresh { .. }) && reaches(note)
     };
-    if !crate::engine::layers::cda::has_any_cda(&chars) && !steps.iter().any(starts_here) {
+    if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
         return Some(chars);
     }
 
@@ -335,18 +336,18 @@ pub(super) fn compute_non_member(
                 apply_resolved(&resolved, &mut chars, id);
             }
         }
-        for step in steps.iter().filter(|step| step.layer_index == layer_index) {
-            let row = &*step.row;
-            let applies = match step.decision {
+        for note in notes.iter().filter(|note| note.layer_index == layer_index) {
+            let row = &*note.row;
+            let applies = match note.affected {
                 // Wherever the locked row itself points: CR 613.6 applies it to
                 // the set its effect started with.
-                RowDecision::Locked => matched.contains(&row.group()),
-                RowDecision::Fresh { you } => {
+                AffectedSet::Locked => matched.contains(&row.group()),
+                AffectedSet::Fresh { you } => {
                     let ObjectSet::Filter { filter, .. } = &row.affected_objects else { continue };
-                    if !reaches(step) {
+                    if !reaches(note) {
                         continue;
                     }
-                    let mut players = FilterPlayers::for_replayed_row(row, game, board, layer_index, you);
+                    let mut players = FilterPlayers::for_noted_row(row, game, board, layer_index, you);
                     let hit = object_matches_filter(filter, id, &chars, &mut players);
                     if hit {
                         matched.push(row.group());
@@ -495,10 +496,10 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }
 
-    /// The players of a row replayed on a card the pass left out (§13e): "you"
-    /// is the one the pass read when it applied the row, and the owner is
+    /// The players of a noted row, applied to a card the pass left out (§13e):
+    /// "you" is the one the pass read when it applied the row, and the owner is
     /// derived as a row's is.
-    pub(super) fn for_replayed_row(
+    pub(super) fn for_noted_row(
         effect: &'a ContinuousEffect,
         game: &'a GameState,
         board: &'a Board<'l>,
@@ -1021,11 +1022,11 @@ pub(super) fn resolve_modification<'m>(
 }
 
 /// A modification that carries its own answer, resolved without a read: the
-/// only kind a replay holds, since `left_out_zones` keeps a zone in the pass
+/// only kind a note holds, since `left_out_zones` keeps a zone in the pass
 /// wherever a row reaching it is dynamic. The arms are `resolve_modification`'s
 /// with every amount a constant.
 fn resolve_without_reads<'m>(modification: &'m EffectModification, row: &ContinuousEffect) -> Resolved<'m> {
-    debug_assert!(!is_dynamic(modification), "a replayed row reads nothing");
+    debug_assert!(!is_dynamic(modification), "a noted row reads nothing");
     match modification {
         EffectModification::SetPowerToughness { power: PtValue::Fixed(p), toughness: PtValue::Fixed(t) } => {
             Resolved::SetPt(Some((*p, *t)))

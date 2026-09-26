@@ -103,10 +103,12 @@ pub fn grist_insect_clause() -> Arc<CardData> {
 /// battlefield, this effect continues until end of turn", extends a duration
 /// past its source, which `Duration` cannot say.
 ///
-/// **The board the replay's per-layer decisions exist for** (§13e decision 1).
+/// **The test board for noting each row at its own layer** (§13e decision 1),
+/// in the shape every layer-6 "loses all abilities" has: Humility on
+/// Painter's Servant is the same board.
 /// Beside Mycosynth Lattice's colorless line the artifact loses the ability
 /// at layer 6, but the line applies at layer 5, while the ability is still
-/// there — so a card in a library is colorless. A replay that asked the memo's
+/// there — so a card in a library is colorless. A walk that asked the memo's
 /// settled Lattice would find no ability and skip the row. One ability, three
 /// rows, one effect: CR 613.6 locks the noncreature artifacts at layer 4 and
 /// applies the strip and the P/T to the same set.

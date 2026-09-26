@@ -5,7 +5,8 @@
 //! changes its own card everywhere but the battlefield, which applies only
 //! because its card is a member of every pass wherever it is (§13e decision
 //! 2). Every Grist here is `phase_ll_cards::grist_insect_clause`, its first
-//! ability on its printed frame. Then the replay, and item 182.
+//! ability on its printed frame. Then the notes a card left out of the pass
+//! is walked with, and item 182.
 //!
 //! **Two casts go through `cast_spell` from hand**, with exactly the spell's
 //! cost in the pool and the provider under `ManaWindowStop`, as a shipped
@@ -122,12 +123,12 @@ fn test_grist_cast_under_thalia_is_a_creature_spell_and_pays_no_tax() {
 }
 
 // ---------------------------------------------------------------------------
-// The replay: a card in a library or a hand, walked alone (§13e decision 1)
+// The notes: a card in a library or a hand, walked alone (§13e decision 1)
 // ---------------------------------------------------------------------------
 
 /// Titania's Song strips Mycosynth Lattice's clause at layer 6, and the
 /// clause colors every card off the battlefield at layer 5, while its ability
-/// is still there. A replay reads the row as the pass did at layer 5: a red
+/// is still there. The note keeps the row as the pass had it at layer 5: a red
 /// card in a library and one in a hand are colorless. Beside it, Teferi's
 /// clause loses its layer-6 grant to the same strip, which applies first
 /// (CR 613.8a), so a creature card in hand has no flash.
@@ -153,11 +154,11 @@ fn test_titanias_song_leaves_lattices_colorless_line_standing_at_layer_5() {
 /// CR 109.5: a static ability's "you" is its source's controller when the row
 /// applies. Teferi's clause under a layer-2 effect giving it to player 1
 /// grants flash to player 1's creature cards and not player 0's, though
-/// player 0 put it onto the battlefield and registered its row. The replay
-/// reads "you" as the pass read it, and the row's own controller is the
+/// player 0 put it onto the battlefield and registered its row. The note
+/// keeps "you" as the pass read it, and the row's own controller is the
 /// answer that would be wrong.
 #[test]
-fn test_a_replayed_row_reads_you_as_the_pass_did() {
+fn test_a_noted_row_reads_you_as_the_pass_did() {
     let mut game = setup_two_player_game();
     let clause = put_on_battlefield(&mut game, phase_lj_cards::teferi_flash_clause(), 0);
     let ours = put_in_hand(&mut game, vanilla_creature(2, 2, &[]), 0);

@@ -19,7 +19,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use crate::engine::layers::board::ReplayStep;
+use crate::engine::layers::board::RowNote;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::types::ids::{IdMap, ObjectId};
 
@@ -37,12 +37,14 @@ use crate::types::ids::{IdMap, ObjectId};
 #[derive(Debug, Clone, Default)]
 pub struct LayerMemo {
     frames: RefCell<IdMap<ObjectId, (u64, Arc<EffectiveCharacteristics>)>>,
-    /// The replay of the pass that filled `frames` at an epoch: what that pass
-    /// decided about each row reaching a zone it leaves out, which a card
-    /// there is walked with (`layers-architecture.md` §13e). Shared, so a
-    /// fork bumps a count; never written once stored, so a fork's own walks go
-    /// into its own `frames` and leave the original's as they were.
-    replay: RefCell<Option<(u64, Arc<[ReplayStep]>)>>,
+    /// The notes of the pass that filled `frames`, stamped with its epoch as
+    /// each frame is: what that pass noted about each row reaching a zone it
+    /// leaves out, which a card there is walked with (`layers-architecture.md`
+    /// §13e). `None` until a pass leaves a zone out. One shared slice, so a
+    /// fork bumps a count and copies nothing; never written once stored, so a
+    /// fork's own walks go into its own `frames` and leave the original's as
+    /// they were.
+    notes: RefCell<Option<(u64, Arc<[RowNote]>)>>,
 }
 
 impl LayerMemo {
@@ -60,19 +62,19 @@ impl LayerMemo {
         self.frames.borrow_mut().insert(id, (epoch, frame));
     }
 
-    /// The replay stored at exactly `epoch`, if the pass that filled the memo
+    /// The notes stored at exactly `epoch`, if the pass that filled the memo
     /// then left a zone out.
-    pub(crate) fn replay(&self, epoch: u64) -> Option<Arc<[ReplayStep]>> {
-        self.replay
+    pub(crate) fn notes(&self, epoch: u64) -> Option<Arc<[RowNote]>> {
+        self.notes
             .borrow()
             .as_ref()
             .filter(|(stored, _)| *stored == epoch)
-            .map(|(_, steps)| Arc::clone(steps))
+            .map(|(_, notes)| Arc::clone(notes))
     }
 
-    /// Store a pass's replay as of `epoch`, replacing whatever was there.
-    pub(crate) fn insert_replay(&self, epoch: u64, steps: Arc<[ReplayStep]>) {
-        *self.replay.borrow_mut() = Some((epoch, steps));
+    /// Store a pass's notes as of `epoch`, replacing whatever was there.
+    pub(crate) fn insert_notes(&self, epoch: u64, notes: Arc<[RowNote]>) {
+        *self.notes.borrow_mut() = Some((epoch, notes));
     }
 }
 
@@ -321,10 +323,10 @@ mod tests {
     }
 
     /// A fork that reads a card the pass leaves out stores the card's frame in
-    /// its own memo and leaves the original's as it was: the replay the two
-    /// share is never written once stored (`layers-architecture.md` §13e
-    /// decision 3). The clone shares the replay itself, allocating nothing
-    /// for it.
+    /// its own memo and leaves the original's as it was: the notes the two
+    /// share are never written once stored (`layers-architecture.md` §13e
+    /// decision 3). The clone shares the notes themselves, allocating nothing
+    /// for them.
     #[test]
     fn a_fork_reading_a_left_out_card_leaves_the_originals_memo_as_it_was() {
         use crate::cards::phase_lj_cards::lattice_colorless_clause;
@@ -333,16 +335,16 @@ mod tests {
         let mut game = crate::test_support::setup_two_player_game();
         let lattice = put_on_battlefield(&mut game, lattice_colorless_clause(), 0);
         let card = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
-        // The pass fills the memo, and its replay beside the frames.
+        // The pass fills the memo, and its notes beside the frames.
         compute_characteristics(&game, lattice);
         let epoch = game.layer_epoch();
-        let replay = game.layer_memo.replay(epoch).expect("the pass left the library out");
+        let notes = game.layer_memo.notes(epoch).expect("the pass left the library out");
 
         let fork = game.clone();
         assert!(compute_characteristics(&fork, card).is_some_and(|frame| frame.colors.is_empty()));
         assert!(fork.layer_memo.get(card, epoch).is_some(), "the fork stored the card's frame");
         assert!(game.layer_memo.get(card, epoch).is_none(), "the original stored nothing");
-        let forked = fork.layer_memo.replay(epoch).expect("the fork shares the replay");
-        assert!(Arc::ptr_eq(&replay, &forked), "one replay, not a copy");
+        let forked = fork.layer_memo.notes(epoch).expect("the fork shares the notes");
+        assert!(Arc::ptr_eq(&notes, &forked), "one set of notes, not a copy");
     }
 }
