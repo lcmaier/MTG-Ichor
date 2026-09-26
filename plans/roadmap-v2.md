@@ -240,6 +240,7 @@ lives.
 | A6d | **TR-3a, TR-3b, items 176/177, TR-4a, TR-4b, TR-5a, TR-5b, TR-6, TR-7**, in that order | §12's splits; TR-5a needs only TR-2b and may move up to just after it; items 176/177 are designed and reviewed as their own PR; TR-7 is the Krark-Clan Ironworks loop, the track's showcase | 9 |
 | A6e | **Item 6's close audit** | `engineering-practices.md` §9; its readiness pass reads the three floors, callgrind instructions per decision beside the loaded rate | 1 |
 | A6f | **The information-model design**: `backlog.md` §2.9 merged with §2.34 (the query, the per-viewer knowledge record, the redeal), reviewed before any build, with a cost section setting a ceiling on each cost against a floor (§2.9's slot) | the floors' survey found the query alone insufficient for honest search, and the knowledge record is forked state that floor 3 bounds; a design pass first, as B9 set; the build keeps B4's back-stop | 1, docs |
+| A6g | **The dev GUI** — a barebones testing client for card and fuzz work that sees every card; not v1's GUI, which is `backlog.md` §2.38. The engine runs on a worker thread behind a channel `DecisionProvider`, so the engine does not change; a board snapshot is read through `oracle/characteristics.rs`; the four primitives are generic widgets, with clicks on the board for objects, players and combat pairs; `ui::display`'s formatters label the board and the log. Its tools are the ones determinism makes cheap: a scenario loader, undo as a replay without the last answer, a save as seed, decks and decision log, and that log exported as `ScriptedDecisionProvider` expectations for a regression test. egui/eframe, native, in its own crate beside `mtgsim`, so the engine keeps its one dependency | After A6e and A6f: triggers make boards worth watching, and B5–B7 bring cards before Phase 8 does. It is the boundary's second real client before Phase 8 adds `ChoiceKind`s, so `codebase-state.md` main item 141's unmet payload rule (`SelectRecipients`' `EffectRecipient`, the cost options' `Cost` trees) shows up while it is still one fix. It sees every card on purpose, so B4's back-stop, which is about a GUI that renders one player's view, does not bind it, and B4's query gets it as a first consumer (a seat toggle). **After main items 161 and 164**, `backlog.md` §2.22's "before the GUI": a GUI seat needs auto-yield, the full-control switch and no `[Pass]`-only prompts from its first game. Homed here for A4d's reason: tooling with a slot question. **Size, a judgment:** ~3,400–5,200 lines, ~1,400–2,200 of which carry into v1 (the bridge, the snapshot, the tools); no GUI code exists to calibrate against, so the first PR's measured rate replaces this guess and re-sizes §2.38 | 2–3 |
 | A4d | **The codebase map**, then **the Rust notes** — the post-RE audit's two after-the-passes artifacts (2026-09-15). The map is `engineering-practices.md` §7.1's tier 3, drawn with the CR 614 pipeline at its center: the chokepoint's arms, the three gate legs, the pipeline's loop, the look-ahead frame, the decision sites `codebase-state.md` main item 40 tracks, and the ten-line check that its arm list matches the enum. The notes are `plans/references/rust-through-the-engine.md`: the same tour annotated for a reader coming from another language — why the chokepoint is a function and not a trait, what the borrow checker forced (the accessor pair, `FrameCache`'s overlay in place of a clone, `ActionContext`'s plumbing), where `Arc` sits and why, what `Cell` buys `Diagnostics`, the `test-support` feature in `Cargo.toml` | Homed here rather than in `backlog.md` because they are tooling with a slot question, like A4c, and not a mechanic the type surface cannot express (`backlog.md` §1's line) — the owner may move them. Neither was started at the audit's close; the map first, since the notes annotate it; a day to draw, then minutes per refresh (§7.1); any time, and before item 6's close if the trigger phase is not to be the first subsystem the map absorbs after the fact | 1 + 1, docs |
 
 **Beside A, pulled when a card family wants them, on neither side of the doc**
@@ -314,8 +315,11 @@ post-v1. Milestone: **format-ready**.
 
 ### E. Phase 10 — the v1 wrap
 
-Both use cases, on the surfaces the spine built. A Web GUI (Wasm) over the
-per-viewer query B4 delivers. An AI API over the same four-method
+Both use cases, on the surfaces the spine built. A web GUI over the
+per-viewer query B4 delivers, sized in `backlog.md` §2.38 with its two open
+questions: whether the engine runs in the browser as Wasm or natively on a
+host, and whether v1's four seats are four machines. A6g's dev GUI is its
+first measured slice. An AI API over the same four-method
 `DecisionProvider` that drives CLI, random and scripted play (`ChoiceContext`
 is serde-serializable by design). The parallel-play harness: `fuzz_games`'
 worker pool already scales to ~6.7× on eight cores, and what is open is in
@@ -476,8 +480,9 @@ commander tax, commander damage, and color identity all enforced; the
 `Format` trait dispatches Commander vs Standard correctly. *(Criteria
 unchanged; the tax is why §2.1 leads the interleave.)*
 
-**Phase 10 — the v1 wrap:** a Web GUI (Wasm; the target is the middle ground
-between XMage's function and Arena's polish), an AI API over the same
+**Phase 10 — the v1 wrap:** a web GUI (the target is the middle ground
+between XMage's function and Arena's polish; Wasm or a native host is open,
+`backlog.md` §2.38), an AI API over the same
 4-method `DecisionProvider` that drives CLI/Random/Scripted play
 (`ChoiceContext` is serde-serializable by design), parallel fuzz, and
 profile-driven performance work. **§2.9 is a prerequisite for both halves** —
