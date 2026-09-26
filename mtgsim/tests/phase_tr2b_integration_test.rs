@@ -15,25 +15,27 @@ use std::sync::Arc;
 
 use mtgsim::cards::authoring::{at_beginning_of, draws_a_card, enters, triggered_ability, whenever, Whose};
 use mtgsim::cards::phase_rd_cards::safe_passage;
+use mtgsim::oracle::characteristics::get_effective_controller;
 use mtgsim::engine::actions::GameAction;
 use mtgsim::engine::resolve::{ResolutionContext, ResolvedTarget};
 use mtgsim::engine::targeting::ChosenTargets;
-use mtgsim::events::event::GameEvent;
+use mtgsim::events::event::{CounterSubject, GameEvent};
 use mtgsim::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData, CardDataBuilder};
 use mtgsim::state::game_state::{GameState, StepType};
 use mtgsim::test_support::{
-    card_of_type, creature_with_ability, fill_library, put_in_hand, put_on_battlefield, set_active_player,
-    setup_game, setup_two_player_game, stock_libraries, test_ctx, test_dp, vanilla_creature,
-    RecordingDecisionProvider,
+    card_of_type, creature_with_ability, fill_library, put_in_hand, put_in_library, put_on_battlefield,
+    put_on_battlefield_under, set_active_player, setup_game, setup_two_player_game, stock_libraries, test_ctx,
+    test_dp, vanilla_creature, RecordingDecisionProvider,
 };
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, Effect, EffectRecipient, ObjectFilter,
-    Pick, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    AmountExpr, Choice, ChoiceScope, ChoiceSide, Condition, CostAnswer, CounterType, Duration, Effect,
+    EffectRecipient, ObjectFilter, Pick, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter,
+    TargetCount,
 };
 use mtgsim::types::ids::{new_ability_id, ObjectId, ObjectRef, PlayerId};
 use mtgsim::types::mana::ManaCost;
-use mtgsim::types::triggers::{TriggerEvent, TriggerSubject};
+use mtgsim::types::triggers::{TriggerCondition, TriggerDef, TriggerEvent, TriggerSubject};
 use mtgsim::types::zones::{Zone, ZoneChangeCause};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::choice_types::ChoiceKind;
@@ -113,6 +115,14 @@ fn sacrifices(chooser: EffectRecipient, n: u64) -> Effect {
     )
 }
 
+/// Cast `card`, which costs {0}, from `player`'s hand.
+fn cast(game: &mut GameState, player: PlayerId, card: Arc<CardData>) -> ObjectId {
+    let id = put_in_hand(game, card, player);
+    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
+    game.cast_spell(player, id, &dp).expect("castable");
+    id
+}
+
 /// Cast a {0} instant that does nothing, from `player`'s hand.
 fn cast_a_spell(game: &mut GameState, player: PlayerId) {
     let spell = CardDataBuilder::new("Idle Thought")
@@ -128,9 +138,7 @@ fn cast_a_spell(game: &mut GameState, player: PlayerId) {
             activation_restriction: ActivationRestriction::None,
         })
         .build();
-    let id = put_in_hand(game, spell, player);
-    let dp = ManaWindowStop::new(RecordingDecisionProvider::picking(0));
-    game.cast_spell(player, id, &dp).expect("castable");
+    cast(game, player, spell);
 }
 
 fn sacrificed(game: &GameState) -> Vec<(ObjectId, Option<mtgsim::events::event::BatchId>)> {
@@ -416,4 +424,123 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
     };
     game.resolve_effect(&exiles, &ctx, &test_dp()).unwrap();
     assert_eq!(game.get_object(bear).unwrap().zone, Zone::Exile);
+}
+
+// ---------------------------------------------------------------------------
+// CR 113.7a, 608.2h, 109.5 — what a trigger reads once what it names has gone
+// ---------------------------------------------------------------------------
+
+fn each_opponent_loses_its_power() -> Effect {
+    Effect::Atom(
+        Primitive::LoseLife(AmountExpr::TriggeringPower),
+        EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Opponents)),
+    )
+}
+
+/// A 2/2: "When this creature enters, if you have 10 or more life, each
+/// opponent loses life equal to its power."
+fn reckoner() -> Arc<CardData> {
+    let def = TriggerDef {
+        condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
+        intervening_if: Some(Condition::Player {
+            whose: PlayerSet::You,
+            fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(10)),
+        }),
+        limit: None,
+        effect: each_opponent_loses_its_power(),
+    };
+    creature_with_ability("Borrowed Reckoner", 2, 2, triggered_ability(def))
+}
+
+/// Item 169's board: the reckoner enters under player 0's control though
+/// player 1 owns it, is grown to 4/4 and sacrificed in response. The recheck's
+/// "you" is still player 0 (CR 109.5, 603.3a), not the owner whose graveyard it
+/// is in, and "its power" is the 4 it last had.
+#[test]
+fn an_enters_trigger_reads_its_controller_and_power_once_its_source_is_sacrificed() {
+    let mut game = setup_two_player_game();
+    game.players[1].life_total = 5;
+    let reckoner = put_on_battlefield_under(&mut game, reckoner(), 1, 0);
+    place(&mut game, &test_dp());
+    let grow = GameAction::AddCounters {
+        subject: CounterSubject::Object(reckoner),
+        counter: CounterType::PlusOnePlusOne,
+        n: 2,
+        by: 0,
+    };
+    game.execute_action(grow, &test_ctx()).unwrap();
+    game.change_zone(reckoner, Zone::Graveyard, ZoneChangeCause::Sacrificed, &test_ctx()).unwrap();
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[1].life_total, 1, "player 0's 20 life met the \"if\", and it was last a 4/4");
+}
+
+/// The recheck of a stolen source: player 1 takes the reckoner in response,
+/// and "you" is still player 0, who controlled it as it triggered.
+#[test]
+fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
+    let mut game = setup_two_player_game();
+    game.players[1].life_total = 5;
+    let reckoner = put_on_battlefield(&mut game, reckoner(), 0);
+    place(&mut game, &test_dp());
+    let thief = put_on_battlefield(&mut game, card_of_type("Thieving Idol", CardType::Artifact), 1);
+    let steal = Effect::Atom(
+        Primitive::GainControl(Duration::Indefinite),
+        EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+    );
+    let ctx = ResolutionContext {
+        targets: ChosenTargets::one(vec![ResolvedTarget::Object(reckoner)]),
+        ..ResolutionContext::untargeted(thief, 1)
+    };
+    game.resolve_effect(&steal, &ctx, &test_dp()).unwrap();
+    assert_eq!(get_effective_controller(&game, reckoner), Some(1));
+
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[1].life_total, 3, "player 0's 20 life met the \"if\", and player 1 is its opponent");
+}
+
+/// Item 169's other zones: "its power" of a spell countered in response, and
+/// of a drawn card discarded in response, each off the frame it left with.
+#[test]
+fn a_countered_spell_and_a_discarded_card_leave_their_power_behind() {
+    let mut game = setup_two_player_game();
+    let casts = TriggerEvent::CastsSpell { caster: None, spell: None };
+    put_on_battlefield(&mut game, watcher("Spiteful Critic", casts, each_opponent_loses_its_power()), 0);
+    put_on_battlefield(&mut game, watcher("Spiteful Reader", draws_a_card(Whose::Yours), each_opponent_loses_its_power()), 0);
+
+    let ogre = CardDataBuilder::new("Hasty Ogre")
+        .mana_cost(ManaCost::build(&[], 0))
+        .card_type(CardType::Creature)
+        .power_toughness(3, 3)
+        .build();
+    let spell = cast(&mut game, 0, ogre);
+    place(&mut game, &test_dp());
+    game.change_zone(spell, Zone::Graveyard, ZoneChangeCause::Countered, &test_ctx()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[1].life_total, 17, "the countered spell's 3");
+
+    let card = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
+    game.draw_card(0, &test_ctx()).unwrap();
+    place(&mut game, &test_dp());
+    game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.players[1].life_total, 15, "the discarded card's 2");
+}
+
+/// "When this creature enters, sacrifice it, then each opponent loses life
+/// equal to its power": the effect moved it itself, and the resolving ability
+/// keeps the frame it left with.
+#[test]
+fn an_ability_that_sacrifices_its_own_source_reads_the_power_it_left_with() {
+    let mut game = setup_two_player_game();
+    let effect = Effect::Sequence(vec![
+        Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
+        each_opponent_loses_its_power(),
+    ]);
+    let martyr = creature_with_ability("Brief Martyr", 3, 3, triggered_ability(whenever(enters(TriggerSubject::ThisObject), effect)));
+    let martyr = put_on_battlefield(&mut game, martyr, 0);
+    place(&mut game, &test_dp());
+    game.resolve_top_of_stack(&test_dp()).unwrap();
+    assert_eq!(game.get_object(martyr).unwrap().zone, Zone::Graveyard);
+    assert_eq!(game.players[1].life_total, 17);
 }

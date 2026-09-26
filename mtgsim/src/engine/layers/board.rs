@@ -1033,7 +1033,7 @@ fn static_ability_still_exists(
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
     match &ability.effect {
         Effect::Conditional(cond, _) => {
-            condition::holds(cond, game, board, effect.source, layer_index)
+            condition::holds(cond, game, board, effect.source, layer_index, condition::ConditionYou::SourceController)
         }
         _ => true,
     }

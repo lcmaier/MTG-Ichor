@@ -110,6 +110,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,
+        departed: Vec::new(),
     }
 }
 

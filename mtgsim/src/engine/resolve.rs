@@ -2201,7 +2201,7 @@ impl GameState {
                 })?;
                 let chars = self.bound_characteristics(binding).ok_or_else(|| {
                     format!(
-                        "{:?}: the bound object has left since the event and no frame answers for it (TR-2b's departed frames)",
+                        "{:?}: the bound object has left since the event and no departed frame answers for it, which is a missed capture",
                         expr
                     )
                 })?;
@@ -2341,9 +2341,11 @@ impl GameState {
         match condition {
             Condition::CostAnswer(answer) => walk.last_cost_answer == Some(*answer),
             Condition::All(clauses) => clauses.iter().all(|c| self.resolution_condition_holds(c, ctx, walk)),
+            // CR 109.5 — a resolving spell's or ability's "you" is its
+            // controller, whatever has become of its source since.
             other => {
                 let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
-                crate::engine::layers::condition::settled_holds(other, self, source)
+                crate::engine::layers::condition::settled_holds_for(other, self, source, ctx.controller)
             }
         }
     }

@@ -15,6 +15,7 @@
 
 use std::sync::Arc;
 
+use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, EventRecord, GameEvent};
 use crate::objects::card_data::CardData;
 use crate::state::game_state::{AbilityIdentity, PhaseType, StepType};
@@ -641,10 +642,27 @@ pub enum TriggerOrigin {
 
 impl TriggerOrigin {
     pub fn source(&self) -> ObjectId {
+        self.source_ref().id
+    }
+
+    /// The source, and which existence of it (CR 400.7).
+    pub fn source_ref(&self) -> ObjectRef {
         match self {
-            TriggerOrigin::Object(identity) => identity.source.id,
+            TriggerOrigin::Object(identity) => identity.source,
         }
     }
+}
+
+/// An object's last known information (CR 113.7a, 608.2h), kept by an entry
+/// that names it — its source, or its trigger's subject — when the object
+/// leaves the zone the entry expected it in (`triggers-architecture.md`
+/// §6.1). The binding's records cannot hold it, since the departure is a later
+/// event than the one that triggered. TR-4a makes the frame a
+/// `LastKnownInformation`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DepartedFrame {
+    pub object: ObjectRef,
+    pub frame: Arc<EffectiveCharacteristics>,
 }
 
 /// An ability that has triggered and not yet been put onto the stack
@@ -667,6 +685,8 @@ pub struct PendingTrigger {
     pub binding: TriggerBinding,
     /// CR 603.8's one-shot state trigger; armed by TR-6.
     pub is_state_trigger: bool,
+    /// The frames of the objects it names that have left since it triggered.
+    pub departed: Vec<DepartedFrame>,
 }
 
 impl PendingTrigger {

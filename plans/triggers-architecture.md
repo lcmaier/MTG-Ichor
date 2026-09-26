@@ -407,7 +407,7 @@ records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
 `AmountExpr::TriggeringPower` reads the live object when it is where the
 event left it and its last known information otherwise (CR 608.2h) — the
 record's `lki` frame when the event was the departure, the entry's
-`departed` frame when the object left afterwards (§6.1's amendment). All
+`departed` frame when the object left afterwards (§6.1). All
 three leaves ship in TR-1 because the type that carries them opens there.
 
 **Why no stored amount.** A single `Option<u64>` on the binding would mean
@@ -1559,19 +1559,62 @@ choices", which is a removal, not a rewind.
 
 ## 6. Resolution
 
-### 6.1 The intervening "if" at both instants (CR 603.4, 608.2a)
+### 6.1 The intervening "if" at both instants (CR 603.4, 608.2a), and the frame of what has left
 
 At dispatch, `TriggerDef.intervening_if` is evaluated after the condition
 matches and before the entry is queued; false means no trigger (ATOM-603.4-002).
 At resolution, `resolve_taken` evaluates it again before anything else
 (608.2a's place in 608.2's order — ATOM-608.2-001) and removes the object
-doing nothing if it is false (-003). The evaluator is `settled_holds` for a
-condition about the board, and a `TriggerContext` variant of it for a
-condition about the bound facts — persist's "if it had no -1/-1 counters
-on it" reads the record's `lki` frame at both instants, since the
-creature is in the graveyard at both. `Condition` is one enum for the
-static "as long as", the intervening "if" and the state trigger, as
+doing nothing if it is false (-003). `Condition` is one enum for the static
+"as long as", the intervening "if" and the state trigger, as
 `layers-architecture.md` §13b decision 5 planned; a leaf is three edits.
+
+**"You" is the ability's (CR 109.5; built in TR-2b).** Both instants, and a
+resolving effect's own "if", evaluate through `settled_holds_for(condition,
+game, source, you)`, which names the player: the candidate's controller at
+dispatch, the entry's controller locked by CR 603.3a at the recheck, and the
+resolution's controller in `Effect::Conditional`. `you_for` and
+`FilterPlayers::for_source` answer it before the source's frame, so a source
+stolen since, or in its owner's graveyard, still reads its controller's
+facts. A static ability's "you" is its source's current controller
+(`settled_holds`).
+
+**The `departed` frame (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
+its records at dispatch, so a departure after the dispatch is in no record the
+entry holds. `DepartedFrame { object, frame }` sits in a `departed` list on
+`PendingTrigger`, `StackEntry` and `ResolvingObject`. Placement moves the list
+onto the stack entry, resolution moves it onto `resolving`, and an effect that
+moves its own source adds one there.
+- **One capture.** Before a batch performs, `capture_departure_frames` frames
+  every permanent its decided members take off the battlefield (item 174). It
+  also frames every other mover that a pending, stacked or resolving entry
+  names, from any zone: the entry's source, or `binding.subject`. On a
+  player's leaving it frames the named objects that player owns. The names are
+  gathered only for a batch that moves something other than a permanent, and
+  on the common board they are empty or short.
+- **One writer.** The two performers that move an object out of a zone,
+  `perform_zone_change` and `owned_objects_leave`, call `hand_departed_frame`
+  before the move. It gives each entry naming the mover the frame its batch
+  took, which for a permanent is the record's own `Arc`.
+- **The reader.** `bound_characteristics` reads the record's frame when the
+  event was the departure, the live object while its epoch holds, and the
+  resolving entry's `departed` frame after that. A miss there is a missed
+  capture, and the refusal says so.
+- **Rejected:** a `GameState` map keyed by `ObjectRef`, since every exit from
+  the stack would have to prune it and a missed prune is the leak the
+  bounded-state PR removed. Also rejected: writing at the window's close,
+  since only a battlefield departure's record carries a frame.
+
+**What waits.** The frame is `EffectiveCharacteristics` until TR-4a's
+`LastKnownInformation` (§3.11). Its `cost_choices` answer "if it was kicked"
+after the permanent leaves, and its `entry` keeps a stack object's targets,
+modes and X for CV-4's copy. A condition about the bound facts, such as
+persist's "if it had no -1/-1 counters on it", reads the record's frame at
+both instants through a `TriggerContext` form of the evaluator, built with
+persist in TR-4. The `IsCountered` look-back (CR 603.10e) reads the same frame
+of the countered spell.
+
+The two amendments below are the design record this was built from.
 
 **Amended 2026-09-23 (the rulings pass, G1): an object that leaves after it
 triggered.** The binding's frame exists only when the triggering event was
@@ -1666,7 +1709,7 @@ comparison read the other way. `AmountExpr::TriggeringPower` and its
 siblings read `LastKnownInformation` (§3.11): live if the object is where the event
 left it, the frame otherwise — the record's when the event was the
 departure, the entry's `departed` frame when the object left afterwards
-(§6.1's amendment). Nothing the effect reads is copied at
+(§6.1). Nothing the effect reads is copied at
 dispatch that the record does not already hold — the binding is indices
 and one `Arc`.
 

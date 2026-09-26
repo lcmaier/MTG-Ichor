@@ -128,6 +128,10 @@ pub struct StackEntry {
     /// activated ability; the resolution reads the intervening "if" and
     /// "that object" off it.
     pub trigger: Option<crate::types::triggers::TriggerBinding>,
+    /// The frames of the objects it names — its source, its trigger's
+    /// subject — that have left since it was put on the stack (CR 113.7a;
+    /// `triggers-architecture.md` §6.1). An activated ability's too.
+    pub departed: Vec<crate::types::triggers::DepartedFrame>,
 }
 
 /// The stack object currently resolving, and the things about it that do not
@@ -154,6 +158,12 @@ pub struct ResolvingObject {
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
+    /// Its trigger's subject, for a triggered ability: with `identity`'s
+    /// source, what it names, so an object its own effect moves hands it a
+    /// frame too (CR 608.2h's "the effect has moved it").
+    pub subject: Option<crate::types::ids::ObjectRef>,
+    /// The entry's departed frames, and any its own effect adds.
+    pub departed: Vec<crate::types::triggers::DepartedFrame>,
 }
 
 /// Which ability of which object — the durable identity of an activated ability,
@@ -2497,6 +2507,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 };
         assert!(entry.chosen_alternative_cost.is_none());
         assert!(entry.additional_costs_paid.is_empty());

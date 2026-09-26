@@ -44,6 +44,7 @@ pub(super) fn holds(
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
+    you: ConditionYou,
 ) -> bool {
     // Every arm below reads the source's frame or its owner, and a condition
     // on an object that is not in the store has no answer. The existence
@@ -64,7 +65,7 @@ pub(super) fn holds(
     match condition {
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
-        Condition::Player { whose, fact } => player_fact_holds(whose, fact, game, board, source, layer_index),
+        Condition::Player { whose, fact } => player_fact_holds(whose, fact, game, board, source, layer_index, you),
 
         // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
         // grant exists while the card is in the graveyard, and this is asked at
@@ -88,7 +89,7 @@ pub(super) fn holds(
         // where it is false.
         Condition::All(clauses) => clauses
             .iter()
-            .all(|c| holds(c, game, board, source, layer_index)),
+            .all(|c| holds(c, game, board, source, layer_index, you)),
 
         // "As long as this artifact is untapped" — Trinisphere, Winter Orb,
         // Static Orb. A status (CR 110.5), read off the entity — under a
@@ -107,18 +108,18 @@ pub(super) fn holds(
             let Some(chars) = board.frame_of(game, host, layer_index) else {
                 return false;
             };
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index);
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index, you.player());
             object_matches_filter(filter, host, &chars, &mut players)
         }
 
         // A turn summary's count (§3.10), for "you" as every leaf here reads it:
         // the source's controller. The counts are off `GameState`.
-        Condition::ThisTurn(count) => history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index),
-        Condition::LastTurn(count) => history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index),
+        Condition::ThisTurn(count) => history_holds(count, HistorySpan::ThisTurn, game, board, source, layer_index, you),
+        Condition::LastTurn(count) => history_holds(count, HistorySpan::LastTurn, game, board, source, layer_index, you),
         Condition::SinceYourLastTurn(count) => {
-            history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index)
+            history_holds(count, HistorySpan::SinceYourLastTurn, game, board, source, layer_index, you)
         }
-        Condition::ThisGame(count) => history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index),
+        Condition::ThisGame(count) => history_holds(count, HistorySpan::ThisGame, game, board, source, layer_index, you),
         // CR 603.7h: the resolving ability's count, which its own resolution
         // has not advanced yet. False outside a resolution, where nothing is
         // resolving to be counted.
@@ -172,7 +173,34 @@ pub(super) fn holds(
 /// item 6's intervening "if" next. A reader, not a language — the leaves
 /// and their evaluators are [`holds`]'s, unchanged.
 pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId) -> bool {
-    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len())
+    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), ConditionYou::SourceController)
+}
+
+/// [`settled_holds`] for a triggered ability's condition or a resolving
+/// effect's own "if", whose "you" (CR 109.5) is a player the asker names: the
+/// controller locked as the ability triggered (CR 603.3a), or the resolution's.
+/// It stays that player whatever has become of the source since — stolen, or
+/// in its owner's graveyard (`codebase-state.md` item 169).
+pub fn settled_holds_for(condition: &Condition, game: &GameState, source: ObjectId, you: PlayerId) -> bool {
+    holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), ConditionYou::Player(you))
+}
+
+/// CR 109.5's "you" for a condition: a static ability's is its source's
+/// current controller, and a triggered or resolving one's is a player its
+/// asker names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ConditionYou {
+    SourceController,
+    Player(PlayerId),
+}
+
+impl ConditionYou {
+    fn player(self) -> Option<PlayerId> {
+        match self {
+            ConditionYou::SourceController => None,
+            ConditionYou::Player(you) => Some(you),
+        }
+    }
 }
 
 /// Which turns a history leaf reads.
@@ -192,8 +220,9 @@ fn history_holds(
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
+    you: ConditionYou,
 ) -> bool {
-    let Some(you) = you_for(game, board, source, layer_index) else {
+    let Some(you) = you_for(game, board, source, layer_index, you) else {
         return false;
     };
     let now = game.turn_number;
@@ -226,21 +255,23 @@ fn cost_choices(game: &GameState, source: ObjectId) -> Option<&CostChoices> {
     }
 }
 
-/// CR 109.5's "you": the source's controller, off its live frame, or its
-/// owner if it has no controller. `None` only when the source no longer exists
-/// anywhere (a token that has ceased to exist), where no "you" can be read and
-/// a leaf answers false; a trigger's recheck gets its locked controller
-/// instead (item 169, TR-2b).
+/// CR 109.5's "you": the player the asker named, or else the source's
+/// controller off its live frame, or its owner if it has no controller. `None`
+/// only when neither is there — a static ability's source that no longer
+/// exists anywhere — where no "you" can be read and a leaf answers false.
 fn you_for(
     game: &GameState,
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
+    you: ConditionYou,
 ) -> Option<PlayerId> {
-    board
-        .frame_of(game, source, layer_index)
-        .map(|frame| frame.controller)
-        .or_else(|| game.objects.get(&source).map(|obj| obj.owner))
+    you.player().or_else(|| {
+        board
+            .frame_of(game, source, layer_index)
+            .map(|frame| frame.controller)
+            .or_else(|| game.objects.get(&source).map(|obj| obj.owner))
+    })
 }
 
 /// [`Condition::Player`]: does any player `whose` names, among those still in
@@ -254,8 +285,9 @@ fn player_fact_holds(
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
+    asked_you: ConditionYou,
 ) -> bool {
-    let Some(you) = you_for(game, board, source, layer_index) else {
+    let Some(you) = you_for(game, board, source, layer_index, asked_you) else {
         return false;
     };
     let named = |player: PlayerId| game.in_game(player) && whose.contains(you, player);
@@ -264,7 +296,7 @@ fn player_fact_holds(
     };
     match fact {
         PlayerFact::ControlsPermanent(filter) => {
-            controls_matching(filter, game, board, source, layer_index, &named)
+            controls_matching(filter, game, board, source, layer_index, asked_you, &named)
         }
         // The threshold is resolved against the source's own frame, which is
         // where a static ability's dynamic number is read everywhere else.
@@ -286,7 +318,7 @@ fn player_fact_holds(
         // A graveyard card may be a non-member of the pass, in which case its
         // frame is its own CDA walk at this ceiling (CR 604.3).
         PlayerFact::CardInGraveyard(filter) => {
-            let mut players = FilterPlayers::for_source(source, game, board, layer_index);
+            let mut players = FilterPlayers::for_source(source, game, board, layer_index, asked_you.player());
             game.players.iter().enumerate().any(|(player, state)| {
                 named(player)
                     && state.graveyard.iter().any(|&card| {
@@ -311,9 +343,10 @@ fn controls_matching(
     board: &Board<'_>,
     source: ObjectId,
     layer_index: usize,
+    you: ConditionYou,
     named: &dyn Fn(PlayerId) -> bool,
 ) -> bool {
-    let mut players = FilterPlayers::for_source(source, game, board, layer_index);
+    let mut players = FilterPlayers::for_source(source, game, board, layer_index, you.player());
     board.battlefield_ids(game).into_iter().any(|id| {
         let Some(chars) = board.frame_of(game, id, layer_index) else {
             return false;
