@@ -2178,9 +2178,8 @@ moved:
   a recipient every verb can take, gave it a slot for each shape a census
   of the pool found, and put `event_for` under the object verbs. It also
   made the mask's width follow `EventKind` (decisions 4 and 5).
-  - Together these add about 185 lines.
-  - Soul Shatter, offered, would add 100 more. That puts the top at 2,455,
-    against the band's 2,500.
+  - Together these add about 185 lines. Soul Shatter was offered at 100
+    more and not taken (the owner, 2026-09-26).
 - Standstill and Wicked Guardian stay fixtures. Standstill's "each of that
   player's opponents" is a group relative to the bound player, which
   `PlayerGroup` cannot say. Wicked Guardian's "another creature you control"
@@ -2437,17 +2436,17 @@ pub struct Pick { pub filter: ObjectFilter, pub count: PickCount }   // TR-2b: P
     `Primitive::event_for(object) -> Option<GameAction>`, which the performer
     and the check both read. One table, so the event Sigarda is asked about
     is the event performed.
-  - This design moves those six arms onto the method here: about 50 lines,
-    with no behavior change, since the engine arm stays `IDENTICAL`. The
-    choice then works for every verb that has an `event_for` arm.
+  - **All six move onto the method here** (the owner, 2026-09-26): about 50
+    lines, with no behavior change, since the engine arm stays `IDENTICAL`.
+    The choice then works for every verb that has an `event_for` arm, and
     `ReturnToHand` gets its arm with TR-3.
-  - The smaller option builds the method for `Sacrifice` alone and moves
-    each other verb with its first chosen card. It is 50 lines fewer, but it
-    leaves two mappings per verb that must agree until then.
-- **The rank lands with its first card.** Soul Shatter could be that card
-  here: about 100 lines with its ruling's test, and 175 → 179 registered.
-  That is offered and not counted above. Without it, the rank needs no
-  retrofit: it is one constructor on `Pick` and one narrowing step.
+  - Not taken: the method for `Sacrifice` alone, with each other verb moved
+    by its first chosen card. It was 50 lines fewer, and it left two
+    mappings per verb that must agree until then.
+- **The rank lands with its first card, which is not TR-2b's.** Soul
+  Shatter was offered as that card here, at about 100 lines, and the owner
+  left it for later (2026-09-26). It needs no retrofit: it is one
+  constructor on `Pick` and one narrowing step.
 - **Rejected: the first draft's `Sacrifice(Sacrificed)` payload.** It made
   the choice sacrifice's own, and every verb in the census would have grown a
   copy.
