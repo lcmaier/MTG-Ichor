@@ -1184,6 +1184,11 @@ pub enum Primitive {
     ShuffleLibrary,
     /// Mill N cards (rule 701.17)
     Mill(AmountExpr),
+    /// Put the top N cards of the recipient's library into their hand without
+    /// drawing them (CR 121.5): a zone change and never a draw, so no draw
+    /// trigger fires and no draw replacement applies. An empty library does
+    /// nothing, where a draw from it is CR 704.5b's loss.
+    PutTopCardsIntoHand(AmountExpr),
     /// Discard N cards (rule 701.9), chosen as [`DiscardChooser`] says.
     ///
     /// The recipient is who discards — `EffectRecipient::Target` on a player

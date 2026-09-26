@@ -1015,6 +1015,10 @@ impl GameState {
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 one(self.subject_matches(subject, Some(*object_id), candidate, None))
             }
+            (TriggerEvent::DrawsCard { player: who, .. }, GameEvent::CardDrawn { player_id, .. })
+            | (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+                one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
+            }
             (
                 TriggerEvent::ManaAdded { source, tapped_for_mana, mana },
                 GameEvent::ManaAdded { source_id, mana: added, tapped_for_mana: tapped, .. },

@@ -148,7 +148,7 @@ pub enum DamageRecipient {
 
 /// The kind of record a trigger arm reads - one variant per `GameEvent`
 /// variant any [`TriggerEvent`] can match, and none for the records no arm
-/// can (`CardDrawn`, `LibraryShuffled`, ...).
+/// can (`Scried`, `TokenCreated`, ...).
 ///
 /// **The one table the matcher's discriminant test is written from.**
 /// [`TriggerEvent::reads`] and the dispatcher's source mask
@@ -171,9 +171,20 @@ pub enum EventKind {
     AttackersDeclared,
     AbilityTriggered,
     SpellCast,
+    CardDrawn,
+    LibraryShuffled,
 }
 
 impl EventKind {
+    /// How many kinds there are: the last variant's index, plus one. A kind
+    /// added after it moves this, and `bit` asserts it did.
+    pub const COUNT: usize = EventKind::LibraryShuffled as usize + 1;
+
+    /// How many words an [`EventKindMask`] needs to hold every kind. One while
+    /// the kinds fit in 64 (`triggers-architecture.md` §12, TR-2b's decision
+    /// 5), and a new kind past that grows the mask with no edit to it.
+    pub const WORDS: usize = EventKind::COUNT.div_ceil(64);
+
     /// This record's kind, or `None` for a record no trigger arm reads.
     /// Exhaustive, so a new `GameEvent` variant does not compile until it
     /// says whether an arm reads it — a wildcard would file it as unread, and
@@ -194,16 +205,16 @@ impl EventKind {
             GameEvent::AttackersDeclared { .. } => EventKind::AttackersDeclared,
             GameEvent::AbilityTriggered { .. } => EventKind::AbilityTriggered,
             GameEvent::SpellCast { .. } => EventKind::SpellCast,
+            GameEvent::CardDrawn { .. } => EventKind::CardDrawn,
+            GameEvent::LibraryShuffled { .. } => EventKind::LibraryShuffled,
             GameEvent::AbilityActivated { .. }
             | GameEvent::AbilityCountered { .. }
             | GameEvent::AbilityResolved { .. }
             | GameEvent::Attached { .. }
             | GameEvent::BlockersDeclared { .. }
-            | GameEvent::CardDrawn { .. }
             | GameEvent::CountersAnnihilated { .. }
             | GameEvent::CountersChanged { .. }
             | GameEvent::EquipmentDetached { .. }
-            | GameEvent::LibraryShuffled { .. }
             | GameEvent::PlayerLost { .. }
             | GameEvent::PlayerWon { .. }
             | GameEvent::Scried { .. }
@@ -215,8 +226,11 @@ impl EventKind {
         })
     }
 
-    const fn bit(self) -> u16 {
-        1 << (self as u16)
+    /// This kind's word in a mask, and its bit within that word.
+    const fn place(self) -> (usize, u64) {
+        let index = self as usize;
+        assert!(index < EventKind::COUNT, "a kind past EventKind::COUNT: move the constant");
+        (index / 64, 1 << (index % 64))
     }
 }
 
@@ -225,48 +239,63 @@ impl EventKind {
 /// `GameState::trigger_sources`, and what a window's records OR into.
 ///
 /// A hand-rolled bitmask following [`crate::types::zones::ZoneSet`], for the
-/// same reason it is one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct EventKindMask(u16);
+/// same reason it is one, and as many words wide as [`EventKind::WORDS`]
+/// says: while the kinds fit in 64 it is one word, the same instructions as a
+/// `u64`, and a kind past that widens it without an edit here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventKindMask([u64; EventKind::WORDS]);
+
+impl Default for EventKindMask {
+    fn default() -> Self {
+        EventKindMask::EMPTY
+    }
+}
 
 impl EventKindMask {
-    pub const EMPTY: EventKindMask = EventKindMask(0);
+    pub const EMPTY: EventKindMask = EventKindMask([0; EventKind::WORDS]);
     /// Every kind: as a filter, it keeps every source that reads anything.
-    pub const ALL: EventKindMask = EventKindMask(u16::MAX);
+    pub const ALL: EventKindMask = EventKindMask([u64::MAX; EventKind::WORDS]);
 
     pub const fn of(kind: EventKind) -> EventKindMask {
-        EventKindMask(kind.bit())
+        EventKindMask::EMPTY.with(kind)
     }
 
     pub const fn with(self, kind: EventKind) -> EventKindMask {
-        EventKindMask(self.0 | kind.bit())
+        let (word, bit) = kind.place();
+        let mut words = self.0;
+        words[word] |= bit;
+        EventKindMask(words)
     }
 
     pub fn contains(self, kind: EventKind) -> bool {
-        self.0 & kind.bit() != 0
+        let (word, bit) = kind.place();
+        self.0[word] & bit != 0
     }
 
     /// Whether the two sets share a kind - the dispatcher's whole question of
     /// a source: could anything it printed read anything this window carries?
     pub fn intersects(self, other: EventKindMask) -> bool {
-        self.0 & other.0 != 0
+        self.0.iter().zip(other.0.iter()).any(|(a, b)| a & b != 0)
     }
 
     pub fn is_empty(self) -> bool {
-        self.0 == 0
+        self.0.iter().all(|&word| word == 0)
     }
 }
 
 impl std::ops::BitOr for EventKindMask {
     type Output = EventKindMask;
-    fn bitor(self, other: EventKindMask) -> EventKindMask {
-        EventKindMask(self.0 | other.0)
+    fn bitor(mut self, other: EventKindMask) -> EventKindMask {
+        self |= other;
+        self
     }
 }
 
 impl std::ops::BitOrAssign for EventKindMask {
     fn bitor_assign(&mut self, other: EventKindMask) {
-        self.0 |= other.0;
+        for (word, theirs) in self.0.iter_mut().zip(other.0) {
+            *word |= theirs;
+        }
     }
 }
 
@@ -290,6 +319,12 @@ pub enum TriggerEvent {
     /// Transition-only by the record's own contract (CR 603.2e).
     BecomesTapped { subject: TriggerSubject },
     BecomesUntapped { subject: TriggerSubject },
+    /// "Whenever [you/a player] draw[s] a card" (CR 121.1): one occurrence per
+    /// card, so a draw of three triggers three times (Psychosis Crawler's
+    /// ruling). "That card" is the one drawn. A card put into a hand without
+    /// the word "draw" is not drawn (CR 121.5); it is a `ZoneChange`, and never
+    /// this.
+    DrawsCard { player: Option<PlayerRef>, multiplicity: Multiplicity },
     /// CR 106.12a's "tapped for mana" reads `tapped_for_mana`.
     ManaAdded {
         source: TriggerSubject,
@@ -335,6 +370,11 @@ pub enum TriggerEvent {
     /// spell is on the stack as its record is dispatched, so the filter reads
     /// it through the layer walk.
     CastsSpell { caster: Option<PlayerRef>, spell: Option<ObjectFilter> },
+    /// "Whenever [you/an opponent] shuffle[s] [your/their] library" (CR
+    /// 701.24): one record per shuffle, a library of zero or one cards
+    /// included (CR 701.24e). Cascade's random bottom is no shuffle, and emits
+    /// no record (Cosi's Trickster's rulings).
+    ShufflesLibrary { player: Option<PlayerRef> },
     /// CR 603.3b's second tier, by construction: the event the dispatcher
     /// emits per queued trigger (§4.8).
     AbilityTriggers { caused_by: Option<Box<TriggerEvent>>, source: Option<ObjectFilter> },
@@ -349,6 +389,7 @@ impl TriggerEvent {
             TriggerEvent::ZoneChange { from, .. } => *from == Some(Zone::Battlefield),
             TriggerEvent::BecomesTapped { .. }
             | TriggerEvent::BecomesUntapped { .. }
+            | TriggerEvent::DrawsCard { .. }
             | TriggerEvent::ManaAdded { .. }
             | TriggerEvent::DamageDealt { .. }
             | TriggerEvent::PhaseBegins { .. }
@@ -359,6 +400,7 @@ impl TriggerEvent {
             | TriggerEvent::EntersBattlefield { .. }
             | TriggerEvent::Attacks { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. } => false,
         }
     }
@@ -378,6 +420,7 @@ impl TriggerEvent {
             }
             TriggerEvent::BecomesTapped { .. } => EventKindMask::of(EventKind::Tapped),
             TriggerEvent::BecomesUntapped { .. } => EventKindMask::of(EventKind::Untapped),
+            TriggerEvent::DrawsCard { .. } => EventKindMask::of(EventKind::CardDrawn),
             TriggerEvent::ManaAdded { .. } => EventKindMask::of(EventKind::ManaAdded),
             TriggerEvent::DamageDealt { .. } => EventKindMask::of(EventKind::DamageDealt),
             TriggerEvent::PhaseBegins { .. } => EventKindMask::of(EventKind::PhaseBegin),
@@ -391,6 +434,7 @@ impl TriggerEvent {
             }
             TriggerEvent::Attacks { .. } => EventKindMask::of(EventKind::AttackersDeclared),
             TriggerEvent::CastsSpell { .. } => EventKindMask::of(EventKind::SpellCast),
+            TriggerEvent::ShufflesLibrary { .. } => EventKindMask::of(EventKind::LibraryShuffled),
             TriggerEvent::AbilityTriggers { .. } => EventKindMask::of(EventKind::AbilityTriggered),
         }
     }
@@ -405,6 +449,7 @@ impl TriggerEvent {
     pub fn multiplicity(&self) -> Multiplicity {
         match self {
             TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DrawsCard { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
@@ -417,6 +462,7 @@ impl TriggerEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. } => Multiplicity::PerOccurrence,
         }
     }
@@ -433,6 +479,7 @@ impl TriggerEvent {
                 Some(*object_id)
             }
             (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { source_id, .. }) => Some(*source_id),
+            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { card_id, .. }) => Some(*card_id),
             // "That creature" on a damage trigger is the permanent dealt damage,
             // the way Fungusaur reads it; the source is `player_of`'s question
             // only through its controller.
@@ -446,6 +493,7 @@ impl TriggerEvent {
             | (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
+            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
             // "That spell".
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { spell_id, .. }) => Some(*spell_id),
@@ -469,6 +517,8 @@ impl TriggerEvent {
             (TriggerEvent::GainsLife { .. }, GameEvent::LifeChanged { player_id, .. })
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { player_id, .. }) => Some(*player_id),
             (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { caster, .. }) => Some(*caster),
+            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { player_id, .. })
+            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { player_id }) => Some(*player_id),
             (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { controller, .. }) => {
                 Some(*controller)
             }
@@ -496,6 +546,9 @@ impl TriggerEvent {
             (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { old, new, .. }) => {
                 Some((old - new).max(0) as u64)
             }
+            // One card a record, so "that many" over a "one or more" binding is
+            // the cards drawn.
+            (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. }) => Some(1),
             (TriggerEvent::ZoneChange { .. }, GameEvent::ZoneChange { .. })
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
@@ -506,6 +559,7 @@ impl TriggerEvent {
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::Attacks { .. }, GameEvent::AttackersDeclared { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
+            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => None,
             _ => None,
         }
@@ -520,6 +574,7 @@ impl TriggerEvent {
             | (TriggerEvent::ZoneChange { .. }, GameEvent::LeftTheGame { .. })
             | (TriggerEvent::BecomesTapped { .. }, GameEvent::Tapped { .. })
             | (TriggerEvent::BecomesUntapped { .. }, GameEvent::Untapped { .. })
+            | (TriggerEvent::DrawsCard { .. }, GameEvent::CardDrawn { .. })
             | (TriggerEvent::ManaAdded { .. }, GameEvent::ManaAdded { .. })
             | (TriggerEvent::DamageDealt { .. }, GameEvent::DamageDealt { .. })
             | (TriggerEvent::PhaseBegins { .. }, GameEvent::PhaseBegin { .. })
@@ -529,6 +584,7 @@ impl TriggerEvent {
             | (TriggerEvent::LosesLife { .. }, GameEvent::LifeChanged { .. })
             | (TriggerEvent::EntersBattlefield { .. }, GameEvent::PermanentEnteredBattlefield { .. })
             | (TriggerEvent::CastsSpell { .. }, GameEvent::SpellCast { .. })
+            | (TriggerEvent::ShufflesLibrary { .. }, GameEvent::LibraryShuffled { .. })
             | (TriggerEvent::AbilityTriggers { .. }, GameEvent::AbilityTriggered { .. }) => 1,
             _ => 0,
         }
@@ -632,7 +688,7 @@ mod tests {
     use crate::types::ids::{AbilityId, ObjectRef};
 
     /// One record of every kind a trigger arm can read, named, plus one
-    /// (`CardDrawn`) that no arm reads.
+    /// (`Scried`) that no arm reads.
     fn sample_records() -> Vec<(&'static str, GameEvent)> {
         let id = ObjectId::UNASSIGNED;
         let identity = AbilityIdentity {
@@ -672,6 +728,8 @@ mod tests {
             }),
             ("SpellCast", GameEvent::SpellCast { spell_id: id, caster: 0 }),
             ("CardDrawn", GameEvent::CardDrawn { player_id: 0, card_id: id }),
+            ("LibraryShuffled", GameEvent::LibraryShuffled { player_id: 0 }),
+            ("Scried", GameEvent::Scried { player_id: 0, n: 1, looked_at: 1 }),
         ]
     }
 
@@ -693,6 +751,7 @@ mod tests {
             ),
             (TriggerEvent::BecomesTapped { subject: this.clone() }, &["Tapped"]),
             (TriggerEvent::BecomesUntapped { subject: this.clone() }, &["Untapped"]),
+            (TriggerEvent::DrawsCard { player: None, multiplicity: each }, &["CardDrawn"]),
             (TriggerEvent::ManaAdded { source: this.clone(), tapped_for_mana: None, mana: None }, &["ManaAdded"]),
             (
                 TriggerEvent::DamageDealt { source: this.clone(), recipient: DamageRecipient::Any, combat: None, multiplicity: each },
@@ -709,6 +768,7 @@ mod tests {
             ),
             (TriggerEvent::Attacks { attacker: this, multiplicity: each }, &["AttackersDeclared"]),
             (TriggerEvent::CastsSpell { caster: None, spell: None }, &["SpellCast"]),
+            (TriggerEvent::ShufflesLibrary { player: None }, &["LibraryShuffled"]),
             (TriggerEvent::AbilityTriggers { caused_by: None, source: None }, &["AbilityTriggered"]),
         ];
         let records = sample_records();
@@ -717,6 +777,23 @@ mod tests {
                 assert_eq!(arm.reads(record), reads.contains(name), "{arm:?} reading a {name} record");
             }
         }
+    }
+
+    /// The mask is as wide as the kinds need and no wider: one word for the
+    /// sixteen there are, every kind in it, and none of them in the empty set.
+    #[test]
+    fn the_mask_holds_every_kind_in_one_word() {
+        assert_eq!(EventKind::WORDS, 1);
+        let mut all = EventKindMask::EMPTY;
+        for (_, record) in sample_records() {
+            if let Some(kind) = EventKind::from_record(&record) {
+                assert!(!EventKindMask::EMPTY.contains(kind));
+                all |= EventKindMask::of(kind);
+                assert!(all.contains(kind) && EventKindMask::ALL.contains(kind));
+            }
+        }
+        assert!(all.intersects(EventKindMask::of(EventKind::LibraryShuffled)));
+        assert!(!all.is_empty() && EventKindMask::EMPTY.is_empty());
     }
 
     /// A def's kinds are its arms' together — what `register_static_effects`

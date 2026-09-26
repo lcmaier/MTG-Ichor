@@ -438,6 +438,31 @@ impl GameState {
                 Ok(())
             }
 
+            // CR 121.5 — `Mill`'s move to the hand: one batch, the cards taken
+            // before any moves. Not a draw, so a short library is as many as
+            // there are, and an empty one is nothing at all.
+            Primitive::PutTopCardsIntoHand(amount_expr) => {
+                let count = self.evaluate_amount(amount_expr, ctx)? as usize;
+                let player_id = self.resolve_player_for_self(recipient, targets, ctx);
+                let library = &self.get_player(player_id)?.library;
+                let batch: Vec<GameAction> = library
+                    .iter()
+                    .rev()
+                    .take(count)
+                    .map(|&object| GameAction::ZoneChange {
+                        object,
+                        from: Zone::Library,
+                        to: Zone::Hand,
+                        cause: ZoneChangeCause::PutIntoHand,
+                    })
+                    .collect();
+                if batch.is_empty() {
+                    return Ok(());
+                }
+                self.execute_actions(batch, &actx)?;
+                Ok(())
+            }
+
             // > 701.9a To discard a card, move it from its owner's hand to
             // > that player's graveyard.
             //
