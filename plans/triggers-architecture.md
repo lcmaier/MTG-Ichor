@@ -2145,7 +2145,7 @@ thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
-### TR-2b — "may", CR 118.12's answer, and the `departed` frames (1,980–2,170)
+### TR-2b — "may", CR 118.12's answer, and the `departed` frames (2,060–2,250)
 
 Split from TR-2 on 2026-09-24; it builds on TR-2a's gates and histories.
 **Designed 2026-09-26**, against the tree after the bounded-state PR, #190 and
@@ -2157,22 +2157,25 @@ and the largest code row at ×1.9 for the top end.
 | Piece | code | tests |
 |---|---|---|
 | The fold: six `Condition` leaves become one (decision 1) | ~130 | the leaves' unit tests, rewritten |
-| `EventKindMask` at `u64` (decision 5); the arms `DrawsCard` and `ShufflesLibrary`, their projections, matching and authoring words | ~80 | 1: ATOM-121.5-001 made full — a move to the hand without "draw" fires no draw trigger |
+| `EventKindMask` at a width that follows `EventKind` (decision 5); the arms `DrawsCard` and `ShufflesLibrary`, their projections, matching and authoring words | ~90 | 1: ATOM-121.5-001 made full — a move to the hand without "draw" fires no draw trigger |
 | `Effect::Optional` with its chooser, the walk's answer, `Condition::CostAnswer`, `OptionalEffect`, and CR 603.2h's writer reading the answer (decision 2) | ~210 | 3: ATOM-603.5-001; ATOM-118.12-002's partial, a "may" whose damage is prevented still answering `Does`; "if you do" and "if you don't" reading one answer |
-| `Sacrifice(Sacrificed)` (decision 4) | ~95 | 4: ATOM-118.12-001 on Standstill's board, as a fixture; the "if you can't" fixture; a stolen source answering `Cant`; "sacrifice that creature" |
+| A player's choice at resolution, `EffectRecipient::ChosenBy`, and `Sacrifice` on it (decision 4) | ~120 | 5: ATOM-118.12-001 on Standstill's board, as a fixture; the "if you can't" fixture; a stolen source answering `Cant`; "sacrifice that creature"; each opponent choosing in turn and sacrificing at once, at four seats |
 | `AddCounters` over a filter; `CountOf(CardsInHand)` in the layer walk; `EachOf` over `LoseLife`, which Crawler's "each opponent loses 1 life" needs and the row did not list | ~40 | through the cards' tests |
 | The `departed` frames, one capture and one writer, and CR 109.5's "you" at both instants and in a resolving "if" (decision 3) | ~140 | 5: an enters trigger's "if" and power read after its source is sacrificed in response; the recheck of a stolen source; a frame from the stack, from a hand, and from an effect that moved its own source |
 | Item 163's predicate over the facts a def reads (decision 6) | ~120 | 3: the binding-read board, the source row, equal and unequal amounts; the three migrated tests are edits |
 | **Nykthos Paragon**, **Psychosis Crawler**, **Cosi's Trickster**; Crawler and Trickster pooled (175 → 178 registered, 96 → 98 pooled) | ~105 | 11: Paragon's six rulings (the fourth is ATOM-603.2h-002, made full), Trickster's three, Crawler's one, and Crawler cast from hand with exact mana under `ManaWindowStop` |
-| **Total** | ~920, top end ~1,110 | 27, ~1,060 with the edits |
+| **Total** | ~960, top end ~1,150 | 28, ~1,100 with the edits |
 
-**1,980–2,170 in code and tests**, inside §4's band, against the
+**2,060–2,250 in code and tests**, inside §4's band, against the
 2026-09-24 count's 1,720–2,180. Docs add ~500 more: this section,
 archived at landing, with the stub, the record and the items. What the count
 moved:
 - `EachOf` refuses `LoseLife` by name today, and Crawler needs it.
 - The fold is six leaves, not five: `CardInYourGraveyard` says "your" too.
 - The predicate compares the source when the def reads it (decision 6).
+- The owner's review (2026-09-26) moved the choice out of `Sacrifice` into
+  a recipient every verb can take, and made the mask's width follow
+  `EventKind` (decisions 4 and 5). Together they add about 80 lines.
 - Standstill and Wicked Guardian stay fixtures. Standstill's "each of that
   player's opponents" is a group relative to the bound player, which
   `PlayerGroup` cannot say. Wicked Guardian's "another creature you control"
@@ -2218,12 +2221,15 @@ pub enum PlayerFact {
 Effect::Optional { chooser: PlayerRef, effect: Box<Effect> }
 pub enum CostAnswer { Does, Doesnt, Cant }
 Condition::CostAnswer(CostAnswer)   // "if you do", "if you don't", "if you can't"
-struct ResolutionWalk { cursor: usize, last_cost_answer: Option<CostAnswer> }
+struct ResolutionWalk { instance_cursor: usize, last_cost_answer: Option<CostAnswer> }
 ```
 
 - **The walk.** `resolve_effect_at`'s `cursor: &mut usize` becomes
-  `walk: &mut ResolutionWalk`. Each resolution makes a fresh one, so a rider
-  never reads its parent's answer (§6.2's amendment).
+  `walk: &mut ResolutionWalk`, and the count moves to the walk's
+  `instance_cursor`. It counts the instances of "target" declared so far,
+  the glossary's *cursor* (2); sense (1) is the turn plan's. Each resolution
+  makes a fresh walk, so a rider never reads its parent's answer (§6.2's
+  amendment).
 - **The chooser** is a `PlayerRef` (§6.2), resolved as `AddCounters`' `by`
   is: `You` is the controller, `Opponent` a player target or the only
   opponent. "That player may" (53 cards) is the bound player, which
@@ -2233,7 +2239,7 @@ struct ResolutionWalk { cursor: usize, last_cost_answer: Option<CostAnswer> }
 - **The answer's writers.**
   - An atom writes `Does` as it performs: CR 118.12's "started to pay".
   - An atom that cannot start writes `Cant`. In TR-2b that is `Sacrifice`
-    (decision 4) alone. Another primitive gets its "can't" with its first "if
+    alone (decision 4). Another primitive gets its "can't" with its first "if
     you can't" card.
   - `Optional` writes `Doesnt` when declined. When accepted it keeps the
     action's answer, except that `Cant` becomes `Doesnt`: CR 118.3 lets no
@@ -2310,47 +2316,113 @@ reach the entry as the object leaves.
   in TR-2b. The frame's cost decisions and a stack object's entry are §3.11's
   fields, which TR-4a's row builds.
 
-**Decision 4 — `Sacrifice`: the recipient is who sacrifices, and the payload
-what.**
+**Decision 4 — a player's choice at resolution is a recipient, and
+`Sacrifice` takes `Destroy`'s grammar.** An edict's "a creature" is one of
+many objects a player chooses as the effect applies (CR 608.2d), from a set
+defined relative to that player. The shape is not sacrifice's. Counted on
+Scryfall:
+- 218 cards have a player sacrifice:
+  `o:/(each|target) (player|opponent) sacrifices/`.
+- 83 have a player exile: `o:/(each|target) (player|opponent) exiles/`.
+- 121 return one of your own:
+  `o:/return (a|an|two) [a-z ]*you control to (its|their) owner.s hand/`.
+- 24 bolster: `o:bolster`.
+- 337 print "… of their choice" across the verbs:
+  `o:/(sacrifices?|exiles?|returns?|destroys?|taps?|untaps?|discards?) [^.]* of (their|his or her|your) choice/`.
+
+Some rank the choice. Soul Shatter's is "with the greatest mana value among
+creatures and planeswalkers they control", Crackling Doom's "the greatest
+power", bolster's "the least toughness". No `ObjectFilter` leaf can say a
+rank, because it is a fact about the set, not about one object.
+- 16 are ranked sacrifices:
+  `o:/sacrifices? (a|an|one|two|three|x) [^.]*(greatest|highest|least|lowest) (mana value|power|toughness)/`.
+- 148 say "greatest … among" or "least … among" in all:
+  `o:/(greatest|highest|least|lowest) (mana value|power|toughness) among/`.
+  Some of those are amounts, such as "damage equal to the greatest power
+  among creatures you control".
 
 ```rust
-Primitive::Sacrifice(Sacrificed)
-pub enum Sacrificed {
-    ThisObject,        // "sacrifice this enchantment" (Standstill)
-    TriggeringObject,  // "sacrifice that permanent" (Grafted Wargear, TR-4a)
-    Chosen { filter: SelectionFilter, amount: AmountExpr }, // "target player sacrifices a creature" (Diabolic Edict)
+EffectRecipient::ChosenBy { chooser: Box<EffectRecipient>, choice: ObjectChoice }
+pub struct ObjectChoice {
+    pub filter: ObjectFilter,  // over the permanents the chooser controls; "you" is the chooser
+    pub count: AmountExpr,     // "a" is 1
+    pub rank: Option<Rank>,    // with its first card: Rank::{Greatest, Least}(ManaValue | Power | Toughness)
 }
+// Diabolic Edict: Atom(Sacrifice, ChosenBy { chooser: Target(Player, Exactly(1)), choice: { filter: Creature, count: Fixed(1), rank: None } })
+// Soul Shatter:   Atom(Sacrifice, ChosenBy { chooser: EachOf(Opponents), choice: { filter: Or(Creature, Planeswalker), count: Fixed(1), rank: Some(Greatest(ManaValue)) } })
+// Standstill:     Atom(Sacrifice, ThisObject)
 ```
 
-- **The recipient keeps one meaning** in every form: CR 701.21a's "its
-  controller". It is `Controller` for "sacrifice this enchantment", and a
-  target player or `EachOf` for an edict.
-- **When it answers `Cant`.** A named permanent is sacrificed only while the
-  recipient controls it and no "can't" forbids the sacrifice (CR 701.21a,
-  101.2). Otherwise the atom answers `Cant`, whether the permanent was exiled
-  (Standstill, ATOM-118.12-001) or stolen. `Chosen` answers `Cant` when
-  nothing can be chosen.
-- **One spelling per concept (§2b).** The arms take `EffectRecipient`'s names
-  for the same objects and resolve through the same readers, `this_object`
-  and `bound_object`.
-- **Later arms.** TR-3a adds one for a delayed trigger's remembered object
-  ("sacrifice it at the beginning of the next end step"). TR-3b adds
-  "another" to `Chosen`'s filter.
-- **Rejected: `Destroy`'s grammar**, with the recipient naming the object.
-  The recipient would then mean a player for an edict and an object for "it",
-  and the named form would lose who sacrifices. `Primitive::Sacrifice`'s doc
-  already warns against that for the edict.
-- **Diabolic Edict** becomes `Chosen { filter: Creature, amount: Fixed(1) }`
-  and plays the same game.
+- **Who chooses, and when.** Each player `chooser` names chooses in APNAP
+  order, knowing the choices before them (CR 101.4, 101.4b). The primitive
+  then acts on every chosen object in one batch.
+  - That is CR 101.4's "then the actions happen simultaneously", and Soul
+    Shatter's ruling: "then all of the chosen permanents are sacrificed at
+    the same time".
+  - Today's edict performs one batch per player, so a four-seat "each
+    opponent sacrifices" would split. It is unreachable, since the one
+    registered edict targets one player.
+- **The candidates** are the permanents the chooser controls that match the
+  filter, read with the chooser as "you".
+  - Removed from them: any the primitive's own event would be prohibited on
+    (CR 101.2, `cant-effects-architecture.md` §4.9). Under Sigarda an
+    opponent's edict finds no candidate at all, and an exile edict is
+    untouched.
+  - Narrowed by the rank: to those tied for the greatest or least value, with
+    ties the chooser's (Crackling Doom's fourth ruling).
+  - Asked with two or more, and forced when there are only as many as the
+    count.
+- **`Sacrifice` takes no payload.** Its recipient is the object, as
+  `Destroy`'s is: `ThisObject`, `TriggeringObject` or `ChosenBy`.
+  - The player who sacrifices (CR 701.21a) is the chooser, or the
+    resolution's controller for a named object.
+  - A permanent that player doesn't control, or that a "can't" protects, is
+    not sacrificed, and the atom answers `Cant` (decision 2). Those cases are
+    Standstill exiled before its trigger resolves (ATOM-118.12-001), a stolen
+    source, and an empty choice.
+  - "Its controller sacrifices it", a named object and another player, is a
+    field with its first card.
+- **Every verb that acts on objects can take it.** TR-2b builds it for
+  `Sacrifice`. Each other verb gains it with its first card, which supplies
+  the verb's event for the candidates' "can't" check:
+  - `Exile`, for an exile edict;
+  - `ReturnToHand` (TR-3), for "return a land you control";
+  - `AddCounters`, for bolster.
 
-**Decision 5 — the mask: `u64`.** The fourteen kinds with `CardDrawn` and
-`LibraryShuffled` fill `u16`. §3.3's table reaches thirty kinds with an arm by
-TR-5. `u32` holds those with two to spare, and Phase 8's arms (discard,
-surveil, cycling, …) would pass it. `u64` holds every `GameEvent` variant
-twice over: thirty-two today, thirty-five after TR-5. The cost is six bytes on
-each of the few `trigger_sources` entries, and the same instructions for each
-OR. A compile-time assertion on the last kind's bit makes the next overflow a
-compile error rather than a wrapped shift.
+  `Discard`'s own chooser is the same idea over a hand. It folds in with
+  Coercion's "you choose a card from it", which waits for the reveal
+  (`backlog.md` §2.9).
+- **The rank lands with its first card.** Soul Shatter could be that card
+  here: about 100 lines with its ruling's test, and 175 → 179 registered.
+  That is offered, and not counted above.
+- **Rejected: the first draft's `Sacrifice(Sacrificed)` payload.** It made
+  the choice sacrifice's own, and every verb above would have grown a copy.
+
+**Decision 5 — the mask: a width that follows `EventKind`.** The fourteen
+kinds with `CardDrawn` and `LibraryShuffled` fill `u16`. The question is how
+far the kinds grow.
+- **Cards don't add kinds.** A card that needs something no arm expresses
+  adds a field to a record (§3.3's contract). A new kind is a new
+  `GameEvent`: an action the engine performs that some printed trigger
+  reads.
+- **Custom cards are the same case.** A new kind needs a new action, which
+  is engine work, and the kind comes with it.
+- **The ceiling is the CR's actions.** §3.3's table has thirty kinds with an
+  arm by TR-5. CR 701 lists 67 keyword actions in tmnt (701.2–701.68), and a
+  set can add one.
+  - The survey's Phase 8 row plans one record per watched keyword action:
+    explore, cycle, crew, connive and the rest.
+  - Then come dice (CR 706), coins (705) and designations (724, 725, 730).
+  - So a fixed `u64` can be outgrown within Phase 8.
+- **The shape.** `EventKindMask([u64; EventKind::WORDS])`, with
+  `WORDS = EventKind::COUNT.div_ceil(64)` and `COUNT` taken off the last
+  variant under a compile-time assertion.
+  - While the kinds fit in 64 it is one word, and the same instructions as a
+    `u64`. A 65th kind grows the array with no edit to the mask.
+  - It costs about 10 lines more than a fixed width.
+- **Rejected: `u128`.** It is one more fixed width to outgrow.
+- **Not precluded.** One record kind for the whole keyword-action family,
+  with the action as a field, is a schema choice for Phase 8.
 
 **Decision 6 — the elision's predicate: equal on every fact the def reads.**
 Four of §5.2's conditions stay: equal defs, no instance of "target", no mode,
@@ -2364,18 +2436,31 @@ compile until it says what it reads.
 
 | The def reads | Compared across the entries |
 |---|---|
-| "that object" (`TriggeringObject`) | `binding.subject` |
+| "that object", "that spell", "that ability": the event's subject (`TriggeringObject`) | `binding.subject` |
 | "that player" (`TriggeringPlayer`) | `bound_player` |
 | "that many" (`TriggeringAmount`) | `bound_amount` |
 | "its power", "its toughness" | the subject, and the record its frame comes from |
 | "this object" (`ThisObject`, `SourceInZone`, `SourceUntapped`, `HostMatches`, `SpellWasKicked`, `Attach`) | `origin` |
-| "this ability" (the CR 603.2h gate, `ResolvedThisTurn`) | each identity's gate and count |
+| "this ability", the resolving trigger's own (the CR 603.2h gate, `ResolvedThisTurn`) | each identity's gate and count |
 
 A fact the def does not read may differ. Two landfall triggers whose effect
 ignores the land go on the stack unasked, and so do Soul Warden's two triggers
 for Raise the Alarm's two Soldiers. Two Paragons with both gates open
 (ruling 2) still go unasked. Their states are equal, so either order is the
 same game.
+
+**"That ability" is an event's subject, not "this ability".**
+- **Battlemage's Bracers**: "whenever an ability of equipped creature is
+  activated, … copy that ability". It binds the activated ability as its
+  subject once TR-5's `ActivatesAbility` arm puts the stack object on
+  `AbilityActivated`, which carries only the ability's durable identity
+  today. The predicate then compares it as it compares any subject.
+- **A copy of an ability that has left the stack** reads its `departed`
+  frame from the stack (decision 3), whose `entry` is §3.11's (TR-4a). The
+  copy itself is CV-4's. "You may pay {1}" is CP-1's payment, which
+  answers `Does` like any action.
+- **A tier-2 trigger's "that ability"** is `triggered_by`, and tier 2 is
+  never elided.
 
 **The source row corrects TR-1's predicate.** §5.2 compares bindings because
 "that creature" is otherwise a different object. By the same argument, "this
@@ -2423,7 +2508,7 @@ as TR-2a's was.
 1. The fold, A6b's first commit.
 2. The mask and the two arms.
 3. "May" and CR 118.12's answer.
-4. `Sacrifice`.
+4. The choice at resolution, and `Sacrifice` on it.
 5. The three small facilities.
 6. The `departed` frames and "you". This head is the engine arm.
 7. The predicate and the migration. This head is the elision arm.
