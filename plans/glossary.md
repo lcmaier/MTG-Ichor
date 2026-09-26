@@ -89,6 +89,25 @@ only once" is about. Not the object that generated it and not the card. →
 sense 1 is `engine/targeting.rs` and `types/effects.rs`; sense 2 is
 `engine/replacement/instance.rs`.
 
+**cursor** — two, and each is a place in a sequence being walked. **(1)** The
+turn drainer's: the last unit **considered**, which is not the last that
+happened. CR 500.11's "proceed past it as though it didn't exist" is the
+whole difference — a skipped phase advances the cursor and begins nothing.
+Since RE-10 it is an **index** into `GameState.turn_plan` and not a phase
+*type*, because CR 500.8 lets one turn hold two combat phases and a type
+cannot say which of them is meant. Distinct from the **position**
+(`GameState.phase`), which is where the drainer *stopped*: the two agree at a
+drain boundary and diverge inside one, which is why
+`GameState::set_turn_position` writes both and `advance_turn` asserts they
+still match. **(2)** A resolution's place among the instances of "target"
+its effect declares (*instance* sense 1): how many the walk has passed, which
+`instance_of` reads and advances as each declaring atom is reached, so an
+atom finds its own instance's targets in CR 601.2c's printed order.
+`resolve_effect_at` carries it; TR-2b's walk keeps it beside CR 118.12's
+answer and names it for the instances (`triggers-architecture.md` §12). →
+sense 1 is `replacement-architecture.md` §9's RE-1 and RE-10; sense 2 is
+`engine/targeting.rs` and `engine/resolve.rs`.
+
 **shield** — three, and RD-2 is where they meet. **(1)** CR 614.1's metaphor:
 every replacement and prevention effect "act[s] like a shield" around what it
 affects. That is `ReplacementDef`, and nothing in code borrows the word for it.
@@ -458,17 +477,6 @@ function. The distinction is CR 614.1b's — "skip" is a replacement effect, so
 the next unit in CR 500.1's sequence is not necessarily the one that happens,
 and a function that returned "the next step" would be answering a question the
 rules do not have. → `replacement-architecture.md` §9's RE-1.
-
-**cursor** — the drainer's place in the sequence: the last unit **considered**,
-which is not the last that happened. CR 500.11's "proceed past it as though it
-didn't exist" is the whole difference — a skipped phase advances the cursor and
-begins nothing. Since RE-10 it is an **index** into `GameState.turn_plan` and
-not a phase *type*, because CR 500.8 lets one turn hold two combat phases and a
-type cannot say which of them is meant. Distinct from the **position**
-(`GameState.phase`), which is where the drainer *stopped*: the two agree at a
-drain boundary and diverge inside one, which is why
-`GameState::set_turn_position` writes both and `advance_turn` asserts they
-still match. → `replacement-architecture.md` §9's RE-1 and RE-10.
 
 **position** — where the drainer *stops*: a step, or a main phase, which has
 none. Not a synonym for unit — a phase with steps is a unit and never a

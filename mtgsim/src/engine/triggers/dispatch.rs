@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
-use crate::engine::layers::condition::settled_holds;
+use crate::engine::layers::condition::settled_holds_for;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
@@ -35,8 +35,9 @@ use crate::state::game_state::{AbilityIdentity, GameState};
 use crate::types::effects::{Effect, EffectRecipient, PlayerRef, Primitive};
 use crate::types::ids::{IdMap, IdSet, ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::{
-    DamageRecipient, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger, TriggerBinding,
-    TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerSeq, TriggerSubject,
+    DamageRecipient, DepartedFrame, EventIndex, EventKind, EventKindMask, Multiplicity, PendingTrigger,
+    TriggerBinding, TriggerCondition, TriggerDef, TriggerEvent, TriggerLimit, TriggerOrigin, TriggerSeq,
+    TriggerSubject,
 };
 
 use super::history::TurnOrdinals;
@@ -128,7 +129,7 @@ fn could_add_mana(effect: &Effect) -> bool {
             effects.iter().any(could_add_mana)
         }
         Effect::Conditional(_, inner)
-        | Effect::Optional(inner)
+        | Effect::Optional { effect: inner, .. }
         | Effect::ForEach(_, inner)
         | Effect::Repeat(_, inner) => could_add_mana(inner),
         Effect::Replacement(_)
@@ -493,6 +494,7 @@ impl GameState {
                 instances: m.instances.clone(),
                 binding,
                 is_state_trigger: false,
+                departed: Vec::new(),
             };
             if m.mana {
                 match ctx {
@@ -561,19 +563,117 @@ impl GameState {
     /// every permanent, since CR 800.4a's fourth clause decides what it exiles
     /// only after its first two have run. The frames are memo hits: nothing
     /// has changed since the batch began deciding.
+    ///
+    /// **And every other mover an entry names, from whatever zone** (CR
+    /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
+    /// subject is, a card a draw trigger named. The move hands the frame to
+    /// each entry naming the mover (`hand_departed_frame`).
     pub(crate) fn capture_departure_frames(&mut self, decided: &[Option<GameAction>]) {
+        let mut named: Option<Vec<ObjectRef>> = None;
         for action in decided.iter().flatten() {
             match action {
                 GameAction::ZoneChange { object, from: Zone::Battlefield, .. }
                 | GameAction::Destroy { object, .. } => self.capture_departure_frame(*object),
-                GameAction::PlayerLoses { .. } => {
+                GameAction::ZoneChange { object, .. } => {
+                    let named = named.get_or_insert_with(|| self.objects_entries_name());
+                    if self.object_ref(*object).is_some_and(|r| named.contains(&r)) {
+                        self.capture_named_frame(*object);
+                    }
+                }
+                GameAction::PlayerLoses { player, .. } => {
                     for id in self.battlefield_ids_ordered() {
                         self.capture_departure_frame(id);
+                    }
+                    let named = named.get_or_insert_with(|| self.objects_entries_name());
+                    for object in named.iter() {
+                        if self.objects.get(&object.id).is_some_and(|o| o.owner == *player) {
+                            self.capture_named_frame(object.id);
+                        }
                     }
                 }
                 _ => {}
             }
         }
+    }
+
+    /// The objects a queued, stacked or resolving entry names: its source,
+    /// and its trigger's subject. Empty or short on the common board.
+    fn objects_entries_name(&self) -> Vec<ObjectRef> {
+        let mut named: Vec<ObjectRef> = Vec::new();
+        let mut name = |object: Option<ObjectRef>| {
+            if let Some(object) = object
+                && !named.contains(&object)
+            {
+                named.push(object);
+            }
+        };
+        for pending in &self.pending_triggers {
+            name(Some(pending.origin.source_ref()));
+            name(pending.binding.subject);
+        }
+        for entry in self.stack_entries.values() {
+            name(entry.ability_identity.map(|identity| identity.source));
+            name(entry.trigger.as_ref().and_then(|binding| binding.subject));
+        }
+        if let Some(resolving) = &self.resolving {
+            name(resolving.identity.map(|identity| identity.source));
+            name(resolving.subject);
+        }
+        named
+    }
+
+    /// A named mover's frame, from any zone, unless its batch framed it.
+    fn capture_named_frame(&mut self, id: ObjectId) {
+        let Some(object) = self.object_ref(id) else { return };
+        if self.departure_frames.iter().any(|d| d.object == object) {
+            return;
+        }
+        if let Some(frame) = compute_characteristics(self, id) {
+            self.departure_frames.push(DepartureFrame { object, frame: Some(frame) });
+        }
+    }
+
+    /// CR 113.7a, 608.2h — `id` is leaving the zone an entry expected it in:
+    /// each queued, stacked or resolving entry that names it keeps the frame
+    /// its batch took. That is `lki`, the record's own, for a permanent, and
+    /// for any other mover the one `capture_departure_frames` took because an
+    /// entry named it. One writer; its callers are the two performers that
+    /// move an object out of a zone, before the move.
+    pub(crate) fn hand_departed_frame(&mut self, id: ObjectId, lki: Option<&Arc<EffectiveCharacteristics>>) {
+        let frame = match lki {
+            Some(frame) => Arc::clone(frame),
+            None => match self.take_named_frame(id) {
+                Some(frame) => frame,
+                None => return,
+            },
+        };
+        let Some(object) = self.object_ref(id) else { return };
+        let departed = || DepartedFrame { object, frame: Arc::clone(&frame) };
+        for pending in &mut self.pending_triggers {
+            if pending.origin.source_ref() == object || pending.binding.subject == Some(object) {
+                pending.departed.push(departed());
+            }
+        }
+        for entry in self.stack_entries.values_mut() {
+            let source = entry.ability_identity.map(|identity| identity.source);
+            let subject = entry.trigger.as_ref().and_then(|binding| binding.subject);
+            if source == Some(object) || subject == Some(object) {
+                entry.departed.push(departed());
+            }
+        }
+        if let Some(resolving) = &mut self.resolving
+            && (resolving.identity.map(|identity| identity.source) == Some(object) || resolving.subject == Some(object))
+        {
+            resolving.departed.push(departed());
+        }
+    }
+
+    /// The frame a named mover's batch took for it, if any: the non-battlefield
+    /// counterpart of `take_departure_frame`, which asserts every battlefield
+    /// departure had one.
+    fn take_named_frame(&mut self, id: ObjectId) -> Option<Arc<EffectiveCharacteristics>> {
+        let object = self.object_ref(id)?;
+        self.departure_frames.iter_mut().find(|d| d.object == object).and_then(|d| d.frame.take())
     }
 
     /// One permanent's frame. A permanent an enclosing batch already framed
@@ -957,10 +1057,10 @@ impl GameState {
         if !within_limit {
             return Err(Refusal::Limit);
         }
-        // CR 603.4 at the trigger. "You" is the source's controller, read off
-        // the source; a condition about the bound facts is TR-2's reader.
+        // CR 603.4 at the trigger. "You" is the candidate's controller (CR
+        // 109.5): the source's now, or its frame's for a look-back candidate.
         if let Some(condition) = &def.intervening_if
-            && !settled_holds(condition, self, candidate.id)
+            && !settled_holds_for(condition, self, candidate.id, candidate.controller)
         {
             return Err(Refusal::InterveningIf);
         }
@@ -1014,6 +1114,10 @@ impl GameState {
             (TriggerEvent::BecomesTapped { subject }, GameEvent::Tapped { object_id })
             | (TriggerEvent::BecomesUntapped { subject }, GameEvent::Untapped { object_id }) => {
                 one(self.subject_matches(subject, Some(*object_id), candidate, None))
+            }
+            (TriggerEvent::DrawsCard { player: who, .. }, GameEvent::CardDrawn { player_id, .. })
+            | (TriggerEvent::ShufflesLibrary { player: who }, GameEvent::LibraryShuffled { player_id }) => {
+                one(who.as_ref().is_none_or(|p| self.player_ref_is(p, *player_id, candidate)))
             }
             (
                 TriggerEvent::ManaAdded { source, tapped_for_mana, mana },

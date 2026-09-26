@@ -132,6 +132,12 @@ pub enum ChoiceKind {
     /// (CR 614.1a). Declining is CR 614.5's one opportunity taken.
     ApplyOptionalReplacement { affected_object: Option<ObjectId>, source: ObjectId },
 
+    /// A resolving spell or ability's "[chooser] **may** [effect]" (CR 603.5):
+    /// yes or no, as a `pick_n` of the one option or none. The ability went on
+    /// the stack regardless; the choice is made now. `source` is the resolving
+    /// object.
+    OptionalEffect { source: ObjectId },
+
     /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
     /// two or more sources at once, and the affected player (or the affected
     /// permanent's controller) chooses which damage it prevents.
@@ -323,6 +329,7 @@ impl ChoiceKind {
             }
             ChoiceKind::ChooseReplacementEffect { affected_object } => *affected_object,
             ChoiceKind::ApplyOptionalReplacement { source, .. } => Some(*source),
+            ChoiceKind::OptionalEffect { source } => Some(*source),
             ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),

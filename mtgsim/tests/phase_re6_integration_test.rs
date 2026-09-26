@@ -127,6 +127,7 @@ fn stage_spell_with(
         cast_from: Some(Zone::Hand),
         ability_identity: None,
         trigger: None,
+        departed: Vec::new(),
     });
     id
 }
@@ -511,7 +512,10 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
         ability_type: mtgsim::objects::card_data::AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Conditional(
-            mtgsim::types::effects::Condition::YourLibraryEmpty,
+            mtgsim::types::effects::Condition::Player {
+                whose: mtgsim::types::effects::PlayerSet::You,
+                fact: mtgsim::types::effects::PlayerFact::LibraryEmpty,
+            },
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {
                 pattern: EventPattern::PlayerLoses,
                 affected_objects: ObjectSet::NO_OBJECTS,

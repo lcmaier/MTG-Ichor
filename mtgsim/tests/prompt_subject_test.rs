@@ -233,6 +233,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) },
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
         ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: id },
+        ChoiceKind::OptionalEffect { source: id },
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseEnteringController { object: id },
@@ -251,7 +252,7 @@ fn every_variant_decides_its_subject() {
     }
     assert_eq!(
         names.len(),
-        25,
+        26,
         "one fixture per variant; a variant was added without one: {names:?}"
     );
 }

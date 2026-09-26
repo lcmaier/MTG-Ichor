@@ -575,7 +575,7 @@ eventually gets written for one.
 **The choice site, and what carries the chosen id (`codebase-state.md` item
 40).** Cytoshape's donor is a CR 707.4 *choice* made on resolution, so it gets
 its own decision site and its own `ChoiceKind::ChooseCopySource { spell_id }`.
-**Not `SelectRecipients`, which `sacrifice_of_choice` reuses** — there the
+**Not `SelectRecipients`, which a choice at resolution reuses** — there the
 chosen permanent *is* what the primitive acts on, and here it is the exact
 opposite: the donor is the one permanent a copy effect does **not** change. A
 `DecisionProvider` heuristic keyed on `SelectRecipients` would read the donor as

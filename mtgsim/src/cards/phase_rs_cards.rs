@@ -18,8 +18,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, Effect, EffectRecipient, ObjectFilter, PlayerRef, PlayerSet,
-    Primitive, SelectionFilter, TargetCount,
+    Choice, ChoiceScope, ChoiceSide, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -165,12 +165,16 @@ pub fn diabolic_edict() -> Arc<CardData> {
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
+            // What is sacrificed is chosen as it resolves, by the target (CR
+            // 115.1) and from their own creatures (CR 701.21a).
             effect: Effect::Atom(
-                // What is sacrificed, and how many: one creature.
-                Primitive::Sacrifice(SelectionFilter::Creature, AmountExpr::Fixed(1)),
-                // Who sacrifices it: the target (CR 115.1). Three parameters
-                // because they are three questions — see `Primitive::Sacrifice`.
-                EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                Primitive::Sacrifice,
+                EffectRecipient::ChosenBy(Box::new(Choice {
+                    chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+                    among: ChoiceScope::ChoosersPermanents,
+                    picks: vec![Pick::exactly(1, ObjectFilter::ByType(CardType::Creature))],
+                    acts_on: ChoiceSide::Chosen,
+                })),
             ),
         })
         .build()

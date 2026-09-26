@@ -57,7 +57,7 @@ use crate::state::battlefield::PermanentState;
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerRef, Selector,
+    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerFact, PlayerRef, Selector,
 };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -690,6 +690,8 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
             out.members |= Channels::TYPES | Channels::CONTROLLER;
             out.source |= you_channel;
         }
+        // A hand's size is off `GameState`; whose hand is "you".
+        AmountExpr::CountOf(Selector::CardsInHand(_)) => out.source |= you_channel,
         AmountExpr::CardTypesAmong(_) => out.members |= Channels::TYPES,
         AmountExpr::AffectedManaValue => out.members |= Channels::MANA_COST,
         AmountExpr::Plus(inner, _) => amount_reads(inner, out, you_channel),
@@ -716,32 +718,32 @@ fn amount_reads(expr: &AmountExpr, out: &mut Reads, you_channel: Channels) {
 /// static conditioned on controlling a Forest).
 fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels) {
     match condition {
-        // The controller test is the *variant's*, not the filter's, so it
-        // reads CONTROLLER on every candidate whatever the filter says.
-        Condition::YouControlPermanent(filter) | Condition::OpponentControlsPermanent(filter) => {
-            out.members |= Channels::CONTROLLER;
-            out.source |= you_channel;
-            filter_reads(filter, out, you_channel);
-        }
+        Condition::Player { fact, .. } => match fact {
+            // The controller test is the fact's, not the filter's, so it
+            // reads CONTROLLER on every candidate whatever the filter says.
+            PlayerFact::ControlsPermanent(filter) => {
+                out.members |= Channels::CONTROLLER;
+                out.source |= you_channel;
+                filter_reads(filter, out, you_channel);
+            }
+            // Life totals are off `GameState`, not off any frame — only a
+            // dynamic threshold reads one.
+            PlayerFact::LifeAtLeast(expr) | PlayerFact::LifeAtMost(expr) => amount_reads(expr, out, you_channel),
+            // A library's card count is off `GameState` too. A graveyard card
+            // is a non-member, which no application reaches — `amount_reads`'
+            // `CardTypesAmong` arm is kept exact for the same reason.
+            PlayerFact::LibraryEmpty | PlayerFact::CardInGraveyard(_) => {}
+        },
         // The host is read through the filter; *which* object is the host is
         // `attached_to`, which no layer writes.
         Condition::HostMatches(filter) => filter_reads(filter, out, you_channel),
-        // Life totals are off `GameState`, not off any frame — only a
-        // dynamic threshold reads one.
-        Condition::YourLifeAtLeast(expr) | Condition::YourLifeAtMost(expr) => amount_reads(expr, out, you_channel),
-        // A graveyard card is a non-member, which no application reaches —
-        // `amount_reads`' `CardTypesAmong` arm is kept exact for the same
-        // reason. The source's zone, its tapped status and how it was cast
-        // are off `GameState`, and the resolution-only leaf never evaluates
-        // at all.
-        Condition::CardInYourGraveyard(_)
-        | Condition::SourceInZone(_)
+        // The source's zone, its tapped status and how it was cast are off
+        // `GameState`, and the resolution-only leaf never evaluates at all.
+        Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SpellWasKicked
-        | Condition::ModeChosen(_) => {}
-        // A library's card count is off `GameState`, like a life total, and
-        // the leaf's threshold is a constant — nothing on any frame.
-        Condition::YourLibraryEmpty => {}
+        | Condition::ModeChosen(_)
+        | Condition::CostAnswer(_) => {}
         // The counts are off `GameState`; "you" is the source's controller.
         Condition::ThisTurn(_) | Condition::LastTurn(_) | Condition::SinceYourLastTurn(_) | Condition::ThisGame(_) => {
             out.source |= you_channel;
@@ -754,7 +756,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // **`All` alone is not a restriction on what cards can say.** Most printed
         // "or" sits *inside* a clause: Abzan Kin-Guard's "as long as you control a
         // white **or** black permanent" (Scryfall, 2026-09-14) is one
-        // `YouControlPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
+        // `PlayerFact::ControlsPermanent` over an `ObjectFilter::Or`. `Condition::Or` is for a
         // disjunction of two whole *conditions* and lands with the first registered
         // card that needs one, together with its arm here and in
         // `zone_function::stated_zones` (`layers-architecture.md` §15.1).
@@ -1031,7 +1033,7 @@ fn static_ability_still_exists(
     let Some(ability) = frame.abilities.iter().find(|a| a.id == ability_id) else { return false };
     match &ability.effect {
         Effect::Conditional(cond, _) => {
-            condition::holds(cond, game, board, effect.source, layer_index)
+            condition::holds(cond, game, board, effect.source, layer_index, condition::ConditionYou::SourceController)
         }
         _ => true,
     }

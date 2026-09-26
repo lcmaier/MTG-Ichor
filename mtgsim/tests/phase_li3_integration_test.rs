@@ -29,7 +29,8 @@ use mtgsim::test_support::{
 use mtgsim::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use mtgsim::types::colors::Color;
 use mtgsim::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, Primitive, TypeChange,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet,
+    Primitive, TypeChange,
 };
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::keywords::KeywordFlag;
@@ -295,7 +296,10 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
         }
         builder
             .ability(static_ability(Effect::Conditional(
-                Condition::YouControlPermanent(ObjectFilter::ByColor(Color::White)),
+                Condition::Player {
+                    whose: PlayerSet::You,
+                    fact: PlayerFact::ControlsPermanent(ObjectFilter::ByColor(Color::White)),
+                },
                 Box::new(Effect::Sequence(vec![
                     Effect::Atom(
                         Primitive::ChangeType(

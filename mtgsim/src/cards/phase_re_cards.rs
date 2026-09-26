@@ -319,7 +319,7 @@ use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
     AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
-    PatternFill, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
+    PatternFill, PlayerFact, PlayerGroup, PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
     TokenDef,
 };
 use crate::types::ids::AbilityId;
@@ -1271,7 +1271,7 @@ pub fn skullcrack() -> Arc<CardData> {
 /// The kind-changing substitution from a draw to the game's end, and the first
 /// replacement effect in the crate whose static ability carries a condition —
 /// the card's "while", which is CR 604.2's "as long as" shape:
-/// `Condition::YourLibraryEmpty` on the ability, asked by the gather at each
+/// `PlayerFact::LibraryEmpty` on the ability, asked by the gather at each
 /// proposal (CR 604.2, 614.4). The
 /// draw reaches the pipeline with nothing to draw because CR 121.6a says a
 /// draw replacement applies "even if no cards could be drawn", which is the
@@ -1308,7 +1308,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         )
         .ability(static_conditional_replacement(
-            Condition::YourLibraryEmpty,
+            Condition::Player { whose: PlayerSet::You, fact: PlayerFact::LibraryEmpty },
             // Any individual draw, whatever instructed it: the draw step's,
             // a cantrip's, the seventh of Stunning Reversal's. The instruction
             // (`DrawCards`) is not what this watches — CR 121.2 performs the

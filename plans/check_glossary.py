@@ -136,6 +136,7 @@ POLYSEMOUS = {
     "plan": 2, "splice": 2, "window": 2, "tier": 2, "probe": 2,
     "member": 2,
     "instance": 2,
+    "cursor": 2,
     "flush": 2,
 }
 

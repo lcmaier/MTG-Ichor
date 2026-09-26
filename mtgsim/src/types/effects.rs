@@ -483,11 +483,16 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    YouControlPermanent(ObjectFilter),
-    YourLifeAtLeast(AmountExpr),
-    YourLifeAtMost(AmountExpr),
-    OpponentControlsPermanent(ObjectFilter),
-    CardInYourGraveyard(ObjectFilter),
+    /// "[Whose] [fact]": a fact about each player `whose` names, now — "you
+    /// control a Forest", "an opponent has 10 or less life". It holds when any
+    /// player the set names, among those still in the game, meets the fact: an
+    /// opponent is one opponent, and `PlayerSet::You` is CR 109.5's "you".
+    ///
+    /// **It quantifies and does not sum**, which is how it differs from the
+    /// history leaves' [`crate::types::history::HistoryCount`]: "a creature
+    /// died this turn" is every row added up, while a life total is not a
+    /// count and "an opponent controls three artifacts" is one opponent's three.
+    Player { whose: PlayerSet, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"
@@ -500,7 +505,7 @@ pub enum Condition {
     /// ability that states which zones it functions in functions only from
     /// those zones — so the clause that gates the effect is the same sentence
     /// that places the ability. A condition about some *other* object's zone
-    /// is [`Self::CardInYourGraveyard`], which is why this one says `Source`.
+    /// is [`PlayerFact::CardInGraveyard`], which is why this one says `Source`.
     ///
     /// Replaced `SourceOnBattlefield`, which was this question narrowed to one
     /// zone: the battlefield is `SourceInZone(ZoneSet::BATTLEFIELD)` and reads
@@ -533,18 +538,6 @@ pub enum Condition {
     /// no layer writes it and `board::condition_reads` declares nothing for
     /// it: it can never be a CR 613.8 dependency.
     SourceUntapped,
-    /// "While your library has no cards in it" — Laboratory Maniac, and its
-    /// planeswalker twin Jace, Wielder of Mysteries. "Your" is CR 109.5's
-    /// controller of the source, read the way `YourLifeAtLeast` reads it.
-    ///
-    /// **Written for one card and says so.** The leaf's first reader is a
-    /// replacement effect's "as long as", evaluated by `replacement::gather`
-    /// at each proposal through `condition::settled_holds` — the same
-    /// evaluator the layer pass and CR 613.11's cost effects use, so a
-    /// conditional static's condition is one question wherever it is asked.
-    /// A library is off `GameState`, not off any frame, so
-    /// `board::condition_reads` declares nothing for it.
-    YourLibraryEmpty,
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -565,6 +558,53 @@ pub enum Condition {
     /// resolution's last step (CR 608.2n), so the Nth resolution reads N - 1.
     /// A resolution's question, like [`Self::ModeChosen`].
     ResolvedThisTurn(u32),
+    /// "If you do", "if you don't", "if you can't" (CR 118.12): the answer the
+    /// action before the clause gave. Only the resolver's walk has it, so the
+    /// walk answers this leaf before any evaluator sees it; a static ability
+    /// never has one.
+    CostAnswer(CostAnswer),
+}
+
+/// CR 118.12's answer, in the rule's words: whether the player "does,
+/// doesn't, or can't" take the action a clause after it asks about. It is
+/// the choice or the start of the action, "regardless of what events
+/// actually occurred": a "may" whose damage is prevented is still `Does`
+/// (Wicked Guardian's ruling).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CostAnswer {
+    /// The optional action was chosen, or the mandatory one was started.
+    Does,
+    /// The optional action was declined, or could not be chosen.
+    Doesnt,
+    /// The mandatory action could not be started: Standstill, exiled before
+    /// its trigger resolves, is not there to sacrifice.
+    Cant,
+}
+
+/// A fact about one player now, which [`Condition::Player`] asks of each
+/// player its `whose` names. Each arm is one printed shape; a new fact is one
+/// arm here and one in `engine::layers::condition`, and a new "whose" costs
+/// nothing.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlayerFact {
+    /// "Controls a [filter]": a permanent on the battlefield (Kird Ape's
+    /// Forest). The controller test is the fact's and not the filter's, and it
+    /// reads the effective controller, so a Layer 2 steal moves the answer.
+    ControlsPermanent(ObjectFilter),
+    /// "Has N or more life": Felidar Sovereign, Divinity of Pride.
+    LifeAtLeast(AmountExpr),
+    /// "Has N or less life": the fateful hour cycle, Phyrexian Unlife, and
+    /// Bloodghast's "an opponent has 10 or less life".
+    LifeAtMost(AmountExpr),
+    /// "[Whose] library has no cards in it": Laboratory Maniac and Jace,
+    /// Wielder of Mysteries. Its first reader is a replacement effect's "as
+    /// long as", asked by `replacement::gather` at each proposal through
+    /// `condition::settled_holds`, the evaluator every condition shares.
+    LibraryEmpty,
+    /// "There's a [filter] card in [whose] graveyard". The filter is an
+    /// `ObjectFilter`, and CR 108.4a makes `ByController` answer off the
+    /// battlefield too: a card with no controller uses its owner.
+    CardInGraveyard(ObjectFilter),
 }
 
 /// How many modes to choose (rule 700.2)
@@ -706,6 +746,67 @@ pub enum EffectRecipient {
     /// layer walk rather than capturing it, because registration happens
     /// before the attach.
     Host,
+    /// Objects a player chooses as the effect applies (CR 608.2d), from a set
+    /// defined relative to them: an edict's "a creature of their choice". Each
+    /// player the chooser names picks in APNAP order (CR 101.4), and the verb
+    /// then acts on every chosen object in one batch. `Choice`'s fields are
+    /// one slot per axis the printed cards vary on (`triggers-architecture.md`
+    /// §12, TR-2b's decision 4).
+    ChosenBy(Box<Choice>),
+}
+
+/// A choice made as an effect applies ([`EffectRecipient::ChosenBy`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Choice {
+    /// Who picks: `Controller`, a target player, or `EachOf` a group.
+    pub chooser: EffectRecipient,
+    /// Whose objects are picked from, and where.
+    pub among: ChoiceScope,
+    /// One pick per category: an edict's one, and Cataclysm's four with its
+    /// card, where a permanent may answer two.
+    pub picks: Vec<Pick>,
+    /// Whether the verb acts on what was chosen or on the rest.
+    pub acts_on: ChoiceSide,
+}
+
+/// Whose objects a [`Choice`] picks from, and where. Another player's
+/// objects, a graveyard and a hand are arms with their first cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChoiceScope {
+    /// The permanents the chooser controls: an edict's "a creature".
+    ChoosersPermanents,
+}
+
+/// What the verb acts on once the picks are made. "Choose …, then sacrifice
+/// the rest" (Balance, Cataclysm) is an arm with its first card.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChoiceSide {
+    Chosen,
+}
+
+/// One category of a [`Choice`]: which objects qualify and how many. Built
+/// through its constructors, so a field added with its first card (a rank,
+/// "with the greatest mana value among") changes no card's literal.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pick {
+    /// "You" in it is the effect's controller, as in every filter.
+    pub filter: ObjectFilter,
+    pub count: PickCount,
+}
+
+impl Pick {
+    /// "[N] [filter]": that many, or as many as there are (CR 101.3).
+    pub fn exactly(n: u64, filter: ObjectFilter) -> Pick {
+        Pick { filter, count: PickCount::Exactly(AmountExpr::Fixed(n)) }
+    }
+}
+
+/// How many a [`Pick`] takes. "Up to N" and a fraction of the scope are arms
+/// with their first cards.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PickCount {
+    /// That many, or as many as there are (CR 101.3).
+    Exactly(AmountExpr),
 }
 
 /// What kind of object(s) can be selected.
@@ -1129,23 +1230,20 @@ pub enum Primitive {
     Destroy,
     /// Exile an object (rule 701.13)
     Exile,
-    /// Sacrifice N permanents (rule 701.21).
+    /// Sacrifice (CR 701.21a): "its controller moves it from the battlefield
+    /// directly to its owner's graveyard". The recipient is the permanent, as
+    /// [`Self::Destroy`]'s is: `ThisObject` for "sacrifice this enchantment",
+    /// `TriggeringObject` for "sacrifice that creature", and
+    /// [`EffectRecipient::ChosenBy`] for an edict's "a creature of their
+    /// choice", whose count is a ceiling (CR 101.3).
     ///
-    /// **The filter is what gets sacrificed, the amount is how many, and the
-    /// `EffectRecipient` is who does the sacrificing.** Diabolic Edict's "target
-    /// *player* sacrifices *a creature* of their choice" needs all three and
-    /// they are three different questions: the recipient is CR 115.1's target,
-    /// the filter is CR 701.21a's "its controller moves **it**", and the amount
-    /// is what separates Diabolic Edict from Barter in Blood ("two creatures")
-    /// and Blasphemous Edict ("thirteen creatures"). Carrying only the filter
-    /// would make every edict sacrifice a player or target a creature; carrying
-    /// no amount would silently turn all three cards into the first.
-    ///
-    /// **The amount is a ceiling, not a requirement** — CR 101.3 performs "only
-    /// the possible portion", so Blasphemous Edict against a player with two
-    /// creatures takes two. The sacrifices are simultaneous (CR 701.21, one
-    /// batch), which is what a second permanent makes observable.
-    Sacrifice(SelectionFilter, AmountExpr),
+    /// The player who sacrifices is the chooser, or for a named permanent the
+    /// resolution's controller, and a permanent that player doesn't control is
+    /// not sacrificed. When nothing is, the atom answers CR 118.12's `Cant`:
+    /// Standstill exiled before its trigger resolves, a stolen source, an empty
+    /// choice. One resolution's sacrifices are one batch (CR 101.4), which is
+    /// what a second permanent makes observable.
+    Sacrifice,
     /// Return to owner's hand ("bounce")
     ReturnToHand,
     /// Return to the battlefield (from exile/graveyard)
@@ -1165,6 +1263,11 @@ pub enum Primitive {
     ShuffleLibrary,
     /// Mill N cards (rule 701.17)
     Mill(AmountExpr),
+    /// Put the top N cards of the recipient's library into their hand without
+    /// drawing them (CR 121.5): a zone change and never a draw, so no draw
+    /// trigger fires and no draw replacement applies. An empty library does
+    /// nothing, where a draw from it is CR 704.5b's loss.
+    PutTopCardsIntoHand(AmountExpr),
     /// Discard N cards (rule 701.9), chosen as [`DiscardChooser`] says.
     ///
     /// The recipient is who discards — `EffectRecipient::Target` on a player
@@ -1278,7 +1381,7 @@ pub enum Primitive {
     /// player, Bold Plagiarist's "*they* put the same number and kind of
     /// counters on this creature" — the opponent puts counters on a creature
     /// they do not control, and neither the effect's controller nor the
-    /// object's is the answer. Resolved at resolution (`resolve_putter`):
+    /// object's is the answer. Resolved at resolution (`resolve_player_ref`):
     /// `You` the controller, `Player` itself, `Owner` the source's owner,
     /// `Opponent` the resolution's player target or the only opponent.
     AddCounters {
@@ -1527,8 +1630,12 @@ pub enum Effect {
     /// "If [condition], [effect]" — intervening if (rule 603.4)
     Conditional(Condition, Box<Effect>),
 
-    /// "You may [effect]" (rule 603.5)
-    Optional(Box<Effect>),
+    /// "[Chooser] may [effect]" (CR 603.5): asked as the effect resolves,
+    /// never as the ability triggers. The chooser is `You` unless the text
+    /// names another player. The answer it leaves (CR 118.12) is the choice:
+    /// declined is `Doesnt`, and taken is the action's own, since CR 118.3
+    /// lets no player pay a cost they can't (`triggers-architecture.md` §6.2).
+    Optional { chooser: PlayerRef, effect: Box<Effect> },
 
     /// "Choose N mode(s):" (rule 700.2)
     Modal {
@@ -1655,7 +1762,7 @@ impl Effect {
                 }
             }
             Effect::Conditional(_, effect)
-            | Effect::Optional(effect)
+            | Effect::Optional { effect, .. }
             | Effect::ForEach(_, effect)
             | Effect::Repeat(_, effect) => effect.for_each_ability_def_mut(f),
             Effect::Replacement(def) => {
@@ -1732,6 +1839,11 @@ impl Effect {
             Effect::Atom(_, recipient @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _))) => {
                 f(recipient)
             }
+            // "Target player sacrifices a creature": the chooser is the instance.
+            Effect::Atom(_, EffectRecipient::ChosenBy(choice)) => match &choice.chooser {
+                chooser @ (EffectRecipient::Target(_, _) | EffectRecipient::Choose(_, _)) => f(chooser),
+                _ => true,
+            },
             Effect::Sequence(effects) => effects.iter().all(|sub| sub.for_each_instance(f)),
             // CR 603.3d — a trigger's targets are its effect's, announced at
             // placement; item 153's note said this walk would want the arm.

@@ -125,6 +125,7 @@ fn prompt_line(kind: &ChoiceKind) -> String {
         ChoiceKind::ApplyOptionalReplacement { source, .. } => {
             format!("Apply {source}'s optional replacement effect?")
         }
+        ChoiceKind::OptionalEffect { source } => format!("Take {source}'s \"you may\"?"),
         ChoiceKind::AllocateNextDamage { source, remaining } => {
             format!("Choose which damage {source} prevents ({remaining} left):")
         }

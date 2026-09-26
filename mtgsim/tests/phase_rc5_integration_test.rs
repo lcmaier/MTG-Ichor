@@ -738,7 +738,7 @@ fn test_devour_with_no_creatures_asks_nothing() {
 /// A creature that can't be sacrificed is removed from the list rather than
 /// offered and then refused — offering it would let a player make a choice the
 /// rules do not allow, and the Elder would count a creature that never went
-/// anywhere. This is `sacrifice_of_choice`'s axis-1 shape, asked of the event
+/// anywhere. This is the resolution-time choice's axis-1 shape, asked of the event
 /// the choice would produce.
 #[test]
 fn test_a_cant_be_sacrificed_effect_removes_devour_candidates() {

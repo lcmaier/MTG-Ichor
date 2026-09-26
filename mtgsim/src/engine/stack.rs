@@ -57,7 +57,7 @@ impl GameState {
             crate::oracle::characteristics::get_effective_controller(self, object_id)
                 .ok_or_else(|| format!("No controller for resolving object {}", object_id))?;
 
-        let entry = self.take_stack_entry(object_id)
+        let mut entry = self.take_stack_entry(object_id)
             .ok_or_else(|| format!("No StackEntry for object {}", object_id))?;
 
         // CR 110.2b's default. `StackEntry.controller` is written once at
@@ -83,6 +83,10 @@ impl GameState {
                 alternative: entry.chosen_alternative_cost.clone(),
             },
             identity: entry.ability_identity,
+            subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
+            // The resolution reads them here, where its own effect's moves
+            // add to them too (CR 608.2h).
+            departed: std::mem::take(&mut entry.departed),
         });
         // `resolving` is a layer-walk input (`compute::base_controller`'s
         // third arm), so both writes bump.
@@ -106,13 +110,14 @@ impl GameState {
         // --- The intervening "if" (rule 608.2a) ---
         // First, ahead of 608.2b's target check: a triggered ability whose
         // clause is false "is removed from the stack and does nothing" — no
-        // fizzle, no resolution, no `AbilityResolved`. "You" is the source's
-        // controller, read off the source (CR 109.5).
+        // fizzle, no resolution, no `AbilityResolved`. "You" is the player who
+        // controlled the source as it triggered (CR 109.5, 603.3a), whatever
+        // has become of the source since.
         if let Some(binding) = &entry.trigger
             && let Some(condition) = &binding.def.intervening_if
         {
             let source = entry.ability_identity.map(|i| i.source.id).unwrap_or(object_id);
-            if !crate::engine::layers::condition::settled_holds(condition, self, source) {
+            if !crate::engine::layers::condition::settled_holds_for(condition, self, source, entry.controller) {
                 self.stack.retain(|&x| x != object_id);
                 self.remove_object(object_id);
                 return Ok(());
@@ -158,8 +163,12 @@ impl GameState {
             .and(entry.ability_identity)
             .map(|identity| (identity, entry.controller));
         if action_gate.is_none_or(|key| !self.action_taken_this_turn.contains(&key)) {
-            self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
-            if let Some(key) = action_gate {
+            let answer = self.resolve_effect_with_announced_targets(&entry.effect, &entry.chosen_targets, &ctx, dp)?;
+            // CR 603.2h asks whether the action was *taken*: a declined "may"
+            // leaves the gate open (Nykthos Paragon's first and third rulings).
+            if let Some(key) = action_gate
+                && answer == Some(crate::types::effects::CostAnswer::Does)
+            {
                 self.action_taken_this_turn.insert(key);
             }
         }
@@ -371,6 +380,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
         id
     }
@@ -499,6 +509,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
         id
     }
@@ -577,6 +588,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
         id
     }
@@ -636,6 +648,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
         id
     }
@@ -746,6 +759,7 @@ mod tests {
             cast_from: Some(Zone::Hand),
             ability_identity: None,
             trigger: None,
+            departed: Vec::new(),
         });
         assert!(game.resolve_top_of_stack(&test_dp()).is_err());
         assert_eq!(game.resolving, None, "cleared even when resolution errors out");

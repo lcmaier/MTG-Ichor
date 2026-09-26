@@ -23,8 +23,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, LandType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    Primitive, SelectionFilter, Selector, TypeChange,
+    AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef,
+    PlayerSet, Primitive, SelectionFilter, Selector, TypeChange,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::ids::AbilityId;
@@ -292,7 +292,7 @@ pub fn purifier_clause() -> Arc<CardData> {
 /// (Oracle text verified on Scryfall, 2026-09-06.)
 ///
 /// **The cheapest printed conditional static there is**, and the one that
-/// needs no new condition leaf: `YouControlPermanent(BySubtype(Forest))` over an
+/// needs no new condition leaf: "you control a Forest", `PlayerFact::ControlsPermanent`, over an
 /// `Implicit` recipient, which is one layer-7c row whose *existence* is a
 /// question asked every pass (CR 604.2, `board::static_ability_still_exists`).
 /// Asymmetric, so a row applied twice or transposed fails an assertion.
@@ -320,9 +320,10 @@ pub fn kird_ape() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("This creature gets +1/+2 as long as you control a Forest.")
         .ability(static_ability(Effect::Conditional(
-            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
-                LandType::Forest,
-            ))),
+            Condition::Player {
+                whose: PlayerSet::You,
+                fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+            },
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(
                     AmountExpr::Fixed(1),
@@ -416,9 +417,10 @@ pub fn simian_clause() -> Arc<CardData> {
              to its other types.",
         )
         .ability(static_ability(Effect::Conditional(
-            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
-                LandType::Forest,
-            ))),
+            Condition::Player {
+                whose: PlayerSet::You,
+                fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+            },
             Box::new(Effect::Atom(
                 Primitive::ChangeType(
                     adds(&[], &[Subtype::Creature(CreatureType::Ape)], &[]),

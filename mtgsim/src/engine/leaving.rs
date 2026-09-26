@@ -96,6 +96,7 @@ impl GameState {
             } else {
                 None
             };
+            self.hand_departed_frame(id, lki.as_ref());
             self.remove_from_game(id)?;
             self.emit_event(GameEvent::LeftTheGame { object_id: id, owner: player, from, lki });
         }

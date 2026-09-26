@@ -407,7 +407,7 @@ records; `AmountExpr::TriggeringAmount` is `amount_of` summed over them
 `AmountExpr::TriggeringPower` reads the live object when it is where the
 event left it and its last known information otherwise (CR 608.2h) — the
 record's `lki` frame when the event was the departure, the entry's
-`departed` frame when the object left afterwards (§6.1's amendment). All
+`departed` frame when the object left afterwards (§6.1). All
 three leaves ship in TR-1 because the type that carries them opens there.
 
 **Why no stored amount.** A single `Option<u64>` on the binding would mean
@@ -1487,16 +1487,24 @@ by construction, at the fork model's own boundary, a priority grant.
 **The ordering prompt is `ChoiceKind::OrderTriggers { player, tier }`**,
 subject `None` (it is about several objects, like `DeclareAttackers`), asked
 through `choose_ordering` with the pending entries as `ChoiceOption`s in
-`seq` order, two or more only. **Its elision is item 163's, inherited and
-not re-derived**: one player's entries give the same game in either order,
+`seq` order, two or more only. **Its elision is item 163's, as TR-2b
+corrected it**: one player's entries give the same game in either order,
 and the engine does not ask, when every one of these holds — each the
 reason the prompt is asked otherwise:
 
 - **Equal defs.** Different abilities do different things. Compared as
   defs, not ids, since the TR-1 review's theme E: two grants of one ability
   carry two ids (§3.6), and are still one ability twice.
-- **Identical bindings** — the same records and the same subject — since
-  "that creature" or "that much" is otherwise a different object or number.
+- **Agreement on every fact the def reads** (TR-2b's decision 6), since
+  "that creature" or "that much" is otherwise a different object or number,
+  and "this creature" a different source. `TriggerDef::bound_reads()` walks
+  the effect, the intervening "if" and CR 603.2h's gate, exhaustively, and
+  names the columns: the subject, "that player", "that many", "its power"
+  (the subject and the record its frame comes from), the source (the
+  origin), and "this ability" (its gate and its count). A fact it does not
+  read may differ: Soul Warden's two triggers for two Soldiers are one game.
+  TR-1 compared the records and the subject whatever the def read, and no
+  source.
 - **No instance of "target".** CR 603.3d's choice is made per object as
   each goes on the stack, so the order decides who chooses against what.
 - **No mode.** CR 603.3c's choice, the same way.
@@ -1559,19 +1567,62 @@ choices", which is a removal, not a rewind.
 
 ## 6. Resolution
 
-### 6.1 The intervening "if" at both instants (CR 603.4, 608.2a)
+### 6.1 The intervening "if" at both instants (CR 603.4, 608.2a), and the frame of what has left
 
 At dispatch, `TriggerDef.intervening_if` is evaluated after the condition
 matches and before the entry is queued; false means no trigger (ATOM-603.4-002).
 At resolution, `resolve_taken` evaluates it again before anything else
 (608.2a's place in 608.2's order — ATOM-608.2-001) and removes the object
-doing nothing if it is false (-003). The evaluator is `settled_holds` for a
-condition about the board, and a `TriggerContext` variant of it for a
-condition about the bound facts — persist's "if it had no -1/-1 counters
-on it" reads the record's `lki` frame at both instants, since the
-creature is in the graveyard at both. `Condition` is one enum for the
-static "as long as", the intervening "if" and the state trigger, as
+doing nothing if it is false (-003). `Condition` is one enum for the static
+"as long as", the intervening "if" and the state trigger, as
 `layers-architecture.md` §13b decision 5 planned; a leaf is three edits.
+
+**"You" is the ability's (CR 109.5; built in TR-2b).** Both instants, and a
+resolving effect's own "if", evaluate through `settled_holds_for(condition,
+game, source, you)`, which names the player: the candidate's controller at
+dispatch, the entry's controller locked by CR 603.3a at the recheck, and the
+resolution's controller in `Effect::Conditional`. `you_for` and
+`FilterPlayers::for_source` answer it before the source's frame, so a source
+stolen since, or in its owner's graveyard, still reads its controller's
+facts. A static ability's "you" is its source's current controller
+(`settled_holds`).
+
+**The `departed` frame (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
+its records at dispatch, so a departure after the dispatch is in no record the
+entry holds. `DepartedFrame { object, frame }` sits in a `departed` list on
+`PendingTrigger`, `StackEntry` and `ResolvingObject`. Placement moves the list
+onto the stack entry, resolution moves it onto `resolving`, and an effect that
+moves its own source adds one there.
+- **One capture.** Before a batch performs, `capture_departure_frames` frames
+  every permanent its decided members take off the battlefield (item 174). It
+  also frames every other mover that a pending, stacked or resolving entry
+  names, from any zone: the entry's source, or `binding.subject`. On a
+  player's leaving it frames the named objects that player owns. The names are
+  gathered only for a batch that moves something other than a permanent, and
+  on the common board they are empty or short.
+- **One writer.** The two performers that move an object out of a zone,
+  `perform_zone_change` and `owned_objects_leave`, call `hand_departed_frame`
+  before the move. It gives each entry naming the mover the frame its batch
+  took, which for a permanent is the record's own `Arc`.
+- **The reader.** `bound_characteristics` reads the record's frame when the
+  event was the departure, the live object while its epoch holds, and the
+  resolving entry's `departed` frame after that. A miss there is a missed
+  capture, and the refusal says so.
+- **Rejected:** a `GameState` map keyed by `ObjectRef`, since every exit from
+  the stack would have to prune it and a missed prune is the leak the
+  bounded-state PR removed. Also rejected: writing at the window's close,
+  since only a battlefield departure's record carries a frame.
+
+**What waits.** The frame is `EffectiveCharacteristics` until TR-4a's
+`LastKnownInformation` (§3.11). Its `cost_choices` answer "if it was kicked"
+after the permanent leaves, and its `entry` keeps a stack object's targets,
+modes and X for CV-4's copy. A condition about the bound facts, such as
+persist's "if it had no -1/-1 counters on it", reads the record's frame at
+both instants through a `TriggerContext` form of the evaluator, built with
+persist in TR-4. The `IsCountered` look-back (CR 603.10e) reads the same frame
+of the countered spell.
+
+The two amendments below are the design record this was built from.
 
 **Amended 2026-09-23 (the rulings pass, G1): an object that leaves after it
 triggered.** The binding's frame exists only when the triggering event was
@@ -1611,17 +1662,37 @@ no live entry to read once the spell has left. The `IsCountered` look-back
 
 ### 6.2 "May" and "unless" (CR 603.5)
 
-The ability goes on the stack regardless; the choice is at resolution.
-`Effect::Optional(inner)` resolves through `ChoiceKind::OptionalEffect {
-source }` — a yes/no with two `ChoiceOption`s, subject the resolving
-object, asked once per resolution (main item 24's yes/no ask, built here
-with its first trigger customer). "If you do" is a `Conditional` on the
-optional's outcome, which `Effect::Optional` reports as a bool the
-resolver threads to the next atom — item 24's "no vocabulary" closed by a
-field on the resolution context, `last_optional_taken`. "Unless [a player]
-pays [cost]" is a payment inside a resolution, `cost-architecture.md`
-§3.10's shape and CP-1's slot; Strict Proctor, Frost Titan and every ward
-wait for it (§13).
+The ability goes on the stack regardless; the choice is at resolution
+(ATOM-603.5-001). **Built in TR-2b** (main item 24). `Effect::Optional {
+chooser, effect }` asks its chooser, `You` unless the text names another
+player, through `ChoiceKind::OptionalEffect { source }`: a pick of none or
+one, its subject the resolving object.
+
+**The answer lives in the resolver's walk.** `ResolutionWalk` carries
+`last_cost_answer: Option<CostAnswer>` beside the target cursor, and each
+resolution makes it fresh, so a rider never sees its parent's answer.
+- Each atom that takes an action answers `Does`, and a declined "may" answers
+  `Doesnt`.
+- A mandatory action that could not start answers `Cant`: a sacrifice with
+  nothing to sacrifice, or of a permanent its player no longer controls (CR
+  701.21a).
+- `Condition::CostAnswer` reads it in `Effect::Conditional`, and the walk puts
+  the answer back after each clause, so "if you do … if you don't …" read one
+  answer.
+
+It is never re-derived from the performed records. Wicked Guardian's ruling,
+its damage prevented and the card still drawn, is ATOM-118.12-002's partial;
+Standstill's board answers `Cant` (ATOM-118.12-001). CR 603.2h's gate is
+written on `Does` alone (§6.4).
+
+**What waits.** "Any player may … if a player does" asks each player in APNAP
+order (CR 101.4) and is `Does` if any did; it is built with its first card.
+Item 24's sized `IfYouDo { did, didnt }` is not built, since two conditionals
+read one answer. "Unless [a player] pays [cost]" is a payment inside a
+resolution, `cost-architecture.md` §3.10's shape and CP-1's slot; Strict
+Proctor, Frost Titan and every ward wait for it (§13).
+
+The two amendments below are the design record this was built from.
 
 **Amended 2026-09-23 (the rulings pass, G3): the field records CR 118.12's
 answer, not the event.** CR 118.12 makes the action a cost paid at
@@ -1666,7 +1737,7 @@ comparison read the other way. `AmountExpr::TriggeringPower` and its
 siblings read `LastKnownInformation` (§3.11): live if the object is where the event
 left it, the frame otherwise — the record's when the event was the
 departure, the entry's `departed` frame when the object left afterwards
-(§6.1's amendment). Nothing the effect reads is copied at
+(§6.1). Nothing the effect reads is copied at
 dispatch that the record does not already hold — the binding is indices
 and one `Arc`.
 
@@ -1680,7 +1751,8 @@ on the stack resolves and no prompt is asked); absent means perform, then
 insert only if the action was taken. A declined "may" leaves the gate open:
 CR 603.2h asks whether the controller "has not yet taken the indicated
 action", and Paragon's first and third rulings count only a choice to put
-the counters (corrected 2026-09-24; TR-2b's writer). Two Paragons are two
+the counters (corrected 2026-09-24; built in TR-2b, which writes the gate
+on the walk's `Does` alone). Two Paragons are two
 identities and act twice (second ruling).
 
 ### 6.5 CR 603.7h's count, and the copy (S3, CR 707.10b)
@@ -1763,8 +1835,8 @@ field with one writer:
 | who cast this permanent, from which zone, and with what mana (400.7d; main items 9 and 30) | `PermanentState.cast: Option<CastFacts { by, from, mana_spent }>`, `None` for a copy of a spell (CR 707.10) | the entry performer, off `ResolvingObject.cast`, which resolution builds from the stack entry; `mana_spent` is written onto the entry at CR 601.2h | `EntersBattlefield { was_cast }`, "if you cast it", Coal Stoker's "from your hand", Prized Amalgam's "from your graveyard" |
 | its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by `LastKnownInformation` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
-| the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `last_cost_answer`, carried by the resolver's walk beside the target cursor (§6.2) | the atom that takes the action | the "if" clause after it (§6.2) |
-| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `PendingTrigger.departed`, `StackEntry.departed` | `capture_departure_frames` | the intervening "if" recheck, §6.3's readers (§6.1) |
+| the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionWalk.last_cost_answer`, beside the target cursor (§6.2) | the atom that takes the action (`Does`), a declined "may" (`Doesnt`), a sacrifice that could not start (`Cant`) | `Condition::CostAnswer` in the clause after it, and CR 603.2h's gate (§6.2, §6.4) |
+| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `departed` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_departed_frame`, with the frame `capture_departure_frames` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
 | the trigger's event, subject, amount, frame | `TriggerBinding` (the matched records, copied whole; the matched event; the subject's epoch) | the dispatcher | the resolution, through the arm's projections |
@@ -1816,7 +1888,7 @@ options (`CLAUDE.md`); each is an arm in the five `src` matches above.
 | `ChoiceKind` | Method | Subject | Rule | Phase |
 |---|---|---|---|---|
 | `OrderTriggers { player, tier }` | `choose_ordering` | `None` (several objects) | 603.3b; elided per item 163 | TR-1 |
-| `OptionalEffect { source }` | `pick_n` (yes/no) | the resolving object | 603.5; main item 24 | TR-2 |
+| `OptionalEffect { source }` | `pick_n` (yes/no) | the resolving object | 603.5; main item 24 | TR-2b |
 | `ChooseDelayedTriggerEvent { delayed }` | `pick_n` | the delayed trigger's source | 603.7b | TR-3 |
 | `SelectRecipients` (existing) at placement | `pick_n` | the trigger's stack object | 603.3d → 601.2c | TR-1 |
 
@@ -2005,7 +2077,7 @@ decision at identical counters:
 | TR-1 | every counter `IDENTICAL`; CPU per decision inside the budget | `differ` on both pools; a `fuzz-record.md` block | the gate is empty on the old pools; the new pool has three trigger sources and a `Triggers placed` row |
 | TR-2 | `IDENTICAL` on `performance`; `differ` on `stress` | `differ` | the histories are advanced on every game (a cost, no counter); Alms Collector is in `stress` and its rider's draw order changes (§6.6) |
 | TR-2a, as measured | every gameplay row `IDENTICAL` on both pools; `Layer walks` +5% (a spell's types read as it is cast) and `Candidate visits` up (a cast's window has a kind now); the dumps differ by the rider's order and lifelink's gains | `differ`; a `fuzz-record.md` block | the row above said the histories move no counter, and they move two; the rider's order moved one four-seat `stress` game's dump, not a counter (`fuzz-record.md`, TR-2a) |
-| TR-2b | `differ` where item 163's elision stops asking `OrderTriggers`, since the random agent's stream moves; `IDENTICAL` elsewhere | `differ` | the elision is the one change to what the engine asks |
+| TR-2b, as measured | every gameplay row `IDENTICAL` on both pools at two seats and four, and all 800 dumps identical game by game; `Memo hits` −1 to −9. The elision arm moves 27 of 800 games, each first at an `OrderTriggers` prompt | `differ`; a `fuzz-record.md` block | the row said no other counter would move, and `Memo hits` fell: an edict's choice reads its filter only for the chooser's own permanents (`fuzz-record.md`, TR-2b) |
 | TR-3 | `IDENTICAL` both pools | `differ` | the registry is empty on the old pools |
 | TR-4 | `Layer walks` up by the widened captures on `stress`, `Memo hits` up on both (the control sweep runs while Act of Treason's row lives); every gameplay counter `IDENTICAL` | `differ` | the sweep is gated on `any_control_changing`; captures gate on `from`/`to` |
 | TR-5 | `IDENTICAL` counters; `--dump-events` gains `Targeted`, `DamagePrevented` and entry `CountersChanged` lines | `differ` | records announced, no decision moved |
@@ -2145,19 +2217,42 @@ thousand-game audited smoke on every board agrees on 5.65 million dispatches.
 → `plans/archive/triggers-architecture-landed.md`, "TR-2a" (the plan as
 sized, the split, and why there is no trace page).
 
-### TR-2b — "may", CR 118.12's answer, and the `departed` frames (1,720–2,180)
+### TR-2b — "may", CR 118.12's answer, and the `departed` frames — ✅ landed 2026-09-26
 
-Split from TR-2 on 2026-09-24; it builds on TR-2a's gates and histories.
+**What shipped.** Six "your" conditions folded into `Condition::Player {
+whose, fact }`. `EventKindMask` at a width that follows `EventKind`, and the
+arms `DrawsCard` and `ShufflesLibrary` (a move to the hand that is not a draw
+fires nothing, CR 121.5). `Effect::Optional` with its chooser, CR 118.12's
+answer in the resolver's walk, `Condition::CostAnswer`, and CR 603.2h's gate
+written on `Does` alone (§6.2, §6.4; main item 24). A player's choice at
+resolution as a recipient, `EffectRecipient::ChosenBy`, with `event_for` under
+the six object verbs and `Sacrifice` on Destroy's grammar. `AddCounters` over
+a filter, a hand's count in the layer walk, and each opponent's life loss. The
+`departed` frames, one capture and one writer, and CR 109.5's "you" named by
+the asker (§6.1; main item 169). The elision over what a def reads, with the
+source row (§5.2; item 163's elision half). Three cards: Nykthos Paragon,
+Psychosis Crawler and Cosi's Trickster. Crawler and the Trickster are pooled
+(96 → 98), and all three are in `stress` (175 → 178). Twenty-four tests;
+§13's TR-2b row is clean.
 
-| Piece | ~additions |
-|---|---|
-| `Effect::Optional` with `OptionalEffect` and its chooser; `last_cost_answer` in the resolver's walk for "if you do / don't / can't" (§6.2's amendments; main item 24); 118.12's cost-object check. The `departed` frames and their reader (§6.1's amendment; item 169), which the `Triggering*` leaves refuse without today. The arms `DrawsCard` and `ShufflesLibrary`. `AddCounters` over a filter (Nykthos Paragon's "each creature you control"). `CountOf(CardsInHand)` in the layer walk for Psychosis Crawler's CDA. Item 163's elision, comparing only the bound facts the effect reads. Cards: **Nykthos Paragon** (603.2h with "may", "that many" on each creature), **Psychosis Crawler** (draws, each opponent, a CDA), **Cosi's Trickster** ("whenever an opponent shuffles", "may"); Crawler and Trickster pooled | ~710–910 |
-| tests, ~21: §13's TR-2b row; Nykthos Paragon's six rulings, Cosi's Trickster's three and Psychosis Crawler's one; an "if you can't" fixture; the elision's binding-read board; an enters trigger's "if" and power read after its source is sacrificed in response (§6.1) | ~780 |
+**What moved on the way in.** It landed at +2,430 in code and tests against
+the count's 2,165–2,355, inside the band. The owner's review moved the choice
+out of `Sacrifice` into a recipient every verb takes, put all six object verbs
+on `event_for`, made the mask's width follow `EventKind`, and left Soul
+Shatter's "greatest mana value" for its card. The close-out found a redundant
+CR 101.2 query: the verb re-checked a permanent its choice had just admitted.
 
-**Item 163's elision changes what the engine asks**: two landfall triggers
-from two lands stop prompting when the effect ignores the land. That is a
-fixture migration, so it is sized and raised with the owner before it is
-built.
+**Measured** (`fuzz-record.md`, the TR-2b block). The engine arm plays every
+gameplay row as `main` does on both pools at two seats and four, and all 800
+dumps are identical game by game. `Memo hits` fall by 1–9, since an edict's
+choice reads its filter only for the chooser's own permanents. CPU per
+decision −0.03% (callgrind). The elision arm moves 27 of 800 games, each first
+at an `OrderTriggers` prompt: 26 of one Soul Warden it no longer asks, one of
+two Warchiefs it now does. The shipped arm places 2.2 and 5.0 triggers a game
+on `performance`; Crawler places 0.7 of them at two seats.
+
+→ `plans/archive/triggers-architecture-landed.md`, "TR-2b" (the design as
+reviewed, what landing changed, and why there is no trace page).
 
 ### TR-3 — delayed, reflexive, and "until" — TR-3a and TR-3b (2,800–3,600)
 
@@ -2456,15 +2551,15 @@ Recorded here at authoring; a finding that becomes a code item moves to
     the one fixture that asks (a discard, `cause: Some(Discarded)`) does,
     and it reads correctly, because its fields are `Some`: it was `None`
     standing for "any" that the review objected to, not `Some`.
-15. **The `departed` frames serve activated abilities too, and nothing here
-    builds that half** (the rulings pass, 2026-09-23). CR 113.7a names
+15. **The `departed` frames serve activated abilities too, and no reader
+    reads theirs yet** (the rulings pass, 2026-09-23). CR 113.7a names
     activated and triggered abilities alike: "{T}: this creature deals
     damage equal to its power" with its source sacrificed in response reads
     the source's last known information, and ATOM-113.7a-001 (ALREADY-IMPL)
-    proves only that the ability still resolves. §6.1's field is written
-    for every stack entry whose source departs, so an activated ability's
-    reader is a leaf away; which reader, and whether today's `SourcePower`
-    already answers it, is the first activated card's question.
+    proves only that the ability still resolves. TR-2b's writer hands the
+    frame to every stack entry naming its source, an activated ability's
+    included, so the reader is a leaf away; which reader, and whether today's
+    `SourcePower` already answers it, is the first activated card's question.
 
 ---
 

@@ -346,6 +346,11 @@ impl GameState {
             EffectRecipient::TriggeringObject | EffectRecipient::TriggeringPlayer => Err(format!(
                 "{recipient:?} is a triggered ability's bound fact, not an instance of \"target\" to validate"
             )),
+            // A choice is made as the effect applies (CR 608.2d); only its
+            // chooser can be an instance, and `Effect::instances` lists that.
+            EffectRecipient::ChosenBy(_) => Err(format!(
+                "{recipient:?} is chosen as the effect applies, not an instance of \"target\" to validate"
+            )),
 
             EffectRecipient::SameInstanceAs(ix) => Err(format!(
                 "EffectRecipient::SameInstanceAs({ix}) is a back-reference to an instance of \

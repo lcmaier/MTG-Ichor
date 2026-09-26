@@ -26,8 +26,8 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, Primitive,
-    SelectionFilter, TargetCount, TokenDef,
+    AmountExpr, Condition, Effect, EffectRecipient, ManaOutput, ObjectFilter, PlayerFact, PlayerSet,
+    Primitive, SelectionFilter, TargetCount, TokenDef,
 };
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
@@ -228,7 +228,10 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .rules_text("Vigilance\nLifelink\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
         .ability(triggered_ability(TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
-            intervening_if: Some(Condition::YourLifeAtLeast(AmountExpr::Fixed(40))),
+            intervening_if: Some(Condition::Player {
+                whose: PlayerSet::You,
+                fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
+            }),
             limit: None,
             effect: Effect::Atom(Primitive::WinGame, EffectRecipient::Controller),
         }))

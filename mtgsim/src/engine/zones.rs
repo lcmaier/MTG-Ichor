@@ -550,9 +550,8 @@ mod tests {
     }
 
     // COVERS-PARTIAL: ATOM-121.5-001
-    // Builds the "no draw event emitted" half. The atom's trigger half ("no draw
-    // triggers fire") needs CR 603, and its empty-library half needs a library→hand
-    // effect that can run on an empty library — neither exists yet.
+    // The "no draw event emitted" half, at the performer. The whole atom, with its
+    // trigger half and its empty library, is `phase_tr2b_integration_test.rs`'s.
     #[test]
     fn test_library_to_hand_without_drawing_is_not_a_draw() {
         let (mut game, forest_id) = game_with_one_card_library();

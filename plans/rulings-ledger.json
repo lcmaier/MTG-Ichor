@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-24",
+  "fetched": "2026-09-26",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -188,6 +188,14 @@
         {"n": 2, "published_at": "2021-03-19", "comment": "If a noncreature card wasn't cast and is entering the battlefield as a creature (due to an effect such as that of March of the Machines), it will be exiled. Conversely, if a creature card wasn't cast and is entering the battlefield as a noncreature permanent (for example, Heliod, Sun-Crowned with insufficient devotion), it won't be exiled."},
         {"n": 3, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield without being cast, its ability won't exile itself."},
         {"n": 4, "published_at": "2021-03-19", "comment": "If Containment Priest enters the battlefield at the same time as other creatures, its ability won't affect those creatures."}
+      ]
+    },
+    "Cosi's Trickster": {
+      "first_seen": "2026-09-26",
+      "rulings": [
+        {"n": 1, "published_at": "2009-10-01", "comment": "Cosi’s Trickster’s ability triggers when an opponent shuffles their library because that player was instructed to do so by a spell or ability that specifically contains the word “shuffle” in its text or (in the case of a keyword ability) in its rules."},
+        {"n": 2, "published_at": "2009-10-01", "comment": "The cascade ability doesn’t cause a player to shuffle their library, even if that player revealed their entire library. The revealed cards are put on the bottom of their owner’s library in a random order, but they’re not “shuffled.”", "disposition": {"kind": "no-registered-card", "needs": "a card with cascade (CR 702.85a), whose cards not cast go on the bottom in a random order. Nothing registered cascades and no primitive puts cards on the bottom in a random order, so no board can reach the ruling; ShuffleLibrary is the only emitter of LibraryShuffled."}},
+        {"n": 3, "published_at": "2009-10-01", "comment": "If an opponent’s library is empty or has just a single card in it when a spell or ability instructs that player to shuffle their library, Cosi’s Trickster’s ability will still trigger."}
       ]
     },
     "Counterspell": {
@@ -694,6 +702,17 @@
         {"n": 3, "published_at": "2018-03-16", "comment": "The above procedure means that if each player in a two-player game controls a Notion Thief and one would draw a card, it really will be that player who draws a card."}
       ]
     },
+    "Nykthos Paragon": {
+      "first_seen": "2026-09-26",
+      "rulings": [
+        {"n": 1, "published_at": "2021-06-18", "comment": "\"Do this only once each turn\" refers to putting +1/+1 counters on your creatures using the triggered ability. As long as you haven't yet chosen to put +1/+1 counters on your creatures with it, all instances of gaining life will cause Nykthos Paragon's ability to trigger."},
+        {"n": 2, "published_at": "2021-06-18", "comment": "\"Do this only once each turn\" refers only to the ability it is attached to, not other instances of the same ability. In other words, if you control multiple Nykthos Paragons, you will be able to do this once for each of them."},
+        {"n": 3, "published_at": "2021-06-18", "comment": "Once you have chosen to put +1/+1 counters on your creatures, further instances of gaining life will not cause the ability to trigger."},
+        {"n": 4, "published_at": "2021-06-18", "comment": "If multiple instances of the ability are on the stack, you will be able to put +1/+1 counters for only one of those instances. Once you do that, other instances will do nothing as they resolve."},
+        {"n": 5, "published_at": "2021-06-18", "comment": "If a creature you control is dealt lethal damage at the same time that you gain life, it won't receive +1/+1 counters from Nykthos Paragon's ability in time to save it."},
+        {"n": 6, "published_at": "2021-06-18", "comment": "Each creature with lifelink dealing combat damage causes a separate life-gaining event. For example, if two creatures you control with lifelink deal combat damage at the same time and you haven't used it yet, Nykthos Paragon's ability will trigger twice. However, if a single creature you control with lifelink deals combat damage to multiple creatures, players, and/or planeswalkers at the same time (perhaps because it has trample or was blocked by more than one creature), the ability will trigger only once."}
+      ]
+    },
     "Nyxbloom Ancient": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -788,6 +807,12 @@
         {"n": 2, "published_at": "2013-10-17", "comment": "It doesn't matter who controls the tokens or the creature that the +1/+1 counters are being placed on."},
         {"n": 3, "published_at": "2013-10-17", "comment": "Primal Vigor affects permanents that \"enter the battlefield with\" a certain number of counters. For example, if a creature would normally enter the battlefield with three +1/+1 counters on it, it will enter with six +1/+1 counters on it."},
         {"n": 4, "published_at": "2013-10-17", "comment": "If there are two Primal Vigors on the battlefield, the number of tokens or +1/+1 counters is four times the original number. If there are three on the battlefield, the number of tokens or +1/+1 counters is eight times the original number, and so on."}
+      ]
+    },
+    "Psychosis Crawler": {
+      "first_seen": "2026-09-26",
+      "rulings": [
+        {"n": 1, "published_at": "2011-06-01", "comment": "If an effect causes you to draw multiple cards, Psychosis Crawler will trigger that many times."}
       ]
     },
     "Pyroclasm": {

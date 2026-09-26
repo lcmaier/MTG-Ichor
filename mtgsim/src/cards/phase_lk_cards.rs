@@ -19,7 +19,8 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    Condition, Duration, Effect, EffectRecipient, ObjectFilter, PlayerFact, PlayerRef, PlayerSet,
+    Primitive,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -71,7 +72,7 @@ fn creatures_you_control() -> ObjectFilter {
 ///   is on the battlefield — where Wonder is a 2/2 flier that grants nothing.
 ///   Read *again* at every layer by the existence check, which is what retires
 ///   the row when the card is exiled (§13d decision 3).
-/// - `YouControlPermanent(Island)` is an ordinary "as long as", the shape LI-3
+/// - "You control an Island" is an ordinary "as long as", the shape LI-3
 ///   landed for Kird Ape. It names no zone and does not place the ability.
 ///
 /// # Its printed flying is a `KeywordFlag`, not an ability
@@ -100,9 +101,10 @@ pub fn wonder() -> Arc<CardData> {
             Condition::All(vec![
                 // CR 113.6b — the clause that says where this ability functions.
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
-                Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
-                    LandType::Island,
-                ))),
+                Condition::Player {
+                    whose: PlayerSet::You,
+                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
+                },
             ]),
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(

@@ -478,21 +478,25 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
     }
 
     /// The players of a *condition*'s filter (CR 604.2's "as long as", read
-    /// through CR 109.5): "you" is the source's current controller off its
-    /// live frame, exactly as a static row's is, and the source is the one
-    /// `ObjectFilter::NotSource` excludes. Both are resolved up
-    /// front, since there is no row to re-derive them from.
+    /// through CR 109.5): "you" is the player the asker named — a triggered
+    /// ability's locked controller — or else the source's current controller
+    /// off its live frame, exactly as a static row's is. The source is the one
+    /// `ObjectFilter::NotSource` excludes. Both are resolved up front, since
+    /// there is no row to re-derive them from.
     pub(super) fn for_source(
         source: ObjectId,
         game: &'a GameState,
         board: &'a Board<'l>,
         layer_index: usize,
+        asked_you: Option<PlayerId>,
     ) -> Self {
         let owner = game.objects.get(&source).map(|obj| obj.owner);
-        let you = board
-            .frame_of(game, source, layer_index)
-            .map(|frame| frame.controller)
-            .or(owner);
+        let you = asked_you.or_else(|| {
+            board
+                .frame_of(game, source, layer_index)
+                .map(|frame| frame.controller)
+                .or(owner)
+        });
         FilterPlayers { effect: None, source, game, board, layer_index, you, owner }
     }
 
@@ -808,6 +812,19 @@ pub(super) fn evaluate_amount(
         // "You" is the affected object's own controller for a CDA (CR 109.5, read
         // off `chars` as of this layer) and the row's controller for a registry
         // row, exactly as a filter leaf resolves it.
+        // "The number of cards in your hand" (Psychosis Crawler): a count of a
+        // hand, whose size is public (CR 402.3) and whose cards are not read.
+        // "You" is the CDA's own object's controller, or the row's controller.
+        AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
+            debug_assert!(
+                *whose == PlayerRef::You,
+                "CountOf(CardsInHand({:?})) has no static-context evaluator yet (on '{}')",
+                whose, chars.name
+            );
+            let you = origin.map_or(chars.controller, |row| row.controller);
+            game.players.get(you).map(|player| player.hand.len() as i32)
+        }
+
         AmountExpr::CountOf(selector) => {
             let filter: Cow<'_, ObjectFilter> = match selector {
                 Selector::PermanentsMatching(filter) => Cow::Borrowed(filter),

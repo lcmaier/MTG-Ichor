@@ -1159,6 +1159,23 @@ pub fn ask_apply_optional_replacement(
     !picked.is_empty()
 }
 
+/// Ask whether to take a resolving effect's "you may" (CR 603.5). The
+/// ability went on the stack regardless, and this is the choice, made now.
+/// One option taken or left, as [`ask_apply_optional_replacement`] asks: two
+/// answers, so it is a decision.
+pub fn ask_optional_effect(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+) -> bool {
+    let options = vec![ChoiceOption::Object(source)];
+    let ctx = ChoiceContext { kind: ChoiceKind::OptionalEffect { source } };
+    let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
+    validate_pick_n(&picked, &options, (0, 1), "optional_effect", game, chooser, &ctx);
+    !picked.is_empty()
+}
+
 /// Choose which of several opponents a permanent enters under (CR 616.1b's
 /// `Rewrite::EnterUnderControlOf(PlayerRef::Opponent)` — Xantcha's "an opponent
 /// of your choice").
