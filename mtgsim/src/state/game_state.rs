@@ -74,8 +74,9 @@ pub struct StackEntry {
     pub chosen_modes: Vec<usize>,
     /// X value if the spell has a variable cost
     pub x_value: Option<u64>,
-    /// The effect to resolve (copied from CardData at cast time)
-    pub effect: Effect,
+    /// The effect to resolve, copied off its def when the entry is pushed.
+    /// Shared, so a clone of the state copies a pointer rather than the tree.
+    pub effect: Arc<Effect>,
     /// Whether this is a spell (true) or an ability (false).
     /// Spells go to graveyard after resolution; abilities cease to exist.
     pub is_spell: bool,
@@ -2499,7 +2500,7 @@ mod tests {
             chosen_targets: Vec::new(),
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: Effect::Sequence(vec![]),
+            effect: Arc::new(Effect::Sequence(vec![])),
             is_spell: true,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),

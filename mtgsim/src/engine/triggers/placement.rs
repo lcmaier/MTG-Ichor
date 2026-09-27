@@ -175,7 +175,7 @@ impl GameState {
             chosen_targets: targets,
             chosen_modes: Vec::new(),
             x_value: None,
-            effect: pending.binding.def.effect.clone(),
+            effect: Arc::new(pending.binding.def.effect.clone()),
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),

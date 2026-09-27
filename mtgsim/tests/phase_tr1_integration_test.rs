@@ -2130,7 +2130,7 @@ fn a_spell_that_was_not_cast_keeps_its_kicker() {
         chosen_targets: Vec::new(),
         chosen_modes: Vec::new(),
         x_value: None,
-        effect: Effect::Sequence(Vec::new()),
+        effect: Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: vec![kicker_red()],

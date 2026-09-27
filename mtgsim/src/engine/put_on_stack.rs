@@ -10,6 +10,8 @@
 //! candidate and is taken: `engine::actions` uses it for what
 //! `perform_action` reads.
 
+use std::sync::Arc;
+
 use crate::engine::actions::{ActionContext, ZoneChangeCause};
 use crate::engine::cost_determination::determine_total_cost;
 use crate::events::event::GameEvent;
@@ -192,7 +194,7 @@ impl GameState {
             chosen_targets: targets,
             chosen_modes: Vec::new(),
             x_value: if x_count > 0 { Some(x_value) } else { None },
-            effect,
+            effect: Arc::new(effect),
             is_spell: true,
             chosen_alternative_cost: chosen_alt.clone(),
             additional_costs_paid: chosen_additional.clone(),
@@ -445,7 +447,7 @@ impl GameState {
             chosen_targets: targets,
             chosen_modes: Vec::new(),
             x_value: None,
-            effect,
+            effect: Arc::new(effect),
             is_spell: false,
             chosen_alternative_cost: None,
             additional_costs_paid: Vec::new(),

@@ -119,7 +119,7 @@ fn stage_spell_with(
         chosen_targets: vec![TargetInstance::new(recipient, chosen_targets)],
         chosen_modes: Vec::new(),
         x_value: None,
-        effect,
+        effect: Arc::new(effect),
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),
