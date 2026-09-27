@@ -556,8 +556,13 @@ fn a_cast_trigger_reads_the_power_of_a_spell_countered_in_response() {
 /// Item 169's hand: "whenever you draw a card, each opponent loses life equal
 /// to that card's power", and the drawn card is discarded before the trigger
 /// resolves. "That card's power" is the card as it last existed in the hand
-/// (CR 608.2h). God-Eternal Kefnet's ruling reads a card that left a hand the
-/// same way.
+/// (CR 608.2h).
+///
+/// No paper card reads a card nobody has seen. God-Eternal Kefnet, the printed
+/// reader of a card that left a hand, reveals it as it is drawn, and a reveal
+/// is the information model's (`backlog.md` §2.9), which this fixture gains
+/// with it. The route under test, the frame taken as a named card leaves a
+/// hand, is the same with the reveal or without it.
 #[test]
 fn a_draw_trigger_reads_the_power_of_a_card_discarded_in_response() {
     let mut game = setup_two_player_game();
