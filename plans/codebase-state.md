@@ -8436,7 +8436,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Open: a clone during the spike — the back-stop.** Floors 2 and 3 are
      read between turns, where the stack is empty, and a search clones
      mid-turn as well. A clone copies every stack object: a thousand of them
-     is 664 KB of `StackEntry` alone, with their `GameObject`s and whatever
+     is 360 KB of `StackEntry` alone, with their `GameObject`s and whatever
      each holds on the heap, where the floors are 10 µs and 128 KB. The
      shape to design is objects shared between forks, copied on write, so a
      clone copies a pointer per stack object. The design also reads the layer
@@ -8458,19 +8458,26 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        reallocate;
      - tombstones can hide a bloated table from `capacity`.
      None binds a floor today (the worst clone went from 6.8 µs to 7.8),
-     and shared stack objects make a spare slot 16 bytes instead of 664,
+     and shared stack objects make a spare slot 16 bytes instead of 360,
      so the design reads the rule after its own change.
 
-     **Found at TR-2b's review (2026-09-27): a stacked effect is copied
-     whole.** `StackEntry.effect` is an owned `Effect`, a deep copy of the
-     def's tree, so a fork copies every stacked effect's boxes: an edict's
-     `ChosenBy` adds a box and a pick list. A trigger's entry already holds
-     its def behind an `Arc` in `trigger`, so there the copy is redundant.
-     This is item 180's shape, bounded by the stack, and `clone_bound_test`
-     passes. **The owner's call: its own small PR after TR-2b merges**,
-     `effect: Arc<Effect>` shared from the def, ahead of B10's shared stack
-     objects. **Sized:** about 25 sites, most of them test literals of
-     `StackEntry`.
+     **Found at TR-2b's review (2026-09-27), and shipped the same day
+     (`state/shared-stack-effects`): a fork shares each stacked effect.**
+     `StackEntry.effect` was an owned `Effect`, so a clone copied every
+     stacked effect's tree, and an edict's `ChosenBy` is a box and a pick
+     list: 2 allocations and 120 bytes per entry. It is an `Arc<Effect>`
+     now, and a clone bumps a count. `tests/stacked_effect_clone_test.rs`
+     clones eight stacked Diabolic Edicts and eight heap-free instants of
+     the same cost and target: `main` read 42 allocations and 16,227 bytes
+     against 26 and 15,267, and both read 26 and 10,019 since. The 336-byte
+     inline `Effect` became a pointer, so a `StackEntry`, and each spare
+     slot of `stack_entries`, is 360 bytes rather than 688.
+     **Not shared from the def**, as this note first said. Each push still
+     copies the def's tree once, and a trigger's entry holds that copy
+     beside the def its `trigger` already shares. Sharing from the def makes
+     `AbilityDef.effect` and `TriggerDef.effect` `Arc`s, about 250 sites,
+     for a copy paid once per push rather than once per fork. **B10 stays
+     open:** the entry and its `GameObject` are still copied per fork.
 
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
