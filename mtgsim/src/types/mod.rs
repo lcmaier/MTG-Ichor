@@ -1,3 +1,6 @@
+// First, so every module declared after it has `counted_enum!` in scope.
+#[macro_use]
+mod counted_enum;
 pub mod ids;
 pub mod colors;
 pub mod mana;
