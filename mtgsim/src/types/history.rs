@@ -80,12 +80,12 @@ impl CountIs {
     }
 }
 
-/// "[Whose] [fact] [is]" over a span of turns. `whose` is resolved against
-/// the condition's "you" (CR 109.5), and the rows it names are summed: "an
-/// opponent lost life this turn" is `Opponents` at least 1.
+/// "[Players] [fact] [is]" over a span of turns. `players` is resolved
+/// against the condition's "you" (CR 109.5), and the rows it names are
+/// summed: "an opponent lost life this turn" is `Opponents` at least 1.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistoryCount {
-    pub whose: PlayerSet,
+    pub players: PlayerSet,
     pub fact: TurnFact,
     pub is: CountIs,
 }

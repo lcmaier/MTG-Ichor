@@ -2763,7 +2763,7 @@ fn opponents_of(game: &GameState, you: PlayerId) -> Vec<PlayerId> {
 ///
 /// 1. **The prompt.** Candidates are filtered by CR 614.13a/b
 ///    (`GameState::entry_selection`) and by CR 101.2 before they are offered,
-///    which is `sacrifice_of_choice`'s axis-1 shape: a Sigarda that makes a
+///    which is the resolution-time choice's axis-1 shape: a Sigarda that makes a
 ///    creature unsacrificeable removes it from the list rather than letting it
 ///    be chosen and then refusing the move — the count would be wrong either
 ///    way, and only one of them is a *choice* the player was allowed to make.
@@ -2877,7 +2877,7 @@ fn auxiliary_candidates(
             if !game.object_matches_filter(id, &aux.filter, you).unwrap_or(false) {
                 return false;
             }
-            // CR 101.2 on the move this choice would produce — `sacrifice_of_choice`'s
+            // CR 101.2 on the move this choice would produce — the resolution-time choice's
             // axis-1 question. `cause` is a `PlayerId` because `SourceFilter`'s one
             // variant, `ControlledBy(PlayerRef)`, reads control and nothing else; it
             // widens with the variant that needs more. The player is the effect's

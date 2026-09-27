@@ -12,7 +12,7 @@ use crate::engine::resolve::{ResolutionContext, ResolvedTarget};
 use crate::events::event::GameEvent;
 use crate::state::game_state::GameState;
 use crate::types::effects::EffectRecipient;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
 use crate::types::triggers::TriggerBinding;
 
 impl GameState {
@@ -49,8 +49,8 @@ impl GameState {
     /// departure, it is expected where it was, so the record's CR 603.10a
     /// frame answers (Paladin of Atonement's ruling: its toughness "as it last
     /// existed on the battlefield"). Otherwise it is the object now, while it
-    /// is still where the event left it. `None` when it is neither, which is
-    /// the last known information TR-2b's `departed` frames hold.
+    /// is still where the event left it, and once it has left, the frame the
+    /// resolving entry kept as it went (§6.1). `None` there is a missed capture.
     pub fn bound_characteristics(&self, binding: &TriggerBinding) -> Option<Arc<EffectiveCharacteristics>> {
         let subject = binding.subject?;
         match &binding.records.first()?.event {
@@ -60,8 +60,17 @@ impl GameState {
             {
                 Some(Arc::clone(frame))
             }
-            _ => compute_characteristics(self, self.bound_object(binding)?),
+            _ => match self.bound_object(binding) {
+                Some(id) => compute_characteristics(self, id),
+                None => self.departed_frame(subject),
+            },
         }
+    }
+
+    /// The frame the resolving entry kept for `object` as it left (CR 608.2h).
+    pub fn departed_frame(&self, object: ObjectRef) -> Option<Arc<EffectiveCharacteristics>> {
+        let resolving = self.resolving.as_ref()?;
+        resolving.departed.iter().find(|d| d.object == object).map(|d| Arc::clone(&d.frame))
     }
 
     /// The bound fact a `TriggeringObject` or `TriggeringPlayer` atom acts

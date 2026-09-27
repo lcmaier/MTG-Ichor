@@ -677,6 +677,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
 
         let output = format_stack(&game);
@@ -710,6 +711,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
 
         let recall = CardDataBuilder::new("Ancestral Recall")
@@ -732,6 +734,7 @@ mod tests {
                     cast_from: Some(Zone::Hand),
                     ability_identity: None,
     trigger: None,
+    departed: Vec::new(),
 });
 
         let output = format_stack(&game);

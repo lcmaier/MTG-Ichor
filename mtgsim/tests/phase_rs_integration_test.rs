@@ -20,9 +20,10 @@ use mtgsim::state::restrictions::RegisteredRestriction;
 use mtgsim::test_support::{
     place_bare, put_on_battlefield, registered, setup_two_player_game, test_ctx, vanilla_creature,
 };
+use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::{
-    ObjectSet, AmountExpr, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef,
-    PlayerSet, Primitive, SelectionFilter, TargetCount,
+    Choice, ChoiceScope, ChoiceSide, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, Pick,
+    PlayerRef, PlayerSet, Primitive, SelectionFilter, TargetCount,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::keywords::KeywordFlag;
@@ -155,8 +156,13 @@ fn edict_effect() -> Effect {
 /// owes them, and this is what exercises it.
 fn edict_for(n: u64) -> Effect {
     Effect::Atom(
-        Primitive::Sacrifice(SelectionFilter::Creature, AmountExpr::Fixed(n)),
-        EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+        Primitive::Sacrifice,
+        EffectRecipient::ChosenBy(Box::new(Choice {
+            chooser: EffectRecipient::Target(SelectionFilter::Player, TargetCount::Exactly(1)),
+            among: ChoiceScope::ChoosersPermanents,
+            picks: vec![Pick::exactly(n, ObjectFilter::ByType(CardType::Creature))],
+            acts_on: ChoiceSide::Chosen,
+        })),
     )
 }
 

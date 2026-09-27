@@ -226,7 +226,7 @@ fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
 /// **A `SourceInZone` leaf is a zone statement only at the top of the
 /// condition, or as a direct member of a top-level `All`. Anywhere else it is
 /// an ordinary predicate.** Concretely: `Conditional(SourceInZone(GY), body)`
-/// and `Conditional(All([SourceInZone(GY), YouControlPermanent(Island)]), body)`
+/// and `Conditional(All([SourceInZone(GY), you control an Island]), body)`
 /// both state the graveyard; `Conditional(All([All([SourceInZone(GY)])]), body)`
 /// states nothing, and neither would a clause under a future `Or` or `Not`.
 /// **A card cannot reach the nested form by accident** — there is no card text
@@ -271,19 +271,16 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
             }
             found
         }
-        // Everything else is an ordinary predicate. `CardInYourGraveyard` is the
-        // near miss and stays one on purpose: it is about some *other*
-        // object's zone, which places nothing.
-        Condition::YouControlPermanent(_)
-        | Condition::OpponentControlsPermanent(_)
-        | Condition::CardInYourGraveyard(_)
-        | Condition::YourLifeAtLeast(_)
-        | Condition::YourLifeAtMost(_)
+        // Everything else is an ordinary predicate. `PlayerFact::CardInGraveyard`
+        // looks like `SourceInZone` and is not: "as long as a red card is in
+        // your graveyard" is about some *other* card's zone, so it says nothing
+        // about where this ability functions.
+        Condition::Player { .. }
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
-        | Condition::YourLibraryEmpty
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
+        | Condition::CostAnswer(_)
         | Condition::ThisTurn(_)
         | Condition::LastTurn(_)
         | Condition::SinceYourLastTurn(_)
@@ -299,7 +296,7 @@ mod tests {
     use crate::types::card_types::{LandType, Subtype};
     use crate::types::cost_modification::{CostChange, CostModificationDef};
     use crate::types::effects::{
-        AmountExpr, Duration, EffectRecipient, ObjectFilter, Primitive,
+        AmountExpr, Duration, EffectRecipient, ObjectFilter, PlayerFact, PlayerSet, Primitive,
     };
     use crate::types::ids::new_ability_id;
     use crate::types::mana::ManaCost;
@@ -376,9 +373,10 @@ mod tests {
         let wonder = ability(Effect::Conditional(
             Condition::All(vec![
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
-                Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(
-                    LandType::Island,
-                ))),
+                Condition::Player {
+                    players: PlayerSet::You,
+                    fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
+                },
             ]),
             Box::new(anthem()),
         ));
@@ -396,7 +394,10 @@ mod tests {
     #[test]
     fn a_condition_that_names_no_zone_leaves_the_default() {
         let kird_ape = ability(Effect::Conditional(
-            Condition::YouControlPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+            Condition::Player {
+                players: PlayerSet::You,
+                fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
+            },
             Box::new(anthem()),
         ));
         assert_eq!(

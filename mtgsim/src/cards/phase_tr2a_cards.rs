@@ -61,7 +61,7 @@ fn counter_on_this() -> Effect {
 ///   → `phase_tr2a_integration_test::paladin_gains_its_last_toughness_and_nothing_below_zero`.
 pub fn paladin_of_atonement() -> Arc<CardData> {
     let lost_life_last_turn =
-        Condition::LastTurn(HistoryCount { whose: PlayerSet::You, fact: TurnFact::LifeLost, is: CountIs::AtLeast(1) });
+        Condition::LastTurn(HistoryCount { players: PlayerSet::You, fact: TurnFact::LifeLost, is: CountIs::AtLeast(1) });
     CardDataBuilder::new("Paladin of Atonement")
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .color(Color::White)

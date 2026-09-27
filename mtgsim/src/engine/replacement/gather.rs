@@ -544,7 +544,7 @@ fn push_static_ability_replacements(
             Effect::Replacement(def) => def,
             Effect::Conditional(condition, inner) => {
                 let Effect::Replacement(def) = &**inner else { continue };
-                if !settled_holds(condition, game, id) {
+                if !settled_holds(condition, game, id, None) {
                     continue;
                 }
                 def

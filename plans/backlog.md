@@ -669,6 +669,12 @@ critical path, which lists neither; that is the owner's line to add.
   CR 113.6's zone predicate, where this entry would later arrive to find its
   answer already written in the wrong place.
 
+  **TR-2b's customer (the owner's review of #193, 2026-09-27):**
+  `a_draw_trigger_reads_the_power_of_a_card_discarded_in_response` reads a
+  drawn card's power though no player has seen it, which no paper card does.
+  God-Eternal Kefnet reveals the card as it is drawn, and the fixture gains
+  that reveal with this entry's.
+
   **RE-8's own customers, for whoever takes this:** Nephalia Academy's "you
   may reveal that card" and Opt's "look at the top card", both no-ops today;
   CR 701.9c's undefined characteristics for a discard put into a hidden zone

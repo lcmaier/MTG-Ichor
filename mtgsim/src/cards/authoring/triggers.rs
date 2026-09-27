@@ -59,9 +59,9 @@ impl From<ObjectFilter> for TriggerSubject {
     }
 }
 
-/// Whose step or phase a card means — the word for the one `Option` on a
-/// [`TriggerEvent`] where `None` is a *distributive* reading rather than an
-/// unasked question. "At the beginning of each upkeep" is `whose: None` at
+/// Whose step, phase, draw or shuffle a card means — the word for the
+/// `Option`s on a [`TriggerEvent`] where `None` is a *distributive* reading
+/// rather than an unasked question. "At the beginning of each upkeep" is `whose: None` at
 /// the type, and a card that spells it `None` tells the next reader
 /// "nobody's upkeep". Everywhere else `None` does mean the arm does not
 /// ask, and a card says that by not calling a constructor that sets it.
@@ -109,6 +109,7 @@ impl CountableEvent {
     pub fn once_per_event(mut self) -> TriggerEvent {
         match &mut self.0 {
             TriggerEvent::ZoneChange { multiplicity, .. }
+            | TriggerEvent::DrawsCard { multiplicity, .. }
             | TriggerEvent::DamageDealt { multiplicity, .. }
             | TriggerEvent::GainsLife { multiplicity, .. }
             | TriggerEvent::LosesLife { multiplicity, .. }
@@ -123,6 +124,7 @@ impl CountableEvent {
             | TriggerEvent::StepBegins { .. }
             | TriggerEvent::TurnBegins { .. }
             | TriggerEvent::CastsSpell { .. }
+            | TriggerEvent::ShufflesLibrary { .. }
             | TriggerEvent::AbilityTriggers { .. } => {
                 unreachable!("only an arm with a multiplicity becomes a CountableEvent")
             }
@@ -165,6 +167,17 @@ pub fn leaves_the_battlefield(subject: impl Into<TriggerSubject>) -> CountableEv
         owner: None,
         multiplicity: Multiplicity::PerOccurrence,
     })
+}
+
+/// "Whenever [whose player] draw[s] a card" (CR 121.1): one trigger per card
+/// drawn.
+pub fn draws_a_card(whose: Whose) -> CountableEvent {
+    CountableEvent(TriggerEvent::DrawsCard { player: whose.player_ref(), multiplicity: Multiplicity::PerOccurrence })
+}
+
+/// "Whenever [whose player] shuffle[s] their library" (CR 701.24).
+pub fn shuffles_their_library(whose: Whose) -> TriggerEvent {
+    TriggerEvent::ShufflesLibrary { player: whose.player_ref() }
 }
 
 /// "Whenever [subject] enters" (CR 603.6a). Which zone it came from and

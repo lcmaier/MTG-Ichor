@@ -130,8 +130,8 @@ fn this_turns_row(game: &GameState, player: PlayerId) -> TurnSummary {
     game.players[player].history.this_turn(game.turn_number)
 }
 
-fn this_turn(whose: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
-    Condition::ThisTurn(HistoryCount { whose, fact, is })
+fn this_turn(players: PlayerSet, fact: TurnFact, is: CountIs) -> Condition {
+    Condition::ThisTurn(HistoryCount { players, fact, is })
 }
 
 /// `player` gains control of `victim` the way Act of Treason's resolution
@@ -193,11 +193,11 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
-    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs));
-    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs));
-    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs));
+    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs, None));
+    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs, None));
+    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs, None));
     let untouched = this_turn(PlayerSet::You, TurnFact::DamageTaken, CountIs::AtMost(0));
-    assert!(settled_holds(&untouched, &game, theirs));
+    assert!(settled_holds(&untouched, &game, theirs, None));
 }
 
 /// A creature stolen and then destroyed died under its thief's control, so
@@ -1064,7 +1064,7 @@ fn a_trigger_reads_how_many_times_it_has_resolved_this_turn() {
 #[test]
 fn since_your_last_turn_spans_the_turns_after_it() {
     let quiet = Condition::SinceYourLastTurn(HistoryCount {
-        whose: PlayerSet::You,
+        players: PlayerSet::You,
         fact: TurnFact::LifeLost,
         is: CountIs::AtMost(0),
     });
@@ -1111,7 +1111,7 @@ fn this_game_sums_every_turn_so_far() {
             .mana_cost(ManaCost::build(&[], 0))
             .ability(spell_ability(Effect::Conditional(
                 Condition::ThisGame(HistoryCount {
-                    whose: PlayerSet::You,
+                    players: PlayerSet::You,
                     fact: TurnFact::SpellsCast,
                     is: CountIs::AtMost(1),
                 }),

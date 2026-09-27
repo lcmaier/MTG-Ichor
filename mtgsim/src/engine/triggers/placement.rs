@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use crate::engine::trace_records;
+use crate::engine::triggers::bound_reads::BoundReads;
 use crate::objects::object::GameObject;
 use crate::state::game_state::{GameState, StackEntry};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -97,13 +98,36 @@ impl GameState {
             .filter_map(|seq| self.pending_triggers.iter().find(|t| t.seq == *seq))
             .collect();
         let Some(first) = entries.first() else { return true };
+        let reads = first.binding.def.bound_reads();
         entries.iter().all(|t| {
             t.tier() == TriggerTier::First
                 && t.instances.is_empty()
                 && t.binding.def == first.binding.def
-                && t.binding.records == first.binding.records
-                && t.binding.subject == first.binding.subject
+                && self.entries_agree_on(reads, first, t)
         })
+    }
+
+    /// Whether two entries of one def agree on every fact it reads (item 163).
+    fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
+        let (x, y) = (&a.binding, &b.binding);
+        let unread = |fact| !reads.contains(fact);
+        (unread(BoundReads::SUBJECT) || x.subject == y.subject)
+            && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
+            && (unread(BoundReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
+            && (unread(BoundReads::CHARACTERISTICS)
+                || (x.subject == y.subject && x.records.first() == y.records.first()))
+            && (unread(BoundReads::SOURCE) || a.origin == b.origin)
+            && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
+    }
+
+    /// "This ability"'s state: whether its CR 603.2h action is taken this
+    /// turn, and how many times it has resolved (CR 603.7h).
+    fn ability_state(&self, entry: &PendingTrigger) -> (bool, u32) {
+        let TriggerOrigin::Object(identity) = entry.origin;
+        (
+            self.action_taken_this_turn.contains(&(identity, entry.controller)),
+            self.resolutions_this_turn_of(identity),
+        )
     }
 
     /// One trigger onto the stack (CR 603.3, 603.3d): `activate_ability`'s
@@ -159,6 +183,7 @@ impl GameState {
             cast_from: None,
             ability_identity: Some(identity),
             trigger: Some(pending.binding.clone()),
+            departed: pending.departed.clone(),
         };
         let chosen = entry.chosen_targets.clone();
         self.set_stack_entry(entry);

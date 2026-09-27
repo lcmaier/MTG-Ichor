@@ -14,7 +14,9 @@
 //! refusal, the order, the targets. It runs inside the CR 117.5 / 704.3 loop
 //! in `engine::priority`, over the seat list in APNAP order, and the drain
 //! removes each entry as it places it so a clone taken at the ordering
-//! prompt resumes by running the drain again (item 40).
+//! prompt resumes by running the drain again (item 40). The order is not
+//! asked when it cannot matter: one def, and agreement on every fact it
+//! reads ([`bound_reads`]).
 //!
 //! [`audit`] answers every dispatch again the slow way in a game that turns
 //! it on, and panics when the two answers differ (§4.10).
@@ -26,6 +28,7 @@
 
 pub mod audit;
 pub mod binding;
+pub mod bound_reads;
 pub mod dispatch;
 pub mod history;
 pub mod placement;
