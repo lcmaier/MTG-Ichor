@@ -202,7 +202,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .rules_text("This creature gets +2/+2 as long as there's a red card in your graveyard.")
         .ability(static_ability(Effect::Conditional(
             Condition::Player {
-                whose: PlayerSet::You,
+                players: PlayerSet::You,
                 fact: PlayerFact::CardInGraveyard(ObjectFilter::ByColor(Color::Red)),
             },
             Box::new(Effect::Atom(

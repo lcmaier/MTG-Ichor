@@ -761,9 +761,9 @@ Three sketched fields are not in the struct:
 - CR 603.7h's count is not a row. It lives on `GameState`, keyed by the
   ability (§6.5).
 
-A leaf takes a `HistoryCount { whose: PlayerSet, fact: TurnFact, is:
+A leaf takes a `HistoryCount { players: PlayerSet, fact: TurnFact, is:
 CountIs }`. Its `condition_reads` arm declares the source's controller,
-because "whose" resolves against "you". CR 103.5's opening hands are drawn
+because `players` resolves against "you". CR 103.5's opening hands are drawn
 before the first turn, so `Game::setup` clears the rows they wrote.
 
 **Amended 2026-09-24 (`cr-coverage-audit.md` §4a, pass 3): a count "before

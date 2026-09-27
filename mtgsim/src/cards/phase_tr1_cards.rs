@@ -229,7 +229,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .ability(triggered_ability(TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: Some(Condition::Player {
-                whose: PlayerSet::You,
+                players: PlayerSet::You,
                 fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(40)),
             }),
             limit: None,

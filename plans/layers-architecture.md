@@ -2337,7 +2337,7 @@ Effect::Conditional(
     Condition::All(vec![
         // CR 113.6b — the clause that says where this ability functions.
         Condition::SourceInZone(ZoneSet::GRAVEYARD),
-        Condition::Player { whose: PlayerSet::You, fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))) },
+        Condition::Player { players: PlayerSet::You, fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))) },
     ]),
     Box::new(/* Layer 6 grant over creatures you control */),
 )

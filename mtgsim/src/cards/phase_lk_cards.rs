@@ -102,7 +102,7 @@ pub fn wonder() -> Arc<CardData> {
                 // CR 113.6b — the clause that says where this ability functions.
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
                 Condition::Player {
-                    whose: PlayerSet::You,
+                    players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
                 },
             ]),

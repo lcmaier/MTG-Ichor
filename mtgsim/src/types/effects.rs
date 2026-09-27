@@ -483,7 +483,7 @@ pub enum Duration {
 /// registered card needs one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Condition {
-    /// "[Whose] [fact]": a fact about each player `whose` names, now — "you
+    /// "[Players] [fact]": a fact about each player `players` names, now — "you
     /// control a Forest", "an opponent has 10 or less life". It holds when any
     /// player the set names, among those still in the game, meets the fact: an
     /// opponent is one opponent, and `PlayerSet::You` is CR 109.5's "you".
@@ -492,7 +492,7 @@ pub enum Condition {
     /// history leaves' [`crate::types::history::HistoryCount`]: "a creature
     /// died this turn" is every row added up, while a life total is not a
     /// count and "an opponent controls three artifacts" is one opponent's three.
-    Player { whose: PlayerSet, fact: PlayerFact },
+    Player { players: PlayerSet, fact: PlayerFact },
     SpellWasKicked,
     ModeChosen(usize),
     /// CR 113.6b's clause — "as long as this card is in your graveyard"

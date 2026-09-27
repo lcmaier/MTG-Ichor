@@ -1308,7 +1308,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         )
         .ability(static_conditional_replacement(
-            Condition::Player { whose: PlayerSet::You, fact: PlayerFact::LibraryEmpty },
+            Condition::Player { players: PlayerSet::You, fact: PlayerFact::LibraryEmpty },
             // Any individual draw, whatever instructed it: the draw step's,
             // a cantrip's, the seventh of Stunning Reversal's. The instruction
             // (`DrawCards`) is not what this watches — CR 121.2 performs the

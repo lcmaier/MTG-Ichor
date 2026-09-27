@@ -445,7 +445,7 @@ fn reckoner() -> Arc<CardData> {
     let def = TriggerDef {
         condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
         intervening_if: Some(Condition::Player {
-            whose: PlayerSet::You,
+            players: PlayerSet::You,
             fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(10)),
         }),
         limit: None,

@@ -373,7 +373,7 @@ mod tests {
             Condition::All(vec![
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
                 Condition::Player {
-                    whose: PlayerSet::You,
+                    players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Island))),
                 },
             ]),
@@ -394,7 +394,7 @@ mod tests {
     fn a_condition_that_names_no_zone_leaves_the_default() {
         let kird_ape = ability(Effect::Conditional(
             Condition::Player {
-                whose: PlayerSet::You,
+                players: PlayerSet::You,
                 fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
             },
             Box::new(anthem()),

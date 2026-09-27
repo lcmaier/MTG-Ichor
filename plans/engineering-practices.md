@@ -279,9 +279,9 @@ review has already had to make:
    and `TriggersOnlyOnceEachTurn`, not `DoOnceEachTurn` and `OnceEachTurn`,
    which differ by one word and name two different rules (CR 603.2h, and
    Elvish Warmaster's ruling).
-8. **Say whose.** A condition about a player names which one:
-   `Condition::Player { whose, .. }` and `HistoryCount { whose, .. }`, never a
-   leaf that assumes "you".
+8. **Name the players.** A condition about a player names which ones:
+   `Condition::Player { players, .. }` and `HistoryCount { players, .. }`,
+   never a leaf that assumes "you".
 
 **One spelling per concept.** When a second type needs a name the first already
 has, it takes the same one: `TriggerSubject::ThisObject` and

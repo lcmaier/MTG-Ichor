@@ -513,7 +513,7 @@ fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
         costs: Vec::new(),
         effect: Effect::Conditional(
             mtgsim::types::effects::Condition::Player {
-                whose: mtgsim::types::effects::PlayerSet::You,
+                players: mtgsim::types::effects::PlayerSet::You,
                 fact: mtgsim::types::effects::PlayerFact::LibraryEmpty,
             },
             Box::new(Effect::Restriction(Box::new(RestrictionDef::new(Restriction::Event {

@@ -321,7 +321,7 @@ pub fn kird_ape() -> Arc<CardData> {
         .rules_text("This creature gets +1/+2 as long as you control a Forest.")
         .ability(static_ability(Effect::Conditional(
             Condition::Player {
-                whose: PlayerSet::You,
+                players: PlayerSet::You,
                 fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
             },
             Box::new(Effect::Atom(
@@ -418,7 +418,7 @@ pub fn simian_clause() -> Arc<CardData> {
         )
         .ability(static_ability(Effect::Conditional(
             Condition::Player {
-                whose: PlayerSet::You,
+                players: PlayerSet::You,
                 fact: PlayerFact::ControlsPermanent(ObjectFilter::BySubtype(Subtype::Land(LandType::Forest))),
             },
             Box::new(Effect::Atom(

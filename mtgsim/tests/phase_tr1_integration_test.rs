@@ -1229,7 +1229,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
             triggered_ability(TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(Condition::Player {
-                    whose: PlayerSet::You,
+                    players: PlayerSet::You,
                     fact: PlayerFact::LifeAtLeast(AmountExpr::Fixed(20)),
                 }),
                 limit: None,

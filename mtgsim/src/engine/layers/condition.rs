@@ -66,8 +66,8 @@ pub(super) fn holds(
     match condition {
         // "As long as you control a Forest", "as long as an opponent has 10 or
         // less life": a fact about each player the set names.
-        Condition::Player { whose, fact } => {
-            player_fact_holds(whose, fact, game, board, source, layer_index, locked_you)
+        Condition::Player { players, fact } => {
+            player_fact_holds(players, fact, game, board, source, layer_index, locked_you)
         }
 
         // CR 113.6b's clause, and **the leg that retires Wonder's row**: the
@@ -201,7 +201,8 @@ enum HistorySpan {
     ThisGame,
 }
 
-/// A history leaf: the counts `count.whose` names, each over `span`, summed.
+/// A history leaf: the counts of the players `count.players` names, each over
+/// `span`, summed.
 fn history_holds(
     count: &HistoryCount,
     span: HistorySpan,
@@ -220,7 +221,7 @@ fn history_holds(
         .players
         .iter()
         .enumerate()
-        .filter(|(player, _)| count.whose.contains(you, *player))
+        .filter(|(player, _)| count.players.contains(you, *player))
         .map(|(player, state)| {
             let theirs = &state.history;
             let counts = match (span, yours) {
@@ -264,12 +265,12 @@ fn you_for(
     })
 }
 
-/// [`Condition::Player`]: does any player `whose` names, among those still in
-/// the game, meet `fact`? "Whose" is resolved against CR 109.5's "you"
+/// [`Condition::Player`]: does any player `players` names, among those still
+/// in the game, meet `fact`? The set is resolved against CR 109.5's "you"
 /// ([`you_for`]). A departed player's permanents left with them (CR 800.4a),
 /// so no fact about the board can name them.
 fn player_fact_holds(
-    whose: &PlayerSet,
+    players: &PlayerSet,
     fact: &PlayerFact,
     game: &GameState,
     board: &Board<'_>,
@@ -280,7 +281,7 @@ fn player_fact_holds(
     let Some(you) = you_for(game, board, source, layer_index, locked_you) else {
         return false;
     };
-    let named = |player: PlayerId| game.in_game(player) && whose.contains(you, player);
+    let named = |player: PlayerId| game.in_game(player) && players.contains(you, player);
     let any_named = |meets: &dyn Fn(&PlayerState) -> bool| {
         game.players.iter().enumerate().any(|(player, state)| named(player) && meets(state))
     };
@@ -381,11 +382,11 @@ mod tests {
     }
 
     fn yours(fact: PlayerFact) -> Condition {
-        Condition::Player { whose: PlayerSet::You, fact }
+        Condition::Player { players: PlayerSet::You, fact }
     }
 
     fn an_opponents(fact: PlayerFact) -> Condition {
-        Condition::Player { whose: PlayerSet::Opponents, fact }
+        Condition::Player { players: PlayerSet::Opponents, fact }
     }
 
     #[test]

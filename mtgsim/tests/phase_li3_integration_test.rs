@@ -297,7 +297,7 @@ fn test_a_conditional_effect_that_has_started_keeps_applying_in_later_layers() {
         builder
             .ability(static_ability(Effect::Conditional(
                 Condition::Player {
-                    whose: PlayerSet::You,
+                    players: PlayerSet::You,
                     fact: PlayerFact::ControlsPermanent(ObjectFilter::ByColor(Color::White)),
                 },
                 Box::new(Effect::Sequence(vec![
