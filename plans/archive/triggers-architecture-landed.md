@@ -845,3 +845,37 @@ read is answered:
 - The elision's change is which columns are compared, and `bound_reads.rs`'s
   exhaustive match is that table.
 
+### Review round 4 (2026-09-27)
+
+The owner's code review of #193, after the three design rounds. It changed
+names and shapes, and no behavior:
+- **One evaluator.** `ConditionYou` was `Option<PlayerId>` under another
+  name, and it carried a second wrapper, `settled_holds_for`. `settled_holds`
+  takes `locked_you: Option<PlayerId>`. `None` reads CR 109.5's "you" live, as
+  a static ability does, and the three askers that have fixed it pass `Some`.
+- **`players`, not `whose`,** on `Condition::Player` and TR-2a's
+  `HistoryCount`. The field is a `PlayerSet`, and `whose` read as a question
+  at the call site.
+- **`BoundReads` is a bit set**, built like `Channels`, and each walker is a
+  pure function that returns the facts it reads.
+- **`EventKind` counts itself.** `counted_enum!` reads `COUNT` off the variant
+  list, where the last variant's index plus one was a second edit a new kind
+  could forget. The mask derives `Default`.
+- **`ApplyOptionalEffect`**, beside `ApplyOptionalReplacement`.
+- **Names and comments:** `hand_over_departed_frame`, `is_permanent`,
+  `ResolutionWalk::start()`, and four comments that said less than they meant.
+- **Tests:** Innocent Blood's order at four seats, where the caster chooses
+  third; the countered spell and the discarded card as two tests; the stolen
+  source's rules cited. Twenty-six tests.
+- **Docs:** the glossary defines dispatch without leaning on "matcher", and
+  defines the matcher. `engineering-practices.md` gains §2c, one collection of
+  records rather than two kept in step, and §4's docs figure is written net of
+  generated files.
+- **Filed, not built:** `StackEntry.effect` is an owned `Effect` that a fork
+  deep-copies, item 180's shape, bounded by the stack (`codebase-state.md`
+  item 183). It is its own small PR after this one.
+
+The round's head played the same games as the landing head: every counter
+`IDENTICAL` on both pools at two seats and four, and the audit agreed on the
+same dispatches (`fuzz-record.md`, TR-2b).
+

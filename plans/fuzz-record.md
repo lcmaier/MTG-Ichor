@@ -164,6 +164,12 @@ games), `performance` / `stress`: `Layer walks` 772 / 1,077, `Memo hits`
 Timing ===`, on both pools at two seats and four. Every timing round of the
 sitting also reproduced its counter run.
 
+**Review round 4** (the owner's code review of #193): names and shapes, no
+behavior. The round's head (`2b0a4bb`) against the landing head (`1a36b55`),
+both pools at two seats and four: every counter `IDENTICAL`, cost rows
+included, and the audit agreed on the same dispatches, 175,494 / 194,377 and
+346,773 / 401,732.
+
 **Re-recorded 2026-09-25 for LL** (a card in a library or a hand walked only
 when something reads it; `layers-architecture.md` §13e; `codebase-state.md`
 items 181 and 182 closed, 183 and 184 filed; `roadmap-v2.md` A6b). No pool

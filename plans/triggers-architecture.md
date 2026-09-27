@@ -2232,7 +2232,7 @@ a filter, a hand's count in the layer walk, and each opponent's life loss. The
 the asker (§6.1; main item 169). The elision over what a def reads, with the
 source row (§5.2; item 163's elision half). Three cards: Nykthos Paragon,
 Psychosis Crawler and Cosi's Trickster. Crawler and the Trickster are pooled
-(96 → 98), and all three are in `stress` (175 → 178). Twenty-four tests;
+(96 → 98), and all three are in `stress` (175 → 178). Twenty-six tests;
 §13's TR-2b row is clean.
 
 **What moved on the way in.** It landed at +2,430 in code and tests against
@@ -2252,7 +2252,7 @@ two Warchiefs it now does. The shipped arm places 2.2 and 5.0 triggers a game
 on `performance`; Crawler places 0.7 of them at two seats.
 
 → `plans/archive/triggers-architecture-landed.md`, "TR-2b" (the design as
-reviewed, what landing changed, and why there is no trace page).
+reviewed, what landing and the code review changed, and no trace page).
 
 ### TR-3 — delayed, reflexive, and "until" — TR-3a and TR-3b (2,800–3,600)
 

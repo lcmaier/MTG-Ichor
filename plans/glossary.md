@@ -497,10 +497,20 @@ somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
 of this project's refactors are re-spellings: the behaviour is already right
 and the change is where a reader would look for it.
 
-**dispatch** — the matcher's run over one window: the candidates behind the
-gate, each triggered def against each record, the queue written, `AbilityTriggered`
-emitted per queued trigger, a mana trigger resolved at once (CR 605.4a). The
-first of CR 603's two instants; placement is the second. → `engine::triggers::dispatch`.
+**dispatch** — CR 603.2's first instant, run once over a window of records:
+when the outermost batch closes, or at an emission outside any batch. It finds
+the objects whose triggered abilities read any of the window's record kinds,
+asks each of those abilities about each record (the *matcher*), queues a
+`PendingTrigger` for every match with one `AbilityTriggered` record, and
+resolves a mana ability's trigger at once (CR 605.4a). Placement is the second
+instant. → `engine::triggers::dispatch`.
+
+**matcher** — the question dispatch asks one triggered ability about one
+record: does the record fit the ability's trigger event (the arm, its subject,
+its players), and do its once-each-turn limits and its intervening "if" (CR
+603.4) let it trigger? Yes queues a trigger. Besides the replacement pipeline,
+the only code that may branch on a zone change's `cause`.
+→ `match_def` in `engine::triggers::dispatch`.
 
 **multiplicity** — CR 603.2c's question about one arm: does it trigger once
 per matching record, or once per window in which any record matched? The rule

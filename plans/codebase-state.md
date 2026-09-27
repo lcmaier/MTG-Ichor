@@ -8461,6 +8461,17 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      and shared stack objects make a spare slot 16 bytes instead of 664,
      so the design reads the rule after its own change.
 
+     **Found at TR-2b's review (2026-09-27): a stacked effect is copied
+     whole.** `StackEntry.effect` is an owned `Effect`, a deep copy of the
+     def's tree, so a fork copies every stacked effect's boxes: an edict's
+     `ChosenBy` adds a box and a pick list. A trigger's entry already holds
+     its def behind an `Arc` in `trigger`, so there the copy is redundant.
+     This is item 180's shape, bounded by the stack, and `clone_bound_test`
+     passes. **The owner's call: its own small PR after TR-2b merges**,
+     `effect: Arc<Effect>` shared from the def, ahead of B10's shared stack
+     objects. **Sized:** about 25 sites, most of them test literals of
+     `StackEntry`.
+
 184. **CR 613.6's lock carries one row's set to another row of the same
      effect in the same layer.** `row_affected` answers `Locked` for every row
      of a group after its first fresh one, in any layer, but CR 613.6 locks a

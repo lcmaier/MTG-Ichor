@@ -294,6 +294,21 @@ names against the list and renames the failures in a mechanical commit of their
 own, counted before it runs. The live docs follow the rename; `plans/archive/`
 does not.
 
+## 2c. One collection of records, never two kept in step
+
+Added 2026-09-27, at TR-2b's review. Two collections whose entries must stay
+paired, by position or by key, are one record split in two: a list of objects
+beside a list of their frames, or the stack's entries beside a map of what each
+names. Every writer then has to remember the other half, and a missed half is
+silent until a reader pairs the wrong two.
+
+**Put the fields on one record.** TR-2b's `departed` frames are a field of the
+entry that names them (`PendingTrigger`, `StackEntry`, `ResolvingObject`), so
+they move with the entry and die with it. Its design rejected a `GameState` map
+keyed by `ObjectRef` for exactly this reason. A collection *derived* from
+another and dropped at once, such as `objects_entries_name`, rebuilt for the one
+batch that needs it, is not a second copy, because nothing keeps it.
+
 ## 3. Two card pools
 
 `cards/registry.rs` builds two:
@@ -1094,7 +1109,9 @@ until it was done.
 docs reported beside it — what the phases before TR-1 were held to (RE-8 2,225,
 RE-9 1,797, A4i 2,463, each 3,000–3,300 whole), since a phase's docs figure
 follows from its trace page and the eviction rule below, not from its design
-(the TR-1 review, 2026-09-22).
+(the TR-1 review, 2026-09-22). The docs figure is net of generated files:
+`state-of-play.md`, `rulings-ledger.json` and what `specdb.py build` writes
+follow from the tree, and nobody writes them (TR-2b's review, 2026-09-27).
 
 **Hunt the gaps card by card before counting.** For each card a phase names,
 read every clause against the tree and list each facility it needs that the
