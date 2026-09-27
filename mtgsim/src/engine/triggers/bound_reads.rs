@@ -3,10 +3,13 @@
 //! when they agree on every fact the def reads; a fact it does not read may
 //! differ.
 //!
-//! Every match here is exhaustive, so a new leaf does not compile until it
-//! says what it reads. A leaf that carries a definition of its own — a
-//! replacement, a restriction, a copy — is read as reading everything, which
-//! only ever asks.
+//! Each function below answers for one node of the def: the facts it reads,
+//! together with its children's. Every match is exhaustive, so a new leaf does
+//! not compile until it says what it reads. A leaf that carries a definition
+//! of its own — a replacement, a restriction, a copy — is read as reading
+//! everything, which only ever asks.
+
+use std::ops::BitOr;
 
 use crate::types::effects::{
     AmountExpr, Condition, Duration, Effect, EffectRecipient, ObjectFilter, PickCount, PlayerFact, PlayerRef,
@@ -14,80 +17,71 @@ use crate::types::effects::{
 };
 use crate::types::triggers::{TriggerDef, TriggerLimit};
 
-/// The facts of an entry a def reads, each one a column the elision compares.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BoundReads {
-    /// "That object", "that spell": the binding's subject.
-    pub subject: bool,
-    /// "That player".
-    pub player: bool,
-    /// "That many".
-    pub amount: bool,
-    /// "Its power", "its toughness": the subject, and the record its frame
-    /// comes from.
-    pub characteristics: bool,
-    /// "This object": the source the entry's origin names.
-    pub source: bool,
-    /// "This ability": its CR 603.2h gate and its CR 603.7h count.
-    pub ability: bool,
-}
+/// A set of the facts of an entry a def reads, each one a column the elision
+/// compares. Built like `Channels`: a bit per fact.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BoundReads(u8);
 
 impl BoundReads {
-    const EVERYTHING: BoundReads =
-        BoundReads { subject: true, player: true, amount: true, characteristics: true, source: true, ability: true };
+    pub const NOTHING: BoundReads = BoundReads(0);
+    /// "That object", "that spell": the binding's subject.
+    pub const SUBJECT: BoundReads = BoundReads(1 << 0);
+    /// "That player".
+    pub const PLAYER: BoundReads = BoundReads(1 << 1);
+    /// "That many".
+    pub const AMOUNT: BoundReads = BoundReads(1 << 2);
+    /// "Its power", "its toughness": the subject, and the record its frame
+    /// comes from.
+    pub const CHARACTERISTICS: BoundReads = BoundReads(1 << 3);
+    /// "This object": the source the entry's origin names.
+    pub const SOURCE: BoundReads = BoundReads(1 << 4);
+    /// "This ability": its CR 603.2h gate and its CR 603.7h count.
+    pub const ABILITY: BoundReads = BoundReads(1 << 5);
+    const EVERYTHING: BoundReads = BoundReads((1 << 6) - 1);
+
+    pub fn contains(self, fact: BoundReads) -> bool {
+        self.0 & fact.0 == fact.0
+    }
+}
+
+impl BitOr for BoundReads {
+    type Output = BoundReads;
+    fn bitor(self, rhs: BoundReads) -> BoundReads {
+        BoundReads(self.0 | rhs.0)
+    }
 }
 
 impl TriggerDef {
     /// Every fact of its entry this def reads: its effect's, its intervening
     /// "if"'s, and CR 603.2h's gate's.
     pub fn bound_reads(&self) -> BoundReads {
-        let mut out = BoundReads::default();
-        effect(&self.effect, &mut out);
-        if let Some(intervening_if) = &self.intervening_if {
-            condition(intervening_if, &mut out);
-        }
-        match self.limit {
-            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => out.ability = true,
-            Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => {}
-        }
-        out
+        let gate = match self.limit {
+            Some(TriggerLimit::DoThisOnlyOnceEachTurn) => BoundReads::ABILITY,
+            Some(TriggerLimit::TriggersOnlyOnceEachTurn | TriggerLimit::FirstTimeEachTurn) | None => BoundReads::NOTHING,
+        };
+        effect(&self.effect) | self.intervening_if.as_ref().map_or(BoundReads::NOTHING, condition) | gate
     }
 }
 
-fn effect(e: &Effect, out: &mut BoundReads) {
+fn effect(e: &Effect) -> BoundReads {
     match e {
-        Effect::Atom(verb, recipient_of) => {
-            primitive(verb, out);
-            recipient(recipient_of, out);
-        }
-        Effect::Sequence(effects) => effects.iter().for_each(|e| effect(e, out)),
-        Effect::Conditional(test, inner) => {
-            condition(test, out);
-            effect(inner, out);
-        }
-        Effect::Optional { chooser, effect: inner } => {
-            player_ref(chooser, out);
-            effect(inner, out);
-        }
-        Effect::ForEach(over, inner) => {
-            selector(over, out);
-            effect(inner, out);
-        }
-        Effect::Repeat(times, inner) => {
-            amount(times, out);
-            effect(inner, out);
-        }
+        Effect::Atom(verb, recipient_of) => primitive(verb) | recipient(recipient_of),
+        Effect::Sequence(effects) => effects.iter().fold(BoundReads::NOTHING, |reads, e| reads | effect(e)),
+        Effect::Conditional(test, inner) => condition(test) | effect(inner),
+        Effect::Optional { chooser, effect: inner } => player_ref(chooser) | effect(inner),
+        Effect::ForEach(over, inner) => selector(over) | effect(inner),
+        Effect::Repeat(times, inner) => amount(times) | effect(inner),
         // CR 603.3c's modes are chosen at placement, so a modal def is never
         // elided. The other four are static abilities' bodies.
         Effect::Modal { .. }
         | Effect::Replacement(_)
         | Effect::Restriction(_)
         | Effect::CostModification(_)
-        | Effect::Triggered(_) => *out = BoundReads::EVERYTHING,
+        | Effect::Triggered(_) => BoundReads::EVERYTHING,
     }
 }
 
-fn recipient(r: &EffectRecipient, out: &mut BoundReads) {
+fn recipient(r: &EffectRecipient) -> BoundReads {
     match r {
         // An instance is never elided, and "you" is one player across the
         // entries the elision compares.
@@ -96,24 +90,21 @@ fn recipient(r: &EffectRecipient, out: &mut BoundReads) {
         | EffectRecipient::Target(..)
         | EffectRecipient::Choose(..)
         | EffectRecipient::SameInstanceAs(_)
-        | EffectRecipient::EachOf(_) => {}
-        EffectRecipient::ThisObject | EffectRecipient::Host => out.source = true,
-        EffectRecipient::TriggeringObject => out.subject = true,
-        EffectRecipient::TriggeringPlayer => out.player = true,
-        EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among, out),
-        EffectRecipient::ChosenBy(choice) => {
-            recipient(&choice.chooser, out);
-            for pick in &choice.picks {
-                filter(&pick.filter, out);
-                match &pick.count {
-                    PickCount::Exactly(n) => amount(n, out),
-                }
-            }
-        }
+        | EffectRecipient::EachOf(_) => BoundReads::NOTHING,
+        EffectRecipient::ThisObject | EffectRecipient::Host => BoundReads::SOURCE,
+        EffectRecipient::TriggeringObject => BoundReads::SUBJECT,
+        EffectRecipient::TriggeringPlayer => BoundReads::PLAYER,
+        EffectRecipient::FilteredPermanents(among) | EffectRecipient::FilteredObjectsIn(among, _) => filter(among),
+        EffectRecipient::ChosenBy(choice) => choice.picks.iter().fold(recipient(&choice.chooser), |reads, pick| {
+            let count = match &pick.count {
+                PickCount::Exactly(n) => amount(n),
+            };
+            reads | filter(&pick.filter) | count
+        }),
     }
 }
 
-fn amount(a: &AmountExpr, out: &mut BoundReads) {
+fn amount(a: &AmountExpr) -> BoundReads {
     match a {
         AmountExpr::Fixed(_)
         | AmountExpr::X
@@ -124,36 +115,32 @@ fn amount(a: &AmountExpr, out: &mut BoundReads) {
         | AmountExpr::ReplacedAmount
         | AmountExpr::UnspentMana(_)
         | AmountExpr::DamagePrevented
-        | AmountExpr::StartingLifeTotal => {}
-        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over, out),
-        AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner, out),
-        AmountExpr::SourcePower => out.source = true,
-        AmountExpr::TriggeringAmount => out.amount = true,
-        AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => out.characteristics = true,
+        | AmountExpr::StartingLifeTotal => BoundReads::NOTHING,
+        AmountExpr::CountOf(over) | AmountExpr::CardTypesAmong(over) => selector(over),
+        AmountExpr::Plus(inner, _) | AmountExpr::Multiply(inner, _) => amount(inner),
+        AmountExpr::SourcePower => BoundReads::SOURCE,
+        AmountExpr::TriggeringAmount => BoundReads::AMOUNT,
+        AmountExpr::TriggeringPower | AmountExpr::TriggeringToughness => BoundReads::CHARACTERISTICS,
     }
 }
 
-fn selector(s: &Selector, out: &mut BoundReads) {
+fn selector(s: &Selector) -> BoundReads {
     match s {
-        Selector::ControlledCreatures => {}
-        Selector::CreaturesInGraveyard(whose) | Selector::CardsInHand(whose) => player_ref(whose, out),
-        Selector::CardsInGraveyard(whose) => {
-            if let Some(whose) = whose {
-                player_ref(whose, out);
-            }
-        }
-        Selector::PermanentsMatching(among) => filter(among, out),
+        Selector::ControlledCreatures => BoundReads::NOTHING,
+        Selector::CreaturesInGraveyard(whose) | Selector::CardsInHand(whose) => player_ref(whose),
+        Selector::CardsInGraveyard(whose) => whose.as_ref().map_or(BoundReads::NOTHING, player_ref),
+        Selector::PermanentsMatching(among) => filter(among),
     }
 }
 
-fn player_ref(p: &PlayerRef, out: &mut BoundReads) {
+fn player_ref(p: &PlayerRef) -> BoundReads {
     match p {
-        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) => {}
-        PlayerRef::Owner => out.source = true,
+        PlayerRef::You | PlayerRef::Opponent | PlayerRef::Player(_) => BoundReads::NOTHING,
+        PlayerRef::Owner => BoundReads::SOURCE,
     }
 }
 
-fn filter(f: &ObjectFilter, out: &mut BoundReads) {
+fn filter(f: &ObjectFilter) -> BoundReads {
     match f {
         ObjectFilter::All
         | ObjectFilter::ByType(_)
@@ -162,31 +149,25 @@ fn filter(f: &ObjectFilter, out: &mut BoundReads) {
         | ObjectFilter::ByColor(_)
         | ObjectFilter::PowerLE(_)
         | ObjectFilter::Token
-        | ObjectFilter::OtherThanInstance(_) => {}
-        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose, out),
-        ObjectFilter::NotSource => out.source = true,
-        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
-            filter(a, out);
-            filter(b, out);
-        }
-        ObjectFilter::Not(inner) => filter(inner, out),
+        | ObjectFilter::OtherThanInstance(_) => BoundReads::NOTHING,
+        ObjectFilter::ByController(whose) | ObjectFilter::ByOwner(whose) => player_ref(whose),
+        ObjectFilter::NotSource => BoundReads::SOURCE,
+        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => filter(a) | filter(b),
+        ObjectFilter::Not(inner) => filter(inner),
     }
 }
 
-fn condition(c: &Condition, out: &mut BoundReads) {
+fn condition(c: &Condition) -> BoundReads {
     match c {
         Condition::Player { fact, .. } => match fact {
-            PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter(among, out),
-            PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount(n, out),
-            PlayerFact::LibraryEmpty => {}
+            PlayerFact::ControlsPermanent(among) | PlayerFact::CardInGraveyard(among) => filter(among),
+            PlayerFact::LifeAtLeast(n) | PlayerFact::LifeAtMost(n) => amount(n),
+            PlayerFact::LibraryEmpty => BoundReads::NOTHING,
         },
-        Condition::SpellWasKicked | Condition::SourceInZone(_) | Condition::SourceUntapped => out.source = true,
-        Condition::HostMatches(among) => {
-            out.source = true;
-            filter(among, out);
-        }
-        Condition::All(all) => all.iter().for_each(|c| condition(c, out)),
-        Condition::ResolvedThisTurn(_) => out.ability = true,
+        Condition::SpellWasKicked | Condition::SourceInZone(_) | Condition::SourceUntapped => BoundReads::SOURCE,
+        Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
+        Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
+        Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,
         // A mode makes the def modal, which reads everything; a history and
         // the walk's answer are one player's, the same for each entry.
         Condition::ModeChosen(_)
@@ -194,11 +175,11 @@ fn condition(c: &Condition, out: &mut BoundReads) {
         | Condition::LastTurn(_)
         | Condition::SinceYourLastTurn(_)
         | Condition::ThisGame(_)
-        | Condition::CostAnswer(_) => {}
+        | Condition::CostAnswer(_) => BoundReads::NOTHING,
     }
 }
 
-fn primitive(p: &Primitive, out: &mut BoundReads) {
+fn primitive(p: &Primitive) -> BoundReads {
     match p {
         Primitive::Destroy
         | Primitive::Exile
@@ -219,7 +200,7 @@ fn primitive(p: &Primitive, out: &mut BoundReads) {
         | Primitive::Tap
         | Primitive::Untap
         | Primitive::CounterSpell
-        | Primitive::CounterAbility => {}
+        | Primitive::CounterAbility => BoundReads::NOTHING,
         Primitive::Mill(n)
         | Primitive::PutTopCardsIntoHand(n)
         | Primitive::Discard(n, _)
@@ -230,22 +211,16 @@ fn primitive(p: &Primitive, out: &mut BoundReads) {
         | Primitive::Scry(n)
         | Primitive::Surveil(n)
         | Primitive::RemoveCounters(_, n)
-        | Primitive::CreateToken(_, n) => amount(n, out),
+        | Primitive::CreateToken(_, n) => amount(n),
         Primitive::AddCounters { amount: n, by, .. } | Primitive::GetCounters { amount: n, by, .. } => {
-            amount(n, out);
-            player_ref(by, out);
+            amount(n) | player_ref(by)
         }
         // The source deals the damage and makes the mana, and lifelink,
         // deathtouch, protection and a mana restriction read it.
-        Primitive::DealDamage { amount: n, .. } => {
-            out.source = true;
-            amount(n, out);
-        }
-        Primitive::ProduceMana(_) | Primitive::Attach | Primitive::Fight => out.source = true,
+        Primitive::DealDamage { amount: n, .. } => BoundReads::SOURCE | amount(n),
+        Primitive::ProduceMana(_) | Primitive::Attach | Primitive::Fight => BoundReads::SOURCE,
         Primitive::SetPowerToughness(p, t, lasts) | Primitive::ModifyPowerToughness(p, t, lasts) => {
-            amount(p, out);
-            amount(t, out);
-            duration(lasts, out);
+            amount(p) | amount(t) | duration(lasts)
         }
         Primitive::SwitchPowerToughness(lasts)
         | Primitive::GrantKeywordFlag(_, lasts)
@@ -255,16 +230,14 @@ fn primitive(p: &Primitive, out: &mut BoundReads) {
         | Primitive::LoseAllAbilities(lasts)
         | Primitive::ChangeColor(_, lasts)
         | Primitive::ChangeType(_, lasts)
-        | Primitive::GainControl(lasts) => duration(lasts, out),
-        Primitive::CreateReplacement(..) | Primitive::Restrict(..) | Primitive::Copy(..) => {
-            *out = BoundReads::EVERYTHING
-        }
+        | Primitive::GainControl(lasts) => duration(lasts),
+        Primitive::CreateReplacement(..) | Primitive::Restrict(..) | Primitive::Copy(..) => BoundReads::EVERYTHING,
     }
 }
 
-fn duration(d: &Duration, out: &mut BoundReads) {
+fn duration(d: &Duration) -> BoundReads {
     match d {
-        Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => {}
-        Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => out.source = true,
+        Duration::UntilEndOfTurn | Duration::UntilYourNextTurn | Duration::Indefinite => BoundReads::NOTHING,
+        Duration::WhileSourceOnBattlefield | Duration::WhileEnchanted | Duration::WhileEquipped => BoundReads::SOURCE,
     }
 }

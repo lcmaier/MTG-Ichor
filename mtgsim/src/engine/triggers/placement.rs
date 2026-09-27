@@ -110,12 +110,14 @@ impl GameState {
     /// Whether two entries of one def agree on every fact it reads (item 163).
     fn entries_agree_on(&self, reads: BoundReads, a: &PendingTrigger, b: &PendingTrigger) -> bool {
         let (x, y) = (&a.binding, &b.binding);
-        (!reads.subject || x.subject == y.subject)
-            && (!reads.player || self.bound_player(x) == self.bound_player(y))
-            && (!reads.amount || self.bound_amount(x) == self.bound_amount(y))
-            && (!reads.characteristics || (x.subject == y.subject && x.records.first() == y.records.first()))
-            && (!reads.source || a.origin == b.origin)
-            && (!reads.ability || self.ability_state(a) == self.ability_state(b))
+        let unread = |fact| !reads.contains(fact);
+        (unread(BoundReads::SUBJECT) || x.subject == y.subject)
+            && (unread(BoundReads::PLAYER) || self.bound_player(x) == self.bound_player(y))
+            && (unread(BoundReads::AMOUNT) || self.bound_amount(x) == self.bound_amount(y))
+            && (unread(BoundReads::CHARACTERISTICS)
+                || (x.subject == y.subject && x.records.first() == y.records.first()))
+            && (unread(BoundReads::SOURCE) || a.origin == b.origin)
+            && (unread(BoundReads::ABILITY) || self.ability_state(a) == self.ability_state(b))
     }
 
     /// "This ability"'s state: whether its CR 603.2h action is taken this
