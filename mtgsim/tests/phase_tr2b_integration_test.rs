@@ -404,6 +404,30 @@ fn each_opponent_chooses_in_turn_and_sacrifices_at_once() {
     assert!(gone.windows(2).all(|pair| pair[0].1 == pair[1].1), "one batch");
 }
 
+/// "Each player sacrifices a creature" (Innocent Blood) at four seats, cast by
+/// player 0 while player 2 is active: the caster chooses in APNAP order like
+/// every other player, third here and not first (CR 101.4).
+#[test]
+fn each_player_chooses_in_apnap_order_and_the_caster_waits_their_turn() {
+    let mut game = setup_game(4);
+    game.record_events();
+    set_active_player(&mut game, 2);
+    let source = put_on_battlefield(&mut game, card_of_type("Bloody Decree", CardType::Artifact), 0);
+    let mut first = Vec::new();
+    for seat in 0..4 {
+        first.push(put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat));
+        put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), seat);
+    }
+    let dp = RecordingDecisionProvider::picking(0);
+    let each_player = EffectRecipient::EachOf(PlayerGroup::set(PlayerSet::Everyone));
+    let ctx = ResolutionContext::untargeted(source, 0);
+    game.resolve_effect(&sacrifices(each_player, 1), &ctx, &dp).unwrap();
+
+    assert_eq!(dp.prompts(), 4, "each player chose one of two");
+    let order: Vec<ObjectId> = sacrificed(&game).iter().map(|(id, _)| *id).collect();
+    assert_eq!(order, vec![first[2], first[3], first[0], first[1]], "the active player first, the caster third");
+}
+
 /// The choice is every object verb's, not sacrifice's: "target player exiles
 /// a creature of their choice" through the same recipient.
 #[test]
@@ -432,6 +456,7 @@ fn an_exile_edict_chooses_through_the_same_recipient() {
 // CR 113.7a, 608.2h, 109.5 — what a trigger reads once what it names has gone
 // ---------------------------------------------------------------------------
 
+/// "Each opponent loses life equal to [the bound object]'s power."
 fn each_opponent_loses_its_power() -> Effect {
     Effect::Atom(
         Primitive::LoseLife(AmountExpr::TriggeringPower),
@@ -440,7 +465,7 @@ fn each_opponent_loses_its_power() -> Effect {
 }
 
 /// A 2/2: "When this creature enters, if you have 10 or more life, each
-/// opponent loses life equal to its power."
+/// opponent loses life equal to this creature's power."
 fn reckoner() -> Arc<CardData> {
     let def = TriggerDef {
         condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
@@ -478,7 +503,10 @@ fn an_enters_trigger_reads_its_controller_and_power_once_its_source_is_sacrifice
 }
 
 /// The recheck of a stolen source: player 1 takes the reckoner in response,
-/// and "you" is still player 0, who controlled it as it triggered.
+/// and "you" is still player 0. A triggered ability is controlled by whoever
+/// controlled its source when it triggered (CR 603.3a), its "you" is that
+/// player (CR 109.5), and its "if" is checked again as it resolves (CR 603.4),
+/// against that same "you".
 #[test]
 fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
     let mut game = setup_two_player_game();
@@ -501,15 +529,17 @@ fn the_recheck_of_a_stolen_source_reads_the_player_it_triggered_for() {
     assert_eq!(game.players[1].life_total, 3, "player 0's 20 life met the \"if\", and player 1 is its opponent");
 }
 
-/// Item 169's other zones: "its power" of a spell countered in response, and
-/// of a drawn card discarded in response, each off the frame it left with.
+/// Item 169's stack: "whenever a player casts a spell, each opponent loses
+/// life equal to that spell's power", and the spell is countered before the
+/// trigger resolves. By then it is a new object in the graveyard (CR 400.7),
+/// so "that spell's power" is the spell as it last existed on the stack (CR
+/// 608.2h), off the frame taken as it moved. Double Vision's and Galvanic
+/// Iteration's rulings read a countered spell the same way.
 #[test]
-fn a_countered_spell_and_a_discarded_card_leave_their_power_behind() {
+fn a_cast_trigger_reads_the_power_of_a_spell_countered_in_response() {
     let mut game = setup_two_player_game();
     let casts = TriggerEvent::CastsSpell { caster: None, spell: None };
     put_on_battlefield(&mut game, watcher("Spiteful Critic", casts, each_opponent_loses_its_power()), 0);
-    put_on_battlefield(&mut game, watcher("Spiteful Reader", draws_a_card(Whose::Yours), each_opponent_loses_its_power()), 0);
-
     let ogre = CardDataBuilder::new("Hasty Ogre")
         .mana_cost(ManaCost::build(&[], 0))
         .card_type(CardType::Creature)
@@ -518,20 +548,32 @@ fn a_countered_spell_and_a_discarded_card_leave_their_power_behind() {
     let spell = cast(&mut game, 0, ogre);
     place(&mut game, &test_dp());
     game.change_zone(spell, Zone::Graveyard, ZoneChangeCause::Countered, &test_ctx()).unwrap();
+
     game.resolve_top_of_stack(&test_dp()).unwrap();
     assert_eq!(game.players[1].life_total, 17, "the countered spell's 3");
+}
 
+/// Item 169's hand: "whenever you draw a card, each opponent loses life equal
+/// to that card's power", and the drawn card is discarded before the trigger
+/// resolves. "That card's power" is the card as it last existed in the hand
+/// (CR 608.2h). God-Eternal Kefnet's ruling reads a card that left a hand the
+/// same way.
+#[test]
+fn a_draw_trigger_reads_the_power_of_a_card_discarded_in_response() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, watcher("Spiteful Reader", draws_a_card(Whose::Yours), each_opponent_loses_its_power()), 0);
     let card = put_in_library(&mut game, vanilla_creature(2, 2, &[]), 0);
     game.draw_card(0, &test_ctx()).unwrap();
     place(&mut game, &test_dp());
     game.change_zone(card, Zone::Graveyard, ZoneChangeCause::Discarded, &test_ctx()).unwrap();
+
     game.resolve_top_of_stack(&test_dp()).unwrap();
-    assert_eq!(game.players[1].life_total, 15, "the discarded card's 2");
+    assert_eq!(game.players[1].life_total, 18, "the discarded card's 2");
 }
 
 /// "When this creature enters, sacrifice it, then each opponent loses life
-/// equal to its power": the effect moved it itself, and the resolving ability
-/// keeps the frame it left with.
+/// equal to this creature's power": the effect moved it itself, and the
+/// resolving ability keeps the frame it left with.
 #[test]
 fn an_ability_that_sacrifices_its_own_source_reads_the_power_it_left_with() {
     let mut game = setup_two_player_game();
