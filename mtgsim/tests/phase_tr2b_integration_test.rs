@@ -89,7 +89,7 @@ fn lose_one() -> Effect {
 /// A provider that answers the one "you may" `source` asks.
 fn answering_may(source: ObjectId, yes: bool) -> ScriptedDecisionProvider {
     let dp = ScriptedDecisionProvider::new();
-    dp.expect_pick_n(ChoiceKind::OptionalEffect { source }, if yes { vec![0] } else { Vec::new() });
+    dp.expect_pick_n(ChoiceKind::ApplyOptionalEffect { source }, if yes { vec![0] } else { Vec::new() });
     dp
 }
 

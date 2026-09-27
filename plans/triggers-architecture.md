@@ -1665,7 +1665,7 @@ no live entry to read once the spell has left. The `IsCountered` look-back
 The ability goes on the stack regardless; the choice is at resolution
 (ATOM-603.5-001). **Built in TR-2b** (main item 24). `Effect::Optional {
 chooser, effect }` asks its chooser, `You` unless the text names another
-player, through `ChoiceKind::OptionalEffect { source }`: a pick of none or
+player, through `ChoiceKind::ApplyOptionalEffect { source }`: a pick of none or
 one, its subject the resolving object.
 
 **The answer lives in the resolver's walk.** `ResolutionWalk` carries
@@ -1888,7 +1888,7 @@ options (`CLAUDE.md`); each is an arm in the five `src` matches above.
 | `ChoiceKind` | Method | Subject | Rule | Phase |
 |---|---|---|---|---|
 | `OrderTriggers { player, tier }` | `choose_ordering` | `None` (several objects) | 603.3b; elided per item 163 | TR-1 |
-| `OptionalEffect { source }` | `pick_n` (yes/no) | the resolving object | 603.5; main item 24 | TR-2b |
+| `ApplyOptionalEffect { source }` | `pick_n` (yes/no) | the resolving object | 603.5; main item 24 | TR-2b |
 | `ChooseDelayedTriggerEvent { delayed }` | `pick_n` | the delayed trigger's source | 603.7b | TR-3 |
 | `SelectRecipients` (existing) at placement | `pick_n` | the trigger's stack object | 603.3d → 601.2c | TR-1 |
 

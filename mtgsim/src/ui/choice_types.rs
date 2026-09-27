@@ -136,7 +136,7 @@ pub enum ChoiceKind {
     /// yes or no, as a `pick_n` of the one option or none. The ability went on
     /// the stack regardless; the choice is made now. `source` is the resolving
     /// object.
-    OptionalEffect { source: ObjectId },
+    ApplyOptionalEffect { source: ObjectId },
 
     /// CR 615.7 — a "prevent the next N damage" effect applies to damage from
     /// two or more sources at once, and the affected player (or the affected
@@ -329,7 +329,7 @@ impl ChoiceKind {
             }
             ChoiceKind::ChooseReplacementEffect { affected_object } => *affected_object,
             ChoiceKind::ApplyOptionalReplacement { source, .. } => Some(*source),
-            ChoiceKind::OptionalEffect { source } => Some(*source),
+            ChoiceKind::ApplyOptionalEffect { source } => Some(*source),
             ChoiceKind::AllocateNextDamage { source, .. } => Some(*source),
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),

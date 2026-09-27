@@ -1163,16 +1163,16 @@ pub fn ask_apply_optional_replacement(
 /// ability went on the stack regardless, and this is the choice, made now.
 /// One option taken or left, as [`ask_apply_optional_replacement`] asks: two
 /// answers, so it is a decision.
-pub fn ask_optional_effect(
+pub fn ask_apply_optional_effect(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
     source: ObjectId,
 ) -> bool {
     let options = vec![ChoiceOption::Object(source)];
-    let ctx = ChoiceContext { kind: ChoiceKind::OptionalEffect { source } };
+    let ctx = ChoiceContext { kind: ChoiceKind::ApplyOptionalEffect { source } };
     let picked = dp.pick_n(game, chooser, &ctx, &options, (0, 1));
-    validate_pick_n(&picked, &options, (0, 1), "optional_effect", game, chooser, &ctx);
+    validate_pick_n(&picked, &options, (0, 1), "apply_optional_effect", game, chooser, &ctx);
     !picked.is_empty()
 }
 

@@ -2757,7 +2757,7 @@ Closed as sized, as LL's end-to-end test. `put_on_stack.rs`'s `check_cast_legali
 
 ### Item 24 — closed 2026-09-26 by TR-2b
 
-Closed by `Effect::Optional { chooser, effect }` and CR 118.12's answer (`triggers-architecture.md` §6.2, as built). The optional asks its chooser through `ChoiceKind::OptionalEffect`. The resolver's walk carries `last_cost_answer`: `Does` from an atom that takes its action, `Doesnt` from a declined "may", `Cant` from a mandatory action that could not start. `Condition::CostAnswer` reads it, so "if you do" and "if you don't" are two `Effect::Conditional`s over one answer, and the sized `IfYouDo { did, didnt }` was not needed. As the entry recorded, `ReplacementDef.then` did not change. Nykthos Paragon and Cosi's Trickster are the first registered cards with a "may".
+Closed by `Effect::Optional { chooser, effect }` and CR 118.12's answer (`triggers-architecture.md` §6.2, as built). The optional asks its chooser through `ChoiceKind::ApplyOptionalEffect`. The resolver's walk carries `last_cost_answer`: `Does` from an atom that takes its action, `Doesnt` from a declined "may", `Cant` from a mandatory action that could not start. `Condition::CostAnswer` reads it, so "if you do" and "if you don't" are two `Effect::Conditional`s over one answer, and the sized `IfYouDo { did, didnt }` was not needed. As the entry recorded, `ReplacementDef.then` did not change. Nykthos Paragon and Cosi's Trickster are the first registered cards with a "may".
 
 *Original entry:*
 

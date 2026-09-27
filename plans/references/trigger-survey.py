@@ -627,7 +627,7 @@ T3 = [
     ("\"if they do\", \"if a player does\": another player's choice", "101.4 / 608.2d",
      TRIGGER + ' (o:"if they do" or o:"if that player does" or o:"if a player does" or o:"if no one does" or o:"if they don\'t" or o:"if that player doesn\'t")',
      ["choices"],
-     "design: §6.2's `OptionalEffect` asks one player; \"unless [a player] pays\" is CP-1's; **neither** for \"any player may ... if a player does\"",
+     "design: §6.2's `ApplyOptionalEffect` asks one player; \"unless [a player] pays\" is CP-1's; **neither** for \"any player may ... if a player does\"",
      ""),
     ("\"when you do\": reflexive, against the resolution's own events", "603.12",
      'o:"when you do"', ["events"],

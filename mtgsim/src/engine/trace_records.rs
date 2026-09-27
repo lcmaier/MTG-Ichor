@@ -173,7 +173,7 @@ fn choice_kind_name(kind: &ChoiceKind) -> &'static str {
         ChoiceKind::ChooseSacrificeForCost { .. } => "ChooseSacrificeForCost",
         ChoiceKind::ChooseReplacementEffect { .. } => "ChooseReplacementEffect",
         ChoiceKind::ApplyOptionalReplacement { .. } => "ApplyOptionalReplacement",
-        ChoiceKind::OptionalEffect { .. } => "OptionalEffect",
+        ChoiceKind::ApplyOptionalEffect { .. } => "ApplyOptionalEffect",
         ChoiceKind::AllocateNextDamage { .. } => "AllocateNextDamage",
         ChoiceKind::ChooseDamageSource { .. } => "ChooseDamageSource",
         ChoiceKind::ChooseEnteringController { .. } => "ChooseEnteringController",

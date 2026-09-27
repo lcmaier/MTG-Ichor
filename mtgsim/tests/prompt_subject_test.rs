@@ -233,7 +233,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) },
         ChoiceKind::ChooseReplacementEffect { affected_object: None },
         ChoiceKind::ApplyOptionalReplacement { affected_object: None, source: id },
-        ChoiceKind::OptionalEffect { source: id },
+        ChoiceKind::ApplyOptionalEffect { source: id },
         ChoiceKind::AllocateNextDamage { source: id, remaining: 3 },
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseEnteringController { object: id },

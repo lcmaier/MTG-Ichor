@@ -319,7 +319,7 @@ impl GameState {
             // player pay a cost they can't.
             Effect::Optional { chooser, effect: inner } => {
                 let chooser = self.resolve_player_ref(chooser, &[], ctx)?;
-                if !crate::ui::ask::ask_optional_effect(dp, self, chooser, ctx.source) {
+                if !crate::ui::ask::ask_apply_optional_effect(dp, self, chooser, ctx.source) {
                     walk.last_cost_answer = Some(CostAnswer::Doesnt);
                     return Ok(());
                 }
