@@ -147,40 +147,55 @@ pub enum DamageRecipient {
     Object(Option<ObjectFilter>),
 }
 
-/// The kind of record a trigger arm reads - one variant per `GameEvent`
-/// variant any [`TriggerEvent`] can match, and none for the records no arm
-/// can (`Scried`, `TokenCreated`, ...).
-///
-/// **The one table the matcher's discriminant test is written from.**
-/// [`TriggerEvent::reads`] and the dispatcher's source mask
-/// (`triggers-architecture.md` §11) both ask [`TriggerEvent::record_kinds`]
-/// and [`EventKind::from_record`], so they cannot disagree about which arm
-/// reads which record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EventKind {
-    ZoneChange,
-    LeftTheGame,
-    Tapped,
-    Untapped,
-    ManaAdded,
-    DamageDealt,
-    PhaseBegin,
-    StepBegin,
-    TurnBegin,
-    LifeChanged,
-    EnteredBattlefield,
-    AttackersDeclared,
-    AbilityTriggered,
-    SpellCast,
-    CardDrawn,
-    LibraryShuffled,
+/// Declares an enum of unit variants with a `COUNT` counted off the same
+/// list, so a new variant moves the count with no second edit. Stable Rust
+/// has no variant count (`std::mem::variant_count` is nightly-only).
+macro_rules! counted_enum {
+    ($(#[$attr:meta])* $vis:vis enum $name:ident { $($variant:ident,)+ }) => {
+        $(#[$attr])*
+        $vis enum $name {
+            $($variant,)+
+        }
+
+        impl $name {
+            /// How many variants there are.
+            pub const COUNT: usize = [$($name::$variant),+].len();
+        }
+    };
+}
+
+counted_enum! {
+    /// The kind of record a trigger arm reads - one variant per `GameEvent`
+    /// variant any [`TriggerEvent`] can match, and none for the records no arm
+    /// can (`Scried`, `TokenCreated`, ...).
+    ///
+    /// **The one table the matcher's discriminant test is written from.**
+    /// [`TriggerEvent::reads`] and the dispatcher's source mask
+    /// (`triggers-architecture.md` §11) both ask [`TriggerEvent::record_kinds`]
+    /// and [`EventKind::from_record`], so they cannot disagree about which arm
+    /// reads which record.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum EventKind {
+        ZoneChange,
+        LeftTheGame,
+        Tapped,
+        Untapped,
+        ManaAdded,
+        DamageDealt,
+        PhaseBegin,
+        StepBegin,
+        TurnBegin,
+        LifeChanged,
+        EnteredBattlefield,
+        AttackersDeclared,
+        AbilityTriggered,
+        SpellCast,
+        CardDrawn,
+        LibraryShuffled,
+    }
 }
 
 impl EventKind {
-    /// How many kinds there are: the last variant's index, plus one. A kind
-    /// added after it moves this, and `bit` asserts it did.
-    pub const COUNT: usize = EventKind::LibraryShuffled as usize + 1;
-
     /// How many words an [`EventKindMask`] needs to hold every kind. One while
     /// the kinds fit in 64 (`triggers-architecture.md` §12, TR-2b's decision
     /// 5), and a new kind past that grows the mask with no edit to it.
@@ -230,7 +245,6 @@ impl EventKind {
     /// This kind's word in a mask, and its bit within that word.
     const fn place(self) -> (usize, u64) {
         let index = self as usize;
-        assert!(index < EventKind::COUNT, "a kind past EventKind::COUNT: move the constant");
         (index / 64, 1 << (index % 64))
     }
 }
@@ -243,14 +257,8 @@ impl EventKind {
 /// same reason it is one, and as many words wide as [`EventKind::WORDS`]
 /// says: while the kinds fit in 64 it is one word, the same instructions as a
 /// `u64`, and a kind past that widens it without an edit here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct EventKindMask([u64; EventKind::WORDS]);
-
-impl Default for EventKindMask {
-    fn default() -> Self {
-        EventKindMask::EMPTY
-    }
-}
 
 impl EventKindMask {
     pub const EMPTY: EventKindMask = EventKindMask([0; EventKind::WORDS]);
