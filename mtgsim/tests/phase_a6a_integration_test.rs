@@ -356,6 +356,6 @@ fn a_departed_players_actions_this_turn_are_still_found() {
     assert!(!game.in_game(1), "player 1 has left the game");
 
     let cast_this_turn = |whose| Condition::ThisTurn(HistoryCount { whose, fact: TurnFact::SpellsCast, is: CountIs::AtLeast(1) });
-    assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source), "an opponent cast a spell this turn");
-    assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source), "a spell was cast this turn");
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Opponents), &game, source, None), "an opponent cast a spell this turn");
+    assert!(settled_holds(&cast_this_turn(PlayerSet::Everyone), &game, source, None), "a spell was cast this turn");
 }

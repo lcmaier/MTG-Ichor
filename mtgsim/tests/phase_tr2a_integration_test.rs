@@ -193,11 +193,11 @@ fn each_record_is_counted_on_the_row_of_the_player_it_names() {
 
     // "You" is the source's controller, so P1's creature reads P0 as an opponent.
     let lost = |whose, n| this_turn(whose, TurnFact::LifeLost, CountIs::AtLeast(n));
-    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs));
-    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs));
-    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs));
+    assert!(!settled_holds(&lost(PlayerSet::You, 5), &game, theirs, None));
+    assert!(settled_holds(&lost(PlayerSet::Opponents, 5), &game, theirs, None));
+    assert!(!settled_holds(&lost(PlayerSet::Opponents, 6), &game, theirs, None));
     let untouched = this_turn(PlayerSet::You, TurnFact::DamageTaken, CountIs::AtMost(0));
-    assert!(settled_holds(&untouched, &game, theirs));
+    assert!(settled_holds(&untouched, &game, theirs, None));
 }
 
 /// A creature stolen and then destroyed died under its thief's control, so

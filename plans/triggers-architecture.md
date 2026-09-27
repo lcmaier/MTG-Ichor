@@ -1578,14 +1578,14 @@ doing nothing if it is false (-003). `Condition` is one enum for the static
 `layers-architecture.md` §13b decision 5 planned; a leaf is three edits.
 
 **"You" is the ability's (CR 109.5; built in TR-2b).** Both instants, and a
-resolving effect's own "if", evaluate through `settled_holds_for(condition,
-game, source, you)`, which names the player: the candidate's controller at
-dispatch, the entry's controller locked by CR 603.3a at the recheck, and the
-resolution's controller in `Effect::Conditional`. `you_for` and
-`FilterPlayers::for_source` answer it before the source's frame, so a source
-stolen since, or in its owner's graveyard, still reads its controller's
-facts. A static ability's "you" is its source's current controller
-(`settled_holds`).
+resolving effect's own "if", evaluate through `settled_holds(condition,
+game, source, locked_you)`, with the player named: the candidate's
+controller at dispatch, the entry's controller locked by CR 603.3a at the
+recheck, and the resolution's controller in `Effect::Conditional`. `you_for`
+and `FilterPlayers::for_source` answer it before the source's frame, so a
+source stolen since, or in its owner's graveyard, still reads its
+controller's facts. A static ability passes `None`, and its "you" is its
+source's current controller.
 
 **The `departed` frame (CR 113.7a, 608.2h; built in TR-2b).** A binding copies
 its records at dispatch, so a departure after the dispatch is in no record the

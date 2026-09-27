@@ -478,20 +478,20 @@ impl<'a, 'l> FilterPlayers<'a, 'l> {
     }
 
     /// The players of a *condition*'s filter (CR 604.2's "as long as", read
-    /// through CR 109.5): "you" is the player the asker named — a triggered
-    /// ability's locked controller — or else the source's current controller
-    /// off its live frame, exactly as a static row's is. The source is the one
-    /// `ObjectFilter::NotSource` excludes. Both are resolved up front, since
-    /// there is no row to re-derive them from.
+    /// through CR 109.5): "you" is `locked_you` when the asker fixed it — a
+    /// triggered ability's controller as it triggered — or else the source's
+    /// current controller off its live frame, exactly as a static row's is.
+    /// The source is the one `ObjectFilter::NotSource` excludes. Both are
+    /// resolved up front, since there is no row to re-derive them from.
     pub(super) fn for_source(
         source: ObjectId,
         game: &'a GameState,
         board: &'a Board<'l>,
         layer_index: usize,
-        asked_you: Option<PlayerId>,
+        locked_you: Option<PlayerId>,
     ) -> Self {
         let owner = game.objects.get(&source).map(|obj| obj.owner);
-        let you = asked_you.or_else(|| {
+        let you = locked_you.or_else(|| {
             board
                 .frame_of(game, source, layer_index)
                 .map(|frame| frame.controller)

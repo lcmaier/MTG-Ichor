@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::layers::compute::compute_characteristics;
-use crate::engine::layers::condition::settled_holds_for;
+use crate::engine::layers::condition::settled_holds;
 use crate::engine::layers::types::{EffectiveCharacteristics, Timestamp};
 use crate::engine::resolve::ResolutionContext;
 use crate::engine::trace_records;
@@ -1060,7 +1060,7 @@ impl GameState {
         // CR 603.4 at the trigger. "You" is the candidate's controller (CR
         // 109.5): the source's now, or its frame's for a look-back candidate.
         if let Some(condition) = &def.intervening_if
-            && !settled_holds_for(condition, self, candidate.id, candidate.controller)
+            && !settled_holds(condition, self, candidate.id, Some(candidate.controller))
         {
             return Err(Refusal::InterveningIf);
         }

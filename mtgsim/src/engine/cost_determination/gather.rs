@@ -131,7 +131,7 @@ fn push_if_applies(
     // is the finished frame. A spell on the stack has no entity, so a status
     // clause on one is simply false.
     if let Some(condition) = condition
-        && !settled_holds(condition, game, source) {
+        && !settled_holds(condition, game, source, None) {
         return;
     }
     if applies_to(game, def, source, controller, spell, frame) {

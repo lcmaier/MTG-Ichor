@@ -114,7 +114,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
                     Effect::Restriction(def) => def,
                     Effect::Conditional(condition, inner) => {
                         let Effect::Restriction(def) = inner.as_ref() else { continue };
-                        if !settled_holds(condition, game, id) {
+                        if !settled_holds(condition, game, id, None) {
                             continue;
                         }
                         def

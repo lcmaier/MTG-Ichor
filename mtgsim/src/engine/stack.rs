@@ -117,7 +117,7 @@ impl GameState {
             && let Some(condition) = &binding.def.intervening_if
         {
             let source = entry.ability_identity.map(|i| i.source.id).unwrap_or(object_id);
-            if !crate::engine::layers::condition::settled_holds_for(condition, self, source, entry.controller) {
+            if !crate::engine::layers::condition::settled_holds(condition, self, source, Some(entry.controller)) {
                 self.stack.retain(|&x| x != object_id);
                 self.remove_object(object_id);
                 return Ok(());

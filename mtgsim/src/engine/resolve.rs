@@ -2345,7 +2345,7 @@ impl GameState {
             // controller, whatever has become of its source since.
             other => {
                 let source = ctx.ability_source.map_or(ctx.source, |r| r.id);
-                crate::engine::layers::condition::settled_holds_for(other, self, source, ctx.controller)
+                crate::engine::layers::condition::settled_holds(other, self, source, Some(ctx.controller))
             }
         }
     }
