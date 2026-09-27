@@ -104,9 +104,10 @@ pub fn nykthos_paragon() -> Arc<CardData> {
 /// > cards in your hand.
 /// > Whenever you draw a card, each opponent loses 1 life.
 ///
-/// The CDA counts a hand whose size is public (CR 402.3). Every card that
-/// enters or leaves a hand is a zone move, and every zone move bumps the layer
-/// epoch, so the count is never served stale.
+/// The CDA counts the cards in a hand and never looks at them, which any
+/// player may do to any hand (CR 402.3). Every card that enters or leaves a
+/// hand is a zone move, and every zone move bumps the layer epoch, so the
+/// count is never served stale.
 ///
 /// # The rulings, and where each is tested
 ///

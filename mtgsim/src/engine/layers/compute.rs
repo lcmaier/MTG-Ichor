@@ -812,8 +812,8 @@ pub(super) fn evaluate_amount(
         // "You" is the affected object's own controller for a CDA (CR 109.5, read
         // off `chars` as of this layer) and the row's controller for a registry
         // row, exactly as a filter leaf resolves it.
-        // "The number of cards in your hand" (Psychosis Crawler): a count of a
-        // hand, whose size is public (CR 402.3) and whose cards are not read.
+        // "The number of cards in your hand" (Psychosis Crawler): a count, which
+        // any player may take of any hand (CR 402.3); the cards are not read.
         // "You" is the CDA's own object's controller, or the row's controller.
         AmountExpr::CountOf(Selector::CardsInHand(whose)) => {
             debug_assert!(

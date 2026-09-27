@@ -567,7 +567,7 @@ impl GameState {
     /// **And every other mover an entry names, from whatever zone** (CR
     /// 113.7a, 608.2h; `triggers-architecture.md` §6.1): a spell a trigger's
     /// subject is, a card a draw trigger named. The move hands the frame to
-    /// each entry naming the mover (`hand_departed_frame`).
+    /// each entry naming the mover (`hand_over_departed_frame`).
     pub(crate) fn capture_departure_frames(&mut self, decided: &[Option<GameAction>]) {
         let mut named: Option<Vec<ObjectRef>> = None;
         for action in decided.iter().flatten() {
@@ -639,7 +639,7 @@ impl GameState {
     /// for any other mover the one `capture_departure_frames` took because an
     /// entry named it. One writer; its callers are the two performers that
     /// move an object out of a zone, before the move.
-    pub(crate) fn hand_departed_frame(&mut self, id: ObjectId, lki: Option<&Arc<EffectiveCharacteristics>>) {
+    pub(crate) fn hand_over_departed_frame(&mut self, id: ObjectId, lki: Option<&Arc<EffectiveCharacteristics>>) {
         let frame = match lki {
             Some(frame) => Arc::clone(frame),
             None => match self.take_named_frame(id) {

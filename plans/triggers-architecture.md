@@ -1601,7 +1601,7 @@ moves its own source adds one there.
   gathered only for a batch that moves something other than a permanent, and
   on the common board they are empty or short.
 - **One writer.** The two performers that move an object out of a zone,
-  `perform_zone_change` and `owned_objects_leave`, call `hand_departed_frame`
+  `perform_zone_change` and `owned_objects_leave`, call `hand_over_departed_frame`
   before the move. It gives each entry naming the mover the frame its batch
   took, which for a permanent is the record's own `Arc`.
 - **The reader.** `bound_characteristics` reads the record's frame when the
@@ -1836,7 +1836,7 @@ field with one writer:
 | its cost decisions — kicked, bargained, evoked (707.10; main item 30) | `PermanentState.cost_choices: CostChoices { additional, alternative }`, kept by a copy of the spell and the token it becomes, and by `LastKnownInformation` once it leaves (§3.11) | the entry performer, off `ResolvingObject.cost_choices` | `Condition::SpellWasKicked`, "if it was kicked", "if its evoke cost was paid" |
 | the object a delayed trigger refers to (603.7c) | `DelayedTrigger.refs: Vec<ObjectRef>` | the producer, from the records its instruction performed (§3.9) | the delayed check, the resolution |
 | the answer to a cost paid at resolution (118.12: does, doesn't, can't) | `ResolutionWalk.last_cost_answer`, beside the target cursor (§6.2) | the atom that takes the action (`Does`), a declined "may" (`Doesnt`), a sacrifice that could not start (`Cant`) | `Condition::CostAnswer` in the clause after it, and CR 603.2h's gate (§6.2, §6.4) |
-| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `departed` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_departed_frame`, with the frame `capture_departure_frames` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
+| an object's last known information after it left, for an entry that names it (113.7a, 608.2h) | `departed` on `PendingTrigger`, `StackEntry` and `ResolvingObject` | `hand_over_departed_frame`, with the frame `capture_departure_frames` took | `bound_characteristics`, for §6.3's readers; the recheck's bound-fact form is TR-4's (§6.1) |
 | when a delayed trigger was created (603.7a, 513.2) | `DelayedTrigger.created` | the producer | the reflexive window; nothing else needs it (§4.6) |
 | which extra turn "that turn" is | `ExtraTurnId` on `turn_queue` entries and `GameState.current_turn_origin` | `Primitive::ExtraTurn`, `begin_turn` | `StepBegins { whose: Turn(id) }` |
 | the trigger's event, subject, amount, frame | `TriggerBinding` (the matched records, copied whole; the matched event; the subject's epoch) | the dispatcher | the resolution, through the arm's projections |

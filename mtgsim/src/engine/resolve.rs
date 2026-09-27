@@ -96,10 +96,17 @@ impl ResolutionContext {
 /// CR 118.12's answer for the clause after an action. Each resolution makes a
 /// fresh one, so a rider never reads its parent's answer
 /// (`triggers-architecture.md` §6.2).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ResolutionWalk {
     instance_cursor: usize,
     last_cost_answer: Option<CostAnswer>,
+}
+
+impl ResolutionWalk {
+    /// Before the effect's first atom: no instance used, no action taken.
+    fn start() -> Self {
+        ResolutionWalk { instance_cursor: 0, last_cost_answer: None }
+    }
 }
 
 /// A resolved target — validated as legal when the spell/ability was put on the
@@ -129,7 +136,7 @@ impl GameState {
         // test that staged `ctx` by hand — so a `SameInstanceAs` atom reads its
         // clause off the tree (`DeclaredInstances::Effect`). The stack's path
         // is [`Self::resolve_effect_with_announced_targets`].
-        let mut walk = ResolutionWalk::default();
+        let mut walk = ResolutionWalk::start();
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Effect(effect), &mut walk)
     }
 
@@ -148,7 +155,7 @@ impl GameState {
         ctx: &ResolutionContext,
         dp: &dyn DecisionProvider,
     ) -> Result<Option<CostAnswer>, String> {
-        let mut walk = ResolutionWalk::default();
+        let mut walk = ResolutionWalk::start();
         self.resolve_effect_at(effect, ctx, dp, DeclaredInstances::Announced(announced), &mut walk)?;
         Ok(walk.last_cost_answer)
     }
@@ -486,9 +493,10 @@ impl GameState {
                 Ok(())
             }
 
-            // CR 121.5 — `Mill`'s move to the hand: one batch, the cards taken
-            // before any moves. Not a draw, so a short library is as many as
-            // there are, and an empty one is nothing at all.
+            // CR 121.5 — "put the top N cards of your library into your hand" is
+            // not a draw. It is built like `Mill`, with the hand for the
+            // graveyard: one batch, the cards taken before any moves, so a short
+            // library gives as many as there are and an empty one gives nothing.
             Primitive::PutTopCardsIntoHand(amount_expr) => {
                 let count = self.evaluate_amount(amount_expr, ctx)? as usize;
                 let player_id = self.resolve_player_for_self(recipient, targets, ctx);
@@ -2022,10 +2030,10 @@ impl GameState {
         targets: &[ResolvedTarget],
         ctx: &ResolutionContext,
     ) -> Result<Option<GameAction>, String> {
-        let permanent = self.battlefield.contains_key(&object);
+        let is_permanent = self.battlefield.contains_key(&object);
         Ok(match primitive {
             Primitive::Destroy => {
-                permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.source) })
+                is_permanent.then(|| GameAction::Destroy { object, source: DestructionSource::Effect(ctx.source) })
             }
             // CR 701.13a — from wherever the object is.
             Primitive::Exile => self.objects.get(&object).map(|obj| GameAction::ZoneChange {
@@ -2034,15 +2042,15 @@ impl GameState {
                 to: Zone::Exile,
                 cause: ZoneChangeCause::Exiled,
             }),
-            Primitive::Sacrifice => permanent.then_some(GameAction::ZoneChange {
+            Primitive::Sacrifice => is_permanent.then_some(GameAction::ZoneChange {
                 object,
                 from: Zone::Battlefield,
                 to: Zone::Graveyard,
                 cause: ZoneChangeCause::Sacrificed,
             }),
-            Primitive::Tap => permanent.then_some(GameAction::Tap { object }),
-            Primitive::Untap => permanent.then_some(GameAction::Untap { object }),
-            Primitive::AddCounters { counter, amount, by } => match permanent {
+            Primitive::Tap => is_permanent.then_some(GameAction::Tap { object }),
+            Primitive::Untap => is_permanent.then_some(GameAction::Untap { object }),
+            Primitive::AddCounters { counter, amount, by } => match is_permanent {
                 false => None,
                 true => Some(GameAction::AddCounters {
                     subject: CounterSubject::Object(object),
@@ -2051,7 +2059,7 @@ impl GameState {
                     by: self.resolve_player_ref(by, targets, ctx)?,
                 }),
             },
-            Primitive::RemoveCounters(counter, amount) => match permanent {
+            Primitive::RemoveCounters(counter, amount) => match is_permanent {
                 false => None,
                 true => Some(GameAction::RemoveCounters {
                     subject: CounterSubject::Object(object),

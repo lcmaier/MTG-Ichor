@@ -271,9 +271,10 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
             }
             found
         }
-        // Everything else is an ordinary predicate. A card in a player's
-        // graveyard is the near miss and stays one on purpose: it is about
-        // some *other* object's zone, which places nothing.
+        // Everything else is an ordinary predicate. `PlayerFact::CardInGraveyard`
+        // looks like `SourceInZone` and is not: "as long as a red card is in
+        // your graveyard" is about some *other* card's zone, so it says nothing
+        // about where this ability functions.
         Condition::Player { .. }
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
