@@ -1,30 +1,28 @@
-/// Card types (rule 205.2a)
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
-pub enum CardType {
-    Artifact,
-    Battle,
-    Conspiracy,
-    Creature,
-    Dungeon,
-    Enchantment,
-    Instant,
-    Kindred,
-    Land,
-    Phenomenon,
-    Plane,
-    Planeswalker,
-    Scheme,
-    Sorcery,
-    Vanguard,
+counted_enum! {
+    /// Card types (rule 205.2a)
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    pub enum CardType {
+        Artifact,
+        Battle,
+        Conspiracy,
+        Creature,
+        Dungeon,
+        Enchantment,
+        Instant,
+        Kindred,
+        Land,
+        Phenomenon,
+        Plane,
+        Planeswalker,
+        Scheme,
+        Sorcery,
+        Vanguard,
+    }
 }
 
 impl CardType {
-    /// How many card types there are (CR 300.1), for a table with a slot per
-    /// type.
-    pub const COUNT: usize = 15;
-
-    /// This type's slot in such a table. Exhaustive, so a new type fails to
-    /// compile here until `COUNT` counts it.
+    /// This type's slot in a table with a slot per type (CR 300.1), of `COUNT`
+    /// slots. Exhaustive, so a new type fails to compile here until it has one.
     pub const fn slot(self) -> usize {
         match self {
             CardType::Artifact => 0,

@@ -20,8 +20,11 @@ This is the mechanism, and it fails the way a warning fails.
     python plans/check_module_layout.py       # exit 1 if a mod.rs defines items
 
 **What is allowed in a `mod.rs`:** module docs, `mod`/`pub mod` declarations,
-`use`/`pub use` re-exports, and attributes. **What is not:** `fn`, `struct`,
-`enum`, `trait`, `impl`, `type`, `const`, `static`, and `macro_rules!`.
+`use`/`pub use` re-exports, attributes, and `macro_rules!`. **What is not:**
+`fn`, `struct`, `enum`, `trait`, `impl`, `type`, `const`, and `static`. A macro
+is metacode rather than implementation, and a `macro_rules!` is in scope only
+after its definition, so a parent `mod.rs`, above its `mod` lines, is where a
+macro its children share belongs.
 
 `src/lib.rs` and `src/main.rs` are exempt: they are crate roots rather than
 module roots, and `lib.rs` in particular is where a crate-level re-export lives.
@@ -39,7 +42,7 @@ CRATE_SRC = Path(__file__).resolve().parent.parent / "mtgsim" / "src"
 ITEM = re.compile(
     r"^\s*(?:pub(?:\s*\([^)]*\))?\s+)?"
     r"(?:default\s+|unsafe\s+|async\s+|extern\s+\"[^\"]*\"\s+)*"
-    r"(fn|struct|enum|union|trait|impl|type|const|static|macro_rules!)\b"
+    r"(fn|struct|enum|union|trait|impl|type|const|static)\b"
 )
 
 # `pub use`/`use` and `mod`/`pub mod` are the whole allowed vocabulary, and
@@ -66,10 +69,32 @@ def strip_block_comments(text: str) -> str:
     return "".join(out)
 
 
+MACRO = re.compile(r"^\s*(?:#\[[^\]]*\]\s*)*macro_rules!\s*\w+\s*([{(\[])", re.M)
+CLOSE = {"{": "}", "(": ")", "[": "]"}
+
+
+def strip_macro_bodies(text: str) -> str:
+    """Blank out each `macro_rules!` body, whose `impl` and `const` are the
+    expansion's, not the `mod.rs`'s."""
+    out, i = [], 0
+    for m in MACRO.finditer(text):
+        if m.start() < i:
+            continue
+        open_, depth, j = m.group(1), 1, m.end()
+        while j < len(text) and depth:
+            depth += {open_: 1, CLOSE[open_]: -1}.get(text[j], 0)
+            j += 1
+        out.append(text[i:m.end()])
+        out.append("".join(c if c == "\n" else " " for c in text[m.end():j]))
+        i = j
+    out.append(text[i:])
+    return "".join(out)
+
+
 def offenders(root: Path):
     """Every `mod.rs` under `root` that defines an item, with the lines."""
     for path in sorted(root.rglob("mod.rs")):
-        source = strip_block_comments(path.read_text(encoding="utf-8"))
+        source = strip_macro_bodies(strip_block_comments(path.read_text(encoding="utf-8")))
         hits = [
             (n, line.rstrip())
             for n, line in enumerate(source.splitlines(), 1)
@@ -88,7 +113,7 @@ def main() -> int:
     checked = sum(1 for _ in CRATE_SRC.rglob("mod.rs"))
 
     if not found:
-        print(f"module layout: {checked} mod.rs files, all pure re-exporters.")
+        print(f"module layout: {checked} mod.rs files, none holds implementation.")
         return 0
 
     print("module layout: a `mod.rs` defines items. Move them to a named file.\n")

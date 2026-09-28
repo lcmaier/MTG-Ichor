@@ -102,7 +102,7 @@ fn stack_entry(spell_id: ObjectId, controller: PlayerId, effect: Effect) -> Stac
         chosen_targets: Vec::new(),
         chosen_modes: Vec::new(),
         x_value: None,
-        effect,
+        effect: std::sync::Arc::new(effect),
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),

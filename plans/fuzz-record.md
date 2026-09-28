@@ -37,6 +37,35 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-27 for item 183's stacked effect** (`StackEntry.effect`
+shared across a fork; `codebase-state.md` item 183's TR-2b note; `roadmap-v2.md`
+B10 stays open). No pool change. `close_out.py`, `main` = `b4328fa` against the
+engine arm `6f94cf7`:
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs main, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 175,494 / 194,377 | 346,773 / 401,732 |
+| instructions / decision, engine vs main, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7385 M → 0.7389 M, **+0.06%** |
+
+Every counter file is byte-identical to `main`'s outside `=== Timing ===`, the
+cost rows and the audit's totals included, as predicted: no counter reads a
+clone, and nothing in play clones a `StackEntry`. Instructions moved inside the
+predicted ±0.1%, a push adding the `Arc`'s allocation and resolution its free
+against a smaller entry to move.
+
+**The clone**, read by `tests/stacked_effect_clone_test.rs`: eight spells cast
+from hand onto one stack, then one clone's allocations and bytes.
+
+| | `main` (`b4328fa`) | engine (`6f94cf7`) |
+|---|---|---|
+| eight Diabolic Edicts | 42, 16,227 | 26, 10,019 |
+| eight heap-free instants, the edict's cost and target | 26, 15,267 | 26, 10,019 |
+| per edict | +2, +120 | 0, 0 |
+
+The heap-free board's 5,248 bytes are the stack's 16-slot table at 328 bytes a
+slot: `StackEntry` fell from 688 bytes to 360.
+
 **Re-recorded 2026-09-26 for TR-2b** ("may", CR 118.12's answer, and the
 `departed` frames — `triggers-architecture.md` §12, TR-2b; `codebase-state.md`
 items 24 and 169 closed, 163's elision half built). **Pool change**:

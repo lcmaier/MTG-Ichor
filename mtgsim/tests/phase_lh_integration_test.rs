@@ -62,7 +62,7 @@ fn aura_on_stack_targeting(game: &mut GameState, controller: PlayerId, target: O
         )],
         chosen_modes: Vec::new(),
         x_value: None,
-        effect: Effect::Sequence(Vec::new()),
+        effect: std::sync::Arc::new(Effect::Sequence(Vec::new())),
         is_spell: true,
         chosen_alternative_cost: None,
         additional_costs_paid: Vec::new(),

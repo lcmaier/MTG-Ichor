@@ -1326,12 +1326,17 @@ letting the two words blur.
 
 **Checked, not trusted:** `python plans/check_module_layout.py`, in CI beside the
 `CLAUDE.md` budget. It fails on `fn`, `struct`, `enum`, `trait`, `impl`, `type`,
-`const`, `static` or `macro_rules!` at the top of a line in any `mod.rs` under
-`mtgsim/src/`. `lib.rs` and `main.rs` are exempt — they are crate roots, and a
-crate-level re-export belongs in one.
+`const` or `static` at the top of a line in any `mod.rs` under `mtgsim/src/`.
+`lib.rs` and `main.rs` are exempt — they are crate roots, and a crate-level
+re-export belongs in one.
 
-A `mod.rs` may carry module docs, `mod` declarations, `use`/`pub use`, and
-attributes. The implementation goes in a sibling **named for what it does**.
+A `mod.rs` may carry module docs, `mod` declarations, `use`/`pub use`,
+attributes, and `macro_rules!`. **A macro is the exception because it is
+metacode, not implementation** (the owner, 2026-09-28), and because a
+`macro_rules!` is in scope only after its definition: a parent `mod.rs`, above
+its `mod` lines, is where a macro its children share belongs
+(`types::counted_enum!`). The implementation goes in a sibling **named for what
+it does**.
 `engine/replacement/` is the pattern to copy: `gather.rs` finds things,
 `pipeline.rs` decides, `instance.rs` names one, and `mod.rs` is the page you
 read to learn that.

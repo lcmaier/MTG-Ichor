@@ -194,7 +194,7 @@ fn test_a_nexus_of_fate_that_resolves_takes_an_extra_turn_and_returns_to_the_lib
     let nexus = put_spell_on_stack(&mut game, nexus_of_fate(), 0);
     // `put_spell_on_stack` stages an entry with no effect; give it the card's.
     let mut entry = game.stack_entries[&nexus].clone();
-    entry.effect = Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller);
+    entry.effect = std::sync::Arc::new(Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller));
     game.set_stack_entry(entry);
 
     game.resolve_top_of_stack(&test_dp()).unwrap();

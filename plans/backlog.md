@@ -174,7 +174,10 @@ is CP-1, a sized slot. The entry is kept as written for the record.*
   supplied list, or a number in a range. A vote is neither, and "the name of a
   card in the Oracle reference" has no list to index. The real question is
   whether the trait carries the CR's *choice shapes* at all; 201.4 is a second
-  witness for the same gap (audit §5.2).
+  witness for the same gap (audit §5.2). **And the walk has no starting seat**
+  (TR-2b's review, 2026-09-27): a vote starts with a specified player and
+  goes in turn order (CR 701.38a), where `ChosenBy`'s `EachOf` starts with the
+  active player (CR 101.4). The per-player walk needs a starting seat.
 - **Size** — small per method, multiplied by five implementations, plus one
   design decision about the trait's shape that should be taken once rather than
   per-method.
@@ -2096,6 +2099,15 @@ list at all, or is a resolution-time selection that never had an instance and
 should leave it. Filed 2026-09-18 out of A4i's review, theme E (2026-09-17), which
 found both halves and fixed neither: there is no survey of "choose" across the CR
 or the pool, and there should be.
+
+**Soul Shatter's rank (TR-2b's review, 2026-09-27).** *"Each opponent sacrifices a
+creature or planeswalker with the greatest mana value among creatures and
+planeswalkers they control"* is a `ChosenBy`, and its pick is what cannot be
+written: `Pick`'s filter tests one object alone, where "the greatest … among"
+compares each candidate with the chooser's other permanents. The pick needs a
+filter that compares within the chooser's own permanents: the census's "a
+constructor on `Pick`", 22 cards, built with the first of them
+(`plans/archive/triggers-architecture-landed.md`, "TR-2b").
 
 | Field | |
 |---|---|
