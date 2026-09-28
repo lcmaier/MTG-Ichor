@@ -2448,7 +2448,7 @@ puts an instruction's status under the same rule: a land "simply put onto the
 battlefield tapped without a replacement effect being applied" enters
 untapped under Spelunking. Found at CV-2's design review, where a copy
 exception's "except it enters untapped" had two readings
-(`copy-effects-architecture.md` §7b, D6) and the engine could express
+(`copy-effects-architecture.md` §7c) and the engine could express
 neither.
 
 | Field | |

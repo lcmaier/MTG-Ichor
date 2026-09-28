@@ -155,3 +155,376 @@ system; CV-5 must not attempt meld; and **CV-1 through CV-5 must not touch CR
 708 or CR 729** — those are CV-6's and CV-7's, and reaching for either early is
 how CV-1 becomes a `PermanentState` rewrite. Each is the seam where this
 becomes one 5,000-line PR again.
+
+### 7b. CV-2a — enters as a copy (CR 707.5, 616.1c) — ✅ 2026-09-28
+
+*Evicted 2026-09-28 from `plans/copy-effects-architecture.md`, where the
+heading and a stub remain. CV-2b's half of the design, D6 with its tables and
+CV-2b's sites, size, tests and arms, stayed live there as §7c.*
+
+**What landed**, in four commits against the design below: copiable loyalty
+(`2306ac3`); the rewrite, the choice and the carrier (`28c0217`); Clone's
+card, 32 tests and the gates' docs (`c11748a`, the A/B's engine arm); and
+Clone registered and pooled, 98 → 99, with its eight rulings linked
+(`014544b`). 1,551 added lines of code and tests against the ~1,700–2,200
+sized: engine 401 against ~600, cards 75 against ~70, tests 1,075 against
+~1,000. Atoms covered: ATOM-613.2a-001, 613.2c-001, 707.2-001, 707.2-003,
+707.2b-001 and 613.1a-001, all partial since CV-1, and 707.5-001, 707.5-002,
+616.1c-001, 608.3e-001, 903.3-002 and 306.5a-001; partially, 707.6-001 and
+COMP-9A-002. Closed by hand against the table, since `owed` cannot list this
+cluster (§9 item 11).
+
+**What the building changed.** Nothing in the design: every decision held as
+reviewed. Four things surfaced in the tests:
+1. **Two fixture facts, neither a CV-2 defect.** The registered Grizzly Bears
+   carries no Bear subtype, and Master Biomancer's Mutant clause is
+   `backlog.md` §2.30's. The tests dropped those assertions rather than bend
+   them.
+2. **A donor's own entry can end a test's game.** A Wall of Omens placed for a
+   player with an empty library draws as it enters, and CR 704.5b ends the
+   two-player game before the Clone's copied trigger resolves. The test
+   stocks both libraries.
+3. **A fixture's rulings cannot be linked.** The gate refuses a `RULING:` line
+   for a card the ledger does not hold, so Essence of the Wild's rulings are
+   cited in the tests' prose. Clone's links waited for the commit that
+   registered it.
+4. **"About half" was read, not assumed.** Clone's `(0, 1)` pick copied in 27
+   of the 50 choices a 200-game trace asked, and the other 48
+   `ChooseCopySource` prompts in it were Cytoshape's forced picks.
+
+**The measurement.** `fuzz-record.md`, CV-2a's block: every engine counter
+file byte-identical to `main`'s outside the timing, on both pools at two
+seats and four; +0.01% instructions per decision; Clone reached in 61% of
+two-seat games and 46% of four-seat ones.
+
+**Trace-page decision: no** (`engineering-practices.md` §7's test). The reads
+CV-2a adds ride structures two pages already walk: the would-be entity is
+RC-4b's page's, and the snapshot applied at layer 1a is CV-1's. The frame now
+answers "a Colossus" for an entering Clone, where it answered "a 0/0
+Shapeshifter", through the same accessor.
+
+#### The design, as reviewed
+
+
+**Design, re-derived 2026-09-28 against 861a812, for review before any code.**
+The CV-2 row in §7 was sized on 2026-09-02, before RC-4's look-ahead frame,
+TR-1's dispatcher and #188's shared payloads. Built as written, it would have
+put a copy on the wrong CR 616.1 step (fact 1 below).
+
+#### The four facts the row predates
+
+1. **The class is derived from the rewrite.** `ReplacementClass::from_rewrite`
+   (`types/replacement.rs:1687`) files every `Rewrite::Instead` under 616.1e's
+   `Other`. §4.1's "a `Rewrite::Instead` producing an `EnterBattlefield`" would
+   have put Clone's copy in the same bucket as "enters tapped". That is the
+   board CR 616.1f's own example (Essence of the Wild and Rusted Sentinel)
+   exists to order. 616.1c gets a producer only from a rewrite that names it,
+   as 616.1b's `EnterUnderControlOf` does.
+2. **Every gate's printed leg is filed at the entry and cleared at the
+   departure.** `register_static_effects` (`state/game_state.rs:1639`) fills
+   `trigger_sources`, `replacement_ability_sources`,
+   `restriction_ability_sources` and `cost_modification_ability_sources` from
+   the ability list as the permanent is placed. `cleanup_zone_state`
+   (`engine/zones.rs:444`) empties them as it leaves. §4.7 put copies on the
+   summary's legs because a Tier C row "can expire without a zone change". An
+   entry copy cannot, so it can use the legs a printed ability uses.
+3. **The look-ahead builds a would-be entity from the proposal.**
+   `Lookahead::new` (`engine/layers/lookahead.rs:58`) seeds the entering
+   object's `PermanentState` from `EnterMods`: tapped, and CR 122.6a's
+   counters, which the board pass applies at layer 7c at the entity's timestamp
+   (`engine/layers/board.rs:936`). A value that rides the proposal and lands on
+   the entity is already a shape the frame reads.
+4. **`CopyFrom` has held an `Arc` since #188** (244c64a, 2026-09-25), because
+   the registry is cloned with every fork and a `Box` cost ten or more
+   allocations per copy row. §9 item 4 still says `Box`.
+
+#### The decisions
+
+**D1. The carrier is state on the permanent, not a registry row.** The shared
+problem: between the CR 707.6 choice and the performer, the copy has to be in
+CR 614.12's frame, so the loop's next iteration sees the copied abilities
+(707.5). On the battlefield it has to apply at layer 1a in timestamp order
+with any later Tier C copy (707.4). Every gate has to see the copied abilities
+before the entry is dispatched. And the copy has to end exactly when the
+permanent leaves (400.7). All four hold for both producers: the entering
+permanent's own ability (Clone, 59 of the 62 printed cards) and another
+permanent's (Essence of the Wild, Infinite Reflection, Mystic Reflection).
+
+| | A: a `CopyFrom` row at placement (§3.3 as written) | **B: `PermanentState.entered_as_copy` (recommended)** |
+|---|---|---|
+| Code | the row; a new `EffectOrigin` arm, since `Resolution` would be a lie (no resolution made it) and `StaticAbility` would fail CR 604.2's check the moment the copy removes the ability that made it; a would-be row in the look-ahead; `register_copied_static_effects` at placement | one field, written by `place_on_battlefield`; one layer-1 application in the board pass, a `Kind::Own` beside the counters'; the would-be entity carries it; registration reads it |
+| Gates | CV-1's summary legs, automatically. Every sweep then widens to every permanent (`gather.rs:282`, `dispatch.rs:747`, the restriction and cost sweeps) for as long as the permanent lives. CV-1 accepted that for turn-bounded rows | the printed legs, per object and exact: registration files the copied list, and `cleanup_zone_state` clears it |
+| Teardown | `remove_by_source`, with `source` the entering permanent. Exact for Clone. For Essence it is §5.3's refused overload, and making Essence the `source` ends every copy when Essence leaves, which its rulings say does not happen | the entity: `remove_from_zone_collection` drops the `PermanentState`, so the copy has no row, no duration and no source |
+| Timestamp | allocated at placement | the entity's (CR 613.7d), re-stamped with it under 613.7e |
+| Cost | nothing on a board without such a permanent; on a board with one, every sweep walks every permanent for as long as it lives | one field read per member in `Board::seed`, which already reads the entity, and an empty list at layer 1; on a board with one, the sweeps visit it the way they visit a printed ability |
+
+B also follows a rule the tree is already converging on. **How a permanent
+entered is state on it**: `tapped`, the counters, `face_down` (CV-6's layer
+1b, §4.6), and the entered-as type `backlog.md` §2.30 designs for Master
+Biomancer ("no row, because it is not an effect with a source"). **What an
+effect later does to it is a row.** A Tier C copy over an entry copy is
+exactly that pair. The row applies after the state at layer 1a by timestamp,
+and when it expires the entry copy shows again. §1.2's three objections to a
+`CardData` swap all fail against B: the card is still Clone in the graveyard,
+the state has the entity's timestamp, and a later row supersedes it.
+
+**Tier C is unchanged, and Mirrorweave shows why the line is the entry and not
+the source.** A copy an effect makes after a permanent has entered is CV-1's
+row. Mirrorweave's source is the spell, its subjects are every other
+creature, and CR 611.2c locks that set as the row begins; the row lasts its
+own duration and expires at CR 514.2. Neither the spell leaving nor the donor
+leaving ends it, since the values are a snapshot, and a subject leaving is
+main item 10's (CV-1b). Essence of the Wild's copies are the entry-time case
+of the same thing, a source that is not the affected permanent, and they are
+state because they are made as the permanent enters. **What decides the carrier is
+when the copy is made, never who made it.**
+
+**D2. The rewrite is `Rewrite::EnterAsCopy(EntryCopyTemplate)`, the eighth
+arm.** CR 614.1c permits it ("[This permanent] enters as . . ."), and CR
+616.1c names its class by what the effect does, so `from_rewrite` maps it to
+`CopyAsEnters`. That is §9 item 9's rename, made in the same commit. It is not
+an `Instead`: fact 1, and an `Instead` overwrites the event that CR 616.1f
+accumulates. It is not a field of `EnterModsTemplate` either. `is_fixed` and
+`classify`'s `ModsAdding` cell rest on an `EnterWith` writing counters and a
+status that two applications merge in either order. A copy is neither: it
+prompts, and the later of two copies wins (Essence of the Wild's third
+ruling). So `classify` answers `None` for it, a real choice beside anything.
+
+The template is the authored half and `EnterMods.copy` (D3) the evaluated
+one, as `EnterModsTemplate` is to `EnterMods`. CV-2a's template is
+`{ donor: CopyDonor }`, and CV-2b adds `except: Vec<CopyException>`. The donor
+has three arms, one per printed binding:
+- `Chosen(SelectionFilter)`: "any creature on the battlefield" (Clone,
+  `SelectionFilter::Creature`) or "a creature or planeswalker you control"
+  (Spark Double, a `Permanent` filter over `Or` and `ByController`). 52 of the
+  62 printed cards.
+- `ThisObject`: Essence of the Wild's "this creature".
+- `Host`: Infinite Reflection's "enchanted creature".
+
+**D3. Between the choice and placement, the values ride `EnterMods.copy`.** It
+is an `Option<Arc<CopiableValues>>`, written by the arm and by nothing else,
+and read three ways:
+- The look-ahead's would-be entity carries it. So every later iteration's
+  frame sees the copy: source 1a, `set_affects`, and the "can't" predicate.
+  Worms of the Earth refusing a Clone that chose Dryad Arbor, CR 608.3e's own
+  example, needs no new code.
+- `would_be_rows` lowers the copied static abilities instead of the printed
+  ones (CR 614.12's clause 2, for the object as it would exist).
+- `place_on_battlefield` moves it onto the entity.
+
+The `Arc` is #188's reason again: the pipeline clones the event every
+iteration and a fork clones the entity, and a `Box` would allocate at each
+(floor 2). A second copy in one entry replaces the first, never merges with
+it. Essence of the Wild's third ruling ("the one whose copy effect you apply
+last") and CR 707.9e's cancellation say the same thing from two sides, so
+`EnterMods::merge` asserts that it is handed no copy. CV-2b widens the field
+to `EntryCopy { values, added }` for 707.9e (D6).
+
+**D4. The CR 707.6 choice.**
+- **Who chooses:** the entering object's controller. That is the proposal's
+  `controller`, after any CR 616.1b effect has applied, since 616.1b is the
+  step before. For Clone it is also the instance's controller, but 707.6 names
+  the object's controller, so that is the value the arm reads.
+- **The candidates:** `enumerate_legal_selections` over the battlefield, in
+  timestamp order. It is a choice, not a target, so hexproof and shroud do
+  not apply (Clone's first ruling). The entering object is not on the
+  battlefield while its entry is decided, and neither is anything entering in
+  the same batch, so Clone's fifth ruling holds by construction (main item 46's
+  one-board decision). A candidate that is itself a copy gives what it copied,
+  because the capture is `copiable_values` at `END_OF_LAYER_1` (§3.1; 613.2c).
+- **The "may":** the def's `optional` stays the text's "you may". It is asked
+  inside the choice, as a `(0, 1)` pick over the candidates, so declining is
+  picking none. That is devour's precedent: `ChooseAuxiliaryZoneChange`'s
+  "declining is a count rather than a separate optional-replacement prompt".
+  The pipeline skips its own yes/no (`pipeline.rs:500`) for a rewrite that
+  asks the "may" itself. CR 616.1's two-candidate rule does not apply, because
+  this is a choice within one replacement. The one-outcome rule does apply:
+  one candidate is two outcomes and is asked; no candidate is nothing and is
+  not asked; a mandatory chosen copy (none is printed) over one candidate is
+  forced. A decline applies the effect and changes nothing, and CR 614.5's
+  applied set already spends it.
+- **The prompt:** `ChoiceKind::ChooseCopySource`, reused, with `spell_id`
+  renamed `source`: the object whose copy effect is choosing. For CV-1 that is
+  the resolving spell or ability; for Clone it is the entering permanent, whose
+  own ability it is. The question is the same one, and main item 68 forbids
+  a second variant for it.
+
+**D5. CR 707.5's last sentence is an order inside `place_on_battlefield`.** The
+entity is inserted with `entered_as_copy` set, then the counters go on, then
+`register_static_effects` runs, then the entry is announced. Registration
+reads the abilities the permanent entered with: the copy's, or else the
+printed ones. So the copied triggered abilities are in `trigger_sources` before
+the batch closes and dispatches the entry (CR 603.6a, "including the
+newcomers"). The copied "enters with" and "as enters" abilities have already
+applied during the loop, found by source 1a off the frame (`gather.rs:234`).
+The comment that registration "reads printed abilities on purpose"
+(`game_state.rs:1633`) becomes "reads the abilities the permanent entered
+with". That is still not a frame, so it is still not circular.
+
+*D6 stayed live as `copy-effects-architecture.md` §7c.*
+
+**D7. Loyalty is a copiable value (CV-2a).** CR 707.2 lists it and CR 109.3
+makes it a characteristic, but `EffectiveCharacteristics` has no such field. A
+Clone of a creature that is also a planeswalker would enter with none (no such
+card is registered today), and CV-2b's Spark Double copying Grist would enter
+with only its one additional counter. `loyalty: Option<i32>` joins the frame.
+It is seeded from `CardData.loyalty`, written by `CopyFrom` and carried by
+`CopiableValues`, and `default_enter_mods` reads CR 306.5b's "printed loyalty
+number" off the frame.
+
+A copy's application then rebuilds the counters the rules gave:
+`mods.counters = 306.5b(result)`, plus this copy's 707.9e counters in CV-2b,
+each through `strip_prohibited_counters`. The rebuild is exact because CR
+616.1's ladder puts every 616.1c application before any 616.1e one. At a
+copy's application, the only counters in the mods are the seed's and a
+previous copy's. That is asserted in debug builds, because the premise is a
+property of the printed pool: a copy that becomes applicable only after an
+"enters with" has applied is unprinted.
+
+**D8. Teardown, and what CV-1b must leave alone.** The copy leaves with the
+entity. The copied static abilities' rows are `register_static_effects`' own
+(`EffectOrigin::StaticAbility`, `WhileSourceOnBattlefield`, with the permanent
+as source), torn down by `remove_by_source` like every printed static's. Tier
+B never uses `Duration::Indefinite`, because there is no row to give it to.
+What main item 10's subject-keyed teardown must leave alone is §5.3's fact, now
+general rather than Tier B's: `remove_by_source` stays beside it for every
+static row, printed or entered-as.
+
+**D9. §9 item 4 is answered: `Arc`, already.** #188 moved the row's payload to
+`Arc`, and D3 carries the same `Arc` on the proposal and the entity.
+
+**D10. Two PRs, not one** (the size is below). **CV-2a** is the carrier, the
+rewrite, the choice, the frame, registration, copiable loyalty and Clone.
+**CV-2b** is CR 707.9's applier and Spark Double. Each carries its consumer
+(§4), and A6c becomes three PRs.
+
+#### The standing question (§4.1), asked of the new arm
+
+*What does it check?* Nothing after the choice. It reads the board twice at
+the choice (the candidates, then the donor's values), and the values are never
+re-read, so the arm has nothing to compare later. *What happens if it runs
+twice?* A second copy replaces the first (D3), and the loop terminates. Each application spends one CR 614.5 entry keyed
+`(entering object, ability id)`. A copied copy ability is a new key only when
+it comes from a different card. The printed ids on the battlefield are
+finite, so a chain of copies ends.
+
+One consequence of that key, recorded rather than fixed: a Clone that copies a
+Clone which copied nothing is not re-offered Clone's ability, because the ids
+are equal (`AbilityId::printed` hashes the card name). The CR would re-offer
+it, as in 707.9e's Altered Ego example. It is unobservable, because the second
+offer's candidates and exceptions are the first's.
+
+`filter_is_mods_invariant` rests on a premise Master Biomancer's doc comment
+states: `ByType` and `BySubtype` are invariant "only because no `EnterMods`
+field feeds a type". `copy` feeds every characteristic. The premise survives
+in the form the predicate actually needs: no member of a *suppressible* bucket
+writes `copy`. Only `EnterAsCopy` writes it, `classify` never admits
+`EnterAsCopy`, and CR 616.1's ladder never puts a 616.1c effect in the same
+bucket as a 616.1e one. The comment says so in CV-2a.
+
+#### The sites, counted
+
+| Site | CV-2a |
+|---|---|
+| `types/replacement.rs` | `CopyOnEnter` → `CopyAsEnters`; `Rewrite::EnterAsCopy`, `EntryCopyTemplate`, `CopyDonor`; `EnterMods.copy` (the const, 2 constructors, `is_none`, `merge`); 2 exhaustive `Rewrite` matches (`from_rewrite`, `is_prevention`) |
+| `types/effects.rs` | none |
+| `engine/replacement/pipeline.rs` | `apply_rewrite`'s arm (donor, choice, capture, the D7 rebuild); `classify` (1 arm); the optional branch's skip (1); `strip_prohibited_counters`' literal (1); `filter_is_mods_invariant`'s comment |
+| `engine/layers/lookahead.rs` | the would-be entity carries the copy (1); `would_be_rows` reads the entered-with list (1) |
+| `engine/layers/board.rs` | `Board::seed` notes each member's entry copy off the entity it already reads (1); a layer-1 `Kind::Own` per noted member (1); `Tiebreak::EntryCopy` (1) |
+| `engine/layers/types.rs`, `compute.rs`, `copy.rs` | `EffectiveCharacteristics.loyalty`, `seed_frame`, `from_frame`, `apply_to`; `land_types.rs`' test literal |
+| `state/battlefield.rs` | `PermanentState.entered_as_copy` and `new` |
+| `state/game_state.rs` | `place_on_battlefield` writes it (1); `register_static_effects` reads the entered-with list (1); `default_enter_mods` reads the frame's loyalty (1) |
+| `ui/` | `ChooseCopySource`'s `spell_id` → `source` (`choice_types.rs`, `ask.rs`, `cli.rs`, `resolve.rs:1810`, `tests/prompt_subject_test.rs:241`); `ask_choose_copy_source` takes its bounds |
+| the four gates | **no code**: the printed legs (`gather.rs:284`, `restriction/predicate.rs:82`, `cost_determination/gather.rs:64`, `dispatch.rs:530`) read the sets registration files; their comments name the entry copy |
+| cards | Clone; `PERFORMANCE_POOL` 98 → 99 |
+
+#### Size against §4's band
+
+Calibrated on CV-1, which shipped 1,711 lines for a comparable surface (a
+payload type, one producer, a prompt, two cards, 18 tests in 854 lines), and
+on §4's warning that tests run about twice their row.
+
+| | Engine | Cards | Tests | Code and tests | Docs |
+|---|---:|---:|---:|---:|---:|
+| CV-2a | ~600 | ~70 | ~1,000 | **~1,700–2,200** | ~250 |
+| as one PR | | | | ~2,800–3,700 | |
+
+One PR runs over the band. The split is where the cards already divide the
+work: Clone needs no exception, and Spark Double needs little else.
+
+#### The tests, and the atom each claims
+
+All tests are in `tests/phase_cv2a_integration_test.rs` and
+`tests/phase_cv2b_integration_test.rs`. A fixture is a card built inline in
+the test, named for the printed card whose board it stands in for, and never
+registered.
+
+| Test | Atom | Claim |
+|---|---|---|
+| Clone cast from hand (`cast_spell` under `ManaWindowStop`, exact `{3}{U}`) copies a 5/5 | ATOM-613.2a-001 | COVERS (CV-1 had it partial) |
+| Clone B copies Clone A, a copy of Grizzly Bears | ATOM-613.2c-001 | COVERS (was partial) |
+| the donor's +1/+1 counters, tapped status, pump and animation are not copied; a Clone of an animated noncreature artifact is that artifact, with its ability | ATOM-707.2-001, ATOM-707.2-003 | COVERS both (were partial) |
+| Cytoshape makes the donor a copy of something else, and the Clone is unchanged | ATOM-707.2b-001 | COVERS (was partial) |
+| -3/-3 on a Clone of a 5/5 leaves a 2/2 | ATOM-613.1a-001 | COVERS (was partial) |
+| a Clone of a Skyshroud Behemoth-shaped fixture enters tapped with two counters; a Clone of Chainbreaker, with two -1/-1 counters | ATOM-707.5-001 | COVERS |
+| a Clone of a Wall of Omens-shaped fixture draws a card | ATOM-707.5-002 | COVERS |
+| a Clone of Thunder-Thrash Elder: its controller makes the devour choice, and the Elder's counters are not copied | ATOM-707.6-001, COMP-9A-002 | PARTIAL both. Their "choose a creature type" and "choose a color" boards are `backlog.md` §2.2's "as it enters" choice record |
+| an Essence of the Wild-shaped fixture and a Rusted Sentinel-shaped fixture make an untapped copy | ATOM-616.1c-001 | COVERS |
+| a lands-can't-enter fixture refuses a Clone that chose Dryad Arbor, which goes to the graveyard | ATOM-608.3e-001 | COVERS (RC-4b had it partial) |
+| a Clone of a commander is not a commander and deals no commander damage | ATOM-903.3-002 | COVERS |
+| a planeswalker card in hand has its printed loyalty | ATOM-306.5a-001 | COVERS |
+
+Without an atom, in CV-2a: declining gives a 0/0 that dies; one candidate asks
+once; no candidate asks nothing; a creature entering in the same batch is not
+a candidate; a token donor, and the Clone is not a token; the legend rule; a
+Clone in the graveyard is a Clone card and its derived rows are gone; one test
+per gate (Clones of Master Biomancer, Sigarda, Thalia and Soul Warden); a
+Clone of Citanul Hierophants grants the mana ability; Root Maze taps a Clone of
+Chainbreaker (616.1f through the frame); Cytoshape over a Clone, then expiry
+restores the entry copy; two Essence-shaped fixtures give the last one applied;
+a Clone beside one gives the Essence; the `Host` donor; a Clone of a creature
+planeswalker fixture enters with its loyalty, doubled under Doubling Season.
+
+#### The A/B arms
+
+**CV-2a.**
+- `engine`, the last commit before Clone is registered, against `main`:
+  every gameplay and diagnostic counter `IDENTICAL` on both pools at two seats
+  and four. Instructions per decision within +0.3 points: one field read per
+  member in `Board::seed`, an empty list at layer 1, and one entity read per
+  registration.
+- `shipped`, HEAD with Clone pooled (98 → 99), against `main`: every row
+  moves, since both pools changed. Clone copies in about half its entries (the
+  random provider's `(0, 1)` pick declines the other half), `Decisions` rise
+  by that prompt, and there are 0 errors, panics and turn-limit hits. No
+  scripted fixture migrates, because no existing test casts Clone.
+
+#### Findings, and the review
+
+1. **`owed` misses this cluster twice over** (§9 item 11). The ticket filter
+   hides the `D5` atoms, and the phase filter hides `ATOM-707.5-002` even from
+   `--all`.
+2. **Main item 40's `PendingReplacement` omits the group's members.** Its sizing
+   holds the three sets, but a fork at a CR 616.1 prompt after an application
+   also needs the rewritten events, and CV-2's captured copy is the largest
+   thing they carry. One line on the item, with CV-2a.
+3. **RS-2 must keep hexproof out of `validate_selection`.** Clone's and
+   Cytoshape's choices both enumerate through it, and neither targets.
+4. **Essence of the Wild beside Clone asks a 616.1c prompt whose board outcome
+   is fixed** (Essence's seventh ruling). It is accepted: `classify` cannot
+   prove it, and it is a real CR 616.1 choice.
+5. **The engine cannot say "enters untapped"** (D6): `backlog.md` §2.40.
+6. **Every elision is argued at its own site, and nothing checks them
+   together.** The premise `filter_is_mods_invariant` rests on had to be
+   re-argued here (the standing question above). The owner's note from the
+   review: formalize exactly what the engine elides and why, and show the
+   system sound. That is `codebase-state.md` main item 185, not CV-2's.
+
+**The review (the owner, 2026-09-28).** D1 to D5 and D7 to D10 are agreed,
+with the Essence board a fixture and main item 66 (`--dump-state`) moved to
+CV-1b, where main item 10 is its other customer. D6 was reworked in answer to the
+review's two questions: whether a new category of exception forces a
+retrofit, and what a custom card can say. The superseded text elsewhere in
+this document is corrected where it stands, in §1.3, §3.1, §2.4, §3.3, §4.1,
+§5.3 and §9, so each fact is stated once. The wider drift is for the docs
+audit the owner has in mind after the triggers phase.

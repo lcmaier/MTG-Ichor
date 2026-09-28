@@ -270,11 +270,11 @@ pub fn mirrorweave() -> Arc<CardData> {
 ///
 /// A `SourceOnly` entry replacement whose rewrite is
 /// `Rewrite::EnterAsCopy`, so CR 616.1c's bucket has a printed producer and
-/// the copy is the permanent's state from the moment it arrives
-/// (`copy-effects-architecture.md` §7b, D1). The donor is chosen, not
-/// targeted, by the entering object's controller (CR 707.6), and the "you
-/// may" is that choice's empty pick (D4). An unchosen Clone is the 0/0 its
-/// card says, and CR 704.5f takes it.
+/// the copy is the permanent's state from the moment it arrives (CV-2a's
+/// D1, in `plans/archive/copy-effects-architecture-landed.md`). The donor is
+/// chosen, not targeted, by the entering object's controller (CR 707.6), and
+/// the "you may" is that choice's empty pick (D4). An unchosen Clone is the
+/// 0/0 its card says, and CR 704.5f takes it.
 ///
 /// In `PERFORMANCE_POOL`: it is the only card that opens the entry-copy path,
 /// and a path no pooled card opens is RS-1's failure. At `{3}{U}` a random
