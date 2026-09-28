@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-26",
+  "fetched": "2026-09-28",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -176,6 +176,19 @@
     "Citanul Hierophants": {
       "first_seen": "2026-09-17",
       "rulings": []
+    },
+    "Clone": {
+      "first_seen": "2026-09-28",
+      "rulings": [
+        {"n": 1, "published_at": "2025-10-02", "comment": "Clone's ability doesn't target the chosen creature."},
+        {"n": 2, "published_at": "2025-10-02", "comment": "If the copied creature has {X} in its mana cost, X is considered to be 0."},
+        {"n": 3, "published_at": "2025-10-02", "comment": "Any enters abilities of the copied creature will trigger when Clone enters. Any \"as [this creature] enters\" or \"[this creature] enters with\" abilities of the chosen creature will also work."},
+        {"n": 4, "published_at": "2025-10-02", "comment": "You can choose not to copy anything. In that case, Clone enters as a 0/0 Shapeshifter creature, and is probably put into the graveyard immediately."},
+        {"n": 5, "published_at": "2025-10-02", "comment": "If Clone somehow enters at the same time as another creature, Clone can't become a copy of that creature. You may choose only a creature that's already on the battlefield."},
+        {"n": 6, "published_at": "2025-10-02", "comment": "If the copied creature is a token, Clone copies the original characteristics of that token as stated by the effect that created the token."},
+        {"n": 7, "published_at": "2025-10-02", "comment": "If the copied creature is copying something else (for example, if the copied creature is an Evil Twin), then Clone enters as whatever that creature copied."},
+        {"n": 8, "published_at": "2025-10-02", "comment": "Clone copies exactly what was printed on the original creature and nothing else (unless that creature is copying something else or is a token; see below). It doesn't copy whether that creature is tapped or untapped, whether it has any counters on it or Auras and Equipment attached to it, or any non-copy effects that have changed its power, toughness, types, color, or so on."}
+      ]
     },
     "Cobbled Wings": {
       "first_seen": "2026-09-17",

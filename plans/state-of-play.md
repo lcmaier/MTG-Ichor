@@ -94,8 +94,8 @@ says nothing about progress, so there is one answer and it is derived.
 
 | | |
 |---|---:|
-| Cards registered | 178 |
-| …of them in `PERFORMANCE_POOL` | 98 |
+| Cards registered | 179 |
+| …of them in `PERFORMANCE_POOL` | 99 |
 | `#[test]` functions | 1824 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.

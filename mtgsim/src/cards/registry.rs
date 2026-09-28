@@ -53,7 +53,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 98] = [
+const PERFORMANCE_POOL: [&str; 99] = [
     "Plains",
     "Island",
     "Swamp",
@@ -451,6 +451,12 @@ const PERFORMANCE_POOL: [&str; 98] = [
     // Trickster's, so it opens no path the two do not.
     "Psychosis Crawler",
     "Cosi's Trickster",
+    // CV-2a's: the pool's only permanent that enters as a copy (CR 707.5), so
+    // the only route to CR 616.1c's bucket, the entry copy in the frame and
+    // the board pass, and registration filing a copied list. Its "you may"
+    // is a `(0, 1)` pick, so a random game declines about half the time and
+    // the 0/0 dies to CR 704.5f, which measures that path too.
+    "Clone",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -645,6 +651,8 @@ impl CardRegistry {
         // The third arm-consumer: Mirrorform prints Mirrorweave's shape without
         // the word "other", which is why `exclude_donor` is a field.
         registry.register("Mirrorform", phase_cv_cards::mirrorform);
+        // CR 707.5: the permanent that enters as a copy, CR 616.1c's producer.
+        registry.register("Clone", phase_cv_cards::clone);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

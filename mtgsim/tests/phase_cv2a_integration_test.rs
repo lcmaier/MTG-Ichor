@@ -426,6 +426,8 @@ fn clone_cast_from_hand_enters_as_a_copy_of_a_five_five() {
     assert_eq!(dp.inner().asked(), vec![(0, "ChooseCopySource".to_string(), vec![donor])]);
 }
 
+// RULING: Clone #7 - "If the copied creature is copying something else ...,
+//   then Clone enters as whatever that creature copied."
 /// CR 613.2c — a copy's copiable values are its state after layer 1, so Clone
 /// B, copying Clone A, which copied Grizzly Bears, is Grizzly Bears.
 // COVERS: ATOM-613.2c-001
@@ -441,6 +443,10 @@ fn a_clone_of_a_clone_enters_as_what_the_first_copied() {
     assert!(!has_subtype(&game, b, &Subtype::Creature(CreatureType::Shapeshifter)));
 }
 
+// RULING: Clone #8 - "It doesn't copy whether that creature is tapped or
+//   untapped, whether it has any counters on it or Auras and Equipment
+//   attached to it, or any non-copy effects that have changed its power,
+//   toughness, types, color, or so on."
 /// CR 707.2 — the donor's three +1/+1 counters, its tapped status, a pump and
 /// a color change are not copiable: the Clone is an untapped 2/2 green Bear
 /// with no counters.
@@ -546,6 +552,9 @@ fn minus_three_on_a_clone_of_a_five_five_leaves_a_two_two() {
 // 2. The CR 707.6 choice
 // ---------------------------------------------------------------------------
 
+// RULING: Clone #4 - "You can choose not to copy anything. In that case,
+//   Clone enters as a 0/0 Shapeshifter creature, and is probably put into
+//   the graveyard immediately."
 /// Declining is a pick of none, asked once: the Clone enters as itself and
 /// CR 704.5f puts it into the graveyard.
 #[test]
@@ -573,6 +582,7 @@ fn a_clone_with_no_creature_to_copy_asks_nothing() {
     assert_eq!(zone_of(&game, clone), Zone::Graveyard);
 }
 
+// RULING: Clone #1 - "Clone's ability doesn't target the chosen creature."
 /// An opponent's hexproof creature is a candidate, since the choice is not a
 /// target, and the copy has hexproof.
 #[test]
@@ -584,6 +594,9 @@ fn a_clone_may_copy_an_opponents_hexproof_creature() {
     assert_eq!(get_effective_power(&game, clone), Some(3));
 }
 
+// RULING: Clone #5 - "If Clone somehow enters at the same time as another
+//   creature, Clone can't become a copy of that creature. You may choose only
+//   a creature that's already on the battlefield."
 /// Clone and a Bear entering as one event: the Bear is not offered, because
 /// each entry is decided against the board before the batch performs. At the
 /// `execute_actions` boundary, since no registered effect makes the batch.
@@ -608,6 +621,9 @@ fn a_creature_entering_beside_clone_is_not_a_candidate() {
     assert_eq!(get_effective_name(&game, clone), "Colossus");
 }
 
+// RULING: Clone #6 - "If the copied creature is a token, Clone copies the
+//   original characteristics of that token as stated by the effect that
+//   created the token."
 /// A token's copiable values are what its creating effect stated (CR
 /// 707.2), and the Clone is a card, not a token (CR 111.1).
 #[test]
@@ -639,6 +655,8 @@ fn a_clone_of_a_token_is_not_a_token() {
     assert!(!game.get_object(clone).unwrap().is_token, "the Clone is still a card");
 }
 
+// RULING: Clone #2 - "If the copied creature has {X} in its mana cost, X is
+//   considered to be 0."
 /// The copy's cost has the {X}, and its mana value counts it as 0 (CR
 /// 202.3e), which the Clone was never cast with.
 #[test]
@@ -746,6 +764,8 @@ fn a_host_donor_is_the_enchanted_creature() {
 // 3. What the copy brings to its own entry (CR 707.5's last sentence)
 // ---------------------------------------------------------------------------
 
+// RULING: Clone #3 - "Any "as [this creature] enters" or "[this creature]
+//   enters with" abilities of the chosen creature will also work."
 /// CR 707.5 — the copied "enters tapped" and "enters with" abilities apply to
 /// the Clone's own entry: a Clone of Skyshroud Behemoth enters tapped with
 /// two counters, and a Clone of Chainbreaker with two -1/-1 counters. The
@@ -766,6 +786,8 @@ fn a_clone_enters_with_what_its_copy_enters_with() {
     assert_eq!(get_effective_power(&game, clone), Some(1));
 }
 
+// RULING: Clone #3 - "Any enters abilities of the copied creature will
+//   trigger when Clone enters."
 /// CR 707.5 — the copied "when this creature enters" triggers for the Clone:
 /// registration filed the copied trigger before the entry was dispatched, so
 /// its controller draws. Both libraries are stocked, since the donor's own
