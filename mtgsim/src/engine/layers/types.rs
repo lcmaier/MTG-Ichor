@@ -44,8 +44,10 @@ pub enum Layer {
     ///
     /// One slot for both sublayers. CR 613.2a is **1a, copy**; CR 613.2b is
     /// **1b, face-down** — in that order (`copy-effects-architecture.md` §5.4).
-    /// Only 1a has a producer: `EffectModification::CopyFrom`, from
-    /// `Primitive::Copy`. CV-6 splits the slot when face-down arrives, and
+    /// Only 1a has producers: `EffectModification::CopyFrom` rows from
+    /// `Primitive::Copy`, and the copy a permanent entered as
+    /// (`PermanentState::entered_as_copy`), applied from its state at its own
+    /// timestamp. CV-6 splits the slot when face-down arrives, and
     /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).
@@ -296,6 +298,12 @@ pub struct EffectiveCharacteristics {
     pub abilities: Arc<Vec<AbilityDef>>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
+    /// CR 306.5a / 707.2 — the loyalty number, printed or copied: a
+    /// characteristic (CR 109.3), and one of the copiable values, which is
+    /// what CR 306.5b's "printed loyalty number" reads as a copy enters. How
+    /// many loyalty counters a permanent has is CR 306.5c's, on its
+    /// `PermanentState`.
+    pub loyalty: Option<i32>,
     pub controller: PlayerId,
     /// The turn `controller` took control (CR 302.6). **Computed, never stored:**
     /// an `UntilEndOfTurn` steal reverts when its row leaves the registry, which

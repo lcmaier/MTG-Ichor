@@ -89,6 +89,10 @@ pub struct CopiableValues {
     pub abilities: Arc<Vec<AbilityDef>>,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
+    /// CR 707.2 lists loyalty among the copiable values, so a copy of a
+    /// planeswalker enters with the copied number's worth of counters
+    /// (CR 306.5b), not its own card's.
+    pub loyalty: Option<i32>,
 }
 
 impl CopiableValues {
@@ -112,6 +116,7 @@ impl CopiableValues {
             abilities,
             power,
             toughness,
+            loyalty,
             controller: _,
             control_since_turn: _,
         } = frame;
@@ -126,6 +131,7 @@ impl CopiableValues {
             abilities,
             power,
             toughness,
+            loyalty,
         }
     }
 
@@ -146,6 +152,7 @@ impl CopiableValues {
         chars.abilities = Arc::clone(&self.abilities);
         chars.power = self.power;
         chars.toughness = self.toughness;
+        chars.loyalty = self.loyalty;
     }
 
     /// The static abilities in the captured list, for the CR 613.7a rows a copy
