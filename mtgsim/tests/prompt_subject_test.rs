@@ -238,7 +238,7 @@ fn every_variant_decides_its_subject() {
         ChoiceKind::ChooseDamageSource { source: id },
         ChoiceKind::ChooseEnteringController { object: id },
         ChoiceKind::ChooseAuxiliaryZoneChange { entering: id, source: id, to: Zone::Graveyard },
-        ChoiceKind::ChooseCopySource { spell_id: id },
+        ChoiceKind::ChooseCopySource { source: id },
         ChoiceKind::CommanderToCommandZoneSba { commander: id },
         ChoiceKind::Discard { source: Some(id) },
         ChoiceKind::Scry { source: Some(id), n: 2 },

@@ -1301,6 +1301,9 @@ impl GameState {
         let mut entry = PermanentState::new(id, controller, current_turn);
         // CR 110.5b — the one status a permanent can currently enter with.
         entry.tapped = mods.tapped;
+        // CR 707.5 — and what it entered as, in the entity before anything
+        // below reads it: registration files the copy's abilities.
+        entry.entered_as_copy = mods.copy.clone();
         // CR 400.7d — how it was cast and what its costs were, off the
         // resolving spell's entry. A permanent that arrives any other way was
         // never a spell, and its `PermanentState::new` defaults say so.
@@ -1382,32 +1385,61 @@ impl GameState {
     /// Layer 4 effect — reads the *printed* loyalty, which is `None`, and so
     /// enters with none either way; CR 306.5b says "printed" and means it.)
     pub(crate) fn default_enter_mods(&self, id: ObjectId, controller: PlayerId) -> EnterMods {
-        let mut mods = EnterMods::NONE;
+        EnterMods { counters: self.loyalty_on_entry(id, controller, &EnterMods::NONE), ..EnterMods::NONE }
+    }
 
-        // CR 306.5b — "a planeswalker enters the battlefield with a number of
-        // loyalty counters on it equal to its printed loyalty number".
-        let loyalty = match self.objects.get(&id) {
-            Some(obj) => obj.card_data.loyalty,
-            None => return mods,
+    /// The counters [`Self::default_enter_mods`] gives, asked again of an entry
+    /// that already carries `mods`, and through CR 614.17d's door as the seed
+    /// goes through it.
+    ///
+    /// A copy is what re-asks (CR 707.5): the permanent now enters as the copy,
+    /// so whether it is a planeswalker, and its printed loyalty number, are the
+    /// copy's (CR 707.2 makes loyalty a copiable value).
+    pub(crate) fn default_enter_counters(
+        &self,
+        id: ObjectId,
+        controller: PlayerId,
+        mods: &EnterMods,
+    ) -> Vec<crate::types::replacement::EntryCounters> {
+        let seed = EnterMods { counters: self.loyalty_on_entry(id, controller, mods), ..EnterMods::NONE };
+        crate::engine::replacement::strip_prohibited_counters(self, id, controller, mods, &seed, None).counters
+    }
+
+    /// CR 306.5b — "a planeswalker enters the battlefield with a number of
+    /// loyalty counters on it equal to its printed loyalty number", for `id`
+    /// as it would enter with `mods`.
+    ///
+    /// The number is the frame's, which is the printed card's unless the
+    /// entry is a copy. The printed or copied number is asked first, since
+    /// most objects have none and the frame is a walk.
+    fn loyalty_on_entry(
+        &self,
+        id: ObjectId,
+        controller: PlayerId,
+        mods: &EnterMods,
+    ) -> Vec<crate::types::replacement::EntryCounters> {
+        let loyalty = match (&mods.copy, self.objects.get(&id)) {
+            (Some(values), _) => values.loyalty,
+            (None, Some(obj)) => obj.card_data.loyalty,
+            (None, None) => return Vec::new(),
         };
-        if let Some(loyalty) = loyalty
-            && loyalty > 0 {
-            let is_planeswalker = crate::engine::layers::compute_as_entering(
-                self, id, controller, &EnterMods::NONE,
-            )
-            .is_some_and(|chars| {
-                chars.types.contains(&crate::types::card_types::CardType::Planeswalker)
-            });
-            if is_planeswalker {
-                mods.counters.push(crate::types::replacement::EntryCounters {
-                    counter: CounterType::Loyalty,
-                    n: loyalty as u32,
-                    by: None,
-                });
-            }
+        if !loyalty.is_some_and(|n| n > 0) {
+            return Vec::new();
         }
-
-        mods
+        let Some(chars) = crate::engine::layers::compute_as_entering(self, id, controller, mods) else {
+            return Vec::new();
+        };
+        if !chars.types.contains(&crate::types::card_types::CardType::Planeswalker) {
+            return Vec::new();
+        }
+        match chars.loyalty {
+            Some(n) if n > 0 => vec![crate::types::replacement::EntryCounters {
+                counter: CounterType::Loyalty,
+                n: n as u32,
+                by: None,
+            }],
+            _ => Vec::new(),
+        }
     }
 
     /// Put `n` counters of `counter_type` on a permanent, allocating the CR
@@ -1630,12 +1662,14 @@ impl GameState {
     /// registry, so `compute.rs` re-checks existence, zone included, at every
     /// layer (`CLAUDE.md`).
     ///
-    /// Reads printed abilities on purpose: it runs inside
-    /// `place_on_battlefield`, before this object's own effect is registered,
-    /// so computing effective characteristics here would be circular. A
-    /// *copied* static ability therefore registers nothing here;
-    /// `register_copied_static_effects` is the path beside it
-    /// (`copy-effects-architecture.md` §4.7 leg 2).
+    /// Reads the abilities the object arrived with, never a frame: it runs
+    /// inside `place_on_battlefield`, before this object's own effect is
+    /// registered, so computing effective characteristics here would be
+    /// circular. Those are the printed ones, or a copy's when the permanent
+    /// entered as one (CR 707.5), which is how every gate's printed leg sees an
+    /// entry copy. A copy made *later* registers through
+    /// `register_copied_static_effects` (`copy-effects-architecture.md` §4.7
+    /// leg 2).
     pub(crate) fn register_static_effects(
         &mut self,
         id: ObjectId,
@@ -1652,19 +1686,26 @@ impl GameState {
         let Some(card) = self.objects.get(&id).map(|obj| Arc::clone(&obj.card_data)) else {
             return;
         };
-        let card_name = card.name.as_str();
+        let entered_as = match zone {
+            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.clone()),
+            _ => None,
+        };
+        let (abilities, types, card_name) = match &entered_as {
+            Some(values) => (Arc::clone(&values.abilities), &values.types, values.name.as_str()),
+            None => (Arc::clone(&card.abilities), &card.types, card.name.as_str()),
+        };
         let mut zone_replacement_defs = Vec::new();
 
-        for ability in card.abilities.iter() {
+        for ability in abilities.iter() {
             // CR 603 — a triggered ability generates no row either; what the
             // dispatcher needs is to know this object is worth asking about,
             // filed by where it will look (`engine::triggers::dispatch`):
             // the battlefield set, or the zone map when CR 113.6k puts the
             // ability's function somewhere else. The same CR 113.6 gate as
-            // the static path below, on printed types for the same reason.
+            // the static path below, on the arrived-with types for the same reason.
             if ability.ability_type == AbilityType::Triggered {
                 if let Effect::Triggered(def) = &ability.effect
-                    && crate::engine::zone_function::functions_in(ability, &card.types, zone)
+                    && crate::engine::zone_function::functions_in(ability, types, zone)
                 {
                     if zone == Zone::Battlefield {
                         // Accumulated, not replaced: a permanent with two
@@ -1683,11 +1724,11 @@ impl GameState {
 
             // CR 113.6 — does this ability function where the object is?
             //
-            // PRE-LAYER ZONE: printed types, for the reason the whole function reads
-            // printed abilities. Exact rather than an over-approximation: the only
+            // PRE-LAYER ZONE: the arrived-with types, for the reason the whole function
+            // reads the arrived-with abilities. Exact rather than an over-approximation: the only
             // thing `functioning_zones` asks the types is CR 113.6's instant-or-sorcery
             // split, and no continuous effect can make a permanent an instant (CR 205.1b).
-            if !crate::engine::zone_function::functions_in(ability, &card.types, zone) {
+            if !crate::engine::zone_function::functions_in(ability, types, zone) {
                 continue;
             }
 

@@ -32,8 +32,9 @@ use crate::types::replacement::EnterMods;
 pub struct Lookahead {
     pub object: ObjectId,
     /// The entity `place_on_battlefield` would build: the proposed controller,
-    /// CR 302.6's clock started this turn, and CR 122.6a's counters from the
-    /// pending `EnterMods` — CR 614.12 clause (1).
+    /// CR 302.6's clock started this turn, and CR 122.6a's counters and the
+    /// copy it would enter as (CR 707.5) from the pending `EnterMods` —
+    /// CR 614.12 clause (1).
     pub(super) entity: PermanentState,
     /// The CR 613.7d timestamp the object *would* receive on entering the
     /// battlefield — `next_timestamp` read without advancing it.
@@ -65,11 +66,12 @@ impl Lookahead {
         let mut entity = PermanentState::new(object, controller, game.turn_number);
         entity.timestamp = entity_timestamp;
         entity.tapped = mods.tapped;
+        entity.entered_as_copy = mods.copy.clone();
         for (next, row) in (entity_timestamp + 1..).zip(&mods.counters) {
             entity.add_counters(row.counter, row.n, next);
         }
 
-        let rows = would_be_rows(game, object, controller, entity_timestamp);
+        let rows = would_be_rows(game, object, controller, entity_timestamp, mods);
         let summary = RegistryScopeSummary::of(&rows);
 
         Lookahead { object, entity, entity_timestamp, rows, summary }
@@ -79,7 +81,8 @@ impl Lookahead {
 /// The rows `register_static_effects` would write for `object` entering under
 /// `controller` — the same lowering, with no side effects and no assertions.
 ///
-/// Printed abilities on purpose, as the real registration reads them: whether
+/// The abilities it would arrive with, as the real registration reads them:
+/// the printed ones, or a copy's when `mods` carries one (CR 707.5). Whether
 /// the object still *has* each ability on the battlefield is CR 604.2's
 /// question, and `static_ability_still_exists` re-asks it at every layer
 /// against this object's own frame — which is how Humility or Blood Moon strip
@@ -96,15 +99,19 @@ fn would_be_rows(
     object: ObjectId,
     controller: PlayerId,
     timestamp: Timestamp,
+    mods: &EnterMods,
 ) -> Vec<ContinuousEffect> {
     let Some(obj) = game.objects.get(&object) else {
         return Vec::new();
     };
-    let card = &obj.card_data;
+    let (abilities, name) = match &mods.copy {
+        Some(values) => (&values.abilities, values.name.as_str()),
+        None => (&obj.card_data.abilities, obj.card_data.name.as_str()),
+    };
     let first_id = game.continuous_effects.next_id();
     let mut rows = Vec::new();
 
-    for ability in card.abilities.iter() {
+    for ability in abilities.iter() {
         if ability.ability_type != AbilityType::Static {
             continue;
         }
@@ -115,8 +122,8 @@ fn would_be_rows(
         // `Effect::Replacement`, `Effect::Restriction` and
         // `Effect::CostModification` lower to no atoms:
         // they are discovered off the effective ability list, not registered.
-        for (primitive, recipient) in GameState::static_ability_atoms(ability, &card.name) {
-            let Some(affected) = GameState::static_object_set(recipient, &card.name) else {
+        for (primitive, recipient) in GameState::static_ability_atoms(ability, name) {
+            let Some(affected) = GameState::static_object_set(recipient, name) else {
                 continue;
             };
             for (layer, modification) in GameState::static_primitive_rows(primitive) {

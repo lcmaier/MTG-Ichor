@@ -112,6 +112,11 @@ pub(super) struct Board<'l> {
     /// it applied them (`layers-architecture.md` §13e decision 1). Empty when
     /// nothing is left out.
     notes: Vec<RowNote>,
+    /// The members that entered as a copy (CR 707.5), in walk order, with the
+    /// values they entered as: layer 1a's applications that come from state
+    /// rather than a row. Noted by the seed off the entity it already reads,
+    /// so a board with none pays for an empty list.
+    entry_copies: Vec<(ObjectId, Arc<crate::engine::layers::copy::CopiableValues>)>,
 }
 
 /// What a pass noted about one row as it applied it, for the cards it leaves
@@ -185,6 +190,7 @@ impl<'l> Board<'l> {
             sub: RefCell::new(IdMap::default()),
             left_out: ZoneSet::EMPTY,
             notes: Vec::new(),
+            entry_copies: Vec::new(),
         }
     }
 
@@ -274,6 +280,7 @@ impl<'l> Board<'l> {
             sub: RefCell::new(IdMap::default()),
             left_out,
             notes: Vec::new(),
+            entry_copies: Vec::new(),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
@@ -282,7 +289,12 @@ impl<'l> Board<'l> {
             // the real one, or the one the performer would build for the
             // entering object — and from CR 108.4's other arms otherwise.
             let (controller, since) = match board.entity(game, id) {
-                Some(entity) => (entity.controller, entity.controller_since_turn),
+                Some(entity) => {
+                    if let Some(values) = &entity.entered_as_copy {
+                        board.entry_copies.push((id, Arc::clone(values)));
+                    }
+                    (entity.controller, entity.controller_since_turn)
+                }
                 None => (base_controller(game, id, lookahead).unwrap_or(obj.owner), 0),
             };
             let frame = seed_frame(&obj.card_data, controller, since);
@@ -507,6 +519,9 @@ enum Tiebreak {
     WouldBeRow(usize),
     Keyword(KeywordFlag),
     Counter(u8),
+    /// The copy a member entered as. One per member, at that member's own
+    /// timestamp, so it never decides a tie.
+    EntryCopy,
 }
 
 impl Application<'_> {
@@ -900,6 +915,24 @@ fn applications_in_layer<'a, 'l: 'a>(
                     writes,
                 });
             }
+        }
+    }
+
+    // CR 707.5 — a member that entered as a copy is that copy from layer 1a
+    // on, at its own timestamp, so a copy effect registered later applies
+    // over it and gives it back when it ends (CR 707.4). A snapshot reads
+    // nothing, so it depends on nothing (CR 613.8a).
+    if layer == Layer::Layer1Copy {
+        for (object, values) in &board.entry_copies {
+            let modification = EffectModification::CopyFrom(Arc::clone(values));
+            let writes = writes_of(&modification);
+            apps.push(Application {
+                kind: Kind::Own { object: *object, cda: None, modification },
+                timestamp: board.timestamp_of(game, *object),
+                tiebreak: Tiebreak::EntryCopy,
+                reads: Reads::default(),
+                writes,
+            });
         }
     }
 

@@ -115,6 +115,19 @@ pub struct PermanentState {
     /// spell becomes is kicked (Archangel of Wrath's ruling). Empty for a
     /// permanent that was never a spell.
     pub cost_choices: CostChoices,
+
+    /// CR 707.5 — the copiable values this permanent entered as, when it
+    /// entered as a copy: Clone's choice, or Essence of the Wild's own values.
+    ///
+    /// **State, not a registry row**, for the reason `tapped` and the counters
+    /// are: it is how the permanent arrived, and it leaves with the permanent
+    /// (CR 400.7) whichever permanent's ability made it. A row sourced at
+    /// Essence would end every copy when Essence left, which its rulings say
+    /// does not happen. Layer 1a applies it at this permanent's timestamp,
+    /// beside the `CopyFrom` rows a later copy effect registers
+    /// (`layers::board`), and `register_static_effects` files its abilities as
+    /// the ones the permanent has.
+    pub entered_as_copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
 }
 
 /// CR 400.7d's facts about a permanent that was cast: who cast it, from
@@ -186,6 +199,7 @@ impl PermanentState {
             attached_by: Vec::new(),
             cast: None,
             cost_choices: CostChoices::NONE,
+            entered_as_copy: None,
         }
     }
 
