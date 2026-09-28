@@ -968,6 +968,12 @@ and `Event { pattern: Attach }` for the enchant half.
 hexproof is "by spells or abilities your **opponents** control", shroud is
 unconditional. One field, both keywords.
 
+**A choice is not a target** (found by CV-2's design, 2026-09-28). Clone's CR
+707.6 choice and Cytoshape's CR 707.4 one enumerate through
+`enumerate_legal_selections` too, and neither targets (Clone's first ruling).
+So `BeTargeted` is asked by the enumeration's targeting callers, never inside
+it. `phase_cv2a_integration_test`'s hexproof donor is the regression.
+
 ### 4.6 Tier 1e — costs, and the only *derived* restriction
 
 > **§3.7 binds this tier too.** "Spend mana as though it were mana of any

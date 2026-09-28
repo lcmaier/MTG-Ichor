@@ -411,8 +411,9 @@ pub struct GameState {
     /// can honestly be asked.
     pub replacement_effects: ReplacementEffectRegistry,
 
-    /// Battlefield objects that **printed** a static ability whose body is an
-    /// `Effect::Replacement`.
+    /// Battlefield objects that **entered with** a static ability whose body is
+    /// an `Effect::Replacement`: printed, or the copy's they entered as (CR
+    /// 707.5), which registration reads in its place.
     ///
     /// `engine::replacement::gather`'s fast path, and not an optimization:
     /// reading effective abilities is a full `compute_characteristics` walk, so
@@ -482,8 +483,9 @@ pub struct GameState {
     /// parallel mechanism.
     pub restrictions: RestrictionRegistry,
 
-    /// Objects that entered the battlefield printing a static ability whose
-    /// effect is an `Effect::Restriction` — `is_prohibited`'s fast-path gate.
+    /// Objects that entered the battlefield with a static ability, printed or
+    /// an entry copy's, whose effect is an `Effect::Restriction` —
+    /// `is_prohibited`'s fast-path gate.
     ///
     /// The twin of [`Self::replacement_ability_sources`], and a **different
     /// set**: an object can have a restriction ability without having a
@@ -495,8 +497,8 @@ pub struct GameState {
     /// inserts and `cleanup_zone_state` removes.
     pub restriction_ability_sources: IdSet<ObjectId>,
 
-    /// Objects that entered the battlefield printing a static ability whose
-    /// body is an `Effect::CostModification`, through an "as long as"
+    /// Objects that entered the battlefield with a static ability, printed or
+    /// an entry copy's, whose body is an `Effect::CostModification`, through an "as long as"
     /// wrapper or not — `engine::cost_determination::cost_modifications_for`'s fast-path gate
     /// (`cost-architecture.md` §3.1).
     ///
@@ -593,8 +595,9 @@ pub struct GameState {
     /// ruling), so a control change does not restart it. Advanced off
     /// `AbilityResolved` by the dispatcher.
     pub resolutions_this_turn: IdMap<(ObjectRef, AbilityId), u32>,
-    /// Permanents that *printed* a triggered ability, each against the
-    /// record kinds its printed defs read — the dispatcher's fast-path gate,
+    /// Permanents that entered with a triggered ability, printed or the copy's
+    /// they entered as (CR 707.5), each against the record kinds those defs
+    /// read — the dispatcher's fast-path gate,
     /// `replacement_ability_sources`' twin: written by
     /// `register_static_effects` from `place_on_battlefield`, removed by
     /// `cleanup_zone_state`, over-approximating in one direction only. A

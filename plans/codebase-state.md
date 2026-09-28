@@ -2350,6 +2350,12 @@ section never asked.
     and the push read, ~200–300 lines; both land with the first fork-based
     harness, the AI track, not before.
 
+    **CV-2a (2026-09-28):** violator 1's sizing omits the group's members. A
+    fork at a CR 616.1 prompt after an application also needs the rewritten
+    events, so `PendingReplacement` holds them beside the three sets, and an
+    entry copy's captured values are the largest thing they carry (an `Arc`,
+    so the fork shares them).
+
     **RD-2 (2026-09-09):** violator 1's three sets are now per subject group
     rather than per member — the same frame, the same debt. One more piece of
     decision state arrived and *did* go on `GameState`: CR 615.7's allocation

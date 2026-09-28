@@ -1310,9 +1310,13 @@ fn object_set_is_mods_invariant(affected: &ObjectSet) -> bool {
 
 /// The leaf table for [`ordering_cannot_change_outcome`]'s entry premise. Types,
 /// subtypes, supertypes, colors, controller, ownership and tokenness are fed
-/// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
-/// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
-/// new leaf has to be classified rather than defaulting to "safe".
+/// by no `EnterMods` field a suppressible bucket writes; power is fed by
+/// `+1/+1` and `-1/-1` counters (CR 122.1a) and so `PowerLE` is not invariant.
+/// `EnterMods::copy` feeds every characteristic, and is exempt only because
+/// its one writer, `Rewrite::EnterAsCopy`, is a CR 616.1c effect that
+/// `classify` never admits and the ladder never buckets with a 616.1e one.
+/// Matched exhaustively, so a new leaf has to be classified rather than
+/// defaulting to "safe".
 fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
     match filter {
         ObjectFilter::All

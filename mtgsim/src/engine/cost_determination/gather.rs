@@ -55,7 +55,8 @@ pub fn cost_modifications_for(game: &GameState, spell: ObjectId) -> Vec<CostModi
     // The fast-path gate, the same instrument as `replacement_ability_sources`
     // and carrying the same rule: a new source of static cost abilities, or a
     // new route onto the effective list, needs a leg here or it is silently
-    // dead. Three legs — printed (the set, or the spell's own card), granted
+    // dead. Three legs — printed (the set, which files an entry copy's too, or
+    // the spell's own card), granted
     // and copied (the two summary flags). Exact and over-approximating:
     // CR 305.7 and Humility can strip a printed ability without touching the
     // set, which costs a walk and never an answer.

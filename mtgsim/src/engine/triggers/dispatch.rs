@@ -522,8 +522,9 @@ impl GameState {
         Ok(())
     }
 
-    /// The permanents whose printed triggers read a kind `window_kinds`
-    /// carries, selected before they are ordered, in CR 613.7 order: sorted on
+    /// The permanents whose printed triggers, or the copy's they entered as,
+    /// read a kind `window_kinds` carries, selected before they are ordered,
+    /// in CR 613.7 order: sorted on
     /// the key `battlefield_ids_ordered` sorts on, so the candidate order —
     /// which the `OrderTriggers` prompt offers — is the whole-battlefield
     /// walk's.
