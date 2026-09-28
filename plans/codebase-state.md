@@ -1195,8 +1195,10 @@ registered card returns an object.
     diff sees.
 
     **Sized:** ~60 lines in `fuzz_games`, behind a flag, nothing on
-    `GameState`; owner CV-2, the first phase with something to validate against
-    it.
+    `GameState`; owner CV-1b. CV-2 held it until its design review
+    (2026-09-28): neither of CV-2's A/B arms needs a state diff, since the
+    engine arm reads `IDENTICAL` and the shipped arm is a pool change, and
+    main item 10's state error, which CV-1b fixes, is its other customer.
 
 67. **~~`CopiableValues::apply_to` deep-clones a `Vec<AbilityDef>` into every
     frame of every copied object (C5)~~ ✅ CLOSED 2026-09-16 (A4f, PR #157) —
@@ -8504,3 +8506,47 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
+
+### Found by the CV-2 design review (2026-09-28)
+
+185. **The engine's elisions are argued one site at a time, and nothing
+     inventories them or checks them together.** Every place the engine skips a
+     prompt or skips work, on the claim that doing it could not change the
+     outcome, rests on a premise written beside that one site:
+     - **CR 616.1's ordering prompt.** `pipeline::ordering_cannot_change_outcome`
+       spreads its premises over `classify`, `commutes`, `shared_clauses_hold`,
+       `filter_is_mods_invariant`, `EventPattern::reads_the_amount` and
+       `EnterModsTemplate::is_fixed`, with `check_order_invariance` in debug
+       builds only. It was corrected in three consecutive PRs
+       (`engineering-practices.md` §4.1), and CV-2's design had to re-argue
+       `filter_is_mods_invariant`'s premise, because `EnterMods.copy` feeds every
+       characteristic (`copy-effects-architecture.md` §7b).
+     - **Forced choices.** A prompt with one outcome is not asked (main item
+       145; the census's rule 1, `backlog.md` §2.22), and CR 603.3b's trigger
+       order is not asked when no order can change the game
+       (`triggers-architecture.md` §5.2).
+     - **Skipped work.** The fast-path gates (the replacement gather's, the
+       restriction and cost sweeps', the trigger dispatcher's), the layer memo,
+       and A4q's fold of identical clauses. TR-1b's audit checks the
+       dispatcher's gate against a slow reference matcher, and the memo has a
+       debug audit; the rest have no check beside their argument.
+
+     A wrong premise raises nothing. The engine asks one question fewer, or
+     computes one thing fewer, and the answer is wrong only on the board the
+     premise did not foresee. **The owner's note at CV-2's review:** formalize
+     exactly what is elided and why, so the system can be shown sound, since so
+     much breaks silently if it is not.
+
+     **Reachability (2026-09-28):** nothing owed to a known wrong answer, since
+     none is known; the risk is the class. Every new `Rewrite`, `EventPattern` or `EnterMods` arm can falsify a
+     premise written before it, and nothing but review asks.
+
+     **Sized:** unknown until the inventory exists, and the inventory is the
+     first deliverable: each elision, its claim, its premise stated as a
+     property, and what holds it (a proof, a debug assertion or an audit run).
+     The instrument that has already worked is TR-1b's
+     (`triggers-architecture.md` §4.10): the same code with the shortcut off,
+     compared at every site across audited fuzz games. Not CV-2's. Proposed
+     slot: beside the docs audit the owner has in mind after the triggers
+     phase, where item 6's close audit (`roadmap-v2.md` A6e) already reads the
+     engine's claims about itself.

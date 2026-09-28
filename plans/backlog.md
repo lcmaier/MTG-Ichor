@@ -2436,6 +2436,30 @@ reads. The custom-card design lists both; this grain narrows the second.
 | **Atoms** | none; the rule is implemented, and this is its cost |
 | **Owner** | — ; `layers-architecture.md` when taken. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
 
+### 2.40 Enters untapped (CR 110.5b, 614.1c–d) — a status the last effect sets
+
+**The surface that cannot say it.** `EnterMods.tapped` is a `bool` that
+merges with `|=`, so an effect that makes a permanent enter untapped changes
+nothing, and `classify`'s `ModsAdding` cell has any two `EnterWith`s commute.
+Spelunking's first ruling states the rule the field has to follow: with a land
+that "enters tapped", "you choose the order in which that ability's effect and
+Spelunking's effect apply", so the last effect applied wins. Its second half
+puts an instruction's status under the same rule: a land "simply put onto the
+battlefield tapped without a replacement effect being applied" enters
+untapped under Spelunking. Found at CV-2's design review, where a copy
+exception's "except it enters untapped" had two readings
+(`copy-effects-architecture.md` §7b, D6) and the engine could express
+neither.
+
+| Field | |
+|---|---|
+| **Rules** | CR 110.5b (untapped unless a spell or ability says otherwise), 614.1c–d, 616.1's order between two applicable effects |
+| **Verdict** | `EnterMods.tapped` and `EnterModsTemplate.tapped` are `bool`s merged by `\|=`. The status has to be one the last applied effect sets, with CR 110.5b's untapped as the default, and two effects that set opposite statuses become a real CR 616.1 choice |
+| **Size** | ~100–150 lines: the field and its merge, the template's field, `classify`'s cell, the look-ahead's and the performer's reads, and a test per ruling |
+| **Blocks** | five printed cards: Spelunking, Horizon Explorer and The Wandering Minstrel ("Lands you control enter untapped"), Gond Gate ("Gates you control enter untapped"), and Archelos, Lagoon Mystic ("As long as Archelos is untapped, other permanents enter untapped") |
+| **Atoms** | none filed |
+| **Owner** | — ; found 2026-09-28 at CV-2's design review |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
