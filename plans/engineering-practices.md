@@ -948,6 +948,12 @@ no test names. "Not expressible" stays a legal answer — it names the missing
 facility and its owner — because a gate with no honest escape gets satisfied
 dishonestly.
 
+**The end state (the owner, 2026-09-28): every official card has a test for
+each of its rulings, and passes it.** The retroactive half is its own
+pre-Phase-8 row, pooled cards first (`roadmap-v2.md` §C, C1). A
+`not-expressible` disposition is interim under that rule: it names the
+facility whose landing makes the test writable.
+
 Two things fall out that no amount of care at card-add time gives you: **drift**
 — Scryfall adds rulings, so a card correct when registered can acquire one later
 that the engine violates, and nothing else in the project would ever notice —

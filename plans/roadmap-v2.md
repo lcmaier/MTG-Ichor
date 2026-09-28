@@ -278,7 +278,8 @@ pipeline earning its slot when authoring speed binds. **Gates at its start:**
 A3 (no dependency-ordering-sensitive cards before it), B4 (no reveal or
 face-down cards before it), B6's CV-7, **B8's permission half** (no "as though"
 cards before it — 287 of them, and the entry was an inventory line with no date
-until 2026-09-09), and **C0 below, which is the phase's first PR**. Milestone: **core-rules-complete** (§6).
+until 2026-09-09), **C0 below, which is the phase's first PR**, and **C1**, the
+rulings backlog read and tested. Milestone: **core-rules-complete** (§6).
 
 **C0 — put the card layer in order first (1 PR, mechanical, added 2026-09-08).**
 Card definitions live in files named after the *engine phase* that first needed
@@ -307,6 +308,18 @@ that argued against set filing, 62, was measured on whichever printing Scryfall
 returned rather than the earliest.
 `codebase-state.md` "Before card breadth" item 10 carries the plan, the
 classification and the numbers; `plans/references/classify_cards.py` re-runs it.
+
+**C1 — every registered card's rulings, each linked to a passing test (the
+owner, 2026-09-28).** The retroactive half of `engineering-practices.md`
+§3.4a: 330 rulings over 96 registered cards nobody has read, 125 of them on 41
+pooled cards (`python plans/check_rulings.py`, 2026-09-28). **Pooled cards
+first**, since the A/B's measured games are where a wrong ruling costs most:
+A4b's first three pooled cards found a live bug (`codebase-state.md` item 82).
+Its own PRs, a card family at a time, sized per sitting against §3.4a's rate
+(about one test per two rulings); independent of C0, which moves the card
+files and touches no test, so either may go first. It closes when
+`check_rulings.py --check` gates every registered printing rather than the
+cards read or registered since the ledger began.
 
 ### D. Phase 9 — formats and multiplayer (230 atoms)
 
@@ -542,6 +555,7 @@ the audit workstream ran low, and RB ran to +5,475 because nobody counted.
 | The lattice | §4's table | 10–13 |
 | **To "breadth unconstrained"** | | **~35–40** |
 | Phase 8's gate | **C0** — the card layer, re-filed by set, plus `cards::helpers` and the duration helper (§C) | 1 |
+| Phase 8's gate | **C1** — the rulings backlog, pooled cards first, each ruling linked to a passing test (§C) | ~3–5, guessed |
 
 After that, Phase 8's 643 atoms are throughput, not architecture — every card
 a normal diff — and the bottleneck moves to card-authoring speed, which is
