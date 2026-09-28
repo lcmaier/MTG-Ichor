@@ -74,7 +74,7 @@ pub(crate) fn is_prohibited(game: &GameState, query: &Query) -> bool {
     // instrument as `replacement_ability_sources`, and it carries the same rule:
     // **a new source of static restriction abilities must add a leg here, or the
     // source is silently dead on every board the gate skips.** Three legs —
-    // printed (recorded at ETB), granted and copied (the registry summary's two
+    // printed (recorded at ETB, an entry copy's among them), granted and copied (the registry summary's two
     // flags; CR 707.2a puts a copied ability on the effective list through
     // neither of the others). All over-approximate — CR 305.7 and Humility
     // strip a printed ability without touching the set — which costs a layer

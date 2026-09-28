@@ -217,18 +217,21 @@ pub enum ChoiceKind {
     },
 
     // --- Copy effects (CR 707) ---
-    /// CR 608.2d — a resolving copy effect must **choose** the permanent whose
-    /// copiable values (CR 707.2) it captures. Cytoshape's "Choose a nonlegendary creature
-    /// on the battlefield". The options are permanents.
+    /// A copy effect **chooses** the permanent whose copiable values (CR 707.2)
+    /// it captures: Cytoshape's "Choose a nonlegendary creature on the
+    /// battlefield" as it resolves (CR 608.2d), or Clone's "any creature on the
+    /// battlefield" as it enters (CR 707.6). The options are permanents.
     ///
     /// **Not `SelectRecipients`.** There the chosen object is what the effect
     /// acts on; here it is the exact opposite — the donor is the one permanent
     /// a copy effect does not change — so a heuristic keyed on
     /// `SelectRecipients` would read the donor as the victim.
     ///
-    /// Asked only with two or more candidates. With one the choice is forced and
-    /// nothing is asked, which is `ChooseEnteringController`'s CR 102.2 shape.
-    ChooseCopySource { spell_id: ObjectId },
+    /// `source` is the object whose copy effect is choosing: the resolving
+    /// spell or ability, or the entering permanent whose own ability it is.
+    /// A "you may" is asked here, as a pick of none; otherwise the choice is
+    /// asked only with two or more candidates, since one is forced.
+    ChooseCopySource { source: ObjectId },
 
     // --- Commander (CR 903) ---
     /// CR 704.6d / 903.9a — a commander is in a graveyard or exile and its
@@ -334,7 +337,7 @@ impl ChoiceKind {
             ChoiceKind::ChooseDamageSource { source } => Some(*source),
             ChoiceKind::ChooseEnteringController { object } => Some(*object),
             ChoiceKind::ChooseAuxiliaryZoneChange { source, .. } => Some(*source),
-            ChoiceKind::ChooseCopySource { spell_id } => Some(*spell_id),
+            ChoiceKind::ChooseCopySource { source } => Some(*source),
             ChoiceKind::CommanderToCommandZoneSba { commander } => Some(*commander),
             ChoiceKind::Discard { source } => *source,
             ChoiceKind::Scry { source, .. } => *source,

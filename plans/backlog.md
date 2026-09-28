@@ -1659,6 +1659,15 @@ mechanic rather than a migration, which is why it is here and not in
   - **(e) Staged payment** — a client buffering its answers until the player
     confirms, which CM-3's deciding-before-performing already allows; not a
     decorator. §2.18 owns it.
+  - **(f) Biasing the random agent toward the answer a player would give**
+    (raised at CV-2a's review, 2026-09-28). Clone's "you may" is a `(0, 1)`
+    pick, so the random agent declines about half its copies where a player
+    almost never would. Not a row. The agent's job is coverage: a declined
+    Clone is a legal board, a 0/0 Shapeshifter that dies, and a bias would
+    starve exactly the paths nobody plays and so nobody else tests. No
+    measurement needs one either: an A/B runs both arms under one provider,
+    and floor 1 is read under a named stack. Realistic play is an agent's
+    policy, written into its own provider, as (d) says of sacrifices.
 - **Sequence.** (1) **This PR**: row 2's forced branch. (2) **Row 2's
   remainder, alone**: the ordering elided in the engine and `AutoPayer`
   deleted, ~20 lines and a restated test, its own `differ` A/B — the one
@@ -2027,7 +2036,7 @@ adopts, and the one fixture the PR should pin.
 | **Size** | ~150–200 lines, one PR: the two fields and their merge, one write in `place_on_battlefield`, one read in `board.rs`'s Layer 4 seeding, one in `Lookahead::new`, the three filter arms made mods-aware, Master Biomancer's clause registered, and three tests (the type is there, a `BySubtype` filter beside it asks, a later Layer 4 row wins) |
 | **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably. Not to be confused with CR 707.9d's "in addition to its other types" on a *copy*, which is CV-2's exception path |
 | **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half — the PR files one |
-| **Owner** | — (any sitting; nothing on the spine waits on it, and nothing stored today would need migrating, since no permanent carries a type it should not) |
+| **Owner** | the entry-state PR, `roadmap-v2.md` A6c (the owner, 2026-09-28, at CV-2a's review), whose shared `CharacteristicEdit` this is the first placement of |
 
 ### 2.31 Dice and coins (CR 705, 706)
 
@@ -2435,6 +2444,30 @@ reads. The custom-card design lists both; this grain narrows the second.
 | **Blocks** | nothing; a performance lever. `Dependency checks` falls on the pools, and every gameplay row stays identical |
 | **Atoms** | none; the rule is implemented, and this is its cost |
 | **Owner** | — ; `layers-architecture.md` when taken. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
+
+### 2.40 Enters untapped (CR 110.5b, 614.1c–d) — a status the last effect sets
+
+**The surface that cannot say it.** `EnterMods.tapped` is a `bool` that
+merges with `|=`, so an effect that makes a permanent enter untapped changes
+nothing, and `classify`'s `ModsAdding` cell has any two `EnterWith`s commute.
+Spelunking's first ruling states the rule the field has to follow: with a land
+that "enters tapped", "you choose the order in which that ability's effect and
+Spelunking's effect apply", so the last effect applied wins. Its second half
+puts an instruction's status under the same rule: a land "simply put onto the
+battlefield tapped without a replacement effect being applied" enters
+untapped under Spelunking. Found at CV-2's design review, where a copy
+exception's "except it enters untapped" had two readings
+(`copy-effects-architecture.md` §7c) and the engine could express
+neither.
+
+| Field | |
+|---|---|
+| **Rules** | CR 110.5b (untapped unless a spell or ability says otherwise), 614.1c–d, 616.1's order between two applicable effects |
+| **Verdict** | `EnterMods.tapped` and `EnterModsTemplate.tapped` are `bool`s merged by `\|=`. The status has to be one the last applied effect sets, with CR 110.5b's untapped as the default, and two effects that set opposite statuses become a real CR 616.1 choice |
+| **Size** | ~100–150 lines: the field and its merge, the template's field, `classify`'s cell, the look-ahead's and the performer's reads, and a test per ruling |
+| **Blocks** | five printed cards: Spelunking, Horizon Explorer and The Wandering Minstrel ("Lands you control enter untapped"), Gond Gate ("Gates you control enter untapped"), and Archelos, Lagoon Mystic ("As long as Archelos is untapped, other permanents enter untapped") |
+| **Atoms** | none filed |
+| **Owner** | the entry-state PR, `roadmap-v2.md` A6c (the owner, 2026-09-28, at CV-2a's review); found at CV-2's design review the same day |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

@@ -63,6 +63,7 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
         abilities: Arc::clone(&card.abilities),
         power: card.power,
         toughness: card.toughness,
+        loyalty: card.loyalty,
         controller,
         control_since_turn,
     }

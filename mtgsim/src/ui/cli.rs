@@ -138,8 +138,8 @@ fn prompt_line(kind: &ChoiceKind) -> String {
         ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
             format!("Choose objects to put into {to:?} as {source} modifies how {entering} enters:")
         }
-        ChoiceKind::ChooseCopySource { spell_id } => {
-            format!("Choose the creature to be copied for {spell_id}:")
+        ChoiceKind::ChooseCopySource { source } => {
+            format!("Choose the permanent {source} copies:")
         }
         ChoiceKind::CommanderToCommandZoneSba { commander } => {
             format!("Put {commander} into the command zone?")

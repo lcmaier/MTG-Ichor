@@ -37,6 +37,91 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-28 for CV-2a** (a permanent that enters as a copy, CR
+707.5 and 616.1c — `copy-effects-architecture.md` §7b, landed). **Pool
+change**: `performance` goes 98 → 99 and `stress` 178 → 179, both Clone. The
+shipped columns are a new baseline, and the engine columns are the ones
+comparable to item 183's.
+
+**Predictions, written before any arm ran** (§7b's A/B arms, now archived).
+- **engine vs `main`.** Every gameplay and diagnostic counter `IDENTICAL` on
+  both pools at two seats and four. Instructions per decision within +0.3
+  points.
+- **shipped.** A pool change, so every row moves. Clone copies in about half
+  its entries, since the random provider declines a `(0, 1)` pick half the
+  time; `Decisions` rise by that prompt; 0 errors, panics and turn-limit hits.
+  No scripted fixture migrates, because no existing test casts Clone.
+
+**The A/B, three arms, `close_out.py`**: `main` (`861a812`); **engine**
+(`c11748a`, Clone written but unregistered); **shipped** (`014544b`).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 175,494 / 194,377 | 346,773 / 401,732 |
+| audit, shipped | 179,794 / 198,645 | 355,798 / 389,389 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.7387 M → 0.7388 M, **+0.01%** |
+
+Every engine counter file is byte-identical to `main`'s outside `=== Timing
+===`, the cost rows and the audit's totals included, as predicted: only
+`Rewrite::EnterAsCopy` reaches what CV-2a added, and the frame's loyalty is the
+printed number for everything that is not a copy.
+
+**The shipped arm is a pool change and is not budgeted.** In 200 traced
+two-seat `performance` games, Clone asked its choice 50 times and copied 27,
+a coin as predicted; the other 48 `ChooseCopySource` prompts were Cytoshape's
+forced picks. The suite passed unchanged with Clone registered.
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Clone — cast / resolved / games / copies per deck | 187 / 186 / 122 (61%) / 1.47 | 119 / 119 / 93 (46%) / 2.85 |
+| board diversity | 200 of 200 | 200 of 200 |
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 32 (64.0%) / 18 (36.0%) | 21 (42.0%) / 29 (58.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 30.1 | 35.5 |
+| Spells cast | 23.2 | 23.5 |
+| Lands played | 18.1 | 20.2 |
+| Combat w/ atk | 11.2 | 11.3 |
+| Creatures died | 7.2 | 5.9 |
+| Damage events | 25.4 | 23.2 |
+| Total damage | 93.8 | 64.6 |
+| Life changes | 14.5 | 18.9 |
+| **Layer walks** | **385** | **627** |
+| **Board walks** | **245** | **399** |
+| **Memo hits** | **69,830** | **186,948** |
+| **Layer frames** | **5,008** | **13,687** |
+| **Frames/walk** | **13.00** | **21.84** |
+| **Dependency checks** | **26** | **336** |
+| **Replacement gathers** | **1142** | **1553** |
+| **Restriction queries** | **1145** | **1556** |
+| Mana productions | 94 | 171 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 1.72 | 6.18 |
+| Max batch depth | 5 | 5 |
+| Decisions | 245 | 549 |
+| Priority decisions | 89 | 219 |
+| Triggers placed | 1.7 | 3.4 |
+| Windows past gate | 28.0 | 53.0 |
+| Candidate visits | 46.3 | 74.9 |
+| Trigger matches | 3.2 | 4.3 |
+
+The four-seat rows are in the sitting's output (`--players 4`, shipped, 200
+games), `performance` / `stress`: `Layer walks` 800 / 1,079, `Memo hits`
+195,068 / 244,735, `Decisions` 456 / 639, `Triggers placed` 5.4 / 4.2, and
+`Turns after a departure` 20.9 / 18.0.
+
+**CI's steps, run locally on the shipped build**: both 200-game pools with 0
+errors, 0 panics and 0 turn-limit hits; three runs under `MTGSIM_HASH_SEED` 1,
+2 and 3 (50 games, seed 12345) identical outside `=== Timing ===`; and
+`clone_bound_test` in release.
+
 **Re-recorded 2026-09-27 for item 183's stacked effect** (`StackEntry.effect`
 shared across a fork; `codebase-state.md` item 183's TR-2b note; `roadmap-v2.md`
 B10 stays open). No pool change. `close_out.py`, `main` = `b4328fa` against the

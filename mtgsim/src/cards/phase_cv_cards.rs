@@ -1,6 +1,7 @@
-//! Cards for Phase CV-1 — the copy spine (CR 707, layer 1a).
+//! Cards for Phases CV-1 and CV-2 — the copy spine (CR 707, layer 1a), and a
+//! permanent that enters as a copy (CR 707.5).
 //!
-//! **Three cards, and none of them is decoration.** `CopyRoles` has two arms
+//! **CV-1's three cards, and none of them is decoration.** `CopyRoles` has two arms
 //! because Cytoshape and Mirrorweave bind the atom's target to opposite roles:
 //! Cytoshape targets the permanent that *becomes* a copy and chooses its donor,
 //! Mirrorweave targets the donor. Mirrorform is the third because it is the
@@ -8,24 +9,21 @@
 //! prints Mirrorweave's shape without the word "other", and the first version of
 //! this phase could not express it.
 //!
-//! Neither is a Clone: CR 707.5's "enters as a copy" is an entry replacement
-//! and belongs to CV-2, which needs RC-2's `EnterBattlefield` event. The
-//! Clone-shaped board CV-1 does need — a copy of a permanent with a static
-//! continuous ability, which is `copy-effects-architecture.md` §4.7 leg 2 — is
-//! reachable with Cytoshape and Glorious Anthem, both already registered, and
-//! so needs no third card.
+//! None is a Clone: CR 707.5's "enters as a copy" is an entry replacement, and
+//! [`clone`] is CV-2a's.
 
 use std::sync::Arc;
 
 use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuilder};
-use crate::types::card_types::{CardType, EnchantmentType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CopyRoles, Duration, Effect, EffectRecipient, ObjectFilter, PlayerRef, Primitive,
+    CopyRoles, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
     SelectionFilter, TargetCount,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
+use crate::types::replacement::{CopyDonor, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
 
 /// "Nonlegendary creature" — the filter both cards scope their copy source
 /// with, and the reason CR 707 cards say it at all: a copy of a legend meets
@@ -256,6 +254,69 @@ pub fn mirrorweave() -> Arc<CardData> {
                     TargetCount::Exactly(1),
                 ),
             ),
+        })
+        .build()
+}
+
+/// Clone — {3}{U}
+/// Creature — Shapeshifter, 0/0
+///
+/// You may have this creature enter as a copy of any creature on the
+/// battlefield.
+///
+/// (Oracle text verified on Scryfall, 2026-09-28.)
+///
+/// # CV-2a's card: a chosen donor and no "except"
+///
+/// 52 of the 62 printed cards that enter as a copy choose their donor on the
+/// battlefield, as Clone does, and 42 of the 62 print "except". Clone is the
+/// base both kinds share; Spark Double, CV-2b's card, is the "except" half
+/// (`copy-effects-architecture.md` §7c).
+///
+/// A `SourceOnly` entry replacement whose rewrite is
+/// `Rewrite::EnterAsCopy`, so CR 616.1c's bucket has a printed producer and
+/// the copy is the permanent's state from the moment it arrives (CV-2a's
+/// D1, in `plans/archive/copy-effects-architecture-landed.md`). The donor is
+/// chosen, not targeted, by the entering object's controller (CR 707.6), and
+/// the "you may" is that choice's empty pick (D4). An unchosen Clone is the
+/// 0/0 its card says, and CR 704.5f takes it.
+///
+/// In `PERFORMANCE_POOL`: it is the only card that opens the entry-copy path,
+/// and a path no pooled card opens is RS-1's failure. At `{3}{U}` a random
+/// game casts it, and it copies in about half its entries, since the random
+/// provider declines a `(0, 1)` pick half the time.
+///
+/// # The rulings, and where each is tested
+///
+/// All eight are linked from `tests/phase_cv2a_integration_test.rs`: not a
+/// target (1), X as 0 (2), the copied "enters" abilities (3), copying nothing
+/// (4), nothing entering beside it (5), a token's values without being a
+/// token (6), a copy's copy (7), and what is not copied (8).
+pub fn clone() -> Arc<CardData> {
+    CardDataBuilder::new("Clone")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 3))
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Shapeshifter))
+        .power_toughness(0, 0)
+        .rules_text("You may have this creature enter as a copy of any creature on the battlefield.")
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef {
+                optional: true,
+                ..ReplacementDef::new(
+                    EventPattern::EnterBattlefield { cast: None },
+                    ObjectSet::SourceOnly,
+                    Rewrite::EnterAsCopy(EntryCopyTemplate {
+                        donor: CopyDonor::Chosen(SelectionFilter::Creature),
+                    }),
+                )
+            })),
         })
         .build()
 }

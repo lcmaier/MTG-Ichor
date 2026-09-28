@@ -936,6 +936,23 @@ pub enum Rewrite {
     /// permanent arrives with, so `EnterMods::merge` has nothing to merge.
     EnterUnderControlOf(PlayerRef),
 
+    /// CR 614.1c / 616.1c — the permanent enters as a copy of another object.
+    ///
+    /// > 707.5. An object that enters the battlefield "as a copy" … becomes a
+    /// > copy as it enters the battlefield. It doesn't enter the battlefield,
+    /// > and then become a copy of that permanent.
+    ///
+    /// **Its own arm because CR 616.1c names its class by what it does**, as
+    /// 616.1b names [`Self::EnterUnderControlOf`]'s: an `Instead` would be
+    /// 616.1e's. Not an [`Self::EnterWith`] either, whose statuses and counts
+    /// two effects merge in either order: the later of two copies replaces the
+    /// earlier (Essence of the Wild's rulings), and applying one prompts.
+    ///
+    /// Applying it chooses the donor (CR 707.6) and captures its copiable
+    /// values once (CR 707.2) into [`EnterMods::copy`], so the next
+    /// iteration's CR 614.12 frame is the copy.
+    EnterAsCopy(EntryCopyTemplate),
+
     /// CR 614.5's doublers and CR 615.10's partial prevention — change the
     /// event's *amount* and nothing else.
     ///
@@ -986,6 +1003,17 @@ pub enum Rewrite {
     /// one `DealDamage` becoming two and a phase-1 member insertion rather
     /// than a rewrite (`replacement-architecture.md` §11 item 23).
     Retarget(RetargetSpec),
+}
+
+impl Rewrite {
+    /// Does applying this rewrite ask the "you may" itself?
+    ///
+    /// A chosen copy's choice includes choosing nothing, so the pipeline's
+    /// separate yes-or-no would ask the same question twice: devour's
+    /// precedent, where declining is a count of zero.
+    pub fn asks_its_own_may(&self) -> bool {
+        matches!(self, Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(_) }))
+    }
 }
 
 /// Where a [`Rewrite::Retarget`] sends the damage.
@@ -1337,6 +1365,34 @@ impl EnterModsTemplate {
     }
 }
 
+/// What an entry copy will be, before its donor is chosen and its values
+/// captured — the authored half of [`EnterMods::copy`], as
+/// [`EnterModsTemplate`] is of [`EnterMods`].
+///
+/// A struct for its second field: CV-2b adds CR 707.9's exceptions beside the
+/// donor (`copy-effects-architecture.md` §7c).
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntryCopyTemplate {
+    pub donor: CopyDonor,
+}
+
+/// Whose copiable values an entry copy captures. One arm per binding the
+/// printed cards use.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CopyDonor {
+    /// A permanent chosen as the effect applies, among those the selection
+    /// admits: Clone's "any creature on the battlefield". A choice and not a
+    /// target, so hexproof does not apply, and the entering object's
+    /// controller makes it (CR 707.6). The def's `optional` is the text's
+    /// "you may", asked inside the choice: declining is choosing none.
+    Chosen(crate::types::effects::SelectionFilter),
+    /// The effect's own source: Essence of the Wild's "this creature".
+    ThisObject,
+    /// The permanent the effect's source is attached to: Infinite
+    /// Reflection's "enchanted creature".
+    Host,
+}
+
 /// How a permanent enters the battlefield, when something modified it
 /// (CR 614.1c/d).
 ///
@@ -1346,11 +1402,12 @@ impl EnterModsTemplate {
 /// numbers, which is what makes [`Self::merge`] the whole of CR 616.1f's
 /// accumulation.
 ///
-/// **Two fields, and each is a rule rather than a convenience.** CR 110.5b —
+/// **Three fields, and each is a rule rather than a convenience.** CR 110.5b —
 /// "permanents enter the battlefield untapped … unless a spell or ability says
 /// otherwise" — makes `tapped` the exception to a *default*, so `false` is the
 /// rule speaking rather than a missing value. CR 122.6a covers `counters`:
-/// "an object that's given counters as it enters the battlefield".
+/// "an object that's given counters as it enters the battlefield". CR 707.5
+/// covers `copy`: the permanent "becomes a copy as it enters".
 ///
 /// # The other two statuses, and what adding one would actually cost
 ///
@@ -1404,6 +1461,18 @@ pub struct EnterMods {
     /// ordered collection in this engine is one: a `HashMap` walk is not
     /// reproducible across processes, and this list reaches `add_counters`.
     pub counters: Vec<EntryCounters>,
+
+    /// CR 707.5 — the copiable values the permanent enters as, captured when
+    /// [`Rewrite::EnterAsCopy`] chose its donor (CR 707.2).
+    ///
+    /// Written by that arm alone, and a second copy in one entry replaces the
+    /// first rather than merging with it: "the one whose copy effect you apply
+    /// last" (Essence of the Wild's rulings). The CR 614.12 frame reads it off
+    /// the would-be entity, so every later effect sees the copy, and the
+    /// performer moves it onto `PermanentState::entered_as_copy`. Shared
+    /// rather than owned because the pipeline clones the event every
+    /// iteration and a fork clones the entity.
+    pub copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
 }
 
 /// One kind of counter a permanent is given as it enters, with its count and
@@ -1430,22 +1499,22 @@ impl EntryCounters {
 
 impl EnterMods {
     /// Nothing modifies how this permanent enters — CR 110.5b's default.
-    pub const NONE: EnterMods = EnterMods { tapped: false, counters: Vec::new() };
+    pub const NONE: EnterMods = EnterMods { tapped: false, counters: Vec::new(), copy: None };
 
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
-        EnterMods { tapped: true, counters: Vec::new() }
+        EnterMods { tapped: true, ..EnterMods::NONE }
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it",
     /// put on by its controller.
     pub fn with_counters(counter: CounterType, n: u32) -> Self {
-        EnterMods { tapped: false, counters: vec![EntryCounters { counter, n, by: None }] }
+        EnterMods { counters: vec![EntryCounters { counter, n, by: None }], ..EnterMods::NONE }
     }
 
     /// Is this the CR 110.5b default — nothing to apply?
     pub fn is_none(&self) -> bool {
-        !self.tapped && self.counters.is_empty()
+        !self.tapped && self.counters.is_empty() && self.copy.is_none()
     }
 
     /// Fold `other`'s modifications into this one — CR 616.1f's accumulation.
@@ -1458,6 +1527,10 @@ impl EnterMods {
     /// engine is making. The key is `(kind, putter)`: the same kind from two
     /// players is two rows.
     pub fn merge(&mut self, other: &EnterMods) {
+        debug_assert!(
+            other.copy.is_none(),
+            "a copy replaces, never merges: only Rewrite::EnterAsCopy writes EnterMods::copy"
+        );
         self.tapped |= other.tapped;
         for row in &other.counters {
             match self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
@@ -1658,15 +1731,16 @@ pub enum TemplateAmount {
 ///
 /// All five arms exist because the *ordering* is the ladder. `SelfReplacement`
 /// has no producer yet (`replacement-architecture.md` §11 item 3,
-/// fixture-first) and `CopyOnEnter` waits on CV-2.
+/// fixture-first) and `BackFaceUp` waits on CV-5.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReplacementClass {
     /// CR 616.1a / 614.15.
     SelfReplacement,
     /// CR 616.1b — modifies under whose control an object enters.
     ControlChanging,
-    /// CR 616.1c — causes an object to enter as a copy of another.
-    CopyOnEnter,
+    /// CR 616.1c — causes an object to become a copy *as* it enters, which CR
+    /// 707.5 distinguishes from entering and then becoming one.
+    CopyAsEnters,
     /// CR 616.1d — causes a card to enter with its back face up.
     BackFaceUp,
     /// CR 616.1e — free choice.
@@ -1687,6 +1761,7 @@ impl ReplacementClass {
     pub fn from_rewrite(rewrite: &Rewrite) -> Self {
         match rewrite {
             Rewrite::EnterUnderControlOf(_) => ReplacementClass::ControlChanging,
+            Rewrite::EnterAsCopy(_) => ReplacementClass::CopyAsEnters,
             // CR 616.1's ladder has no step for redirection — 616.1b is
             // about *entering* under someone's control, and damage does not
             // enter anything — so a redirect is a free choice like a doubler.
@@ -1839,7 +1914,8 @@ impl ReplacementDef {
                 | Rewrite::Instead(_)
                 | Rewrite::EnterWith(_)
                 | Rewrite::EnterAfterMoving(_)
-                | Rewrite::EnterUnderControlOf(_) => false,
+                | Rewrite::EnterUnderControlOf(_)
+                | Rewrite::EnterAsCopy(_) => false,
             }
     }
 

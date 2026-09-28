@@ -1258,11 +1258,13 @@ pub fn ask_choose_auxiliary_zone_change(
     picked.into_iter().map(|i| candidates[i]).collect()
 }
 
+/// A copy effect's choice of donor, which it must make: one of two or more
+/// `candidates`, since one is forced and the caller takes it.
 pub fn ask_choose_copy_source(
     dp: &dyn DecisionProvider,
     game: &GameState,
     chooser: PlayerId,
-    spell_id: ObjectId,
+    source: ObjectId,
     candidates: &[ObjectId],
 ) -> ObjectId {
     assert!(
@@ -1270,14 +1272,40 @@ pub fn ask_choose_copy_source(
         "ask_choose_copy_source: a choice needs two or more candidates; called with {}",
         candidates.len(),
     );
+    let picked = pick_copy_source(dp, game, chooser, source, candidates, (1, 1));
+    picked.expect("a pick of exactly one")
+}
+
+/// A copy effect's "you **may**": one of `candidates`, or none. Asked with a
+/// single candidate too, which is two outcomes (CR 707.6's choice includes
+/// choosing nothing: Clone's fourth ruling).
+pub fn ask_may_choose_copy_source(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    candidates: &[ObjectId],
+) -> Option<ObjectId> {
+    assert!(!candidates.is_empty(), "ask_may_choose_copy_source: nothing to choose from for {source}");
+    pick_copy_source(dp, game, chooser, source, candidates, (0, 1))
+}
+
+fn pick_copy_source(
+    dp: &dyn DecisionProvider,
+    game: &GameState,
+    chooser: PlayerId,
+    source: ObjectId,
+    candidates: &[ObjectId],
+    bounds: (usize, usize),
+) -> Option<ObjectId> {
     let options: Vec<ChoiceOption> =
         candidates.iter().map(|id| ChoiceOption::Object(*id)).collect();
     let ctx = ChoiceContext {
-        kind: ChoiceKind::ChooseCopySource { spell_id },
+        kind: ChoiceKind::ChooseCopySource { source },
     };
-    let index = dp.pick_n(game, chooser, &ctx, &options, (1, 1));
-    validate_pick_n(&index, &options, (1, 1), "choose_copy_source", game, chooser, &ctx);
-    candidates[index[0]]
+    let index = dp.pick_n(game, chooser, &ctx, &options, bounds);
+    validate_pick_n(&index, &options, bounds, "choose_copy_source", game, chooser, &ctx);
+    index.first().map(|&i| candidates[i])
 }
 
 /// CR 609.7a — choose the source of damage a prevention or replacement effect

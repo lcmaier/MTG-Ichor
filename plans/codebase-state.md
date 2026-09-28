@@ -14,7 +14,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame; damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
-- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights. Still ahead: CV-1b, CV-2 (enters as a copy — CR 616.1c's bucket has waited for it since RC-4), CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
+- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), and a permanent can enter as a copy (CV-2a, 2026-09-28).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held as `PermanentState::entered_as_copy` and loyalty a copiable value. Still ahead: CV-2b (CR 707.9's exceptions, Spark Double), CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
@@ -1195,8 +1195,10 @@ registered card returns an object.
     diff sees.
 
     **Sized:** ~60 lines in `fuzz_games`, behind a flag, nothing on
-    `GameState`; owner CV-2, the first phase with something to validate against
-    it.
+    `GameState`; owner CV-1b. CV-2 held it until its design review
+    (2026-09-28): neither of CV-2's A/B arms needs a state diff, since the
+    engine arm reads `IDENTICAL` and the shipped arm is a pool change, and
+    main item 10's state error, which CV-1b fixes, is its other customer.
 
 67. **~~`CopiableValues::apply_to` deep-clones a `Vec<AbilityDef>` into every
     frame of every copied object (C5)~~ ✅ CLOSED 2026-09-16 (A4f, PR #157) —
@@ -2347,6 +2349,12 @@ section never asked.
     2 — a `PendingCast` holding the 601.2b–d proposal that the four rewind sites
     and the push read, ~200–300 lines; both land with the first fork-based
     harness, the AI track, not before.
+
+    **CV-2a (2026-09-28):** violator 1's sizing omits the group's members. A
+    fork at a CR 616.1 prompt after an application also needs the rewritten
+    events, so `PendingReplacement` holds them beside the three sets, and an
+    entry copy's captured values are the largest thing they carry (an `Arc`,
+    so the fork shares them).
 
     **RD-2 (2026-09-09):** violator 1's three sets are now per subject group
     rather than per member — the same frame, the same debt. One more piece of
@@ -5310,6 +5318,18 @@ first.
     is the question this entry framed as open — there is now a place that
     is neither a phase file nor `test_support`, so the rest is a move into
     it and no longer a design.
+
+    **Decided at CV-2a's review (the owner, 2026-09-28): both halves, in
+    C0.** The constructors cover every kind (static, spell, activated and
+    mana, beside `authoring::triggered_ability`), with builder methods for the
+    two rare fields, and the migration takes every literal in the card files:
+    116 on 2026-09-28, against the 31 static ones counted above. And
+    `activation_restriction` moves into `AbilityType::Activated`, the one kind
+    it means anything for. Today 145 literals write
+    `ActivationRestriction::None`, 2 printed cards use anything else, and 19
+    reads compare `AbilityType::Activated`. Inside C0 the edits come before
+    the moves, as separate commits, so each moved file is a pure rename and
+    its history follows it.
 
     **What the transition to a real card list looks like — asked on review
     2026-09-08 and then measured, because both of us were arguing from
@@ -8504,3 +8524,86 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      each row evaluates its own filter and the lock records their union; later
      layers apply the union. With the first registered card of the shape, or
      before it.
+
+### Found by the CV-2 design review (2026-09-28)
+
+185. **The engine's elisions are argued one site at a time, and nothing
+     inventories them or checks them together.** Every place the engine skips a
+     prompt or skips work, on the claim that doing it could not change the
+     outcome, rests on a premise written beside that one site:
+     - **CR 616.1's ordering prompt.** `pipeline::ordering_cannot_change_outcome`
+       spreads its premises over `classify`, `commutes`, `shared_clauses_hold`,
+       `filter_is_mods_invariant`, `EventPattern::reads_the_amount` and
+       `EnterModsTemplate::is_fixed`, with `check_order_invariance` in debug
+       builds only. It was corrected in three consecutive PRs
+       (`engineering-practices.md` §4.1), and CV-2's design had to re-argue
+       `filter_is_mods_invariant`'s premise, because `EnterMods.copy` feeds every
+       characteristic (restated in the predicate's doc comment by CV-2a).
+     - **Forced choices.** A prompt with one outcome is not asked (main item
+       145; the census's rule 1, `backlog.md` §2.22), and CR 603.3b's trigger
+       order is not asked when no order can change the game
+       (`triggers-architecture.md` §5.2).
+     - **Skipped work.** The fast-path gates (the replacement gather's, the
+       restriction and cost sweeps', the trigger dispatcher's), the layer memo,
+       and A4q's fold of identical clauses. TR-1b's audit checks the
+       dispatcher's gate against a slow reference matcher, and the memo has a
+       debug audit; the rest have no check beside their argument.
+
+     A wrong premise raises nothing. The engine asks one question fewer, or
+     computes one thing fewer, and the answer is wrong only on the board the
+     premise did not foresee. **The owner's note at CV-2's review:** formalize
+     exactly what is elided and why, so the system can be shown sound, since so
+     much breaks silently if it is not.
+
+     **Reachability (2026-09-28):** nothing owed to a known wrong answer, since
+     none is known; the risk is the class. Every new `Rewrite`, `EventPattern` or `EnterMods` arm can falsify a
+     premise written before it, and nothing but review asks.
+
+     **Sized:** unknown until the inventory exists, and the inventory is the
+     first deliverable: each elision, its claim, its premise stated as a
+     property, and what holds it (a proof, a debug assertion or an audit run).
+     The instrument that has already worked is TR-1b's
+     (`triggers-architecture.md` §4.10): the same code with the shortcut off,
+     compared at every site across audited fuzz games. Not CV-2's. Proposed
+     slot: the docs audit at the end of phase 6 (`roadmap-v2.md` A6h), beside
+     item 6's close audit (A6e), which already reads the engine's claims
+     about itself.
+
+### Found by CV-2a's review (2026-09-28)
+
+186. **CR 306.5b's loyalty is seeded into the entry rather than gathered, so
+     the order the CR gives it is lost.** CR 306.5b gives a planeswalker an
+     intrinsic ability, "This permanent enters with a number of loyalty
+     counters on it equal to its printed loyalty number", which creates a
+     replacement effect. `GameState::default_enter_mods` seeds the counters
+     into every entry instead, and its doc called 306.5b "a rule, not an
+     ability" until CV-2a's review asked why. The two differ on printed cards:
+     - **An order the CR offers and the engine skips.** Kaito, Bane of
+       Nightmares is, during its controller's turn and while it has a loyalty
+       counter, a 3/4 Ninja creature and not a planeswalker (its seventh
+       ruling). Cast in its controller's main phase beside Oath of Gideon
+       ("Each planeswalker you control enters with an additional loyalty
+       counter on it"), it would enter with no counters and so as a
+       planeswalker, both effects apply, and CR 616.1 asks the order. 306.5b
+       first gives four counters and makes Kaito a creature, so Oath no longer
+       applies; Oath first gives one, and 306.5b no longer applies. The engine
+       seeds four and never offers the second order, which is worse for its
+       chooser but legal.
+     - **An ability loss.** Humility over a planeswalker that is a creature
+       before any counters should take the intrinsic ability with the rest,
+       so it enters with none and CR 704.5i puts it into the graveyard. Today
+       it enters with its counters.
+
+     CR 310.4b's battles will have both gaps.
+
+     **Reachability (2026-09-28):** unreachable — Kaito and Oath of Gideon
+     are not registered, no registered planeswalker is a creature as it
+     enters, and Humility reaches only creatures. Fixtures reach both.
+
+     **Sized:** ~60–100 lines and two tests. 306.5b becomes a gathered
+     replacement from a synthesized intrinsic ability, as CR 305.6's mana
+     abilities are synthesized, so Layer 6 can remove it and CR 616.1 can
+     order it. CV-2a's counter rebuild at a copy's application (its D7) then
+     goes, since 306.5b applies after the copy on its own. **Slotted: the
+     entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
+     614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).

@@ -16,8 +16,8 @@ use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
-    AmountRewrite, AuxiliaryMove, EnterMods, EnterModsTemplate, EntryCounters, EventPattern,
-    ReplacementDef,
+    AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
+    EventPattern, ReplacementDef,
     RetargetSpec, GameActionTemplate, Rewrite, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawCause, LifeLossCause, Zone};
@@ -25,6 +25,7 @@ use crate::oracle::characteristics::{controller_or_owner, get_effective_power, g
 use crate::ui::ask::ask_allocate_next_damage;
 use crate::ui::ask::ask_apply_optional_replacement;
 use crate::ui::ask::ask_choose_auxiliary_zone_change;
+use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_entering_controller;
 use crate::ui::ask::ask_choose_replacement;
 
@@ -497,7 +498,8 @@ pub(crate) fn apply_replacements(
         // "You **may** … instead": declining marks it applied — the offer is CR 614.5's
         // one opportunity, and without the mark the loop re-gathers it forever — but
         // spends no use, so a declined regeneration shield stays for the next event.
-        if chosen.def.optional {
+        // A rewrite whose own choice includes choosing nothing asks the "may" there.
+        if chosen.def.optional && !chosen.def.rewrite.asks_its_own_may() {
             let chooser = chooser.ok_or_else(|| {
                 format!("optional replacement on {:?} has no player to ask", subject)
             })?;
@@ -1081,9 +1083,11 @@ fn classify<'a>(
         .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
         // Devour prompts and moves the board; a control change is CR 616.1b's
         // own forced step; a prevention and a redirection change what the
-        // others read.
+        // others read. A copy rewrites every characteristic the others read,
+        // and the later of two replaces the earlier.
         Rewrite::EnterAfterMoving(_)
         | Rewrite::EnterUnderControlOf(_)
+        | Rewrite::EnterAsCopy(_)
         | Rewrite::Prevent
         | Rewrite::Retarget(_) => None,
         Rewrite::Instead(template) => {
@@ -1306,9 +1310,13 @@ fn object_set_is_mods_invariant(affected: &ObjectSet) -> bool {
 
 /// The leaf table for [`ordering_cannot_change_outcome`]'s entry premise. Types,
 /// subtypes, supertypes, colors, controller, ownership and tokenness are fed
-/// by no `EnterMods` field; power is fed by `+1/+1` and `-1/-1` counters
-/// (CR 122.1a) and so `PowerLE` is not invariant. Matched exhaustively, so a
-/// new leaf has to be classified rather than defaulting to "safe".
+/// by no `EnterMods` field a suppressible bucket writes; power is fed by
+/// `+1/+1` and `-1/-1` counters (CR 122.1a) and so `PowerLE` is not invariant.
+/// `EnterMods::copy` feeds every characteristic, and is exempt only because
+/// its one writer, `Rewrite::EnterAsCopy`, is a CR 616.1c effect that
+/// `classify` never admits and the ladder never buckets with a 616.1e one.
+/// Matched exhaustively, so a new leaf has to be classified rather than
+/// defaulting to "safe".
 fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
     match filter {
         ObjectFilter::All
@@ -1743,6 +1751,42 @@ fn apply_rewrite(
                 "replacement {:?} moves other objects as a permanent enters (CR 614.13) \
                  but matched {:?}, which is not an entry. Its `EventPattern` and its \
                  `Rewrite` describe different events.",
+                chosen.id, other
+            )),
+        },
+
+        // CR 707.5 / 616.1c — choose the donor, capture it once, and carry the
+        // values on the entry: the permanent enters as the copy, never as itself
+        // first.
+        Rewrite::EnterAsCopy(template) => match event {
+            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+                let Some(donor) = entry_copy_donor(game, ctx, chosen, &template.donor, controller)
+                else {
+                    // Declined, or nothing to copy (CR 101.3): the effect applied
+                    // and changed nothing, which CR 614.5's applied set spends.
+                    let event = GameAction::EnterBattlefield { object, from, controller, mods, cause };
+                    return Ok((Some(event), Applied::default()));
+                };
+                let values = crate::engine::layers::copiable_values(game, donor).ok_or_else(|| {
+                    format!("the donor {donor} of an entry copy has no object to capture")
+                })?;
+                // Only CR 306.5b's seed can be in the counters here: the ladder puts
+                // every copy ahead of every 616.1e effect, so nothing has added any.
+                debug_assert!(
+                    mods.counters.iter().all(|c| c.counter == CounterType::Loyalty && c.by.is_none()),
+                    "a copy applied after an effect gave {object} counters as it enters: {:?}",
+                    mods.counters
+                );
+                mods.copy = Some(std::sync::Arc::new(values));
+                // CR 306.5b, asked again of what the permanent now enters as: the
+                // loyalty is the copy's (CR 707.2), and so is being a planeswalker.
+                mods.counters = game.default_enter_counters(object, controller, &mods);
+                Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
+            }
+            other => Err(format!(
+                "replacement {:?} makes a permanent enter as a copy but matched {:?}, \
+                 which is not an entry. Its `EventPattern` and its `Rewrite` describe \
+                 different events.",
                 chosen.id, other
             )),
         },
@@ -2601,6 +2645,46 @@ fn entering_controller(
     })
 }
 
+/// The object whose copiable values an entry copy captures, or `None` when
+/// there is none: a declined "you may", or nothing the effect could copy
+/// (CR 101.3).
+///
+/// A chosen donor is CR 707.6's "as [this] enters" choice, made by the entering
+/// object's controller, which CR 616.1b has already settled. Its candidates are
+/// on the battlefield in timestamp order, and the entering object is not among
+/// them, nor is anything entering beside it: each entry is decided against the
+/// board as it stood (Clone's fifth ruling). CR 616.1's two-candidate rule is
+/// about choosing *among* effects, so it has nothing to say here; one
+/// candidate with a "you may" is still two outcomes.
+fn entry_copy_donor(
+    game: &GameState,
+    ctx: &ActionContext,
+    chosen: &ReplacementInstance,
+    donor: &CopyDonor,
+    controller: PlayerId,
+) -> Option<ObjectId> {
+    match donor {
+        CopyDonor::ThisObject => Some(chosen.source),
+        CopyDonor::Host => game.battlefield.get(&chosen.source).and_then(|entry| entry.attached_to),
+        CopyDonor::Chosen(selection) => {
+            let candidates: Vec<ObjectId> =
+                crate::oracle::legality::enumerate_legal_selections(game, selection, None, controller)
+                    .into_iter()
+                    .filter_map(|t| match t {
+                        crate::engine::resolve::ResolvedTarget::Object(id) => Some(id),
+                        crate::engine::resolve::ResolvedTarget::Player(_) => None,
+                    })
+                    .collect();
+            match (candidates.as_slice(), chosen.def.optional) {
+                ([], _) => None,
+                (_, true) => ask_may_choose_copy_source(ctx.dp, game, controller, chosen.source, &candidates),
+                ([only], false) => Some(*only),
+                (_, false) => Some(ask_choose_copy_source(ctx.dp, game, controller, chosen.source, &candidates)),
+            }
+        }
+    }
+}
+
 /// CR 614.17d meets CR 122.6a: the counters `extra` would give an entering
 /// permanent, minus every kind a "can't have counters put on it" refuses.
 ///
@@ -2634,7 +2718,11 @@ pub(crate) fn strip_prohibited_counters(
         return extra.clone();
     }
     let frame = EntryFrame::for_entering(game, object, controller, so_far);
-    let mut kept = EnterMods { tapped: extra.tapped, counters: Vec::with_capacity(extra.counters.len()) };
+    let mut kept = EnterMods {
+        tapped: extra.tapped,
+        counters: Vec::with_capacity(extra.counters.len()),
+        copy: extra.copy.clone(),
+    };
     for row in &extra.counters {
         let action = GameAction::AddCounters {
             subject: CounterSubject::Object(object),
@@ -2677,7 +2765,7 @@ fn evaluate_enter_template(
     so_far: &EnterMods,
 ) -> Result<EnterMods, String> {
     let source = chosen.source;
-    let mut out = EnterMods { tapped: template.tapped, counters: Vec::new() };
+    let mut out = EnterMods { tapped: template.tapped, ..EnterMods::NONE };
     if template.counters.is_empty() {
         return Ok(out);
     }

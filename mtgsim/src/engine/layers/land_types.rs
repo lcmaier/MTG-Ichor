@@ -249,6 +249,7 @@ mod tests {
             }]),
             power: None,
             toughness: None,
+            loyalty: None,
             controller: 0,
             control_since_turn: 0,
         }
