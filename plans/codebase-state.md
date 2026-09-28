@@ -8547,6 +8547,6 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      The instrument that has already worked is TR-1b's
      (`triggers-architecture.md` §4.10): the same code with the shortcut off,
      compared at every site across audited fuzz games. Not CV-2's. Proposed
-     slot: beside the docs audit the owner has in mind after the triggers
-     phase, where item 6's close audit (`roadmap-v2.md` A6e) already reads the
-     engine's claims about itself.
+     slot: the docs audit at the end of phase 6 (`roadmap-v2.md` A6h), beside
+     item 6's close audit (A6e), which already reads the engine's claims
+     about itself.
