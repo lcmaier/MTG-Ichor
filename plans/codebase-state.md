@@ -5319,6 +5319,18 @@ first.
     is neither a phase file nor `test_support`, so the rest is a move into
     it and no longer a design.
 
+    **Decided at CV-2a's review (the owner, 2026-09-28): both halves, in
+    C0.** The constructors cover every kind (static, spell, activated and
+    mana, beside `authoring::triggered_ability`), with builder methods for the
+    two rare fields, and the migration takes every literal in the card files:
+    116 on 2026-09-28, against the 31 static ones counted above. And
+    `activation_restriction` moves into `AbilityType::Activated`, the one kind
+    it means anything for. Today 145 literals write
+    `ActivationRestriction::None`, 2 printed cards use anything else, and 19
+    reads compare `AbilityType::Activated`. Inside C0 the edits come before
+    the moves, as separate commits, so each moved file is a pure rename and
+    its history follows it.
+
     **What the transition to a real card list looks like — asked on review
     2026-09-08 and then measured, because both of us were arguing from
     impressions.** The measurement changed one of the answers.
@@ -8559,27 +8571,39 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by CV-2a's review (2026-09-28)
 
-186. **CR 306.5b's loyalty is seeded into the entry, so an ability loss cannot
-     take it away.** CR 306.5b gives a planeswalker an intrinsic ability, "This
-     permanent enters with a number of loyalty counters on it equal to its
-     printed loyalty number", which creates a replacement effect.
-     `GameState::default_enter_mods` seeds the counters into every entry
-     instead, and its doc called 306.5b "a rule, not an ability" until the
-     review asked why. Seeding agrees with gathering wherever a doubler meets
-     it, since CR 616.1f applies 306.5b first either way. It disagrees when the
-     entering planeswalker loses all its abilities under the CR 614.12 frame:
-     Humility over a planeswalker that is a creature as it enters should leave
-     it with no loyalty counters, and CR 704.5i then puts it into the
-     graveyard. Today it enters with its counters. CR 310.4b's battles will
-     have the same gap.
+186. **CR 306.5b's loyalty is seeded into the entry rather than gathered, so
+     the order the CR gives it is lost.** CR 306.5b gives a planeswalker an
+     intrinsic ability, "This permanent enters with a number of loyalty
+     counters on it equal to its printed loyalty number", which creates a
+     replacement effect. `GameState::default_enter_mods` seeds the counters
+     into every entry instead, and its doc called 306.5b "a rule, not an
+     ability" until CV-2a's review asked why. The two differ on printed cards:
+     - **An order the CR offers and the engine skips.** Kaito, Bane of
+       Nightmares is, during its controller's turn and while it has a loyalty
+       counter, a 3/4 Ninja creature and not a planeswalker (its seventh
+       ruling). Cast in its controller's main phase beside Oath of Gideon
+       ("Each planeswalker you control enters with an additional loyalty
+       counter on it"), it would enter with no counters and so as a
+       planeswalker, both effects apply, and CR 616.1 asks the order. 306.5b
+       first gives four counters and makes Kaito a creature, so Oath no longer
+       applies; Oath first gives one, and 306.5b no longer applies. The engine
+       seeds four and never offers the second order, which is worse for its
+       chooser but legal.
+     - **An ability loss.** Humility over a planeswalker that is a creature
+       before any counters should take the intrinsic ability with the rest,
+       so it enters with none and CR 704.5i puts it into the graveyard. Today
+       it enters with its counters.
 
-     **Reachability (2026-09-28):** unreachable — no registered permanent is a
-     planeswalker and a creature as it enters, and Humility, the registered
-     card that removes abilities, reaches only creatures. A fixture reaches it:
-     CV-2a's planeswalker creature entering under Humility.
+     CR 310.4b's battles will have both gaps.
 
-     **Sized:** ~40–60 lines and a test. `loyalty_on_entry` asks whether the
-     frame still has the intrinsic ability, which needs one synthesized
-     `AbilityDef` per intrinsic kind so Layer 6 can remove it by id, as CR
-     305.6's intrinsic mana abilities are. Owner: backlog §2.23, battles, which
-     brings the second customer and CR 310.4b beside it.
+     **Reachability (2026-09-28):** unreachable — Kaito and Oath of Gideon
+     are not registered, no registered planeswalker is a creature as it
+     enters, and Humility reaches only creatures. Fixtures reach both.
+
+     **Sized:** ~60–100 lines and two tests. 306.5b becomes a gathered
+     replacement from a synthesized intrinsic ability, as CR 305.6's mana
+     abilities are synthesized, so Layer 6 can remove it and CR 616.1 can
+     order it. CV-2a's counter rebuild at a copy's application (its D7) then
+     goes, since 306.5b applies after the copy on its own. **Slotted: the
+     entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
+     614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).

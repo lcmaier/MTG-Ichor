@@ -2036,7 +2036,7 @@ adopts, and the one fixture the PR should pin.
 | **Size** | ~150–200 lines, one PR: the two fields and their merge, one write in `place_on_battlefield`, one read in `board.rs`'s Layer 4 seeding, one in `Lookahead::new`, the three filter arms made mods-aware, Master Biomancer's clause registered, and three tests (the type is there, a `BySubtype` filter beside it asks, a later Layer 4 row wins) |
 | **Blocks** | five printed cards say "enters … as a [type] in addition to its other types" (Scryfall, 2026-09-15: Master Biomancer, Eluge, the Shoreless Sea, Minas Morgul, Dark Fortress, Tarrian's Journal, Xolatoyac, the Smiling Flood); Master Biomancer is registered without the clause, in the stress pool, and wrong unobservably. Not to be confused with CR 707.9d's "in addition to its other types" on a *copy*, which is CV-2's exception path |
 | **Atoms** | none filed; the corpus has no CR 614.1c atom for the type half — the PR files one |
-| **Owner** | — (any sitting; nothing on the spine waits on it, and nothing stored today would need migrating, since no permanent carries a type it should not) |
+| **Owner** | the entry-state PR, `roadmap-v2.md` A6c (the owner, 2026-09-28, at CV-2a's review), whose shared `CharacteristicEdit` this is the first placement of |
 
 ### 2.31 Dice and coins (CR 705, 706)
 
@@ -2467,7 +2467,7 @@ neither.
 | **Size** | ~100–150 lines: the field and its merge, the template's field, `classify`'s cell, the look-ahead's and the performer's reads, and a test per ruling |
 | **Blocks** | five printed cards: Spelunking, Horizon Explorer and The Wandering Minstrel ("Lands you control enter untapped"), Gond Gate ("Gates you control enter untapped"), and Archelos, Lagoon Mystic ("As long as Archelos is untapped, other permanents enter untapped") |
 | **Atoms** | none filed |
-| **Owner** | — ; found 2026-09-28 at CV-2's design review |
+| **Owner** | the entry-state PR, `roadmap-v2.md` A6c (the owner, 2026-09-28, at CV-2a's review); found at CV-2's design review the same day |
 
 ## 3. Dispositioned — sections that need no entry of their own
 

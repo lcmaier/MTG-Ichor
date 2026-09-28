@@ -1306,7 +1306,7 @@ impl GameState {
         entry.tapped = mods.tapped;
         // CR 707.5 — and what it entered as, in the entity before anything
         // below reads it: registration files the copy's abilities.
-        entry.entered_as_copy = mods.copy.as_ref().map(Arc::clone);
+        entry.entered_as_copy = mods.copy.clone();
         // CR 400.7d — how it was cast and what its costs were, off the
         // resolving spell's entry. A permanent that arrives any other way was
         // never a spell, and its `PermanentState::new` defaults say so.
@@ -1696,7 +1696,7 @@ impl GameState {
             return;
         };
         let entered_as = match zone {
-            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.as_ref().map(Arc::clone)),
+            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.clone()),
             _ => None,
         };
         let (abilities, types, card_name) = match &entered_as {

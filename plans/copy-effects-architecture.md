@@ -1155,7 +1155,7 @@ and CV-3's embalm and eternalize are the same algebra.
 /// arm needs a new rule, and a new card is data.
 pub enum CopyException {
     /// 707.9a–b: one edit to one copiable characteristic.
-    Modifies(CopiableEdit),
+    Modifies(CharacteristicEdit),
     /// 707.9c: "it doesn't copy that creature's [characteristic]" — the
     /// copy keeps its own.
     DoesNotCopy(Characteristic),
@@ -1166,7 +1166,7 @@ pub enum CopyException {
 }
 
 /// One edit to one characteristic on CR 707.2's list of copiable values.
-pub enum CopiableEdit {
+pub enum CharacteristicEdit {
     Name(String),
     ManaCost(Option<ManaCost>),
     Colors(ColorChange),   // `Primitive::ChangeColor`'s type
@@ -1177,6 +1177,16 @@ pub enum CopiableEdit {
     Loyalty(i32),
 }
 ```
+
+**One edit vocabulary, placed two ways** (the owner, 2026-09-28, at CV-2a's
+review). The entry-state PR, before this one on `roadmap-v2.md` A6c, builds
+`CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
+in addition to its other types", held as how the permanent entered and applied
+at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
+last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
+edit part of the copiable values. The "except it has flying" and "base power
+and toughness 1/1" exceptions of Tier C and token copies are this second
+placement too, so CV-1b and CV-3 reuse `CopyException` whole.
 
 - **A new card is data, printed or custom.** Every 707.9a–c exception edits a
   characteristic on CR 707.2's list, and that list is the definition of
@@ -1232,8 +1242,8 @@ custom card needs is that vocabulary, not a judgment of the engine's own.
 untapped changes nothing. Five printed cards need it: Spelunking, Horizon
 Explorer, The Wandering Minstrel, Gond Gate and Archelos, Lagoon Mystic. It is
 `backlog.md` §2.40: a status the last applied effect sets, with CR 616.1's
-ordering prompt between opposite statuses. It is not CV-2's, and neither
-reading of the gray area needs more than that.
+ordering prompt between opposite statuses. It lands with the entry-state PR
+before CV-2b, and neither reading of the gray area needs more than that.
 
 #### The printed population, which sizes the donor and exception arms
 
@@ -1275,7 +1285,7 @@ RE-4's exception), and each lands with its card.
 #### The sites
 
 - `types/replacement.rs`: `EntryCopyTemplate.except`; `copy` becomes `Option<EntryCopy>`
-- `types/effects.rs`: `CopyException` (4 arms, one per CR 707.9 sub-rule), `CopiableEdit` (one per CR 707.2 characteristic)
+- `types/effects.rs`: `CopyException` (4 arms, one per CR 707.9 sub-rule), over the entry state's `CharacteristicEdit`
 - `engine/replacement/pipeline.rs`: the arm's exceptions; 9e's `EntryCopy.added`; 9f's frame
 - `engine/layers/types.rs`, `compute.rs`, `copy.rs`: `apply_exceptions`; the CDA classifier in `cda.rs`
 - cards: Spark Double; 99 → 100
@@ -1307,8 +1317,8 @@ In CV-2b: Spark Double copying Grist gets 3 + 1 loyalty and no +1/+1; Doubling
 Season doubles that; March of the Machines makes a copied Sol Ring a creature
 as it enters, so it gets the counter (the eighth ruling); a "can't have
 counters" fixture strips the +1/+1; `Modifies(Name)` and
-`Modifies(GainsKeyword)` fixtures; the gray area's two readings, once
-`backlog.md` §2.40 lands (not before).
+`Modifies(GainsKeyword)` fixtures; the gray area's two readings, on the
+entry state's "enters untapped" (`backlog.md` §2.40).
 
 **The gate:** `specdb owed` cannot close this phase, and it is two short, not
 one. Its default filter still hides the 707 atoms ticketed `D5` (§9 item 11),

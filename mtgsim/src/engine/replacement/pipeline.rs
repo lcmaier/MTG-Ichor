@@ -2721,7 +2721,7 @@ pub(crate) fn strip_prohibited_counters(
     let mut kept = EnterMods {
         tapped: extra.tapped,
         counters: Vec::with_capacity(extra.counters.len()),
-        copy: extra.copy.as_ref().map(std::sync::Arc::clone),
+        copy: extra.copy.clone(),
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {
