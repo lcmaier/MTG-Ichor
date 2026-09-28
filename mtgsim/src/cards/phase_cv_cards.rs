@@ -266,7 +266,12 @@ pub fn mirrorweave() -> Arc<CardData> {
 ///
 /// (Oracle text verified on Scryfall, 2026-09-28.)
 ///
-/// # CV-2a's card, and the shape of 52 of the 62 printed
+/// # CV-2a's card: a chosen donor and no "except"
+///
+/// 52 of the 62 printed cards that enter as a copy choose their donor on the
+/// battlefield, as Clone does, and 42 of the 62 print "except". Clone is the
+/// base both kinds share; Spark Double, CV-2b's card, is the "except" half
+/// (`copy-effects-architecture.md` §7c).
 ///
 /// A `SourceOnly` entry replacement whose rewrite is
 /// `Rewrite::EnterAsCopy`, so CR 616.1c's bucket has a printed producer and

@@ -8556,3 +8556,30 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      slot: the docs audit at the end of phase 6 (`roadmap-v2.md` A6h), beside
      item 6's close audit (A6e), which already reads the engine's claims
      about itself.
+
+### Found by CV-2a's review (2026-09-28)
+
+186. **CR 306.5b's loyalty is seeded into the entry, so an ability loss cannot
+     take it away.** CR 306.5b gives a planeswalker an intrinsic ability, "This
+     permanent enters with a number of loyalty counters on it equal to its
+     printed loyalty number", which creates a replacement effect.
+     `GameState::default_enter_mods` seeds the counters into every entry
+     instead, and its doc called 306.5b "a rule, not an ability" until the
+     review asked why. Seeding agrees with gathering wherever a doubler meets
+     it, since CR 616.1f applies 306.5b first either way. It disagrees when the
+     entering planeswalker loses all its abilities under the CR 614.12 frame:
+     Humility over a planeswalker that is a creature as it enters should leave
+     it with no loyalty counters, and CR 704.5i then puts it into the
+     graveyard. Today it enters with its counters. CR 310.4b's battles will
+     have the same gap.
+
+     **Reachability (2026-09-28):** unreachable — no registered permanent is a
+     planeswalker and a creature as it enters, and Humility, the registered
+     card that removes abilities, reaches only creatures. A fixture reaches it:
+     CV-2a's planeswalker creature entering under Humility.
+
+     **Sized:** ~40–60 lines and a test. `loyalty_on_entry` asks whether the
+     frame still has the intrinsic ability, which needs one synthesized
+     `AbilityDef` per intrinsic kind so Layer 6 can remove it by id, as CR
+     305.6's intrinsic mana abilities are. Owner: backlog §2.23, battles, which
+     brings the second customer and CR 310.4b beside it.

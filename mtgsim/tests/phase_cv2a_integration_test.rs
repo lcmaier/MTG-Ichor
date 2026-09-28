@@ -691,12 +691,15 @@ fn two_essences_give_the_one_applied_last() {
     }
 }
 
-/// Clone beside Essence of the Wild, the card's seventh ruling: Essence
-/// first leaves Clone's ability nothing to apply to, since the would-be
-/// permanent no longer has it; Clone first copies the Colossus, and Essence
-/// then applies to the Colossus. The board is an Essence either way, and only
-/// the second order asks the copy choice. CR 616.1 still asks the order, which
-/// `classify` cannot prove moot.
+/// Clone beside Essence of the Wild, the card's seventh ruling, in both
+/// orders. Essence first: the entering Clone becomes an Essence, and Clone's
+/// own ability, which the would-be permanent no longer has, never applies.
+/// Clone first: the entering Clone becomes a copy of the Colossus (the
+/// Colossus itself does not change), and Essence's effect, which still
+/// applies to a creature entering under its controller, makes that entering
+/// copy an Essence. The Clone chooses the Colossus rather than the Essence so
+/// the result can only come from Essence's effect applying second. CR 616.1
+/// still asks the order, which `classify` cannot prove moot.
 #[test]
 fn a_clone_beside_essence_of_the_wild_enters_as_the_essence() {
     for clone_first in [false, true] {
@@ -734,7 +737,9 @@ fn rusted_sentinel_under_essence_of_the_wild_enters_untapped() {
 }
 
 /// Infinite Reflection's "enter as a copy of enchanted creature": the donor
-/// is the host of the effect's source, and nothing is asked.
+/// is the host of the effect's source, and nothing is asked. Its other half,
+/// "each other nontoken creature you control becomes a copy" as it enters, is
+/// a triggered "becomes a copy" with no duration, which is CV-1b's.
 #[test]
 fn a_host_donor_is_the_enchanted_creature() {
     let mut game = setup_two_player_game();

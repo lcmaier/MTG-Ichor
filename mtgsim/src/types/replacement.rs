@@ -1368,6 +1368,9 @@ impl EnterModsTemplate {
 /// What an entry copy will be, before its donor is chosen and its values
 /// captured — the authored half of [`EnterMods::copy`], as
 /// [`EnterModsTemplate`] is of [`EnterMods`].
+///
+/// A struct for its second field: CV-2b adds CR 707.9's exceptions beside the
+/// donor (`copy-effects-architecture.md` §7c).
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntryCopyTemplate {
     pub donor: CopyDonor,

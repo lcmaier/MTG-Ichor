@@ -117,8 +117,11 @@ The cost of the single mechanism is one indirection on the hottest path, and
 
 ### 1.3 The one rule that makes all of this hold
 
-> **A copy row stores *values*, never a reference.** `CopyFrom(Arc<CopiableValues>)`,
-> captured once. Never `CopyOf(ObjectId)` resolved during the layer walk.
+> **A copy row stores a snapshot of *values*, never a link to the donor.**
+> `CopyFrom(Arc<CopiableValues>)`, captured once. The `Arc` shares that one
+> immutable capture among the rows, forks and entries holding it, and nothing
+> it points at can change. Never `CopyOf(ObjectId)`, resolved during the layer
+> walk.
 
 Three consequences, each argued where it belongs, and each of which flips if the
 rule is broken:
@@ -130,9 +133,9 @@ rule is broken:
 - Under CR 613.8a(b), a value-carrying copy row is **independent of every other
   layer 1 effect** — nothing another effect does can change its text, its
   existence, what it applies to, or what it does. So copy work does **not**
-  queue behind critical-path item 7. A reference-carrying row would be dependent
+  queue behind critical-path item 7. A row linked to its donor would be dependent
   and it would. → §5.2.
-- A reference-carrying row would ask for another object's ceiling-1 frame from
+- A row linked to its donor would ask for another object's ceiling-1 frame from
   *inside* layer index 0, which is not a strict descent and therefore breaks
   `layers-architecture.md` §5.2's termination argument outright — two permanents
   copying each other is a real board, and CR 613.8b's dependency-loop fallback
@@ -1259,7 +1262,7 @@ RE-4's exception), and each lands with its card.
 | Facility | Printed | What is missing |
 |---|---|---|
 | a donor off the battlefield | Body Double, Activated Sleeper, Lazotep Convert, Superior Spider-Man, The Fourteenth Doctor, The Master | a `SelectionFilter` over a graveyard or exile. `enumerate_legal_selections` enumerates the battlefield, the stack and players; the capture already reads `game.objects` |
-| an exception that reads the donor, not the result | Dominion Saboteur (its counters), Undercover Operative (its controller), Flesh Duplicate (its vanishing) | a condition axis on the chosen object; 9f reads the result |
+| an exception that reads the donor, not the result | Dominion Saboteur (its counters; a preview card on 2026-09-28, so no ruling or rules change says how yet), Undercover Operative (its controller), Flesh Duplicate (its vanishing) | a condition axis on the chosen object; 9f reads the result |
 | an exception that reads the entering card | Hulking Metamorph (this creature's P/T), Sakashima of a Thousand Faces (its other abilities) | the entering object's printed values beside the donor's |
 | X | Altered Ego | the resolving spell's X at the choice; `PermanentState.x_value` is written after it |
 | a candidate filter on payment or arrival | Mockingbird (mana spent), Sakashima's Protege (entered this turn) | the `ObjectFilter` leaves. The facts exist (`CastFacts.mana_spent`, `entered_battlefield_turn`); Protean Raider's raid is not in this row, since its condition is TR-2a's `TurnFact::AttackersDeclared` |

@@ -1306,7 +1306,7 @@ impl GameState {
         entry.tapped = mods.tapped;
         // CR 707.5 — and what it entered as, in the entity before anything
         // below reads it: registration files the copy's abilities.
-        entry.entered_as_copy = mods.copy.clone();
+        entry.entered_as_copy = mods.copy.as_ref().map(Arc::clone);
         // CR 400.7d — how it was cast and what its costs were, off the
         // resolving spell's entry. A permanent that arrives any other way was
         // never a spell, and its `PermanentState::new` defaults say so.
@@ -1372,10 +1372,16 @@ impl GameState {
     /// permanent enters *with*, and a loyalty count written straight into the
     /// entity would be invisible to them.
     ///
-    /// **CR 306.5b is a rule, not an ability**, which is why it lives here
-    /// rather than in a `ReplacementDef` — nothing on a planeswalker's card
-    /// says it enters with loyalty counters, the same way nothing on a
-    /// commander card says CR 903.9b.
+    /// **CR 306.5b makes it an intrinsic ability** that creates a replacement
+    /// effect (CR 614.1c), and it is seeded here rather than gathered as a
+    /// `ReplacementDef`, since no card prints it. The two agree wherever a
+    /// doubler meets it: a doubler has nothing to apply to until the counters
+    /// exist, so CR 616.1f applies 306.5b first either way. They differ when
+    /// the entering planeswalker loses all its abilities, which should take
+    /// this one with them (main item 186). Only loyalty, because CR 306.5b is
+    /// the only such ability built: CR 310.4b gives a battle the same one with
+    /// defense counters, and it joins this seed with the first battle
+    /// (`backlog.md` §2.23).
     ///
     /// **Reads the CR 614.12 frame, not the printed card.** CR 306.5b gives
     /// the ability to "a planeswalker", so the question is whether the object
@@ -1690,7 +1696,7 @@ impl GameState {
             return;
         };
         let entered_as = match zone {
-            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.clone()),
+            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.as_ref().map(Arc::clone)),
             _ => None,
         };
         let (abilities, types, card_name) = match &entered_as {

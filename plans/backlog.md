@@ -1659,6 +1659,15 @@ mechanic rather than a migration, which is why it is here and not in
   - **(e) Staged payment** — a client buffering its answers until the player
     confirms, which CM-3's deciding-before-performing already allows; not a
     decorator. §2.18 owns it.
+  - **(f) Biasing the random agent toward the answer a player would give**
+    (raised at CV-2a's review, 2026-09-28). Clone's "you may" is a `(0, 1)`
+    pick, so the random agent declines about half its copies where a player
+    almost never would. Not a row. The agent's job is coverage: a declined
+    Clone is a legal board, a 0/0 Shapeshifter that dies, and a bias would
+    starve exactly the paths nobody plays and so nobody else tests. No
+    measurement needs one either: an A/B runs both arms under one provider,
+    and floor 1 is read under a named stack. Realistic play is an agent's
+    policy, written into its own provider, as (d) says of sacrifices.
 - **Sequence.** (1) **This PR**: row 2's forced branch. (2) **Row 2's
   remainder, alone**: the ordering elided in the engine and `AutoPayer`
   deleted, ~20 lines and a restated test, its own `differ` A/B — the one

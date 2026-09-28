@@ -66,7 +66,7 @@ impl Lookahead {
         let mut entity = PermanentState::new(object, controller, game.turn_number);
         entity.timestamp = entity_timestamp;
         entity.tapped = mods.tapped;
-        entity.entered_as_copy = mods.copy.clone();
+        entity.entered_as_copy = mods.copy.as_ref().map(std::sync::Arc::clone);
         for (next, row) in (entity_timestamp + 1..).zip(&mods.counters) {
             entity.add_counters(row.counter, row.n, next);
         }
