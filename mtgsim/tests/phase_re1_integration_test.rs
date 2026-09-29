@@ -920,3 +920,40 @@ fn state_based_actions_at_cleanup_begin_a_second_cleanup_step() {
         .count();
     assert_eq!(cleanups, 1, "CR 514.3a — the second cleanup step begins, and says so");
 }
+
+/// CR 514.3a's repeated cleanup step is a cleanup step: it runs CR 514.2
+/// again, so an "until end of turn" effect still standing when it begins ends
+/// there, not a turn later (`codebase-state.md` item 188). The pump stands for
+/// one created in 514.3a's priority window: the board is entered at the
+/// cleanup step by fiat, so no earlier occurrence's expiry saw it, and the 0/0
+/// is what makes a second cleanup step begin.
+#[test]
+fn a_repeated_cleanup_step_ends_until_end_of_turn_effects() {
+    use mtgsim::engine::layers::{EffectModification, Layer, PtValue};
+    use mtgsim::oracle::characteristics::get_effective_power;
+    use mtgsim::state::game::Game;
+    use mtgsim::state::game_config::GameConfig;
+    use mtgsim::test_support::{place_bare, registered, vanilla_creature};
+
+    let deck: Vec<Arc<CardData>> =
+        (0..20).map(|_| mtgsim::cards::basic_lands::forest()).collect();
+    let mut g = Game::new(GameConfig::test(), vec![deck.clone(), deck]).unwrap();
+    let dp = RandomDecisionProvider::seeded(514);
+    g.setup(&dp).unwrap();
+    g.state.set_turn_position(Phase {
+        phase_type: PhaseType::Ending,
+        step: Some(StepType::Cleanup),
+    });
+
+    let bear = place_bare(&mut g.state, vanilla_creature(2, 2, &[]), 0);
+    let pump = EffectModification::ModifyPowerToughness { power: PtValue::Fixed(3), toughness: PtValue::Fixed(3) };
+    let stamp = g.state.next_timestamp;
+    g.state.continuous_effects.add(registered(bear, Layer::Layer7cModifyPT, stamp, pump));
+    let doomed = place_bare(&mut g.state, vanilla_creature(0, 0, &[]), 0);
+    assert_eq!(get_effective_power(&g.state, bear), Some(5));
+
+    g.run_turn(&dp).unwrap();
+
+    assert_eq!(g.state.get_object(doomed).unwrap().zone, Zone::Graveyard, "the repeated step began");
+    assert_eq!(get_effective_power(&g.state, bear), Some(2), "the pump ended at the repeated cleanup step");
+}

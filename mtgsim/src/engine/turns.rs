@@ -126,11 +126,6 @@ impl GameState {
                 TurnUnit::Step(next) => {
                     if self.begin_step(next, ctx)? {
                         let current = phase.expect("a step belongs to a phase that began");
-                        // Turn-based actions, after the event and only for a
-                        // step that began (CR 703.4). Outside the proposal's
-                        // batch on purpose: the untap sweep is its own
-                        // CR 603.2c event, not a result of the step beginning.
-                        self.on_step_begin(next, ctx)?;
                         return Ok((current, Some(next)));
                     }
                     step = Some(next);
@@ -239,7 +234,10 @@ impl GameState {
         Ok(!performed.is_empty())
     }
 
-    /// Propose `step`'s beginning; report whether it happened.
+    /// Propose `step`'s beginning and, if it began, run its turn-based actions;
+    /// report whether it began. Every occurrence of a step comes through here,
+    /// CR 514.3a's repeated cleanup step included, so no occurrence can skip
+    /// what its step does.
     pub(crate) fn begin_step(&mut self, step: StepType, ctx: &ActionContext) -> Result<bool, String> {
         // CR 508.8 — "if no creatures are declared as attackers ... skip the
         // declare blockers and combat damage steps". A **rule**, checked ahead
@@ -256,7 +254,14 @@ impl GameState {
         }
         let player = self.active_player;
         let performed = self.execute_actions(vec![GameAction::BeginStep { step, player }], ctx)?;
-        Ok(!performed.is_empty())
+        if performed.is_empty() {
+            return Ok(false);
+        }
+        // Turn-based actions, after the event and only for a step that began
+        // (CR 703.4). Outside the proposal's batch on purpose: the untap sweep
+        // is its own CR 603.2c event, not a result of the step beginning.
+        self.on_step_begin(step, ctx)?;
+        Ok(true)
     }
 
     // --- Turn lifecycle callbacks ---
@@ -351,7 +356,7 @@ impl GameState {
             }
             StepType::Cleanup => {
                 // Rule 514.1 (discard to hand size) needs a DecisionProvider, so it
-                // lives one level up in `Game::perform_cleanup_actions`, not here.
+                // lives one level up in `Game::process_turn_based_actions`, not here.
 
                 // Rule 514.2: Remove all damage marked on permanents and end
                 // "until end of turn" / "this turn" effects (simultaneous)
