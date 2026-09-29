@@ -1271,15 +1271,28 @@ impl TypeChange {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CharacteristicEdit {
     /// Layer 4 — Master Biomancer's "as a Mutant in addition to its other
-    /// types".
+    /// types". Inside a copy: Copy Artifact's "it's an enchantment in
+    /// addition to its other types", Spark Double's "it isn't legendary".
     Types(TypeChange),
+    /// "It has [ability]" — Phantasmal Image's "it has 'When this creature
+    /// becomes the target of a spell or ability, sacrifice it'". Its authored
+    /// `is_characteristic_defining` stands: CR 604.3a(2) counts an ability "acquired
+    /// ... as the result of a copy effect".
+    GainsAbility(crate::objects::card_data::AbilityDef),
+    /// "It has flying" — Mockingbird.
+    GainsKeyword(KeywordFlag),
+    /// "It's 7/7" — Quicksilver Gargantuan: base power and toughness.
+    PowerToughness(i32, i32),
+    /// "Its name is Sakashima the Impostor".
+    Name(String),
 }
 
 impl CharacteristicEdit {
     /// Does this edit only add, "in addition to" what is there? An adding
     /// edit can turn a filter leaf only from not matching to matching, which
     /// is the direction the feeds table's order question never asks about
-    /// (`replacement-architecture.md` §3.5).
+    /// (`replacement-architecture.md` §3.5). CR 707.9d reads the same fact:
+    /// an adding edit inside a copy drops no characteristic-defining ability.
     pub fn adds(&self) -> bool {
         match self {
             CharacteristicEdit::Types(change) => {
@@ -1290,7 +1303,18 @@ impl CharacteristicEdit {
                     && change.remove_subtypes.is_empty()
                     && change.remove_supertypes.is_empty()
             }
+            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) => true,
+            CharacteristicEdit::PowerToughness(..) | CharacteristicEdit::Name(_) => false,
         }
+    }
+
+    /// Can a permanent's entry make this edit, as "enters as" state
+    /// (`replacement-architecture.md` §3.5's entry placement)? An arm lands
+    /// with its first placement's card, and every arm but `Types` was first
+    /// placed inside a copy. So `evaluate_enter_template` refuses the rest,
+    /// until an entry card needs one and builds its layer here.
+    pub fn has_entry_placement(&self) -> bool {
+        matches!(self, CharacteristicEdit::Types(_))
     }
 
     /// What this edit does at each layer, as the board pass applies it to the
@@ -1303,8 +1327,64 @@ impl CharacteristicEdit {
             CharacteristicEdit::Types(change) => {
                 change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
             }
+            CharacteristicEdit::GainsAbility(_)
+            | CharacteristicEdit::GainsKeyword(_)
+            | CharacteristicEdit::PowerToughness(..)
+            | CharacteristicEdit::Name(_) => {
+                debug_assert!(false, "{self:?} has no entry placement, and the entry door refuses it");
+                Vec::new()
+            }
         }
     }
+}
+
+/// CR 707.9 — one exception to a copy effect. One arm per sub-rule that
+/// permits one, so a new arm needs a new rule, and a new card is data
+/// (`copy-effects-architecture.md` §7c).
+#[derive(Debug, Clone, PartialEq)]
+pub enum CopyException {
+    /// 707.9a–b: one edit to one characteristic, and the result is part of
+    /// the copy's copiable values, so a copy of the copy has it too.
+    Modifies(CharacteristicEdit),
+    /// 707.9c: "it doesn't copy that creature's color". The copy keeps its
+    /// own value.
+    DoesNotCopy(Characteristic),
+    /// 707.9e: "an additional effect rather than a modification of the
+    /// affected object's characteristics": a status or counters on the
+    /// entry. A later copy in the same entry takes it back. An edit here is
+    /// refused: it is `Modifies`.
+    Additionally(crate::types::replacement::EnterModsTemplate),
+    /// 707.9f: these apply only if the copy, judged without them, matches.
+    /// Spark Double's "if it's a creature". Not nested: `ObjectFilter::And`
+    /// already says "if it's both".
+    If(ObjectFilter, Vec<CopyException>),
+}
+
+impl CopyException {
+    /// Every ability this exception gives the copy, for
+    /// `CardDataBuilder::build` to stamp as it stamps the card's own.
+    pub fn for_each_ability_def_mut(&mut self, f: &mut impl FnMut(&mut crate::objects::card_data::AbilityDef)) {
+        match self {
+            CopyException::Modifies(CharacteristicEdit::GainsAbility(def)) => {
+                f(def);
+                def.effect.for_each_ability_def_mut(f);
+            }
+            CopyException::If(_, inner) => {
+                for exception in inner {
+                    exception.for_each_ability_def_mut(f);
+                }
+            }
+            CopyException::Modifies(_) | CopyException::DoesNotCopy(_) | CopyException::Additionally(_) => {}
+        }
+    }
+}
+
+/// A characteristic a copy can decline to copy (CR 707.9c). An arm lands
+/// with a card that names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Characteristic {
+    /// Vesuvan Doppelganger's.
+    Color,
 }
 
 /// Which role a `Primitive::Copy`'s own recipients play, and where the other
@@ -1902,6 +1982,11 @@ impl Effect {
                     for def in &mut token.abilities {
                         f(def);
                         def.effect.for_each_ability_def_mut(f);
+                    }
+                }
+                if let Rewrite::EnterAsCopy(template) = &mut def.rewrite {
+                    for exception in &mut template.except {
+                        exception.for_each_ability_def_mut(f);
                     }
                 }
                 if let Some(then) = &mut def.then {

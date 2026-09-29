@@ -876,19 +876,23 @@ amount once whenever it applies.
 One edit to one characteristic, whose content is a type the engine already
 has (`TypeChange` and `ColorChange` are layers 4 and 5's own). **Where the
 edit is made decides whether it is copiable, never the edit.** An arm lands
-with its first placement's consumer; `Types` is built.
+with its first placement's consumer, and a placement is built only with its
+own: `CharacteristicEdit::has_entry_placement` says which arms an entry may
+make, and `evaluate_enter_template` refuses the rest rather than dropping
+them.
 
 | Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §7c): inside `CopiableValues` (CR 707.9b) |
 |---|---|---|
-| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a |
+| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a; **built** (CV-2b), for Spark Double's "isn't legendary" and Copy Artifact's "in addition" |
 | `Colors(ColorChange)` | layer 5 | 1a |
-| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a |
-| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a |
-| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a |
+| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a; **built** (CV-2b), on fixtures shaped as Phantasmal Image and Mockingbird. Registration files the gained ability because it reads the captured list |
+| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a; **built** (CV-2b), on a Quicksilver Gargantuan-shaped fixture |
+| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a; `Name` **built** (CV-2b), on a Sakashima-shaped fixture |
 
 The entry placement lowers an edit through the function `Primitive::ChangeType`
 lowers through (`TypeChange::modifications`), so an edit and a continuous
-effect that say the same thing make the same modifications.
+effect that say the same thing make the same modifications. The copy
+placement lowers `Types` through the same function (`CopiableValues::except`).
 
 ---
 

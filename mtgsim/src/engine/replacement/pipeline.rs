@@ -31,6 +31,7 @@ use crate::ui::ask::{ask_choose_copy_source, ask_may_choose_copy_source};
 use crate::ui::ask::ask_choose_entering_controller;
 use crate::ui::ask::ask_choose_replacement;
 
+use super::entry_copy::enter_as_copy;
 use super::gather::{applies_to, must_choose_among};
 use super::{
     chooser_for, gather, subject_of, EntryFrame, EventSubject, ReplacementInstance,
@@ -1504,6 +1505,11 @@ impl EntryWrites {
                 self.added_subtypes.extend(change.add_subtypes.iter().cloned());
                 self.added_supertypes.extend(&change.add_supertypes);
             }
+            // No leaf reads an ability or a keyword, and the entry door
+            // refuses both until one has an entry placement.
+            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) => {}
+            // Sets, which returned above as feeding every leaf.
+            CharacteristicEdit::PowerToughness(..) | CharacteristicEdit::Name(_) => {}
         }
     }
 
@@ -1979,7 +1985,7 @@ fn apply_rewrite(
         // values on the entry: the permanent enters as the copy, never as itself
         // first.
         Rewrite::EnterAsCopy(template) => match event {
-            GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
+            GameAction::EnterBattlefield { object, from, controller, mods, cause } => {
                 let Some(donor) = entry_copy_donor(game, ctx, chosen, &template.donor, controller)
                 else {
                     // Declined, or nothing to copy (CR 101.3): the effect applied
@@ -1993,7 +1999,7 @@ fn apply_rewrite(
                 // CR 306.5b is the copy's own ability now, gathered off its frame on
                 // a later iteration (CR 707.2: its loyalty and its being a
                 // planeswalker are the copy's).
-                mods.copy = Some(std::sync::Arc::new(values));
+                let mods = enter_as_copy(game, chosen, object, controller, mods, values, &template.except)?;
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
             other => Err(format!(
@@ -2920,7 +2926,7 @@ fn entry_copy_donor(
 /// refuses a status, and ATOM-614.17d-001's "creatures can't enter the
 /// battlefield tapped" is a representative the corpus invented; it is claimed
 /// for its counters half.
-fn strip_prohibited_counters(
+pub(super) fn strip_prohibited_counters(
     game: &GameState,
     object: ObjectId,
     controller: PlayerId,
@@ -2971,7 +2977,7 @@ fn strip_prohibited_counters(
 ///
 /// A negative power is CR 122.6a's nothing rather than an error — no counters
 /// are put on — matching `add_counters`' `u32`.
-fn evaluate_enter_template(
+pub(super) fn evaluate_enter_template(
     game: &GameState,
     template: &EnterModsTemplate,
     chosen: &ReplacementInstance,
@@ -2980,6 +2986,14 @@ fn evaluate_enter_template(
     so_far: &EnterMods,
 ) -> Result<EnterMods, String> {
     let source = chosen.source;
+    if let Some(edit) = template.edits.iter().find(|edit| !edit.has_entry_placement()) {
+        return Err(format!(
+            "an entry replacement on {} makes {:?} as the permanent enters, and that edit has no \
+             entry placement yet (`replacement-architecture.md` §3.5): it lands with the first \
+             card that enters with it",
+            source, edit
+        ));
+    }
     let edits = (!template.edits.is_empty()).then(|| template.edits.iter().cloned().collect());
     let mut out = EnterMods { status: template.status, edits, ..EnterMods::NONE };
     if template.counters.is_empty() {

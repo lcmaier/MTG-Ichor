@@ -8644,3 +8644,33 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** the candidates are unsized until each is confirmed.
      **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
      185's inventory of elisions, which is the same kind of list.
+
+### Found by building CV-2b (2026-09-29)
+
+189. **CR 707.9e's take-back subtracts what an exception added, not what a
+     multiplier made of it.** When a later copy of one entry takes back an
+     earlier copy's additional counters, `EnterMods::take_back` subtracts the
+     exception's own count. A multiplier (Doubling Season) that applied
+     between the two copies scaled the entry's counters as a whole, so the
+     multiplier's share of the exception's counters stays, where "the
+     exception's effect doesn't happen" takes that share too.
+
+     **Reachability (2026-09-29):** unreachable. A copy applies at CR
+     616.1c's step, ahead of every 616.1e effect applicable beside it, so a
+     multiplier comes between two copies only if the second copy becomes
+     applicable through the multiplier's own write (CR 616.2). That needs a
+     copy effect whose applicability hangs on the entering object's counter
+     count, and no registered card has one: Clone's and Spark Double's are the
+     entering object's own abilities, present from the iteration its copy is
+     made, and Essence of the Wild is a test fixture. The status half of the
+     same take-back is exact: `EnterMods::merge` drops a copy's claim to the
+     status once a later effect sets one
+     (`a_later_copy_does_not_restore_over_a_status_set_after_the_addition`).
+
+     **Sized:** ~30 lines: `CopyAdditions` keeps a per-row share, which the
+     `Amount` arm's entry leg scales as it scales the row, and a fixture copy
+     made applicable at two counters. A halving and a plus each need their
+     own reading of the share, which is why it is not built blind.
+     **Slotted:** the feedback-loop census (`roadmap-v2.md` A6i), whose first
+     loop this is. If it finds a printed copy effect a counter write makes
+     applicable, the fix lands with that card.

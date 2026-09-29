@@ -11,12 +11,14 @@
 //! carries the result.
 
 use crate::engine::layers::board::frame_at_ceiling;
+use crate::engine::layers::cda;
 use crate::engine::layers::compute::LAYER_ORDER;
-use crate::engine::layers::types::{EffectiveCharacteristics, Layer};
+use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
 use crate::types::card_types::{CardTypes, Subtype, Supertype};
 use crate::types::colors::Color;
+use crate::types::effects::{Characteristic, CharacteristicEdit, CopyException};
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaCost;
@@ -155,6 +157,85 @@ impl CopiableValues {
         chars.loyalty = self.loyalty;
     }
 
+    /// CR 707.9a–d — make `exceptions`' modifications to these values, which
+    /// are then the copy's copiable values (707.9b), so a copy of the copy has
+    /// them too. 707.9e's additional effects are the entry's and pass through
+    /// untouched; 707.9f's conditions are the caller's, which hands over only
+    /// the exceptions that apply. `own` is the copying object's own values,
+    /// which a `DoesNotCopy` keeps (707.9c).
+    pub(crate) fn except(&mut self, exceptions: &[&CopyException], own: Option<&CopiableValues>) -> Result<(), String> {
+        // CR 707.9d, over the copied list before any exception adds to it: an
+        // ability an exception gives is not one "of the object being copied".
+        for layer in exceptions.iter().filter_map(|exception| characteristic_it_fixes(exception)) {
+            let CopiableValues { name, abilities, .. } = self;
+            if abilities.iter().any(|ability| cda::defines(ability, layer, name)) {
+                Arc::make_mut(abilities).retain(|ability| !cda::defines(ability, layer, name));
+            }
+        }
+        for exception in exceptions {
+            match exception {
+                CopyException::Modifies(edit) => self.modify(edit),
+                CopyException::DoesNotCopy(characteristic) => {
+                    let own = own.ok_or("a copy that keeps its own value was not handed the copying object's values")?;
+                    match characteristic {
+                        Characteristic::Color => self.colors = own.colors.clone(),
+                    }
+                }
+                CopyException::Additionally(_) => {}
+                CopyException::If(..) => {
+                    return Err("a conditional exception reaches the values only once CR 707.9f has judged it".into());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// CR 707.9a–b — one edit, made to the copiable values: the copy
+    /// placement of `replacement-architecture.md` §3.5's vocabulary.
+    fn modify(&mut self, edit: &CharacteristicEdit) {
+        match edit {
+            // Lowered as `Primitive::ChangeType` lowers, so the two placements
+            // and the continuous effect say one thing one way.
+            CharacteristicEdit::Types(change) => {
+                for modification in change.modifications() {
+                    match modification {
+                        EffectModification::AddType(t) => {
+                            self.types.insert(t);
+                        }
+                        EffectModification::RemoveType(t) => {
+                            self.types.remove(&t);
+                        }
+                        EffectModification::SetTypes(types) => self.types = types,
+                        EffectModification::AddSubtype(s) => {
+                            self.subtypes.insert(s);
+                        }
+                        EffectModification::RemoveSubtype(s) => {
+                            self.subtypes.remove(&s);
+                        }
+                        EffectModification::SetSubtypes(subtypes) => self.subtypes = subtypes,
+                        EffectModification::AddSupertype(s) => {
+                            self.supertypes.insert(s);
+                        }
+                        EffectModification::RemoveSupertype(s) => {
+                            self.supertypes.remove(&s);
+                        }
+                        EffectModification::SetSupertypes(supertypes) => self.supertypes = supertypes,
+                        other => debug_assert!(false, "a type change lowers to layer 4 alone, not {other:?}"),
+                    }
+                }
+            }
+            CharacteristicEdit::GainsAbility(ability) => Arc::make_mut(&mut self.abilities).push(ability.clone()),
+            CharacteristicEdit::GainsKeyword(keyword) => {
+                self.keyword_flags.insert(*keyword);
+            }
+            CharacteristicEdit::PowerToughness(power, toughness) => {
+                self.power = Some(*power);
+                self.toughness = Some(*toughness);
+            }
+            CharacteristicEdit::Name(name) => self.name = name.clone(),
+        }
+    }
+
     /// The static abilities in the captured list, for the CR 613.7a rows a copy
     /// owes (`copy-effects-architecture.md` §4.7 leg 2).
     ///
@@ -167,6 +248,25 @@ impl CopiableValues {
         self.abilities
             .iter()
             .filter(|a| a.ability_type == AbilityType::Static && !a.is_characteristic_defining)
+    }
+}
+
+/// CR 707.9d — the characteristic, named by the layer a CDA defining it
+/// occupies, that an exception sets or keeps; `None` for one that only adds,
+/// or that fixes something no CDA can define (a name, an ability, a
+/// supertype).
+fn characteristic_it_fixes(exception: &CopyException) -> Option<Layer> {
+    match exception {
+        CopyException::Modifies(CharacteristicEdit::Types(change)) => {
+            change.set_subtypes.is_some().then_some(Layer::Layer4Type)
+        }
+        CopyException::Modifies(CharacteristicEdit::PowerToughness(..)) => Some(Layer::Layer7aCdaPT),
+        CopyException::DoesNotCopy(Characteristic::Color) => Some(Layer::Layer5Color),
+        CopyException::Modifies(
+            CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) | CharacteristicEdit::Name(_),
+        )
+        | CopyException::Additionally(_)
+        | CopyException::If(..) => None,
     }
 }
 

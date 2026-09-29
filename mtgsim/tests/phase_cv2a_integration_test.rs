@@ -285,7 +285,7 @@ fn essence_of_the_wild(name: &str, power: i32, toughness: i32) -> Arc<CardData> 
         .ability(replacement(
             EventPattern::EnterBattlefield { cast: None },
             ObjectSet::battlefield_filter(creatures_you_control()),
-            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject }),
+            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::ThisObject, except: Vec::new() }),
         ))
         .build()
 }
@@ -754,7 +754,7 @@ fn a_host_donor_is_the_enchanted_creature() {
                 Box::new(creatures_you_control()),
                 Box::new(ObjectFilter::Not(Box::new(ObjectFilter::Token))),
             )),
-            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Host }),
+            Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Host, except: Vec::new() }),
         ))
         .build();
     let aura = put_on_battlefield(&mut game, reflection, 0);

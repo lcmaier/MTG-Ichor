@@ -114,6 +114,15 @@ pub(super) fn has_any_cda(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|a| a.is_characteristic_defining)
 }
 
+/// CR 707.9d — is `ability` a characteristic-defining ability that defines
+/// the characteristic `layer` holds? A copy exception that sets or keeps that
+/// characteristic does not copy it. The layer names the characteristic, since
+/// CR 604.3a(1)'s four sit one layer each, power and toughness together.
+pub(crate) fn defines(ability: &AbilityDef, layer: Layer, card_name: &str) -> bool {
+    ability.is_characteristic_defining
+        && atoms(ability).into_iter().any(|(primitive, _)| cda_layer(primitive, card_name) == Some(layer))
+}
+
 /// Which layer a CDA's primitive belongs to, or `None` if the primitive cannot
 /// be characteristic-defining at all (CR 604.3a(1)).
 fn cda_layer(primitive: &Primitive, card_name: &str) -> Option<Layer> {

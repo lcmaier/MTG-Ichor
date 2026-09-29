@@ -98,7 +98,7 @@ fn would_be_rows(
         return Vec::new();
     };
     let (abilities, name) = match &mods.copy {
-        Some(values) => (&values.abilities, values.name.as_str()),
+        Some(copy) => (&copy.values.abilities, copy.values.name.as_str()),
         None => (&obj.card_data.abilities, obj.card_data.name.as_str()),
     };
     let first_id = game.continuous_effects.next_id();
@@ -189,7 +189,7 @@ mod tests {
     use crate::types::costs::AdditionalCost;
     use crate::types::effects::{CharacteristicEdit, CounterType, TypeChange};
     use crate::types::mana::ManaSpent;
-    use crate::types::replacement::{EnterMods, EntryCounters, TapStatus};
+    use crate::types::replacement::{CopyAdditions, EnterMods, EntryCopy, EntryCounters, TapStatus};
     use crate::types::zones::Zone;
 
     /// `replacement-architecture.md` §3.5's constructor, field by field: the permanent
@@ -210,7 +210,10 @@ mod tests {
                 EntryCounters { counter: CounterType::PlusOnePlusOne, n: 2, by: None },
                 EntryCounters { counter: CounterType::Charge, n: 1, by: Some(1) },
             ],
-            copy: Some(Arc::new(copiable_values(&game, donor).expect("the donor is on the battlefield"))),
+            copy: Some(EntryCopy {
+                values: Arc::new(copiable_values(&game, donor).expect("the donor is on the battlefield")),
+                added: CopyAdditions::default(),
+            }),
             edits: Some(Arc::from(vec![mutant])),
         };
         game.resolving = Some(ResolvingObject {

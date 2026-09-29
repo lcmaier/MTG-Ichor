@@ -10,7 +10,8 @@
 //! this phase could not express it.
 //!
 //! None is a Clone: CR 707.5's "enters as a copy" is an entry replacement, and
-//! [`clone`] is CV-2a's.
+//! [`clone`] is CV-2a's. [`spark_double`] is CV-2b's, the same entry copy
+//! with CR 707.9's exceptions.
 
 use std::sync::Arc;
 
@@ -18,12 +19,14 @@ use crate::objects::card_data::{AbilityDef, AbilityType, CardData, CardDataBuild
 use crate::types::card_types::{CardType, CreatureType, EnchantmentType, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{
-    CopyRoles, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet, PlayerRef, Primitive,
-    SelectionFilter, TargetCount,
+    CharacteristicEdit, CopyException, CopyRoles, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, PlayerRef, Primitive, SelectionFilter, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
-use crate::types::replacement::{CopyDonor, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite};
+use crate::types::replacement::{
+    CopyDonor, EnterModsTemplate, EntryCopyTemplate, EventPattern, ReplacementDef, Rewrite,
+};
 
 /// "Nonlegendary creature" — the filter both cards scope their copy source
 /// with, and the reason CR 707 cards say it at all: a copy of a legend meets
@@ -314,6 +317,92 @@ pub fn clone() -> Arc<CardData> {
                     ObjectSet::SourceOnly,
                     Rewrite::EnterAsCopy(EntryCopyTemplate {
                         donor: CopyDonor::Chosen(SelectionFilter::Creature),
+                        except: Vec::new(),
+                    }),
+                )
+            })),
+        })
+        .build()
+}
+
+/// Spark Double — {3}{U}
+/// Creature — Illusion, 0/0
+///
+/// You may have this creature enter as a copy of a creature or planeswalker
+/// you control, except it enters with an additional +1/+1 counter on it if
+/// it's a creature, it enters with an additional loyalty counter on it if
+/// it's a planeswalker, and it isn't legendary.
+///
+/// (Oracle text verified on Scryfall, 2026-09-29.)
+///
+/// # CV-2b's card: CR 707.9's exceptions on Clone's entry copy
+///
+/// Three exceptions, in printed order, and each is one arm of
+/// `CopyException` (`copy-effects-architecture.md` §7c): two CR 707.9f
+/// conditions, each over a CR 707.9e additional counter, and a CR 707.9b
+/// edit that is part of the copiable values, so a copy of this is not
+/// legendary either. The conditions read the CR 614.12 frame of the copy,
+/// each judged without itself and with the other where the other applies,
+/// which is what the words say and what a planeswalker whose type hangs on
+/// its counters makes observable (§7c, "The Kaito board").
+///
+/// # The rulings, and where each is tested
+///
+/// All nine are linked from `tests/phase_cv2b_integration_test.rs`: what is
+/// not copied (1), not legendary, and a copy of it neither (2), X as 0 (3), a
+/// copy's copy (4), a token's values without being a token (5), the copied
+/// "enters" abilities and triggers (6), printed loyalty plus one (7, a
+/// `// RULING-DEVIATION:` on Kaito's board, by the register row
+/// `lookahead-entry-counters`), the characteristics as it enters, not the
+/// donor's (8), and nothing entering beside it (9).
+pub fn spark_double() -> Arc<CardData> {
+    let additionally = |counter| CopyException::Additionally(EnterModsTemplate::with_counters(counter, 1));
+    let creature_or_planeswalker_you_control = ObjectFilter::And(
+        Box::new(ObjectFilter::Or(
+            Box::new(ObjectFilter::ByType(CardType::Creature)),
+            Box::new(ObjectFilter::ByType(CardType::Planeswalker)),
+        )),
+        Box::new(ObjectFilter::ByController(PlayerRef::You)),
+    );
+    CardDataBuilder::new("Spark Double")
+        .mana_cost(ManaCost::build(&[ManaType::Blue], 3))
+        .color(Color::Blue)
+        .card_type(CardType::Creature)
+        .subtype(Subtype::Creature(CreatureType::Illusion))
+        .power_toughness(0, 0)
+        .rules_text(
+            "You may have this creature enter as a copy of a creature or planeswalker you control, \
+             except it enters with an additional +1/+1 counter on it if it's a creature, it enters \
+             with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
+        )
+        .ability(AbilityDef {
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Static,
+            costs: Vec::new(),
+            effect: Effect::Replacement(Box::new(ReplacementDef {
+                optional: true,
+                ..ReplacementDef::new(
+                    EventPattern::EnterBattlefield { cast: None },
+                    ObjectSet::SourceOnly,
+                    Rewrite::EnterAsCopy(EntryCopyTemplate {
+                        donor: CopyDonor::Chosen(SelectionFilter::Permanent(creature_or_planeswalker_you_control)),
+                        except: vec![
+                            CopyException::If(
+                                ObjectFilter::ByType(CardType::Creature),
+                                vec![additionally(CounterType::PlusOnePlusOne)],
+                            ),
+                            CopyException::If(
+                                ObjectFilter::ByType(CardType::Planeswalker),
+                                vec![additionally(CounterType::Loyalty)],
+                            ),
+                            CopyException::Modifies(CharacteristicEdit::Types(TypeChange {
+                                remove_supertypes: vec![Supertype::Legendary],
+                                ..TypeChange::NONE
+                            })),
+                        ],
                     }),
                 )
             })),
