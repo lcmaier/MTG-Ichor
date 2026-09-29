@@ -2193,13 +2193,13 @@ the frame's types became a bitset (`CardTypes`), which takes `main` 13.9%
 lower on its own. RG with it reads −12.56% against `main`, RG's own cost over
 the bitset +1.5 points (`fuzz-record.md`, RG's block).
 
-**Decided at the close: no trace page.** CR 306.5b's loyalty is an iteration
-of the same CR 616.1 loop, over the same source-1a gather as a printed "enters
-with", which RC-4b's page walks. What moved is where the ability comes from,
-and the Kaito and Humility boards state it. The suppression asks the same
-predicate at the same point in the loop, with its premise written as a table,
-which is RE-3's argument. Premise (d)'s extra gather is a three-outcome board
-that one test states.
+**Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`.** Decided *no* at the close and reversed at the
+review (2026-09-29), as RF's was: the owner could not link §3.5 to the new
+code in `pipeline.rs`. Three boards from traced runs: a Bears entering under
+Master Biomancer, then Humility (where the entry state lives); Adaptive
+Shimmerer under Biomancer beside Doubling Season (premise (d)); and Kaito
+beside Oath of Gideon in both orders (CR 306.5b on the frame, the table's
+last row, and the gray area the judges split on).
 
 → The design as reviewed, what the building changed and the measurement:
 `plans/archive/replacement-architecture-landed.md`, "RG" (evicted

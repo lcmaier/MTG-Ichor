@@ -1391,6 +1391,7 @@ Three existed when the practice was written down, and they are the template:
 | `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 | `rf-a-source-off-the-battlefield.html` | RF | the gather's zone leg read by read: a Colossus in a library while a Bolt resolves, which is why neither library is ever walked (the map, the printed-def precheck, and the two things that *would* walk a zone); the same Colossus second of three in a mill — one batch, one member replaced, the same-zone no-op, the rider after the batch; a Colossus commander sacrificed, which is CR 616.1 twice on one card and CR 701.24c's shuffle of a library the card never reached; the read-by-read table |
+| `rg-an-entry-write-changes-what-applies-next.html` | RG | the CR 616.1 loop over an entry, from traced runs: a Bears under Master Biomancer, where the Mutant lives as state and why Humility leaves it; Adaptive Shimmerer under Biomancer beside Doubling Season, premise (d)'s extra gather and the four orders; Kaito beside Oath of Gideon, CR 306.5b on the frame and the feeds table's last row, in both orders, with the gray area the judges split on; the read-by-read table |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
@@ -1406,7 +1407,9 @@ is proposed — the archive's "Trace-page decisions" has the argument), RF ✓
 (decided *no* at its close on the same test and reversed at its review the
 same day, 2026-09-16: the owner could not see why the gather's zone leg walks
 no library the moment a Colossus is in one, which is this section's own
-trigger — a question the diff could not answer),
+trigger — a question the diff could not answer), RG ✓ (decided *no* at its
+close and reversed at its review, 2026-09-29, the same way: the design and the
+new code in `pipeline.rs` could not be linked from the diff),
 **RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.

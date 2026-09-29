@@ -8556,7 +8556,7 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      multiplier that applies only once the entry carries counters makes two
      counter writers an order. RE-5's argument had missed it, and it was
      reachable on registered cards since RE-5; RG fixed it. The other sites
-     are still owed.
+     are still owed. Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`, traces B and C.
 
 ### Found by CV-2a's review (2026-09-28)
 

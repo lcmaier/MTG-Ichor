@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch replacement/entry-state at 9ca2ee8 (review round 2) and
+  the frozen CR `tmnt`; never maintained — a later phase that changes these
+  paths gets its own page. Every step is a record from a traced run of its
+  board at this commit. Self-contained: fonts from Google Fonts, mermaid
+  from jsDelivr, nothing else.
+-->
+<title>What an Entry Writes — RG</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.registry { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .callout.gray { border-left-color: var(--frame); }
+  .legend-reads { color: var(--muted); font-size: 0.9rem; margin: 0.6rem 0 0; }
+</style>
+<div class="page">
+
+<h1>What an Entry Writes Changes What Applies Next</h1>
+<p class="lede">RG made how a permanent enters one shape. CR 614.1c's "enters with" is state and "enters as" is characteristics, and one constructor builds the entering permanent for the performer and for the CR 614.12 look-ahead. It also gave the CR 616.1 loop a table of what each write can change. The review lost the thread between the design and the new code in <code>pipeline.rs</code>. So here are three boards, walked read by read from the records the engine's trace sink wrote, and the table of what each read consults.</p>
+<p class="meta"><span class="pin">replacement/entry-state @ 9ca2ee8</span><span class="pin">CR tmnt</span><span class="pin">2026-09-29, at review</span> Authority for the design: <code>plans/replacement-architecture.md</code> §3.5, and the design as reviewed in <code>plans/archive/replacement-architecture-landed.md</code>, "RG". Tests: <code>mtgsim/tests/phase_rg_integration_test.rs</code>, and RE-5's <code>a_multiplier_beside_two_counter_writers_makes_their_order_observable</code>. Every step below is a record in a traced run of that board at this commit.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>An entry is decided in a loop, CR 616.1's, and each pass through it can write something on the entering permanent: counters, a status, a copy, an edit. The whole phase is about what those writes do to the <em>next</em> pass, because the next pass asks again which effects apply (CR 616.1f), against the permanent as it would exist after the writes so far (CR 614.12). Trace A shows where the writes live. Trace B shows a write making a new effect applicable. Trace C shows a write switching an effect off.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td><b>Master Biomancer</b> (2/4) on player 0's battlefield; a <b>Grizzly Bears</b> returned from the graveyard; then <b>Humility</b> arrives</td><td>Where does "enters as a Mutant" live, and why does Humility, which takes Biomancer's ability, leave the Bears a Mutant?</td><td><code>a_mutant_stays_one_when_every_ability_is_lost</code>, <code>a_creature_entering_under_master_biomancer_stays_a_mutant_after_it_leaves</code></td></tr>
+<tr><td><b>B</b></td><td>Master Biomancer and <b>Doubling Season</b>; an <b>Adaptive Shimmerer</b> (enters with three +1/+1 counters) returned</td><td>Why is "Shimmerer or Biomancer first?" asked, when 3 + 2 is 2 + 3? This is premise (d).</td><td><code>shimmerer_under_biomancer_and_doubling_season_reaches_every_order</code></td></tr>
+<tr><td><b>C</b></td><td><b>Oath of Gideon</b>; a Kaito-shaped planeswalker ("as long as it has a loyalty counter, it's a 3/4 Ninja creature") returned, both orders</td><td>Where does CR 306.5b's loyalty come from now, and why does whichever effect goes first switch the other off?</td><td><code>kaito_cast_beside_oath_of_gideon_is_its_controllers_order</code>, <code>a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not</code></td></tr>
+</table>
+</div>
+
+<h3>The path, with RG's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  CZ["change_zone(object, Battlefield)"] --> EP["entry_proposal:<br/>EnterBattlefield { mods: EnterMods::NONE }"]:::changed
+  EP --> AR["apply_replacements: the CR 616.1 loop"]
+  AR --> EF["EntryFrame::new: the CR 614.12 look-ahead,<br/>built once per iteration"]
+  EF --> CAE["compute_as_entering → Lookahead::new"]
+  CAE --> PSE["PermanentState::entering<br/>(the would-be permanent)"]:::new
+  PSE --> PASS["run_pass, the entering permanent a member"]
+  PASS --> NOTE["Board::seed → EnteredAsNote::new<br/>(the copy at 1a, each edit at its layer)"]:::new
+  PASS --> SYN["end of layer 4: add_intrinsic_entry_abilities<br/>(CR 306.5b on a planeswalker's frame)"]:::new
+  AR --> G["gather: source 1a, the entering permanent's own frame;<br/>then the battlefield sweep"]
+  G --> CH["must_choose_among: the ladder's step"]
+  CH -->|"one candidate"| APPLY
+  CH -->|"two or more"| OCO["ordering_cannot_change_outcome"]:::changed
+  OCO --> EW["EntryWrites::of_candidates → classify → commutes<br/>(the feeds table)"]:::new
+  OCO --> CIM["counters_invite_a_multiplier<br/>(premise d: one more gather)"]:::new
+  OCO -->|"no order can matter"| APPLY["apply: Rewrite::EnterWith → EnterMods::merge"]:::changed
+  OCO -->|"an order can matter"| ASK["ask the entering permanent's controller"]:::decide
+  ASK --> APPLY
+  APPLY -->|"next iteration"| EF
+  AR -->|"no candidates left"| PERF["perform: place_on_battlefield → PermanentState::entering"]:::changed
+  classDef new stroke:#6B4FA0,stroke-width:2px;
+  classDef changed stroke:#2E7D4F,stroke-width:2px;
+  classDef decide stroke:#8A2F3B,stroke-width:2px;
+</pre>
+<div class="legend"><span class="n">new in RG</span><span class="c">changed in RG</span><span class="d">a decision, or the point a wrong answer would be made</span></div>
+<p class="legend-reads">Each read is labelled by what it consulted: <span class="read board">board</span> a permanent's frame as it stands, <span class="read frame">frame</span> the look-ahead's would-be permanent, <span class="read state">state</span> the proposal or an entity's fields, <span class="read player">player</span> a question asked.</p>
+
+<h2>Trace A — a Bears enters under Master Biomancer, then Humility arrives</h2>
+<div class="prose">
+<p>Master Biomancer: each other creature you control enters with additional +1/+1 counters equal to Biomancer's power, and as a Mutant in addition to its other types. The counters are "enters with": state, which changes later like any state. The Mutant is "enters as": a characteristic the entry fixes. Before RG the engine had counters and no Mutant.</p>
+</div>
+<ol class="trace">
+<li class="changed"><span class="fn">change_zone(Bears, Battlefield, Returned)</span> → <span class="fn">entry_proposal</span> builds <code>EnterBattlefield { mods: EnterMods::NONE }</code>, one batch of one member <span class="read state">state</span>. The proposal starts <b>empty</b>. Before RG, <span class="fn">default_enter_mods</span> seeded it with CR 110.5b's status and CR 306.5b's counters. Now the only seed is an instruction's own "tapped", which is not an effect (Archelos's second ruling).</li>
+<li class="new"><span class="fn">apply_replacements</span>, iteration 1: <span class="fn">EntryFrame::new</span>, computed on first use. <span class="fn">gather</span>'s source 1a asks <span class="fn">frame.frame_of(Bears)</span> → <span class="fn">compute_as_entering</span> → <span class="fn">Lookahead::new</span> → <span class="fn">PermanentState::entering(game, Bears, 0, &amp;NONE, next, next + 1)</span>: the would-be permanent, timestamped after everything on the board <span class="read frame">frame</span>. The pass has it as a member: a 2/2 creature with no ability of its own (trace record 4, <code>"membership": "entering"</code>).</li>
+<li>The battlefield sweep: Biomancer is in <code>replacement_ability_sources</code> → <span class="fn">compute_characteristics(Biomancer)</span> <span class="read board">board</span> → its static replacement, over "other creatures you control". <span class="fn">set_affects</span> reads the <em>Bears'</em> frame <span class="read frame">frame</span>: a creature, player 0's, not Biomancer. One candidate, so <code>decided: "single"</code>. The engine never prompts with fewer than two.</li>
+<li class="changed">Apply. <span class="fn">evaluate_enter_template</span>: the counters' amount is Biomancer's power, read off <em>Biomancer's</em> frame <span class="read board">board</span> (2), and the edit is <code>Types(add Mutant)</code>. <span class="fn">strip_prohibited_counters</span> finds no "can't have counters". <span class="fn">EnterMods::merge</span>: <code>counters: [+1/+1 × 2]</code>, <code>edits: [Mutant]</code> <span class="read state">state</span>. Biomancer's instance joins CR 614.5's applied set.</li>
+<li class="new">Iteration 2: a new <span class="fn">EntryFrame</span>, because clause (1) of CR 614.12 counts the replacements already applied. <span class="fn">PermanentState::entering</span> now puts the two counters on the would-be entity and the edit in its <code>entered_as</code>. The pass's <span class="fn">Board::seed</span> calls <span class="fn">EnteredAsNote::new</span>, which lowers the edit once, to <code>(Layer 4, AddSubtype(Mutant))</code>. Layer 4 applies it at the Bears' timestamp, and layer 7c the counters: a 4/4 Mutant <span class="read frame">frame</span> (record 7). <span class="fn">gather</span>: Biomancer's instance is applied, so there are no candidates and the loop ends.</li>
+<li class="changed">Perform: <span class="fn">place_on_battlefield</span> → <span class="fn">PermanentState::entering(self, Bears, 0, mods, object_timestamp, first_counter)</span>. It is <b>the same function</b> as step 5, with the timestamps the move and the placement allocated. The entity carries <code>entered_as.edits = [Mutant]</code>. One epoch bump, then the announcements (records 9–10).</li>
+<li class="new"><span class="fn">has_subtype(Bears, Mutant)</span> → <span class="fn">compute_characteristics</span> → <span class="fn">pass_into_memo</span> → <span class="fn">run_pass</span>. <span class="fn">Board::seed</span> notes the Bears' <code>entered_as</code> <span class="read state">state</span>. At layer 4, <span class="fn">applications_in_layer</span> pushes <code>Kind::Own { AddSubtype(Mutant) }</code> with <code>Tiebreak::EntryEdit(0)</code> at the Bears' timestamp, after the Bears' own static rows there. It is a Mutant, and <b>no registry row</b> exists for it.</li>
+<li class="decide">Humility arrives, player 1's: layer 6 "creatures lose all abilities", layer 7b "base 1/1". Biomancer's frame <span class="read board">board</span> has no abilities (record 14, a 1/1), so its replacement ability is gone and a creature entering now would get neither counters nor a Mutant. The Bears are still a Mutant. The edit comes from the Bears' own <code>entered_as</code>, and it is no ability's effect, so nothing that removes abilities can reach it.</li>
+</ol>
+<div class="callout rule"><b>Why state, and not a registry row.</b> A row has a source ability and a duration, and it exists only while that source still has the ability (<code>CLAUDE.md</code>, "registry membership is not effect existence"). Here the source would be Biomancer's ability, so the Mutant would end when Biomancer left or, as in step 8, lost its abilities. CR 614.1c makes the Mutant how the creature <em>entered</em>. It lives on the permanent and leaves with it (CR 400.7), and a copy of the permanent doesn't get it (CR 707.2's last sentence). Applied at the permanent's timestamp at layer 4, it is ordered like any layer 4 effect: a later "set subtypes" applies over it.</div>
+<div class="callout before"><b>Before RG</b>, the look-ahead and the performer each built the entering permanent their own way, and they had drifted: the performer wrote a spell's X after the fact, so the frame could predict a permanent the performer would not place. Step 2's and step 6's single constructor is what makes the frame a prediction of the performer and not a copy of it.</div>
+
+<h2>Trace B — Adaptive Shimmerer under Master Biomancer, beside Doubling Season</h2>
+<div class="prose">
+<p>Shimmerer enters with three +1/+1 counters, which is its own ability. Biomancer adds two more. Doubling Season doubles counters an effect would put on a permanent you control, and it can apply to an entry only once the entry carries counters (CR 616.2: it becomes applicable after a member applies). Scripted to reach 8, the outcome <code>main</code> could not.</p>
+</div>
+<ol class="trace">
+<li>Iteration 1: <span class="fn">EntryFrame</span> → the would-be Shimmerer, a 0/0 <span class="read frame">frame</span> (record 4). <span class="fn">gather</span>: source 1a finds Shimmerer's own "enters with three" (<code>SourceOnly</code>), and the sweep finds Biomancer's. Doubling Season's pattern watches counters being put, and the proposal carries none, so <span class="fn">pattern_watches</span> says no and it is not a candidate. Candidates: Biomancer and Shimmerer, on one step of the ladder (CR 616.1e).</li>
+<li class="new"><span class="fn">ordering_cannot_change_outcome</span>. <span class="fn">shared_clauses_hold</span> ✓: both mandatory, static, no rider. <span class="fn">EntryWrites::of_candidates</span> <span class="read state">state</span>: both write +1/+1, so <code>raises_power</code>; the Mutant edit only adds; the entering object has no static that reads its own counters, so not <code>feeds_all</code>. <span class="fn">classify</span>: Biomancer is <code>ModsAdding { kinds: [+1/+1], status: None }</code>, because its amount reads Biomancer, not the entering object, and a raised power cannot unmatch "other creatures you control". Shimmerer is <code>ModsAdding</code> too. <span class="fn">commutes(ModsAdding, ModsAdding)</span> → true. <b>Before RG the answer stopped here</b>: suppressed, and the first candidate, Biomancer, applied.</li>
+<li class="new"><span class="fn">counters_invite_a_multiplier</span>, premise (d). Two members write counters. Build the entry as it would stand after both, with one counter of each kind each writes, and gather against it. That is record 6, a look-ahead of a 2/2 <span class="read frame">frame</span>, taken for this question only. Doubling Season matches now: <code>Amount(Multiplier(2))</code>, not a member, not yet applied, watching +1/+1, which <em>both</em> members write. So the order is observable.</li>
+<li class="decide">The question, record 7: <code>ChooseReplacementEffect</code>, options <code>[Biomancer, Shimmerer]</code>, player 0 <span class="read player">player</span>. Shimmerer first: <code>counters: [+1/+1 × 3]</code>.</li>
+<li class="decide">Iteration 2: a 3/3 <span class="read frame">frame</span> (record 9). Candidates: Biomancer, and now Doubling Season. <span class="fn">classify</span>: Doubling Season is a <code>Multiplier</code> and Biomancer is <code>ModsAdding</code>. <span class="fn">commutes</span> passes that pair only on disjoint kinds, and both are +1/+1. That is RE-5's cell, unchanged. Asked (record 10): Doubling Season first, 3 × 2 = 6.</li>
+<li>Iteration 3: a 6/6 <span class="read frame">frame</span> (record 12). Biomancer alone, <code>single</code>: +2 and the Mutant. Iteration 4: an 8/8 <span class="read frame">frame</span> (record 14), no candidates. Performed with 8.</li>
+</ol>
+<div class="wrap">
+<table>
+<tr><th>First</th><th>Second</th><th>Third</th><th>+1/+1 counters</th><th>Before RG</th></tr>
+<tr><td>Shimmerer (3)</td><td>Doubling Season (6)</td><td>Biomancer</td><td><b>8</b></td><td>unreachable: step 2 was never asked</td></tr>
+<tr><td>Shimmerer (3)</td><td>Biomancer (5)</td><td>Doubling Season</td><td>10</td><td>unreachable</td></tr>
+<tr><td>Biomancer (2)</td><td>Doubling Season (4)</td><td>Shimmerer</td><td>7</td><td>reachable</td></tr>
+<tr><td>Biomancer (2)</td><td>Shimmerer (5)</td><td>Doubling Season</td><td>10</td><td>reachable</td></tr>
+</table>
+</div>
+<div class="callout rule"><b>Why the pairwise table could not see it.</b> <span class="fn">commutes</span> compares members with each other, and Doubling Season was not a member: it only becomes applicable once one of them has written (CR 616.2). The question is not "do these two commute?" but "does anything <em>waiting on</em> their writes multiply them?" That takes a look at an entry that does not exist yet, which is why premise (d) is one more gather, run only when two or more members put counters on the entry. A plus (Hardened Scales) is exempt: it adds its one amount once whenever it applies, so no order moves it.</div>
+<div class="callout before"><b>Found in the build, not designed.</b> RE-5's planeswalker test failed once CR 306.5b stopped being a seed (trace C) and became a member. The bug was older than RG, and registered cards reached it. On the pooled boards, one four-seat <code>stress</code> game in 200 asks it, with Primal Vigor as the doubler.</div>
+
+<h2>Trace C — Kaito beside Oath of Gideon, both orders</h2>
+<div class="prose">
+<p>The fixture is Kaito, Bane of Nightmares' decisive clause: a planeswalker with loyalty 4 that, as long as it has a loyalty counter, is a 3/4 Ninja creature (the card adds "during your turn", which the fixture drops). His seventh ruling says that while he's a creature he is not a planeswalker. Oath of Gideon: each planeswalker you control enters with an additional loyalty counter.</p>
+</div>
+<ol class="trace">
+<li class="new">Iteration 1: <span class="fn">EntryFrame</span> → <span class="fn">compute_as_entering</span>. The would-be Kaito has no counters, so his static's <code>Condition::SourceHasCounters</code> is false and he is a <b>planeswalker</b> <span class="read frame">frame</span> (record 4). At the end of layer 4, <span class="fn">add_intrinsic_entry_abilities</span> tests the frame's types (a mask on <code>CardTypes</code> since the review) and puts CR 306.5b's ability on the frame. It is a static "enters with 4 loyalty counters" with the id <code>derived_on(Kaito, SynthesizedAbility::PlaneswalkerLoyalty)</code>: the candidate id in record 7 ends in <code>…205</code>, object 2 and tag 5.</li>
+<li><span class="fn">gather</span>: source 1a reads that frame's abilities and finds the synthesized one (<code>SourceOnly</code>), as it would find a printed "enters with". The sweep finds Oath, whose filter "planeswalkers you control" reads the same frame <span class="read frame">frame</span>: a planeswalker, so a candidate.</li>
+<li class="new"><span class="fn">ordering_cannot_change_outcome</span>: <span class="fn">EntryWrites::of_candidates</span> sees both write counters, and <span class="fn">characteristics_hang_on_entry_state(frame)</span> is true, because Kaito has a static whose condition reads his counters (<code>Condition::reads_entry_state</code>). That is the feeds table's last row: any counter write can change any characteristic, so <code>feeds_all</code>. <span class="fn">classify(Oath)</span>: its filter <span class="fn">can_unmatch</span>, so it has no class, and the order is asked <span class="read player">player</span>.</li>
+<li class="decide"><b>C1, CR 306.5b first</b> (record 6, answer 1): 4 loyalty counters. Iteration 2: the would-be Kaito has counters, so he is a 3/4 creature and not a planeswalker <span class="read frame">frame</span> (record 8). The synthesis finds no planeswalker; Oath's filter reads a creature. No candidates. <b>He enters with 4.</b></li>
+<li class="decide"><b>C2, Oath first</b> (answer 0): 1 loyalty counter. Iteration 2: a 3/4 creature again. This time it is CR 306.5b that is gone: the frame is not a planeswalker, so the synthesis puts no ability on it and source 1a has nothing to find. <b>He enters with 1.</b> He never enters with none, and never with 5.</li>
+</ol>
+<div class="callout before"><b>Before RG</b>, <span class="fn">default_enter_mods</span> seeded the 4 counters into the proposal before the loop ran. Iteration 1's frame was already a creature, Oath never applied, and nothing was asked: always 4, the order CR 616.1 offers skipped. The same seed is why a planeswalker creature under Humility entered with its counters. Now Humility's layer 6 takes the synthesized ability like any other, it enters with none, and CR 704.5i puts it into the graveyard.</div>
+<div class="callout gray"><b>The gray area this board sits on.</b> Steps C1 and C2 follow CR 614.12's text: the look-ahead counts "replacement effects that have already modified how it enters", including the counters they add. Arixmethes, Slumbering Isle's 2020 ruling implies the opposite, that an entering permanent's "enters with" counters don't change what the look-ahead sees. Under that reading Kaito stays a planeswalker through the loop and gets 5, and he would enter untapped under an opponent's Authority of the Consuls, where the engine taps him. WotC's rules management called it a contradiction in 2024, and the most recent staff statement (2025) reads Arixmethes by 614.12's text. The one place that decides it: whether the look-ahead's condition checks read the counters on the would-be entity (<code>Condition::SourceHasCounters</code> on the entering object). The engine follows the CR's text, and the decision is recorded with its evidence.</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>The read</th><th>Before RG</th><th>After</th><th>Where it shows</th></tr>
+<tr><td>The entry proposal as the loop starts</td><td class="diff-old"><span class="fn">default_enter_mods</span>: CR 110.5b's status and CR 306.5b's counters, seeded</td><td class="diff-new"><code>EnterMods::NONE</code>; an instruction's own "tapped" is the one seed</td><td>C: the seed hid Oath's order</td></tr>
+<tr><td>The would-be permanent</td><td class="diff-old">built by <span class="fn">Lookahead::new</span>, and separately by <span class="fn">place_on_battlefield</span></td><td class="diff-new"><span class="fn">PermanentState::entering</span>, for both; only the timestamps differ</td><td>A, steps 2, 5 and 6</td></tr>
+<tr><td>What a permanent entered as</td><td class="diff-old">a copy only (<code>entered_as_copy</code>)</td><td class="diff-new"><code>entered_as</code>: the copy at 1a and each edit at its layer, applied from state at the permanent's timestamp, no row</td><td>A, steps 7 and 8</td></tr>
+<tr><td>A planeswalker's loyalty on entry</td><td class="diff-old">a seed, not an ability</td><td class="diff-new">an ability on the frame, added at the end of layer 4 wherever the frame is a planeswalker</td><td>C, steps 1, 4 and 5; Humility removes it</td></tr>
+<tr><td>Whether the order of two entry effects can matter</td><td class="diff-old">a list of filter leaves (<span class="fn">filter_is_mods_invariant</span>)</td><td class="diff-new">the feeds table: <span class="fn">EntryWrites</span>, its last row, and premise (d)'s gather</td><td>B, step 3; C, step 3</td></tr>
+<tr><td>Two effects that both write counters</td><td class="diff-old">commute whenever their amounts are fixed</td><td class="diff-new">asked when a multiplier would follow their writes</td><td>B, step 3</td></tr>
+<tr><td>The status an entry sets</td><td class="diff-old">a <code>bool</code> merged with <code>|=</code>, so "enters untapped" could not be said</td><td class="diff-new"><code>Option&lt;TapStatus&gt;</code>, the last applied effect's; opposite statuses are asked</td><td>the Archelos tests</td></tr>
+<tr><td>The planeswalker test in the synthesis</td><td class="diff-old">n/a</td><td class="diff-new">a SipHash at landing, a mask since the review (<code>CardTypes</code>)</td><td><code>fuzz-record.md</code>, RG's block</td></tr>
+</table>
+</div>
+
+<h2>What RG changed, trace by trace, and what is still open</h2>
+<div class="prose">
+<p><b>A</b> is the shape. What an entry writes is either state the permanent carries or characteristics it entered as. Both are built by one function for the performer and the look-ahead, and neither is a registry row. That is why the Mutant outlives the ability that made it.</p>
+<p><b>B</b> is the finding. Suppressing CR 616.1's question needs more than "these two commute": nothing waiting on their writes can be allowed to multiply them. The table in §3.5 now states four premises and what holds each.</p>
+<p><b>C</b> is CR 306.5b as an ability. Moving it off the seed and onto the frame is what makes Oath's order real, lets Humility remove it, and exposed B.</p>
+<p><b>Open</b>, each with a dated line in <code>codebase-state.md</code>. Item 185's other elisions still stand on arguments written beside their sites. Item 187: a tap bumps no layer epoch while a layer row can read the tapped status. Item 188: the review's survey of two roads to one state, where the repeated cleanup step never ends "until end of turn" effects. The gray area in trace C is decided by the CR's text. And the dependency re-check that makes a Mutant cost Urborg a hypothetical (the budget's reading) waits for a smarter CR 613.8 loop.</p>
+</div>
+
+</div>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true, curve: "basis" } });
+</script>
+</body>
+</html>
