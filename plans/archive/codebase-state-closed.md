@@ -2868,3 +2868,80 @@ Closed by the `departed` frames and CR 109.5's named "you" (`triggers-architectu
      frames. TR-2a's `bound_characteristics` answers only when the matched
      event was the departure, and the `Triggering*` leaves refuse by name
      where a `departed` frame would answer.
+
+### Item 60 — closed 2026-09-28 by RG
+
+Closed as `backlog.md` §2.30 re-sized it, in one PR (`replacement-architecture.md` §3.5). Master Biomancer's template carries a `CharacteristicEdit::Types` beside its counters, merged into `EnterMods::edits`. The permanent keeps it in `PermanentState::entered_as`, which the board pass applies at layer 4 at the permanent's timestamp, after its own rows there (CR 613.7n), with no registry row. The creature stays a Mutant after Biomancer leaves, a later layer-4 effect applies over the Mutant, and a copy of the creature is not one (CR 707.2's last sentence). The prompting fear was answered by the feeds table: an added subtype can only turn a leaf on, so of the subtype filters only `Not(BySubtype(Mutant))` beside Biomancer asks.
+
+*Original entry:*
+
+60. **Master Biomancer's Mutant clause is unimplemented, and it is not one
+    field.** "…and as a Mutant in addition to its other types" wants a type on
+    `EnterMods`, which fires item 47's expiry condition (a) directly:
+    `ObjectFilter`'s `ByType` and `BySubtype` leaves would stop being
+    mods-invariant, so **every** CR 616.1 entry bucket would start prompting.
+    It also needs somewhere for the type to live *after* the entry — a Layer 4
+    effect with no registry row and no duration, which is a shape the layer
+    system does not have. **Sized:** the field is small and the two consequences
+    are not; call it a phase of its own, and note that the printed population
+    for "enters as a [type]" is thin enough that it is not urgent.
+
+    **Reachability (2026-09-03):** reachable — wrong today, unobservably: Master
+    Biomancer is registered (stress pool), every creature it pumps should also
+    be a Mutant, and the engine adds the counters and not the type. No
+    registered filter reads the Mutant subtype (the only subtype read in the
+    pool is Keldon Warlord's non-Wall), so no game outcome moves.
+
+    **Scheduled (2026-09-15, post-RE audit):** `backlog.md` §2.30 is the
+    entry — one mechanic, "enters as an additional type", with its census
+    (five printed cards). **Re-sized there the same day, and it is one PR of
+    ~150–200 lines, not a phase:** both consequences above were answered by
+    work that landed after this item was written — RE-5's `kinds_present`
+    answers the prompting fear per kind rather than per bucket, and the
+    board pass already reads rowless, durationless state off
+    `PermanentState` at layers 6 and 7c (counters), which is the shape an
+    entered-as type takes at Layer 4. The verdict stands: wrong today, and no
+    outcome moves until a filter reads the type.
+
+### Item 186 — closed 2026-09-28 by RG
+
+Closed as sized (`replacement-architecture.md` §3.5). `engine::layers::intrinsic` gives every frame that is a planeswalker at the end of layer 4 a static "enters with" ability, with a derived id and the frame's loyalty as a constant, in the board pass and the single-object walk alike. The gather's source 1a finds it as it finds a printed one. A Kaito-shaped fixture cast from hand beside an Oath of Gideon-shaped one reaches both orders, four counters and a creature or one counter and a creature. Humility over a planeswalker creature takes the ability, and CR 704.5i puts the permanent into the graveyard. `GameState::default_enter_mods` and CV-2a's counter rebuild at a copy's application went. The test helpers that place a planeswalker ask for the counters the ability would give (`test_support::intrinsic_entry_mods`). Building it found premise (d) of the feeds table.
+
+*Original entry:*
+
+186. **CR 306.5b's loyalty is seeded into the entry rather than gathered, so
+     the order the CR gives it is lost.** CR 306.5b gives a planeswalker an
+     intrinsic ability, "This permanent enters with a number of loyalty
+     counters on it equal to its printed loyalty number", which creates a
+     replacement effect. `GameState::default_enter_mods` seeds the counters
+     into every entry instead, and its doc called 306.5b "a rule, not an
+     ability" until CV-2a's review asked why. The two differ on printed cards:
+     - **An order the CR offers and the engine skips.** Kaito, Bane of
+       Nightmares is, during its controller's turn and while it has a loyalty
+       counter, a 3/4 Ninja creature and not a planeswalker (its seventh
+       ruling). Cast in its controller's main phase beside Oath of Gideon
+       ("Each planeswalker you control enters with an additional loyalty
+       counter on it"), it would enter with no counters and so as a
+       planeswalker, both effects apply, and CR 616.1 asks the order. 306.5b
+       first gives four counters and makes Kaito a creature, so Oath no longer
+       applies; Oath first gives one, and 306.5b no longer applies. The engine
+       seeds four and never offers the second order, which is worse for its
+       chooser but legal.
+     - **An ability loss.** Humility over a planeswalker that is a creature
+       before any counters should take the intrinsic ability with the rest,
+       so it enters with none and CR 704.5i puts it into the graveyard. Today
+       it enters with its counters.
+
+     CR 310.4b's battles will have both gaps.
+
+     **Reachability (2026-09-28):** unreachable — Kaito and Oath of Gideon
+     are not registered, no registered planeswalker is a creature as it
+     enters, and Humility reaches only creatures. Fixtures reach both.
+
+     **Sized:** ~60–100 lines and two tests. 306.5b becomes a gathered
+     replacement from a synthesized intrinsic ability, as CR 305.6's mana
+     abilities are synthesized, so Layer 6 can remove it and CR 616.1 can
+     order it. CV-2a's counter rebuild at a copy's application (its D7) then
+     goes, since 306.5b applies after the copy on its own. **Slotted: the
+     entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
+     614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).

@@ -132,6 +132,23 @@ const ROLE_ON_OBJECT: u64 = 0b10 << ROLE_SHIFT;
 #[cfg(any(test, feature = "test-support"))]
 const ROLE_TEST: u64 = 0b11 << ROLE_SHIFT;
 
+/// Which ability, of those the CR gives an object rather than its card
+/// printing them, an id from [`AbilityId::derived_on`] names. It is that id's
+/// low byte, beside the object's id. One enum, so two synthesizers cannot take
+/// the same tag, and a new one (CR 310.4b's battles) is a new arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum SynthesizedAbility {
+    /// CR 305.6: the mana ability each basic land type gives.
+    PlainsMana,
+    IslandMana,
+    SwampMana,
+    MountainMana,
+    ForestMana,
+    /// CR 306.5b: a planeswalker's "enters with" loyalty counters.
+    PlaneswalkerLoyalty,
+}
+
 impl AbilityId {
     /// What a card file writes. `CardDataBuilder::build` replaces it with
     /// [`Self::printed`] on every def it can reach from the card — the printed
@@ -152,13 +169,13 @@ impl AbilityId {
         AbilityId::defined(ROLE_PRINTED | ((fnv1a_64(card_name.as_bytes()) ^ ordinal as u64) & !ROLE_MASK))
     }
 
-    /// An ability an effect synthesizes on `object` with nowhere to store a
-    /// minted id — CR 305.6's intrinsic mana ability, built inside every
-    /// recompute of the object's frame and handed out as an activation handle
-    /// the next recompute must match. `tag` says which of the object's
-    /// synthesized abilities this is (the land type's discriminant, there).
-    pub fn derived_on(object: ObjectId, tag: u8) -> AbilityId {
-        AbilityId::defined(ROLE_ON_OBJECT | (((object.0 << 8) | tag as u64) & !ROLE_MASK))
+    /// An ability the CR gives `object` rather than its card printing it,
+    /// with nowhere to store a minted id: it is built inside every recompute of
+    /// the object's frame, and handed out as a handle (an activation's, a
+    /// replacement instance's) that the next recompute must match. So the id is
+    /// a function of the object and of `ability`, which says which one it is.
+    pub fn derived_on(object: ObjectId, ability: SynthesizedAbility) -> AbilityId {
+        AbilityId::defined(ROLE_ON_OBJECT | (((object.0 << 8) | ability as u64) & !ROLE_MASK))
     }
 
     /// This ability as the Layer 6 row `row` grants it, minted where the
@@ -413,7 +430,7 @@ mod tests {
         let mut counter = 1;
         let object = ObjectId::from_counter(&mut counter);
         let printed = AbilityId::printed("Forest", 0);
-        let on_object = AbilityId::derived_on(object, 3);
+        let on_object = AbilityId::derived_on(object, SynthesizedAbility::MountainMana);
         let test = new_ability_id();
         assert_eq!(printed.definition & ROLE_MASK, ROLE_PRINTED);
         assert_eq!(on_object.definition & ROLE_MASK, ROLE_ON_OBJECT);
@@ -438,8 +455,9 @@ mod tests {
         let mut counter = 1;
         let a = ObjectId::from_counter(&mut counter);
         let b = ObjectId::from_counter(&mut counter);
-        assert_ne!(AbilityId::derived_on(a, 1), AbilityId::derived_on(b, 1));
-        assert_ne!(AbilityId::derived_on(a, 1), AbilityId::derived_on(a, 2));
+        let island = SynthesizedAbility::IslandMana;
+        assert_ne!(AbilityId::derived_on(a, island), AbilityId::derived_on(b, island));
+        assert_ne!(AbilityId::derived_on(a, island), AbilityId::derived_on(a, SynthesizedAbility::SwampMana));
     }
 
     #[test]

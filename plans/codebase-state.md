@@ -12,13 +12,13 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Partially covered:** CR 6 casting — the pipeline, X, alternative and additional costs, and **cost determination as its own pipeline** (`cost-architecture.md`, CM-0–CM-4, 2026-09-07/08: CR 601.2f's step, the spell's own cost abilities, sacrifice as a cost, the mana window and a payer split into two decorators); mode choice, distribution and target uniqueness pending; activation restrictions are one value (`ActivationRestriction::OnlyAsSorcery`, LH-2), the rest `backlog.md` §2.8. CR 1 mulligan is a stub. Equip ✅ (LH-2); Bestow not started.
 - **Triggered abilities (CR 603) — in progress,** phased TR-1 to TR-6 in `triggers-architecture.md` §12; `state-of-play.md` says which have landed.
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
-- **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame; damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
+- **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
-- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), and a permanent can enter as a copy (CV-2a, 2026-09-28).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held as `PermanentState::entered_as_copy` and loyalty a copiable value. Still ahead: CV-2b (CR 707.9's exceptions, Spark Double), CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
+- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), and a permanent can enter as a copy (CV-2a, 2026-09-28).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value. Still ahead: CV-2b (CR 707.9's exceptions, Spark Double), CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
-- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122; 122 closed 2026-09-24 by TR-2a), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
+- **Before starting any of those systems:** see **[Deferred Migrations](#deferred-migrations)** for the debt owed by forward-looking scaffolding — 193 items as of 2026-09-15 (the audit's close), three of them reachable and wrong today (59, 60, 122; 122 closed 2026-09-24 by TR-2a, and 60 on 2026-09-28 by RG), none unstated. Each target system (Triggers, Commander, Phase 8's breadth) has a subsection to read before its first ticket.
 - **Five architecture docs own their subsystems:** `layers-architecture.md`, `replacement-architecture.md`, `cant-effects-architecture.md`, `copy-effects-architecture.md`, `cost-architecture.md` — each with its type shapes, phase codes and findings; `CLAUDE.md`'s authority table is the index. A subsequent session executes from those, never from this summary.
 ---
 
@@ -2736,33 +2736,14 @@ measurement; what follows is what a later phase has to know.
     the Ghoul out is a pool move for a wrong answer the §2.2 phase fixes
     whole.
 
-60. **Master Biomancer's Mutant clause is unimplemented, and it is not one
-    field.** "…and as a Mutant in addition to its other types" wants a type on
-    `EnterMods`, which fires item 47's expiry condition (a) directly:
-    `ObjectFilter`'s `ByType` and `BySubtype` leaves would stop being
-    mods-invariant, so **every** CR 616.1 entry bucket would start prompting.
-    It also needs somewhere for the type to live *after* the entry — a Layer 4
-    effect with no registry row and no duration, which is a shape the layer
-    system does not have. **Sized:** the field is small and the two consequences
-    are not; call it a phase of its own, and note that the printed population
-    for "enters as a [type]" is thin enough that it is not urgent.
-
-    **Reachability (2026-09-03):** reachable — wrong today, unobservably: Master
-    Biomancer is registered (stress pool), every creature it pumps should also
-    be a Mutant, and the engine adds the counters and not the type. No
-    registered filter reads the Mutant subtype (the only subtype read in the
-    pool is Keldon Warlord's non-Wall), so no game outcome moves.
-
-    **Scheduled (2026-09-15, post-RE audit):** `backlog.md` §2.30 is the
-    entry — one mechanic, "enters as an additional type", with its census
-    (five printed cards). **Re-sized there the same day, and it is one PR of
-    ~150–200 lines, not a phase:** both consequences above were answered by
-    work that landed after this item was written — RE-5's `kinds_present`
-    answers the prompting fear per kind rather than per bucket, and the
-    board pass already reads rowless, durationless state off
-    `PermanentState` at layers 6 and 7c (counters), which is the shape an
-    entered-as type takes at Layer 4. The verdict stands: wrong today, and no
-    outcome moves until a filter reads the type.
+60. **~~Master Biomancer's Mutant clause is unimplemented, and it is not one
+    field.~~ — ✅ CLOSED 2026-09-28 (RG).** — archived. The Mutant is a
+    `CharacteristicEdit` the creature enters as, kept in
+    `PermanentState::entered_as` and applied at layer 4 at its timestamp
+    (`replacement-architecture.md` §3.5). It is no ability's effect, so a
+    Mutant that loses every ability, Biomancer's included, stays one.
+    **Reachability (2026-09-28):** closed — RG.
+    Full entry: `plans/archive/codebase-state-closed.md`, "Item 60".
 
 61. **Every auxiliary move of one entry event should be one batch, and RC-5
     ships one per application.** Thunder-Thrash Elder's own ruling
@@ -8569,41 +8550,93 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      item 6's close audit (A6e), which already reads the engine's claims
      about itself.
 
+     **First piece landed (RG, 2026-09-28):** CR 616.1's entry elision, as
+     `replacement-architecture.md` §3.5's feeds table: its claim, its premise
+     as four properties, and what holds each. Building it found the fourth: a
+     multiplier that applies only once the entry carries counters makes two
+     counter writers an order. RE-5's argument had missed it, and it was
+     reachable on registered cards since RE-5; RG fixed it. The other sites
+     are still owed. Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`, traces B and C.
+
 ### Found by CV-2a's review (2026-09-28)
 
-186. **CR 306.5b's loyalty is seeded into the entry rather than gathered, so
-     the order the CR gives it is lost.** CR 306.5b gives a planeswalker an
-     intrinsic ability, "This permanent enters with a number of loyalty
-     counters on it equal to its printed loyalty number", which creates a
-     replacement effect. `GameState::default_enter_mods` seeds the counters
-     into every entry instead, and its doc called 306.5b "a rule, not an
-     ability" until CV-2a's review asked why. The two differ on printed cards:
-     - **An order the CR offers and the engine skips.** Kaito, Bane of
-       Nightmares is, during its controller's turn and while it has a loyalty
-       counter, a 3/4 Ninja creature and not a planeswalker (its seventh
-       ruling). Cast in its controller's main phase beside Oath of Gideon
-       ("Each planeswalker you control enters with an additional loyalty
-       counter on it"), it would enter with no counters and so as a
-       planeswalker, both effects apply, and CR 616.1 asks the order. 306.5b
-       first gives four counters and makes Kaito a creature, so Oath no longer
-       applies; Oath first gives one, and 306.5b no longer applies. The engine
-       seeds four and never offers the second order, which is worse for its
-       chooser but legal.
-     - **An ability loss.** Humility over a planeswalker that is a creature
-       before any counters should take the intrinsic ability with the rest,
-       so it enters with none and CR 704.5i puts it into the graveyard. Today
-       it enters with its counters.
+186. **~~CR 306.5b's loyalty is seeded into the entry rather than gathered, so
+     the order the CR gives it is lost.~~ — ✅ CLOSED 2026-09-28 (RG).** —
+     archived. The walk gives every planeswalker's frame the ability at the
+     end of layer 4, so CR 616.1 orders it and Layer 6 removes it; the seed
+     and CV-2a's counter rebuild went (`replacement-architecture.md` §3.5).
+     **Reachability (2026-09-28):** closed — RG.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 186".
 
-     CR 310.4b's battles will have both gaps.
+### Found by RG — the entry state (2026-09-28)
 
-     **Reachability (2026-09-28):** unreachable — Kaito and Oath of Gideon
-     are not registered, no registered planeswalker is a creature as it
-     enters, and Humility reaches only creatures. Fixtures reach both.
+187. **A tap or an untap bumps no layer epoch, and a layer row can read the
+     tapped status.** `Condition::SourceUntapped` and, since RG,
+     `Condition::SourceTapped` can condition a static ability, and on a layer
+     row the board pass reads them in the walk. `perform_action`'s `Tap` and
+     `Untap` arms move no epoch, so the memo can answer with a frame computed
+     before the tap: "as long as ~ is untapped, …" would keep or drop its
+     effect one question late.
 
-     **Sized:** ~60–100 lines and two tests. 306.5b becomes a gathered
-     replacement from a synthesized intrinsic ability, as CR 305.6's mana
-     abilities are synthesized, so Layer 6 can remove it and CR 616.1 can
-     order it. CV-2a's counter rebuild at a copy's application (its D7) then
-     goes, since 306.5b applies after the copy on its own. **Slotted: the
-     entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
-     614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).
+     **Reachability (2026-09-28):** unreachable. Archelos's conditions are on
+     replacement effects, read at the entry and never memoized, and no
+     registered card conditions a layer row on the status. The memo's debug
+     audit would catch the stale frame on the first such board.
+
+     **Sized:** ~20 lines and a fixture: a registry summary bit for "a row
+     reads the tapped status", beside `RegistryScopeSummary`'s others, and
+     the two arms bump the epoch when it is set. **Slotted: CV-6**
+     (`roadmap-v2.md` B6), whose face-down status is the first status the
+     walk reads by design and needs the same bump when a permanent turns face
+     up; or with the first registered card of the shape, if one comes first.
+
+### Found by RG's review (2026-09-29)
+
+188. **Two roads to one state: code that builds one state, or performs one
+     change, in two places that can drift apart.** RG gave the entering
+     permanent one constructor, `PermanentState::entering`, for the performer
+     and the CR 614.12 look-ahead, and the owner asked where else the shape
+     is. A read-only survey at the review named ten candidates. Two are
+     confirmed by reading:
+     - **CR 514.3a's repeated cleanup step skips half of CR 514.2.** The
+       first cleanup step runs `on_step_begin(Cleanup)` (`engine/turns.rs`):
+       damage removal, the "until end of turn" expiry in all three
+       registries, and CR 800.4c's check. The repeated one, in `Game::run_turn`
+       (`state/game.rs`), calls `begin_step`, which proposes the step and runs
+       no turn-based action, and then `perform_cleanup_actions`, which removes
+       damage and discards. So an "until end of turn" effect created in the
+       CR 514.3a priority window lasts into the next turn.
+     - **`Primitive::ChangeType` was lowered in two places.** Fixed at the
+       review: `resolve.rs` calls `TypeChange::modifications`.
+
+     Eight more are candidates, each to be confirmed:
+     - static-ability rows built in four places (`register_static_effects`,
+       `would_be_rows`, `register_copied_static_effects`,
+       `register_granted_static_effects`), only the first gated on CR 113.6's
+       zone, while `would_be_rows` predicts row ids by counting what it emits;
+     - "is this ability a restriction?" answered three ways, one of which does
+       not look inside a `Conditional`;
+     - the mana sources listed (`available_mana_sources`) narrower than what
+       `resolve_mana_effect` activates;
+     - cast timing written twice (`passes_timing_check`,
+       `check_cast_legality`), and land-play timing twice (`playable_lands`,
+       `play_land`);
+     - `ColorChange` lowered in three places;
+     - attack legality written twice (`legal_attackers`,
+       `validate_attackers`);
+     - a stack ability's removal written by hand at six sites;
+     - `AmountExpr::SourcePower` answered two ways for an object with no
+       power: none in `settled_amount`, zero in `evaluate_enter_template`.
+
+     **Reachability (2026-09-29):** reachable — wrong today, unobserved: the
+     cleanup half needs an "until end of turn" effect created in the window,
+     and registered instants make one (Giant Growth, Cytoshape). A probe on the
+     shipped build counted 8 repeated cleanup steps in four 200-game runs, both
+     pools at two seats and four, and none left an effect behind.
+
+     **Sized:** the cleanup fix is about 15 lines and a fixture: the repeated
+     step runs the same CR 514.2 routine as the first. The candidates are
+     unsized until each is confirmed. **Slotted:** the cleanup fix as its own
+     PR, offered for right after RG; the rest is `roadmap-v2.md` A6h's, the
+     end-of-phase docs audit, beside item 185's inventory of elisions, which is
+     the same kind of list.

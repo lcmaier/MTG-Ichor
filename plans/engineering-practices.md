@@ -948,6 +948,12 @@ no test names. "Not expressible" stays a legal answer — it names the missing
 facility and its owner — because a gate with no honest escape gets satisfied
 dishonestly.
 
+**The end state (the owner, 2026-09-28): every official card has a test for
+each of its rulings, and passes it.** The retroactive half is its own
+pre-Phase-8 row, pooled cards first (`roadmap-v2.md` §C, C1). A
+`not-expressible` disposition is interim under that rule: it names the
+facility whose landing makes the test writable.
+
 Two things fall out that no amount of care at card-add time gives you: **drift**
 — Scryfall adds rulings, so a card correct when registered can acquire one later
 that the engine violates, and nothing else in the project would ever notice —
@@ -1061,6 +1067,39 @@ not an argument to reorder it: an "already tested" answer is one annotation and
 is exactly what the gate wants, so the cheap cards genuinely are the ones to do
 first. It is an argument against reading the first sitting's zero as the
 registry's rate.
+
+### 3.4b When a ruling and the CR disagree — the policy and the register
+
+**Adopted 2026-09-29 (the owner, at RG's review).** The Comprehensive Rules are
+this engine's authority (`CLAUDE.md`), and a card's rulings are the
+adjudicators' answers for that card, which is what a judge applies at an event.
+They almost always agree. Where they do not:
+
+1. **A ruling is the default for the card it names.** It is what an event
+   applies and what a player expects.
+2. **The CR's text wins over a ruling that contradicts it only once Wizards of
+   the Coast has acknowledged the contradiction or its staff have sided with
+   the text.** Until then the ruling is followed, and the conflict is a row
+   here marked open.
+3. **Where the CR is silent**, the latest official statement decides; failing
+   one, the reading that fits the neighboring rules.
+4. **A deviation is one register row, one switch and a test, never an
+   exemption.** The ruling keeps its test: one on the ruling's own board that
+   asserts what the engine does instead, annotated
+   `// RULING-DEVIATION: <card> #<n> (<id>)`. `check_rulings.py` counts that as
+   the ruling's answer only when `<id>` is a row below, and refuses a ruling
+   answered both ways. So every ruling of a registered card keeps a test.
+5. **A gray area never holds up a PR.** It is decided by these rules in the PR
+   that meets it, recorded here, and pinned by a test. The register is re-read
+   whenever a new CR version lands in `MTG-Rules/versions/`.
+
+The switch column is what keeps a row cheap to reverse: the one place in the
+code that decides it. If Wizards changes the CR or the ruling, or a build for
+tournament play wants rulings throughout, the flip is that place and its tests.
+
+| Id | In tension | The engine follows | Switch | Reasoning | Tests |
+|---|---|---|---|---|---|
+| `lookahead-entry-counters` | CR 614.12, whose look-ahead counts "replacement effects that have already modified how it enters", against Arixmethes, Slumbering Isle's 2020 ruling, under which an entering permanent's "enters with" counters do not change what the look-ahead sees | the CR's text: Wizards called it a contradiction in 2024, and the latest staff statement (2025) reads Arixmethes by the text | whether the look-ahead's condition checks read the would-be permanent's counters: `Condition::SourceHasCounters` on the entering object | `replacement-architecture.md` §5e | `kaito_cast_beside_oath_of_gideon_is_its_controllers_order`, `kaito_enters_tapped_under_an_opponents_creatures_enter_tapped` |
 
 ### 3.5 The input we have none of — a human playing the game
 
@@ -1385,6 +1424,7 @@ Three existed when the practice was written down, and they are the template:
 | `re-2-a-draw-carries-its-lineage.html` | RE-2 | the first decomposed event: two Thought Reflections through the applied set that travels with it, and the same board without it — a stack overflow at depth two rather than a wrong number; Teferi's exception living in the shape of the event tree instead of a counter; **Alms Collector in both encodings**, the shipped one and the one §9 sized, which is a CR 104.4b loop; three Notion Thieves moving the event's subject and CR 616.1's chooser with it; the read-by-read table |
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 | `rf-a-source-off-the-battlefield.html` | RF | the gather's zone leg read by read: a Colossus in a library while a Bolt resolves, which is why neither library is ever walked (the map, the printed-def precheck, and the two things that *would* walk a zone); the same Colossus second of three in a mill — one batch, one member replaced, the same-zone no-op, the rider after the batch; a Colossus commander sacrificed, which is CR 616.1 twice on one card and CR 701.24c's shuffle of a library the card never reached; the read-by-read table |
+| `rg-an-entry-write-changes-what-applies-next.html` | RG | the CR 616.1 loop over an entry, from traced runs: a Bears under Master Biomancer, where the Mutant lives as state and why Humility leaves it; Adaptive Shimmerer under Biomancer beside Doubling Season, premise (d)'s extra gather and the four orders; Kaito beside Oath of Gideon, CR 306.5b on the frame and the feeds table's last row, in both orders, with the gray area the judges split on; the read-by-read table |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
@@ -1400,7 +1440,9 @@ is proposed — the archive's "Trace-page decisions" has the argument), RF ✓
 (decided *no* at its close on the same test and reversed at its review the
 same day, 2026-09-16: the owner could not see why the gather's zone leg walks
 no library the moment a Colossus is in one, which is this section's own
-trigger — a question the diff could not answer),
+trigger — a question the diff could not answer), RG ✓ (decided *no* at its
+close and reversed at its review, 2026-09-29, the same way: the design and the
+new code in `pipeline.rs` could not be linked from the diff),
 **RS-2, critical-path item 6**. Budget
 two to three hours; that is the right cost for a phase's close and the wrong
 cost for a question asked mid-debugging, which is what tier 2 below is for.

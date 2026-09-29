@@ -1810,10 +1810,9 @@ impl GameState {
     /// its current zone". A rule, checked at the site like CR 508.8's and
     /// CR 800.4k's: there is no event here for a replacement effect to see.
     ///
-    /// The seed's counters (CR 306.5b's loyalty) go through the same CR 101.2
-    /// door as a replacement's: a "can't have counters put on it" that would
-    /// stop them later stops them here (CR 614.17d), with no cause, because a
-    /// rule put them there.
+    /// It carries CR 110.5b's default and nothing else. What the rules give an
+    /// object as it enters beyond that is an ability of the object (CR 306.5b's
+    /// loyalty), which the pipeline gathers like any other (`layers::intrinsic`).
     fn entry_proposal(
         &mut self,
         object: ObjectId,
@@ -1824,11 +1823,7 @@ impl GameState {
         if self.is_multiplayer() && !self.in_game(controller) {
             return None;
         }
-        let seed = self.default_enter_mods(object, controller);
-        let mods = crate::engine::replacement::strip_prohibited_counters(
-            self, object, controller, &EnterMods::NONE, &seed, None,
-        );
-        Some(GameAction::EnterBattlefield { object, from, controller, mods, cause })
+        Some(GameAction::EnterBattlefield { object, from, controller, mods: EnterMods::NONE, cause })
     }
 
     /// Propose CR 614.1c's entry — the one proposal for a card entering the

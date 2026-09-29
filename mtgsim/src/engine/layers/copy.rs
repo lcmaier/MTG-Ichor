@@ -15,7 +15,7 @@ use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::types::{EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::card_types::{CardTypes, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
@@ -70,7 +70,7 @@ pub struct CopiableValues {
     /// `ManaCost` could not represent them.
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
-    pub types: HashSet<CardType>,
+    pub types: CardTypes,
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,
@@ -145,7 +145,7 @@ impl CopiableValues {
         chars.name = self.name.clone();
         chars.mana_cost = self.mana_cost.clone();
         chars.colors = self.colors.clone();
-        chars.types = self.types.clone();
+        chars.types = self.types;
         chars.subtypes = self.subtypes.clone();
         chars.supertypes = self.supertypes.clone();
         chars.keyword_flags = self.keyword_flags.clone();

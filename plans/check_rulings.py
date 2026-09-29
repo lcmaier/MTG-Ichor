@@ -124,6 +124,24 @@ format in passing. Recorded per ruling, it is a judgement somebody made once.
 
 A ruling may not carry both a disposition and an annotation. They are two
 answers to a question that has one.
+
+# A ruling the engine answers otherwise
+
+`engineering-practices.md` §3.4b (the owner, 2026-09-29): where a ruling
+contradicts the CR's text and Wizards has acknowledged the contradiction or
+sided with the text, the engine follows the text. The ruling still gets a test
+on its own board, asserting what the engine does instead:
+
+    // RULING-DEVIATION: Arixmethes, Slumbering Isle #2 (lookahead-entry-counters)
+    //   - the look-ahead counts the counters it enters with (CR 614.12).
+    #[test]
+    fn ...
+
+It answers the ruling as a `// RULING:` does, and only if the id in the
+parentheses is a row of §3.4b's register, so a deviation is never an
+exemption: it names the decision that licenses it, and the decision names its
+evidence and its switch. A deviation beside a plain `// RULING:` for the same
+ruling is two answers, and fails.
 """
 
 import argparse
@@ -143,6 +161,8 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "plans" / "rulings-ledger.json"
+PRACTICES = ROOT / "plans" / "engineering-practices.md"
+REGISTER_HEADING = "### 3.4b "
 REGISTRY = ROOT / "mtgsim" / "src" / "cards" / "registry.rs"
 CODE_DIRS = [ROOT / "mtgsim" / "src", ROOT / "mtgsim" / "tests"]
 
@@ -151,6 +171,7 @@ CHUNK = 75      # Scryfall's documented maximum per /cards/collection request
 SLEEP = 0.15    # <10 req/s is asked for and meant: 80ms earned a 60-second ban
 
 RULING_RE = re.compile(r"//\s*RULING:\s*(.+?)\s*#(\d+)")
+DEVIATION_RE = re.compile(r"//\s*RULING-DEVIATION:\s*(.+?)\s*#(\d+)\s*\(([^)]*)\)")
 RUST_FN_RE = re.compile(r"\bfn\s+([a-z_0-9]+)")
 DISPOSITIONS = {"not-expressible": ("facility", "owner"),
                 "no-registered-card": ("needs",),
@@ -211,6 +232,37 @@ def scan_annotations():
     return out
 
 
+def scan_deviations():
+    """(card, n) -> [(test name, file, line, register id)] for every
+    `// RULING-DEVIATION:` in the tree."""
+    out = {}
+    for d in CODE_DIRS:
+        if not d.exists():
+            continue
+        for path in sorted(d.rglob("*.rs")):
+            lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
+            for i, line in enumerate(lines, 1):
+                m = DEVIATION_RE.search(line)
+                if not m:
+                    continue
+                rel = str(path.relative_to(ROOT)).replace("\\", "/")
+                key = (m.group(1).strip(), int(m.group(2)))
+                out.setdefault(key, []).append((annotated_fn(lines, i), rel, i, m.group(3).strip()))
+    return out
+
+
+def register_ids():
+    """The ids in engineering-practices.md §3.4b's register: the backticked
+    first cell of each table row under that heading."""
+    text = PRACTICES.read_text(encoding="utf-8")
+    start = text.find("\n" + REGISTER_HEADING)
+    if start < 0:
+        return set()
+    end = text.find("\n### ", start + 1)
+    section = text[start:end if end > 0 else len(text)]
+    return set(re.findall(r"^\|\s*`([^`]+)`\s*\|", section, re.M))
+
+
 def load():
     if not LEDGER.exists():
         sys.exit(f"no ledger at {LEDGER} - run --fetch to create it")
@@ -226,8 +278,9 @@ def in_scope(card, created):
 # The gate
 # --------------------------------------------------------------------------
 
-def verify(ledger, names, pool, links):
+def verify(ledger, names, pool, links, deviations=None, register=frozenset()):
     """Every failure, as a list of strings. Empty means the gate passes."""
+    deviations = deviations or {}
     bad = []
     cards, created = ledger["cards"], ledger["created"]
     known = set(cards) | set(ledger.get("fixtures", []))
@@ -243,13 +296,23 @@ def verify(ledger, names, pool, links):
         for r in card["rulings"]:
             key = (name, r["n"])
             linked = links.get(key)
+            deviated = deviations.get(key)
             disp = r.get("disposition")
-            if linked and disp:
-                bad.append(f"{name} #{r['n']}: carries a disposition "
-                           f"({disp.get('kind')}) and a test ({linked[0][0]}). "
+            answers = [f"a disposition ({disp.get('kind')})" if disp else None,
+                       f"a test ({linked[0][0]})" if linked else None,
+                       f"a deviation ({deviated[0][0]})" if deviated else None]
+            answers = [a for a in answers if a]
+            if len(answers) > 1:
+                bad.append(f"{name} #{r['n']}: carries {' and '.join(answers)}. "
                            f"A ruling gets one answer, not two")
             elif disp:
                 bad.extend(check_disposition(name, r, disp, item_nums))
+            elif deviated:
+                for _, path, line, rid in deviated:
+                    if rid not in register:
+                        bad.append(f"{path}:{line}: {name} #{r['n']} deviates "
+                                   f"under {rid!r}, which is not a row of "
+                                   f"engineering-practices.md §3.4b's register")
             elif not linked and scoped:
                 why = "read" if card.get("read") else "registered after the ledger"
                 bad.append(f"{name} #{r['n']}: no test names it, and no "
@@ -257,7 +320,8 @@ def verify(ledger, names, pool, links):
                            f"{r['comment'][:60]}...")
 
     have = {(name, r["n"]) for name, c in cards.items() for r in c["rulings"]}
-    for (name, n), where in sorted(links.items()):
+    named = [(k, [w[:3] for w in v]) for k, v in deviations.items()]
+    for (name, n), where in sorted(list(links.items()) + named):
         if (name, n) not in have:
             _, path, line = where[0]
             bad.append(f"{path}:{line}: names {name} #{n}, which the ledger "
@@ -583,21 +647,31 @@ def selftest():
                                       "comment": "x", "disposition": {
                                           "kind": "format-variant",
                                           "format": "2HG"}}]}}}
+    for name in ("Deviated", "Deviated Unregistered", "Deviated And Linked"):
+        ledger["cards"][name] = {"first_seen": "2026-01-01", "read": "2026-02-01",
+                                 "rulings": [{"n": 1, "published_at": "2020-01-01",
+                                              "comment": "the CR says otherwise"}]}
     links = {("Read And Linked", 1): [("test_a", "tests/x.rs", 1)],
              ("Both Answers", 2): [("test_b", "tests/x.rs", 2)],
-             ("Ghost", 9): [("test_c", "tests/x.rs", 3)]}
+             ("Ghost", 9): [("test_c", "tests/x.rs", 3)],
+             ("Deviated And Linked", 1): [("test_g", "tests/x.rs", 4)]}
+    deviations = {("Deviated", 1): [("test_d", "tests/y.rs", 1, "known-id")],
+                  ("Deviated Unregistered", 1): [("test_e", "tests/z.rs", 2, "no-such-id")],
+                  ("Deviated And Linked", 1): [("test_f", "tests/y.rs", 3, "known-id")]}
     names = sorted(ledger["cards"]) + ["Never Fetched"]
-    bad = verify(ledger, names, set(), links)
+    bad = verify(ledger, names, set(), links, deviations, {"known-id"})
     # Each failure named by its subject, which is the text before the first
     # colon. The list is the whole contract: everything else must pass.
     got = sorted(b.split(":")[0] for b in bad)
-    want = ["Both Answers #2", "Empty Escape #1", "Never Fetched",
-            "Read And Unlinked #4", "Registered Later #1", "tests/x.rs"]
+    want = ["Both Answers #2", "Deviated And Linked #1", "Empty Escape #1",
+            "Never Fetched", "Read And Unlinked #4", "Registered Later #1",
+            "tests/x.rs", "tests/z.rs"]
     assert got == want, "selftest: the gate refused\n  " + "\n  ".join(got)
     # The two that must NOT fail: an unread card, and an honest escape.
     joined = "\n".join(bad)
     assert "Backlog" not in joined, "selftest: the backlog is not owed"
     assert "Disposed #" not in joined, "selftest: an honest escape is an answer"
+    assert "Deviated #" not in joined, "selftest: a registered deviation is an answer"
 
 
 def main():
@@ -622,7 +696,7 @@ def main():
     census(ledger, names, pool)
     queue(ledger, pool, None if args.queue else 8)
 
-    bad = verify(ledger, names, pool, scan_annotations())
+    bad = verify(ledger, names, pool, scan_annotations(), scan_deviations(), register_ids())
     print()
     if bad:
         print(f"{len(bad)} ruling(s) the gate refuses:\n")

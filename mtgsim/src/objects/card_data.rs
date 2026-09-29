@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::types::card_types::{CardType, Supertype, Subtype};
+use crate::types::card_types::{CardType, CardTypes, Supertype, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::cost_modification::{CostChange, CostModificationDef};
@@ -20,7 +20,7 @@ pub struct CardData {
     pub name: String,
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
-    pub types: HashSet<CardType>,
+    pub types: CardTypes,
     pub supertypes: HashSet<Supertype>,
     pub subtypes: HashSet<Subtype>,
     pub rules_text: String,
@@ -183,7 +183,7 @@ impl CardDataBuilder {
                 name: name.to_string(),
                 mana_cost: None,
                 colors: HashSet::new(),
-                types: HashSet::new(),
+                types: CardTypes::new(),
                 supertypes: HashSet::new(),
                 subtypes: HashSet::new(),
                 rules_text: String::new(),

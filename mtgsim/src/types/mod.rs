@@ -4,8 +4,9 @@
 ///
 /// `counted_enum! { pub enum Light { Red, Amber, Green, } }` expands to that
 /// enum as written, plus `impl Light { pub const COUNT: usize = [Light::Red,
-/// Light::Amber, Light::Green].len(); }`, which the compiler evaluates to 3.
-/// Each variant needs its trailing comma.
+/// Light::Amber, Light::Green].len(); }`, which the compiler evaluates to 3,
+/// and `ALL`, those variants in declaration order. Each variant needs its
+/// trailing comma.
 ///
 /// Defined here, above the `mod` lines, so every module in `types` has it in
 /// scope: a `macro_rules!` is visible only after its definition.
@@ -19,6 +20,8 @@ macro_rules! counted_enum {
         impl $name {
             /// How many variants there are.
             pub const COUNT: usize = [$($name::$variant),+].len();
+            /// Every variant, in declaration order.
+            pub const ALL: [$name; $name::COUNT] = [$($name::$variant),+];
         }
     };
 }

@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::objects::card_data::AbilityDef;
-use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Duration, PlayerRef};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -46,7 +46,7 @@ pub enum Layer {
     /// **1b, face-down** — in that order (`copy-effects-architecture.md` §5.4).
     /// Only 1a has producers: `EffectModification::CopyFrom` rows from
     /// `Primitive::Copy`, and the copy a permanent entered as
-    /// (`PermanentState::entered_as_copy`), applied from its state at its own
+    /// (`PermanentState::entered_as`), applied from its state at its own
     /// timestamp. CV-6 splits the slot when face-down arrives, and
     /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,
@@ -156,7 +156,7 @@ pub enum EffectModification {
     // --- Layer 4 ---
     AddType(CardType),
     RemoveType(CardType),
-    SetTypes(HashSet<CardType>),
+    SetTypes(CardTypes),
     AddSubtype(Subtype),
     RemoveSubtype(Subtype),
     SetSubtypes(HashSet<Subtype>),
@@ -288,7 +288,7 @@ pub struct EffectiveCharacteristics {
     pub name: String,
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
-    pub types: HashSet<CardType>,
+    pub types: CardTypes,
     pub subtypes: HashSet<Subtype>,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,

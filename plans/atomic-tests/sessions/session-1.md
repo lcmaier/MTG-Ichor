@@ -1403,6 +1403,18 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Phase:** Phase 6 (replacement effects — ETB tapped)
 - **Ticket:** Phase 6 — ETB replacement effects
 
+**ATOM-110.5b-003**
+- **Rule:** 110.5b — what a spell or ability says can be "untapped" too, and a permanent has one tapped/untapped status, so the last effect applied sets it
+- **Mechanism:** ETB replacement effects that set a status overwrite it rather than accumulate; the starting status, CR 110.5b's default or an instruction's own "tapped", is not an effect and is overwritten too
+- **Minimal Board:** Archelos, Lagoon Mystic, untapped, on the battlefield ("As long as Archelos is untapped, other permanents enter untapped").
+- **Action:** An effect creates a token tapped, with no replacement effect saying so; then Archelos becomes tapped and a creature enters.
+- **Expected Result:** The token enters untapped; the creature enters tapped.
+- **Phase:** Phase 6 (replacement effects — ETB status)
+- **Ticket:** RG — `replacement-architecture.md` §3.5
+
+> **Filed 2026-09-28 (RG).** `backlog.md` §2.40 recorded that no atom held
+> "enters untapped"; the entry-state PR that builds it files this one.
+
 **110.5c** — TESTABLE. A permanent retains its status even if irrelevant (e.g., flipped creature becomes copy of non-flip creature — stays flipped).
 
 **ATOM-110.5c-001**

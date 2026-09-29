@@ -538,6 +538,16 @@ pub enum Condition {
     /// no layer writes it and `board::condition_reads` declares nothing for
     /// it: it can never be a CR 613.8 dependency.
     SourceUntapped,
+    /// "As long as Archelos is tapped" — the other value of the same status,
+    /// a leaf of its own because a `Not` is the one wrapper
+    /// `zone_function::stated_zones` would have to refuse.
+    SourceTapped,
+    /// "As long as Kaito has one or more loyalty counters on him", and CR
+    /// 711.2a's leveler, "at least N1 level counters": the source's own
+    /// counters of a kind, read off the entity, which under a look-ahead is
+    /// the one the entry would build. No layer writes a counter, so it is
+    /// never a CR 613.8 dependency; a counter write bumps the layer epoch.
+    SourceHasCounters { counter: CounterType, at_least: u32 },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -563,6 +573,36 @@ pub enum Condition {
     /// walk answers this leaf before any evaluator sees it; a static ability
     /// never has one.
     CostAnswer(CostAnswer),
+}
+
+impl Condition {
+    /// Does this read its source's own status or counters, which an entry
+    /// sets as the permanent arrives?
+    ///
+    /// The last row of the feeds table (`replacement-architecture.md` §3.5):
+    /// an entering object whose own characteristics change under
+    /// such a condition makes every status and counter write feed every
+    /// characteristic. Matched in full, so a new leaf says which it is.
+    pub fn reads_entry_state(&self) -> bool {
+        match self {
+            Condition::SourceUntapped | Condition::SourceTapped | Condition::SourceHasCounters { .. } => true,
+            Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
+            // The entering object is asked as on the battlefield already, so
+            // no entry moves the zone `SourceInZone` reads; the rest read
+            // players, histories, the host, or a resolution.
+            Condition::Player { .. }
+            | Condition::SpellWasKicked
+            | Condition::ModeChosen(_)
+            | Condition::SourceInZone(_)
+            | Condition::HostMatches(_)
+            | Condition::ThisTurn(_)
+            | Condition::LastTurn(_)
+            | Condition::SinceYourLastTurn(_)
+            | Condition::ThisGame(_)
+            | Condition::ResolvedThisTurn(_)
+            | Condition::CostAnswer(_) => false,
+        }
+    }
 }
 
 /// CR 118.12's answer, in the rule's words: whether the player "does,
@@ -1166,7 +1206,7 @@ pub struct TypeChange {
     pub add_types: Vec<crate::types::card_types::CardType>,
     pub remove_types: Vec<crate::types::card_types::CardType>,
     /// If Some, replaces all card types with this set (ignores add_types/remove_types).
-    pub set_types: Option<std::collections::HashSet<crate::types::card_types::CardType>>,
+    pub set_types: Option<crate::types::card_types::CardTypes>,
     pub add_subtypes: Vec<crate::types::card_types::Subtype>,
     pub remove_subtypes: Vec<crate::types::card_types::Subtype>,
     /// If Some, replaces all subtypes with this set (ignores add_subtypes/remove_subtypes).
@@ -1175,6 +1215,96 @@ pub struct TypeChange {
     pub remove_supertypes: Vec<crate::types::card_types::Supertype>,
     /// If Some, replaces all supertypes with this set (ignores add_supertypes/remove_supertypes).
     pub set_supertypes: Option<std::collections::HashSet<crate::types::card_types::Supertype>>,
+}
+
+impl TypeChange {
+    /// Changes nothing: the base a literal names its one axis over.
+    pub const NONE: TypeChange = TypeChange {
+        add_types: Vec::new(),
+        remove_types: Vec::new(),
+        set_types: None,
+        add_subtypes: Vec::new(),
+        remove_subtypes: Vec::new(),
+        set_subtypes: None,
+        add_supertypes: Vec::new(),
+        remove_supertypes: Vec::new(),
+        set_supertypes: None,
+    };
+
+    /// CR 613.1d — the layer 4 modifications this change makes, axis by axis,
+    /// a `set_*` taking the place of its axis' adds and removes. One lowering
+    /// for `Primitive::ChangeType` and a [`CharacteristicEdit::Types`], so the
+    /// two say the same thing the same way.
+    pub(crate) fn modifications(&self) -> Vec<crate::engine::layers::types::EffectModification> {
+        use crate::engine::layers::types::EffectModification;
+        let mut mods = Vec::new();
+        match &self.set_types {
+            Some(set) => mods.push(EffectModification::SetTypes(*set)),
+            None => {
+                mods.extend(self.add_types.iter().map(|t| EffectModification::AddType(*t)));
+                mods.extend(self.remove_types.iter().map(|t| EffectModification::RemoveType(*t)));
+            }
+        }
+        match &self.set_subtypes {
+            Some(set) => mods.push(EffectModification::SetSubtypes(set.clone())),
+            None => {
+                mods.extend(self.add_subtypes.iter().map(|s| EffectModification::AddSubtype(s.clone())));
+                mods.extend(self.remove_subtypes.iter().map(|s| EffectModification::RemoveSubtype(s.clone())));
+            }
+        }
+        match &self.set_supertypes {
+            Some(set) => mods.push(EffectModification::SetSupertypes(set.clone())),
+            None => {
+                mods.extend(self.add_supertypes.iter().map(|s| EffectModification::AddSupertype(*s)));
+                mods.extend(self.remove_supertypes.iter().map(|s| EffectModification::RemoveSupertype(*s)));
+            }
+        }
+        mods
+    }
+}
+
+/// One edit to one characteristic (`replacement-architecture.md` §3.5).
+/// Where it is made decides whether it is copiable, never the edit:
+/// made as a permanent enters it is not (CR 707.2's last sentence), and made
+/// inside a copy it is (CR 707.9b). An arm lands with its first placement's
+/// consumer, so the list is the arms something applies.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CharacteristicEdit {
+    /// Layer 4 — Master Biomancer's "as a Mutant in addition to its other
+    /// types".
+    Types(TypeChange),
+}
+
+impl CharacteristicEdit {
+    /// Does this edit only add, "in addition to" what is there? An adding
+    /// edit can turn a filter leaf only from not matching to matching, which
+    /// is the direction the feeds table's order question never asks about
+    /// (`replacement-architecture.md` §3.5).
+    pub fn adds(&self) -> bool {
+        match self {
+            CharacteristicEdit::Types(change) => {
+                change.set_types.is_none()
+                    && change.set_subtypes.is_none()
+                    && change.set_supertypes.is_none()
+                    && change.remove_types.is_empty()
+                    && change.remove_subtypes.is_empty()
+                    && change.remove_supertypes.is_empty()
+            }
+        }
+    }
+
+    /// What this edit does at each layer, as the board pass applies it to the
+    /// permanent that entered with it.
+    pub(crate) fn modifications(
+        &self,
+    ) -> Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)> {
+        use crate::engine::layers::types::Layer;
+        match self {
+            CharacteristicEdit::Types(change) => {
+                change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
+            }
+        }
+    }
 }
 
 /// Which role a `Primitive::Copy`'s own recipients play, and where the other

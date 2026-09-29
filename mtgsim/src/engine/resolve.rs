@@ -968,43 +968,7 @@ impl GameState {
                 // layers") and CR 613.7b makes them share a timestamp — one resolution,
                 // one moment of creation.
                 let timestamp = self.allocate_timestamp();
-                let mut modifications: Vec<crate::engine::layers::EffectModification> = Vec::new();
-
-                // Types: set takes priority over add/remove
-                if let Some(ref set_types) = type_change.set_types {
-                    modifications.push(crate::engine::layers::EffectModification::SetTypes(set_types.clone()));
-                } else {
-                    for t in &type_change.add_types {
-                        modifications.push(crate::engine::layers::EffectModification::AddType(*t));
-                    }
-                    for t in &type_change.remove_types {
-                        modifications.push(crate::engine::layers::EffectModification::RemoveType(*t));
-                    }
-                }
-
-                // Subtypes: set takes priority over add/remove
-                if let Some(ref set_subtypes) = type_change.set_subtypes {
-                    modifications.push(crate::engine::layers::EffectModification::SetSubtypes(set_subtypes.clone()));
-                } else {
-                    for s in &type_change.add_subtypes {
-                        modifications.push(crate::engine::layers::EffectModification::AddSubtype(s.clone()));
-                    }
-                    for s in &type_change.remove_subtypes {
-                        modifications.push(crate::engine::layers::EffectModification::RemoveSubtype(s.clone()));
-                    }
-                }
-
-                // Supertypes: set takes priority over add/remove
-                if let Some(ref set_supertypes) = type_change.set_supertypes {
-                    modifications.push(crate::engine::layers::EffectModification::SetSupertypes(set_supertypes.clone()));
-                } else {
-                    for s in &type_change.add_supertypes {
-                        modifications.push(crate::engine::layers::EffectModification::AddSupertype(*s));
-                    }
-                    for s in &type_change.remove_supertypes {
-                        modifications.push(crate::engine::layers::EffectModification::RemoveSupertype(*s));
-                    }
-                }
+                let modifications = type_change.modifications();
 
                 // Register one ContinuousEffect per modification: siblings of
                 // one CR 613.6 effect, sharing the source and the CR 613.7b

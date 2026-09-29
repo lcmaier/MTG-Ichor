@@ -82,6 +82,7 @@ impl GameState {
                 additional: entry.additional_costs_paid.clone(),
                 alternative: entry.chosen_alternative_cost.clone(),
             },
+            x_value: entry.x_value,
             identity: entry.ability_identity,
             subject: entry.trigger.as_ref().and_then(|binding| binding.subject),
             // The resolution reads them here, where its own effect's moves
@@ -210,10 +211,6 @@ impl GameState {
                 // needs nothing. The spell resolved, so the trip is `Resolved`.
                 if self.get_object(object_id)?.zone == Zone::Stack {
                     self.change_zone(object_id, Zone::Graveyard, ZoneChangeCause::Resolved, &actx)?;
-                }
-                // Carry X value from the stack entry to the permanent (rule 107.3f)
-                if let Some(bf_entry) = self.battlefield.get_mut(&object_id) {
-                    bf_entry.x_value = entry.x_value;
                 }
 
                 // Rule 303.4f: Aura spell resolves → enters attached to its

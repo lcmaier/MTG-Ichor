@@ -363,27 +363,30 @@ fn a_multiplier_is_offered_only_once_an_enters_with_gives_the_entry_counters() {
     assert_eq!(dp.prompts(), 0);
 }
 
-/// A multiplier beside an `EnterWith` of a *different* kind, both applicable
-/// at once, is CR 616.1e's real choice: CR 614.5 gives the doubler one
-/// opportunity, so counters an `EnterWith` adds after it are not doubled.
+/// A multiplier beside two `EnterWith`s that write kinds it multiplies. CR 614.5
+/// gives the doubler one opportunity, so counters written after it are not
+/// doubled; and the planeswalker enters with none until CR 306.5b's loyalty or
+/// the charger's counter is on the entry (CR 616.2), so whichever its
+/// controller applies first is the one the doubler can reach before the other.
+/// Every outcome, and two questions to reach each (`replacement-architecture.md`
+/// §3.5, the feeds table's premise (d)).
 #[test]
-fn a_multiplier_beside_an_enters_with_is_a_real_order() {
-    let run = |pick: usize| -> (u32, u32) {
+fn a_multiplier_beside_two_counter_writers_makes_their_order_observable() {
+    let run = |first: usize, second: usize| -> (u32, u32) {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, fixture_doubler(), 0);
         put_on_battlefield(&mut game, your_permanents_enter_with_a_charge_counter(), 0);
         let dp = ScriptedDecisionProvider::new();
-        dp.expect_pick_n(PICK_REPLACEMENT, vec![pick]);
+        dp.expect_pick_n(PICK_REPLACEMENT, vec![first]);
+        dp.expect_pick_n(PICK_REPLACEMENT, vec![second]);
         let walker = reanimate_with(&mut game, loyalty_three(), 0, &dp);
-        assert!(dp.is_empty(), "one prompt");
+        assert!(dp.is_empty(), "two prompts");
         (count(&game, walker, CounterType::Loyalty), count(&game, walker, CounterType::Charge))
     };
-    let outcomes = [run(0), run(1)];
-    assert!(
-        outcomes.contains(&(6, 1)) && outcomes.contains(&(6, 2)),
-        "doubler first: 6 loyalty and 1 charge; charger first: 6 and 2 — got {:?}",
-        outcomes
-    );
+    let mut outcomes = vec![run(0, 0), run(0, 1), run(1, 0), run(1, 1)];
+    outcomes.sort_unstable();
+    outcomes.dedup();
+    assert_eq!(outcomes, vec![(3, 2), (6, 1), (6, 2)], "charger, doubler, loyalty; loyalty, doubler, charger; and both before the doubler");
 }
 
 // ---------------------------------------------------------------------------
@@ -863,7 +866,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     )),
                 Rewrite::EnterWith(EnterModsTemplate {
-                    tapped: false,
+                    status: None,
                     counters: vec![
                         EntryCountersTemplate {
                             counter: CounterType::PlusOnePlusOne,
@@ -876,6 +879,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                             by: None,
                         },
                     ],
+                    edits: Vec::new(),
                 }),
             ),
         ),
@@ -970,8 +974,9 @@ fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -
                     Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
                 )),
             Rewrite::EnterWith(EnterModsTemplate {
-                tapped: false,
+                status: None,
                 counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by }],
+                edits: Vec::new(),
             }),
         ),
     )

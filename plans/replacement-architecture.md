@@ -778,6 +778,118 @@ It differs in two ways, both because replacement effects are not layered:
   asked. Source 1's discovery-from-effective-abilities gives the same guarantee
   structurally.
 
+### 3.5 The entry state — CR 614.1c's two halves (RG, 2026-09-28)
+
+**What is modified decides the half, never the wording.**
+- *Enters with* is state the permanent arrives with, which changes later
+  like any state (CR 110.5c): a status (`EnterMods::status`) and counters
+  (`EnterMods::counters`). On the permanent it is ordinary state.
+- *Enters as* is characteristics the entry fixes: a copy (CR 707.5,
+  `EnterMods::copy`) and characteristic edits (CR 614.1c, `EnterMods::edits`).
+  On the permanent they are `PermanentState::entered_as`. The board pass
+  applies each at the permanent's timestamp at its own layer, after the
+  permanent's own static rows at that timestamp (the order CR 613.7n gives
+  the like case of a resolving effect, CR 611.2e), with no registry row, and
+  each leaves with the permanent (CR 400.7). No ability of the permanent's
+  makes it, so losing every ability leaves it: a Mutant under Humility stays
+  a Mutant.
+
+**What decides the carrier is when a change is made, never who made it**
+(CV-2a's D1). Master Biomancer's Mutant is made as the creature enters, so it
+is entry state and outlives the Biomancer. Names follow the holder's time: a
+proposal's members are named for what they are, and only the permanent says
+`entered_as`.
+
+**One constructor.** `PermanentState::entering` is the only function that
+turns an `EnterMods` into an entity, for the performer and for the CR 614.12
+look-ahead alike, which differ only in the timestamps they pass. A new member
+is a field on `EnterMods`, one line there, and a read wherever a layer needs
+it. Face-down (CV-6) is a status, read at 1b; CR 613.2a's copiable "as ...
+enters" P/T is an "as" member at 1a; `backlog.md` §2.2's "as it enters"
+choice record takes the same road.
+
+**A status is set, not accumulated** (CR 110.5b). An effect that names one
+sets it, so the last one applied wins (Spelunking's and Archelos's rulings).
+CR 110.5b's default and an instruction's own "tapped" are the proposal's
+starting status and never a bucket member, so every status-setting effect
+applies over them.
+
+**CR 306.5b is an ability** (`engine::layers::intrinsic`). The walk
+synthesizes it onto every frame that is a planeswalker at the end of layer 4,
+with a derived id and the frame's loyalty as a constant. Source 1a gathers it
+like a printed "enters with", so CR 616.1 orders it and Layer 6 removes it.
+Source 1a is its only gather leg, since it modifies only its own object's
+entry. CR 310.4b's battles join it (`backlog.md` §2.23).
+
+#### The feeds table — `ordering_cannot_change_outcome`'s entry premise
+
+`codebase-state.md` main item 185's first piece, in its four parts:
+- **Elision:** CR 616.1's ordering prompt among the entry-shaped members of
+  one bucket. **Claim:** every order reaches one outcome.
+- **Premise, as a property:** no member's write can (a) make another member
+  stop applying, (b) change what another member writes, (c) be overwritten
+  by another member's write, or (d) make applicable an effect that
+  multiplies another member's write.
+- **What holds it:** exhaustive destructures at the table's inputs, so a new
+  `EnterModsTemplate` field, `CharacteristicEdit` arm, `ObjectFilter` leaf or
+  `Condition` leaf is a compile error where it must be classified;
+  `check_order_invariance`, which computes (a) the other way after every
+  suppressed prompt in a debug build; and, for (d), two tests that reach
+  every order: RE-5's multiplier beside two counter writers, and Adaptive
+  Shimmerer under Master Biomancer beside Doubling Season.
+
+(b) is RE-5's kinds rule, and (c) is the status: two members that set
+opposite statuses are an order. (a) is this table, which records a direction:
+a write that makes a member *start* applying is CR 616.2's case, a candidate
+on the next iteration with nothing to order now, so only a write that can turn
+a leaf from matching to not matters.
+
+| Field | Half | What it writes on the entering object | Leaves it can unmatch |
+|---|---|---|---|
+| `status` | with | the tapped status (CR 110.5a: not a characteristic) | none directly; see the last row |
+| `counters`, +1/+1 | with | power and toughness up, at 7c (CR 122.1a) | `PowerLE` |
+| `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
+| `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
+| `counters`, any other kind | with | nothing | none |
+| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and 616.1c's step never shares a bucket with 616.1e's |
+| `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
+| `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
+| `status` or `counters`, when the entering object has a static that changes its own characteristics under a condition on its status or counters (`Condition::reads_entry_state`) | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
+
+No 616.1e member writes the controller (CR 616.1b's step) or ownership, and no
+entry writes identity. `classify` answers `ModsAdding` for an `EnterWith`
+whose amounts are fixed or read another source and whose edits all add, with
+its status beside its kinds; an edit that sets or removes is an order, as two
+copies are.
+
+**Premise (d).** A doubler that applies only once the entry carries counters
+(CR 616.2) multiplies what is there when it applies, so two members that each
+write kinds it multiplies are an order: whichever applies first is the one it
+can reach before the other writes. Adaptive Shimmerer's 3 and Master
+Biomancer's 2 under Doubling Season end at 7, 8 or 10. Checked by one more
+gather, against the entry with every counter-writing member's rows in it, and
+only for a bucket with two such members; a plus is exempt, since it adds its
+amount once whenever it applies.
+
+#### `CharacteristicEdit` — one vocabulary, two placements
+
+One edit to one characteristic, whose content is a type the engine already
+has (`TypeChange` and `ColorChange` are layers 4 and 5's own). **Where the
+edit is made decides whether it is copiable, never the edit.** An arm lands
+with its first placement's consumer; `Types` is built.
+
+| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §7c): inside `CopiableValues` (CR 707.9b) |
+|---|---|---|
+| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a |
+| `Colors(ColorChange)` | layer 5 | 1a |
+| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a |
+| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a |
+| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a |
+
+The entry placement lowers an edit through the function `Primitive::ChangeType`
+lowers through (`TypeChange::modifications`), so an edit and a continuous
+effect that say the same thing make the same modifications.
+
 ---
 
 ## 4. The pipeline
@@ -1487,6 +1599,56 @@ item 40's first violator.
 defect is the entry hop (`codebase-state.md`, "Before Triggered abilities"
 item 4), which is not the overlay's but the two-event entry it sits on.
 
+### 5e. A ruling that reads the look-ahead otherwise (decided 2026-09-29)
+
+**The register row is `lookahead-entry-counters`** (`engineering-practices.md`
+§3.4b). CR 614.12 decides which replacement effects apply to an entry against
+the permanent "as it would exist on the battlefield, taking into account
+replacement effects that have already modified how it enters". The frame is
+built per iteration for that reason (§5, `EntryFrame`), and since RG the
+would-be permanent carries the counters those effects added
+(`PermanentState::entering`). So a permanent whose characteristics hang on its
+own counters changes as the loop writes them.
+
+Arixmethes, Slumbering Isle's second ruling (2020-08-07) reads the look-ahead
+the other way: replacement effects that modify how creatures enter "see
+Arixmethes entering as a creature rather than a land", although its own "enters
+with five slumber counters" makes it a land. Under that reading, counters an
+entry adds don't change what the look-ahead sees.
+
+The boards where the two readings part:
+
+| Board | The CR's text (the engine) | The ruling's reading |
+|---|---|---|
+| Kaito, Bane of Nightmares cast on your turn beside Oath of Gideon | 4 or 1, in the order his controller picks | 5 |
+| Kaito on your turn under an opponent's Authority of the Consuls | enters tapped | enters untapped |
+| Arixmethes under Master Biomancer | an order: Arixmethes's own effect first makes it a land, and Biomancer no longer applies | Biomancer always applies |
+| +1/+1 counters an entry adds, beside a "power N or less" filter | counted (RE-5's `PowerLE` cell) | not counted, taken consistently |
+
+**The evidence, dated.**
+- The CR baseline (`tmnt`, effective 2026-02-27) still says what it said.
+- Jess Dunks, then rules manager, called the ruling "a really interesting
+  contradiction" on 2024-09-03 and took it to the rules team, saying rules or
+  rulings might need to change.
+- Matt Tabak (WotC) wrote on 2025-03-28 that under 614.12 the game should see
+  Arixmethes enter as a land and behave accordingly.
+- A judges' Discord thread the owner asked (2026-09-29) split three ways: 4-or-1
+  by the text, 5 by the ruling, and a ruling "poorly written" rather than wrong.
+- MTG Arena was reported there to follow the ruling's reading, and not to follow
+  614.12 to the letter elsewhere.
+
+**The decision: the CR's text**, by §3.4b's second rule. Wizards has
+acknowledged the contradiction, and its latest word sides with the text. It is
+also the only reading that keeps the rest of the look-ahead consistent: taken
+at its word, the ruling would stop +1/+1 counters counting toward power in the
+look-ahead, which RE-5's cell relies on and no ruling questions.
+
+**The switch:** the look-ahead's condition check on the entering object's own
+counters (`Condition::SourceHasCounters`, evaluated against the would-be
+permanent). A flip to the ruling's reading would evaluate it against the
+counters the object had before its entry. Arixmethes is not registered. When it
+is, its ruling #2 gets a `// RULING-DEVIATION:` test naming this row.
+
 ---
 
 ## 6. Engine interaction points
@@ -2053,6 +2215,45 @@ close RB's half at zero engine cost; do not let RC open a second such gap.
 **Shipped.** CR 614.13/13a/13b as `Rewrite::EnterAfterMoving(AuxiliaryMove)` with `// AUXILIARY-MOVE:` batches and `GameState::entry_selection`, `EnterMods.counters` given an amount the board decides; devour (Thunder-Thrash Elder) and Sutured Ghoul as consumers; +2,239 / −121. Re-sized against the tree before a line was written, which moved two of its four pieces. Trace page `rc-5-applying-an-entry-can-move-the-board.html`.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RC-5" (evicted 2026-09-11).
+
+### Phase RG — the entry state (CR 614.1c) — ✅ landed 2026-09-28
+
+**Shipped.** CR 614.1c's two halves as one shape (§3.5): `EnterMods` holds a
+status, counters, a copy and characteristic edits, and the permanent keeps
+what it entered as in `PermanentState::entered_as`, which the board pass
+applies at its timestamp with no registry row. `PermanentState::entering` is
+the one constructor, for the performer and the look-ahead. The feeds table
+replaces `filter_is_mods_invariant`'s leaf list, as the first piece of
+`codebase-state.md` main item 185. Building it found a fourth premise: a
+multiplier that applies only once the entry carries counters makes two
+counter writers an order, which RE-5's cell had suppressed on registered
+cards. `CharacteristicEdit` moved here from `copy-effects-architecture.md`
+§7c, placed first as Master Biomancer's Mutant. "Enters untapped" is a status
+the last applied effect sets, with Archelos, Lagoon Mystic as its card
+(pooled, 99 → 100). CR 306.5b is an ability the walk gives a planeswalker, so
+CR 616.1 orders it (the Kaito board, cast from hand) and Layer 6 removes it
+(the Humility board); the helpers' seed and CV-2a's counter rebuild went.
++1,760 / −468 in code and tests.
+
+**The engine arm read +2.62 points of instructions per decision, 0.12 over
+`engineering-practices.md` §3.1's budget.** CR 306.5b's type test was a SipHash
+on every frame of every pass, and each Mutant that sorts between Urborg and
+Blood Moon re-runs Urborg's dependency hypothetical (CR 613.8c). At the review
+the frame's types became a bitset (`CardTypes`), which takes `main` 13.9%
+lower on its own. RG with it reads −12.56% against `main`, RG's own cost over
+the bitset +1.5 points (`fuzz-record.md`, RG's block).
+
+**Trace page: `plans/traces/rg-an-entry-write-changes-what-applies-next.html`.** Decided *no* at the close and reversed at the
+review (2026-09-29), as RF's was: the owner could not link §3.5 to the new
+code in `pipeline.rs`. Three boards from traced runs: a Bears entering under
+Master Biomancer, then Humility (where the entry state lives); Adaptive
+Shimmerer under Biomancer beside Doubling Season (premise (d)); and Kaito
+beside Oath of Gideon in both orders (CR 306.5b on the frame, the table's
+last row, and the gray area the judges split on).
+
+→ The design as reviewed, what the building changed and the measurement:
+`plans/archive/replacement-architecture-landed.md`, "RG" (evicted
+2026-09-28).
 
 ### Phase RD — damage (CR 615, 609.7, 614.9, 120.3) — sized 2026-09-08, four PRs
 

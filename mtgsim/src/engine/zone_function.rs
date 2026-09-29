@@ -30,10 +30,9 @@
 //! and `check_cast_legality` hard-codes `Zone::Hand`. 113.6k is item 6's,
 //! 113.6n has no deck-construction pass to modify, and 113.6p has no emblem.
 
-use std::collections::HashSet;
 
 use crate::objects::card_data::AbilityDef;
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, CardTypes};
 use crate::types::effects::{Condition, Effect};
 use crate::types::triggers::{TriggerEvent, TriggerSubject};
 use crate::types::zones::{Zone, ZoneSet};
@@ -54,7 +53,7 @@ use crate::types::zones::{Zone, ZoneSet};
 /// `card_data.types` — so this module takes the types it is given and cannot
 /// read the wrong ones. The two callers that run before a frame exists pass
 /// printed types and say so.
-pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> ZoneSet {
+pub fn functioning_zones(ability: &AbilityDef, types: &CardTypes) -> ZoneSet {
     // CR 113.6a — "Characteristic-defining abilities function everywhere, even
     // outside the game and before the game begins."
     //
@@ -117,7 +116,7 @@ pub fn functioning_zones(ability: &AbilityDef, types: &HashSet<CardType>) -> Zon
 }
 
 /// CR 113.6k's derivation for a triggered ability — see the arm above.
-fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardType>) -> ZoneSet {
+fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &CardTypes) -> ZoneSet {
     let arms = def.condition.events();
     if arms.is_empty() {
         return default_zones(types);
@@ -130,7 +129,7 @@ fn trigger_zones(def: &crate::types::triggers::TriggerDef, types: &HashSet<CardT
 }
 
 /// CR 113.6k for one trigger condition.
-fn condition_zones(arm: &TriggerEvent, types: &HashSet<CardType>) -> ZoneSet {
+fn condition_zones(arm: &TriggerEvent, types: &CardTypes) -> ZoneSet {
     match arm {
         TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: Some(zone), .. } => ZoneSet::of(*zone),
         TriggerEvent::ZoneChange { subject: TriggerSubject::ThisObject, from: None, .. } => ZoneSet::ALL,
@@ -144,7 +143,7 @@ fn condition_zones(arm: &TriggerEvent, types: &HashSet<CardType>) -> ZoneSet {
 /// this says no for one condition of it — Absolver Thrull's "enters" in the
 /// exile its haunt condition functions in, which is the CR's own example.
 /// `contains` for [`functions_in`]'s reason.
-pub fn condition_functions_in(arm: &TriggerEvent, types: &HashSet<CardType>, zone: Zone) -> bool {
+pub fn condition_functions_in(arm: &TriggerEvent, types: &CardTypes, zone: Zone) -> bool {
     condition_zones(arm, types).contains(zone)
 }
 
@@ -166,7 +165,7 @@ pub fn condition_functions_in(arm: &TriggerEvent, types: &HashSet<CardType>, zon
 /// names one zone today, which is exactly when the bug would be introduced and
 /// not noticed. `engineering-practices.md` §2a is the general rule this is an
 /// instance of.
-pub fn functions_in(ability: &AbilityDef, types: &HashSet<CardType>, zone: Zone) -> bool {
+pub fn functions_in(ability: &AbilityDef, types: &CardTypes, zone: Zone) -> bool {
     functioning_zones(ability, types).contains(zone)
 }
 
@@ -179,7 +178,7 @@ pub fn functions_in(ability: &AbilityDef, types: &HashSet<CardType>, zone: Zone)
 /// is why 113.6g needs no arm of its own. A card that is both — CR 205.1b
 /// forbids it, and Layer 4 cannot produce it from a permanent — would take the
 /// stack, which is the honest reading of "an instant or sorcery spell".
-fn default_zones(types: &HashSet<CardType>) -> ZoneSet {
+fn default_zones(types: &CardTypes) -> ZoneSet {
     if types.contains(&CardType::Instant) || types.contains(&CardType::Sorcery) {
         ZoneSet::STACK
     } else {
@@ -278,6 +277,8 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         Condition::Player { .. }
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
+        | Condition::SourceTapped
+        | Condition::SourceHasCounters { .. }
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_)
@@ -324,7 +325,7 @@ mod tests {
         )
     }
 
-    fn types_of(kinds: &[CardType]) -> HashSet<CardType> {
+    fn types_of(kinds: &[CardType]) -> CardTypes {
         kinds.iter().copied().collect()
     }
 

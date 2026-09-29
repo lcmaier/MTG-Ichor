@@ -37,6 +37,151 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-28 for RG** (the entry state, CR 614.1c —
+`replacement-architecture.md` §3.5, landed). **Pool change**: `performance`
+goes 99 → 100 and `stress` 179 → 180, both Archelos, Lagoon Mystic. The
+shipped columns are a new baseline, and the engine columns are the ones
+comparable to CV-2a's.
+
+**Predictions, written before any arm ran** (Phase RG's A/B arms, now archived).
+- **engine vs `main`.** `performance`: every gameplay row identical at two
+  seats and four. The one cost row that moves is premise (d)'s, where two
+  counter writers meet at an entry, and the Mutant adds no dependency check.
+  `stress`: gameplay moves where (d) asks, Doubling Season beside two counter
+  writers at one entry. `Replacement gathers` and `Restriction queries` rise
+  by one per Loyalty Probe entry, and `Dependency checks` may rise where
+  Opalescence meets a Mutant. Instructions per decision within +0.3 points.
+- **shipped.** A pool change, so every row moves; `Replacement prompts` rise
+  where Archelos meets Idyllic Beachfront or Root Maze.
+
+**The A/B, three arms, `close_out.py`**: `main` (`d18b098`); **engine**
+(`7f5ed44`, Archelos written but unregistered); **shipped** (`a16300c`).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: `Replacement prompts` 3.97 → 3.98 |
+| `Dependency checks`, `main` → engine, performance / stress | 25 → 30 / 99 → 100 | 74 → 78 / 134 → 135 |
+| the other cost rows that moved, `main` → engine | `stress`: `Board walks` 286 → 287, `Restriction queries` 1,203 → 1,204 | `performance`: `Layer frames` 14,632 → 14,634; `stress`: `Replacement gathers` 2,439 → 2,440, `Memo hits` +1 |
+| audit, engine, performance / stress, dispatches agreed | 179,794 / 198,645 | 355,798 / 389,389 |
+| audit, shipped | 179,382 / 192,907 | 356,547 / 377,160 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.8676 M → 0.8903 M, **+2.62%** |
+
+**The gameplay move is the predicted one, on another doubler.** One game in
+200 diverges (four seats, `stress`, game 153, masking the memo's epoch and
+the renamed `EnterMods` fields). Adaptive Shimmerer enters under Master
+Biomancer beside Primal Vigor. `main` suppressed the Biomancer-or-Shimmerer
+order and the engine asks it. The random answer took `main`'s order, so the
+game runs on identically but for the one prompt.
+
+**Two moves nobody predicted, both cost.**
+- **`Dependency checks` in `performance`.** A probe on both arms counted every
+  hypothetical. All 662 extra ones on the callgrind board are Urborg against
+  Blood Moon (149 → 811), and none involves an entry edit. The Mutant has no
+  rules interaction with either card: the cost is in how the engine orders
+  one layer. Layer 4 holds every type-changing application on the board at
+  once, Urborg's, Blood Moon's and each Mutant's, and CR 613.8 orders them in
+  one loop that picks the earliest ready application, applies it, and
+  re-decides every dependency from scratch (CR 613.8c's re-evaluation, with
+  nothing remembered). Urborg depends on Blood Moon, so it waits. A Mutant
+  whose creature's timestamp falls between theirs depends on nothing, so it
+  is the earliest ready application and applies first. Then the loop
+  re-decides, and re-running "does Urborg depend on Blood Moon?" is a
+  hypothetical walk. One more per such Mutant, in every pass.
+- **Instructions, +2.62 points against +0.3 predicted: 0.12 over §3.1's
+  budget.** By callgrind's inclusive rows, `main` → engine, of +301 M:
+  - `add_intrinsic_entry_abilities`, 0 → 124 M (about 1.1 points). The
+    synthesis tests `HashSet<CardType>`, a SipHash of about 60 instructions,
+    on every frame of every pass and every non-member walk, about 2 M times.
+    The prediction priced it at a few instructions.
+  - `depends_on`, +152 M (about 1.3 points): the hypotheticals above.
+  - The rest, about 0.2 points, is the entry notes and the pipeline's table.
+
+  Two levers would take the arm back under: the frame's types as a bitset,
+  and `next_ready` keeping its graph across an application whose writes no
+  pending read meets. The reviewer chose the first (below).
+
+**The review (2026-09-29): the frame's types as a bitset.** CardType's
+SipHash rows summed to about 2.0 of `main`'s 11.5 billion instructions on the
+callgrind board, the 5.5% this block first quoted being one of its rows.
+`close_out.py`, `main` (`d18b098`) against two measurement-only commits:
+**bitset** (`747beee`, the bitset commit alone on `main`) and **engine**
+(`39ff3d7`, the bitset on RG's engine arm, `7f5ed44`).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, bitset vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: `Replacement prompts` (game 153, as above) |
+| instructions / decision, bitset vs `main` (`prof_arm.sh`, same board) | | 0.8675 M → 0.7472 M, **−13.87%** |
+| instructions / decision, engine vs `main` (`close_out.py --cpu engine`) | | 0.8675 M → 0.7585 M, **−12.56%** |
+
+The bitset arm matches `main` on every counter, cost rows included. RG's own
+cost over the bitset is 0.7472 M → 0.7585 M, +1.51 points: the CR 306.5b
+test is a mask now, and what is left is mostly the dependency hypotheticals.
+
+The review's other changes (`9668538`: the names, `EnteredAsNote::new`, the
+tag enum, one `TypeChange` lowering), against the bitset commit (`507100d`),
+both shipped: every gameplay row **IDENTICAL** on both pools at two seats and
+four, no cost row moved, and instructions per decision 0.6388 M → 0.6384 M,
+−0.06%.
+
+**The shipped arm is a pool change and is not budgeted.** In 200 traced
+two-seat `performance` games, Archelos is a candidate in 260 pipeline
+iterations across 30 games. It applies alone in 225 of them and asks CR
+616.1's order in 24. The other 11 are suppressed, as equal statuses or
+beside a counter writer. The pool's `Replacement prompts` fell anyway (0.84 →
+0.69 at two seats, 2.19 → 1.04 on `stress`), because a pool change redeals
+every deck (§3.1: never A/B across one).
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Archelos, Lagoon Mystic — cast / resolved / games / copies per deck | 153 / 153 / 112 (56%) / 1.43 | 120 / 120 / 105 (52%) / 2.88 |
+| board diversity | 200 of 200 | 200 of 200 |
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 28.4 | 28.1 |
+| Spells cast | 22.2 | 20.3 |
+| Lands played | 17.0 | 16.8 |
+| Combat w/ atk | 9.8 | 9.3 |
+| Creatures died | 6.9 | 4.7 |
+| Damage events | 20.5 | 19.4 |
+| Total damage | 63.6 | 49.5 |
+| Life changes | 15.1 | 15.4 |
+| **Layer walks** | **362** | **429** |
+| **Board walks** | **232** | **262** |
+| **Memo hits** | **56,000** | **66,853** |
+| **Layer frames** | **4,269** | **4,853** |
+| **Frames/walk** | **11.81** | **11.32** |
+| **Dependency checks** | **4** | **22** |
+| **Replacement gathers** | **1040** | **1075** |
+| **Restriction queries** | **1041** | **1077** |
+| Mana productions | 91 | 110 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.50 | 0.98 |
+| Max batch depth | 5 | 5 |
+| Decisions | 230 | 304 |
+| Priority decisions | 84 | 119 |
+| Triggers placed | 2.0 | 1.5 |
+| Windows past gate | 29.1 | 46.2 |
+| Candidate visits | 37.0 | 69.1 |
+| Trigger matches | 3.6 | 2.4 |
+
+The four-seat rows are in the sitting's output (`--players 4`, shipped, 200
+games), `performance` / `stress`: `Layer walks` 802 / 985, `Memo hits`
+188,071 / 223,567, `Decisions` 470 / 612, `Triggers placed` 5.2 / 4.0, and
+`Turns after a departure` 21.0 / 16.7.
+
+**CI's steps, run locally on the shipped build**: both 200-game pools with 0
+errors, 0 panics and 0 turn-limit hits, at two seats and four; three runs
+under `MTGSIM_HASH_SEED` 1, 2 and 3 (50 games, seed 12345) identical outside
+`=== Timing ===`; and `clone_bound_test` in release.
+
 **Re-recorded 2026-09-28 for CV-2a** (a permanent that enters as a copy, CR
 707.5 and 616.1c — `copy-effects-architecture.md` §7b, landed). **Pool
 change**: `performance` goes 98 → 99 and `stress` 178 → 179, both Clone. The

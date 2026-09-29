@@ -1981,7 +1981,17 @@ design. The entry is kept as written for the record.*
 
 ---
 
-### 2.30 Enters as an additional type (CR 614.1c, and a Layer 4 effect with no row)
+### 2.30 Enters as an additional type (CR 614.1c, and a Layer 4 effect with no row) — ✅ graduated 2026-09-28 (RG)
+
+*Built as this entry designed it (`replacement-architecture.md` §3.5).
+`EnterMods::edits` holds a `CharacteristicEdit`, and the permanent keeps it in
+`PermanentState::entered_as`. The board pass applies it at layer 4 at the
+permanent's timestamp, after the permanent's own rows there (CR 613.7n), with
+no row. Master Biomancer's clause is registered. One claim below was
+corrected: a `BySubtype(Mutant)` filter beside Biomancer does not ask. An
+added subtype can only turn a leaf on, which makes a member start applying,
+CR 616.2's next iteration rather than an order. Only `Not(BySubtype(Mutant))`
+asks.*
 
 **The surface that cannot express it.** Master Biomancer: "Each other
 creature you control enters with a number of additional +1/+1 counters on it
@@ -2445,7 +2455,14 @@ reads. The custom-card design lists both; this grain narrows the second.
 | **Atoms** | none; the rule is implemented, and this is its cost |
 | **Owner** | — ; `layers-architecture.md` when taken. Filed 2026-09-25 at the owner's request at LL's approval, conditional on the data, which supports it |
 
-### 2.40 Enters untapped (CR 110.5b, 614.1c–d) — a status the last effect sets
+### 2.40 Enters untapped (CR 110.5b, 614.1c–d) — a status the last effect sets — ✅ graduated 2026-09-28 (RG)
+
+*Built as this entry designed it (`replacement-architecture.md` §3.5):
+`EnterMods::status`, an `Option<TapStatus>` the last applied effect sets.
+CR 110.5b's default and an instruction's own "tapped" are the proposal's
+starting status, and two effects that set opposite statuses are a CR 616.1
+order. Archelos, Lagoon Mystic is the card, pooled, with a test per ruling
+and one cast from hand.*
 
 **The surface that cannot say it.** `EnterMods.tapped` is a `bool` that
 merges with `|=`, so an effect that makes a permanent enter untapped changes

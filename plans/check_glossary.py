@@ -81,7 +81,7 @@ WATCHLIST = [
     "trace", "sink", "emit point", "spine", "branch",
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "cell", "census", "chokepoint", "containment",
-    "cursor", "customer", "def",
+    "cursor", "customer", "def", "entity",
     "decomposition", "departed", "departing", "donor", "drain", "drainer",
     "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",
@@ -138,6 +138,7 @@ POLYSEMOUS = {
     "instance": 2,
     "cursor": 2,
     "flush": 2,
+    "bucket": 2,
 }
 
 # A definition paragraph opens with its term(s) in bold, then an em-dash:

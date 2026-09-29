@@ -16,8 +16,8 @@
 //! # The two battlefield-placement idioms are NOT interchangeable
 //!
 //! [`put_on_battlefield`] routes through [`GameState::place_on_battlefield`] with the
-//! [`EnterMods`] the rules give it, so CR 306.5b's loyalty counters and
-//! `register_static_effects` both fire and the arrival is announced.
+//! [`EnterMods`] its own intrinsic abilities give it, so CR 306.5b's loyalty
+//! counters and `register_static_effects` both fire and the arrival is announced.
 //! [`place_bare`] inserts a [`PermanentState`] directly and does none of it —
 //! which is what a fixture wants when the test counts the events its own action
 //! emitted.
@@ -47,6 +47,7 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::types::effects::Duration;
+use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
 use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 use crate::state::trace::{TraceHandle, TraceSink};
@@ -488,17 +489,51 @@ pub fn put_in_library(game: &mut GameState, card_data: Arc<CardData>, player: Pl
         .expect("a library takes any card")
 }
 
+/// What an object's own intrinsic "enters with" abilities give it as it
+/// enters under `controller`, and nothing else: CR 306.5b's loyalty counters,
+/// read off the ability the layer walk synthesizes onto its frame
+/// (`layers::intrinsic`). So a planeswalker the helpers place has its loyalty,
+/// and one Humility has stripped has none, as through the pipeline; the
+/// pipeline's other replacement effects are what the helpers skip.
+pub fn intrinsic_entry_mods(game: &GameState, id: ObjectId, controller: PlayerId) -> EnterMods {
+    use crate::types::replacement::Rewrite;
+    let mut mods = EnterMods::NONE;
+    // Most objects print no loyalty, and the frame is a walk a test counting
+    // walks would see; without a printed number the ability gives none.
+    if !game.objects.get(&id).is_some_and(|obj| obj.card_data.loyalty.is_some_and(|n| n > 0)) {
+        return mods;
+    }
+    let Some(frame) = crate::engine::layers::compute_as_entering(game, id, controller, &EnterMods::NONE) else {
+        return mods;
+    };
+    for ability in frame.abilities.iter() {
+        if !crate::engine::layers::intrinsic::is_intrinsic_entry_ability(ability, id) {
+            continue;
+        }
+        let Effect::Replacement(def) = &ability.effect else { continue };
+        let Rewrite::EnterWith(template) = &def.rewrite else { continue };
+        for row in &template.counters {
+            if let AmountExpr::Fixed(n) = row.amount
+                && n > 0
+            {
+                mods.merge(&EnterMods::with_counters(row.counter, n as u32));
+            }
+        }
+    }
+    mods
+}
+
 /// Put any permanent onto the battlefield **with ETB hooks**.
 ///
-/// Routes through [`GameState::place_on_battlefield`] with `default_enter_mods`, so
-/// CR 306.5b's counters and static-effect registration both fire. Sets
-/// `entered_battlefield_turn = 0` so the permanent is not summoning-sick — it mimics
-/// "has been here since before this turn".
+/// Routes through [`GameState::place_on_battlefield`] with
+/// [`intrinsic_entry_mods`], so CR 306.5b's counters and static-effect
+/// registration both fire. Sets `entered_battlefield_turn = 0` so the permanent
+/// is not summoning-sick — it mimics "has been here since before this turn".
 ///
 /// **Not the production path.** A permanent really entering goes through
 /// `GameState::propose_entry`, so a CR 614.1c replacement can modify how — this
-/// helper skips the pipeline and puts the permanent down as the rules alone
-/// would have it.
+/// helper skips the pipeline and puts the permanent down as its own intrinsic
+/// abilities alone would have it.
 ///
 /// See the module docs: this is not interchangeable with [`place_bare`].
 pub fn put_on_battlefield(
@@ -508,7 +543,7 @@ pub fn put_on_battlefield(
 ) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = game.add_object(obj);
-    let mods = game.default_enter_mods(id, player);
+    let mods = intrinsic_entry_mods(game, id, player);
     let entry = game.place_on_battlefield(id, player, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
@@ -534,7 +569,7 @@ pub fn put_on_battlefield_under(
 ) -> ObjectId {
     let obj = GameObject::new(card_data, owner, Zone::Battlefield);
     let id = game.add_object(obj);
-    let mods = game.default_enter_mods(id, controller);
+    let mods = intrinsic_entry_mods(game, id, controller);
     let entry = game.place_on_battlefield(id, controller, &mods);
     entry.entered_battlefield_turn = 0;
     entry.controller_since_turn = 0;
@@ -798,7 +833,7 @@ pub fn put_on_battlefield_this_turn(
 ) -> ObjectId {
     let obj = GameObject::new(card_data, player, Zone::Battlefield);
     let id = game.add_object(obj);
-    let mods = game.default_enter_mods(id, player);
+    let mods = intrinsic_entry_mods(game, id, player);
     game.place_on_battlefield(id, player, &mods);
     id
 }
