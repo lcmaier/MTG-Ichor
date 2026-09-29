@@ -1522,14 +1522,18 @@ schedulable rather than done:
   became one `Option` branch per emit point with the payload built behind
   it, and the check was `IDENTICAL` on every counter with the sink compiled
   in and off, and on (`fuzz-record.md`, the A4c block).
-- **Tier 3 — the codebase map.** One structural page: the modules and what each
-  owns, the chokepoint's arms, the three gate legs a new replacement source
-  must extend, the two `object_matches_filter`s, the accessor pair, and the
+- **Tier 3 — the engine map.** One page: the modules and what each owns, the
+  chokepoint's arms, the three gate legs a new replacement source must
+  extend, the two `object_matches_filter`s, the accessor pair, and the
   decision sites item 40 tracks — everything `CLAUDE.md` states as an
-  invariant, drawn once. Unblocked since the entry-hop fix landed
-  (2026-09-02); a day to draw, then minutes per refresh. It wants a ten-line
-  check that its list of `perform_action` arms matches the enum, so it cannot
-  rot silently.
+  invariant, drawn once. **And, since the owner widened it at CV-2b's review
+  (2026-09-29), one event's path from proposal to triggers**: which
+  subsystem owns each step, and each seam where one reads another's output,
+  linked to its architecture doc section and trace page, so a reader moving
+  between triggers, copies and replacement has one place to start. Scheduled
+  as route row A4d. A day to draw, then minutes per refresh. It wants a
+  ten-line check that its list of `perform_action` arms matches the enum, so
+  it cannot rot silently.
 
 **Where this was written down before, and why that was wrong.** All of the
 above lived in a section of `rc-4b-entering-is-one-event.html` itself — a

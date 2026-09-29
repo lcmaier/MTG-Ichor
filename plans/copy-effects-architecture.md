@@ -1506,6 +1506,12 @@ table.
   fixture that stays out of `performance`, and a stress game reaches it only
   if one player draws both.
 
+**Trace page: yes**, decided by the owner at the design review (2026-09-29)
+rather than at the close. 707.9f adds a read no page walks: a look-ahead of
+a copy that has not been made, taken once per judgment, inside the CR 616.1c
+application. The page walks Spark Double's entry read by read, on the Kaito
+board and on a plain creature.
+
 ### 7.1 Where this sits in the interleaved order
 
 `cant-effects-architecture.md` §7.1 holds the end-to-end reading of
