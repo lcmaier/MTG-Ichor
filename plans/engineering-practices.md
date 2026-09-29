@@ -1068,6 +1068,39 @@ is exactly what the gate wants, so the cheap cards genuinely are the ones to do
 first. It is an argument against reading the first sitting's zero as the
 registry's rate.
 
+### 3.4b When a ruling and the CR disagree — the policy and the register
+
+**Adopted 2026-09-29 (the owner, at RG's review).** The Comprehensive Rules are
+this engine's authority (`CLAUDE.md`), and a card's rulings are the
+adjudicators' answers for that card, which is what a judge applies at an event.
+They almost always agree. Where they do not:
+
+1. **A ruling is the default for the card it names.** It is what an event
+   applies and what a player expects.
+2. **The CR's text wins over a ruling that contradicts it only once Wizards of
+   the Coast has acknowledged the contradiction or its staff have sided with
+   the text.** Until then the ruling is followed, and the conflict is a row
+   here marked open.
+3. **Where the CR is silent**, the latest official statement decides; failing
+   one, the reading that fits the neighboring rules.
+4. **A deviation is one register row, one switch and a test, never an
+   exemption.** The ruling keeps its test: one on the ruling's own board that
+   asserts what the engine does instead, annotated
+   `// RULING-DEVIATION: <card> #<n> (<id>)`. `check_rulings.py` counts that as
+   the ruling's answer only when `<id>` is a row below, and refuses a ruling
+   answered both ways. So every ruling of a registered card keeps a test.
+5. **A gray area never holds up a PR.** It is decided by these rules in the PR
+   that meets it, recorded here, and pinned by a test. The register is re-read
+   whenever a new CR version lands in `MTG-Rules/versions/`.
+
+The switch column is what keeps a row cheap to reverse: the one place in the
+code that decides it. If Wizards changes the CR or the ruling, or a build for
+tournament play wants rulings throughout, the flip is that place and its tests.
+
+| Id | In tension | The engine follows | Switch | Reasoning | Tests |
+|---|---|---|---|---|---|
+| `lookahead-entry-counters` | CR 614.12, whose look-ahead counts "replacement effects that have already modified how it enters", against Arixmethes, Slumbering Isle's 2020 ruling, under which an entering permanent's "enters with" counters do not change what the look-ahead sees | the CR's text: Wizards called it a contradiction in 2024, and the latest staff statement (2025) reads Arixmethes by the text | whether the look-ahead's condition checks read the would-be permanent's counters: `Condition::SourceHasCounters` on the entering object | `replacement-architecture.md` §5e | `kaito_cast_beside_oath_of_gideon_is_its_controllers_order`, `kaito_enters_tapped_under_an_opponents_creatures_enter_tapped` |
+
 ### 3.5 The input we have none of — a human playing the game
 
 **Noted 2026-09-08, deliberately unscheduled.** Every verification method in

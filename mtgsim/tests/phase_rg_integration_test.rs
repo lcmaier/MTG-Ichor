@@ -686,7 +686,10 @@ fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
 /// - Oath first: 1 counter, and he is no planeswalker, so he no longer has
 ///   CR 306.5b's ability. He enters with 1.
 ///
-/// He never enters with none, and never with 5.
+/// He never enters with none, and never with 5. The register row
+/// `lookahead-entry-counters` (`engineering-practices.md` §3.4b) records the
+/// ruling that reads this board otherwise, and why the engine follows CR
+/// 614.12's text.
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
@@ -703,6 +706,22 @@ fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
         assert_eq!(get_effective_types(&game, kaito), CardTypes::from([CardType::Creature]));
         assert_eq!((get_effective_power(&game, kaito), get_effective_toughness(&game, kaito)), (Some(3), Some(4)));
     }
+}
+
+/// The register row's second board (`lookahead-entry-counters`): under an
+/// opponent's "creatures your opponents control enter tapped", Kaito enters
+/// tapped. He is a planeswalker until CR 306.5b's counters are on him, so the
+/// effect does not apply at first. Once they are, the look-ahead (CR 614.12)
+/// sees a creature, and CR 616.1f applies it. Under Arixmethes's ruling he
+/// would enter untapped.
+#[test]
+fn kaito_enters_tapped_under_an_opponents_creatures_enter_tapped() {
+    let mut game = setup_two_player_game();
+    let opponents_creatures = and(ObjectFilter::ByType(CardType::Creature), ObjectFilter::ByController(PlayerRef::Opponent));
+    put_on_battlefield(&mut game, entry_effect("Authority-shaped", opponents_creatures, EnterModsTemplate::tapped()), 1);
+    let kaito = return_asking(&mut game, kaito_shaped(), 0, &[]);
+    assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), 4);
+    assert!(game.battlefield[&kaito].tapped, "a creature by the time the effect is gathered again");
 }
 
 /// Item 186's ability-loss half: Humility strips a planeswalker creature's

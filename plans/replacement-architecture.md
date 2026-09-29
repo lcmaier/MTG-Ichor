@@ -1599,6 +1599,56 @@ item 40's first violator.
 defect is the entry hop (`codebase-state.md`, "Before Triggered abilities"
 item 4), which is not the overlay's but the two-event entry it sits on.
 
+### 5e. A ruling that reads the look-ahead otherwise (decided 2026-09-29)
+
+**The register row is `lookahead-entry-counters`** (`engineering-practices.md`
+§3.4b). CR 614.12 decides which replacement effects apply to an entry against
+the permanent "as it would exist on the battlefield, taking into account
+replacement effects that have already modified how it enters". The frame is
+built per iteration for that reason (§5, `EntryFrame`), and since RG the
+would-be permanent carries the counters those effects added
+(`PermanentState::entering`). So a permanent whose characteristics hang on its
+own counters changes as the loop writes them.
+
+Arixmethes, Slumbering Isle's second ruling (2020-08-07) reads the look-ahead
+the other way: replacement effects that modify how creatures enter "see
+Arixmethes entering as a creature rather than a land", although its own "enters
+with five slumber counters" makes it a land. Under that reading, counters an
+entry adds don't change what the look-ahead sees.
+
+The boards where the two readings part:
+
+| Board | The CR's text (the engine) | The ruling's reading |
+|---|---|---|
+| Kaito, Bane of Nightmares cast on your turn beside Oath of Gideon | 4 or 1, in the order his controller picks | 5 |
+| Kaito on your turn under an opponent's Authority of the Consuls | enters tapped | enters untapped |
+| Arixmethes under Master Biomancer | an order: Arixmethes's own effect first makes it a land, and Biomancer no longer applies | Biomancer always applies |
+| +1/+1 counters an entry adds, beside a "power N or less" filter | counted (RE-5's `PowerLE` cell) | not counted, taken consistently |
+
+**The evidence, dated.**
+- The CR baseline (`tmnt`, effective 2026-02-27) still says what it said.
+- Jess Dunks, then rules manager, called the ruling "a really interesting
+  contradiction" on 2024-09-03 and took it to the rules team, saying rules or
+  rulings might need to change.
+- Matt Tabak (WotC) wrote on 2025-03-28 that under 614.12 the game should see
+  Arixmethes enter as a land and behave accordingly.
+- A judges' Discord thread the owner asked (2026-09-29) split three ways: 4-or-1
+  by the text, 5 by the ruling, and a ruling "poorly written" rather than wrong.
+- MTG Arena was reported there to follow the ruling's reading, and not to follow
+  614.12 to the letter elsewhere.
+
+**The decision: the CR's text**, by §3.4b's second rule. Wizards has
+acknowledged the contradiction, and its latest word sides with the text. It is
+also the only reading that keeps the rest of the look-ahead consistent: taken
+at its word, the ruling would stop +1/+1 counters counting toward power in the
+look-ahead, which RE-5's cell relies on and no ruling questions.
+
+**The switch:** the look-ahead's condition check on the entering object's own
+counters (`Condition::SourceHasCounters`, evaluated against the would-be
+permanent). A flip to the ruling's reading would evaluate it against the
+counters the object had before its entry. Arixmethes is not registered. When it
+is, its ruling #2 gets a `// RULING-DEVIATION:` test naming this row.
+
 ---
 
 ## 6. Engine interaction points
