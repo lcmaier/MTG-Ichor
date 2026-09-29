@@ -2140,32 +2140,38 @@ you control are Mutants" would be the Biomancer's row.
 ```rust
 pub struct EnterMods {
     // Enters with: state.
-    pub status: Option<TapStatus>,       // D5; `None` is CR 110.5b's default
+    pub status: Option<TapStatus>,                // D5; `None` is CR 110.5b's default
     pub counters: Vec<EntryCounters>,
-    // Enters as: characteristics, fixed at the entry.
-    pub entered_as: Option<Arc<EnteredAs>>,
+    // Enters as: the characteristics the entry will fix.
+    pub copy: Option<Arc<CopiableValues>>,        // CR 707.5, layer 1a (CV-2a's, unchanged)
+    pub edits: Option<Arc<[CharacteristicEdit]>>, // CR 614.1c, each at its layer (D4)
 }
 
+/// On the permanent, once it has entered: what it entered as.
 pub struct EnteredAs {
-    pub copy: Option<Arc<CopiableValues>>, // CR 707.5, layer 1a (CV-2a)
-    pub edits: Vec<CharacteristicEdit>,    // CR 614.1c, each at its layer (D4)
+    pub copy: Option<Arc<CopiableValues>>,
+    pub edits: Option<Arc<[CharacteristicEdit]>>,
 }
 ```
 
-`PermanentState::entered_as_copy` becomes `entered_as`, of the same type as
-`EnterMods::entered_as`. `Board::entry_copies` becomes `Board::entered_as`.
-Registration reads the abilities of `entered_as.copy` as it reads
-`entered_as_copy`'s today. The field is an `Arc` for #188's and CV-2a's
-reason: the pipeline clones the event every iteration and a fork clones the
-entity, and each is then a count bump.
+**Nothing on the proposal is named in the past tense.** A proposal says what
+the permanent will enter as, so its "as" members are named for what they are:
+`copy`, CV-2a's name, and `edits`. The group is named `entered_as` only on
+`PermanentState`, where the entry has happened: `entered_as_copy` becomes
+`entered_as: EnteredAs`, and `Board::entry_copies` becomes
+`Board::entered_as`. D2's constructor maps the proposal's members onto the
+group, and registration reads `entered_as.copy`'s abilities as it reads
+`entered_as_copy`'s today. `merge` appends `edits` in the order the effects
+applied, which is the order the board applies them in at the entity's
+timestamp, and still asserts it is handed no `copy`.
 
-**The entry copy moves into the shape rather than staying beside it.** Beside
-it, every "enters as" member would be a field on `EnterMods` and on
-`PermanentState`, a line in each builder and a list in the board's seed.
-Inside it, a member is a field of `EnteredAs`, and the seed notes one list.
-The move costs one allocation per copy entry, since the `EnterAsCopy` arm
-writes through `Arc::make_mut` where CV-2a made one `Arc::new`. Clone, the
-one pooled copy, is cast about once a game.
+**The entry copy joins the group rather than staying beside it.** Beside it,
+every "enters as" member would be one more field on `PermanentState` and one
+more list in the board's seed. In the group, a member is a field of
+`EnteredAs`, and the seed notes one list. Both members are `Arc`s, for #188's
+and CV-2a's reason: the pipeline clones the event every iteration and a fork
+clones the entity, and each clone is then a count bump. The `EnterAsCopy` arm
+keeps CV-2a's single `Arc::new`.
 
 **What slots in later, each one field through D2's constructor:** face-down
 (CV-6) on the "with" side, read at 1b; CR 613.2a's copiable "as ... enters"
@@ -2177,7 +2183,7 @@ defense counters ride D7's synthesis with battles (`backlog.md` §2.23).
 
 `PermanentState::entering(game, object, controller, &mods, stamps)` is the
 only function that turns an `EnterMods` into an entity. It writes:
-- the status and `entered_as`;
+- the status, and the proposal's `copy` and `edits` as `entered_as`;
 - the counters, at their CR 613.7c timestamps;
 - CR 400.7d's `cast` and `cost_choices`, and `x_value`, off
   `GameState::resolving` when the object is the resolving spell.
@@ -2231,9 +2237,9 @@ there is nothing to order now.
 | `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
 | `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
 | `counters`, any other kind | with | nothing | none |
-| `entered_as.copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and the ladder never buckets 616.1c with 616.1e |
-| `entered_as.edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
-| `entered_as.edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
+| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and the ladder never buckets 616.1c with 616.1e |
+| `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
+| `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
 | `status` or `counters`, when the entering object has a static ability that changes its own characteristics under a condition on its status or counters | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
 
 No 616.1e member writes the controller (CR 616.1b's step) or ownership, and no
@@ -2476,7 +2482,7 @@ boards, which the helper exists to skip.
 
 | Site | RG |
 |---|---|
-| `types/replacement.rs` | `EnterMods`: `status`, `entered_as`, and `NONE`, `tapped()`, `with_counters()`, `is_none`, `merge`. `EnterModsTemplate`: `status`, `edits`, and `tapped()`, `untapped()`, `with_counter_amount`, `is_fixed`. `TapStatus`, `EnteredAs` |
+| `types/replacement.rs` | `EnterMods`: `status`, `edits`, and `NONE`, `tapped()`, `with_counters()`, `is_none`, `merge`. `EnterModsTemplate`: `status`, `edits`, and `tapped()`, `untapped()`, `with_counter_amount`, `is_fixed`. `TapStatus`, `EnteredAs` |
 | `types/effects.rs` | `CharacteristicEdit`, one arm; `Condition::SourceTapped` and `SourceHasCounters`; `Condition::reads_entry_state` |
 | `state/battlefield.rs` | `entered_as`; `PermanentState::entering` |
 | `state/game_state.rs` | `place_on_battlefield` through the constructor; `ResolvingObject.x_value`; `register_static_effects` reads `entered_as.copy`; the three seed functions deleted; the `ChangeType` lowering lifted out |
