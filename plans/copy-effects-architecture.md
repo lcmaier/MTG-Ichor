@@ -1165,22 +1165,14 @@ pub enum CopyException {
     If(ObjectFilter, Vec<CopyException>),
 }
 
-/// One edit to one characteristic on CR 707.2's list of copiable values.
-pub enum CharacteristicEdit {
-    Name(String),
-    ManaCost(Option<ManaCost>),
-    Colors(ColorChange),   // `Primitive::ChangeColor`'s type
-    Types(TypeChange),     // `Primitive::ChangeType`'s: set, add or remove, per axis
-    GainsAbility(AbilityDef),
-    GainsKeyword(KeywordFlag),
-    PowerToughness(i32, i32),
-    Loyalty(i32),
-}
+// `CharacteristicEdit`, the edit vocabulary, is defined with its two
+// placements in `replacement-architecture.md` §9, Phase RG, D4.
 ```
 
 **One edit vocabulary, placed two ways** (the owner, 2026-09-28, at CV-2a's
-review). The entry-state PR, before this one on `roadmap-v2.md` A6c, builds
-`CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
+review). The entry-state PR (`replacement-architecture.md` §9, Phase RG,
+whose D4 now holds the vocabulary), before this one on `roadmap-v2.md` A6c,
+builds `CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
 in addition to its other types", held as how the permanent entered and applied
 at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
 last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
