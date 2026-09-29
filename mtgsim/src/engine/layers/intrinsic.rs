@@ -26,12 +26,8 @@ use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
 use crate::types::card_types::CardType;
 use crate::types::effects::{CounterType, Effect, ObjectSet};
-use crate::types::ids::{AbilityId, ObjectId};
+use crate::types::ids::{AbilityId, ObjectId, SynthesizedAbility};
 use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
-
-/// The tag `AbilityId::derived_on` gives CR 306.5b's ability. CR 305.6's
-/// abilities use the land types' discriminants, which stay far below it.
-const LOYALTY_TAG: u8 = 0xF0;
 
 /// Put CR 306.5b's ability on `chars`, the frame of `object` at the end of
 /// layer 4, if the object is a planeswalker there.
@@ -46,7 +42,7 @@ pub(super) fn add_intrinsic_entry_abilities(chars: &mut EffectiveCharacteristics
     }
     let loyalty = chars.loyalty.filter(|n| *n > 0).unwrap_or(0) as u32;
     Arc::make_mut(&mut chars.abilities).push(AbilityDef {
-        id: AbilityId::derived_on(object, LOYALTY_TAG),
+        id: AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty),
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(ReplacementDef::new(
@@ -62,5 +58,5 @@ pub(super) fn add_intrinsic_entry_abilities(chars: &mut EffectiveCharacteristics
 
 /// Is `ability` an intrinsic "enters with" ability this module gave `object`?
 pub fn is_intrinsic_entry_ability(ability: &AbilityDef, object: ObjectId) -> bool {
-    ability.id == AbilityId::derived_on(object, LOYALTY_TAG)
+    ability.id == AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty)
 }

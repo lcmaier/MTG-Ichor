@@ -270,7 +270,8 @@ fn artifact_while_untapped() -> Arc<CardData> {
     )
 }
 
-/// The table's last row. The entering creature is an artifact only while
+/// The feeds table's last row (`replacement-architecture.md` §3.5). The
+/// entering creature is an artifact only while
 /// untapped, so "enters tapped" applied first unmatches "artifacts enter with
 /// a charge counter", though no member writes a type: the two orders give a
 /// counter or none, and the controller is asked.
@@ -373,24 +374,44 @@ fn master_biomancer_beside_a_non_mutant_filter_is_an_order() {
     }
 }
 
+/// The Mutant is how the creature entered, not the effect of an ability, so
+/// losing abilities cannot take it. Humility arriving afterwards takes Master
+/// Biomancer's ability away (a Mutant sourced from it as a continuous effect
+/// would end there) and the creature's own, and the creature is still a
+/// Mutant.
+#[test]
+fn a_mutant_stays_one_when_every_ability_is_lost() {
+    let mut game = setup_two_player_game();
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+    let bears = return_asking(&mut game, grizzly_bears(), 0, &[]);
+    assert!(has_subtype(&game, bears, &mutant()));
+
+    put_on_battlefield(&mut game, humility(), 1);
+    assert!(get_effective_abilities(&game, biomancer).is_empty(), "Humility took Biomancer's ability");
+    assert!(has_subtype(&game, bears, &mutant()));
+}
+
 // ---------------------------------------------------------------------------
 // 4. Enters untapped: Archelos, Lagoon Mystic (D5, D6)
 // ---------------------------------------------------------------------------
 
-/// Answers each CR 616.1 prompt from a script of who must be asked and which
-/// candidate they pick. Any other prompt panics, and so does a script left
-/// over, so a test states every order it expects and who owns it.
-struct Orders {
+/// The tests' `DecisionProvider`. It answers CR 616.1's "which replacement
+/// effect applies first" prompt (`ChooseReplacementEffect`) from a script of
+/// (the player who must be asked, the candidate they pick), in order, and
+/// asserts the player. Any other prompt panics, and so does a script left
+/// over when it is dropped, so a test states every order it expects and
+/// whose choice it is.
+struct ScriptedReplacementChoices {
     script: RefCell<VecDeque<(PlayerId, usize)>>,
 }
 
-impl Orders {
+impl ScriptedReplacementChoices {
     fn new(script: &[(PlayerId, usize)]) -> Self {
-        Orders { script: RefCell::new(script.iter().copied().collect()) }
+        ScriptedReplacementChoices { script: RefCell::new(script.iter().copied().collect()) }
     }
 }
 
-impl Drop for Orders {
+impl Drop for ScriptedReplacementChoices {
     fn drop(&mut self) {
         if !std::thread::panicking() {
             assert!(self.script.borrow().is_empty(), "orders never asked: {:?}", self.script.borrow());
@@ -398,7 +419,7 @@ impl Drop for Orders {
     }
 }
 
-impl DecisionProvider for Orders {
+impl DecisionProvider for ScriptedReplacementChoices {
     fn pick_n(&self, _: &GameState, player: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
         assert!(
             matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }),
@@ -426,7 +447,7 @@ impl DecisionProvider for Orders {
 /// `return_to_battlefield` with a provider that checks who is asked.
 fn return_asking(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, orders: &[(PlayerId, usize)]) -> ObjectId {
     let id = put_in_graveyard(game, card, owner);
-    let dp = Orders::new(orders);
+    let dp = ScriptedReplacementChoices::new(orders);
     game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
         .expect("the entry is proposed");
     id
@@ -464,7 +485,7 @@ fn cast_from_pool(
 #[test]
 fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
     let mut game = setup_two_player_game();
-    let dp = ManaWindowStop::new(Orders::new(&[]));
+    let dp = ManaWindowStop::new(ScriptedReplacementChoices::new(&[]));
     let pool = [(ManaType::Black, 1), (ManaType::Green, 1), (ManaType::Blue, 1), (ManaType::Colorless, 1)];
     let archelos = cast_from_pool(&mut game, 0, archelos_lagoon_mystic(), &pool, &dp)
         .expect("Archelos is castable from exactly {1}{B}{G}{U}");
@@ -473,7 +494,7 @@ fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
     assert!(!game.battlefield[&archelos].tapped);
 
     let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
-    game.play_land(0, land, Zone::Hand, &ActionContext::new(&Orders::new(&[(0, 1)]))).unwrap();
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&ScriptedReplacementChoices::new(&[(0, 1)]))).unwrap();
     assert!(!game.battlefield[&land].tapped, "its own ability first, then Archelos");
     let land = return_asking(&mut game, idyllic_beachfront(), 0, &[(0, 0)]);
     assert!(game.battlefield[&land].tapped, "Archelos first, then its own ability");
@@ -509,7 +530,7 @@ fn archelos_does_not_apply_to_what_enters_beside_it() {
         mods: EnterMods::NONE,
         cause: Some(ZoneChangeCause::Returned),
     };
-    let dp = Orders::new(&[]);
+    let dp = ScriptedReplacementChoices::new(&[]);
     game.execute_actions(vec![returned(archelos), returned(land)], &ActionContext::new(&dp))
         .expect("both enter");
     assert!(!game.battlefield[&archelos].tapped);
@@ -518,18 +539,22 @@ fn archelos_does_not_apply_to_what_enters_beside_it() {
 
 // RULING: Archelos, Lagoon Mystic #2 - a permanent simply put onto the battlefield tapped,
 //   with no replacement effect, enters untapped while Archelos is untapped.
-/// Archelos's second ruling, its other half: a permanent an instruction puts
-/// onto the battlefield tapped, with no replacement effect, enters untapped
-/// under an untapped Archelos, because the instruction's word is the
-/// proposal's starting status and every status-setting effect applies over
-/// it. And a tapped Archelos taps whatever enters, any player's.
+/// Archelos's second ruling, its other half: a permanent simply put onto the
+/// battlefield tapped, with no replacement effect applied, always enters
+/// untapped under an untapped Archelos. An instruction's "tapped" (a token
+/// created tapped here, or a land a spell puts onto the battlefield tapped)
+/// is not a replacement effect: it is the spell saying otherwise (CR 110.5b)
+/// about the event it performs, where a replacement effect watches for an
+/// event and modifies it (CR 614.1). So it is the proposal's starting status,
+/// nothing is ordered, and Archelos's effect applies over it. And a tapped
+/// Archelos taps whatever enters, any player's.
 // COVERS: ATOM-110.5b-003
 #[test]
 fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped() {
     let mut game = setup_two_player_game();
     let archelos = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
     let tapped_token = TokenDef { enters_tapped: true, ..soldier_token() };
-    let dp = Orders::new(&[]);
+    let dp = ScriptedReplacementChoices::new(&[]);
     game.execute_actions(vec![GameAction::CreateTokens { defs: vec![tapped_token], controller: 1 }], &ActionContext::new(&dp))
         .expect("the creation performs");
     let token = *game.battlefield_ids_ordered().last().expect("the token entered");
@@ -627,8 +652,13 @@ fn has_intrinsic_entry_ability(game: &GameState, id: ObjectId) -> bool {
     get_effective_abilities(game, id).iter().any(|a| is_intrinsic_entry_ability(a, id))
 }
 
-/// A planeswalker has CR 306.5b's ability on its frame; a Kaito that is a
-/// creature, with a counter on it, is no planeswalker and has none.
+/// CR 306.5b gives its ability to a planeswalker, and the frame decides which
+/// objects are. Loyalty Probe's frame has it. Kaito enters as a planeswalker,
+/// since with no loyalty counters his static ability does not apply, and gets
+/// his printed 4 from it. Once he has counters, during his controller's turn,
+/// he is a creature and stops being a planeswalker (his seventh ruling), and
+/// his frame no longer has it: the fact that makes Oath of Gideon first a
+/// real order in the next test.
 // COVERS-PARTIAL: ATOM-306.5b-001
 #[test]
 fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
@@ -644,11 +674,19 @@ fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
 }
 
 /// `codebase-state.md` main item 186's printed board: Kaito cast from hand in
-/// its controller's main phase beside Oath of Gideon. It would enter with no
-/// counters, so it is a planeswalker and both apply, and its type hangs on
-/// its counters (the feeds table's last row), so its controller orders them.
-/// CR 306.5b first gives 4 and makes it a creature, so Oath no longer
-/// applies; Oath first gives 1, and CR 306.5b no longer exists.
+/// his controller's main phase beside Oath of Gideon. Before either effect
+/// applies, the entering Kaito has no loyalty counters, so he is a
+/// planeswalker as CR 614.12 sees him, and both apply. His type hangs on his
+/// counters (the feeds table's last row), so his controller is asked which
+/// goes first. Whichever does puts counters on him, which makes him a
+/// creature and no planeswalker (his seventh ruling), and CR 616.1f re-checks
+/// the other:
+/// - CR 306.5b first: 4 counters, and Oath, which names planeswalkers, no
+///   longer applies. He enters with 4.
+/// - Oath first: 1 counter, and he is no planeswalker, so he no longer has
+///   CR 306.5b's ability. He enters with 1.
+///
+/// He never enters with none, and never with 5.
 // COVERS-PARTIAL: ATOM-616.1-001
 #[test]
 fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
@@ -656,10 +694,10 @@ fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
         let mut game = setup_two_player_game();
         put_on_battlefield(&mut game, oath_of_gideon_shaped(), 0);
         let pool = [(ManaType::Blue, 1), (ManaType::Black, 1), (ManaType::Colorless, 2)];
-        let kaito = cast_from_pool(&mut game, 0, kaito_shaped(), &pool, &ManaWindowStop::new(Orders::new(&[])))
+        let kaito = cast_from_pool(&mut game, 0, kaito_shaped(), &pool, &ManaWindowStop::new(ScriptedReplacementChoices::new(&[])))
             .expect("castable from exactly {2}{U}{B}");
         assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool was the cost");
-        game.resolve_top_of_stack(&ManaWindowStop::new(Orders::new(&[(0, pick)]))).expect("it resolves");
+        game.resolve_top_of_stack(&ManaWindowStop::new(ScriptedReplacementChoices::new(&[(0, pick)]))).expect("it resolves");
 
         assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), loyalty);
         assert_eq!(get_effective_types(&game, kaito), CardTypes::from([CardType::Creature]));
@@ -682,7 +720,7 @@ fn humility_takes_the_loyalty_ability_from_a_planeswalker_creature() {
     put_on_battlefield(&mut game, humility(), 1);
     let walker = return_asking(&mut game, planeswalker_creature(), 0, &[]);
     assert_eq!(game.battlefield[&walker].counter_count(CounterType::Loyalty), 0);
-    game.check_state_based_actions(&Orders::new(&[])).expect("SBAs");
+    game.check_state_based_actions(&ScriptedReplacementChoices::new(&[])).expect("SBAs");
     assert_eq!(game.objects[&walker].zone, Zone::Graveyard);
 }
 

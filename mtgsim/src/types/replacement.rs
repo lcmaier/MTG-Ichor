@@ -720,7 +720,7 @@ impl EventPattern {
     /// **It lives here rather than beside its caller** because it is a property
     /// of one arm, answerable from that arm's own definition — so the question
     /// is in front of whoever writes the next arm. The contrast is
-    /// `pipeline::BucketWrites`, which stays at its caller because it
+    /// `pipeline::EntryWrites`, which stays at its caller because it
     /// classifies an `ObjectFilter` against what an entry's members write: a
     /// relation between two types, and so a fact about neither.
     /// (`replacement-architecture.md` §11 item 58 is why the rule was worth

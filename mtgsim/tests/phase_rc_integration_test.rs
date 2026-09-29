@@ -767,7 +767,7 @@ fn test_two_commuting_entry_replacements_do_not_ask() {
 /// touch different fields of `EnterMods`, so this is the accumulation case
 /// (CR 616.1f) rather than the commuting one above, and since RC-4 it is not a
 /// prompt either: both are `EnterWith`s over filters no member's write can
-/// unmatch (`pipeline::BucketWrites`).
+/// unmatch (`pipeline::EntryWrites`).
 #[test]
 fn test_root_maze_and_chainbreaker_modify_one_entry_together() {
     let mut game = setup_two_player_game();

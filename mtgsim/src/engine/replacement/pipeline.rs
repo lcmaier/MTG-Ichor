@@ -142,7 +142,7 @@ struct Candidate {
 
 /// The amount a proposal carries, for a rider that refers to it (CR 615.5).
 ///
-/// **Matched exhaustively, with no `_` arm**, for `BucketWrites::unmatches`'
+/// **Matched exhaustively, with no `_` arm**, for `EntryWrites::unmatches`'
 /// reason: a `GameAction` variant added later has to be classified rather than
 /// defaulting to "no amount". The failure a fallthrough would cause is quiet at
 /// the point it happens and loud in the wrong place — `AmountExpr::ReplacedAmount`
@@ -890,7 +890,7 @@ fn next_damage_shares(
 /// arm, the pattern's kind and [`EventPattern::reads_the_amount`], a
 /// template's kinds, status and edits and whether its amounts read the frame
 /// (`EnterModsTemplate::is_fixed`), and the affected set against what the
-/// bucket writes ([`BucketWrites`], the feeds table of
+/// bucket writes ([`EntryWrites`], the feeds table of
 /// `replacement-architecture.md` §3.5). Plus two reads, for an entry
 /// only: which kinds its mods hold now ([`kinds_present`]), and whether the
 /// entering object's own characteristics hang on its status or counters,
@@ -919,7 +919,7 @@ fn next_damage_shares(
 /// - *Mods-adding*: an `EnterWith` writes kinds, a status and edits that only
 ///   add, and reads none — fixed amounts, or a source that is not the
 ///   entering object (the frame it would read, §5b) — over a set no member's
-///   write can unmatch ([`BucketWrites::can_unmatch`]). Two merge in either
+///   write can unmatch ([`EntryWrites::can_unmatch`]). Two merge in either
 ///   order unless they set opposite statuses, where the one applied last
 ///   wins (re-gather); beside a multiplier it commutes only on disjoint
 ///   kinds, since doubling before or after the write differs.
@@ -941,9 +941,9 @@ fn next_damage_shares(
 ///
 /// **Expiry conditions**, each a compile error somewhere (`codebase-state.md`
 /// item 47): a new `EnterModsTemplate` field breaks `is_fixed` and
-/// [`BucketWrites::of`]; a new `CharacteristicEdit` arm breaks
-/// `CharacteristicEdit::adds` and [`BucketWrites::of`]; a new `ObjectFilter`
-/// leaf breaks [`BucketWrites::unmatches`]; a new `Condition` leaf breaks
+/// [`EntryWrites::of_candidates`]; a new `CharacteristicEdit` arm breaks
+/// `CharacteristicEdit::adds` and [`EntryWrites::of_candidates`]; a new `ObjectFilter`
+/// leaf breaks [`EntryWrites::unmatches`]; a new `Condition` leaf breaks
 /// `Condition::reads_entry_state`; a new
 /// `EventPattern::EnterBattlefield` field breaks `pattern_watches`' entry arm;
 /// a new pattern arm breaks [`EventPattern::reads_the_amount`]; a new template
@@ -966,9 +966,9 @@ fn ordering_cannot_change_outcome(
     }
     let writes = match event {
         GameAction::EnterBattlefield { .. } => {
-            BucketWrites::of(choosable, entering.and_then(|id| frame.frame_of(id)))
+            EntryWrites::of_candidates(choosable, entering.and_then(|id| frame.frame_of(id)))
         }
-        _ => BucketWrites::default(),
+        _ => EntryWrites::default(),
     };
     let Some(classes) = choosable
         .iter()
@@ -983,17 +983,30 @@ fn ordering_cannot_change_outcome(
         && !counters_invite_a_multiplier(game, ctx, applied, choosable, event)
 }
 
-/// The feeds table's premise (d): an effect that becomes applicable only once
-/// the entry carries counters (CR 616.2) — a doubler — multiplies what is
-/// there when it applies, so two members that each write kinds it multiplies
-/// are an order: whichever applies first is the one it can reach before the
-/// other writes. Adaptive Shimmerer's 3 and Master Biomancer's 2 under
-/// Doubling Season end at 7, 8 or 10.
+/// The feeds table's premise (d): can the order of two counter-writing
+/// members change what a multiplier then does?
 ///
-/// Asked by gathering once more, against the entry with every counter-writing
-/// member's rows in it, and only for a bucket with two such members. A plus
-/// is left out: it adds its one amount once whenever it applies, so no
-/// member's order moves it.
+/// A multiplier applies to an entry only once the entry carries counters of a
+/// kind it watches (CR 616.2: it becomes applicable after a member applies),
+/// and it multiplies what is there at that moment. Adaptive Shimmerer ("enters
+/// with three +1/+1 counters") entering under Master Biomancer (+2) beside
+/// Doubling Season:
+/// - Shimmerer first (3), then Doubling Season (6), then Biomancer: 8. Or
+///   Biomancer (5), then Doubling Season: 10.
+/// - Biomancer first (2), then Doubling Season (4), then Shimmerer: 7. Or
+///   Shimmerer (5), then Doubling Season: 10.
+///
+/// The two members commute with each other (3 + 2 is 2 + 3), which is all
+/// [`commutes`] can see, but 8 is reachable only if Shimmerer goes first, so
+/// the first choice has to be asked.
+///
+/// The check, only for a bucket with two or more counter-writing members:
+/// build the entry as it would stand after all of them (one counter of each
+/// kind they write, put on by whoever each names, CR 122.6a), gather against
+/// it, and look for a multiplier (an `Amount` rewrite other than a plus, not
+/// a member, not yet applied) whose pattern watches kinds that at least two
+/// members write. A plus is left out: it adds its one amount once whenever
+/// it applies, so no member's order moves it.
 fn counters_invite_a_multiplier(
     game: &GameState,
     ctx: &ActionContext,
@@ -1131,7 +1144,7 @@ fn classify<'a>(
     instance: &'a ReplacementInstance,
     entering: Option<ObjectId>,
     event: &GameAction,
-    writes: &BucketWrites,
+    writes: &EntryWrites,
 ) -> Option<Commuting<'a>> {
     let def = &instance.def;
     let on_entry = matches!(event, GameAction::EnterBattlefield { .. });
@@ -1385,19 +1398,19 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
     kind.is_none_or(|k| k.matches(def))
 }
 
-/// What the members of one entry bucket can write on the entering object:
-/// the feeds table of `replacement-architecture.md` §3.5, read for
-/// one bucket, and the question the premise's part (a) asks of it — can a
-/// write make a member stop applying? One that makes a member *start*
-/// applying is CR 616.2's case, a candidate on the next iteration and no
-/// order now.
+/// What the members of a bucket over an entry (glossary: **bucket**, sense 2)
+/// can write on the entering object: the feeds table of
+/// `replacement-architecture.md` §3.5, read for those members, and the
+/// question premise (a) asks of it — can a write make a member stop
+/// applying? One that makes a member *start* applying is CR 616.2's case, a
+/// candidate on the next iteration and no order now.
 ///
 /// The union over every member, a member's own writes included: the
 /// conservative direction, since no member unmatches itself by applying.
 /// `EnterMods::copy` feeds everything and has no row, because its one writer
-/// is CR 616.1c's step, which the ladder never buckets with these.
+/// is CR 616.1c's step, which never shares a bucket with these.
 #[derive(Debug, Default)]
-struct BucketWrites {
+struct EntryWrites {
     /// +1/+1 counters: power up (CR 122.1a).
     raises_power: bool,
     /// -1/-1 counters: power down.
@@ -1413,9 +1426,12 @@ struct BucketWrites {
     feeds_all: bool,
 }
 
-impl BucketWrites {
-    fn of(choosable: &[Candidate], entering: Option<&EffectiveCharacteristics>) -> Self {
-        let mut writes = BucketWrites::default();
+impl EntryWrites {
+    /// Classify each candidate's rewrite by what it writes on the entering
+    /// object, and take the union. `entering` is that object's frame, read
+    /// for the table's last row.
+    fn of_candidates(choosable: &[Candidate], entering: Option<&EffectiveCharacteristics>) -> Self {
+        let mut writes = EntryWrites::default();
         let mut writes_state = false;
         for candidate in choosable {
             let def = &candidate.instance.def;
@@ -1425,17 +1441,17 @@ impl BucketWrites {
                     let EnterModsTemplate { status, counters, edits } = template;
                     writes_state |= status.is_some() || !counters.is_empty();
                     for row in counters {
-                        writes.counter(row.counter);
+                        writes.add_counter_kind(row.counter);
                     }
                     for edit in edits {
-                        writes.edit(edit);
+                        writes.add_edit(edit);
                     }
                 }
                 // Devour's counters, one kind per chosen object.
                 Rewrite::EnterAfterMoving(aux) => {
                     if let Some((counter, _)) = aux.per_chosen {
                         writes_state = true;
-                        writes.counter(counter);
+                        writes.add_counter_kind(counter);
                     }
                 }
                 // A doubler or a plus at an entry writes more of what it watches.
@@ -1446,7 +1462,7 @@ impl BucketWrites {
                             writes.raises_power = true;
                             writes.lowers_power = true;
                         }
-                        Kinds::These(kinds) => kinds.into_iter().for_each(|k| writes.counter(k)),
+                        Kinds::These(kinds) => kinds.into_iter().for_each(|k| writes.add_counter_kind(k)),
                     }
                 }
                 // CR 616.1b's and 616.1c's own steps, and rewrites that write
@@ -1464,7 +1480,8 @@ impl BucketWrites {
         writes
     }
 
-    fn counter(&mut self, counter: CounterType) {
+    /// What a counter of this kind feeds: power, or nothing a filter reads.
+    fn add_counter_kind(&mut self, counter: CounterType) {
         match counter {
             CounterType::PlusOnePlusOne => self.raises_power = true,
             CounterType::MinusOneMinusOne => self.lowers_power = true,
@@ -1474,7 +1491,8 @@ impl BucketWrites {
         }
     }
 
-    fn edit(&mut self, edit: &CharacteristicEdit) {
+    /// What an edit adds, or that it writes a whole axis.
+    fn add_edit(&mut self, edit: &CharacteristicEdit) {
         if !edit.adds() {
             self.feeds_all = true;
             return;

@@ -53,11 +53,12 @@ use crate::engine::layers::compute::{
 };
 use crate::engine::layers::lookahead::Lookahead;
 use crate::engine::layers::types::*;
-use crate::state::battlefield::PermanentState;
+use crate::state::battlefield::{EnteredAs, PermanentState};
 use crate::state::game_state::GameState;
 use crate::types::card_types::Subtype;
 use crate::types::effects::{
-    AmountExpr, Condition, CounterType, Effect, ObjectFilter, PlayerFact, PlayerRef, Selector,
+    AmountExpr, CharacteristicEdit, Condition, CounterType, Effect, ObjectFilter, PlayerFact, PlayerRef,
+    Selector,
 };
 use crate::types::ids::{AbilityId, IdMap, IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
@@ -112,10 +113,12 @@ pub(super) struct Board<'l> {
     /// it applied them (`layers-architecture.md` §13e decision 1). Empty when
     /// nothing is left out.
     notes: Vec<RowNote>,
-    /// What the members that entered as something entered as (CR 614.1c), in
-    /// walk order: the applications that come from state rather than a row.
-    /// Noted by the seed off the entity it already reads, so a board with
-    /// none pays for an empty list.
+    /// Each member's `PermanentState::entered_as`, in walk order: the copy
+    /// and the edits its entry fixed (CR 614.1c), which apply from state
+    /// rather than a row. The look-ahead's member is past tense too, since
+    /// CR 614.12 asks about it as it would exist on the battlefield. Noted by
+    /// the seed off the entity it already reads, so a board with none pays
+    /// for an empty list.
     entered_as: Vec<EnteredAsNote>,
 }
 
@@ -126,6 +129,19 @@ struct EnteredAsNote {
     object: ObjectId,
     copy: Option<Arc<crate::engine::layers::copy::CopiableValues>>,
     edits: Vec<(Layer, EffectModification)>,
+}
+
+impl EnteredAsNote {
+    /// `object`'s note. An edit can make several modifications (a `Types`
+    /// edit one per axis it changes), so each is lowered here, once a pass.
+    fn new(object: ObjectId, entered_as: &EnteredAs) -> EnteredAsNote {
+        let edits = entered_as.edits.as_deref().unwrap_or_default();
+        EnteredAsNote {
+            object,
+            copy: entered_as.copy.clone(),
+            edits: edits.iter().flat_map(CharacteristicEdit::modifications).collect(),
+        }
+    }
 }
 
 /// What a pass noted about one row as it applied it, for the cards it leaves
@@ -299,13 +315,8 @@ impl<'l> Board<'l> {
             // entering object — and from CR 108.4's other arms otherwise.
             let (controller, since) = match board.entity(game, id) {
                 Some(entity) => {
-                    let entered_as = &entity.entered_as;
-                    if !entered_as.is_empty() {
-                        board.entered_as.push(EnteredAsNote {
-                            object: id,
-                            copy: entered_as.copy.clone(),
-                            edits: entered_as.edits.iter().flat_map(|e| e.iter()).flat_map(|e| e.modifications()).collect(),
-                        });
+                    if !entity.entered_as.is_empty() {
+                        board.entered_as.push(EnteredAsNote::new(id, &entity.entered_as));
                     }
                     (entity.controller, entity.controller_since_turn)
                 }
@@ -516,11 +527,14 @@ enum Kind<'a> {
     Own { object: ObjectId, cda: Option<AbilityId>, modification: EffectModification },
 }
 
-/// The last component of the sort key — process-independent, every arm
-/// (CLAUDE.md, determinism). Rows and counters never share a timestamp
-/// (both come from one counter), so only the first two arms ever decide a
-/// tie: an object's several CDA modifications, and one object's several
-/// effects.
+/// The last component of the sort key: the order of applications that share
+/// a timestamp. Where the CR orders them, the arm order is the CR's: a
+/// member's own static rows before what it entered as, the order CR 613.7n
+/// gives the like case. Elsewhere it is only a total order, process-independent
+/// in every arm (`CLAUDE.md`, determinism). Rows and counters never share a
+/// timestamp (both come from one counter), so the ties it decides are an
+/// object's several CDA modifications, one object's several effects, and a
+/// member's rows beside what it entered as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Tiebreak {
     /// Member index in walk order, then the modification's index in the
@@ -537,8 +551,8 @@ enum Tiebreak {
     /// timestamp, so it never decides a tie.
     EntryCopy,
     /// An edit a member entered as (CR 614.1c), by its place among the
-    /// member's edits. At the member's own timestamp, so it sorts after the
-    /// member's own static rows there (CR 613.7n).
+    /// member's edits, which is the order their effects applied. At the
+    /// member's own timestamp, and after the member's own static rows there.
     EntryEdit(usize),
 }
 
@@ -942,22 +956,12 @@ fn applications_in_layer<'a, 'l: 'a>(
     // (CR 707.5) is that copy from layer 1a on, so a copy effect registered
     // later applies over it and gives it back when it ends (CR 707.4). Each
     // edit applies at its own layer, after the member's own static rows at
-    // that timestamp, as CR 613.7n orders an effect that sets an entering
-    // permanent's characteristics (CR 611.2e). A snapshot and an edit read
-    // nothing, so neither depends on anything (CR 613.8a).
+    // that timestamp: the order CR 613.7n gives the like case of a resolving
+    // effect that sets an entering permanent's characteristics (CR 611.2e).
+    // A snapshot and an edit read nothing, so neither depends on anything
+    // (CR 613.8a).
     for note in &board.entered_as {
-        let copy = note
-            .copy
-            .as_ref()
-            .filter(|_| layer == Layer::Layer1Copy)
-            .map(|values| (EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy));
-        let edits = note
-            .edits
-            .iter()
-            .enumerate()
-            .filter(|(_, (at, _))| *at == layer)
-            .map(|(i, (_, modification))| (modification.clone(), Tiebreak::EntryEdit(i)));
-        for (modification, tiebreak) in copy.into_iter().chain(edits) {
+        let mut own = |modification: EffectModification, tiebreak: Tiebreak| {
             let writes = writes_of(&modification);
             apps.push(Application {
                 kind: Kind::Own { object: note.object, cda: None, modification },
@@ -966,6 +970,14 @@ fn applications_in_layer<'a, 'l: 'a>(
                 reads: Reads::default(),
                 writes,
             });
+        };
+        if layer == Layer::Layer1Copy && let Some(values) = &note.copy {
+            own(EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy);
+        }
+        for (i, (at, modification)) in note.edits.iter().enumerate() {
+            if *at == layer {
+                own(modification.clone(), Tiebreak::EntryEdit(i));
+            }
         }
     }
 

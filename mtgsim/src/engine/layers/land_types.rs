@@ -49,7 +49,7 @@ use crate::objects::card_data::{AbilityDef, AbilityType};
 use crate::types::card_types::{CardType, LandType, Subtype};
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
-use crate::types::ids::{AbilityId, ObjectId};
+use crate::types::ids::{AbilityId, ObjectId, SynthesizedAbility};
 use crate::types::mana::ManaType;
 
 /// The mana type a basic land type intrinsically produces (CR 305.6).
@@ -81,9 +81,15 @@ fn intrinsic_mana_type(land_type: LandType) -> Option<ManaType> {
 /// ability *on an object* uses the pair — see
 /// `mana_helpers::enumerate_activatable_mana_abilities` and `EffectOrigin::StaticAbility`.
 fn intrinsic_ability_id(object_id: ObjectId, land_type: LandType) -> AbilityId {
-    // The discriminant is tag enough: only the five basic types reach here,
-    // and the object id supplies the uniqueness.
-    AbilityId::derived_on(object_id, land_type as u8)
+    let ability = match land_type {
+        LandType::Plains => SynthesizedAbility::PlainsMana,
+        LandType::Island => SynthesizedAbility::IslandMana,
+        LandType::Swamp => SynthesizedAbility::SwampMana,
+        LandType::Mountain => SynthesizedAbility::MountainMana,
+        LandType::Forest => SynthesizedAbility::ForestMana,
+        other => unreachable!("CR 305.6 gives a mana ability to the five basic land types, and not to {other:?}"),
+    };
+    AbilityId::derived_on(object_id, ability)
 }
 
 /// Build the intrinsic `{T}: Add X` mana ability a land gets from `land_type`

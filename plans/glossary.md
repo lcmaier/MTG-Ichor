@@ -382,10 +382,17 @@ the rider — §3.2d, corrected twice.
 after the performed event, never mid-loop, and are unconditional once queued
 (CR 615.12).
 
-**bucket** — a recipient slot in an `allocate` decision: one blocker in a
-damage assignment, one color in a generic mana payment, one member across which
-a 615.7 shield's remaining amount is split. The CR never uses the word, which is
-why it was retired from the choice ladder — see **step**.
+**bucket** — **(1)** a recipient slot in an `allocate` decision: one blocker in
+a damage assignment, one color in a generic mana payment, one member across
+which a 615.7 shield's remaining amount is split. **(2)** The replacement effects
+one **step** of CR 616.1's ladder offers together, among which the affected
+object's controller or the affected player chooses: RE-5's "a bucket of
+commuting multipliers", and what `ordering_cannot_change_outcome` asks about,
+whether their order can matter. A bucket over an entry is the effects offered
+for an entering object, and `EntryWrites` is what they can write on it. The
+CR never uses the word; its ladder's rungs are steps, and a bucket is what one
+step offers. A note here once said the word was retired from the ladder; the
+code kept it, so it is defined instead.
 
 **acid test** — the one board in a phase whose failure mode is a **hang or a
 crash rather than a wrong number**, written first and named in full so it cannot
@@ -403,6 +410,15 @@ per `layer_epoch` under a descending layer **ceiling**; and `EntryFrame`, CR
 614.12's look-ahead — the object *as it would exist* on the battlefield, built
 at most once per pipeline iteration. → `engine/layers/board.rs`,
 `engine/replacement/lookahead.rs`.
+
+**entity** — a permanent's state on the battlefield, `PermanentState`: what the
+battlefield map holds for an object there. Its controller, tapped status,
+counters, timestamp and `entered_as`, everything that belongs to the permanent
+rather than to its characteristics, which are its **frame**. The *would-be
+entity* is the one the CR 614.12 look-ahead builds for an object still
+entering. `PermanentState::entering` builds both, so the look-ahead cannot
+predict a permanent the performer would not place
+(`replacement-architecture.md` §3.5).
 
 ## The layer system (CR 613)
 
