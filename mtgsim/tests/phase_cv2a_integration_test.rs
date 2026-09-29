@@ -875,8 +875,8 @@ fn worms_of_the_earth_refuses_a_clone_of_dryad_arbor() {
 // ---------------------------------------------------------------------------
 
 /// The replacement gate: a Clone of an opponent's Master Biomancer gives the
-/// next creature its controller's entering two +1/+1 counters. The Mutant
-/// clause is unbuilt (`backlog.md` §2.30).
+/// next creature its controller's entering two +1/+1 counters, and makes it
+/// a Mutant.
 #[test]
 fn a_clone_of_master_biomancer_modifies_the_next_entry() {
     let mut game = setup_two_player_game();
@@ -885,6 +885,7 @@ fn a_clone_of_master_biomancer_modifies_the_next_entry() {
     let bears = enter(&mut game, grizzly_bears(), 0, &ById::new());
 
     assert_eq!(counters(&game, bears, CounterType::PlusOnePlusOne), 2);
+    assert!(has_subtype(&game, bears, &Subtype::Creature(CreatureType::Mutant)));
 }
 
 /// The restriction gate: a Clone of an opponent's Sigarda keeps that

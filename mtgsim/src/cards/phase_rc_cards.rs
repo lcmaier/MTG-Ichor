@@ -66,8 +66,8 @@ use crate::types::card_types::{CardType, CreatureType, LandType, Subtype};
 use crate::types::colors::Color;
 use crate::types::costs::Cost;
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
-    PlayerRef, Primitive, SelectionFilter, Selector, TargetCount,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Duration, Effect, EffectRecipient,
+    ObjectFilter, PlayerRef, Primitive, SelectionFilter, Selector, TargetCount, TypeChange,
 };
 use crate::types::ids::AbilityId;
 use crate::types::keywords::KeywordFlag;
@@ -801,38 +801,17 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 /// (CR 614.12's parenthesis). Two Biomancers entering as one event give each
 /// other nothing for the same reason, which is §5b's other worked example.
 ///
-/// # What is missing, and it is deliberate
+/// # The Mutant is what the creature enters as
 ///
-/// The "**and as a Mutant in addition to its other types**" clause is not
-/// implemented, and it is not the one field it looks like. Two costs, and the
-/// second is the larger:
-///
-/// 1. **It breaks `ordering_cannot_change_outcome`'s last premise for the most
-///    common filter leaves.** That predicate suppresses CR 616.1's ordering
-///    prompt when no member's applicability can depend on what another member
-///    adds — §11 item 19's rule that the engine must not ask a question whose
-///    answer cannot matter. `filter_is_mods_invariant` decides that leaf by
-///    leaf, and `ByType`/`BySubtype` are invariant today *only because no
-///    `EnterMods` field feeds a type*. Give one a `types` field and a
-///    "creatures you control enter tapped" beside a Biomancer becomes
-///    order-dependent — apply Biomancer first and the permanent is a Mutant
-///    when the tapper's filter looks, apply the tapper first and it is not —
-///    so the predicate has to return `false` for the two leaves nearly every
-///    filter is built from, and the prompt comes back on boards that have not
-///    prompted since RC-4. `codebase-state.md` item 47 lists this as expiry
-///    condition (a) and RC-5 fired condition (d); this would be the one that
-///    costs something.
-/// 2. **The type has to persist after the entry, and there is nowhere for it
-///    to live.** CR 613.1d puts a type addition in Layer 4, and the Biomancer's
-///    is not a continuous effect of the Biomancer — the ruling is that the
-///    creature stays a Mutant even after the Biomancer leaves. So it is a Layer
-///    4 modification with no source-scoped duration and no registry row, which
-///    is a shape `ContinuousEffectRegistry` does not have.
-///
-/// **So "replacement effects" are not done, and this is one of the two places
-/// that says so** — the other is Sutured Ghoul's CR 614.14-linked P/T. Both are
-/// recorded in `codebase-state.md` (items 59 and 60) rather than left as a
-/// footnote here. The counters clause is what RC-5 is for, and it is complete.
+/// "As a Mutant in addition to its other types" is CR 614.1c's other half: not
+/// state the creature enters with, like the counters, but a characteristic
+/// its entry fixes (`replacement-architecture.md` Phase RG, D1 and D4). It is
+/// a `CharacteristicEdit` on the same template, and the creature carries it
+/// as `PermanentState::entered_as`, applied at layer 4 at the creature's own
+/// timestamp: a later Layer 4 effect applies over it, it is not copied
+/// (CR 707.2's last sentence), and it stays after the Biomancer leaves, since
+/// it is how the creature entered and not the Biomancer's effect. The card's
+/// one ruling is about the counters, so that duration is CR 614.1c's.
 ///
 /// # In `PERFORMANCE_POOL`
 ///
@@ -866,10 +845,13 @@ pub fn master_biomancer() -> Arc<CardData> {
                         Box::new(ObjectFilter::ByType(CardType::Creature)),
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     )),
-                Rewrite::EnterWith(EnterModsTemplate::with_counter_amount(
-                    CounterType::PlusOnePlusOne,
-                    AmountExpr::SourcePower,
-                )),
+                Rewrite::EnterWith(EnterModsTemplate {
+                    edits: vec![CharacteristicEdit::Types(TypeChange {
+                        add_subtypes: vec![Subtype::Creature(CreatureType::Mutant)],
+                        ..TypeChange::NONE
+                    })],
+                    ..EnterModsTemplate::with_counter_amount(CounterType::PlusOnePlusOne, AmountExpr::SourcePower)
+                }),
             ))),
         })
         .build()

@@ -11,21 +11,29 @@
 //! 2. **The feeds table** (D3). CR 616.1's order is asked exactly where one
 //!    member's write can make another stop applying, or where two members set
 //!    opposite statuses, and nowhere else.
+//! 3. **Master Biomancer's Mutant** (D4). The first `CharacteristicEdit`: at
+//!    layer 4 at the creature's timestamp, not copied, and kept after the
+//!    Biomancer leaves.
 //!
 //! Fixtures are built inline, named for the printed card whose board they
 //! stand in for, and never registered.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::cards::keyword_creatures::wall_of_stone;
+use mtgsim::cards::phase_rc_cards::master_biomancer;
 use mtgsim::engine::actions::{ActionContext, ZoneChangeCause};
-use mtgsim::engine::layers::compute_as_entering;
+use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
+use mtgsim::engine::layers::{compute_as_entering, copiable_values};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::oracle::characteristics::has_subtype;
+use mtgsim::oracle::characteristics::{get_effective_name, has_subtype};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, put_in_graveyard, put_on_battlefield, setup_two_player_game, static_ability,
+    creature_with_ability, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game,
+    static_ability, test_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
@@ -260,5 +268,90 @@ fn a_status_write_is_an_order_where_the_entering_permanents_type_hangs_on_its_st
         let entry = &game.battlefield[&id];
         assert!(entry.tapped);
         assert_eq!(entry.counter_count(CounterType::Charge), charged);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Master Biomancer's Mutant (D4)
+// ---------------------------------------------------------------------------
+
+/// "Each other creature you control enters with ... and as a Mutant in
+/// addition to its other types." The Mutant is how the creature entered, so
+/// it outlives the Biomancer, whose effect it never was. The counters are its
+/// power as the creature enters (its one ruling).
+// COVERS: ATOM-614.1c-001
+#[test]
+fn a_creature_entering_under_master_biomancer_stays_a_mutant_after_it_leaves() {
+    let mut game = setup_two_player_game();
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
+    assert!(has_subtype(&game, bears, &mutant()));
+
+    game.change_zone(biomancer, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+    assert!(has_subtype(&game, bears, &mutant()), "how it entered, not the Biomancer's effect");
+}
+
+/// The Mutant applies at layer 4 at the creature's own timestamp (CR 613.7),
+/// so an effect that sets creature types with an earlier timestamp applies
+/// under it, and one with a later timestamp over it (CR 205.1a).
+// COVERS-PARTIAL: ATOM-614.1c-001
+#[test]
+fn a_later_layer_4_effect_applies_over_the_mutant_and_an_earlier_one_under_it() {
+    let slivers = |game: &mut GameState, source: ObjectId| {
+        let timestamp = game.allocate_timestamp();
+        let set = EffectModification::SetSubtypes(HashSet::from([Subtype::Creature(CreatureType::Sliver)]));
+        game.continuous_effects.add(ContinuousEffect {
+            affected_objects: ObjectSet::battlefield_filter(creatures()),
+            ..registered(source, Layer::Layer4Type, timestamp, set)
+        });
+    };
+    let sliver = Subtype::Creature(CreatureType::Sliver);
+
+    let mut game = setup_two_player_game();
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+    slivers(&mut game, biomancer);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    assert!(has_subtype(&game, bears, &sliver) && has_subtype(&game, bears, &mutant()), "earlier: under it");
+
+    let mut game = setup_two_player_game();
+    let biomancer = put_on_battlefield(&mut game, master_biomancer(), 0);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    slivers(&mut game, biomancer);
+    assert!(has_subtype(&game, bears, &sliver) && !has_subtype(&game, bears, &mutant()), "later: over it");
+}
+
+/// The Mutant is not a copiable value (CR 707.2's last sentence), so a copy
+/// of the creature is not a Mutant; and a copy effect over the creature
+/// replaces its copiable values and leaves the Mutant, which is not one.
+#[test]
+fn the_mutant_is_not_copied_and_a_copy_effect_over_it_leaves_it() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, master_biomancer(), 0);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    let values = copiable_values(&game, bears).expect("the bears are on the battlefield");
+    assert!(!values.subtypes.contains(&mutant()), "a Clone of it would not be a Mutant");
+
+    let wall = put_on_battlefield(&mut game, wall_of_stone(), 1);
+    let cytoshape_row = EffectModification::CopyFrom(Arc::new(copiable_values(&game, wall).unwrap()));
+    let timestamp = game.allocate_timestamp();
+    game.continuous_effects.add(registered(bears, Layer::Layer1Copy, timestamp, cytoshape_row));
+    assert_eq!(get_effective_name(&game, bears), "Wall of Stone");
+    assert!(has_subtype(&game, bears, &mutant()), "the copy replaced the copiable values, and the Mutant is not one");
+}
+
+/// D3's example on the printed card: beside "non-Mutant creatures enter
+/// tapped", Master Biomancer applied first unmatches the tapper, so the
+/// entering creature's controller is asked.
+#[test]
+fn master_biomancer_beside_a_non_mutant_filter_is_an_order() {
+    let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
+    for (pick, tapped) in [(0, false), (1, true)] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, master_biomancer(), 0);
+        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
+        assert_eq!(game.battlefield[&bears].tapped, tapped);
     }
 }

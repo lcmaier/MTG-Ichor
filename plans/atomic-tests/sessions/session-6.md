@@ -1169,6 +1169,19 @@ Replacement effects watch for events and replace them. Introduces the concept. S
 
 > **Audit note:** All ETB "clone" permanents (Clone, Clever Impersonator, etc.) use "as enters" and are therefore replacement effects per this rule. This is important for copy effect ordering in 616.1c — copy replacements have third priority in the replacement ordering system.
 
+**ATOM-614.1c-001**
+- **Rule:** 614.1c — "[This permanent] enters as . . ." is a replacement effect, and what the permanent enters as is a characteristic it keeps
+- **Mechanism:** An "enters as" edit is part of how the permanent entered: applied at its own layer at the permanent's timestamp, ended by no source leaving, and not copiable (707.2's last sentence)
+- **Minimal Board:** Master Biomancer on the battlefield ("Each other creature you control enters ... as a Mutant in addition to its other types"). A creature card in your graveyard.
+- **Action:** The creature is returned to the battlefield under your control; then Master Biomancer leaves the battlefield.
+- **Expected Result:** The creature is a Mutant as it enters, and still a Mutant after Master Biomancer has left.
+- **Phase:** Phase 6 (Replacement effects)
+- **Ticket:** RG — `replacement-architecture.md` Phase RG, D4
+
+> **Filed 2026-09-28 (RG).** `backlog.md` §2.30 recorded that the corpus had
+> no atom for the type half of 614.1c; the entry-state PR that builds it files
+> this one.
+
 ### 614.1d — BOUNDARY-DEF
 
 "[This permanent] enters..." and "[Objects] enter [the battlefield]..." continuous effects are replacement effects.
