@@ -76,11 +76,17 @@ game runs on identically but for the one prompt.
 **Two moves nobody predicted, both cost.**
 - **`Dependency checks` in `performance`.** A probe on both arms counted every
   hypothetical. All 662 extra ones on the callgrind board are Urborg against
-  Blood Moon (149 → 811), and none involves an entry edit. A Mutant edit is a
-  layer-4 application with no reads. So when Urborg, first by key, waits on
-  Blood Moon, a Mutant that sorts between them is the earliest ready
-  application and applies. CR 613.8c's re-evaluation then re-runs Urborg's
-  hypothetical, once more per such Mutant in every pass.
+  Blood Moon (149 → 811), and none involves an entry edit. The Mutant has no
+  rules interaction with either card: the cost is in how the engine orders
+  one layer. Layer 4 holds every type-changing application on the board at
+  once, Urborg's, Blood Moon's and each Mutant's, and CR 613.8 orders them in
+  one loop that picks the earliest ready application, applies it, and
+  re-decides every dependency from scratch (CR 613.8c's re-evaluation, with
+  nothing remembered). Urborg depends on Blood Moon, so it waits. A Mutant
+  whose creature's timestamp falls between theirs depends on nothing, so it
+  is the earliest ready application and applies first. Then the loop
+  re-decides, and re-running "does Urborg depend on Blood Moon?" is a
+  hypothetical walk. One more per such Mutant, in every pass.
 - **Instructions, +2.62 points against +0.3 predicted: 0.12 over §3.1's
   budget.** By callgrind's inclusive rows, `main` → engine, of +301 M:
   - `add_intrinsic_entry_abilities`, 0 → 124 M (about 1.1 points). The
@@ -90,11 +96,33 @@ game runs on identically but for the one prompt.
   - `depends_on`, +152 M (about 1.3 points): the hypotheticals above.
   - The rest, about 0.2 points, is the entry notes and the pipeline's table.
 
-  Two levers would take the arm back under, neither in RG's scope: the
-  frame's types as a bitset (`hash_one::<&CardType>` is already 5.5% of
-  `main`'s instructions on this board), and `next_ready` keeping its graph
-  across an application whose writes no pending read meets. **The reviewer
-  decides** (§3.1).
+  Two levers would take the arm back under: the frame's types as a bitset,
+  and `next_ready` keeping its graph across an application whose writes no
+  pending read meets. The reviewer chose the first (below).
+
+**The review (2026-09-29): the frame's types as a bitset.** CardType's
+SipHash rows summed to about 2.0 of `main`'s 11.5 billion instructions on the
+callgrind board, the 5.5% this block first quoted being one of its rows.
+`close_out.py`, `main` (`d18b098`) against two measurement-only commits:
+**bitset** (`747beee`, the bitset commit alone on `main`) and **engine**
+(`39ff3d7`, the bitset on RG's engine arm, `7f5ed44`).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, bitset vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: `Replacement prompts` (game 153, as above) |
+| instructions / decision, bitset vs `main` (`prof_arm.sh`, same board) | | 0.8675 M → 0.7472 M, **−13.87%** |
+| instructions / decision, engine vs `main` (`close_out.py --cpu engine`) | | 0.8675 M → 0.7585 M, **−12.56%** |
+
+The bitset arm matches `main` on every counter, cost rows included. RG's own
+cost over the bitset is 0.7472 M → 0.7585 M, +1.51 points: the CR 306.5b
+test is a mask now, and what is left is mostly the dependency hypotheticals.
+
+The review's other changes (`9668538`: the names, `EnteredAsNote::new`, the
+tag enum, one `TypeChange` lowering), against the bitset commit (`507100d`),
+both shipped: every gameplay row **IDENTICAL** on both pools at two seats and
+four, no cost row moved, and instructions per decision 0.6388 M → 0.6384 M,
+−0.06%.
 
 **The shipped arm is a pool change and is not budgeted.** In 200 traced
 two-seat `performance` games, Archelos is a candidate in 260 pipeline

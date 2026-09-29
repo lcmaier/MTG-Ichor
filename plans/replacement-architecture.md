@@ -788,8 +788,11 @@ It differs in two ways, both because replacement effects are not layered:
   `EnterMods::copy`) and characteristic edits (CR 614.1c, `EnterMods::edits`).
   On the permanent they are `PermanentState::entered_as`. The board pass
   applies each at the permanent's timestamp at its own layer, after the
-  permanent's own static rows at that timestamp (CR 613.7n), with no
-  registry row, and each leaves with the permanent (CR 400.7).
+  permanent's own static rows at that timestamp (the order CR 613.7n gives
+  the like case of a resolving effect, CR 611.2e), with no registry row, and
+  each leaves with the permanent (CR 400.7). No ability of the permanent's
+  makes it, so losing every ability leaves it: a Mutant under Humility stays
+  a Mutant.
 
 **What decides the carrier is when a change is made, never who made it**
 (CV-2a's D1). Master Biomancer's Mutant is made as the creature enters, so it
@@ -848,7 +851,7 @@ a leaf from matching to not matters.
 | `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
 | `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
 | `counters`, any other kind | with | nothing | none |
-| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and the ladder never buckets 616.1c with 616.1e |
+| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and 616.1c's step never shares a bucket with 616.1e's |
 | `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
 | `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
 | `status` or `counters`, when the entering object has a static that changes its own characteristics under a condition on its status or counters (`Condition::reads_entry_state`) | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
@@ -2182,11 +2185,13 @@ CR 616.1 orders it (the Kaito board, cast from hand) and Layer 6 removes it
 (the Humility board); the helpers' seed and CV-2a's counter rebuild went.
 +1,760 / −468 in code and tests.
 
-**The engine arm reads +2.62 points of instructions per decision, 0.12 over
-`engineering-practices.md` §3.1's budget**, attributed in `fuzz-record.md`'s
-RG block. CR 306.5b's type test is a SipHash on every frame of every pass.
-Each Mutant that sorts between Urborg and Blood Moon re-runs Urborg's
-dependency hypothetical (CR 613.8c). The reviewer decides.
+**The engine arm read +2.62 points of instructions per decision, 0.12 over
+`engineering-practices.md` §3.1's budget.** CR 306.5b's type test was a SipHash
+on every frame of every pass, and each Mutant that sorts between Urborg and
+Blood Moon re-runs Urborg's dependency hypothetical (CR 613.8c). At the review
+the frame's types became a bitset (`CardTypes`), which takes `main` 13.9%
+lower on its own. RG with it reads −12.56% against `main`, RG's own cost over
+the bitset +1.5 points (`fuzz-record.md`, RG's block).
 
 **Decided at the close: no trace page.** CR 306.5b's loyalty is an iteration
 of the same CR 616.1 loop, over the same source-1a gather as a printed "enters

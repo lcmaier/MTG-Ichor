@@ -2740,7 +2740,8 @@ measurement; what follows is what a later phase has to know.
     field.~~ — ✅ CLOSED 2026-09-28 (RG).** — archived. The Mutant is a
     `CharacteristicEdit` the creature enters as, kept in
     `PermanentState::entered_as` and applied at layer 4 at its timestamp
-    (`replacement-architecture.md` §3.5).
+    (`replacement-architecture.md` §3.5). It is no ability's effect, so a
+    Mutant that loses every ability, Biomancer's included, stays one.
     **Reachability (2026-09-28):** closed — RG.
     Full entry: `plans/archive/codebase-state-closed.md`, "Item 60".
 
@@ -8588,3 +8589,54 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      (`roadmap-v2.md` B6), whose face-down status is the first status the
      walk reads by design and needs the same bump when a permanent turns face
      up; or with the first registered card of the shape, if one comes first.
+
+### Found by RG's review (2026-09-29)
+
+188. **Two roads to one state: code that builds one state, or performs one
+     change, in two places that can drift apart.** RG gave the entering
+     permanent one constructor, `PermanentState::entering`, for the performer
+     and the CR 614.12 look-ahead, and the owner asked where else the shape
+     is. A read-only survey at the review named ten candidates. Two are
+     confirmed by reading:
+     - **CR 514.3a's repeated cleanup step skips half of CR 514.2.** The
+       first cleanup step runs `on_step_begin(Cleanup)` (`engine/turns.rs`):
+       damage removal, the "until end of turn" expiry in all three
+       registries, and CR 800.4c's check. The repeated one, in `Game::run_turn`
+       (`state/game.rs`), calls `begin_step`, which proposes the step and runs
+       no turn-based action, and then `perform_cleanup_actions`, which removes
+       damage and discards. So an "until end of turn" effect created in the
+       CR 514.3a priority window lasts into the next turn.
+     - **`Primitive::ChangeType` was lowered in two places.** Fixed at the
+       review: `resolve.rs` calls `TypeChange::modifications`.
+
+     Eight more are candidates, each to be confirmed:
+     - static-ability rows built in four places (`register_static_effects`,
+       `would_be_rows`, `register_copied_static_effects`,
+       `register_granted_static_effects`), only the first gated on CR 113.6's
+       zone, while `would_be_rows` predicts row ids by counting what it emits;
+     - "is this ability a restriction?" answered three ways, one of which does
+       not look inside a `Conditional`;
+     - the mana sources listed (`available_mana_sources`) narrower than what
+       `resolve_mana_effect` activates;
+     - cast timing written twice (`passes_timing_check`,
+       `check_cast_legality`), and land-play timing twice (`playable_lands`,
+       `play_land`);
+     - `ColorChange` lowered in three places;
+     - attack legality written twice (`legal_attackers`,
+       `validate_attackers`);
+     - a stack ability's removal written by hand at six sites;
+     - `AmountExpr::SourcePower` answered two ways for an object with no
+       power: none in `settled_amount`, zero in `evaluate_enter_template`.
+
+     **Reachability (2026-09-29):** reachable — wrong today, unobserved: the
+     cleanup half needs an "until end of turn" effect created in the window,
+     and registered instants make one (Giant Growth, Cytoshape). A probe on the
+     shipped build counted 8 repeated cleanup steps in four 200-game runs, both
+     pools at two seats and four, and none left an effect behind.
+
+     **Sized:** the cleanup fix is about 15 lines and a fixture: the repeated
+     step runs the same CR 514.2 routine as the first. The candidates are
+     unsized until each is confirmed. **Slotted:** the cleanup fix as its own
+     PR, offered for right after RG; the rest is `roadmap-v2.md` A6h's, the
+     end-of-phase docs audit, beside item 185's inventory of elisions, which is
+     the same kind of list.

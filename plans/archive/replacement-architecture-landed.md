@@ -1842,6 +1842,29 @@ Mutant's layer-4 application, through CR 613.8c's re-evaluation of Urborg
 against Blood Moon. Archelos is reached in 56% of two-seat and 52% of
 four-seat games, and asks CR 616.1's order 24 times in 200 two-seat games.
 
+##### The review (2026-09-29)
+
+- **The frame's types became a bitset.** `EffectiveCharacteristics.types` was a
+  `HashSet<CardType>` under std's SipHash, which A4g's id hasher never
+  covered. `CardTypes` is a `u16` with `HashSet`'s method signatures. On its
+  own it takes `main` from 0.8675M to 0.7472M instructions per decision,
+  −13.9%, identical on every counter. RG with it reads −12.56% against `main`.
+- **One lowering for `TypeChange`.** `resolve.rs` still lowered
+  `Primitive::ChangeType` by hand beside `TypeChange::modifications`, which RG
+  had called the one lowering. It calls it now. The review's survey of such
+  pairs is `codebase-state.md` item 188.
+- **The synthesized ability's tag is an enum.** `SynthesizedAbility` names the
+  abilities the CR gives an object (CR 305.6's five mana abilities, CR
+  306.5b's loyalty) and is the low byte of their derived id, replacing
+  intrinsic.rs's `0xF0`.
+- **Names.** `BucketWrites` became `EntryWrites`, and its constructor
+  `of_candidates`; the tests' provider became `ScriptedReplacementChoices`.
+  The glossary gained **entity** and a second sense of **bucket**, the one
+  the code had kept using.
+- **A test for the owner's question.** A Mutant stays a Mutant under
+  Humility, which takes Master Biomancer's ability: a Mutant sourced from
+  Biomancer as a continuous effect would have ended there.
+
 #### RD-1 — the damage event's two subjects and its results — ✅ landed 2026-09-08
 
 *Evicted 2026-09-11 from `plans/replacement-architecture.md`, where the heading and a stub remain.*
