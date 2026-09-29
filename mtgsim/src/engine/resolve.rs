@@ -972,7 +972,7 @@ impl GameState {
 
                 // Types: set takes priority over add/remove
                 if let Some(ref set_types) = type_change.set_types {
-                    modifications.push(crate::engine::layers::EffectModification::SetTypes(set_types.clone()));
+                    modifications.push(crate::engine::layers::EffectModification::SetTypes(*set_types));
                 } else {
                     for t in &type_change.add_types {
                         modifications.push(crate::engine::layers::EffectModification::AddType(*t));

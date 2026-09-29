@@ -51,7 +51,7 @@ use mtgsim::test_support::{
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_game,
     setup_two_player_game, static_ability, test_ctx,
 };
-use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
+use mtgsim::types::card_types::{CardType, CardTypes, CreatureType, Subtype, Supertype};
 use mtgsim::types::effects::{
     AmountExpr, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
     ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
@@ -577,7 +577,7 @@ fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
 fn kaito_shaped() -> Arc<CardData> {
     let with_counters = Condition::SourceHasCounters { counter: CounterType::Loyalty, at_least: 1 };
     let ninja_creature = TypeChange {
-        set_types: Some(HashSet::from([CardType::Creature])),
+        set_types: Some(CardTypes::from([CardType::Creature])),
         add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],
         ..TypeChange::NONE
     };
@@ -639,7 +639,7 @@ fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
 
     let kaito = put_on_battlefield(&mut game, kaito_shaped(), 0);
     assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), 4, "it entered a planeswalker");
-    assert_eq!(get_effective_types(&game, kaito), HashSet::from([CardType::Creature]));
+    assert_eq!(get_effective_types(&game, kaito), CardTypes::from([CardType::Creature]));
     assert!(!has_intrinsic_entry_ability(&game, kaito));
 }
 
@@ -662,7 +662,7 @@ fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
         game.resolve_top_of_stack(&ManaWindowStop::new(Orders::new(&[(0, pick)]))).expect("it resolves");
 
         assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), loyalty);
-        assert_eq!(get_effective_types(&game, kaito), HashSet::from([CardType::Creature]));
+        assert_eq!(get_effective_types(&game, kaito), CardTypes::from([CardType::Creature]));
         assert_eq!((get_effective_power(&game, kaito), get_effective_toughness(&game, kaito)), (Some(3), Some(4)));
     }
 }

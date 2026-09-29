@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use super::colors::Color;
-use crate::types::card_types::{CardType, CreatureType, Subtype};
+use crate::types::card_types::{CardType, CardTypes, CreatureType, Subtype};
 use crate::types::ids::ObjectId;
 
 /// Types of mana that can exist in a mana pool
@@ -392,13 +392,13 @@ pub struct SpendContext<'a> {
 pub enum SpendPurpose<'a> {
     /// Casting a spell. Provides the spell's characteristics for restriction checks.
     CastSpell {
-        card_types: &'a HashSet<CardType>,
+        card_types: &'a CardTypes,
         subtypes: &'a HashSet<Subtype>,
         name: &'a str,
     },
     /// Activating an ability on a permanent.
     ActivateAbility {
-        source_card_types: &'a HashSet<CardType>,
+        source_card_types: &'a CardTypes,
         source_subtypes: &'a HashSet<Subtype>,
     },
     /// Paying a special action cost (e.g., morph). No restrictions typically apply.
@@ -1115,8 +1115,8 @@ mod tests {
 
     fn creature_spend_ctx() -> SpendContext<'static> {
         use std::sync::LazyLock;
-        static TYPES: LazyLock<HashSet<CardType>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
+            let mut s = CardTypes::new();
             s.insert(CardType::Creature);
             s
         });
@@ -1136,8 +1136,8 @@ mod tests {
 
     fn instant_spend_ctx() -> SpendContext<'static> {
         use std::sync::LazyLock;
-        static TYPES: LazyLock<HashSet<CardType>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
+            let mut s = CardTypes::new();
             s.insert(CardType::Instant);
             s
         });
@@ -1465,8 +1465,8 @@ mod tests {
         assert_eq!(pool.amount_for(ManaType::Colorless, &instant_ctx), 0);
 
         // Artifact ability activation: matches second branch
-        static ART_TYPES: LazyLock<HashSet<CardType>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static ART_TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
+            let mut s = CardTypes::new();
             s.insert(CardType::Artifact);
             s
         });
@@ -1496,8 +1496,8 @@ mod tests {
         pool.add_special(atom);
 
         // Elf creature spell: matches
-        static ELF_TYPES: LazyLock<HashSet<CardType>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static ELF_TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
+            let mut s = CardTypes::new();
             s.insert(CardType::Creature);
             s
         });
@@ -1540,8 +1540,8 @@ mod tests {
         pool.add_special(atom);
 
         // Changeling creature: has ALL creature types including Elf
-        static CHANGELING_TYPES: LazyLock<HashSet<CardType>> = LazyLock::new(|| {
-            let mut s = HashSet::new();
+        static CHANGELING_TYPES: LazyLock<CardTypes> = LazyLock::new(|| {
+            let mut s = CardTypes::new();
             s.insert(CardType::Creature);
             s
         });

@@ -1206,7 +1206,7 @@ pub struct TypeChange {
     pub add_types: Vec<crate::types::card_types::CardType>,
     pub remove_types: Vec<crate::types::card_types::CardType>,
     /// If Some, replaces all card types with this set (ignores add_types/remove_types).
-    pub set_types: Option<std::collections::HashSet<crate::types::card_types::CardType>>,
+    pub set_types: Option<crate::types::card_types::CardTypes>,
     pub add_subtypes: Vec<crate::types::card_types::Subtype>,
     pub remove_subtypes: Vec<crate::types::card_types::Subtype>,
     /// If Some, replaces all subtypes with this set (ignores add_subtypes/remove_subtypes).
@@ -1239,7 +1239,7 @@ impl TypeChange {
         use crate::engine::layers::types::EffectModification;
         let mut mods = Vec::new();
         match &self.set_types {
-            Some(set) => mods.push(EffectModification::SetTypes(set.clone())),
+            Some(set) => mods.push(EffectModification::SetTypes(*set)),
             None => {
                 mods.extend(self.add_types.iter().map(|t| EffectModification::AddType(*t)));
                 mods.extend(self.remove_types.iter().map(|t| EffectModification::RemoveType(*t)));

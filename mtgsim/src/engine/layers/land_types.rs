@@ -218,7 +218,7 @@ mod tests {
     /// Minimal land frame with one printed mana ability, for exercising the
     /// 305.6/305.7 helpers directly without building a whole GameState.
     fn land_frame(printed_subtypes: &[LandType]) -> EffectiveCharacteristics {
-        let mut types = HashSet::new();
+        let mut types = crate::types::card_types::CardTypes::new();
         types.insert(CardType::Land);
         let mut subtypes = HashSet::new();
         for lt in printed_subtypes {

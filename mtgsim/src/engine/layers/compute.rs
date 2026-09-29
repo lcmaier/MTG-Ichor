@@ -56,7 +56,7 @@ pub(super) fn seed_frame(card: &CardData, controller: PlayerId, control_since_tu
         name: card.name.clone(),
         mana_cost: card.mana_cost.clone(),
         colors: card.colors.clone(),
-        types: card.types.clone(),
+        types: card.types,
         subtypes: card.subtypes.clone(),
         supertypes: card.supertypes.clone(),
         keyword_flags: card.keyword_flags.clone(),
@@ -881,8 +881,7 @@ pub(super) fn evaluate_amount(
         // still two types.
         AmountExpr::CardTypesAmong(selector) => match selector {
             Selector::CardsInGraveyard(None) => {
-                let mut types: std::collections::HashSet<crate::types::card_types::CardType> =
-                    std::collections::HashSet::new();
+                let mut types = crate::types::card_types::CardTypes::new();
                 for player in &game.players {
                     for card_id in &player.graveyard {
                         if let Some(card) = board.frame_of(game, *card_id, layer_index) {
@@ -1140,7 +1139,7 @@ pub(super) fn apply_resolved(resolved: &Resolved<'_>, chars: &mut EffectiveChara
         // Layer 4
         EffectModification::AddType(t) => { chars.types.insert(*t); }
         EffectModification::RemoveType(t) => { chars.types.remove(t); }
-        EffectModification::SetTypes(types) => { chars.types = types.clone(); }
+        EffectModification::SetTypes(types) => { chars.types = *types; }
         // CR 305.6/305.7 land semantics live in `land_types` — see the module
         // docs there for why this is not a Layer 6 concern.
         EffectModification::AddSubtype(s) => {

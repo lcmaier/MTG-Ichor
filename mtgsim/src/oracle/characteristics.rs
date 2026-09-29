@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute::{compute_characteristics, no_row_reaches};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardType, Subtype, Supertype};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Supertype};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 
@@ -170,9 +170,9 @@ pub fn get_effective_colors(game: &GameState, id: ObjectId) -> std::collections:
 
 /// Get the effective card types of a game object after applying Layer 4 effects.
 /// Routes through the layer system — accounts for type-changing effects.
-pub fn get_effective_types(game: &GameState, id: ObjectId) -> HashSet<CardType> {
+pub fn get_effective_types(game: &GameState, id: ObjectId) -> CardTypes {
     compute_characteristics(game, id)
-        .map(|chars| chars.types.clone())
+        .map(|chars| chars.types)
         .unwrap_or_default()
 }
 

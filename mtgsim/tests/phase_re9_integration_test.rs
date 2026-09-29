@@ -42,7 +42,7 @@ use mtgsim::test_support::{
     forest, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield,
     setup_two_player_game, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::{CardType, Subtype};
+use mtgsim::types::card_types::{CardType, CardTypes, Subtype};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
     AmountExpr, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet, PlayerSet,
@@ -291,7 +291,7 @@ fn pool(game: &GameState, player: PlayerId, mana_type: ManaType) -> u64 {
 /// How much `mana_type` the player could spend on a spell of `card_type`,
 /// restricted units included.
 fn spendable_on(game: &GameState, player: PlayerId, mana_type: ManaType, card_type: CardType) -> u64 {
-    let types: HashSet<CardType> = [card_type].into_iter().collect();
+    let types: CardTypes = [card_type].into_iter().collect();
     let subtypes: HashSet<Subtype> = HashSet::new();
     let ctx = SpendContext {
         purpose: SpendPurpose::CastSpell { card_types: &types, subtypes: &subtypes, name: "Fixture" },

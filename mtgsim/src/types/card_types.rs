@@ -57,6 +57,137 @@ impl CardType {
     }
 }
 
+/// A set of card types (CR 205.2a), one bit per [`CardType::slot`]: what a
+/// card and a frame carry. A type test is a mask rather than a SipHash, and
+/// the set is `Copy`, so cloning a frame allocates nothing for it.
+///
+/// A hand-rolled bitmask like [`crate::types::zones::ZoneSet`], with
+/// `HashSet`'s method signatures, so a caller reads as it did when this was
+/// one. Iteration is in slot order.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct CardTypes(u16);
+
+const _: () = assert!(CardType::COUNT <= u16::BITS as usize);
+
+/// Every type, in slot order: what [`CardTypes::iter`] hands out references
+/// into, so they outlive the set.
+static EVERY_CARD_TYPE: [CardType; CardType::COUNT] = CardType::ALL;
+
+impl CardTypes {
+    pub const fn new() -> CardTypes {
+        CardTypes(0)
+    }
+
+    const fn bit(card_type: CardType) -> u16 {
+        1 << card_type.slot()
+    }
+
+    pub fn contains(&self, card_type: &CardType) -> bool {
+        self.0 & CardTypes::bit(*card_type) != 0
+    }
+
+    /// Adds `card_type`, answering whether it was absent.
+    pub fn insert(&mut self, card_type: CardType) -> bool {
+        let absent = !self.contains(&card_type);
+        self.0 |= CardTypes::bit(card_type);
+        absent
+    }
+
+    /// Removes `card_type`, answering whether it was present.
+    pub fn remove(&mut self, card_type: &CardType) -> bool {
+        let present = self.contains(card_type);
+        self.0 &= !CardTypes::bit(*card_type);
+        present
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0 == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.count_ones() as usize
+    }
+
+    pub fn clear(&mut self) {
+        self.0 = 0;
+    }
+
+    pub fn retain(&mut self, mut keep: impl FnMut(&CardType) -> bool) {
+        for card_type in (CardTypesIter { bits: self.0, next: 0 }) {
+            if !keep(card_type) {
+                self.remove(card_type);
+            }
+        }
+    }
+
+    pub fn iter(&self) -> CardTypesIter {
+        CardTypesIter { bits: self.0, next: 0 }
+    }
+}
+
+/// [`CardTypes::iter`]: each type in the set, in slot order.
+pub struct CardTypesIter {
+    bits: u16,
+    next: usize,
+}
+
+impl Iterator for CardTypesIter {
+    type Item = &'static CardType;
+
+    fn next(&mut self) -> Option<&'static CardType> {
+        while let Some(card_type) = EVERY_CARD_TYPE.get(self.next) {
+            self.next += 1;
+            if self.bits & CardTypes::bit(*card_type) != 0 {
+                return Some(card_type);
+            }
+        }
+        None
+    }
+}
+
+impl IntoIterator for &CardTypes {
+    type Item = &'static CardType;
+    type IntoIter = CardTypesIter;
+
+    fn into_iter(self) -> CardTypesIter {
+        self.iter()
+    }
+}
+
+impl FromIterator<CardType> for CardTypes {
+    fn from_iter<I: IntoIterator<Item = CardType>>(types: I) -> CardTypes {
+        let mut set = CardTypes::new();
+        set.extend(types);
+        set
+    }
+}
+
+impl Extend<CardType> for CardTypes {
+    fn extend<I: IntoIterator<Item = CardType>>(&mut self, types: I) {
+        for card_type in types {
+            self.insert(card_type);
+        }
+    }
+}
+
+impl<'a> Extend<&'a CardType> for CardTypes {
+    fn extend<I: IntoIterator<Item = &'a CardType>>(&mut self, types: I) {
+        self.extend(types.into_iter().copied());
+    }
+}
+
+impl<const N: usize> From<[CardType; N]> for CardTypes {
+    fn from(types: [CardType; N]) -> CardTypes {
+        types.into_iter().collect()
+    }
+}
+
+impl std::fmt::Debug for CardTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
+    }
+}
+
 /// Supertypes (rule 205.4)
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Supertype {
