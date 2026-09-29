@@ -2486,6 +2486,46 @@ neither.
 | **Atoms** | none filed |
 | **Owner** | the entry-state PR, `roadmap-v2.md` A6c (the owner, 2026-09-28, at CV-2a's review); found at CV-2's design review the same day |
 
+### 2.41 Cards cast with alternative characteristics: Adventure, Prototype, Omen (CR 715, 718, 720)
+
+**The surface that cannot express it.** Three printed mechanics give one card
+a second set of characteristics that it uses depending on how it was cast:
+- an Adventure (CR 715) and an Omen (CR 720) are a whole second spell;
+- a prototyped spell (CR 718, 702.160) has a second power, toughness and mana
+  cost, which the permanent keeps.
+
+The engine has one set of characteristics per card, read off `CardData`, and
+no record of how a card was cast that the layer walk can read. The rules they
+share are what make this one entry rather than three:
+- **Casting** checks only the alternative set (715.3a, 718.3a, 720.3a).
+- **On the stack** the spell has only that set (715.3b, 720.3b); a prototyped
+  spell *and the permanent it becomes* keep its P/T and mana cost, and its
+  colors follow that cost (718.3b).
+- **Copying:** the alternative set's existence and values are copiable values
+  (715.2b, 718.2a, 720.2b), and a copy of such a spell or permanent is one too
+  (715.3c, 718.3c–d, 720.3c). That makes it a copy-track facility, which
+  `copy-effects-architecture.md` §7c's `CopiableValues` has to be able to
+  hold.
+- **Leaving the stack:** each has its own destination. An Adventure is exiled
+  and may be cast later from exile, but not as an Adventure (715.3d); an Omen
+  is shuffled into its owner's library (720.3d). A prototype has none.
+- **Counting:** "has an Adventure" and "has an Omen" find the card wherever
+  it is (715.2a, 720.2a), and each card is one card, not two (715.2c, 720.2c).
+
+Found at RG's review (2026-09-29), when the owner asked whether this was
+already planned: it was not. The spec corpus holds 33 atoms under CR 715, 718,
+720 and 702.160, ticketed only with the archived plan's labels, and no live doc
+named them.
+
+| Field | |
+|---|---|
+| **Rules** | CR 715 (Adventurer cards), 718 and 702.160 (Prototype), 720 (Omen cards); CR 707.2 and 707.9's copiable values |
+| **Verdict** | `CardData` carries one set of characteristics. Nothing records which set a spell was cast with, and `CopiableValues` has nowhere to put a second set |
+| **Size** | unsized: a design first, against the copy track's shapes, then about a PR per mechanic, casting path included |
+| **Blocks** | about 150 Adventure cards (Scryfall, 2026-09-29: `is:adventure game:paper -is:funny` returns 151, `t:adventure` returns 138), 19 Prototype (`keyword:prototype`), and 13 Omen (`t:omen`) |
+| **Atoms** | 33 in the corpus (CR 715, 718, 720, 702.160) |
+| **Owner** | the copy track: filed with CV-2b (the owner, 2026-09-29), sized and slotted among `roadmap-v2.md` B6's copy phases at the docs audit (A6h) |
+
 ## 3. Dispositioned — sections that need no entry of their own
 
 The triage ran in two passes over `orphaned --bucket unbuilt`'s 63 sections.
