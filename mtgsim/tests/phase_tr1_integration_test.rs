@@ -744,7 +744,7 @@ fn entering_tapped_is_not_becoming_tapped() {
         0,
     );
     let bear = put_in_hand(&mut game, grizzly_bears(), 0);
-    let mods = EnterMods { tapped: true, ..EnterMods::NONE };
+    let mods = EnterMods::tapped();
     game.execute_action(
         GameAction::EnterBattlefield {
             object: bear,

@@ -46,7 +46,7 @@ pub enum Layer {
     /// **1b, face-down** — in that order (`copy-effects-architecture.md` §5.4).
     /// Only 1a has producers: `EffectModification::CopyFrom` rows from
     /// `Primitive::Copy`, and the copy a permanent entered as
-    /// (`PermanentState::entered_as_copy`), applied from its state at its own
+    /// (`PermanentState::entered_as`), applied from its state at its own
     /// timestamp. CV-6 splits the slot when face-down arrives, and
     /// `layers::copy::END_OF_LAYER_1` is what the split has to move.
     Layer1Copy,

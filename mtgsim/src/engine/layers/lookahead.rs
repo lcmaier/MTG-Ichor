@@ -31,10 +31,9 @@ use crate::types::replacement::EnterMods;
 /// with it. Nothing here is written back anywhere.
 pub struct Lookahead {
     pub object: ObjectId,
-    /// The entity `place_on_battlefield` would build: the proposed controller,
-    /// CR 302.6's clock started this turn, and CR 122.6a's counters and the
-    /// copy it would enter as (CR 707.5) from the pending `EnterMods` —
-    /// CR 614.12 clause (1).
+    /// The entity `place_on_battlefield` would build, from the one
+    /// constructor both call (`PermanentState::entering`), out of the pending
+    /// `EnterMods` — CR 614.12 clause (1).
     pub(super) entity: PermanentState,
     /// The CR 613.7d timestamp the object *would* receive on entering the
     /// battlefield — `next_timestamp` read without advancing it.
@@ -57,19 +56,13 @@ impl Lookahead {
     /// `object` as it would exist on the battlefield under `controller`, having
     /// entered with `mods`.
     pub fn new(game: &GameState, object: ObjectId, controller: PlayerId, mods: &EnterMods) -> Self {
-        // Timestamps as `place_on_battlefield` would allocate them — the
-        // entity's, then one per counter kind in `mods` order — read off
-        // `next_timestamp` without advancing it. Only the order matters: later
-        // than every registered row, which is where CR 613.7a puts an object's
-        // own static-ability effects and CR 613.7c its counters.
+        // Timestamps as the move and `place_on_battlefield` would allocate
+        // them — the entity's, then one per counter row in `mods` order — read
+        // off `next_timestamp` without advancing it. Only the order matters:
+        // later than every registered row, which is where CR 613.7a puts an
+        // object's own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
-        let mut entity = PermanentState::new(object, controller, game.turn_number);
-        entity.timestamp = entity_timestamp;
-        entity.tapped = mods.tapped;
-        entity.entered_as_copy = mods.copy.clone();
-        for (next, row) in (entity_timestamp + 1..).zip(&mods.counters) {
-            entity.add_counters(row.counter, row.n, next);
-        }
+        let entity = PermanentState::entering(game, object, controller, mods, entity_timestamp, entity_timestamp + 1);
 
         let rows = would_be_rows(game, object, controller, entity_timestamp, mods);
         let summary = RegistryScopeSummary::of(&rows);
@@ -180,4 +173,75 @@ pub fn compute_as_entering(
         )
     });
     Some(frame)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::Lookahead;
+    use crate::cards::creatures::grizzly_bears;
+    use crate::engine::layers::copiable_values;
+    use crate::state::battlefield::{CastFacts, CostChoices};
+    use crate::state::game_state::ResolvingObject;
+    use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+    use crate::types::card_types::{CreatureType, Subtype};
+    use crate::types::costs::AdditionalCost;
+    use crate::types::effects::{CharacteristicEdit, CounterType, TypeChange};
+    use crate::types::mana::ManaSpent;
+    use crate::types::replacement::{EnterMods, EntryCounters, TapStatus};
+    use crate::types::zones::Zone;
+
+    /// Replacement-architecture Phase RG's D2, field by field: the permanent
+    /// the frame predicts is the one the performer places, for every field
+    /// the proposal or the resolving spell supplies, timestamps included.
+    #[test]
+    fn the_look_ahead_predicts_the_permanent_the_performer_places() {
+        let mut game = setup_two_player_game();
+        let donor = put_on_battlefield(&mut game, grizzly_bears(), 1);
+        let card = put_in_hand(&mut game, grizzly_bears(), 0);
+        let mutant = CharacteristicEdit::Types(TypeChange {
+            add_subtypes: vec![Subtype::Creature(CreatureType::Mutant)],
+            ..TypeChange::NONE
+        });
+        let mods = EnterMods {
+            status: Some(TapStatus::Tapped),
+            counters: vec![
+                EntryCounters { counter: CounterType::PlusOnePlusOne, n: 2, by: None },
+                EntryCounters { counter: CounterType::Charge, n: 1, by: Some(1) },
+            ],
+            copy: Some(Arc::new(copiable_values(&game, donor).expect("the donor is on the battlefield"))),
+            edits: Some(Arc::from(vec![mutant])),
+        };
+        game.resolving = Some(ResolvingObject {
+            id: card,
+            default_controller: 0,
+            cast: Some(CastFacts { by: 0, from: Zone::Hand, mana_spent: ManaSpent::NONE }),
+            cost_choices: CostChoices { additional: vec![AdditionalCost::Bargain], alternative: None },
+            x_value: Some(3),
+            identity: None,
+            subject: None,
+            departed: Vec::new(),
+        });
+
+        let predicted = Lookahead::new(&game, card, 0, &mods).entity;
+        game.move_object(card, Zone::Battlefield).expect("a hand card moves");
+        let placed = game.place_on_battlefield(card, 0, &mods).clone();
+
+        assert_eq!(predicted.timestamp, placed.timestamp);
+        assert!(placed.tapped && predicted.tapped);
+        for kind in [CounterType::PlusOnePlusOne, CounterType::Charge] {
+            let stack = |p: &crate::state::battlefield::PermanentState| p.counters.get(&kind).map(|s| (s.count, s.timestamp));
+            assert_eq!(stack(&predicted), stack(&placed), "{kind:?} and its CR 613.7c timestamp");
+        }
+        let copy = |p: &crate::state::battlefield::PermanentState| p.entered_as.copy.clone().expect("entered as a copy");
+        assert!(Arc::ptr_eq(&copy(&predicted), &copy(&placed)));
+        assert_eq!(predicted.entered_as.edits, placed.entered_as.edits);
+        assert!(placed.entered_as.edits.is_some());
+        assert_eq!((predicted.cast, placed.cast.is_some()), (placed.cast, true));
+        assert_eq!(predicted.cost_choices, placed.cost_choices);
+        assert_eq!((predicted.x_value, placed.x_value), (Some(3), Some(3)));
+        assert_eq!(predicted.controller, placed.controller);
+        assert_eq!(predicted.entered_battlefield_turn, placed.entered_battlefield_turn);
+    }
 }

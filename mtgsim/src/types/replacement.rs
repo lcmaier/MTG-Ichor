@@ -32,7 +32,8 @@
 //! `Effect` tree — no new vocabulary at all.
 
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, PlayerSet, TokenDef,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef,
+    PlayerSet, TokenDef,
 };
 use crate::state::game_state::{PhaseType, StepType};
 use crate::types::ids::{ObjectId, PlayerId};
@@ -1299,11 +1300,16 @@ pub struct AuxiliaryMove {
 /// the CR 616.1 loop.
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnterModsTemplate {
-    /// CR 110.5b — the permanent enters tapped. A status, so no amount.
-    pub tapped: bool,
+    /// CR 110.5b — the status the permanent enters with, when this effect
+    /// sets one. A status, so no amount.
+    pub status: Option<TapStatus>,
 
     /// CR 122.6a — the counters, how many of each, and who puts them on.
     pub counters: Vec<EntryCountersTemplate>,
+
+    /// CR 614.1c — what the permanent enters as: Master Biomancer's "as a
+    /// Mutant in addition to its other types".
+    pub edits: Vec<CharacteristicEdit>,
 }
 
 /// One kind of counter an entry replacement gives, before its amount is a
@@ -1329,7 +1335,7 @@ pub struct EntryCountersTemplate {
 impl EnterModsTemplate {
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
-        EnterModsTemplate { tapped: true, counters: Vec::new() }
+        EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new() }
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".
@@ -1340,8 +1346,9 @@ impl EnterModsTemplate {
     /// CR 122.6a with an amount the board decides — Master Biomancer.
     pub fn with_counter_amount(counter: CounterType, amount: AmountExpr) -> Self {
         EnterModsTemplate {
-            tapped: false,
+            status: None,
             counters: vec![EntryCountersTemplate { counter, amount, by: None }],
+            edits: Vec::new(),
         }
     }
 
@@ -1356,8 +1363,9 @@ impl EnterModsTemplate {
         // Destructured in full, so that a new field here is a compile error
         // at the one function whose premise assumes every field is a status
         // or a constant amount (`codebase-state.md` item 47's condition (a)).
-        // A putter is neither and reads nothing an application changes.
-        let EnterModsTemplate { tapped: _, counters } = self;
+        // A putter is neither and reads nothing an application changes; an
+        // edit is a constant.
+        let EnterModsTemplate { status: _, counters, edits: _ } = self;
         counters.iter().all(|c| {
             let EntryCountersTemplate { counter: _, amount, by: _ } = c;
             matches!(amount, AmountExpr::Fixed(_))
@@ -1402,52 +1410,25 @@ pub enum CopyDonor {
 /// numbers, which is what makes [`Self::merge`] the whole of CR 616.1f's
 /// accumulation.
 ///
-/// **Three fields, and each is a rule rather than a convenience.** CR 110.5b —
-/// "permanents enter the battlefield untapped … unless a spell or ability says
-/// otherwise" — makes `tapped` the exception to a *default*, so `false` is the
-/// rule speaking rather than a missing value. CR 122.6a covers `counters`:
-/// "an object that's given counters as it enters the battlefield". CR 707.5
-/// covers `copy`: the permanent "becomes a copy as it enters".
+/// **Two halves, split by what is modified rather than by the wording**
+/// (CR 614.1c; `replacement-architecture.md` Phase RG, D1). *Enters with* is
+/// state, which changes later like any state (CR 110.5c): `status` and
+/// `counters`. *Enters as* is characteristics the entry will fix: `copy` and
+/// `edits`, which the board pass applies at the permanent's timestamp at each
+/// one's layer, with no registry row. `PermanentState::entering` is the one
+/// function that puts either half on a permanent.
 ///
-/// # The other two statuses, and what adding one would actually cost
-///
-/// CR 110.5b names four: tapped, flipped, face down, phased in. Phasing is not
-/// something a permanent can enter with (CR 702.26). The other two are absent,
-/// and it is worth being precise about why, because "face down" looks like a
-/// third `bool` and is not one.
-///
-/// **A new status is a field here, not an arm anywhere.** That is the growth
-/// contract working: [`Rewrite`] does not grow, [`EventPattern`] does not grow,
-/// and no reader outside the performer learns a new shape. So the *plumbing*
-/// really is one line.
-///
-/// **What is not one line is what face down means.** CR 707.2 makes a face-down
-/// permanent a 2/2 colorless creature with no name, no mana cost, no creature
-/// types and no abilities — a change to its **copiable values**, which is
-/// Layer 1a. A `face_down: true` that only set a flag would leave every layer
-/// query answering off the printed card, so the field wants Layer 1b
-/// underneath it (CV-6, `copy-effects-architecture.md`) and CR 614.12's frame
-/// beside it, since the entry is changing the very characteristics the frame
-/// is asked about.
-///
-/// **The printed population says the same thing from the other side.** Nothing
-/// prints "permanents enter the battlefield face down" as an effect over
-/// someone else's permanents (Scryfall, 2026-09-01). Face-down entry is morph,
-/// manifest, disguise and cloak, and those are *how the object gets there* —
-/// CR 701.34a's "put it onto the battlefield face down as a 2/2 creature card"
-/// is an instruction the mover carries, not a replacement effect watching for
-/// an entry. Which is the shape this type already has: `EnterMods` is the
-/// payload of both [`Rewrite::EnterWith`] **and** the proposal's seed
-/// (`GameState::default_enter_mods`), so manifest would set the field at the
-/// proposal, exactly the way CR 306.5b's loyalty does today.
-///
-/// A *hypothetical* "creatures your opponents control enter face down" would
-/// additionally need `ObjectSet::Filter` to reach an entering permanent,
-/// which it does (Root Maze).
+/// **A new member is a field here, not an arm anywhere** — the growth
+/// contract: [`Rewrite`] and [`EventPattern`] do not grow, and no reader
+/// outside the performer learns a new shape. Face down is the next one (CV-6).
+/// CR 110.5 names it a status, so it joins the first half, and the layer 1b
+/// characteristics it gives are read off the permanent as its counters are at
+/// layer 7c.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EnterMods {
-    /// CR 110.5b — the permanent enters tapped.
-    pub tapped: bool,
+    /// CR 110.5b — the status the last applied effect set, or `None` for the
+    /// rule's default, untapped.
+    pub status: Option<TapStatus>,
 
     /// CR 122.6a — the counters the permanent is given as it enters, and who
     /// puts each kind on.
@@ -1469,10 +1450,26 @@ pub struct EnterMods {
     /// first rather than merging with it: "the one whose copy effect you apply
     /// last" (Essence of the Wild's rulings). The CR 614.12 frame reads it off
     /// the would-be entity, so every later effect sees the copy, and the
-    /// performer moves it onto `PermanentState::entered_as_copy`. Shared
-    /// rather than owned because the pipeline clones the event every
-    /// iteration and a fork clones the entity.
+    /// performer moves it onto `PermanentState::entered_as`. Shared rather
+    /// than owned because the pipeline clones the event every iteration and a
+    /// fork clones the entity.
     pub copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
+
+    /// CR 614.1c — the characteristic edits the permanent enters as, in the
+    /// order the effects applied, which is the order the board applies them
+    /// in. Not copiable (CR 707.2's last sentence). Shared for `copy`'s reason.
+    pub edits: Option<std::sync::Arc<[CharacteristicEdit]>>,
+}
+
+/// CR 110.5's tapped/untapped category, as an entry replacement sets it.
+///
+/// No third variant for the default: CR 110.5b's untapped is the proposal's
+/// starting status, which is `None` where this is held, not something an
+/// effect says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TapStatus {
+    Tapped,
+    Untapped,
 }
 
 /// One kind of counter a permanent is given as it enters, with its count and
@@ -1499,11 +1496,17 @@ impl EntryCounters {
 
 impl EnterMods {
     /// Nothing modifies how this permanent enters — CR 110.5b's default.
-    pub const NONE: EnterMods = EnterMods { tapped: false, counters: Vec::new(), copy: None };
+    pub const NONE: EnterMods = EnterMods { status: None, counters: Vec::new(), copy: None, edits: None };
 
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
-        EnterMods { tapped: true, ..EnterMods::NONE }
+        EnterMods { status: Some(TapStatus::Tapped), ..EnterMods::NONE }
+    }
+
+    /// Does the permanent enter tapped? CR 110.5b's default, when no effect
+    /// set a status, is untapped.
+    pub fn enters_tapped(&self) -> bool {
+        self.status == Some(TapStatus::Tapped)
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it",
@@ -1514,24 +1517,31 @@ impl EnterMods {
 
     /// Is this the CR 110.5b default — nothing to apply?
     pub fn is_none(&self) -> bool {
-        !self.tapped && self.counters.is_empty() && self.copy.is_none()
+        self.status.is_none() && self.counters.is_empty() && self.copy.is_none() && self.edits.is_none()
     }
 
     /// Fold `other`'s modifications into this one — CR 616.1f's accumulation.
     ///
-    /// **Tapped is a status, counters are a quantity, and the CR treats them
-    /// differently.** CR 110.5b gives a permanent one tapped/untapped value, so
-    /// two effects that both say "enters tapped" leave it tapped once; CR 122.6a
-    /// is about counters being *put on* it, so two effects that each give it a
-    /// counter give it two. `|=` and addition, and neither is a choice this
-    /// engine is making. The key is `(kind, putter)`: the same kind from two
-    /// players is two rows.
+    /// **A status is set, counters are added, and edits accumulate.** CR 110.5b
+    /// gives a permanent one tapped/untapped value, and the last effect applied
+    /// sets it (Spelunking's first ruling); CR 122.6a is about counters being
+    /// *put on* it, so two effects that each give it a counter give it two.
+    /// Neither is a choice this engine is making. The key is `(kind, putter)`:
+    /// the same kind from two players is two rows.
     pub fn merge(&mut self, other: &EnterMods) {
         debug_assert!(
             other.copy.is_none(),
             "a copy replaces, never merges: only Rewrite::EnterAsCopy writes EnterMods::copy"
         );
-        self.tapped |= other.tapped;
+        if other.status.is_some() {
+            self.status = other.status;
+        }
+        if let Some(more) = &other.edits {
+            self.edits = Some(match self.edits.take() {
+                Some(have) => have.iter().chain(more.iter()).cloned().collect(),
+                None => std::sync::Arc::clone(more),
+            });
+        }
         for row in &other.counters {
             match self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
                 // Plain addition, matching `PermanentState::add_counters` where this number

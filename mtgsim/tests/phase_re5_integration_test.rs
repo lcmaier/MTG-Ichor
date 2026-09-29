@@ -863,7 +863,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                         Box::new(ObjectFilter::ByController(PlayerRef::You)),
                     )),
                 Rewrite::EnterWith(EnterModsTemplate {
-                    tapped: false,
+                    status: None,
                     counters: vec![
                         EntryCountersTemplate {
                             counter: CounterType::PlusOnePlusOne,
@@ -876,6 +876,7 @@ fn winding_constrictor_adds_one_of_each_kind_an_entry_carries() {
                             by: None,
                         },
                     ],
+                    edits: Vec::new(),
                 }),
             ),
         ),
@@ -970,8 +971,9 @@ fn opponents_creatures_enter_with(counter: CounterType, by: Option<PlayerRef>) -
                     Box::new(ObjectFilter::ByController(PlayerRef::Opponent)),
                 )),
             Rewrite::EnterWith(EnterModsTemplate {
-                tapped: false,
+                status: None,
                 counters: vec![EntryCountersTemplate { counter, amount: AmountExpr::Fixed(1), by }],
+                edits: Vec::new(),
             }),
         ),
     )

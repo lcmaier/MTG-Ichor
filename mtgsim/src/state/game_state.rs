@@ -156,6 +156,9 @@ pub struct ResolvingObject {
     pub cast: Option<crate::state::battlefield::CastFacts>,
     /// Its CR 707.10 cost decisions, which a copy keeps. Empty for an ability.
     pub cost_choices: crate::state::battlefield::CostChoices,
+    /// The X its controller chose for it (CR 107.3), carried for
+    /// `PermanentState::x_value` as `cast` is. `None` for a spell with no X.
+    pub x_value: Option<u64>,
     /// The ability resolving, by identity, for CR 603.7h's "the Nth time this
     /// ability has resolved this turn". `None` for a spell.
     pub identity: Option<AbilityIdentity>,
@@ -1285,45 +1288,31 @@ impl GameState {
     /// `GameEvent::PermanentEnteredBattlefield` — the `mods` and the resulting
     /// controller are both known here and nowhere else.
     ///
-    /// **The order inside the entry is the CR's.** Status and counters
-    /// (CR 110.5b, 122.6a) are part of *arriving*, so they are written before
-    /// anything can observe the permanent: a creature that enters with +1/+1
-    /// counters is never momentarily a 0/0 for CR 704.5f to kill.
-    /// `register_static_effects` comes last because CR 613.7a timestamps what
-    /// it registers off the entry that now exists.
+    /// **The order inside the entry is the CR's.** Status, counters and what
+    /// it enters as (CR 110.5b, 122.6a, 614.1c) are part of *arriving*, so the
+    /// entity is inserted with them already on it: a creature that enters with
+    /// +1/+1 counters is never momentarily a 0/0 for CR 704.5f to kill.
+    /// `register_static_effects` comes after, because CR 613.7a timestamps
+    /// what it registers off the entry that now exists and it files the
+    /// abilities of what the permanent entered as.
     pub fn place_on_battlefield(
         &mut self,
         id: ObjectId,
         controller: PlayerId,
         mods: &EnterMods,
     ) -> &mut PermanentState {
-        // No timestamp allocated here: CR 613.7d stamped it as the object
-        // entered the battlefield *zone* (`move_object`), or as it was created
-        // there (`add_object`, a token). This performer runs after both.
-        let current_turn = self.turn_number;
-        let mut entry = PermanentState::new(id, controller, current_turn);
-        // CR 110.5b — the one status a permanent can currently enter with.
-        entry.tapped = mods.tapped;
-        // CR 707.5 — and what it entered as, in the entity before anything
-        // below reads it: registration files the copy's abilities.
-        entry.entered_as_copy = mods.copy.clone();
-        // CR 400.7d — how it was cast and what its costs were, off the
-        // resolving spell's entry. A permanent that arrives any other way was
-        // never a spell, and its `PermanentState::new` defaults say so.
-        if let Some(r) = self.resolving.as_ref().filter(|r| r.id == id) {
-            entry.cast = r.cast;
-            entry.cost_choices = r.cost_choices.clone();
-        }
+        // CR 613.7d stamped the object as it entered the battlefield *zone*
+        // (`move_object`), or as it was created there (`add_object`, a token),
+        // and this performer runs after both. CR 613.7c's counters get theirs
+        // here, one per row in `mods` order, as the look-ahead predicted them.
+        // Not a nested `AddCounters` proposal: these counters are part of the
+        // entry event, which is why CR 614.16's doublers replace the `EnterMods`
+        // this performer is handed rather than an event of their own.
+        let first_counter = self.next_timestamp;
+        self.next_timestamp += mods.counters.len() as u64;
+        let entry = PermanentState::entering(self, id, controller, mods, self.object_timestamp(id), first_counter);
         self.insert_battlefield_entity(id, entry);
         self.bump_layer_epoch();
-
-        // CR 122.6a. Deliberately not a nested `AddCounters` proposal: these
-        // counters are part of the entry event rather than a separate "counters
-        // would be put on it" one, which is why CR 614.16's doublers replace the
-        // `EnterMods` this performer is handed rather than an event of their own.
-        for row in &mods.counters {
-            self.add_counters(id, row.counter, row.n);
-        }
 
         self.register_static_effects(id, controller, Zone::Battlefield);
 
@@ -1696,7 +1685,7 @@ impl GameState {
             return;
         };
         let entered_as = match zone {
-            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as_copy.clone()),
+            Zone::Battlefield => self.battlefield.get(&id).and_then(|entry| entry.entered_as.copy.clone()),
             _ => None,
         };
         let (abilities, types, card_name) = match &entered_as {
@@ -2176,38 +2165,7 @@ impl GameState {
                 EffectModification::SetController(PlayerRef::You),
             ),
             Primitive::ChangeType(type_change, _dur) => {
-                let mut mods: Vec<EffectModification> = Vec::new();
-                if let Some(ref set_types) = type_change.set_types {
-                    mods.push(EffectModification::SetTypes(set_types.clone()));
-                } else {
-                    for t in &type_change.add_types {
-                        mods.push(EffectModification::AddType(*t));
-                    }
-                    for t in &type_change.remove_types {
-                        mods.push(EffectModification::RemoveType(*t));
-                    }
-                }
-                if let Some(ref set_subtypes) = type_change.set_subtypes {
-                    mods.push(EffectModification::SetSubtypes(set_subtypes.clone()));
-                } else {
-                    for s in &type_change.add_subtypes {
-                        mods.push(EffectModification::AddSubtype(s.clone()));
-                    }
-                    for s in &type_change.remove_subtypes {
-                        mods.push(EffectModification::RemoveSubtype(s.clone()));
-                    }
-                }
-                if let Some(ref set_supertypes) = type_change.set_supertypes {
-                    mods.push(EffectModification::SetSupertypes(set_supertypes.clone()));
-                } else {
-                    for s in &type_change.add_supertypes {
-                        mods.push(EffectModification::AddSupertype(*s));
-                    }
-                    for s in &type_change.remove_supertypes {
-                        mods.push(EffectModification::RemoveSupertype(*s));
-                    }
-                }
-                mods.into_iter().map(|m| (Layer::Layer4Type, m)).collect()
+                type_change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
             }
             _ => Vec::new(),
         }

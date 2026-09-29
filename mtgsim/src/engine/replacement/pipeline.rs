@@ -18,7 +18,7 @@ use crate::types::mana::{ManaAtom, ManaType};
 use crate::types::replacement::{
     AmountRewrite, AuxiliaryMove, CopyDonor, EnterMods, EnterModsTemplate, EntryCounters,
     EventPattern, ReplacementDef,
-    RetargetSpec, GameActionTemplate, Rewrite, TemplateAmount, Uses,
+    RetargetSpec, GameActionTemplate, Rewrite, TapStatus, TemplateAmount, Uses,
 };
 use crate::types::zones::{DrawCause, LifeLossCause, Zone};
 use crate::oracle::characteristics::{controller_or_owner, get_effective_power, get_effective_types};
@@ -1077,8 +1077,10 @@ fn classify<'a>(
             | AmountRewrite::LifeFloor(_),
         ) => None,
         // Reads the frame only when the source is the object being computed,
-        // so anything else is a board read and commutes.
+        // so anything else is a board read and commutes. An edit changes what
+        // the others read, and has no class until the feeds table gives it one.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
+            && t.edits.is_empty()
             && object_set_is_mods_invariant(&def.affected_objects))
         .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
         // Devour prompts and moves the board; a control change is CR 616.1b's
@@ -1435,7 +1437,8 @@ fn check_order_invariance(
         ) = (&chosen.def.rewrite, before)
         {
             let mut disturbed = mods.clone();
-            disturbed.tapped = !disturbed.tapped;
+            disturbed.status =
+                Some(if disturbed.enters_tapped() { TapStatus::Untapped } else { TapStatus::Tapped });
             disturbed.counters.push(EntryCounters {
                 counter: CounterType::PlusOnePlusOne,
                 n: 1,
@@ -2703,9 +2706,10 @@ fn entry_copy_donor(
 /// default, the controller the permanent enters under, which is what the
 /// entry door reads too.
 ///
-/// `tapped` passes through untouched. No printed "can't" refuses a status, and
-/// ATOM-614.17d-001's "creatures can't enter the battlefield tapped" is a
-/// representative the corpus invented; it is claimed for its counters half.
+/// The status and the edits pass through untouched. No printed "can't"
+/// refuses a status, and ATOM-614.17d-001's "creatures can't enter the
+/// battlefield tapped" is a representative the corpus invented; it is claimed
+/// for its counters half.
 pub(crate) fn strip_prohibited_counters(
     game: &GameState,
     object: ObjectId,
@@ -2719,9 +2723,10 @@ pub(crate) fn strip_prohibited_counters(
     }
     let frame = EntryFrame::for_entering(game, object, controller, so_far);
     let mut kept = EnterMods {
-        tapped: extra.tapped,
+        status: extra.status,
         counters: Vec::with_capacity(extra.counters.len()),
         copy: extra.copy.clone(),
+        edits: extra.edits.clone(),
     };
     for row in &extra.counters {
         let action = GameAction::AddCounters {
@@ -2765,7 +2770,8 @@ fn evaluate_enter_template(
     so_far: &EnterMods,
 ) -> Result<EnterMods, String> {
     let source = chosen.source;
-    let mut out = EnterMods { tapped: template.tapped, ..EnterMods::NONE };
+    let edits = (!template.edits.is_empty()).then(|| template.edits.iter().cloned().collect());
+    let mut out = EnterMods { status: template.status, edits, ..EnterMods::NONE };
     if template.counters.is_empty() {
         return Ok(out);
     }

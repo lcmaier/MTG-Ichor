@@ -1177,6 +1177,79 @@ pub struct TypeChange {
     pub set_supertypes: Option<std::collections::HashSet<crate::types::card_types::Supertype>>,
 }
 
+impl TypeChange {
+    /// Changes nothing: the base a literal names its one axis over.
+    pub const NONE: TypeChange = TypeChange {
+        add_types: Vec::new(),
+        remove_types: Vec::new(),
+        set_types: None,
+        add_subtypes: Vec::new(),
+        remove_subtypes: Vec::new(),
+        set_subtypes: None,
+        add_supertypes: Vec::new(),
+        remove_supertypes: Vec::new(),
+        set_supertypes: None,
+    };
+
+    /// CR 613.1d — the layer 4 modifications this change makes, axis by axis,
+    /// a `set_*` taking the place of its axis' adds and removes. One lowering
+    /// for `Primitive::ChangeType` and a [`CharacteristicEdit::Types`], so the
+    /// two say the same thing the same way.
+    pub(crate) fn modifications(&self) -> Vec<crate::engine::layers::types::EffectModification> {
+        use crate::engine::layers::types::EffectModification;
+        let mut mods = Vec::new();
+        match &self.set_types {
+            Some(set) => mods.push(EffectModification::SetTypes(set.clone())),
+            None => {
+                mods.extend(self.add_types.iter().map(|t| EffectModification::AddType(*t)));
+                mods.extend(self.remove_types.iter().map(|t| EffectModification::RemoveType(*t)));
+            }
+        }
+        match &self.set_subtypes {
+            Some(set) => mods.push(EffectModification::SetSubtypes(set.clone())),
+            None => {
+                mods.extend(self.add_subtypes.iter().map(|s| EffectModification::AddSubtype(s.clone())));
+                mods.extend(self.remove_subtypes.iter().map(|s| EffectModification::RemoveSubtype(s.clone())));
+            }
+        }
+        match &self.set_supertypes {
+            Some(set) => mods.push(EffectModification::SetSupertypes(set.clone())),
+            None => {
+                mods.extend(self.add_supertypes.iter().map(|s| EffectModification::AddSupertype(*s)));
+                mods.extend(self.remove_supertypes.iter().map(|s| EffectModification::RemoveSupertype(*s)));
+            }
+        }
+        mods
+    }
+}
+
+/// One edit to one characteristic (`replacement-architecture.md` Phase RG,
+/// D4). Where it is made decides whether it is copiable, never the edit:
+/// made as a permanent enters it is not (CR 707.2's last sentence), and made
+/// inside a copy it is (CR 707.9b). An arm lands with its first placement's
+/// consumer, so the list is the arms something applies.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CharacteristicEdit {
+    /// Layer 4 — Master Biomancer's "as a Mutant in addition to its other
+    /// types".
+    Types(TypeChange),
+}
+
+impl CharacteristicEdit {
+    /// What this edit does at each layer, as the board pass applies it to the
+    /// permanent that entered with it.
+    pub(crate) fn modifications(
+        &self,
+    ) -> Vec<(crate::engine::layers::types::Layer, crate::engine::layers::types::EffectModification)> {
+        use crate::engine::layers::types::Layer;
+        match self {
+            CharacteristicEdit::Types(change) => {
+                change.modifications().into_iter().map(|m| (Layer::Layer4Type, m)).collect()
+            }
+        }
+    }
+}
+
 /// Which role a `Primitive::Copy`'s own recipients play, and where the other
 /// role comes from (CR 707.4).
 ///

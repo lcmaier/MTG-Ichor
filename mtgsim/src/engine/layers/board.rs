@@ -112,11 +112,20 @@ pub(super) struct Board<'l> {
     /// it applied them (`layers-architecture.md` §13e decision 1). Empty when
     /// nothing is left out.
     notes: Vec<RowNote>,
-    /// The members that entered as a copy (CR 707.5), in walk order, with the
-    /// values they entered as: layer 1a's applications that come from state
-    /// rather than a row. Noted by the seed off the entity it already reads,
-    /// so a board with none pays for an empty list.
-    entry_copies: Vec<(ObjectId, Arc<crate::engine::layers::copy::CopiableValues>)>,
+    /// What the members that entered as something entered as (CR 614.1c), in
+    /// walk order: the applications that come from state rather than a row.
+    /// Noted by the seed off the entity it already reads, so a board with
+    /// none pays for an empty list.
+    entered_as: Vec<EnteredAsNote>,
+}
+
+/// One member's `PermanentState::entered_as`, as the layers apply it: the
+/// copy at 1a, and each edit lowered once per pass to what it does at each
+/// layer.
+struct EnteredAsNote {
+    object: ObjectId,
+    copy: Option<Arc<crate::engine::layers::copy::CopiableValues>>,
+    edits: Vec<(Layer, EffectModification)>,
 }
 
 /// What a pass noted about one row as it applied it, for the cards it leaves
@@ -190,7 +199,7 @@ impl<'l> Board<'l> {
             sub: RefCell::new(IdMap::default()),
             left_out: ZoneSet::EMPTY,
             notes: Vec::new(),
-            entry_copies: Vec::new(),
+            entered_as: Vec::new(),
         }
     }
 
@@ -280,7 +289,7 @@ impl<'l> Board<'l> {
             sub: RefCell::new(IdMap::default()),
             left_out,
             notes: Vec::new(),
-            entry_copies: Vec::new(),
+            entered_as: Vec::new(),
         };
         for &id in &board.members {
             let Some(obj) = game.objects.get(&id) else { continue };
@@ -290,8 +299,13 @@ impl<'l> Board<'l> {
             // entering object — and from CR 108.4's other arms otherwise.
             let (controller, since) = match board.entity(game, id) {
                 Some(entity) => {
-                    if let Some(values) = &entity.entered_as_copy {
-                        board.entry_copies.push((id, Arc::clone(values)));
+                    let entered_as = &entity.entered_as;
+                    if !entered_as.is_empty() {
+                        board.entered_as.push(EnteredAsNote {
+                            object: id,
+                            copy: entered_as.copy.clone(),
+                            edits: entered_as.edits.iter().flat_map(|e| e.iter()).flat_map(|e| e.modifications()).collect(),
+                        });
                     }
                     (entity.controller, entity.controller_since_turn)
                 }
@@ -522,6 +536,10 @@ enum Tiebreak {
     /// The copy a member entered as. One per member, at that member's own
     /// timestamp, so it never decides a tie.
     EntryCopy,
+    /// An edit a member entered as (CR 614.1c), by its place among the
+    /// member's edits. At the member's own timestamp, so it sorts after the
+    /// member's own static rows there (CR 613.7n).
+    EntryEdit(usize),
 }
 
 impl Application<'_> {
@@ -918,18 +936,31 @@ fn applications_in_layer<'a, 'l: 'a>(
         }
     }
 
-    // CR 707.5 — a member that entered as a copy is that copy from layer 1a
-    // on, at its own timestamp, so a copy effect registered later applies
-    // over it and gives it back when it ends (CR 707.4). A snapshot reads
-    // nothing, so it depends on nothing (CR 613.8a).
-    if layer == Layer::Layer1Copy {
-        for (object, values) in &board.entry_copies {
-            let modification = EffectModification::CopyFrom(Arc::clone(values));
+    // CR 614.1c — what a member entered as, at its own timestamp. The copy
+    // (CR 707.5) is that copy from layer 1a on, so a copy effect registered
+    // later applies over it and gives it back when it ends (CR 707.4). Each
+    // edit applies at its own layer, after the member's own static rows at
+    // that timestamp, as CR 613.7n orders an effect that sets an entering
+    // permanent's characteristics (CR 611.2e). A snapshot and an edit read
+    // nothing, so neither depends on anything (CR 613.8a).
+    for note in &board.entered_as {
+        let copy = note
+            .copy
+            .as_ref()
+            .filter(|_| layer == Layer::Layer1Copy)
+            .map(|values| (EffectModification::CopyFrom(Arc::clone(values)), Tiebreak::EntryCopy));
+        let edits = note
+            .edits
+            .iter()
+            .enumerate()
+            .filter(|(_, (at, _))| *at == layer)
+            .map(|(i, (_, modification))| (modification.clone(), Tiebreak::EntryEdit(i)));
+        for (modification, tiebreak) in copy.into_iter().chain(edits) {
             let writes = writes_of(&modification);
             apps.push(Application {
-                kind: Kind::Own { object: *object, cda: None, modification },
-                timestamp: board.timestamp_of(game, *object),
-                tiebreak: Tiebreak::EntryCopy,
+                kind: Kind::Own { object: note.object, cda: None, modification },
+                timestamp: board.timestamp_of(game, note.object),
+                tiebreak,
                 reads: Reads::default(),
                 writes,
             });

@@ -53,12 +53,12 @@ pub struct PermanentState {
     /// **It cannot drift, and not because anything checks.**
     /// `GameState::set_object_timestamp` is the only writer of a timestamp on
     /// an object that has an entry, and it writes both; the only other write
-    /// is `place_on_battlefield` filling this field in as it builds the entry,
-    /// where there is nothing yet to disagree with.
+    /// is `insert_battlefield_entity` filling this field in from the object as
+    /// the entry is inserted, where there is nothing yet to disagree with.
     ///
     /// `codebase-state.md` item 77 is what deletes it: a *maintained* order
-    /// vector needs no timestamp here at all, and that item already says to
-    /// fold itself into whatever next touches `place_on_battlefield`.
+    /// vector needs no timestamp here at all, a PR of its own when its ~5% is
+    /// worth one.
     pub timestamp: Timestamp,
 
     // Permanent state
@@ -116,18 +116,39 @@ pub struct PermanentState {
     /// permanent that was never a spell.
     pub cost_choices: CostChoices,
 
-    /// CR 707.5 — the copiable values this permanent entered as, when it
-    /// entered as a copy: Clone's choice, or Essence of the Wild's own values.
+    /// CR 614.1c — what this permanent entered as: the copy and the
+    /// characteristic edits its entry fixed.
     ///
     /// **State, not a registry row**, for the reason `tapped` and the counters
     /// are: it is how the permanent arrived, and it leaves with the permanent
     /// (CR 400.7) whichever permanent's ability made it. A row sourced at
-    /// Essence would end every copy when Essence left, which its rulings say
-    /// does not happen. Layer 1a applies it at this permanent's timestamp,
-    /// beside the `CopyFrom` rows a later copy effect registers
-    /// (`layers::board`), and `register_static_effects` files its abilities as
-    /// the ones the permanent has.
-    pub entered_as_copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
+    /// Essence of the Wild would end every copy when Essence left, which its
+    /// rulings say does not happen, and a row sourced at Master Biomancer would
+    /// take the Mutant away with it. The board pass applies each at this
+    /// permanent's timestamp at its own layer (`layers::board`), and
+    /// `register_static_effects` files the copy's abilities as the ones the
+    /// permanent has.
+    pub entered_as: EnteredAs,
+}
+
+/// What a permanent entered as (CR 614.1c), once it has entered: the proposal
+/// carries the same two members as `EnterMods::copy` and `EnterMods::edits`.
+/// Each is shared, so a fork of the state clones a count, never the values.
+#[derive(Debug, Clone, Default)]
+pub struct EnteredAs {
+    /// CR 707.5 — the copiable values, at layer 1a: Clone's choice, or Essence
+    /// of the Wild's own values.
+    pub copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
+    /// CR 614.1c — each edit at its own layer, not copiable (CR 707.2's last
+    /// sentence).
+    pub edits: Option<std::sync::Arc<[crate::types::effects::CharacteristicEdit]>>,
+}
+
+impl EnteredAs {
+    /// Did the entry fix nothing about the permanent's characteristics?
+    pub fn is_empty(&self) -> bool {
+        self.copy.is_none() && self.edits.is_none()
+    }
 }
 
 /// CR 400.7d's facts about a permanent that was cast: who cast it, from
@@ -179,9 +200,9 @@ impl PermanentState {
         PermanentState {
             object_id,
             controller,
-            // Filled in by `place_on_battlefield` from the object, which is
-            // where CR 613.7d put it; `Lookahead` overwrites it with the
-            // would-be value. A bare `PermanentState` is neither.
+            // Filled in by `Self::entering`: the object's own, where CR 613.7d
+            // put it, for the performer, and the would-be value for the
+            // look-ahead. A bare `PermanentState` is neither.
             timestamp: 0,
             tapped: false,
             flipped: false,
@@ -199,8 +220,43 @@ impl PermanentState {
             attached_by: Vec::new(),
             cast: None,
             cost_choices: CostChoices::NONE,
-            entered_as_copy: None,
+            entered_as: EnteredAs::default(),
         }
+    }
+
+    /// CR 614.1c — the permanent `object` becomes, entering under
+    /// `controller` with `mods`.
+    ///
+    /// **The one function that turns a proposal into an entity**, called by
+    /// the performer (`GameState::place_on_battlefield`) and by the CR 614.12
+    /// look-ahead (`layers::Lookahead`), so the frame can never read a
+    /// permanent the performer would not build. The two differ only in the
+    /// timestamps they pass: the performer's allocated, the frame's predicted.
+    /// Each counter row gets its own, from `first_counter` up (CR 613.7c).
+    ///
+    /// CR 400.7d's facts come off `GameState::resolving` when `object` is the
+    /// resolving spell; a permanent that arrives any other way was never one.
+    pub(crate) fn entering(
+        game: &crate::state::game_state::GameState,
+        object: ObjectId,
+        controller: PlayerId,
+        mods: &crate::types::replacement::EnterMods,
+        timestamp: Timestamp,
+        first_counter: Timestamp,
+    ) -> PermanentState {
+        let mut entity = PermanentState::new(object, controller, game.turn_number);
+        entity.timestamp = timestamp;
+        entity.tapped = mods.enters_tapped();
+        entity.entered_as = EnteredAs { copy: mods.copy.clone(), edits: mods.edits.clone() };
+        for (stamp, row) in (first_counter..).zip(&mods.counters) {
+            entity.add_counters(row.counter, row.n, stamp);
+        }
+        if let Some(r) = game.resolving.as_ref().filter(|r| r.id == object) {
+            entity.cast = r.cast;
+            entity.cost_choices = r.cost_choices.clone();
+            entity.x_value = r.x_value;
+        }
+        entity
     }
 
     /// Clear combat state (called at end of combat step)
