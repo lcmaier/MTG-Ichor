@@ -528,3 +528,203 @@ retrofit, and what a custom card can say. The superseded text elsewhere in
 this document is corrected where it stands, in §1.3, §3.1, §2.4, §3.3, §4.1,
 §5.3 and §9, so each fact is stated once. The wider drift is for the docs
 audit the owner has in mind after the triggers phase.
+
+### 7c. CV-2b — CR 707.9's exceptions (Spark Double) — ✅ 2026-09-29
+
+*Evicted 2026-09-29 from `plans/copy-effects-architecture.md`, where the
+heading and a stub remain. The section's three standing subsections, the
+arms, the Kaito board and the printed population, moved to that doc's
+§4.1a, live, where CV-1b and CV-3 read them; what is here is the record.*
+
+**What landed**, in five commits against the design below: the design
+re-derived against RG and the Kaito board decided (`abd60be`); the engine
+map and the feedback-loop census on the route, and this phase's trace page
+decided (`9967841`); the vocabulary, the applier and Spark Double's card
+(`d970c35`); 33 tests (`eccfc6b`, the A/B's engine arm); and Spark Double
+registered and pooled, 100 → 101, with its nine rulings linked (`e1bc838`,
+the shipped arm). +1,901 added lines of code and tests against the
+~1,300–1,600 re-derived: engine 520 against ~480, cards 103 against ~90,
+tests 1,278 against ~850. Atoms covered: ATOM-707.9f-002, 707.9f-001,
+707.9e-001, 707.9b-001 and 707.9d-001; partially, 707.9d-002, 707.9a-001,
+707.3-001 and COMP-9A-006. Closed by hand against the table below, since
+`owed` cannot list this cluster (§9 item 11).
+
+**What the building changed.** No decision; four things surfaced:
+1. **Where the applier lives.** The sites named `pipeline.rs` for 9e and 9f.
+   They went to a new `engine/replacement/entry_copy.rs`, which the
+   `EnterAsCopy` arm calls and to which `pipeline.rs` lends
+   `evaluate_enter_template` and `strip_prohibited_counters`. Nothing
+   reached `compute.rs` or `layers/types.rs`: made at the capture, the
+   exceptions leave layer 1a a finished snapshot.
+2. **The builder had to walk exceptions.** An ability a copy exception gives
+   is nested in the copy ability's replacement, and `CardDataBuilder::build`
+   stamps ids only on the defs `Effect::for_each_ability_def_mut` reaches.
+   `CopyException::for_each_ability_def_mut` joined the walk, and a test
+   asserts the stamp.
+3. **A status claim needed an exact release.** `EnterMods::take_back`
+   restores the status an addition replaced, and `EnterMods::merge` drops
+   that claim when a later effect sets a status. A board with a copy made
+   applicable by a status write pins it. Counters are exact in CR 616.1's
+   order; `codebase-state.md` main item 189 records the multiplier case,
+   which no registered card reaches.
+4. **The tests outgrew the estimate**, 1,278 lines against ~850: a third of
+   the file is its own provider and fixtures, as CV-2a's is, and the rulings
+   and the Kaito board added boards the table did not list.
+
+**The measurement.** `fuzz-record.md`, CV-2b's block. The engine arm
+`IDENTICAL` to `main` on every counter at two seats and four, +0.12%
+instructions per decision, 0.02 over the predicted ±0.1: a size probe on
+both trees attributes it to `EnterMods` growing 56 → 88 bytes (`GameAction`
+80 → 112), and `Option<Arc<EntryCopy>>` is the lever. Spark Double reached
+in 66% of two-seat games and 48% of four-seat ones.
+
+**Trace page: `plans/traces/cv-2b-an-exception-is-judged-without-itself.html`**,
+decided yes by the owner at the design review, ahead of the close.
+
+#### The section as re-derived and reviewed
+
+**Designed and reviewed with CV-2a on 2026-09-28** (§7b, landed), and
+**re-derived on 2026-09-29 against RG**, which landed under it
+(`replacement-architecture.md` §3.5). CV-2b builds CR 707.9's applier on
+CV-2a's entry copy, and three of CV-2a's shapes grow for it:
+- `EntryCopyTemplate` gains `except: Vec<CopyException>`.
+- `EnterMods::copy` becomes `Option<EntryCopy { values, added }>`, so a later
+  copy in the same entry removes exactly what a 707.9e exception added.
+- A copy's application adds this copy's 707.9e counters, through
+  `strip_prohibited_counters` as an `EnterWith`'s are, into
+  `EnterMods::counters`, where a multiplier (CR 616.2), the performer and the
+  look-ahead already read an entry's counters; `added` records them. It
+  rebuilds nothing: since RG, CR 306.5b is an ability the gather finds on the
+  copy's frame after the copy applies.
+
+The consumer is Spark Double, a `CopyDonor::Chosen` over "a creature or
+planeswalker you control" whose exceptions are 707.9b's "isn't legendary" and
+two of 707.9f's conditions on 707.9e's additional counters.
+
+#### What the re-derivation changed (2026-09-29)
+
+RG changed the ground under four of this section's assumptions, and one of
+them changes a decision:
+1. **A decision: the frame CR 707.9f's condition is read against.** As
+   reviewed, each condition was read "with every unconditional exception
+   applied and no conditional one". Since RG the look-ahead counts the counters
+   an entry already carries (the register row `lookahead-entry-counters`), and
+   on Kaito's board that rule contradicts 707.9f's own words (the Kaito board,
+   below). The design now reads them as written: each conditional exception is
+   judged against the copy without it, with every other exception that applies
+   there, and a conditional one is judged the same way, without both. Each
+   judgment leaves out the exception it is about, so the recursion ends, at a
+   depth of at most the number of conditional exceptions: two on Spark Double.
+2. **The feeds table's `copy` row covers what a copy's 707.9e exceptions
+   write** (`replacement-architecture.md` §3.5): counters and a status on the
+   entry, written only at CR 616.1c's step, as the copiable values are. So the
+   row's exemption holds for them for the same reason, and
+   `EntryWrites::of_candidates` keeps its empty `EnterAsCopy` arm.
+3. **A status is set, not accumulated, since RG** (`EnterMods::status`), so
+   "removes exactly what it added" means, for a status, putting back the one
+   the copy replaced. `EnterMods::merge` drops the copy's claim to the status
+   when a later effect sets one, so a later copy never restores over that
+   effect's status.
+4. **`Additionally` carries an `EnterModsTemplate`, to which RG added
+   `edits`.** CR 707.9e defines its exception as "an additional effect rather
+   than a modification of the affected object's characteristics", so an edit
+   there is `Modifies` written in the wrong arm, and the applier refuses it.
+
+And two stale facts: the performance pool is 100 since Archelos (RG), so
+Spark Double makes it 101; and Grist is not registered (Loyalty Probe is the
+only registered planeswalker), so the A/B's planeswalker path is a test
+board's, not a pooled card's.
+
+*The design, the Kaito board and the printed population stood here; they
+are the live doc's §4.1a.*
+
+#### The sites
+
+- `types/replacement.rs`: `EntryCopyTemplate.except`; `copy` becomes `Option<EntryCopy>`, and `merge` drops a copy's claim to the status it set
+- `types/effects.rs`: `CopyException` (4 arms, one per CR 707.9 sub-rule); `CharacteristicEdit` gains the copy placement's arms its fixtures use (`GainsAbility`, `GainsKeyword`, `PowerToughness`, `Name`), each refused at the entry placement until an entry card needs it
+- `engine/replacement/pipeline.rs`: the arm's exceptions; 9e's `EntryCopy.added`, and a later copy taking it back; 9f's recursive frame
+- `engine/layers/copy.rs`: the modifications made to the captured values, and 9d's drop; the CDA classifier in `cda.rs`. Nothing in `compute.rs` or `layers/types.rs`: the exceptions are made once, at the capture, so layer 1a applies a finished snapshot as it does today
+- the readers of `EnterMods::copy` (`PermanentState::entering`, the look-ahead's would-be rows): `.values`
+- cards: Spark Double; 100 → 101
+
+#### Size against §4's band
+
+| | Engine | Cards | Tests | Code and tests | Docs |
+|---|---:|---:|---:|---:|---:|
+| CV-2b, as reviewed | ~450 | ~80 | ~700 | ~1,100–1,500 | ~150 |
+| CV-2b, re-derived 2026-09-29 | ~480 | ~90 | ~850 | **~1,300–1,600** | ~250 |
+
+Calibrated on CV-2a, which was sized at ~1,700–2,200 and shipped 1,551
+added lines: engine ~600 against 401, tests ~1,000 against 1,075. The
+re-derivation adds 707.9f's recursion and the status bookkeeping (~30), and
+tests: the Kaito board, four boards for rulings #7 and #8, and the six other
+rulings. The band's floor is 1,500, so this sits at its bottom edge, and the
+docs grow with the two register rows.
+
+#### The tests, and the atom each claims
+
+| Test | Atom | Claim |
+|---|---|---|
+| Spark Double cast from hand copies a legendary creature you control: a +1/+1 counter, not legendary, no legend rule | ATOM-707.9f-002 | COVERS |
+| Spark Double copies a noncreature artifact a resolution animated: no counter | ATOM-707.9f-001 | COVERS |
+| Spark Double copies a Clone that copied nothing (Glorious Anthem keeps it alive), then Clone's copied ability copies a Bear: no +1/+1 counter | ATOM-707.9e-001 | COVERS |
+| a Copy Artifact-shaped fixture copies Darksteel Myr, and a Clone of it is an artifact creature enchantment | ATOM-707.9b-001 | COVERS |
+| a Quicksilver Gargantuan-shaped fixture copies Tarmogoyf: 7/7, with no CDA | ATOM-707.9d-001, COMP-9A-006 | COVERS; PARTIAL (changeling) |
+| a Glasspool Mimic-shaped fixture keeps a subtype CDA | ATOM-707.9d-002 | PARTIAL: changeling is unbuilt |
+| a gains-an-ability fixture, and a Clone of it has the ability | ATOM-707.9a-001 | PARTIAL: the atom's Unstable Shapeshifter is Tier C |
+| a Vesuvan-shaped fixture copies Culling Drone and keeps its own color with no devoid, and a Clone of it is the same | ATOM-707.3-001 | PARTIAL: the upkeep copy is CV-1b's |
+
+Also in CV-2b, with no atom:
+- **Spark Double's rulings** (§3.4), one linked test each: what is not copied
+  (#1), a copy of it is not legendary either (#2, the first row above), X is 0
+  (#3), a copy's copy (#4), a token's values without being a token (#5), the
+  copied "enters" abilities and triggers (#6), and nothing entering beside it
+  (#9).
+- **Ruling #7:** Spark Double copying Loyalty Probe, and Grist's clause, gets
+  printed plus one and no +1/+1; copying a creature that "enters with" two
+  +1/+1 counters, under Master Biomancer, it gets 1 + 2 + 2. Beside Doubling
+  Season the planeswalker's count is an order: CR 306.5b first reaches 8,
+  Doubling Season first 5 (premise (d)'s shape, on the copy's counter). The
+  `// RULING-DEVIATION:` test is the Kaito board's.
+- **Ruling #8:** March of the Machines makes a copied Sol Ring a creature as
+  it enters, so it gets the counter; a Gideon Jura-shaped planeswalker a
+  resolution animated is copied as a noncreature planeswalker, with no +1/+1;
+  a Gideon Blackblade-shaped planeswalker creature gets both counters and CR
+  306.5b's.
+- **The Kaito board**, beside Oath of Gideon: 1 loyalty and one +1/+1
+  (`lookahead-entry-counters`, `copy-exception-conditions`).
+- A "can't have counters" fixture strips the +1/+1; `Modifies(Name)` and
+  `Modifies(GainsKeyword)` fixtures; the gray area's two readings, on the
+  entry state's "enters untapped" (`backlog.md` §2.40), and a later copy
+  putting back the status a 707.9e exception set; a declined Spark Double is
+  a 0/0 Illusion, and CR 704.5f takes it; an edit in `Additionally`, and an
+  `If` in an `If`, are refused.
+
+**The gate:** `specdb owed` cannot close this phase, and it is two short, not
+one. Its default filter still hides the 707 atoms ticketed `D5` (§9 item 11),
+and `ATOM-707.5-002` is filed under Phase 7, which `SHIPPED_PHASES` leaves
+out, so even `owed --all` never lists it. CV-2 closes by hand, against this
+table.
+
+#### The A/B arms
+
+- `engine` against `main`: `IDENTICAL`. No registered card prints an
+  exception before Spark Double, so the applier never runs, and the only
+  change on the hot path is the `EntryCopy` a Clone's entry clones instead of
+  a bare `Arc`. Instructions per decision within ±0.1 points (added at the
+  build, before any arm ran).
+- `shipped`, Spark Double pooled (100 → 101): every row moves. `--require
+  "Spark Double"` reads its +1/+1 path on `performance`. The planeswalker path
+  is the test boards': Loyalty Probe is the only registered planeswalker, a
+  fixture that stays out of `performance`, and a stress game reaches it only
+  if one player draws both. Spark Double is reached in about as many games as
+  Clone was at CV-2a (61% at two seats), copies less often than Clone, since
+  its donors are its controller's own creatures, and adds two to four look-ahead
+  walks per copy (707.9f's judgments), so `Layer walks` rises a little. Zero
+  errors, panics and turn-limit hits (added at the build, before any arm ran).
+
+**Trace page: yes**, decided by the owner at the design review (2026-09-29)
+rather than at the close. 707.9f adds a read no page walks: a look-ahead of
+a copy that has not been made, taken once per judgment, inside the CR 616.1c
+application. The page walks Spark Double's entry read by read, on the Kaito
+board and on a plain creature.

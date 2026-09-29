@@ -1,5 +1,5 @@
 //! CR 707.5 and 707.9 — the copy an entering permanent carries, with the
-//! exceptions its copy effect makes (`copy-effects-architecture.md` §7c).
+//! exceptions its copy effect makes (`copy-effects-architecture.md` §4.1a).
 //!
 //! 707.9a–d change the copiable values, and `layers::copy` makes those
 //! changes. 707.9e and 707.9f are about the entry: an exception may add a
@@ -72,7 +72,7 @@ pub(super) fn enter_as_copy(
 
 /// CR 707.9f's judgment of one copy effect's conditional exceptions: each
 /// against the copy without it, with every other exception that applies
-/// there (§7c, "The Kaito board"; the register row
+/// there (§4.1a, "The Kaito board"; the register row
 /// `copy-exception-conditions`). Memoized on what is left out, so a subset
 /// the recursion reaches twice is judged once.
 struct Judge<'a> {

@@ -52,6 +52,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `CM-4` — plans/cost-architecture.md
 - `CV-1` — plans/copy-effects-architecture.md
 - `CV-2a` — plans/copy-effects-architecture.md
+- `CV-2b` — plans/copy-effects-architecture.md
 - `LH-1` — plans/layers-architecture.md
 - `LH-2` — plans/layers-architecture.md
 - `LI-1` — plans/layers-architecture.md

@@ -274,7 +274,7 @@ pub fn mirrorweave() -> Arc<CardData> {
 /// 52 of the 62 printed cards that enter as a copy choose their donor on the
 /// battlefield, as Clone does, and 42 of the 62 print "except". Clone is the
 /// base both kinds share; Spark Double, CV-2b's card, is the "except" half
-/// (`copy-effects-architecture.md` §7c).
+/// (`copy-effects-architecture.md` §4.1a).
 ///
 /// A `SourceOnly` entry replacement whose rewrite is
 /// `Rewrite::EnterAsCopy`, so CR 616.1c's bucket has a printed producer and
@@ -338,13 +338,13 @@ pub fn clone() -> Arc<CardData> {
 /// # CV-2b's card: CR 707.9's exceptions on Clone's entry copy
 ///
 /// Three exceptions, in printed order, and each is one arm of
-/// `CopyException` (`copy-effects-architecture.md` §7c): two CR 707.9f
+/// `CopyException` (`copy-effects-architecture.md` §4.1a): two CR 707.9f
 /// conditions, each over a CR 707.9e additional counter, and a CR 707.9b
 /// edit that is part of the copiable values, so a copy of this is not
 /// legendary either. The conditions read the CR 614.12 frame of the copy,
 /// each judged without itself and with the other where the other applies,
 /// which is what the words say and what a planeswalker whose type hangs on
-/// its counters makes observable (§7c, "The Kaito board").
+/// its counters makes observable (§4.1a, "The Kaito board").
 ///
 /// # The rulings, and where each is tested
 ///

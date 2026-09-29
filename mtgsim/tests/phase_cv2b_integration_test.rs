@@ -1,5 +1,5 @@
 //! Phase CV-2b integration tests: CR 707.9's exceptions on an entry copy,
-//! with Spark Double, `copy-effects-architecture.md` §7c.
+//! with Spark Double, `copy-effects-architecture.md` §4.1a (the phase is §7c).
 //!
 //! What this file proves, in the order of the section:
 //!
@@ -7,7 +7,7 @@
 //!    707.9e counters, judged against the CR 614.12 frame of the copy, and a
 //!    CR 707.9b edit that a copy of the copy keeps.
 //! 2. Planeswalkers, where the loyalty exception meets CR 306.5b's gathered
-//!    ability, a doubler's order, and the Kaito board (§7c, "The Kaito
+//!    ability, a doubler's order, and the Kaito board (§4.1a, "The Kaito
 //!    board"; the register rows `lookahead-entry-counters` and
 //!    `copy-exception-conditions`).
 //! 3. Spark Double's other rulings.
@@ -688,7 +688,7 @@ fn spark_double_copying_a_planeswalker_creature_gets_both_counters() {
 
 // RULING-DEVIATION: Spark Double #7 (lookahead-entry-counters) - "printed on the card
 //   plus one": 5 on this board by Arixmethes's look-ahead, 1 by CR 614.12's text.
-/// The Kaito board (`copy-effects-architecture.md` §7c). Spark Double, cast
+/// The Kaito board (`copy-effects-architecture.md` §4.1a). Spark Double, cast
 /// on its controller's turn, copies Kaito, a creature because he has
 /// counters. With no counters the copy is a planeswalker, so the loyalty
 /// exception, judged without itself, applies. Judged without itself, the

@@ -2474,7 +2474,7 @@ puts an instruction's status under the same rule: a land "simply put onto the
 battlefield tapped without a replacement effect being applied" enters
 untapped under Spelunking. Found at CV-2's design review, where a copy
 exception's "except it enters untapped" had two readings
-(`copy-effects-architecture.md` §7c) and the engine could express
+(`copy-effects-architecture.md` §4.1a) and the engine could express
 neither.
 
 | Field | |
@@ -2504,7 +2504,7 @@ share are what make this one entry rather than three:
 - **Copying:** the alternative set's existence and values are copiable values
   (715.2b, 718.2a, 720.2b), and a copy of such a spell or permanent is one too
   (715.3c, 718.3c–d, 720.3c). That makes it a copy-track facility, which
-  `copy-effects-architecture.md` §7c's `CopiableValues` has to be able to
+  `copy-effects-architecture.md` §4.1a's `CopiableValues` has to be able to
   hold.
 - **Leaving the stack:** each has its own destination. An Adventure is exiled
   and may be cast later from exile, but not as an Adventure (715.3d); an Omen

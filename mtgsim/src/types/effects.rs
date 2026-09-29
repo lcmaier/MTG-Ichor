@@ -1340,7 +1340,7 @@ impl CharacteristicEdit {
 
 /// CR 707.9 — one exception to a copy effect. One arm per sub-rule that
 /// permits one, so a new arm needs a new rule, and a new card is data
-/// (`copy-effects-architecture.md` §7c).
+/// (`copy-effects-architecture.md` §4.1a).
 #[derive(Debug, Clone, PartialEq)]
 pub enum CopyException {
     /// 707.9a–b: one edit to one characteristic, and the result is part of

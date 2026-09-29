@@ -881,7 +881,7 @@ own: `CharacteristicEdit::has_entry_placement` says which arms an entry may
 make, and `evaluate_enter_template` refuses the rest rather than dropping
 them.
 
-| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §7c): inside `CopiableValues` (CR 707.9b) |
+| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §4.1a): inside `CopiableValues` (CR 707.9b) |
 |---|---|---|
 | `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a; **built** (CV-2b), for Spark Double's "isn't legendary" and Copy Artifact's "in addition" |
 | `Colors(ColorChange)` | layer 5 | 1a |
@@ -1628,7 +1628,7 @@ The boards where the two readings part:
 | Kaito on your turn under an opponent's Authority of the Consuls | enters tapped | enters untapped |
 | Arixmethes under Master Biomancer | an order: Arixmethes's own effect first makes it a land, and Biomancer no longer applies | Biomancer always applies |
 | +1/+1 counters an entry adds, beside a "power N or less" filter | counted (RE-5's `PowerLE` cell) | not counted, taken consistently |
-| Spark Double, cast on your turn, copying Kaito (CV-2b; `copy-effects-architecture.md` §7c) | 1 loyalty, the copy's own additional counter, which makes the frame a creature, so CR 306.5b is never gathered; and one +1/+1 (`copy-exception-conditions`) | 5, Spark Double's ruling #7: printed plus one |
+| Spark Double, cast on your turn, copying Kaito (CV-2b; `copy-effects-architecture.md` §4.1a) | 1 loyalty, the copy's own additional counter, which makes the frame a creature, so CR 306.5b is never gathered; and one +1/+1 (`copy-exception-conditions`) | 5, Spark Double's ruling #7: printed plus one |
 
 **The evidence, dated.**
 - The CR baseline (`tmnt`, effective 2026-02-27) still says what it said.
