@@ -369,7 +369,7 @@ fn a_multiplier_is_offered_only_once_an_enters_with_gives_the_entry_counters() {
 /// the charger's counter is on the entry (CR 616.2), so whichever its
 /// controller applies first is the one the doubler can reach before the other.
 /// Every outcome, and two questions to reach each (`replacement-architecture.md`
-/// Phase RG, the feeds table's premise (d)).
+/// §3.5, the feeds table's premise (d)).
 #[test]
 fn a_multiplier_beside_two_counter_writers_makes_their_order_observable() {
     let run = |first: usize, second: usize| -> (u32, u32) {

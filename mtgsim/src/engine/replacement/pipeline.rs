@@ -891,7 +891,7 @@ fn next_damage_shares(
 /// template's kinds, status and edits and whether its amounts read the frame
 /// (`EnterModsTemplate::is_fixed`), and the affected set against what the
 /// bucket writes ([`BucketWrites`], the feeds table of
-/// `replacement-architecture.md` Phase RG, D3). Plus two reads, for an entry
+/// `replacement-architecture.md` §3.5). Plus two reads, for an entry
 /// only: which kinds its mods hold now ([`kinds_present`]), and whether the
 /// entering object's own characteristics hang on its status or counters,
 /// off the frame the loop already built. Per pair, [`commutes`], a pure
@@ -1386,7 +1386,7 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
 }
 
 /// What the members of one entry bucket can write on the entering object:
-/// the feeds table of `replacement-architecture.md` Phase RG, D3, read for
+/// the feeds table of `replacement-architecture.md` §3.5, read for
 /// one bucket, and the question the premise's part (a) asks of it — can a
 /// write make a member stop applying? One that makes a member *start*
 /// applying is CR 616.2's case, a candidate on the next iteration and no

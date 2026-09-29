@@ -660,7 +660,7 @@ impl CardRegistry {
         // CR 707.5: the permanent that enters as a copy, CR 616.1c's producer.
         registry.register("Clone", phase_cv_cards::clone);
         // CR 110.5b's other status: a permanent that enters untapped because
-        // an effect says so (`replacement-architecture.md` Phase RG, D5, D6).
+        // an effect says so (`replacement-architecture.md` §3.5).
         registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,

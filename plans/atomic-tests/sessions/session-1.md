@@ -1410,7 +1410,7 @@ NOTE: 109.4e is IN stretch scope, as Vanguard is a stretch goal to support.
 - **Action:** An effect creates a token tapped, with no replacement effect saying so; then Archelos becomes tapped and a creature enters.
 - **Expected Result:** The token enters untapped; the creature enters tapped.
 - **Phase:** Phase 6 (replacement effects — ETB status)
-- **Ticket:** RG — `replacement-architecture.md` Phase RG, D5
+- **Ticket:** RG — `replacement-architecture.md` §3.5
 
 > **Filed 2026-09-28 (RG).** `backlog.md` §2.40 recorded that no atom held
 > "enters untapped"; the entry-state PR that builds it files this one.

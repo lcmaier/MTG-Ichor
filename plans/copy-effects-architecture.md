@@ -1113,6 +1113,9 @@ characteristic and a copiable value (CR 109.3, 707.2), with CR 306.5b asked
 again of the copy. Clone, pooled (98 → 99). 32 tests, twelve atoms covered
 and two partially. The engine arm is `IDENTICAL` to `main` on every counter,
 at +0.01% instructions per decision (`fuzz-record.md`, CV-2a's block).
+RG (2026-09-28) folded the field into `PermanentState::entered_as`, and
+replaced the counter rebuild with CR 306.5b's gathered ability
+(`replacement-architecture.md` §3.5).
 
 **Decided at the close: no trace page.** The reads CV-2a adds ride structures
 two pages already walk: the would-be entity of RC-4b's, and the layer-1a
@@ -1131,9 +1134,10 @@ it:
 - `EntryCopyTemplate` gains `except: Vec<CopyException>`.
 - `EnterMods::copy` becomes `Option<EntryCopy { values, added }>`, so a later
   copy in the same entry removes exactly what a 707.9e exception added.
-- A copy's application rebuilds the counters as CV-2a's does, CR 306.5b of
-  the result, plus this copy's 707.9e counters, each through
-  `strip_prohibited_counters`.
+- A copy's application adds this copy's 707.9e counters, through
+  `strip_prohibited_counters` as an `EnterWith`'s are. It rebuilds nothing:
+  since RG, CR 306.5b is an ability the gather finds on the copy's frame
+  after the copy applies (`replacement-architecture.md` §3.5).
 
 The consumer is Spark Double, a `CopyDonor::Chosen` over "a creature or
 planeswalker you control" whose exceptions are 707.9b's "isn't legendary" and
@@ -1166,13 +1170,13 @@ pub enum CopyException {
 }
 
 // `CharacteristicEdit`, the edit vocabulary, is defined with its two
-// placements in `replacement-architecture.md` §9, Phase RG, D4.
+// placements in `replacement-architecture.md` §3.5.
 ```
 
 **One edit vocabulary, placed two ways** (the owner, 2026-09-28, at CV-2a's
-review). The entry-state PR (`replacement-architecture.md` §9, Phase RG,
-whose D4 now holds the vocabulary), before this one on `roadmap-v2.md` A6c,
-builds `CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
+review). The entry-state PR (RG, landed 2026-09-28; the vocabulary is
+`replacement-architecture.md` §3.5), before this one on `roadmap-v2.md` A6c,
+built `CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
 in addition to its other types", held as how the permanent entered and applied
 at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
 last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
@@ -1229,13 +1233,14 @@ engine gives the answer the CR's machinery gives: the stance
 `codebase-state.md` main item 11 took for Toph and Caged Sun. The flexibility a
 custom card needs is that vocabulary, not a judgment of the engine's own.
 
-**What the question found: the engine cannot say "enters untapped" at all.**
-`EnterMods.tapped` merges with `|=`, so an effect that makes a permanent enter
-untapped changes nothing. Five printed cards need it: Spelunking, Horizon
-Explorer, The Wandering Minstrel, Gond Gate and Archelos, Lagoon Mystic. It is
-`backlog.md` §2.40: a status the last applied effect sets, with CR 616.1's
-ordering prompt between opposite statuses. It lands with the entry-state PR
-before CV-2b, and neither reading of the gray area needs more than that.
+**What the question found: the engine could not say "enters untapped" at
+all.** `EnterMods.tapped` merged with `|=`, so an effect that makes a
+permanent enter untapped changed nothing. Five printed cards need it:
+Spelunking, Horizon Explorer, The Wandering Minstrel, Gond Gate and Archelos,
+Lagoon Mystic. It landed with the entry-state PR (RG, 2026-09-28) as
+`EnterMods::status`, which the last applied effect sets, with CR 616.1's
+ordering prompt between opposite statuses (`replacement-architecture.md`
+§3.5). Neither reading of the gray area needs more than that.
 
 #### The printed population, which sizes the donor and exception arms
 

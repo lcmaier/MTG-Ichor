@@ -1,4 +1,4 @@
-//! Phase RG — the entry state (`replacement-architecture.md` §9, Phase RG).
+//! Phase RG — the entry state (`replacement-architecture.md` §3.5).
 //!
 //! One card, for "enters untapped": a status the last applied effect sets,
 //! with CR 616.1's order between opposite statuses (D5, D6). Its oracle text

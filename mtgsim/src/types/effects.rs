@@ -579,8 +579,8 @@ impl Condition {
     /// Does this read its source's own status or counters, which an entry
     /// sets as the permanent arrives?
     ///
-    /// The last row of the feeds table (`replacement-architecture.md` Phase
-    /// RG, D3): an entering object whose own characteristics change under
+    /// The last row of the feeds table (`replacement-architecture.md` §3.5):
+    /// an entering object whose own characteristics change under
     /// such a condition makes every status and counter write feed every
     /// characteristic. Matched in full, so a new leaf says which it is.
     pub fn reads_entry_state(&self) -> bool {
@@ -1263,8 +1263,8 @@ impl TypeChange {
     }
 }
 
-/// One edit to one characteristic (`replacement-architecture.md` Phase RG,
-/// D4). Where it is made decides whether it is copiable, never the edit:
+/// One edit to one characteristic (`replacement-architecture.md` §3.5).
+/// Where it is made decides whether it is copiable, never the edit:
 /// made as a permanent enters it is not (CR 707.2's last sentence), and made
 /// inside a copy it is (CR 707.9b). An arm lands with its first placement's
 /// consumer, so the list is the arms something applies.
@@ -1279,7 +1279,7 @@ impl CharacteristicEdit {
     /// Does this edit only add, "in addition to" what is there? An adding
     /// edit can turn a filter leaf only from not matching to matching, which
     /// is the direction the feeds table's order question never asks about
-    /// (`replacement-architecture.md` Phase RG, D3).
+    /// (`replacement-architecture.md` §3.5).
     pub fn adds(&self) -> bool {
         match self {
             CharacteristicEdit::Types(change) => {

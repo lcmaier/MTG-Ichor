@@ -1176,7 +1176,7 @@ Replacement effects watch for events and replace them. Introduces the concept. S
 - **Action:** The creature is returned to the battlefield under your control; then Master Biomancer leaves the battlefield.
 - **Expected Result:** The creature is a Mutant as it enters, and still a Mutant after Master Biomancer has left.
 - **Phase:** Phase 6 (Replacement effects)
-- **Ticket:** RG — `replacement-architecture.md` Phase RG, D4
+- **Ticket:** RG — `replacement-architecture.md` §3.5
 
 > **Filed 2026-09-28 (RG).** `backlog.md` §2.30 recorded that the corpus had
 > no atom for the type half of 614.1c; the entry-state PR that builds it files

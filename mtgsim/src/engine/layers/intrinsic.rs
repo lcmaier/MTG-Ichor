@@ -1,6 +1,6 @@
 //! CR 306.5b — a planeswalker's intrinsic "enters with" ability, synthesized
 //! onto its frame at the end of layer 4 (`replacement-architecture.md`
-//! Phase RG, D7).
+//! §3.5).
 //!
 //! > 306.5b A planeswalker has the intrinsic ability "This permanent enters
 //! > with a number of loyalty counters on it equal to its printed loyalty

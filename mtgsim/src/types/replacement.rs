@@ -1418,7 +1418,7 @@ pub enum CopyDonor {
 /// accumulation.
 ///
 /// **Two halves, split by what is modified rather than by the wording**
-/// (CR 614.1c; `replacement-architecture.md` Phase RG, D1). *Enters with* is
+/// (CR 614.1c; `replacement-architecture.md` §3.5). *Enters with* is
 /// state, which changes later like any state (CR 110.5c): `status` and
 /// `counters`. *Enters as* is characteristics the entry will fix: `copy` and
 /// `edits`, which the board pass applies at the permanent's timestamp at each

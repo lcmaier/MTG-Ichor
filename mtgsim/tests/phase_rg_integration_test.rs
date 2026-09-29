@@ -1,5 +1,5 @@
 //! Phase RG integration tests: the entry state, CR 614.1c's two halves as one
-//! shape (`replacement-architecture.md` §9, Phase RG).
+//! shape (`replacement-architecture.md` §3.5).
 //!
 //! What this file proves, in the order the phase built it:
 //!

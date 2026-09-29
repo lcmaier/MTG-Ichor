@@ -805,7 +805,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
 ///
 /// "As a Mutant in addition to its other types" is CR 614.1c's other half: not
 /// state the creature enters with, like the counters, but a characteristic
-/// its entry fixes (`replacement-architecture.md` Phase RG, D1 and D4). It is
+/// its entry fixes (`replacement-architecture.md` §3.5). It is
 /// a `CharacteristicEdit` on the same template, and the creature carries it
 /// as `PermanentState::entered_as`, applied at layer 4 at the creature's own
 /// timestamp: a later Layer 4 effect applies over it, it is not copied

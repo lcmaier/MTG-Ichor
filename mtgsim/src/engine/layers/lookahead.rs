@@ -192,7 +192,7 @@ mod tests {
     use crate::types::replacement::{EnterMods, EntryCounters, TapStatus};
     use crate::types::zones::Zone;
 
-    /// Replacement-architecture Phase RG's D2, field by field: the permanent
+    /// `replacement-architecture.md` §3.5's constructor, field by field: the permanent
     /// the frame predicts is the one the performer places, for every field
     /// the proposal or the resolving spell supplies, timestamps included.
     #[test]

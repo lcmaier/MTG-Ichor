@@ -14,7 +14,7 @@
 | ATOM-106.6a-001 | 106.6a | If a replacement effect increases mana produced, restrictions apply to all mana | NEW — Mana replacement restriction propagation | S1 |  |
 | ATOM-107.3m-001 | 107.3m | An ETB trigger/replacement referring to X uses the value of X from the spell that became that permanent | DEFERRED (2026-09-15, post-RE audit) — Phase 8's first "enters with X counters" card; X is not readable at resolution at all today (`codebase-state.md`, the CR 601.2b row), so the fact half is that row's; was: T06 + T21a + Phase 6 | S1 |  |
 | ATOM-110.5b-002 | 110.5b | "Unless a spell or ability says otherwise" — e.g., "enters the battlefield tapped" | Phase 6 — ETB replacement effects | S1 |  |
-| ATOM-110.5b-003 | 110.5b | what a spell or ability says can be "untapped" too, and a permanent has one tapped/untapped status, so the last effect applied sets it | RG — `replacement-architecture.md` Phase RG, D5 | S1 |  |
+| ATOM-110.5b-003 | 110.5b | what a spell or ability says can be "untapped" too, and a permanent has one tapped/untapped status, so the last effect applied sets it | RG — `replacement-architecture.md` §3.5 | S1 |  |
 | ATOM-119.10-001 | 119.10 | Replacement effects for life gain don't apply when gaining 0 life | Phase 6 | S1 |  |
 | ATOM-121.2a-001 | 121.2a | Replacement effect modifying number of draws is applied before individual draws | Phase 6 | S1 |  |
 | ATOM-121.6a-001 | 121.6a | Draw replacement effect applies even with empty library | Phase 6 | S1 |  |
@@ -46,7 +46,7 @@
 | BOUNDARY-DEF-614.1a-001 | 614.1a | "Instead" identifies a replacement effect | NEW — Replacement effect classification by "instead" keyword | S6 |  |
 | BOUNDARY-DEF-614.1b-001 | 614.1b | "Skip" identifies a replacement effect | NEW — "Skip" as replacement effect keyword | S6 |  |
 | BOUNDARY-DEF-614.1c-001 | 614.1c | ETB modification patterns are replacement effects | NEW — ETB replacement effect classification | S6 |  |
-| ATOM-614.1c-001 | 614.1c | "[This permanent] enters as . . ." is a replacement effect, and what the permanent enters as is a characteristic it keeps | RG — `replacement-architecture.md` Phase RG, D4 | S6 |  |
+| ATOM-614.1c-001 | 614.1c | "[This permanent] enters as . . ." is a replacement effect, and what the permanent enters as is a characteristic it keeps | RG — `replacement-architecture.md` §3.5 | S6 |  |
 | BOUNDARY-DEF-614.1d-001 | 614.1d | Continuous ETB modification is a replacement effect | NEW — Continuous ETB replacement classification | S6 |  |
 | ATOM-614.4-001 | 614.4 | Replacement effect must exist before the event | NEW — Replacement effect timing enforcement (pre-event only) | S6 |  |
 | ATOM-614.5-001 | 614.5 | Replacement effect doesn't self-repeat | NEW — Replacement effect single-application rule | S6 |  |

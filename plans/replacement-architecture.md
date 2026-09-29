@@ -778,6 +778,115 @@ It differs in two ways, both because replacement effects are not layered:
   asked. Source 1's discovery-from-effective-abilities gives the same guarantee
   structurally.
 
+### 3.5 The entry state — CR 614.1c's two halves (RG, 2026-09-28)
+
+**What is modified decides the half, never the wording.**
+- *Enters with* is state the permanent arrives with, which changes later
+  like any state (CR 110.5c): a status (`EnterMods::status`) and counters
+  (`EnterMods::counters`). On the permanent it is ordinary state.
+- *Enters as* is characteristics the entry fixes: a copy (CR 707.5,
+  `EnterMods::copy`) and characteristic edits (CR 614.1c, `EnterMods::edits`).
+  On the permanent they are `PermanentState::entered_as`. The board pass
+  applies each at the permanent's timestamp at its own layer, after the
+  permanent's own static rows at that timestamp (CR 613.7n), with no
+  registry row, and each leaves with the permanent (CR 400.7).
+
+**What decides the carrier is when a change is made, never who made it**
+(CV-2a's D1). Master Biomancer's Mutant is made as the creature enters, so it
+is entry state and outlives the Biomancer. Names follow the holder's time: a
+proposal's members are named for what they are, and only the permanent says
+`entered_as`.
+
+**One constructor.** `PermanentState::entering` is the only function that
+turns an `EnterMods` into an entity, for the performer and for the CR 614.12
+look-ahead alike, which differ only in the timestamps they pass. A new member
+is a field on `EnterMods`, one line there, and a read wherever a layer needs
+it. Face-down (CV-6) is a status, read at 1b; CR 613.2a's copiable "as ...
+enters" P/T is an "as" member at 1a; `backlog.md` §2.2's "as it enters"
+choice record takes the same road.
+
+**A status is set, not accumulated** (CR 110.5b). An effect that names one
+sets it, so the last one applied wins (Spelunking's and Archelos's rulings).
+CR 110.5b's default and an instruction's own "tapped" are the proposal's
+starting status and never a bucket member, so every status-setting effect
+applies over them.
+
+**CR 306.5b is an ability** (`engine::layers::intrinsic`). The walk
+synthesizes it onto every frame that is a planeswalker at the end of layer 4,
+with a derived id and the frame's loyalty as a constant. Source 1a gathers it
+like a printed "enters with", so CR 616.1 orders it and Layer 6 removes it.
+Source 1a is its only gather leg, since it modifies only its own object's
+entry. CR 310.4b's battles join it (`backlog.md` §2.23).
+
+#### The feeds table — `ordering_cannot_change_outcome`'s entry premise
+
+`codebase-state.md` main item 185's first piece, in its four parts:
+- **Elision:** CR 616.1's ordering prompt among the entry-shaped members of
+  one bucket. **Claim:** every order reaches one outcome.
+- **Premise, as a property:** no member's write can (a) make another member
+  stop applying, (b) change what another member writes, (c) be overwritten
+  by another member's write, or (d) make applicable an effect that
+  multiplies another member's write.
+- **What holds it:** exhaustive destructures at the table's inputs, so a new
+  `EnterModsTemplate` field, `CharacteristicEdit` arm, `ObjectFilter` leaf or
+  `Condition` leaf is a compile error where it must be classified;
+  `check_order_invariance`, which computes (a) the other way after every
+  suppressed prompt in a debug build; and, for (d), two tests that reach
+  every order: RE-5's multiplier beside two counter writers, and Adaptive
+  Shimmerer under Master Biomancer beside Doubling Season.
+
+(b) is RE-5's kinds rule, and (c) is the status: two members that set
+opposite statuses are an order. (a) is this table, which records a direction:
+a write that makes a member *start* applying is CR 616.2's case, a candidate
+on the next iteration with nothing to order now, so only a write that can turn
+a leaf from matching to not matters.
+
+| Field | Half | What it writes on the entering object | Leaves it can unmatch |
+|---|---|---|---|
+| `status` | with | the tapped status (CR 110.5a: not a characteristic) | none directly; see the last row |
+| `counters`, +1/+1 | with | power and toughness up, at 7c (CR 122.1a) | `PowerLE` |
+| `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
+| `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
+| `counters`, any other kind | with | nothing | none |
+| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and the ladder never buckets 616.1c with 616.1e |
+| `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
+| `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
+| `status` or `counters`, when the entering object has a static that changes its own characteristics under a condition on its status or counters (`Condition::reads_entry_state`) | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
+
+No 616.1e member writes the controller (CR 616.1b's step) or ownership, and no
+entry writes identity. `classify` answers `ModsAdding` for an `EnterWith`
+whose amounts are fixed or read another source and whose edits all add, with
+its status beside its kinds; an edit that sets or removes is an order, as two
+copies are.
+
+**Premise (d).** A doubler that applies only once the entry carries counters
+(CR 616.2) multiplies what is there when it applies, so two members that each
+write kinds it multiplies are an order: whichever applies first is the one it
+can reach before the other writes. Adaptive Shimmerer's 3 and Master
+Biomancer's 2 under Doubling Season end at 7, 8 or 10. Checked by one more
+gather, against the entry with every counter-writing member's rows in it, and
+only for a bucket with two such members; a plus is exempt, since it adds its
+amount once whenever it applies.
+
+#### `CharacteristicEdit` — one vocabulary, two placements
+
+One edit to one characteristic, whose content is a type the engine already
+has (`TypeChange` and `ColorChange` are layers 4 and 5's own). **Where the
+edit is made decides whether it is copiable, never the edit.** An arm lands
+with its first placement's consumer; `Types` is built.
+
+| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §7c): inside `CopiableValues` (CR 707.9b) |
+|---|---|---|
+| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a |
+| `Colors(ColorChange)` | layer 5 | 1a |
+| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a |
+| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a |
+| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a |
+
+The entry placement lowers an edit through the function `Primitive::ChangeType`
+lowers through (`TypeChange::modifications`), so an edit and a continuous
+effect that say the same thing make the same modifications.
+
 ---
 
 ## 4. The pipeline
@@ -2054,541 +2163,42 @@ close RB's half at zero engine cost; do not let RC open a second such gap.
 
 → The section as sized, what the building changed and the measurement: `plans/archive/replacement-architecture-landed.md`, "RC-5" (evicted 2026-09-11).
 
-### Phase RG — the entry state (CR 614.1c) — designed 2026-09-28, for review
-
-**Why it sits after RC.** RG formalizes the `EnterMods` that RC-2 built. It is
-the second PR of `roadmap-v2.md` A6c, after CV-2a (landed) and before CV-2b,
-whose copy exceptions reuse two of its shapes. The scope is the owner's, set at
-CV-2a's review (2026-09-28):
-- CR 614.1c's two halves as one shape;
-- one constructor for the entering permanent;
-- a table of what each `EnterMods` field feeds;
-- `CharacteristicEdit`, with Master Biomancer's Mutant as its first placement;
-- "enters untapped";
-- CR 306.5b gathered rather than seeded.
-
-**No new `Rewrite` or `EventPattern` arm.** Everything rides `EnterWith`'s
-payload, which is the growth `EnterMods`' own doc comment names: "a new status
-is a field here, not an arm anywhere". Branch `replacement/entry-state`.
-
-#### What the tree has, re-derived against `d18b098`
-
-1. **Two builders of the entering permanent.** `Lookahead::new`
-   (`engine/layers/lookahead.rs:66`) and `place_on_battlefield`
-   (`state/game_state.rs:1304`) each call `PermanentState::new` and copy the
-   mods by hand. They agree on `tapped`, the copy and the counters, and differ
-   twice:
-   - The performer writes `cast` and `cost_choices` off
-     `GameState::resolving`; the frame does not. `condition::cost_choices`
-     reads `resolving` first, so the frame is right today by a second road.
-   - The performer allocates the counters' timestamps after inserting the
-     entity; the frame predicts them.
-
-   A third writer sits outside both. `resolve_top_of_stack` writes `x_value`
-   after the entry is announced (`engine/stack.rs:216`), a direct write
-   outside `perform_action` into a field nothing reads yet.
-2. **The brief's counts, read against the tree.** `EnterMods` has 7 struct
-   literals in `src` (the brief's 9 counted the struct and `impl` lines) and
-   1 in `tests`; `EnterModsTemplate` has 2 literals and `is_fixed`'s
-   destructure in `src`, and 2 literals in `tests`. `default_enter_mods` has
-   8 callers: `entry_proposal`, four `sba.rs` unit tests and the three
-   placing helpers. `default_enter_counters` has one, CV-2a's rebuild.
-3. **The ordering elision's entry premise is a leaf list.**
-   `filter_is_mods_invariant` (`pipeline.rs:1320`) calls the type, subtype,
-   supertype and color leaves invariant because no field feeds them. Two
-   `EnterWith`s always commute, which holds only because `tapped` merges by
-   `|=`.
-4. **The board pass already applies state that has no row.** The entry copy
-   is applied at layer 1a (`Board::entry_copies`), keyword counters at 6 and
-   P/T counters at 7c. Each is applied at the entity's timestamp and read off
-   `Board::entity`, which answers the would-be entity under a look-ahead.
-5. **One condition reads entry state today.** `Condition::SourceUntapped`
-   reads the entity's status (`condition.rs:102`), and under a look-ahead the
-   would-be entity's. No registered static puts it on a characteristic: its
-   two users, Trinisphere and Locked Sphere, modify costs.
-
-#### D1. One shape: "enters with" is state, "enters as" is characteristics
-
-**The problem.** CR 614.1c names three wordings: "enters with", "as ...
-enters" and "enters as". The engine carries three things an entry can modify:
-a status, counters, and since CV-2a a copy. Master Biomancer adds a type, and
-CV-6 will add face-down. Each needs a rule for where it lives after the entry,
-when it applies, and whether it is copiable.
-
-**The rule: what is modified decides the half, never the wording.**
-- **Enters with** is state the permanent arrives with, which changes later
-  like any state (CR 110.5c): the tapped status (CR 110.5b), counters
-  (CR 122.6a), and later face-down, which CR 110.5 names a status. The
-  performer writes it onto the entity, and the layers read what they need of
-  it off the entity: counters at 6 and 7c today, face-down at 1b in CV-6
-  (CR 110.5a: status "may affect a permanent's characteristics").
-- **Enters as** is characteristics the entry fixes: the copy (CR 707.5,
-  layer 1a) and characteristic edits (CR 614.1c; layer 4 for Biomancer's
-  type). It never becomes a row. The board pass applies each one at the
-  entity's timestamp (CR 613.7d, and re-stamped with it under 613.7e) at its
-  own layer, so a later row applies over it, and it leaves with the entity
-  (CR 400.7).
-
-Kavu Titan's "enters with three +1/+1 counters on it and with trample" is
-both halves in one wording: the counters are state, and trample is an edit.
-
-This is CV-2a's D1 read one level up: **what decides the carrier is when a
-change is made, never who made it.** Biomancer's Mutant is made as the
-permanent enters, so it is entry state and outlives the Biomancer. "Creatures
-you control are Mutants" would be the Biomancer's row.
-
-```rust
-pub struct EnterMods {
-    // Enters with: state.
-    pub status: Option<TapStatus>,                // D5; `None` is CR 110.5b's default
-    pub counters: Vec<EntryCounters>,
-    // Enters as: the characteristics the entry will fix.
-    pub copy: Option<Arc<CopiableValues>>,        // CR 707.5, layer 1a (CV-2a's, unchanged)
-    pub edits: Option<Arc<[CharacteristicEdit]>>, // CR 614.1c, each at its layer (D4)
-}
-
-/// On the permanent, once it has entered: what it entered as.
-pub struct EnteredAs {
-    pub copy: Option<Arc<CopiableValues>>,
-    pub edits: Option<Arc<[CharacteristicEdit]>>,
-}
-```
-
-**Nothing on the proposal is named in the past tense.** A proposal says what
-the permanent will enter as, so its "as" members are named for what they are:
-`copy`, CV-2a's name, and `edits`. The group is named `entered_as` only on
-`PermanentState`, where the entry has happened: `entered_as_copy` becomes
-`entered_as: EnteredAs`, and `Board::entry_copies` becomes
-`Board::entered_as`. D2's constructor maps the proposal's members onto the
-group, and registration reads `entered_as.copy`'s abilities as it reads
-`entered_as_copy`'s today. `merge` appends `edits` in the order the effects
-applied, which is the order the board applies them in at the entity's
-timestamp, and still asserts it is handed no `copy`.
-
-**The entry copy joins the group rather than staying beside it.** Beside it,
-every "enters as" member would be one more field on `PermanentState` and one
-more list in the board's seed. In the group, a member is a field of
-`EnteredAs`, and the seed notes one list. Both members are `Arc`s, for #188's
-and CV-2a's reason: the pipeline clones the event every iteration and a fork
-clones the entity, and each clone is then a count bump. The `EnterAsCopy` arm
-keeps CV-2a's single `Arc::new`.
-
-**What slots in later, each one field through D2's constructor:** face-down
-(CV-6) on the "with" side, read at 1b; CR 613.2a's copiable "as ... enters"
-P/T (Primal Clay) on the "as" side, at 1a; `backlog.md` §2.2's "as it enters"
-choice record; and item 134's paid choice, on the template. CR 310.4b's
-defense counters ride D7's synthesis with battles (`backlog.md` §2.23).
-
-#### D2. One constructor for the entering permanent
-
-`PermanentState::entering(game, object, controller, &mods, stamps)` is the
-only function that turns an `EnterMods` into an entity. It writes:
-- the status, and the proposal's `copy` and `edits` as `entered_as`;
-- the counters, at their CR 613.7c timestamps;
-- CR 400.7d's `cast` and `cost_choices`, and `x_value`, off
-  `GameState::resolving` when the object is the resolving spell.
-
-`Lookahead::new` and `place_on_battlefield` both call it, and they differ
-only in `stamps`. The frame passes the timestamps it predicts: the entity's at
-`next_timestamp`, and its counters' after it. The performer passes the ones it
-allocates. **A field added to `EnterMods` is then one line in one function,
-and no frame can miss it.** That answers the face-down question: CV-6 adds a
-status field, one line here and one application at 1b, and neither builder
-changes.
-
-Three consequences, all in this PR:
-- The would-be entity now carries `cast` and `cost_choices`, so the frame
-  stops depending on `condition::cost_choices` reading `resolving` first.
-- `x_value` joins `ResolvingObject`, and `stack.rs:216`'s write goes. It
-  writes observable state outside `perform_action` (`CLAUDE.md`'s chokepoint
-  invariant), after the entry's triggers are dispatched. Nothing reads it
-  yet, which is why it can move now for about 10 lines.
-- The performer inserts a finished entity and bumps the layer epoch once,
-  not once per counter kind. No query sits between the bumps, so nothing
-  observable changes.
-
-#### D3. The feeds table — the first piece of `codebase-state.md` main item 185
-
-In item 185's four parts:
-- **Elision:** CR 616.1's ordering prompt among the entry-shaped members of
-  one bucket (`ordering_cannot_change_outcome`). **Claim:** every order
-  reaches one outcome.
-- **Premise, as a property:** no member's write can (a) make another member
-  stop applying, (b) change what another member writes, (c) be overwritten
-  by another member's write, or (d) make applicable an effect that
-  multiplies another member's write. (b) is RE-5's kinds rule, unchanged;
-  (c) arrives with the status (D5); (a) is the table below, in place of a
-  leaf list; (d) is below it.
-- **What holds it:** exhaustive destructures at the table's three inputs, so
-  a new `EnterModsTemplate` field, `ObjectFilter` leaf or `Condition` leaf is
-  a compile error at the row that must classify it; and
-  `check_order_invariance`, which computes (a) the other way after every
-  suppressed prompt in a debug build. (d) is not computed the other way:
-  tests on the two boards below hold it.
-
-**The table records a direction.** A member in the bucket already applies, so
-the only write that can make the order matter is one that makes another
-member *stop* applying. A write that makes a member *start* applying is
-CR 616.2's case: the member becomes a candidate on the next iteration, and
-there is nothing to order now.
-
-| Field | Half | What it writes on the entering object | Leaves it can unmatch |
-|---|---|---|---|
-| `status` | with | the tapped status (CR 110.5a: not a characteristic) | none directly; see the last row |
-| `counters`, +1/+1 | with | power and toughness up, at 7c (CR 122.1a) | `PowerLE` |
-| `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
-| `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
-| `counters`, any other kind | with | nothing | none |
-| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and the ladder never buckets 616.1c with 616.1e |
-| `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
-| `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
-| `status` or `counters`, when the entering object has a static ability that changes its own characteristics under a condition on its status or counters | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
-
-No 616.1e member writes the controller (CR 616.1b's step) or ownership, and no
-entry writes identity (`All`, `Token`, `NotSource`, `OtherThanInstance`).
-
-**Two corrections the direction makes.**
-- `backlog.md` §2.30 said a `BySubtype(Mutant)` filter beside Biomancer
-  "does [ask], and should". It should not. A non-Mutant is not a candidate
-  until Biomancer has applied, and then it is one (CR 616.2), with nothing to
-  order. An entering Mutant already matches, and adding Mutant again changes
-  nothing. What asks is `Not(BySubtype(Mutant))`, "non-Mutant creatures":
-  Biomancer applied first unmatches it, and it applied first still applies.
-- `PowerLE` stops being unconditionally `false`. Beside members that give no
-  +1/+1 counter, it commutes.
-
-No registered entry replacement reads a subtype or `PowerLE`, so neither
-correction moves a fuzz game.
-
-**What `classify` answers for an `EnterWith` that carries an edit.** It answers
-`ModsAdding`, as for any `EnterWith` whose amounts are fixed or read another
-source, **if every edit adds**. The class carries the member's status beside
-its kinds. An edit that sets or removes makes it `None`, a real choice beside
-anything: two sets on one axis are an order, as two copies are, and the later
-one wins. Every printed "enters as" edit `backlog.md` §2.30 counts adds
-("in addition to its other types").
-
-```rust
-Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
-    && t.edits.iter().all(CharacteristicEdit::adds)
-    && !writes.can_unmatch(&def.affected_objects))
-    .then(|| Commuting::ModsAdding { kinds, status: t.status }),
-// `commutes`: two `ModsAdding` commute unless their statuses are opposite.
-```
-
-`writes` is the union of what the bucket's members write, the member's own
-writes included, which is the conservative direction. The arithmetic members
-over an entry ask the same `can_unmatch` in place of
-`object_set_is_mods_invariant`.
-`filter_is_mods_invariant` and `object_set_is_mods_invariant` go. The doc
-comment of `ordering_cannot_change_outcome` states the three-part property and
-points here, in place of its leaf list.
-
-**Premise (d), found in the build (2026-09-28) and fixed here at the
-owner's call.** A doubler that applies only once the entry carries counters
-(CR 616.2) multiplies what is there when it applies. So two members that both
-write kinds it multiplies are an order: whichever applies first is the one it
-can reach before the other writes. RE-5's commute cell compared two members
-with each other and never with such a multiplier, and it predates RG: on
-registered cards, Adaptive Shimmerer (+3) entering under Master Biomancer (+2)
-with Doubling Season reached 7 or 10 and never 8. RG made it fail RE-5's
-planeswalker board, since with the seed gone CR 306.5b is a member. The check
-gathers once more, against the entry with every counter-writing member's rows
-in it, and only for a bucket with two such members. A plus is exempt: it adds
-its one amount once whenever it applies, so no member's order moves it.
-
-**The table's last row reads the entering object's abilities.** The loop
-already holds them: source 1a reads them off the iteration's `EntryFrame`. So
-`ordering_cannot_change_outcome` takes the frame, and reads it only for a
-bucket with two or more entry-shaped members. `Condition::reads_entry_state`
-is a property beside the enum, as §4.1 advises. It is true for
-`SourceUntapped`, D6's `SourceTapped` and D7's `SourceHasCounters`.
-
-#### D4. `CharacteristicEdit` — the vocabulary, and its first placement
-
-The vocabulary moves here from `copy-effects-architecture.md` §7c, which keeps
-using it. One edit changes one characteristic, and each arm's content is a
-type the engine already has: `TypeChange` and `ColorChange` are layers 4 and
-5's own.
-
-```rust
-/// One edit to one characteristic, as an entry makes it (D4's entry
-/// placement) or as a copy makes it (CR 707.9a–b, the copy placement).
-pub enum CharacteristicEdit {
-    Types(TypeChange),       // built here
-    Colors(ColorChange),
-    GainsAbility(AbilityDef),
-    GainsKeyword(KeywordFlag),
-    PowerToughness(i32, i32),
-    Name(String),
-    ManaCost(Option<ManaCost>),
-    Loyalty(i32),
-}
-```
-
-**The placement decides copiability, never the edit.**
-
-| Arm | Entry placement (this doc): "enters as", not copiable (CR 707.2's last sentence) | Copy placement (§7c, CV-2b): inside `CopiableValues` (CR 707.9b) |
-|---|---|---|
-| `Types` | layer 4. **Built here**, for Master Biomancer | 1a |
-| `Colors` | layer 5 | 1a |
-| `GainsAbility`, `GainsKeyword` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a |
-| `PowerToughness` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), which makes it §2.2's record at 1a, a third placement | 1a |
-| `Name`, `ManaCost`, `Loyalty` | none: they are copiable values only (CR 707.2) | 1a |
-
-**This PR builds one arm, `Types`.** Each other arm lands with its first
-consumer: CV-2b's Spark Double builds the copy placement and the arms it
-needs, because an arm the pipeline cannot apply is worse than a missing one
-(`CLAUDE.md`). The entry placement lowers an edit through the function
-`Primitive::ChangeType` lowers through (`static_primitive_rows`' arm, lifted
-out), so an edit and a continuous effect that say the same thing make the
-same modifications.
-
-**Master Biomancer's clause goes live.** Its template gains
-`edits: vec![Types(add Mutant)]`, and the creature is a Mutant at layer 4 at
-its own timestamp. So:
-- a later Layer 4 row applies over the Mutant, and an earlier one under it
-  (CR 613.7);
-- the creature stays a Mutant after Biomancer leaves. There is no row and no
-  source, and the card's one ruling is about the counters, so the duration is
-  CR 614.1c's, as §2.30 adopted;
-- a Clone of it is not a Mutant (CR 707.2: a type-changing effect is not
-  copied), and a Cytoshape over it leaves it a Mutant, since the edit is not
-  a copy effect for the Cytoshape to replace;
-- the look-ahead's next iteration sees the Mutant, so a
-  `Not(BySubtype(Mutant))` member asks (D3).
-
-`EnterModsTemplate::is_fixed` destructures `edits` and stays true: an edit is
-a constant.
-
-#### D5. "Enters untapped" — the status the last applied effect sets
-
-`EnterModsTemplate.tapped` and `EnterMods.tapped` become
-`status: Option<TapStatus>`, with `TapStatus::{Tapped, Untapped}`, CR 110.5's
-tapped/untapped category. On a template, `None` says nothing about the status.
-On the event, `None` is CR 110.5b's default, untapped, and the constructor
-reads it so. `merge` sets the status when the merged mods name one, so **the
-last applied effect wins**. That is Spelunking's first ruling, and it is what
-`|=` could not say.
-
-**Where "enters untapped" and "enters tapped" meet the CR 110.5b default:
-never in the bucket.** The default is the proposal's starting status, and so
-is an instruction's own word ("create a tapped token", "put it onto the
-battlefield tapped"). `entry_proposal` and `create_tokens` seed both, as they
-do today. Every status-setting effect applies over the seed. That is
-Spelunking's second sentence: a land "simply put onto the battlefield tapped
-without a replacement effect being applied" enters untapped.
-- Two effects in one bucket with opposite statuses are a real CR 616.1
-  choice, and it is the entering permanent's controller's (Archelos's second
-  ruling).
-- Two effects with the same status commute.
-- A status beside a member that writes no status commutes.
-
-CR 101.2's strip passes a status through untouched, as it passes `tapped` today.
-
-#### D6. The printed card — Archelos, Lagoon Mystic
-
-Each candidate was read on Scryfall on 2026-09-28, with its rulings, and each
-needs more than D5:
-
-| Card | Beyond "enters untapped", it needs |
-|---|---|
-| Spelunking | an ETB that puts a land card from hand onto the battlefield, and "if you put a Cave onto the battlefield this way", a condition on the card it moved |
-| Horizon Explorer | "whenever you attack a player", once per player attacked (its second ruling), and the Lander token, an artifact with a library search |
-| Gond Gate | "add one mana of any color that a Gate you control could produce", CR 106.7's reflected mana |
-| The Wandering Minstrel | a beginning-of-combat trigger that counts five Towns, an all-colors token, and a five-color activation whose X is fixed at resolution (its fourth ruling) |
-| **Archelos, Lagoon Mystic** | **`Condition::SourceTapped`**, the mirror of the `SourceUntapped` leaf Trinisphere uses: about 15 lines across its four exhaustive matches |
-
-**Recommended: Archelos**, the fifth card `backlog.md` §2.40 lists. "As long
-as Archelos is tapped, other permanents enter tapped. As long as Archelos is
-untapped, other permanents enter untapped." That is two conditional static
-replacements over `ObjectFilter::All`, and nothing else. Its own entry is
-excluded by source 1a's scope, as Master Biomancer's "other" is. Its three
-rulings are D5's rule:
-- it applies neither to itself nor to anything entering beside it, which is
-  the one-board decision (item 46);
-- an "enters tapped" beside it is the entering permanent's controller's
-  choice, and an instruction's "tapped" enters untapped;
-- two of them are ordered by the entering permanent's controller.
-
-It sets both statuses and reaches every player's permanents, so on a
-four-seat board CR 616.1's chooser is usually not its controller. Beside a
-pooled Idyllic Beachfront or Root Maze it makes the opposite-status prompt
-reachable in a fuzz game. It is registered and pooled (`PERFORMANCE_POOL` 99
-→ 100) in the commit after the engine can play it.
-
-#### D7. CR 306.5b, gathered rather than seeded — `codebase-state.md` main item 186
-
-**The synthesis.** The layer walk synthesizes CR 306.5b's ability onto every
-frame whose types include Planeswalker, **at the end of layer 4**. CR 305.6's
-mana abilities are synthesized during layer 4. This one waits for the end,
-because 306.5b gives the ability to a planeswalker and the type is settled only
-there. So Layer 6 can remove it (Humility), and a Layer 4 effect that stops a
-permanent being a planeswalker takes it away (Kaito). One function, beside
-`land_types`, is called by the pass and by the non-member walk. The def is:
-- identified by `AbilityId::derived_on(object, tag)`, with a tag no land type
-  uses, so CR 614.5's applied set keys it across iterations as it keys a
-  printed ability;
-- `EnterWith(with_counters(Loyalty, n))` over `SourceOnly`, where `n` is the
-  frame's loyalty: CR 707.2's copiable value, which for a copy is the copy's,
-  and 0 when there is none (CR 107.2).
-
-`n` is read at synthesis, which is the moment the gather reads the ability. So
-the def `is_fixed`, and beside Oath of Gideon on a board where the counters
-change no type it commutes: 3 + 1 either way. A frame-reading amount would ask
-a question with one outcome there.
-
-**Which gate legs it needs.** A synthesized ability is a new route to the
-effective list, so `CLAUDE.md` asks for a leg on every gate. This one modifies
-only its own object's entry (`SourceOnly` over `EnterBattlefield`), and that
-entry is gathered by source 1a alone, off the frame, with no gate. The
-battlefield sweep and the zone leg skip it, and correctly: it can apply to
-nothing they gather for. `replacement_ability_sources` is the printed list,
-and the zone leg skips the entering object.
-
-**What goes.**
-- `default_enter_mods`, `default_enter_counters` and `loyalty_on_entry`.
-  `entry_proposal` seeds `EnterMods::NONE`, plus a token's own "tapped", and
-  its CR 101.2 strip goes, since only the seed needed it.
-- **CV-2a's rebuild at a copy's application, confirmed.** It existed because
-  the seed put the pre-copy object's loyalty into the mods. With nothing
-  seeded, the mods hold no counters when a copy applies, since CR 616.1's
-  ladder puts every 616.1c effect ahead of every 616.1e one. The copy's own
-  306.5b is gathered off the copy's frame on a later iteration. The
-  `debug_assert` and the `default_enter_counters` call leave the
-  `EnterAsCopy` arm. §7c's "CR 306.5b of the result" becomes "a later copy
-  removes what an earlier copy's 707.9e exception added".
-
-**CR 101.2's cause becomes the planeswalker's controller.** The seed passed
-`None`, as a rule gives the counters. Now an ability gives them, so a "can't"
-that names "abilities your opponents control" reads it as its controller's.
-
-**The printed board** (item 186). Kaito, Bane of Nightmares is cast from hand
-in its controller's main phase, beside Oath of Gideon. Kaito would enter with
-no counters, so it is a planeswalker and both effects apply. D3's last row
-makes Oath unclassifiable, because Kaito's type static is conditioned on its
-counters, so Kaito's controller is asked:
-- 306.5b first gives 4 counters and makes Kaito a 3/4 Ninja creature, so Oath
-  no longer applies;
-- Oath first gives 1 counter, and then 306.5b no longer exists.
-
-Both cards are fixtures. Kaito's static needs **`Condition::SourceHasCounters
-{ counter, at_least }`** ("as long as Kaito has one or more loyalty counters
-on him"), and the fixture drops "during your turn", which holds on the board.
-`layers-architecture.md` §13b decision 5 grows the enum only for a registered
-card; `engineering-practices.md` §4's later rule (the CR is the customer) and
-CR 711.2a's levelers, which state the same shape, are why this leaf is built
-for a fixture. The Humility board stays: a planeswalker creature entering
-under Humility loses the ability at layer 6, enters with no counters, and
-CR 704.5i puts it into the graveyard.
-
-**What the helpers seed.** `put_on_battlefield` and its two siblings bypass
-the pipeline and place a permanent "as the rules alone would have it". With
-306.5b an ability, that is the object's own intrinsic "enters with" abilities
-and nothing else: a `test_support` function reads the synthesized def off the
-object's look-ahead frame and seeds its counters, so a helper-placed
-planeswalker keeps its loyalty and a helper-placed planeswalker creature
-under Humility gets none, as a cast one does. The four `sba.rs` tests call it
-in place of `default_enter_mods`. Seeding nothing instead would route those
-tests through `propose_entry` and every other replacement effect on their
-boards, which the helper exists to skip.
-
-#### The sites, counted
-
-| Site | RG |
-|---|---|
-| `types/replacement.rs` | `EnterMods`: `status`, `edits`, and `NONE`, `tapped()`, `with_counters()`, `is_none`, `merge`. `EnterModsTemplate`: `status`, `edits`, and `tapped()`, `untapped()`, `with_counter_amount`, `is_fixed`. `TapStatus`, `EnteredAs` |
-| `types/effects.rs` | `CharacteristicEdit`, one arm; `Condition::SourceTapped` and `SourceHasCounters`; `Condition::reads_entry_state` |
-| `state/battlefield.rs` | `entered_as`; `PermanentState::entering` |
-| `state/game_state.rs` | `place_on_battlefield` through the constructor; `ResolvingObject.x_value`; `register_static_effects` reads `entered_as.copy`; the three seed functions deleted; the `ChangeType` lowering lifted out |
-| `engine/stack.rs` | the `x_value` write deleted; the `ResolvingObject` literal |
-| `engine/actions.rs` | `entry_proposal`; `create_tokens`' merge |
-| `engine/layers/lookahead.rs` | `Lookahead::new` through the constructor; `would_be_rows` |
-| `engine/layers/board.rs` | the `entered_as` notes; the edits' applications; the synthesis after layer 4; two `condition_reads` arms |
-| `engine/layers/compute.rs`, a new `engine/layers/intrinsic.rs` | the synthesis in the non-member walk; the 306.5b def |
-| `engine/layers/condition.rs`, `engine/zone_function.rs`, `engine/triggers/bound_reads.rs` | the two new leaves |
-| `engine/replacement/pipeline.rs` | `classify`, `commutes`, and `ordering_cannot_change_outcome`, which takes the frame; the bucket's writes; the two invariance functions deleted; the `EnterAsCopy` rebuild deleted; `evaluate_enter_template` and `strip_prohibited_counters` |
-| `test_support.rs` | the intrinsic seed |
-| cards | Master Biomancer's clause; Archelos; the registry and the pool |
-| tests | `tests/phase_rg_integration_test.rs`; the four `sba.rs` tests; three template and mods literals |
-
-#### Size against §4's band
-
-Calibrated on CV-2a (engine 401 lines against ~600 sized, tests 1,075 against
-~1,000) and on §4's tests at about twice their row.
-
-| | Engine | Cards | Tests | Code and tests | Docs |
-|---|---:|---:|---:|---:|---:|
-| RG | ~550 added, ~250 deleted | ~90 | ~1,000 | **~1,650–2,100** | ~500 design, ~250 at the close |
-| RG, with (d) added in the build | ~600 added | ~90 | ~1,100 | **~1,800–2,200** | |
-
-One PR, inside the band. **If a commit's measure says otherwise, the split is
-at D7.** RG-1 would be D1–D6, with Biomancer and Archelos as consumers, and
-RG-2 D7, with the Kaito and Humility boards. D7 needs only D2's constructor
-from the rest, and nothing in D1–D6 needs D7.
-
-#### The tests, and the atom each claims
-
-All in `tests/phase_rg_integration_test.rs`. A fixture is built inline, named
-for the printed card whose board it stands in for, and never registered.
-
-| Test | Atom | Claim |
-|---|---|---|
-| a creature entering under Master Biomancer is a Mutant, and still one after Biomancer leaves | a new CR 614.1c atom for the "enters as" half, filed with the PR | COVERS |
-| a later Layer 4 row applies over the Mutant, and an earlier one under it | the same | COVERS-PARTIAL |
-| a Clone of that creature is not a Mutant; a Cytoshape over it leaves it one | — | CR 707.2's last sentence on an entry edit; ATOM-707.2-001 is CV-2a's board and stays covered there |
-| `Not(BySubtype(Mutant))` beside Biomancer asks; `BySubtype(Mutant)` asks nothing on a Mutant, and on a non-Mutant applies after Biomancer | ATOM-616.2-001 | COVERS-PARTIAL (its board is a life gain's) |
-| a `ByType(Creature)` filter beside Biomancer asks nothing | — | D3 |
-| opposite statuses ask, equal ones do not; `PowerLE` beside a status asks nothing | — | D3, D5 |
-| Archelos cast from hand (`cast_spell`, exactly `{1}{B}{G}{U}`, under `ManaWindowStop`) enters untapped; then an Idyllic Beachfront asks, and each answer holds | ATOM-110.5b-002 | COVERS-PARTIAL (its "enters tapped" half is RC-2's) |
-| Archelos's rulings: a token created tapped enters untapped; a tapped Archelos taps an entering permanent; two Archelos in opposite states ask the entering permanent's controller on a four-seat board | a new CR 110.5b atom for "enters untapped", filed with the PR | COVERS |
-| the Kaito board, cast from hand (exactly `{2}{U}{B}`, under `ManaWindowStop`), both orders: 4 counters and a creature, or 1 and a creature | ATOM-616.1-001 | COVERS-PARTIAL |
-| the Humility board: a planeswalker creature enters with no counters and is put into the graveyard | ATOM-704.5i-001 | COVERS |
-| a planeswalker's frame has the ability; a Kaito fixture with a counter on it does not | ATOM-306.5b-001 | COVERS-PARTIAL |
-| the look-ahead's entity equals the placed one, field by field, for a copy, an edit, counters and a status | — | D2 |
-
-The existing coverage of ATOM-306.5b-001 (a planeswalker spell enters with its
-printed loyalty) and CV-2a's creature-planeswalker Clone must stay green
-unchanged: that is D7's claim that nothing else moves.
-
-#### The A/B arms — predicted before any arm runs
-
-- **engine** is the last commit before Archelos is registered, with
-  Biomancer's clause live, against `main`.
-  - `performance`: every gameplay row identical at two seats and four. No
-    registered entry replacement reads a subtype or `PowerLE`, so D3 changes
-    no prompt; every registered status effect says "tapped", so D5 changes
-    none; no pooled multiplier exists (Hardened Scales is a plus), so (d)
-    asks nothing new. No pooled layer-4 filter reads a subtype, so the Mutant
-    adds no dependency check, and no planeswalker is pooled. The one cost row
-    that moves is (d)'s: `Replacement gathers`, `Layer walks`, `Board walks`
-    and `Layer frames` rise by one gather and one look-ahead wherever two
-    counter writers meet at an entry (two Biomancers, or Biomancer beside
-    Chainbreaker's own counters).
-  - `stress`: gameplay moves where (d) asks: Doubling Season beside two
-    counter writers at one entry, which `main` suppressed. Elsewhere
-    `Replacement gathers` and `Restriction queries` rise by one per Loyalty
-    Probe entry, since 306.5b is now an iteration of its own, with its own
-    gather and "can't" check; `Layer walks` stay there, since the seed's
-    look-ahead becomes the second iteration's. `Dependency checks` may rise
-    where Opalescence, the one registered layer-4 filter that reads a
-    subtype, meets a Mutant.
-  - Instructions per decision within +0.3 points: a type test per member per
-    pass for the synthesis.
-- **shipped** is Archelos pooled (`performance` 99 → 100, `stress` 179 → 180).
-  It is a pool change, so every row moves. `Replacement prompts` rise where
-  Archelos meets Idyllic Beachfront or Root Maze.
-
-#### Filed with this design
-
-No new item. What the design found is built here or already owned:
-- the `x_value` write (D2) and the §2.30 example (D3) are fixed in the PR;
-- the other `CharacteristicEdit` arms are CV-2b's, and the gate leg an
-  ability-granting entry edit owes lands with its first card (D4);
-- CR 310.4b is `backlog.md` §2.23's, and item 134's cost is its own.
-
-At the close, `backlog.md` §2.30 and §2.40 graduate here, `codebase-state.md`
-items 60 and 186 close, and item 185 records this table as its first piece.
+### Phase RG — the entry state (CR 614.1c) — ✅ landed 2026-09-28
+
+**Shipped.** CR 614.1c's two halves as one shape (§3.5): `EnterMods` holds a
+status, counters, a copy and characteristic edits, and the permanent keeps
+what it entered as in `PermanentState::entered_as`, which the board pass
+applies at its timestamp with no registry row. `PermanentState::entering` is
+the one constructor, for the performer and the look-ahead. The feeds table
+replaces `filter_is_mods_invariant`'s leaf list, as the first piece of
+`codebase-state.md` main item 185. Building it found a fourth premise: a
+multiplier that applies only once the entry carries counters makes two
+counter writers an order, which RE-5's cell had suppressed on registered
+cards. `CharacteristicEdit` moved here from `copy-effects-architecture.md`
+§7c, placed first as Master Biomancer's Mutant. "Enters untapped" is a status
+the last applied effect sets, with Archelos, Lagoon Mystic as its card
+(pooled, 99 → 100). CR 306.5b is an ability the walk gives a planeswalker, so
+CR 616.1 orders it (the Kaito board, cast from hand) and Layer 6 removes it
+(the Humility board); the helpers' seed and CV-2a's counter rebuild went.
++1,760 / −468 in code and tests.
+
+**The engine arm reads +2.62 points of instructions per decision, 0.12 over
+`engineering-practices.md` §3.1's budget**, attributed in `fuzz-record.md`'s
+RG block. CR 306.5b's type test is a SipHash on every frame of every pass.
+Each Mutant that sorts between Urborg and Blood Moon re-runs Urborg's
+dependency hypothetical (CR 613.8c). The reviewer decides.
+
+**Decided at the close: no trace page.** CR 306.5b's loyalty is an iteration
+of the same CR 616.1 loop, over the same source-1a gather as a printed "enters
+with", which RC-4b's page walks. What moved is where the ability comes from,
+and the Kaito and Humility boards state it. The suppression asks the same
+predicate at the same point in the loop, with its premise written as a table,
+which is RE-3's argument. Premise (d)'s extra gather is a three-outcome board
+that one test states.
+
+→ The design as reviewed, what the building changed and the measurement:
+`plans/archive/replacement-architecture-landed.md`, "RG" (evicted
+2026-09-28).
 
 ### Phase RD — damage (CR 615, 609.7, 614.9, 120.3) — sized 2026-09-08, four PRs
 
