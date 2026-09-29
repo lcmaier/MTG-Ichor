@@ -220,12 +220,15 @@ impl Game {
                     // "another cleanup step begins" — a second occurrence of
                     // the step, proposed like the first: CR 614.10's skips
                     // are per occurrence, so this one is skippable too, and a
-                    // refused one runs no turn-based action.
+                    // refused one runs no turn-based action. One that begins
+                    // does what the first did: `begin_step` runs CR 514.2 and
+                    // CR 800.4c, and the discard is the first's, CR 800.4j's
+                    // gate included.
                     let actx = ActionContext::new(decisions);
                     if !self.state.begin_step(StepType::Cleanup, &actx)? {
                         break;
                     }
-                    self.perform_cleanup_actions(decisions)?;
+                    self.process_turn_based_actions(PhaseType::Ending, Some(StepType::Cleanup), decisions)?;
                 }
             } else {
                 let gets_priority = !matches!(
@@ -340,23 +343,6 @@ impl Game {
     /// the engine records at the batch that ended the game.
     pub fn result(&self) -> Option<GameResult> {
         self.state.result.clone()
-    }
-
-    /// Perform cleanup step actions: remove damage from all permanents,
-    /// clear deathtouch flags, and discard to hand size (rules 514.1 + 514.2).
-    /// Extracted for reuse in cleanup SBA re-loop (rule 514.3a).
-    fn perform_cleanup_actions(
-        &mut self,
-        decisions: &dyn DecisionProvider,
-    ) -> Result<(), String> {
-        // Rule 514.2: Remove all damage and end "until end of turn" effects
-        for entry in self.state.battlefield.values_mut() {
-            entry.damage_marked = 0;
-            entry.damaged_by_deathtouch = false;
-        }
-        // Rule 514.1: Discard to hand size
-        self.handle_cleanup_discard(decisions)?;
-        Ok(())
     }
 
     /// Handle cleanup step discard to hand size (rule 514.1).

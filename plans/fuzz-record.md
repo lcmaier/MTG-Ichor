@@ -37,6 +37,24 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-29 for item 188's cleanup fix** (`turns/repeated-cleanup`,
+stacked on RG). No pool change. `close_out.py`: **base** `2e95119` (#197's head)
+against **cleanup** `f991069`.
+
+**Predictions, written before any arm ran:** every gameplay and cost row
+`IDENTICAL` on both pools at two seats and four, since a probe had counted 8
+repeated cleanup steps in four 200-game runs and none left an effect behind;
+instructions per decision within ±0.05 points.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, cleanup vs base, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, cleanup, performance / stress, dispatches agreed | 179,382 / 192,907 | 356,547 / 377,160 |
+| instructions / decision, cleanup vs base, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6384 M → 0.6387 M, **+0.05%** |
+
+Both held. No cost row moved, and the instruction reading sits at the
+prediction's edge: the fix adds one expiry pass per repeated cleanup step.
+
 **Re-recorded 2026-09-28 for RG** (the entry state, CR 614.1c —
 `replacement-architecture.md` §3.5, landed). **Pool change**: `performance`
 goes 99 → 100 and `stress` 179 → 180, both Archelos, Lagoon Mystic. The
