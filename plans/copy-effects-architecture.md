@@ -1499,12 +1499,17 @@ table.
 - `engine` against `main`: `IDENTICAL`. No registered card prints an
   exception before Spark Double, so the applier never runs, and the only
   change on the hot path is the `EntryCopy` a Clone's entry clones instead of
-  a bare `Arc`.
+  a bare `Arc`. Instructions per decision within ±0.1 points (added at the
+  build, before any arm ran).
 - `shipped`, Spark Double pooled (100 → 101): every row moves. `--require
   "Spark Double"` reads its +1/+1 path on `performance`. The planeswalker path
   is the test boards': Loyalty Probe is the only registered planeswalker, a
   fixture that stays out of `performance`, and a stress game reaches it only
-  if one player draws both.
+  if one player draws both. Spark Double is reached in about as many games as
+  Clone was at CV-2a (61% at two seats), copies less often than Clone, since
+  its donors are its controller's own creatures, and adds two to four look-ahead
+  walks per copy (707.9f's judgments), so `Layer walks` rises a little. Zero
+  errors, panics and turn-limit hits (added at the build, before any arm ran).
 
 **Trace page: yes**, decided by the owner at the design review (2026-09-29)
 rather than at the close. 707.9f adds a read no page walks: a look-ahead of

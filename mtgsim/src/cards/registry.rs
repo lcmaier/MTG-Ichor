@@ -54,7 +54,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 100] = [
+const PERFORMANCE_POOL: [&str; 101] = [
     "Plains",
     "Island",
     "Swamp",
@@ -463,6 +463,12 @@ const PERFORMANCE_POOL: [&str; 100] = [
     // Beachfront and Root Maze a random game now reaches. Tapped, it taps
     // every other permanent that enters, any player's.
     "Archelos, Lagoon Mystic",
+    // CV-2b's: the only card that makes CR 707.9's exceptions, so the only
+    // route to the applier, 707.9f's judgment on a look-ahead of the copy and
+    // 707.9e's counter on the entry. Its "you may" is Clone's `(0, 1)` pick,
+    // over its controller's own creatures only, since the pool has no
+    // planeswalker; the tests carry that path.
+    "Spark Double",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -659,6 +665,9 @@ impl CardRegistry {
         registry.register("Mirrorform", phase_cv_cards::mirrorform);
         // CR 707.5: the permanent that enters as a copy, CR 616.1c's producer.
         registry.register("Clone", phase_cv_cards::clone);
+        // CR 707.9: the entry copy that makes exceptions, over a creature or
+        // planeswalker its controller controls.
+        registry.register("Spark Double", phase_cv_cards::spark_double);
         // CR 110.5b's other status: a permanent that enters untapped because
         // an effect says so (`replacement-architecture.md` §3.5).
         registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);

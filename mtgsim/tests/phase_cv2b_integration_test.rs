@@ -516,6 +516,8 @@ fn spark_double_cast_from_hand_copies_a_legend_with_a_counter_and_no_legend_rule
     assert_eq!((zone_of(&game, spark), zone_of(&game, isamaru)), (Zone::Battlefield, Zone::Battlefield));
 }
 
+// RULING: Spark Double #2 - "Spark Double isn't legendary if it copies a legendary
+//   permanent, and this exception is copiable."
 /// The 707.9b edit is part of the copiable values, so a Clone of the Spark
 /// Double copy is not legendary either, and three permanents named Isamaru,
 /// one of them legendary, meet no legend rule.
@@ -649,6 +651,8 @@ fn beside_doubling_season_a_copied_planeswalkers_loyalty_is_an_order() {
     }
 }
 
+// RULING: Spark Double #8 - "Spark Double enters as a noncreature planeswalker and
+//   doesn't get a +1/+1 counter."
 /// Spark Double's eighth ruling: a Gideon that a resolution made a creature
 /// is copied as the noncreature planeswalker its values say, with no +1/+1
 /// counter and its printed 6 plus one.
@@ -665,6 +669,8 @@ fn spark_double_copying_an_animated_gideon_is_a_noncreature_planeswalker() {
     assert_eq!(counters(&game, spark, CounterType::Loyalty), 7);
 }
 
+// RULING: Spark Double #8 - "if Spark Double copies Gideon Blackblade during your turn,
+//   Spark Double enters as a planeswalker creature and gets both kinds of counters."
 /// The eighth ruling's other half: Gideon Blackblade on your turn is a
 /// planeswalker creature by his own static, which the copy has, so Spark
 /// Double gets both counters and CR 306.5b's 4: a 5/5 with 5 loyalty.
@@ -680,6 +686,8 @@ fn spark_double_copying_a_planeswalker_creature_gets_both_counters() {
     assert_eq!(pt(&game, spark), (Some(5), Some(5)));
 }
 
+// RULING-DEVIATION: Spark Double #7 (lookahead-entry-counters) - "printed on the card
+//   plus one": 5 on this board by Arixmethes's look-ahead, 1 by CR 614.12's text.
 /// The Kaito board (`copy-effects-architecture.md` §7c). Spark Double, cast
 /// on its controller's turn, copies Kaito, a creature because he has
 /// counters. With no counters the copy is a planeswalker, so the loyalty
@@ -719,6 +727,8 @@ fn spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one() {
 // 3. Spark Double's other rulings
 // ---------------------------------------------------------------------------
 
+// RULING: Spark Double #1 - "It doesn't copy whether that permanent is tapped or untapped,
+//   whether it has any counters on it ..., or any non-copy effects."
 /// The donor's three +1/+1 counters, its tapped status, a pump and a color
 /// change are not copiable: Spark Double is an untapped 2/2 green creature
 /// with its own one counter.
@@ -741,6 +751,8 @@ fn spark_double_copies_only_what_was_printed() {
     assert_eq!(compute_characteristics(&game, spark).unwrap().colors, [Color::Green].into_iter().collect());
 }
 
+// RULING: Spark Double #3 - "If the copied permanent has {X} in its mana cost, X is
+//   considered to be 0."
 /// The copy's cost keeps its {X}, and X is 0 in its mana value.
 #[test]
 fn spark_double_copying_an_x_creature_has_x_as_zero() {
@@ -757,6 +769,8 @@ fn spark_double_copying_an_x_creature_has_x_as_zero() {
     assert_eq!(cost.mana_value(), 1);
 }
 
+// RULING: Spark Double #4 - "If the chosen permanent is copying something else ...,
+//   then Spark Double enters the battlefield as whatever the chosen permanent copied."
 /// Spark Double copying a Clone that copied Grizzly Bears enters as Grizzly
 /// Bears, with its counter.
 #[test]
@@ -770,6 +784,8 @@ fn spark_double_copying_a_clone_enters_as_what_the_clone_copied() {
     assert_eq!(pt(&game, spark), (Some(3), Some(3)));
 }
 
+// RULING: Spark Double #5 - "Spark Double copies the original characteristics of that
+//   token ... Spark Double doesn't become a token in this case."
 /// A token's copiable values are what its creating effect stated, and Spark
 /// Double stays a card.
 #[test]
@@ -800,6 +816,8 @@ fn spark_double_copying_a_token_is_not_a_token() {
     assert!(!game.get_object(spark).unwrap().is_token);
 }
 
+// RULING: Spark Double #6 - "Any enters-the-battlefield abilities of the copied permanent
+//   will trigger ... 'enters the battlefield with' abilities ... will also work."
 /// CR 707.5: the copied "enters with three +1/+1 counters" applies to the
 /// same entry, after the copy and its own counter, and a copied "when this
 /// enters" trigger fires for Spark Double.
@@ -836,6 +854,8 @@ fn spark_double_gets_its_counter_beside_copied_and_other_entry_counters() {
     assert!(has_subtype(&game, spark, &Subtype::Creature(CreatureType::Mutant)));
 }
 
+// RULING: Spark Double #8 - "Use the characteristics of Spark Double as it enters the
+//   battlefield, not of the copied permanent."
 /// March of the Machines makes a copied Sol Ring an artifact creature as it
 /// enters, so the CR 614.12 frame the condition reads is a creature, and
 /// Spark Double gets the counter: a 2/2.
@@ -850,6 +870,8 @@ fn spark_double_copying_sol_ring_under_march_of_the_machines_gets_the_counter() 
     assert_eq!(pt(&game, spark), (Some(2), Some(2)));
 }
 
+// RULING: Spark Double #9 - "You may choose only a creature or planeswalker that's
+//   already on the battlefield."
 /// Spark Double and a Bear entering as one event: the Bear is not offered,
 /// since each entry is decided against the board before the batch performs.
 #[test]
