@@ -8,6 +8,9 @@
 //!    permanent alike; what it enters *with* is state, and the last applied
 //!    status wins (D1, D2, D5). That the frame and the performer build one
 //!    permanent is a unit test beside `Lookahead`.
+//! 2. **The feeds table** (D3). CR 616.1's order is asked exactly where one
+//!    member's write can make another stop applying, or where two members set
+//!    opposite statuses, and nowhere else.
 //!
 //! Fixtures are built inline, named for the printed card whose board they
 //! stand in for, and never registered.
@@ -15,14 +18,26 @@
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
+use mtgsim::engine::actions::{ActionContext, ZoneChangeCause};
 use mtgsim::engine::layers::compute_as_entering;
+use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::has_subtype;
-use mtgsim::test_support::{put_in_graveyard, setup_two_player_game};
-use mtgsim::types::card_types::{CreatureType, Subtype};
-use mtgsim::types::effects::{CharacteristicEdit, CounterType, TypeChange};
-use mtgsim::types::replacement::{EnterMods, TapStatus};
+use mtgsim::state::game_state::GameState;
+use mtgsim::test_support::{
+    creature_with_ability, put_in_graveyard, put_on_battlefield, setup_two_player_game, static_ability,
+};
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
+use mtgsim::types::effects::{
+    CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
+    PlayerRef, Primitive, TypeChange,
+};
+use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::types::mana::{ManaCost, ManaType};
+use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, TapStatus};
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
+use mtgsim::ui::decision::ScriptedDecisionProvider;
 
 fn mutant() -> Subtype {
     Subtype::Creature(CreatureType::Mutant)
@@ -35,6 +50,57 @@ fn as_a_mutant() -> CharacteristicEdit {
 
 fn entering_as(edits: Vec<CharacteristicEdit>) -> EnterMods {
     EnterMods { edits: Some(Arc::from(edits)), ..EnterMods::NONE }
+}
+
+fn creatures() -> ObjectFilter {
+    ObjectFilter::ByType(CardType::Creature)
+}
+
+fn and(a: ObjectFilter, b: ObjectFilter) -> ObjectFilter {
+    ObjectFilter::And(Box::new(a), Box::new(b))
+}
+
+/// An enchantment whose one ability modifies how the permanents `filter`
+/// matches enter the battlefield.
+fn entry_effect(name: &str, filter: ObjectFilter, template: EnterModsTemplate) -> Arc<CardData> {
+    CardDataBuilder::new(name)
+        .mana_cost(ManaCost::build(&[ManaType::White], 1))
+        .card_type(CardType::Enchantment)
+        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+            EventPattern::EnterBattlefield { cast: None },
+            ObjectSet::battlefield_filter(filter),
+            Rewrite::EnterWith(template),
+        )))))
+        .build()
+}
+
+/// Master Biomancer's Mutant clause alone: "Each other creature you control
+/// enters ... as a Mutant in addition to its other types."
+fn creatures_enter_as_mutants() -> Arc<CardData> {
+    entry_effect(
+        "Creatures enter as Mutants",
+        and(creatures(), ObjectFilter::ByController(PlayerRef::You)),
+        EnterModsTemplate { status: None, counters: Vec::new(), edits: vec![as_a_mutant()] },
+    )
+}
+
+fn with_a_charge_counter() -> EnterModsTemplate {
+    EnterModsTemplate::with_counters(CounterType::Charge, 1)
+}
+
+/// Return `card` from `owner`'s graveyard to the battlefield, answering each
+/// CR 616.1 prompt about it from `picks` in order. An unscripted prompt, or a
+/// scripted one left over, fails the test.
+fn return_to_battlefield(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, picks: &[usize]) -> ObjectId {
+    let id = put_in_graveyard(game, card, owner);
+    let dp = ScriptedDecisionProvider::new();
+    for &pick in picks {
+        dp.expect_pick_n(ChoiceKind::ChooseReplacementEffect { affected_object: Some(id) }, vec![pick]);
+    }
+    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+        .expect("the entry is proposed");
+    assert!(dp.is_empty(), "every scripted CR 616.1 prompt was asked");
+    id
 }
 
 // ---------------------------------------------------------------------------
@@ -77,4 +143,122 @@ fn the_last_applied_status_is_the_one_the_permanent_enters_with() {
     assert!(mods.enters_tapped(), "an effect that names no status leaves it");
     assert_eq!(mods.counters.len(), 1);
     assert!(!EnterMods::NONE.enters_tapped(), "CR 110.5b's default");
+}
+
+// ---------------------------------------------------------------------------
+// 2. The feeds table
+// ---------------------------------------------------------------------------
+
+/// Premise (c): two statuses that differ are an order, since the last one
+/// applied is the one the permanent enters with, and the entering permanent's
+/// controller chooses it. Two that agree, or a status beside counters, are not.
+#[test]
+fn opposite_statuses_are_an_order_and_equal_ones_are_not() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+    put_on_battlefield(&mut game, entry_effect("Permanents enter untapped", ObjectFilter::All, EnterModsTemplate::untapped()), 1);
+    let tapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[0]);
+    assert!(!game.battlefield[&tapped_first].tapped, "untapped applied last");
+    let untapped_first = return_to_battlefield(&mut game, grizzly_bears(), 0, &[1]);
+    assert!(game.battlefield[&untapped_first].tapped, "tapped applied last");
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+    put_on_battlefield(&mut game, entry_effect("Creatures enter tapped", creatures(), EnterModsTemplate::tapped()), 1);
+    put_on_battlefield(&mut game, entry_effect("Creatures enter charged", creatures(), with_a_charge_counter()), 1);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    let entry = &game.battlefield[&bears];
+    assert!(entry.tapped);
+    assert_eq!(entry.counter_count(CounterType::Charge), 1);
+}
+
+/// `PowerLE` can be unmatched only by something that raises power. Beside a
+/// status and a charge counter nothing does, so nothing is asked; it was
+/// asked before the table, whatever stood beside it.
+#[test]
+fn a_power_filter_beside_members_that_raise_no_power_is_not_asked() {
+    let mut game = setup_two_player_game();
+    let small = and(creatures(), ObjectFilter::PowerLE(2));
+    put_on_battlefield(&mut game, entry_effect("Small creatures enter tapped", small, EnterModsTemplate::tapped()), 1);
+    put_on_battlefield(&mut game, entry_effect("Creatures enter charged", creatures(), with_a_charge_counter()), 1);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    let entry = &game.battlefield[&bears];
+    assert!(entry.tapped);
+    assert_eq!(entry.counter_count(CounterType::Charge), 1);
+}
+
+/// Premise (a) with an edit. Adding Mutant can turn a leaf only on, so it can
+/// unmatch "non-Mutant creatures" and nothing positive: a Mutant filter is
+/// either not a candidate yet, and becomes one after the edit applies
+/// (CR 616.2), or matches already; a type filter is untouched.
+#[test]
+fn an_added_subtype_asks_only_where_a_not_reads_it() {
+    let non_mutants = and(creatures(), ObjectFilter::Not(Box::new(ObjectFilter::BySubtype(mutant()))));
+    for (pick, tapped) in [(0, false), (1, true)] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
+        put_on_battlefield(&mut game, entry_effect("Non-Mutants enter tapped", non_mutants.clone(), EnterModsTemplate::tapped()), 1);
+        let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[pick]);
+        assert!(has_subtype(&game, bears, &mutant()));
+        assert_eq!(game.battlefield[&bears].tapped, tapped, "the Mutant edit first unmatches the tapper");
+    }
+
+    let mutants = and(creatures(), ObjectFilter::BySubtype(mutant()));
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
+    put_on_battlefield(&mut game, entry_effect("Mutants enter tapped", mutants, EnterModsTemplate::tapped()), 1);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    assert!(game.battlefield[&bears].tapped, "a candidate once the edit applied (CR 616.2)");
+    let born_mutant = CardDataBuilder::new("Born Mutant")
+        .card_type(CardType::Creature)
+        .subtype(mutant())
+        .power_toughness(2, 2)
+        .build();
+    let mutant_id = return_to_battlefield(&mut game, born_mutant, 0, &[]);
+    assert!(game.battlefield[&mutant_id].tapped, "both applied, in either order");
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, creatures_enter_as_mutants(), 0);
+    put_on_battlefield(&mut game, entry_effect("Creatures enter tapped", creatures(), EnterModsTemplate::tapped()), 1);
+    let bears = return_to_battlefield(&mut game, grizzly_bears(), 0, &[]);
+    assert!(game.battlefield[&bears].tapped && has_subtype(&game, bears, &mutant()));
+}
+
+/// "As long as this creature is untapped, it's an artifact in addition to its
+/// other types." No printed card says this; it is the one condition leaf that
+/// reads entry state today, on the object the entry is deciding.
+fn artifact_while_untapped() -> Arc<CardData> {
+    creature_with_ability(
+        "Artifact While Untapped",
+        2,
+        2,
+        static_ability(Effect::Conditional(
+            Condition::SourceUntapped,
+            Box::new(Effect::Atom(
+                Primitive::ChangeType(
+                    TypeChange { add_types: vec![CardType::Artifact], ..TypeChange::NONE },
+                    Duration::WhileSourceOnBattlefield,
+                ),
+                EffectRecipient::ThisObject,
+            )),
+        )),
+    )
+}
+
+/// The table's last row. The entering creature is an artifact only while
+/// untapped, so "enters tapped" applied first unmatches "artifacts enter with
+/// a charge counter", though no member writes a type: the two orders give a
+/// counter or none, and the controller is asked.
+#[test]
+fn a_status_write_is_an_order_where_the_entering_permanents_type_hangs_on_its_status() {
+    for (pick, charged) in [(0, 0), (1, 1)] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+        let artifacts = ObjectFilter::ByType(CardType::Artifact);
+        put_on_battlefield(&mut game, entry_effect("Artifacts enter charged", artifacts, with_a_charge_counter()), 1);
+        let id = return_to_battlefield(&mut game, artifact_while_untapped(), 0, &[pick]);
+        let entry = &game.battlefield[&id];
+        assert!(entry.tapped);
+        assert_eq!(entry.counter_count(CounterType::Charge), charged);
+    }
 }

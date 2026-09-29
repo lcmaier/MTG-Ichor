@@ -720,8 +720,8 @@ impl EventPattern {
     /// **It lives here rather than beside its caller** because it is a property
     /// of one arm, answerable from that arm's own definition — so the question
     /// is in front of whoever writes the next arm. The contrast is
-    /// `pipeline::filter_is_mods_invariant`, which stays at its caller because
-    /// it classifies an `ObjectFilter` against a property of `EnterMods`: a
+    /// `pipeline::BucketWrites`, which stays at its caller because it
+    /// classifies an `ObjectFilter` against what an entry's members write: a
     /// relation between two types, and so a fact about neither.
     /// (`replacement-architecture.md` §11 item 58 is why the rule was worth
     /// writing down.) Matched exhaustively, so a new arm has to answer rather
@@ -1336,6 +1336,13 @@ impl EnterModsTemplate {
     /// CR 110.5b — "this permanent enters tapped".
     pub fn tapped() -> Self {
         EnterModsTemplate { status: Some(TapStatus::Tapped), counters: Vec::new(), edits: Vec::new() }
+    }
+
+    /// CR 110.5b — "[permanents] enter untapped": Archelos, Spelunking. Over
+    /// a seed that is already untapped it changes nothing, and it still
+    /// applies (Spelunking's first ruling).
+    pub fn untapped() -> Self {
+        EnterModsTemplate { status: Some(TapStatus::Untapped), counters: Vec::new(), edits: Vec::new() }
     }
 
     /// CR 122.6a — "this permanent enters with `n` `counter` counters on it".

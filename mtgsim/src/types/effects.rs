@@ -565,6 +565,36 @@ pub enum Condition {
     CostAnswer(CostAnswer),
 }
 
+impl Condition {
+    /// Does this read its source's own status or counters, which an entry
+    /// sets as the permanent arrives?
+    ///
+    /// The last row of the feeds table (`replacement-architecture.md` Phase
+    /// RG, D3): an entering object whose own characteristics change under
+    /// such a condition makes every status and counter write feed every
+    /// characteristic. Matched in full, so a new leaf says which it is.
+    pub fn reads_entry_state(&self) -> bool {
+        match self {
+            Condition::SourceUntapped => true,
+            Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
+            // The entering object is asked as on the battlefield already, so
+            // no entry moves the zone `SourceInZone` reads; the rest read
+            // players, histories, the host, or a resolution.
+            Condition::Player { .. }
+            | Condition::SpellWasKicked
+            | Condition::ModeChosen(_)
+            | Condition::SourceInZone(_)
+            | Condition::HostMatches(_)
+            | Condition::ThisTurn(_)
+            | Condition::LastTurn(_)
+            | Condition::SinceYourLastTurn(_)
+            | Condition::ThisGame(_)
+            | Condition::ResolvedThisTurn(_)
+            | Condition::CostAnswer(_) => false,
+        }
+    }
+}
+
 /// CR 118.12's answer, in the rule's words: whether the player "does,
 /// doesn't, or can't" take the action a clause after it asks about. It is
 /// the choice or the start of the action, "regardless of what events
@@ -1236,6 +1266,23 @@ pub enum CharacteristicEdit {
 }
 
 impl CharacteristicEdit {
+    /// Does this edit only add, "in addition to" what is there? An adding
+    /// edit can turn a filter leaf only from not matching to matching, which
+    /// is the direction the feeds table's order question never asks about
+    /// (`replacement-architecture.md` Phase RG, D3).
+    pub fn adds(&self) -> bool {
+        match self {
+            CharacteristicEdit::Types(change) => {
+                change.set_types.is_none()
+                    && change.set_subtypes.is_none()
+                    && change.set_supertypes.is_none()
+                    && change.remove_types.is_empty()
+                    && change.remove_subtypes.is_empty()
+                    && change.remove_supertypes.is_empty()
+            }
+        }
+    }
+
     /// What this edit does at each layer, as the board pass applies it to the
     /// permanent that entered with it.
     pub(crate) fn modifications(

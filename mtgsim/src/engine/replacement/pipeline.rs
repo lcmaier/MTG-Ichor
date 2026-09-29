@@ -5,13 +5,15 @@ use std::collections::HashSet;
 use crate::engine::actions::{ActionContext, GameAction};
 use crate::engine::restriction::{is_prohibited, Query};
 use crate::events::event::{CounterSubject, DamageTarget};
-use crate::types::card_types::CardType;
+use crate::types::card_types::{CardType, Subtype, Supertype};
 use crate::types::restriction::ReplacementKindFilter;
 use crate::state::game_state::GameState;
 use crate::state::trace::{render_debug, Record};
 use crate::types::effects::{
-    ObjectSet, AmountExpr, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
+    ObjectSet, AmountExpr, CharacteristicEdit, CounterType, Effect, ObjectFilter, PlayerRef, TokenDef,
 };
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::objects::card_data::AbilityType;
 use crate::types::replacement::{TokenKind, TokenSubstitution};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::mana::{ManaAtom, ManaType};
@@ -140,7 +142,7 @@ struct Candidate {
 
 /// The amount a proposal carries, for a rider that refers to it (CR 615.5).
 ///
-/// **Matched exhaustively, with no `_` arm**, for `filter_is_mods_invariant`'s
+/// **Matched exhaustively, with no `_` arm**, for `BucketWrites::unmatches`'
 /// reason: a `GameAction` variant added later has to be classified rather than
 /// defaulting to "no amount". The failure a fallthrough would cause is quiet at
 /// the point it happens and loud in the wrong place — `AmountExpr::ReplacedAmount`
@@ -459,7 +461,7 @@ pub(crate) fn apply_replacements(
         let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
         let (chosen, decided) = if choosable.len() == 1 {
             (choosable.into_iter().next().expect("len checked"), Decided::Single)
-        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first) {
+        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first, &frame) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
             // The instance rather than its id, and it costs nothing: `rest`
@@ -886,11 +888,14 @@ fn next_damage_shares(
 ///
 /// **What it checks** (§4.1's first half). Per member, def data: the rewrite's
 /// arm, the pattern's kind and [`EventPattern::reads_the_amount`], a
-/// template's kinds and whether its amounts read the frame
-/// (`EnterModsTemplate::is_fixed`), the affected set's leaves
-/// ([`object_set_is_mods_invariant`]). Plus one board read, for an entry only:
-/// which kinds its mods hold now ([`kinds_present`]). Per pair, [`commutes`],
-/// a pure function of two classes and that kind set. The shared clauses —
+/// template's kinds, status and edits and whether its amounts read the frame
+/// (`EnterModsTemplate::is_fixed`), and the affected set against what the
+/// bucket writes ([`BucketWrites`], the feeds table of
+/// `replacement-architecture.md` Phase RG, D3). Plus two reads, for an entry
+/// only: which kinds its mods hold now ([`kinds_present`]), and whether the
+/// entering object's own characteristics hang on its status or counters,
+/// off the frame the loop already built. Per pair, [`commutes`], a pure
+/// function of two classes and that kind set. The shared clauses —
 /// mandatory, static, under CR 614.5, not counter-derived, no rider — are
 /// what the whole argument assumes: an optional is a second prompt whose
 /// answer can differ per order; a `Uses::Once` or `NextDamage` spends a
@@ -911,11 +916,13 @@ fn next_damage_shares(
 ///   ruling); with an `EnterWith` only on kinds the mods already hold, since
 ///   CR 614.5 gives the plus one opportunity and a kind written afterwards is
 ///   not raised (re-gather).
-/// - *Mods-adding*: an `EnterWith` writes kinds and reads none — fixed
-///   amounts, or a source that is not the entering object (the frame it would
-///   read, §5b), and a filter no mods field feeds. Two merge in either order
-///   (re-gather); beside a multiplier it commutes only on disjoint kinds,
-///   since doubling before or after the write differs.
+/// - *Mods-adding*: an `EnterWith` writes kinds, a status and edits that only
+///   add, and reads none — fixed amounts, or a source that is not the
+///   entering object (the frame it would read, §5b) — over a set no member's
+///   write can unmatch ([`BucketWrites::can_unmatch`]). Two merge in either
+///   order unless they set opposite statuses, where the one applied last
+///   wins (re-gather); beside a multiplier it commutes only on disjoint
+///   kinds, since doubling before or after the write differs.
 /// - *Draw doubler*: [`draw_doubler_commutes`] — the product, on inners that
 ///   carry one cause (re-gather against the first inner).
 /// - *Substitute*: one instance-invariant, idempotent `Instead` shared by its
@@ -933,8 +940,11 @@ fn next_damage_shares(
 ///   are a real choice.
 ///
 /// **Expiry conditions**, each a compile error somewhere (`codebase-state.md`
-/// item 47): a new `EnterModsTemplate` field breaks `is_fixed`; a new
-/// `ObjectFilter` leaf breaks [`filter_is_mods_invariant`]; a new
+/// item 47): a new `EnterModsTemplate` field breaks `is_fixed` and
+/// [`BucketWrites::of`]; a new `CharacteristicEdit` arm breaks
+/// `CharacteristicEdit::adds` and [`BucketWrites::of`]; a new `ObjectFilter`
+/// leaf breaks [`BucketWrites::unmatches`]; a new `Condition` leaf breaks
+/// `Condition::reads_entry_state`; a new
 /// `EventPattern::EnterBattlefield` field breaks `pattern_watches`' entry arm;
 /// a new pattern arm breaks [`EventPattern::reads_the_amount`]; a new template
 /// arm breaks [`template_is_instance_invariant`] and [`template_is_idempotent`];
@@ -946,13 +956,20 @@ fn ordering_cannot_change_outcome(
     choosable: &[Candidate],
     entering: Option<ObjectId>,
     event: &GameAction,
+    frame: &EntryFrame<'_>,
 ) -> bool {
     if !choosable.iter().all(|c| shared_clauses_hold(&c.instance)) {
         return false;
     }
+    let writes = match event {
+        GameAction::EnterBattlefield { .. } => {
+            BucketWrites::of(choosable, entering.and_then(|id| frame.frame_of(id)))
+        }
+        _ => BucketWrites::default(),
+    };
     let Some(classes) = choosable
         .iter()
-        .map(|c| classify(&c.instance, entering, event))
+        .map(|c| classify(&c.instance, entering, event, &writes))
         .collect::<Option<Vec<Commuting>>>()
     else {
         return false;
@@ -983,9 +1000,9 @@ enum Commuting<'a> {
     Multiplier(Kinds),
     /// `Amount(Plus(k))`, over the kinds it touches.
     Additive(Kinds),
-    /// An `EnterWith` that writes these kinds and reads nothing an
-    /// application changes.
-    ModsAdding(Kinds),
+    /// An `EnterWith` that writes these kinds, and this status if any, and
+    /// reads nothing an application changes.
+    ModsAdding { kinds: Kinds, status: Option<TapStatus> },
     /// [`draw_doubler_commutes`]'s member.
     DrawDoubler,
     /// An instance-invariant, idempotent `Instead`, compared by rewrite
@@ -1051,14 +1068,15 @@ fn classify<'a>(
     instance: &'a ReplacementInstance,
     entering: Option<ObjectId>,
     event: &GameAction,
+    writes: &BucketWrites,
 ) -> Option<Commuting<'a>> {
     let def = &instance.def;
     let on_entry = matches!(event, GameAction::EnterBattlefield { .. });
     // A filter over an entering permanent reads the CR 614.12 frame, which
-    // +1/+1 counters feed; over a finished permanent it reads the board,
-    // which no count in the proposal touches.
+    // what the bucket writes feeds; over a finished permanent it reads the
+    // board, which no count in the proposal touches.
     let arithmetic_ok = !def.pattern.reads_the_amount()
-        && (!on_entry || object_set_is_mods_invariant(&def.affected_objects));
+        && (!on_entry || !writes.can_unmatch(&def.affected_objects));
     match &def.rewrite {
         Rewrite::Amount(AmountRewrite::Multiplier(n)) => {
             (*n >= 1 && arithmetic_ok).then(|| Commuting::Multiplier(kinds_of(&def.pattern)))
@@ -1077,12 +1095,15 @@ fn classify<'a>(
             | AmountRewrite::LifeFloor(_),
         ) => None,
         // Reads the frame only when the source is the object being computed,
-        // so anything else is a board read and commutes. An edit changes what
-        // the others read, and has no class until the feeds table gives it one.
+        // so anything else is a board read and commutes. An edit that sets or
+        // removes is an order, as two copies are: the later one wins.
         Rewrite::EnterWith(t) => ((t.is_fixed() || Some(instance.source) != entering)
-            && t.edits.is_empty()
-            && object_set_is_mods_invariant(&def.affected_objects))
-        .then(|| Commuting::ModsAdding(Kinds::These(t.counters.iter().map(|c| c.counter).collect()))),
+            && t.edits.iter().all(CharacteristicEdit::adds)
+            && !writes.can_unmatch(&def.affected_objects))
+        .then(|| Commuting::ModsAdding {
+            kinds: Kinds::These(t.counters.iter().map(|c| c.counter).collect()),
+            status: t.status,
+        }),
         // Devour prompts and moves the board; a control change is CR 616.1b's
         // own forced step; a prevention and a redirection change what the
         // others read. A copy rewrites every characteristic the others read,
@@ -1113,18 +1134,23 @@ fn commutes(a: &Commuting, b: &Commuting, present: &[CounterType]) -> bool {
     match (a, b) {
         (Multiplier(_), Multiplier(_)) | (Additive(_), Additive(_)) => true,
         (Multiplier(m), Additive(p)) | (Additive(p), Multiplier(m)) => m.disjoint(p),
-        (Multiplier(m), ModsAdding(w)) | (ModsAdding(w), Multiplier(m)) => m.disjoint(w),
-        (Additive(p), ModsAdding(w)) | (ModsAdding(w), Additive(p)) => {
+        (Multiplier(m), ModsAdding { kinds: w, .. }) | (ModsAdding { kinds: w, .. }, Multiplier(m)) => {
+            m.disjoint(w)
+        }
+        (Additive(p), ModsAdding { kinds: w, .. }) | (ModsAdding { kinds: w, .. }, Additive(p)) => {
             p.disjoint(&w.without(present))
         }
-        (ModsAdding(_), ModsAdding(_)) => true,
+        // CR 110.5b — the last status applied is the one the permanent
+        // enters with, so two that differ are an order.
+        (ModsAdding { status: Some(x), .. }, ModsAdding { status: Some(y), .. }) => x == y,
+        (ModsAdding { .. }, ModsAdding { .. }) => true,
         (DrawDoubler, DrawDoubler) => true,
         (Substitute(x), Substitute(y)) => x == y,
         (Multiplier(_), Substitute(r)) | (Substitute(r), Multiplier(_)) => {
             replaces_that_many(r)
         }
-        (Exit, ModsAdding(_) | Multiplier(_) | Additive(_))
-        | (ModsAdding(_) | Multiplier(_) | Additive(_), Exit) => true,
+        (Exit, ModsAdding { .. } | Multiplier(_) | Additive(_))
+        | (ModsAdding { .. } | Multiplier(_) | Additive(_), Exit) => true,
         _ => false,
     }
 }
@@ -1296,48 +1322,162 @@ fn kind_matches(kind: Option<&TokenKind>, def: &TokenDef) -> bool {
     kind.is_none_or(|k| k.matches(def))
 }
 
-/// Can no `EnterMods` field change whether this set matches the entering
-/// object? `SourceOnly`, `Fixed` and `Host` match by id; a
-/// `Filter` is invariant iff every leaf is. The entry half of
-/// [`ordering_cannot_change_outcome`]'s premise.
+/// What the members of one entry bucket can write on the entering object:
+/// the feeds table of `replacement-architecture.md` Phase RG, D3, read for
+/// one bucket, and the question the premise's part (a) asks of it — can a
+/// write make a member stop applying? One that makes a member *start*
+/// applying is CR 616.2's case, a candidate on the next iteration and no
+/// order now.
 ///
-/// A `Filter`'s `zones` needs no arm: no `EnterMods` field moves an object
-/// between zones, so the zone half is invariant whatever it holds.
-fn object_set_is_mods_invariant(affected: &ObjectSet) -> bool {
-    match affected {
-        ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => true,
-        ObjectSet::Filter { filter, .. } => filter_is_mods_invariant(filter),
+/// The union over every member, a member's own writes included: the
+/// conservative direction, since no member unmatches itself by applying.
+/// `EnterMods::copy` feeds everything and has no row, because its one writer
+/// is CR 616.1c's step, which the ladder never buckets with these.
+#[derive(Debug, Default)]
+struct BucketWrites {
+    /// +1/+1 counters: power up (CR 122.1a).
+    raises_power: bool,
+    /// -1/-1 counters: power down.
+    lowers_power: bool,
+    /// What the members' edits add.
+    added_types: Vec<CardType>,
+    added_subtypes: Vec<Subtype>,
+    added_supertypes: Vec<Supertype>,
+    /// A write the table cannot follow value by value: an edit that sets or
+    /// removes, whose member has no class anyway, or a status or counter
+    /// write where the entering object's own characteristics hang on its
+    /// status or counters.
+    feeds_all: bool,
+}
+
+impl BucketWrites {
+    fn of(choosable: &[Candidate], entering: Option<&EffectiveCharacteristics>) -> Self {
+        let mut writes = BucketWrites::default();
+        let mut writes_state = false;
+        for candidate in choosable {
+            let def = &candidate.instance.def;
+            match &def.rewrite {
+                Rewrite::EnterWith(template) => {
+                    // In full: a new field is a new row of the table.
+                    let EnterModsTemplate { status, counters, edits } = template;
+                    writes_state |= status.is_some() || !counters.is_empty();
+                    for row in counters {
+                        writes.counter(row.counter);
+                    }
+                    for edit in edits {
+                        writes.edit(edit);
+                    }
+                }
+                // Devour's counters, one kind per chosen object.
+                Rewrite::EnterAfterMoving(aux) => {
+                    if let Some((counter, _)) = aux.per_chosen {
+                        writes_state = true;
+                        writes.counter(counter);
+                    }
+                }
+                // A doubler or a plus at an entry writes more of what it watches.
+                Rewrite::Amount(_) => {
+                    writes_state = true;
+                    match kinds_of(&def.pattern) {
+                        Kinds::All => {
+                            writes.raises_power = true;
+                            writes.lowers_power = true;
+                        }
+                        Kinds::These(kinds) => kinds.into_iter().for_each(|k| writes.counter(k)),
+                    }
+                }
+                // CR 616.1b's and 616.1c's own steps, and rewrites that write
+                // nothing on the entering object.
+                Rewrite::EnterUnderControlOf(_)
+                | Rewrite::EnterAsCopy(_)
+                | Rewrite::Instead(_)
+                | Rewrite::Prevent
+                | Rewrite::Retarget(_) => {}
+            }
+        }
+        if writes_state && entering.is_some_and(characteristics_hang_on_entry_state) {
+            writes.feeds_all = true;
+        }
+        writes
+    }
+
+    fn counter(&mut self, counter: CounterType) {
+        match counter {
+            CounterType::PlusOnePlusOne => self.raises_power = true,
+            CounterType::MinusOneMinusOne => self.lowers_power = true,
+            // A keyword counter feeds keywords, which no leaf reads
+            // (CR 122.1b); any other kind feeds nothing.
+            _ => {}
+        }
+    }
+
+    fn edit(&mut self, edit: &CharacteristicEdit) {
+        if !edit.adds() {
+            self.feeds_all = true;
+            return;
+        }
+        // A new arm records what it adds here, and `unmatches` reads it.
+        match edit {
+            CharacteristicEdit::Types(change) => {
+                self.added_types.extend(&change.add_types);
+                self.added_subtypes.extend(change.add_subtypes.iter().cloned());
+                self.added_supertypes.extend(&change.add_supertypes);
+            }
+        }
+    }
+
+    /// Can a write in this bucket make `affected` stop matching the entering
+    /// object? `SourceOnly`, `Fixed` and `Host` match by id, and no entry
+    /// moves an object between the zones a `Filter` names.
+    fn can_unmatch(&self, affected: &ObjectSet) -> bool {
+        match affected {
+            ObjectSet::SourceOnly | ObjectSet::Fixed(_) | ObjectSet::Host => false,
+            ObjectSet::Filter { filter, .. } => self.feeds_all || self.unmatches(filter, false),
+        }
+    }
+
+    /// Can a write turn `filter` from matching to not — or, `negated`, from
+    /// not matching to matching? Matched exhaustively, so a new leaf has to
+    /// be classified rather than defaulting to "safe".
+    fn unmatches(&self, filter: &ObjectFilter, negated: bool) -> bool {
+        match filter {
+            // Identity, and control and ownership, which no 616.1e member writes.
+            ObjectFilter::All
+            | ObjectFilter::Token
+            | ObjectFilter::NotSource
+            | ObjectFilter::OtherThanInstance(_)
+            | ObjectFilter::ByController(_)
+            | ObjectFilter::ByOwner(_) => false,
+            // An added value can only turn its leaf on.
+            ObjectFilter::ByType(t) => negated && self.added_types.contains(t),
+            ObjectFilter::BySubtype(s) => negated && self.added_subtypes.contains(s),
+            ObjectFilter::BySupertype(s) => negated && self.added_supertypes.contains(s),
+            // No edit adds a color yet.
+            ObjectFilter::ByColor(_) => false,
+            ObjectFilter::PowerLE(_) => {
+                if negated {
+                    self.lowers_power
+                } else {
+                    self.raises_power
+                }
+            }
+            ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
+                self.unmatches(a, negated) || self.unmatches(b, negated)
+            }
+            ObjectFilter::Not(inner) => self.unmatches(inner, !negated),
+        }
     }
 }
 
-/// The leaf table for [`ordering_cannot_change_outcome`]'s entry premise. Types,
-/// subtypes, supertypes, colors, controller, ownership and tokenness are fed
-/// by no `EnterMods` field a suppressible bucket writes; power is fed by
-/// `+1/+1` and `-1/-1` counters (CR 122.1a) and so `PowerLE` is not invariant.
-/// `EnterMods::copy` feeds every characteristic, and is exempt only because
-/// its one writer, `Rewrite::EnterAsCopy`, is a CR 616.1c effect that
-/// `classify` never admits and the ladder never buckets with a 616.1e one.
-/// Matched exhaustively, so a new leaf has to be classified rather than
-/// defaulting to "safe".
-fn filter_is_mods_invariant(filter: &ObjectFilter) -> bool {
-    match filter {
-        ObjectFilter::All
-        | ObjectFilter::ByType(_)
-        | ObjectFilter::BySubtype(_)
-        | ObjectFilter::BySupertype(_)
-        | ObjectFilter::ByColor(_)
-        | ObjectFilter::ByController(_)
-        | ObjectFilter::Token
-        | ObjectFilter::ByOwner(_)
-        | ObjectFilter::NotSource
-        // Identity, which no `EnterMods` field feeds.
-        | ObjectFilter::OtherThanInstance(_) => true,
-        ObjectFilter::PowerLE(_) => false,
-        ObjectFilter::And(a, b) | ObjectFilter::Or(a, b) => {
-            filter_is_mods_invariant(a) && filter_is_mods_invariant(b)
-        }
-        ObjectFilter::Not(inner) => filter_is_mods_invariant(inner),
-    }
+/// Does the entering object have a static ability that changes its own
+/// characteristics under a condition on its status or counters? The feeds
+/// table's last row.
+fn characteristics_hang_on_entry_state(chars: &EffectiveCharacteristics) -> bool {
+    chars.abilities.iter().any(|ability| {
+        ability.ability_type == AbilityType::Static
+            && matches!(&ability.effect, Effect::Conditional(condition, _) if condition.reads_entry_state())
+            && !GameState::static_ability_atoms(ability, &chars.name).is_empty()
+    })
 }
 
 /// The debug-build check on [`ordering_cannot_change_outcome`]: after
