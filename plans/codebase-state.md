@@ -8598,14 +8598,21 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      and the CR 614.12 look-ahead, and the owner asked where else the shape
      is. A read-only survey at the review named ten candidates. Two are
      confirmed by reading:
-     - **CR 514.3a's repeated cleanup step skips half of CR 514.2.** The
-       first cleanup step runs `on_step_begin(Cleanup)` (`engine/turns.rs`):
-       damage removal, the "until end of turn" expiry in all three
-       registries, and CR 800.4c's check. The repeated one, in `Game::run_turn`
-       (`state/game.rs`), calls `begin_step`, which proposes the step and runs
-       no turn-based action, and then `perform_cleanup_actions`, which removes
-       damage and discards. So an "until end of turn" effect created in the
-       CR 514.3a priority window lasts into the next turn.
+     - **CR 514.3a's repeated cleanup step skipped half of CR 514.2.** Fixed
+       the day after the review (branch `turns/repeated-cleanup`). The first
+       cleanup step ran `on_step_begin(Cleanup)` (`engine/turns.rs`): damage
+       removal, the "until end of turn" expiry in all three registries, and
+       CR 800.4c's check. The repeated one, in `Game::run_turn`, called
+       `begin_step` alone, then a hand-written `perform_cleanup_actions` that
+       removed damage and discarded. So an "until end of turn" effect created
+       in the CR 514.3a priority window lasted into the next turn. Now
+       `begin_step` runs the step's turn-based actions whenever the step
+       begins (CR 703.4), and the repeated discard is the first's, with CR
+       800.4j's gate the copy lacked. What the fix leaves: both occurrences
+       run CR 514.2 before CR 514.1's discard, the reverse of the CR's order.
+       It shows only through an effect that a discard reads and cleanup ends,
+       such as an "until end of turn" maximum hand size or a "this turn"
+       discard trigger, and is confirmed or dismissed with the rest.
      - **`Primitive::ChangeType` was lowered in two places.** Fixed at the
        review: `resolve.rs` calls `TypeChange::modifications`.
 
@@ -8628,15 +8635,12 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - `AmountExpr::SourcePower` answered two ways for an object with no
        power: none in `settled_amount`, zero in `evaluate_enter_template`.
 
-     **Reachability (2026-09-29):** reachable — wrong today, unobserved: the
-     cleanup half needs an "until end of turn" effect created in the window,
-     and registered instants make one (Giant Growth, Cytoshape). A probe on the
-     shipped build counted 8 repeated cleanup steps in four 200-game runs, both
-     pools at two seats and four, and none left an effect behind.
+     **Reachability (2026-09-29):** nothing owed until a candidate is confirmed.
+     The one confirmed wrong answer, the cleanup half, was reachable with
+     registered instants (Giant Growth, Cytoshape) and is fixed. A probe had
+     counted 8 repeated cleanup steps in four 200-game runs, and none left an
+     effect behind.
 
-     **Sized:** the cleanup fix is about 15 lines and a fixture: the repeated
-     step runs the same CR 514.2 routine as the first. The candidates are
-     unsized until each is confirmed. **Slotted:** the cleanup fix as its own
-     PR, offered for right after RG; the rest is `roadmap-v2.md` A6h's, the
-     end-of-phase docs audit, beside item 185's inventory of elisions, which is
-     the same kind of list.
+     **Sized:** the candidates are unsized until each is confirmed.
+     **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
+     185's inventory of elisions, which is the same kind of list.
