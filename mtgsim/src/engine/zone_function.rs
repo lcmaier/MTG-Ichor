@@ -278,6 +278,7 @@ fn stated_zones(condition: &Condition) -> Option<ZoneSet> {
         Condition::Player { .. }
         | Condition::HostMatches(_)
         | Condition::SourceUntapped
+        | Condition::SourceTapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_)

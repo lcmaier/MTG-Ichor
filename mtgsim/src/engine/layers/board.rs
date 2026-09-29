@@ -774,6 +774,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         // `GameState`, and the resolution-only leaf never evaluates at all.
         Condition::SourceInZone(_)
         | Condition::SourceUntapped
+        | Condition::SourceTapped
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_) => {}

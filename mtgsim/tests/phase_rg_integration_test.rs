@@ -14,17 +14,23 @@
 //! 3. **Master Biomancer's Mutant** (D4). The first `CharacteristicEdit`: at
 //!    layer 4 at the creature's timestamp, not copied, and kept after the
 //!    Biomancer leaves.
+//! 4. **Enters untapped** (D5, D6), on Archelos, Lagoon Mystic: one test per
+//!    ruling, and one through `cast_spell` from hand, from an exact pool,
+//!    under `ManaWindowStop`.
 //!
 //! Fixtures are built inline, named for the printed card whose board they
 //! stand in for, and never registered.
 
-use std::collections::HashSet;
+use std::cell::RefCell;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::keyword_creatures::wall_of_stone;
-use mtgsim::cards::phase_rc_cards::master_biomancer;
-use mtgsim::engine::actions::{ActionContext, ZoneChangeCause};
+use mtgsim::cards::phase_rc_cards::{idyllic_beachfront, master_biomancer};
+use mtgsim::cards::phase_re_cards::soldier_token;
+use mtgsim::cards::phase_rg_cards::archelos_lagoon_mystic;
+use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
 use mtgsim::engine::layers::{compute_as_entering, copiable_values};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
@@ -32,20 +38,21 @@ use mtgsim::objects::object::GameObject;
 use mtgsim::oracle::characteristics::{get_effective_name, has_subtype};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    creature_with_ability, put_in_graveyard, put_on_battlefield, registered, setup_two_player_game,
-    static_ability, test_ctx,
+    creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_game,
+    setup_two_player_game, static_ability, test_ctx,
 };
 use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
 use mtgsim::types::effects::{
     CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
-    PlayerRef, Primitive, TypeChange,
+    PlayerRef, Primitive, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
 use mtgsim::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite, TapStatus};
 use mtgsim::types::zones::Zone;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 fn mutant() -> Subtype {
     Subtype::Creature(CreatureType::Mutant)
@@ -354,4 +361,165 @@ fn master_biomancer_beside_a_non_mutant_filter_is_an_order() {
         assert_eq!(game.battlefield[&bears].counter_count(CounterType::PlusOnePlusOne), 2);
         assert_eq!(game.battlefield[&bears].tapped, tapped);
     }
+}
+
+// ---------------------------------------------------------------------------
+// 4. Enters untapped: Archelos, Lagoon Mystic (D5, D6)
+// ---------------------------------------------------------------------------
+
+/// Answers each CR 616.1 prompt from a script of who must be asked and which
+/// candidate they pick. Any other prompt panics, and so does a script left
+/// over, so a test states every order it expects and who owns it.
+struct Orders {
+    script: RefCell<VecDeque<(PlayerId, usize)>>,
+}
+
+impl Orders {
+    fn new(script: &[(PlayerId, usize)]) -> Self {
+        Orders { script: RefCell::new(script.iter().copied().collect()) }
+    }
+}
+
+impl Drop for Orders {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            assert!(self.script.borrow().is_empty(), "orders never asked: {:?}", self.script.borrow());
+        }
+    }
+}
+
+impl DecisionProvider for Orders {
+    fn pick_n(&self, _: &GameState, player: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption], _: (usize, usize)) -> Vec<usize> {
+        assert!(
+            matches!(ctx.kind, ChoiceKind::ChooseReplacementEffect { .. }),
+            "unscripted prompt: {:?}",
+            ctx.kind
+        );
+        let (who, pick) = self.script.borrow_mut().pop_front().unwrap_or_else(|| panic!("unscripted order for {player}"));
+        assert_eq!(who, player, "CR 616.1's chooser is the entering permanent's controller");
+        vec![pick]
+    }
+
+    fn pick_number(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: u64) -> u64 {
+        panic!("unscripted pick_number: {:?}", ctx.kind)
+    }
+
+    fn allocate(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: u64, _: &[ChoiceOption], _: &[u64], _: Option<&[u64]>) -> Vec<u64> {
+        panic!("unscripted allocate: {:?}", ctx.kind)
+    }
+
+    fn choose_ordering(&self, _: &GameState, _: PlayerId, ctx: &ChoiceContext, _: &[ChoiceOption]) -> Vec<usize> {
+        panic!("unscripted ordering: {:?}", ctx.kind)
+    }
+}
+
+/// `return_to_battlefield` with a provider that checks who is asked.
+fn return_asking(game: &mut GameState, card: Arc<CardData>, owner: PlayerId, orders: &[(PlayerId, usize)]) -> ObjectId {
+    let id = put_in_graveyard(game, card, owner);
+    let dp = Orders::new(orders);
+    game.change_zone(id, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp))
+        .expect("the entry is proposed");
+    id
+}
+
+/// Empty `player`'s pool, fill it with exactly `pool`, and cast `card` from
+/// hand under `ManaWindowStop`, as a shipped client does.
+fn cast_from_pool(
+    game: &mut GameState,
+    player: PlayerId,
+    card: Arc<CardData>,
+    pool: &[(ManaType, u64)],
+    dp: &dyn DecisionProvider,
+) -> Result<ObjectId, String> {
+    let id = put_in_hand(game, card, player);
+    for t in [ManaType::White, ManaType::Blue, ManaType::Black, ManaType::Red, ManaType::Green, ManaType::Colorless] {
+        let have = game.players[player].mana_pool.amount(t);
+        if have > 0 {
+            game.players[player].mana_pool.remove(t, have).unwrap();
+        }
+    }
+    for &(t, n) in pool {
+        game.players[player].mana_pool.add(t, n);
+    }
+    game.cast_spell(player, id, dp).map(|_| id)
+}
+
+/// Archelos cast from hand, then a land that enters tapped by its own
+/// ability. The two statuses are opposite, so the land's controller orders
+/// them and the one applied last is the one it enters with: candidates in
+/// sweep order, Archelos before the land's own ability (source 1a).
+// COVERS-PARTIAL: ATOM-110.5b-002
+#[test]
+fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
+    let mut game = setup_two_player_game();
+    let dp = ManaWindowStop::new(Orders::new(&[]));
+    let pool = [(ManaType::Black, 1), (ManaType::Green, 1), (ManaType::Blue, 1), (ManaType::Colorless, 1)];
+    let archelos = cast_from_pool(&mut game, 0, archelos_lagoon_mystic(), &pool, &dp)
+        .expect("Archelos is castable from exactly {1}{B}{G}{U}");
+    assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool was the cost");
+    game.resolve_top_of_stack(&dp).expect("Archelos resolves");
+    assert!(!game.battlefield[&archelos].tapped);
+
+    let land = put_in_hand(&mut game, idyllic_beachfront(), 0);
+    game.play_land(0, land, Zone::Hand, &ActionContext::new(&Orders::new(&[(0, 1)]))).unwrap();
+    assert!(!game.battlefield[&land].tapped, "its own ability first, then Archelos");
+    let land = return_asking(&mut game, idyllic_beachfront(), 0, &[(0, 0)]);
+    assert!(game.battlefield[&land].tapped, "Archelos first, then its own ability");
+}
+
+/// Archelos's first ruling, its own half: its abilities say "other
+/// permanents", and an entering permanent's filter-scoped replacements never
+/// reach its own entry (CR 614.12). So it enters tapped under an effect
+/// that says so, with nothing asked.
+#[test]
+fn archelos_does_not_apply_to_its_own_entry() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, entry_effect("Permanents enter tapped", ObjectFilter::All, EnterModsTemplate::tapped()), 1);
+    let archelos = return_asking(&mut game, archelos_lagoon_mystic(), 0, &[]);
+    assert!(game.battlefield[&archelos].tapped);
+}
+
+/// Archelos's second ruling, its other half: a permanent an instruction puts
+/// onto the battlefield tapped, with no replacement effect, enters untapped
+/// under an untapped Archelos, because the instruction's word is the
+/// proposal's starting status and every status-setting effect applies over
+/// it. And a tapped Archelos taps whatever enters, any player's.
+// COVERS: ATOM-110.5b-003
+#[test]
+fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped() {
+    let mut game = setup_two_player_game();
+    let archelos = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
+    let tapped_token = TokenDef { enters_tapped: true, ..soldier_token() };
+    let dp = Orders::new(&[]);
+    game.execute_actions(vec![GameAction::CreateTokens { defs: vec![tapped_token], controller: 1 }], &ActionContext::new(&dp))
+        .expect("the creation performs");
+    let token = *game.battlefield_ids_ordered().last().expect("the token entered");
+    assert!(game.objects[&token].is_token);
+    assert!(!game.battlefield[&token].tapped, "created tapped, and untapped under Archelos");
+
+    game.execute_action(GameAction::Tap { object: archelos }, &test_ctx()).unwrap();
+    let bears = return_asking(&mut game, grizzly_bears(), 1, &[]);
+    assert!(game.battlefield[&bears].tapped);
+}
+
+/// Archelos's third ruling, on a four-seat board: two of them, one tapped and
+/// one untapped, set opposite statuses on a permanent a third player's
+/// creature puts onto the battlefield, and that player orders them. Two in
+/// the same state agree, and nobody is asked.
+#[test]
+fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
+    for (pick, tapped) in [(0, true), (1, false)] {
+        let mut game = setup_game(4);
+        put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
+        let tapped_one = put_on_battlefield(&mut game, archelos_lagoon_mystic(), 1);
+        game.execute_action(GameAction::Tap { object: tapped_one }, &test_ctx()).unwrap();
+        let bears = return_asking(&mut game, grizzly_bears(), 2, &[(2, pick)]);
+        assert_eq!(game.battlefield[&bears].tapped, tapped, "the one applied last");
+    }
+
+    let mut game = setup_game(4);
+    put_on_battlefield(&mut game, archelos_lagoon_mystic(), 0);
+    put_on_battlefield(&mut game, archelos_lagoon_mystic(), 1);
+    let bears = return_asking(&mut game, grizzly_bears(), 3, &[]);
+    assert!(!game.battlefield[&bears].tapped);
 }

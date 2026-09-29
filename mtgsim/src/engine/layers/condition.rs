@@ -100,6 +100,7 @@ pub(super) fn holds(
         // layer writes it. A source with no entity is not on the battlefield
         // and so is not untapped either.
         Condition::SourceUntapped => board.entity(game, source).is_some_and(|entity| !entity.tapped),
+        Condition::SourceTapped => board.entity(game, source).is_some_and(|entity| entity.tapped),
 
         // CR 303.4m — whatever the source is attached to *now*, re-read at
         // every layer, exactly as `ObjectSet::Host` is. An unattached
