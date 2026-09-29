@@ -29,6 +29,7 @@ use super::phase_re8_cards;
 use super::phase_re9_cards;
 use super::phase_re_cards;
 use super::phase_cv_cards;
+use super::phase_rg_cards;
 use super::phase_rs_cards;
 use super::phase_sba_cards;
 use super::phase_lh_cards;
@@ -53,7 +54,7 @@ use super::phase_cm_cards;
 /// — turns, spells cast, creatures died — are what an addition invalidates and
 /// what still has to be re-measured. Registering a card is still not the same
 /// act as adding one here.
-const PERFORMANCE_POOL: [&str; 99] = [
+const PERFORMANCE_POOL: [&str; 100] = [
     "Plains",
     "Island",
     "Swamp",
@@ -457,6 +458,11 @@ const PERFORMANCE_POOL: [&str; 99] = [
     // is a `(0, 1)` pick, so a random game declines about half the time and
     // the 0/0 dies to CR 704.5f, which measures that path too.
     "Clone",
+    // RG's: "enters untapped", a status the last applied effect sets, and
+    // CR 616.1's order between opposite statuses, which beside Idyllic
+    // Beachfront and Root Maze a random game now reaches. Tapped, it taps
+    // every other permanent that enters, any player's.
+    "Archelos, Lagoon Mystic",
 ];
 
 /// Card registry: maps card names to factory functions that produce CardData.
@@ -653,6 +659,9 @@ impl CardRegistry {
         registry.register("Mirrorform", phase_cv_cards::mirrorform);
         // CR 707.5: the permanent that enters as a copy, CR 616.1c's producer.
         registry.register("Clone", phase_cv_cards::clone);
+        // CR 110.5b's other status: a permanent that enters untapped because
+        // an effect says so (`replacement-architecture.md` Phase RG, D5, D6).
+        registry.register("Archelos, Lagoon Mystic", phase_rg_cards::archelos_lagoon_mystic);
 
         // The +1/+1 half of CR 704.5q. Its -1/-1 half is Chainbreaker above,
         // and until this card the annihilation sweep had never run in a fuzz

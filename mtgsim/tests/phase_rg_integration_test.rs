@@ -454,6 +454,8 @@ fn cast_from_pool(
     game.cast_spell(player, id, dp).map(|_| id)
 }
 
+// RULING: Archelos, Lagoon Mystic #2 - beside an "enters tapped" effect, the entering
+//   permanent's controller chooses whether it enters tapped or untapped.
 /// Archelos cast from hand, then a land that enters tapped by its own
 /// ability. The two statuses are opposite, so the land's controller orders
 /// them and the one applied last is the one it enters with: candidates in
@@ -477,6 +479,7 @@ fn archelos_cast_from_hand_makes_a_tapland_its_controllers_order() {
     assert!(game.battlefield[&land].tapped, "Archelos first, then its own ability");
 }
 
+// RULING: Archelos, Lagoon Mystic #1 - its abilities do not apply to itself as it enters.
 /// Archelos's first ruling, its own half: its abilities say "other
 /// permanents", and an entering permanent's filter-scoped replacements never
 /// reach its own entry (CR 614.12). So it enters tapped under an effect
@@ -489,6 +492,32 @@ fn archelos_does_not_apply_to_its_own_entry() {
     assert!(game.battlefield[&archelos].tapped);
 }
 
+// RULING: Archelos, Lagoon Mystic #1 - nor to permanents entering at the same time as it.
+/// Archelos's first ruling, its other half: a permanent returned to the
+/// battlefield at the same time as Archelos is decided against the board as
+/// it stood, which Archelos is not on yet, so a tapland returned beside it
+/// enters tapped by its own ability, with nothing asked.
+#[test]
+fn archelos_does_not_apply_to_what_enters_beside_it() {
+    let mut game = setup_two_player_game();
+    let archelos = put_in_graveyard(&mut game, archelos_lagoon_mystic(), 0);
+    let land = put_in_graveyard(&mut game, idyllic_beachfront(), 0);
+    let returned = |object| GameAction::EnterBattlefield {
+        object,
+        from: Some(Zone::Graveyard),
+        controller: 0,
+        mods: EnterMods::NONE,
+        cause: Some(ZoneChangeCause::Returned),
+    };
+    let dp = Orders::new(&[]);
+    game.execute_actions(vec![returned(archelos), returned(land)], &ActionContext::new(&dp))
+        .expect("both enter");
+    assert!(!game.battlefield[&archelos].tapped);
+    assert!(game.battlefield[&land].tapped, "decided before Archelos was on the battlefield");
+}
+
+// RULING: Archelos, Lagoon Mystic #2 - a permanent simply put onto the battlefield tapped,
+//   with no replacement effect, enters untapped while Archelos is untapped.
 /// Archelos's second ruling, its other half: a permanent an instruction puts
 /// onto the battlefield tapped, with no replacement effect, enters untapped
 /// under an untapped Archelos, because the instruction's word is the
@@ -512,6 +541,8 @@ fn archelos_overrides_an_instructions_tapped_and_taps_what_enters_while_tapped()
     assert!(game.battlefield[&bears].tapped);
 }
 
+// RULING: Archelos, Lagoon Mystic #3 - with more than one Archelos, the entering permanent's
+//   controller orders their effects.
 /// Archelos's third ruling, on a four-seat board: two of them, one tapped and
 /// one untapped, set opposite statuses on a permanent a third player's
 /// creature puts onto the battlefield, and that player orders them. Two in

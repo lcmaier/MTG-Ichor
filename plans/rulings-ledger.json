@@ -79,6 +79,14 @@
       "first_seen": "2026-09-17",
       "rulings": []
     },
+    "Archelos, Lagoon Mystic": {
+      "first_seen": "2026-09-28",
+      "rulings": [
+        {"n": 1, "published_at": "2020-11-10", "comment": "Archelos's abilities don't apply to itself as it enters the battlefield, nor do they apply to any permanents entering the battlefield at the same time."},
+        {"n": 2, "published_at": "2020-11-10", "comment": "If another replacement effect says that a permanent enters the battlefield tapped while Archelos is untapped, the entering permanent's controller chooses whether the permanent enters tapped or untapped. If a permanent is simply put onto the battlefield tapped without a replacement effect being applied, it always enters untapped if Archelos is untapped."},
+        {"n": 3, "published_at": "2020-11-10", "comment": "If more than one Archelos is on the battlefield, the controller of an entering permanent chooses how to order the replacement effects."}
+      ]
+    },
     "Ashaya, Soul of the Wild": {
       "first_seen": "2026-09-17",
       "rulings": [
