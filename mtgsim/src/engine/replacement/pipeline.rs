@@ -461,7 +461,7 @@ pub(crate) fn apply_replacements(
         let mut unsuppressed: Vec<(ReplacementInstance, Vec<usize>)> = Vec::new();
         let (chosen, decided) = if choosable.len() == 1 {
             (choosable.into_iter().next().expect("len checked"), Decided::Single)
-        } else if ordering_cannot_change_outcome(&choosable, subject_object(subject), &first, &frame) {
+        } else if ordering_cannot_change_outcome(game, ctx, &applied, &choosable, subject_object(subject), &first, &frame) {
             let mut rest = choosable.into_iter();
             let first = rest.next().expect("len checked");
             // The instance rather than its id, and it costs nothing: `rest`
@@ -953,6 +953,9 @@ fn next_damage_shares(
 /// [`substitute`]'s `ZoneChangeTo` leg reads the entry's mods, which the debug
 /// check asks of every exit suppression.
 fn ordering_cannot_change_outcome(
+    game: &GameState,
+    ctx: &ActionContext,
+    applied: &HashSet<ReplacementInstanceId>,
     choosable: &[Candidate],
     entering: Option<ObjectId>,
     event: &GameAction,
@@ -977,6 +980,66 @@ fn ordering_cannot_change_outcome(
     let present = kinds_present(event);
     (0..classes.len())
         .all(|i| (i + 1..classes.len()).all(|j| commutes(&classes[i], &classes[j], &present)))
+        && !counters_invite_a_multiplier(game, ctx, applied, choosable, event)
+}
+
+/// The feeds table's premise (d): an effect that becomes applicable only once
+/// the entry carries counters (CR 616.2) — a doubler — multiplies what is
+/// there when it applies, so two members that each write kinds it multiplies
+/// are an order: whichever applies first is the one it can reach before the
+/// other writes. Adaptive Shimmerer's 3 and Master Biomancer's 2 under
+/// Doubling Season end at 7, 8 or 10.
+///
+/// Asked by gathering once more, against the entry with every counter-writing
+/// member's rows in it, and only for a bucket with two such members. A plus
+/// is left out: it adds its one amount once whenever it applies, so no
+/// member's order moves it.
+fn counters_invite_a_multiplier(
+    game: &GameState,
+    ctx: &ActionContext,
+    applied: &HashSet<ReplacementInstanceId>,
+    choosable: &[Candidate],
+    event: &GameAction,
+) -> bool {
+    let GameAction::EnterBattlefield { object, from, controller, mods, cause } = event else {
+        return false;
+    };
+    let writers: Vec<(&ReplacementInstance, Kinds)> = choosable
+        .iter()
+        .filter_map(|c| match &c.instance.def.rewrite {
+            Rewrite::EnterWith(t) if !t.counters.is_empty() => {
+                Some((&c.instance, Kinds::These(t.counters.iter().map(|row| row.counter).collect())))
+            }
+            _ => None,
+        })
+        .collect();
+    if writers.len() < 2 {
+        return false;
+    }
+    let mut written = mods.clone();
+    for (instance, _) in &writers {
+        let Rewrite::EnterWith(template) = &instance.def.rewrite else { continue };
+        for row in &template.counters {
+            let by = row.by.as_ref().and_then(|named| putter_of(game, instance, *object, named).ok());
+            written.merge(&EnterMods { counters: vec![EntryCounters { counter: row.counter, n: 1, by }], ..EnterMods::NONE });
+        }
+    }
+    let proposal = GameAction::EnterBattlefield {
+        object: *object,
+        from: *from,
+        controller: *controller,
+        mods: written,
+        cause: *cause,
+    };
+    let frame = EntryFrame::new(game, &proposal);
+    gather(game, &proposal, ctx, false, &frame)
+        .into_iter()
+        .filter(|c| !applied.contains(&c.id) && !choosable.iter().any(|k| k.instance.id == c.id))
+        .filter(|c| matches!(&c.def.rewrite, Rewrite::Amount(a) if !matches!(a, AmountRewrite::Plus(_))))
+        .any(|multiplier| {
+            let watched = kinds_of(&multiplier.def.pattern);
+            writers.iter().filter(|(_, kinds)| !watched.disjoint(kinds)).count() >= 2
+        })
 }
 
 /// The clauses every commuting cell assumes of a member — see
@@ -1866,9 +1929,7 @@ fn apply_rewrite(
                 let extra = evaluate_enter_template(
                     game, template, chosen, object, controller, &mods,
                 )?;
-                let extra = strip_prohibited_counters(
-                    game, object, controller, &mods, &extra, Some(chosen.controller),
-                );
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
@@ -1884,9 +1945,7 @@ fn apply_rewrite(
         Rewrite::EnterAfterMoving(aux) => match event {
             GameAction::EnterBattlefield { object, from, controller, mut mods, cause } => {
                 let extra = apply_auxiliary_move(game, ctx, chosen, aux, object, controller)?;
-                let extra = strip_prohibited_counters(
-                    game, object, controller, &mods, &extra, Some(chosen.controller),
-                );
+                let extra = strip_prohibited_counters(game, object, controller, &mods, &extra, chosen.controller);
                 mods.merge(&extra);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
@@ -1913,17 +1972,10 @@ fn apply_rewrite(
                 let values = crate::engine::layers::copiable_values(game, donor).ok_or_else(|| {
                     format!("the donor {donor} of an entry copy has no object to capture")
                 })?;
-                // Only CR 306.5b's seed can be in the counters here: the ladder puts
-                // every copy ahead of every 616.1e effect, so nothing has added any.
-                debug_assert!(
-                    mods.counters.iter().all(|c| c.counter == CounterType::Loyalty && c.by.is_none()),
-                    "a copy applied after an effect gave {object} counters as it enters: {:?}",
-                    mods.counters
-                );
+                // CR 306.5b is the copy's own ability now, gathered off its frame on
+                // a later iteration (CR 707.2: its loyalty and its being a
+                // planeswalker are the copy's).
                 mods.copy = Some(std::sync::Arc::new(values));
-                // CR 306.5b, asked again of what the permanent now enters as: the
-                // loyalty is the copy's (CR 707.2), and so is being a planeswalker.
-                mods.counters = game.default_enter_counters(object, controller, &mods);
                 Ok((Some(GameAction::EnterBattlefield { object, from, controller, mods, cause }), changed))
             }
             other => Err(format!(
@@ -2841,8 +2893,8 @@ fn entry_copy_donor(
 /// — and Solemnity's.
 ///
 /// `cause` is CR 101.2's — who controls the effect that proposed them: the
-/// replacement's controller, or `None` for CR 306.5b's loyalty, which a rule
-/// gives rather than a player. The synthetic event's putter is CR 122.6a's
+/// replacement's controller, CR 306.5b's loyalty included, since that is the
+/// permanent's own ability. The synthetic event's putter is CR 122.6a's
 /// default, the controller the permanent enters under, which is what the
 /// entry door reads too.
 ///
@@ -2850,13 +2902,13 @@ fn entry_copy_donor(
 /// refuses a status, and ATOM-614.17d-001's "creatures can't enter the
 /// battlefield tapped" is a representative the corpus invented; it is claimed
 /// for its counters half.
-pub(crate) fn strip_prohibited_counters(
+fn strip_prohibited_counters(
     game: &GameState,
     object: ObjectId,
     controller: PlayerId,
     so_far: &EnterMods,
     extra: &EnterMods,
-    cause: Option<PlayerId>,
+    cause: PlayerId,
 ) -> EnterMods {
     if extra.counters.is_empty() {
         return extra.clone();
@@ -2877,7 +2929,7 @@ pub(crate) fn strip_prohibited_counters(
         };
         let refused = is_prohibited(
             game,
-            &Query::Event { action: &action, cause, lookahead: Some(&frame) },
+            &Query::Event { action: &action, cause: Some(cause), lookahead: Some(&frame) },
         );
         if !refused {
             kept.counters.push(*row);

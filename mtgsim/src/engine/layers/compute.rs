@@ -323,6 +323,9 @@ pub(super) fn compute_non_member(
         note.layer_index < ceiling && matches!(note.affected, AffectedSet::Fresh { .. }) && reaches(note)
     };
     if !crate::engine::layers::cda::has_any_cda(&chars) && !notes.iter().any(starts_here) {
+        if LAYER_ORDER.iter().take(ceiling).any(|l| *l == Layer::Layer4Type) {
+            crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(&mut chars, id);
+        }
         return Some(chars);
     }
 
@@ -359,6 +362,10 @@ pub(super) fn compute_non_member(
             if applies {
                 apply_resolved(&resolve_without_reads(&row.modification, row), &mut chars, id);
             }
+        }
+        // CR 306.5b, as the pass does it (`board::run_pass`).
+        if layer == Layer::Layer4Type {
+            crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(&mut chars, id);
         }
     }
     Some(chars)

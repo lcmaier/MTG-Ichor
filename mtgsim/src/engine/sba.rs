@@ -1163,10 +1163,10 @@ mod tests {
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
         let pw_id = game.add_object(obj);
-        // CR 306.5b's loyalty counters ride in on the entry proposal now, which
-        // is what makes them replaceable (CR 614.16). `default_enter_mods` is
-        // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id, 0);
+        // CR 306.5b's loyalty counters are an ability of the planeswalker's,
+        // which the pipeline gathers; placing it directly, the test applies
+        // that ability and nothing else.
+        let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         // Verify ETB set loyalty counters
@@ -1203,10 +1203,10 @@ mod tests {
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
         let pw_id = game.add_object(obj);
-        // CR 306.5b's loyalty counters ride in on the entry proposal now, which
-        // is what makes them replaceable (CR 614.16). `default_enter_mods` is
-        // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id, 0);
+        // CR 306.5b's loyalty counters are an ability of the planeswalker's,
+        // which the pipeline gathers; placing it directly, the test applies
+        // that ability and nothing else.
+        let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         let performed = game.check_state_based_actions(&ScriptedDecisionProvider::new()).unwrap();
@@ -1232,10 +1232,10 @@ mod tests {
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
         let pw_id = game.add_object(obj);
-        // CR 306.5b's loyalty counters ride in on the entry proposal now, which
-        // is what makes them replaceable (CR 614.16). `default_enter_mods` is
-        // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id, 0);
+        // CR 306.5b's loyalty counters are an ability of the planeswalker's,
+        // which the pipeline gathers; placing it directly, the test applies
+        // that ability and nothing else.
+        let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         let entry = game.battlefield.get(&pw_id).unwrap();
@@ -1255,10 +1255,10 @@ mod tests {
 
         let obj = GameObject::new(pw_data, 0, Zone::Battlefield);
         let pw_id = game.add_object(obj);
-        // CR 306.5b's loyalty counters ride in on the entry proposal now, which
-        // is what makes them replaceable (CR 614.16). `default_enter_mods` is
-        // the rule; the performer only applies what it is handed.
-        let mods = game.default_enter_mods(pw_id, 0);
+        // CR 306.5b's loyalty counters are an ability of the planeswalker's,
+        // which the pipeline gathers; placing it directly, the test applies
+        // that ability and nothing else.
+        let mods = crate::test_support::intrinsic_entry_mods(&game, pw_id, 0);
         game.place_on_battlefield(pw_id, 0, &mods);
 
         // Should have 0 loyalty counters (loyalty(0) → guard skips adding)

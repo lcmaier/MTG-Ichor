@@ -542,6 +542,12 @@ pub enum Condition {
     /// a leaf of its own because a `Not` is the one wrapper
     /// `zone_function::stated_zones` would have to refuse.
     SourceTapped,
+    /// "As long as Kaito has one or more loyalty counters on him", and CR
+    /// 711.2a's leveler, "at least N1 level counters": the source's own
+    /// counters of a kind, read off the entity, which under a look-ahead is
+    /// the one the entry would build. No layer writes a counter, so it is
+    /// never a CR 613.8 dependency; a counter write bumps the layer epoch.
+    SourceHasCounters { counter: CounterType, at_least: u32 },
     /// "If you lost life this turn", "if an opponent was dealt damage this
     /// turn" (bloodthirst): a count over the turn in progress, off the turn
     /// summaries (`triggers-architecture.md` §3.10).
@@ -579,7 +585,7 @@ impl Condition {
     /// characteristic. Matched in full, so a new leaf says which it is.
     pub fn reads_entry_state(&self) -> bool {
         match self {
-            Condition::SourceUntapped | Condition::SourceTapped => true,
+            Condition::SourceUntapped | Condition::SourceTapped | Condition::SourceHasCounters { .. } => true,
             Condition::All(clauses) => clauses.iter().any(Condition::reads_entry_state),
             // The entering object is asked as on the battlefield already, so
             // no entry moves the zone `SourceInZone` reads; the rest read

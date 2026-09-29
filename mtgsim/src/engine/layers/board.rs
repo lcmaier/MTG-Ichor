@@ -775,6 +775,7 @@ fn condition_reads(condition: &Condition, out: &mut Reads, you_channel: Channels
         Condition::SourceInZone(_)
         | Condition::SourceUntapped
         | Condition::SourceTapped
+        | Condition::SourceHasCounters { .. }
         | Condition::SpellWasKicked
         | Condition::ModeChosen(_)
         | Condition::CostAnswer(_) => {}
@@ -1603,6 +1604,13 @@ fn run_pass<'l>(
             _ => None,
         };
         resolve_order_within_layer(game, &mut board, layer_index, apps, layer_trace);
+        // CR 306.5b — a planeswalker's intrinsic ability, once its types are
+        // settled. Each frame is its own, so the map's order is unobservable.
+        if layer == Layer::Layer4Type {
+            for (&id, frame) in board.frames.iter_mut() {
+                crate::engine::layers::intrinsic::add_intrinsic_entry_abilities(frame, id);
+            }
+        }
     }
     board
 }

@@ -167,7 +167,8 @@ fn condition(c: &Condition) -> BoundReads {
         Condition::SpellWasKicked
         | Condition::SourceInZone(_)
         | Condition::SourceUntapped
-        | Condition::SourceTapped => BoundReads::SOURCE,
+        | Condition::SourceTapped
+        | Condition::SourceHasCounters { .. } => BoundReads::SOURCE,
         Condition::HostMatches(among) => BoundReads::SOURCE | filter(among),
         Condition::All(all) => all.iter().fold(BoundReads::NOTHING, |reads, c| reads | condition(c)),
         Condition::ResolvedThisTurn(_) => BoundReads::ABILITY,

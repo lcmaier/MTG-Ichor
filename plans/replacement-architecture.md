@@ -2214,15 +2214,17 @@ In item 185's four parts:
   one bucket (`ordering_cannot_change_outcome`). **Claim:** every order
   reaches one outcome.
 - **Premise, as a property:** no member's write can (a) make another member
-  stop applying, (b) change what another member writes, or (c) be
-  overwritten by another member's write. (b) is RE-5's kinds rule, unchanged;
+  stop applying, (b) change what another member writes, (c) be overwritten
+  by another member's write, or (d) make applicable an effect that
+  multiplies another member's write. (b) is RE-5's kinds rule, unchanged;
   (c) arrives with the status (D5); (a) is the table below, in place of a
-  leaf list.
+  leaf list; (d) is below it.
 - **What holds it:** exhaustive destructures at the table's three inputs, so
   a new `EnterModsTemplate` field, `ObjectFilter` leaf or `Condition` leaf is
   a compile error at the row that must classify it; and
   `check_order_invariance`, which computes (a) the other way after every
-  suppressed prompt in a debug build.
+  suppressed prompt in a debug build. (d) is not computed the other way:
+  tests on the two boards below hold it.
 
 **The table records a direction.** A member in the bucket already applies, so
 the only write that can make the order matter is one that makes another
@@ -2281,6 +2283,19 @@ over an entry ask the same `can_unmatch` in place of
 `filter_is_mods_invariant` and `object_set_is_mods_invariant` go. The doc
 comment of `ordering_cannot_change_outcome` states the three-part property and
 points here, in place of its leaf list.
+
+**Premise (d), found in the build (2026-09-28) and fixed here at the
+owner's call.** A doubler that applies only once the entry carries counters
+(CR 616.2) multiplies what is there when it applies. So two members that both
+write kinds it multiplies are an order: whichever applies first is the one it
+can reach before the other writes. RE-5's commute cell compared two members
+with each other and never with such a multiplier, and it predates RG: on
+registered cards, Adaptive Shimmerer (+3) entering under Master Biomancer (+2)
+with Doubling Season reached 7 or 10 and never 8. RG made it fail RE-5's
+planeswalker board, since with the seed gone CR 306.5b is a member. The check
+gathers once more, against the entry with every counter-writing member's rows
+in it, and only for a bucket with two such members. A plus is exempt: it adds
+its one amount once whenever it applies, so no member's order moves it.
 
 **The table's last row reads the entering object's abilities.** The loop
 already holds them: source 1a reads them off the iteration's `EntryFrame`. So
@@ -2505,6 +2520,7 @@ Calibrated on CV-2a (engine 401 lines against ~600 sized, tests 1,075 against
 | | Engine | Cards | Tests | Code and tests | Docs |
 |---|---:|---:|---:|---:|---:|
 | RG | ~550 added, ~250 deleted | ~90 | ~1,000 | **~1,650–2,100** | ~500 design, ~250 at the close |
+| RG, with (d) added in the build | ~600 added | ~90 | ~1,100 | **~1,800–2,200** | |
 
 One PR, inside the band. **If a commit's measure says otherwise, the split is
 at D7.** RG-1 would be D1–D6, with Biomancer and Archelos as consumers, and
@@ -2539,17 +2555,24 @@ unchanged: that is D7's claim that nothing else moves.
 
 - **engine** is the last commit before Archelos is registered, with
   Biomancer's clause live, against `main`.
-  - `performance`: every counter file byte-identical outside `=== Timing ===`
-    at two seats and four. No registered entry replacement reads a subtype or
-    `PowerLE`, so D3 changes no prompt. Every registered status effect says
-    "tapped", so D5 changes none. No pooled layer-4 filter reads a subtype, so
-    the Mutant adds no dependency check. No planeswalker is pooled.
-  - `stress`: every gameplay row identical. `Replacement gathers` and
-    `Restriction queries` rise by one per Loyalty Probe entry, since 306.5b
-    is now an iteration of its own, with its own gather and "can't" check.
-    `Layer walks` stay, since the seed's look-ahead becomes the second
-    iteration's. `Dependency checks` may rise where Opalescence, the one
-    registered layer-4 filter that reads a subtype, meets a Mutant.
+  - `performance`: every gameplay row identical at two seats and four. No
+    registered entry replacement reads a subtype or `PowerLE`, so D3 changes
+    no prompt; every registered status effect says "tapped", so D5 changes
+    none; no pooled multiplier exists (Hardened Scales is a plus), so (d)
+    asks nothing new. No pooled layer-4 filter reads a subtype, so the Mutant
+    adds no dependency check, and no planeswalker is pooled. The one cost row
+    that moves is (d)'s: `Replacement gathers`, `Layer walks`, `Board walks`
+    and `Layer frames` rise by one gather and one look-ahead wherever two
+    counter writers meet at an entry (two Biomancers, or Biomancer beside
+    Chainbreaker's own counters).
+  - `stress`: gameplay moves where (d) asks: Doubling Season beside two
+    counter writers at one entry, which `main` suppressed. Elsewhere
+    `Replacement gathers` and `Restriction queries` rise by one per Loyalty
+    Probe entry, since 306.5b is now an iteration of its own, with its own
+    gather and "can't" check; `Layer walks` stay there, since the seed's
+    look-ahead becomes the second iteration's. `Dependency checks` may rise
+    where Opalescence, the one registered layer-4 filter that reads a
+    subtype, meets a Mutant.
   - Instructions per decision within +0.3 points: a type test per member per
     pass for the synthesis.
 - **shipped** is Archelos pooled (`performance` 99 → 100, `stress` 179 → 180).

@@ -34,4 +34,4 @@ pub use gather::CounterEffectKind;
 pub(crate) use instance::{GameRuleReplacement, ReplacementInstanceId};
 pub use instance::ReplacementInstance;
 pub(crate) use lookahead::EntryFrame;
-pub(crate) use pipeline::{apply_replacements, strip_prohibited_counters, Rider};
+pub(crate) use pipeline::{apply_replacements, Rider};

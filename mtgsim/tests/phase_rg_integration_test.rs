@@ -17,6 +17,10 @@
 //! 4. **Enters untapped** (D5, D6), on Archelos, Lagoon Mystic: one test per
 //!    ruling, and one through `cast_spell` from hand, from an exact pool,
 //!    under `ManaWindowStop`.
+//! 5. **CR 306.5b gathered** (D7): an ability on a planeswalker's frame, so
+//!    CR 616.1 orders it (the Kaito board, cast from hand) and Layer 6 removes
+//!    it (the Humility board); and the feeds table's premise (d), the order
+//!    two counter writers make observable to a multiplier.
 //!
 //! Fixtures are built inline, named for the printed card whose board they
 //! stand in for, and never registered.
@@ -27,24 +31,30 @@ use std::sync::Arc;
 
 use mtgsim::cards::creatures::grizzly_bears;
 use mtgsim::cards::keyword_creatures::wall_of_stone;
-use mtgsim::cards::phase_rc_cards::{idyllic_beachfront, master_biomancer};
-use mtgsim::cards::phase_re_cards::soldier_token;
+use mtgsim::cards::phase_lf_cards::humility;
+use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, idyllic_beachfront, master_biomancer};
+use mtgsim::cards::phase_rd_cards::loyalty_probe;
+use mtgsim::cards::phase_re_cards::{doubling_season, soldier_token};
 use mtgsim::cards::phase_rg_cards::archelos_lagoon_mystic;
 use mtgsim::engine::actions::{ActionContext, GameAction, ZoneChangeCause};
 use mtgsim::engine::layers::types::{ContinuousEffect, EffectModification, Layer};
+use mtgsim::engine::layers::intrinsic::is_intrinsic_entry_ability;
 use mtgsim::engine::layers::{compute_as_entering, copiable_values};
 use mtgsim::objects::card_data::{CardData, CardDataBuilder};
 use mtgsim::objects::object::GameObject;
-use mtgsim::oracle::characteristics::{get_effective_name, has_subtype};
+use mtgsim::oracle::characteristics::{
+    get_effective_abilities, get_effective_name, get_effective_power, get_effective_toughness,
+    get_effective_types, has_subtype,
+};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
     creature_with_ability, put_in_graveyard, put_in_hand, put_on_battlefield, registered, setup_game,
     setup_two_player_game, static_ability, test_ctx,
 };
-use mtgsim::types::card_types::{CardType, CreatureType, Subtype};
+use mtgsim::types::card_types::{CardType, CreatureType, Subtype, Supertype};
 use mtgsim::types::effects::{
-    CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter, ObjectSet,
-    PlayerRef, Primitive, TokenDef, TypeChange,
+    AmountExpr, CharacteristicEdit, Condition, CounterType, Duration, Effect, EffectRecipient, ObjectFilter,
+    ObjectSet, PlayerRef, Primitive, TokenDef, TypeChange,
 };
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaCost, ManaType};
@@ -522,4 +532,157 @@ fn two_archelos_in_opposite_states_ask_the_entering_permanents_controller() {
     put_on_battlefield(&mut game, archelos_lagoon_mystic(), 1);
     let bears = return_asking(&mut game, grizzly_bears(), 3, &[]);
     assert!(!game.battlefield[&bears].tapped);
+}
+
+// ---------------------------------------------------------------------------
+// 5. CR 306.5b gathered, and the order counters make observable (D7, D3 (d))
+// ---------------------------------------------------------------------------
+
+/// Kaito, Bane of Nightmares's clause that decides the board: "During your
+/// turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4
+/// Ninja creature and has hexproof." The fixture drops "during your turn",
+/// which holds on a board cast in its controller's main phase, and the
+/// hexproof; its ninjutsu and loyalty abilities are not the board.
+fn kaito_shaped() -> Arc<CardData> {
+    let with_counters = Condition::SourceHasCounters { counter: CounterType::Loyalty, at_least: 1 };
+    let ninja_creature = TypeChange {
+        set_types: Some(HashSet::from([CardType::Creature])),
+        add_subtypes: vec![Subtype::Creature(CreatureType::Ninja)],
+        ..TypeChange::NONE
+    };
+    CardDataBuilder::new("Kaito-shaped")
+        .mana_cost(ManaCost::build(&[ManaType::Blue, ManaType::Black], 2))
+        .supertype(Supertype::Legendary)
+        .card_type(CardType::Planeswalker)
+        .loyalty(4)
+        .ability(static_ability(Effect::Conditional(
+            with_counters,
+            Box::new(Effect::Sequence(vec![
+                Effect::Atom(
+                    Primitive::ChangeType(ninja_creature, Duration::WhileSourceOnBattlefield),
+                    EffectRecipient::ThisObject,
+                ),
+                Effect::Atom(
+                    Primitive::SetPowerToughness(AmountExpr::Fixed(3), AmountExpr::Fixed(4), Duration::WhileSourceOnBattlefield),
+                    EffectRecipient::ThisObject,
+                ),
+            ])),
+        )))
+        .build()
+}
+
+/// Oath of Gideon's static: "Each planeswalker you control enters with an
+/// additional loyalty counter on it." Its token trigger is not the board.
+fn oath_of_gideon_shaped() -> Arc<CardData> {
+    entry_effect(
+        "Oath of Gideon-shaped",
+        and(ObjectFilter::ByType(CardType::Planeswalker), ObjectFilter::ByController(PlayerRef::You)),
+        EnterModsTemplate::with_counters(CounterType::Loyalty, 1),
+    )
+}
+
+/// A planeswalker that is a creature before any counters, as Humility's
+/// board needs.
+fn planeswalker_creature() -> Arc<CardData> {
+    CardDataBuilder::new("Planeswalker Creature")
+        .card_type(CardType::Creature)
+        .card_type(CardType::Planeswalker)
+        .power_toughness(2, 2)
+        .loyalty(4)
+        .build()
+}
+
+fn has_intrinsic_entry_ability(game: &GameState, id: ObjectId) -> bool {
+    get_effective_abilities(game, id).iter().any(|a| is_intrinsic_entry_ability(a, id))
+}
+
+/// A planeswalker has CR 306.5b's ability on its frame; a Kaito that is a
+/// creature, with a counter on it, is no planeswalker and has none.
+// COVERS-PARTIAL: ATOM-306.5b-001
+#[test]
+fn a_planeswalker_has_the_intrinsic_ability_and_a_creature_kaito_does_not() {
+    let mut game = setup_two_player_game();
+    let probe = put_on_battlefield(&mut game, loyalty_probe(), 0);
+    assert!(has_intrinsic_entry_ability(&game, probe));
+    assert_eq!(game.battlefield[&probe].counter_count(CounterType::Loyalty), 3);
+
+    let kaito = put_on_battlefield(&mut game, kaito_shaped(), 0);
+    assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), 4, "it entered a planeswalker");
+    assert_eq!(get_effective_types(&game, kaito), HashSet::from([CardType::Creature]));
+    assert!(!has_intrinsic_entry_ability(&game, kaito));
+}
+
+/// `codebase-state.md` main item 186's printed board: Kaito cast from hand in
+/// its controller's main phase beside Oath of Gideon. It would enter with no
+/// counters, so it is a planeswalker and both apply, and its type hangs on
+/// its counters (the feeds table's last row), so its controller orders them.
+/// CR 306.5b first gives 4 and makes it a creature, so Oath no longer
+/// applies; Oath first gives 1, and CR 306.5b no longer exists.
+// COVERS-PARTIAL: ATOM-616.1-001
+#[test]
+fn kaito_cast_beside_oath_of_gideon_is_its_controllers_order() {
+    for (pick, loyalty) in [(0, 1), (1, 4)] {
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, oath_of_gideon_shaped(), 0);
+        let pool = [(ManaType::Blue, 1), (ManaType::Black, 1), (ManaType::Colorless, 2)];
+        let kaito = cast_from_pool(&mut game, 0, kaito_shaped(), &pool, &ManaWindowStop::new(Orders::new(&[])))
+            .expect("castable from exactly {2}{U}{B}");
+        assert_eq!(game.players[0].mana_pool.total(), 0, "the whole pool was the cost");
+        game.resolve_top_of_stack(&ManaWindowStop::new(Orders::new(&[(0, pick)]))).expect("it resolves");
+
+        assert_eq!(game.battlefield[&kaito].counter_count(CounterType::Loyalty), loyalty);
+        assert_eq!(get_effective_types(&game, kaito), HashSet::from([CardType::Creature]));
+        assert_eq!((get_effective_power(&game, kaito), get_effective_toughness(&game, kaito)), (Some(3), Some(4)));
+    }
+}
+
+/// Item 186's ability-loss half: Humility strips a planeswalker creature's
+/// abilities at layer 6, CR 306.5b's with the rest, so it enters with no
+/// loyalty and CR 704.5i puts it into its owner's graveyard. Without Humility
+/// it enters with its 4.
+// COVERS: ATOM-704.5i-001
+#[test]
+fn humility_takes_the_loyalty_ability_from_a_planeswalker_creature() {
+    let mut game = setup_two_player_game();
+    let walker = return_asking(&mut game, planeswalker_creature(), 0, &[]);
+    assert_eq!(game.battlefield[&walker].counter_count(CounterType::Loyalty), 4);
+
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, humility(), 1);
+    let walker = return_asking(&mut game, planeswalker_creature(), 0, &[]);
+    assert_eq!(game.battlefield[&walker].counter_count(CounterType::Loyalty), 0);
+    game.check_state_based_actions(&Orders::new(&[])).expect("SBAs");
+    assert_eq!(game.objects[&walker].zone, Zone::Graveyard);
+}
+
+/// With no multiplier on the board, CR 306.5b's count and Oath's are both
+/// constants, so 3 + 1 is 4 in either order and nothing is asked.
+#[test]
+fn loyalty_beside_an_additional_counter_asks_nothing_without_a_multiplier() {
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, oath_of_gideon_shaped(), 0);
+    let probe = return_asking(&mut game, loyalty_probe(), 0, &[]);
+    assert_eq!(game.battlefield[&probe].counter_count(CounterType::Loyalty), 4);
+}
+
+/// Premise (d), on registered cards: Adaptive Shimmerer's 3 and Master
+/// Biomancer's 2 under Doubling Season. Doubling Season applies only once one
+/// of them has written (CR 616.2), so the first choice decides whose counters
+/// it can double: 7, 8 or 10, each two questions away.
+// COVERS-PARTIAL: ATOM-616.2-001
+#[test]
+fn shimmerer_under_biomancer_and_doubling_season_reaches_every_order() {
+    let mut outcomes = Vec::new();
+    for first in 0..2 {
+        for second in 0..2 {
+            let mut game = setup_two_player_game();
+            put_on_battlefield(&mut game, master_biomancer(), 0);
+            put_on_battlefield(&mut game, doubling_season(), 0);
+            let shimmerer = return_asking(&mut game, adaptive_shimmerer(), 0, &[(0, first), (0, second)]);
+            outcomes.push(game.battlefield[&shimmerer].counter_count(CounterType::PlusOnePlusOne));
+        }
+    }
+    outcomes.sort_unstable();
+    outcomes.dedup();
+    assert_eq!(outcomes, vec![7, 8, 10]);
 }
