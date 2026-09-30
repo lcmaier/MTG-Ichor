@@ -7,7 +7,12 @@ rust-version = "1.95"
 
 [dependencies]
 mtgsim = { path = "../mtgsim" }
-eframe = "0.36.2"
+# Without the screen-reader bridge (a D-Bus stack on Linux), link opening and
+# the web screen reader, none of which the dev GUI uses: 439 locked packages to 359.
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "wgpu", "wayland", "x11"] }
+# eframe's defaults turned on winit's, which Linux needs: Wayland loaded at run
+# time, and title bars on GNOME. Named here to keep them; it moves with eframe.
+winit = "0.30"
 # `mtgsim::cards::random_deck` takes the engine's `StdRng`, so the same major.
 rand = "0.9"
 
