@@ -578,7 +578,7 @@ both trees attributes it to `EnterMods` growing 56 → 88 bytes (`GameAction`
 80 → 112), and `Option<Arc<EntryCopy>>` is the lever. Spark Double reached
 in 66% of two-seat games and 48% of four-seat ones.
 
-**Trace page: `plans/traces/cv-2b-an-exception-is-judged-without-itself.html`**,
+**Trace page: `plans/traces/cv-2b-an-exception-is-checked-without-itself.html`**,
 decided yes by the owner at the design review, ahead of the close.
 
 #### The section as re-derived and reviewed

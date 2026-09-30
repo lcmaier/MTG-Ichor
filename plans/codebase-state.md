@@ -8647,13 +8647,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by building CV-2b (2026-09-29)
 
-189. **CR 707.9e's take-back subtracts what an exception added, not what a
-     multiplier made of it.** When a later copy of one entry takes back an
-     earlier copy's additional counters, `EnterMods::take_back` subtracts the
-     exception's own count. A multiplier (Doubling Season) that applied
-     between the two copies scaled the entry's counters as a whole, so the
-     multiplier's share of the exception's counters stays, where "the
-     exception's effect doesn't happen" takes that share too.
+189. **When a second copy replaces a first in one entry, the first copy's
+     extra counters are removed at their original count, even if a doubler
+     multiplied them in between.** Spark Double copying a Clone that copied
+     nothing enters as a creature, so its exception puts one +1/+1 counter
+     on the entry. The Clone's own copy ability, which the entry now has,
+     then applies in the same entry, and CR 707.9e says the first copy's
+     exception "doesn't happen". So `EnterMods::take_back` removes that one
+     counter (`a_later_copy_takes_back_spark_doubles_counter`), reading how
+     many from `EntryCopy.added`. If a doubler such as Doubling Season had
+     applied between the two copies, the entry would hold two counters from
+     that one exception, and the take-back would remove one, leaving a
+     counter the rule says should not be there.
 
      **Reachability (2026-09-29):** unreachable. A copy applies at CR
      616.1c's step, ahead of every 616.1e effect applicable beside it, so a

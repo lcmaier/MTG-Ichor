@@ -539,8 +539,8 @@ and CV-3's embalm and eternalize are the same algebra.
 pub enum CopyException {
     /// 707.9a–b: one edit to one copiable characteristic.
     Modifies(CharacteristicEdit),
-    /// 707.9c: "it doesn't copy that creature's [characteristic]" — the
-    /// copy keeps its own.
+    /// 707.9c: "it doesn't copy that creature's color" (Vesuvan
+    /// Doppelganger, the only printed card) — the copy keeps its own.
     DoesNotCopy(Characteristic),
     /// 707.9e: an additional effect on the entry; a later copy cancels it.
     Additionally(EnterModsTemplate),
@@ -586,8 +586,8 @@ placement too, so CV-1b and CV-3 reuse `CopyException` whole.
   `ObjectFilter` says "if it's a creature", read off the CR 614.12 frame of
   the result, because Spark Double's eighth ruling says "use the
   characteristics of Spark Double as it enters". The frame is the copy without
-  the exception being judged, with every other exception that applies: an
-  unconditional one always, and a conditional one when the same judgment,
+  the exception being checked, with every other exception that applies: an
+  unconditional one always, and a conditional one when the same check,
   made without both, says it does (707.9f's "taking into account any other
   exceptions that effect includes"). An `If` inside an `If` is refused, since
   `ObjectFilter::And` already says "if it's both". `EntryCopy.added` records
@@ -596,35 +596,6 @@ placement too, so CV-1b and CV-3 reuse `CopyException` whole.
 - **The growth contract is `Rewrite`'s:** a new arm needs the CR sub-rule that
   permits it. 707.9g, a linked triggered ability (Wall of Stolen Identity), is
   the one known next arm, and it comes with reflexive triggers (TR-3).
-
-**The gray area: "except it enters untapped", copying a creature that enters
-tapped.** The engine does not settle it with a case of its own. The CR's
-categories already tell the two readings apart, and Spelunking's first ruling
-supplies the ordering rule: "Lands you control enter untapped" and a land's
-"enters tapped" are two replacement effects, "you choose the order in which
-[they] apply", and the last one applied wins.
-- Read as CR 707.9e's additional effect, like "except it enters with an
-  additional counter", the "untapped" applies with the copy, at 616.1c. The
-  copied "enters tapped" applies after it, at 616.1e, and the permanent enters
-  **tapped**.
-- Read as CR 707.9a's gained ability, "it has 'This creature enters
-  untapped'", the copy's own ability joins the 616.1e bucket beside the copied
-  one. Its controller orders the two, as with Spelunking, and can choose
-  **untapped**.
-
-The wording picks the category, the category picks the answer, and the
-engine gives the answer the CR's machinery gives: the stance
-`codebase-state.md` main item 11 took for Toph and Caged Sun. The flexibility a
-custom card needs is that vocabulary, not a judgment of the engine's own.
-
-**What the question found: the engine could not say "enters untapped" at
-all.** `EnterMods.tapped` merged with `|=`, so an effect that makes a
-permanent enter untapped changed nothing. Five printed cards need it:
-Spelunking, Horizon Explorer, The Wandering Minstrel, Gond Gate and Archelos,
-Lagoon Mystic. It landed with the entry-state PR (RG, 2026-09-28) as
-`EnterMods::status`, which the last applied effect sets, with CR 616.1's
-ordering prompt between opposite statuses (`replacement-architecture.md`
-§3.5). Neither reading of the gray area needs more than that.
 
 #### The Kaito board: a copied planeswalker whose type hangs on its counters (decided 2026-09-29)
 
@@ -659,11 +630,11 @@ hand. The copy takes Kaito's printed values (CR 707.2), minus legendary
 | counts entry counters | as reviewed: unconditional exceptions only | no | 1 | a 3/4 creature: nothing more | 1 loyalty |
 | does not (Arixmethes's ruling; Spark Double's #7, "printed ... plus one") | either: no counter changes the frame | no | 1 | a planeswalker: CR 306.5b's 4, and Oath's 1 | 5 loyalty, or 6 beside Oath |
 
-The first row, step by step. The +1/+1 exception, judged without itself: the
-loyalty exception, judged without both, sees no counters and a planeswalker,
+The first row, step by step. The +1/+1 exception, checked without itself: the
+loyalty exception, checked without both, sees no counters and a planeswalker,
 so it applies there, and with its counter the frame is a creature, so the
-+1/+1 exception applies. The loyalty exception, judged without itself: the
-+1/+1 exception, judged without both, sees a planeswalker and no creature, so
++1/+1 exception applies. The loyalty exception, checked without itself: the
++1/+1 exception, checked without both, sees a planeswalker and no creature, so
 it does not apply there, and with nothing added the frame is a planeswalker,
 so the loyalty exception applies. Both apply. The second row gives the
 loyalty counter, and then fails 707.9f's own test for the +1/+1 exception:
@@ -699,7 +670,8 @@ been asked it twice.
 - A judge's answer: Cranial Insertion #4344 (2025-01-13, Carsten Haese) keeps
   a ninjutsu Kaito from Containment Priest because the look-ahead's Kaito has
   no counters. That is the ruling's reading, which gives Spark Double 5. No
-  judge source found discusses one conditional exception judging the other.
+  judge source found discusses one conditional exception deciding the other's
+  condition.
 - Players, r/mtgrules "Kaito Clones question" (2024-09-24): one answer moved
   from 4 + 1 loyalty to 1, on "a copy's own exception doesn't count", which
   is the reviewed rule. Another read 707.9f's "taking into account any other
@@ -768,6 +740,7 @@ RE-4's exception), and each lands with its card.
 | a donor chosen by a resolution | Mystic Reflection | `CopyDonor::Object`, filled at creation in `PatternFill`'s shape, and a "the next time one or more" batch scope |
 | CR 614.13's move with a copy | The Mimeoplasm | `EnterAfterMoving` and `EnterAsCopy` in one application |
 | embalm's token | Vizier of Many Faces | CV-3 |
+| "except it has this ability", the copy's own ability given back to it | Unstable Shapeshifter, Dimir Doppelganger, Vesuvan Doppelganger's upkeep copy (all Tier C) | a `GainsAbility` leaf naming the ability that makes the copy, filled as it applies, since a def cannot contain itself. CV-1b's |
 
 ### 4.2 Tier C — becomes a copy (CR 707.4 / 707.2c)
 
@@ -1391,7 +1364,7 @@ are made on the captured values once, at the capture, with 707.9d's drop
 derived from what an exception sets or keeps, so layer 1a applies a finished
 snapshot. 707.9e's status and counters go onto the entry, and
 `EntryCopy { values, added }` records them, so a later copy of the same entry
-takes them back. 707.9f judges each condition on a CR 614.12 look-ahead of
+takes them back. 707.9f checks each condition on a CR 614.12 look-ahead of
 the copy without it, with every other exception that applies there.
 `CharacteristicEdit` gains the copy placement's `GainsAbility`,
 `GainsKeyword`, `PowerToughness` and `Name`, each refused at the entry door
@@ -1407,7 +1380,7 @@ instructions per decision, 0.02 over the prediction: `EnterMods` grew 56 → 88
 bytes, since `copy` now carries what its exceptions added (`fuzz-record.md`,
 CV-2b's block).
 
-**Trace page: `plans/traces/cv-2b-an-exception-is-judged-without-itself.html`**,
+**Trace page: `plans/traces/cv-2b-an-exception-is-checked-without-itself.html`**,
 decided yes at the design review: the look-ahead of a copy not yet made, on
 a plain legend, on the Kaito board, and under a later copy that takes a
 counter back.

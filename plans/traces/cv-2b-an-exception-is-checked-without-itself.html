@@ -6,13 +6,14 @@
 <!--
   plans/traces — hand-authored trace pages, one per phase (tier 1;
   `plans/engineering-practices.md` §7 is the authority for the practice).
-  Pinned to branch copy/cv-2b at e1bc838 (Spark Double registered) and the
+  Pinned to branch copy/cv-2b at eb1e31b (review round 1; the traces
+  are identical to e1bc838's, where Spark Double was registered) and the
   frozen CR `tmnt`; never maintained — a later phase that changes these
   paths gets its own page. Every step is a record from a traced run of its
   board at this commit. Self-contained: fonts from Google Fonts, mermaid
   from jsDelivr, nothing else.
 -->
-<title>Judging a Copy's Exceptions — CV-2b</title>
+<title>Checking a Copy's Exceptions — CV-2b</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
 </head>
 <body>
@@ -109,19 +110,19 @@
 </style>
 <div class="page">
 
-<h1>An Exception Is Judged Without Itself</h1>
-<p class="lede">CV-2b lets a permanent that enters as a copy make CR 707.9's exceptions. 707.9a–d change the copied values, once, as they are captured. 707.9e adds a status or counters to the entry. 707.9f makes an exception apply only if the copy is something, and the copy it asks about has not been made yet. So CV-2b adds one new kind of read: a CR 614.12 look-ahead of a hypothetical copy, taken once per judgment, inside the CR 616.1c application. Here are three boards, walked read by read from the records the engine's trace sink wrote.</p>
-<p class="meta"><span class="pin">copy/cv-2b @ e1bc838</span><span class="pin">CR tmnt</span><span class="pin">2026-09-29</span> Authority for the design: <code>plans/copy-effects-architecture.md</code> §4.1a, with its Kaito board, and the phase in §7c and its archive. Tests: <code>mtgsim/tests/phase_cv2b_integration_test.rs</code>. Every step below is a record in a traced run of that board at this commit, returned from the graveyard so the entry is the only thing in the batch.</p>
+<h1>An Exception Is Checked Without Itself</h1>
+<p class="lede">CV-2b lets a permanent that enters as a copy make CR 707.9's exceptions. 707.9a–d change the copied values, once, as they are captured. 707.9e adds a status or counters to the entry. 707.9f makes an exception apply only if the copy is something, and the copy it asks about has not been made yet. So CV-2b adds one new kind of read: a CR 614.12 look-ahead of a hypothetical copy, taken once per check, inside the CR 616.1c application. Here are three boards, walked read by read from the records the engine's trace sink wrote.</p>
+<p class="meta"><span class="pin">copy/cv-2b @ eb1e31b</span><span class="pin">CR tmnt</span><span class="pin">2026-09-29</span> Authority for the design: <code>plans/copy-effects-architecture.md</code> §4.1a, with its Kaito board, and the phase in §7c and its archive. Tests: <code>mtgsim/tests/phase_cv2b_integration_test.rs</code>. Every step below is a record in a traced run of that board at this commit, returned from the graveyard so the entry is the only thing in the batch.</p>
 
 <h2>The map</h2>
 <div class="prose">
 <p>Spark Double's text is three exceptions: "an additional +1/+1 counter on it if it's a creature" (call it the <b>creature exception</b>), "an additional loyalty counter on it if it's a planeswalker" (the <b>planeswalker exception</b>), and "it isn't legendary". The first two are 707.9e counters under 707.9f conditions. The third is a 707.9b edit, and a copy of the copy keeps it.</p>
-<p>707.9f says to judge each conditional exception against "the resulting permanent's characteristics ... if the copy effect were applied without that exception, taking into account any other exceptions that effect includes". Trace A is the ordinary case. Trace B is the board where the two conditional exceptions decide each other's condition. Trace C is 707.9e's other half: a later copy in the same entry takes an exception back.</p>
+<p>707.9f says to check each conditional exception against "the resulting permanent's characteristics ... if the copy effect were applied without that exception, taking into account any other exceptions that effect includes". Trace A is the ordinary case. Trace B is the board where the two conditional exceptions decide each other's condition. Trace C is 707.9e's other half: a later copy in the same entry takes an exception back.</p>
 </div>
 <div class="wrap">
 <table>
 <tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
-<tr><td><b>A</b></td><td><b>Isamaru, Hound of Konda</b> (a legendary 2/2) on player 0's battlefield; <b>Spark Double</b> returned, copying it</td><td>Where are the exceptions made, and what does each judgment read?</td><td><code>spark_double_cast_from_hand_copies_a_legend_with_a_counter_and_no_legend_rule</code></td></tr>
+<tr><td><b>A</b></td><td><b>Isamaru, Hound of Konda</b> (a legendary 2/2) on player 0's battlefield; <b>Spark Double</b> returned, copying it</td><td>Where are the exceptions made, and what does each check read?</td><td><code>spark_double_cast_from_hand_copies_a_legend_with_a_counter_and_no_legend_rule</code></td></tr>
 <tr><td><b>B</b></td><td><b>Oath of Gideon</b> and a <b>Kaito-shaped</b> planeswalker (4 loyalty, so a 3/4 creature) on player 0's battlefield; Spark Double copying Kaito</td><td>Why does it enter with one loyalty counter <em>and</em> a +1/+1 counter, and why is neither CR 306.5b nor Oath gathered?</td><td><code>spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one</code></td></tr>
 <tr><td><b>C</b></td><td><b>Glorious Anthem</b>, a <b>Clone</b> that copied nothing (a 1/1 under the Anthem), and an opponent's <b>Grizzly Bears</b>; Spark Double copying the Clone, then the Clone's copied ability copying the Bears</td><td>How does "the exception's effect doesn't happen" undo a counter the entry already carries?</td><td><code>a_later_copy_takes_back_spark_doubles_counter</code></td></tr>
 </table>
@@ -138,10 +139,10 @@ flowchart TD
   DON --> CAP["copiable_values(donor): the capture, CR 707.2"]
   CAP --> EAC["enter_as_copy"]:::new
   EAC --> TB["EnterMods::take_back: an earlier copy's additions, CR 707.9e"]:::new
-  EAC --> J["Judge::applying: each conditional exception, judged without itself"]:::new
-  J --> M["Judge::matches: EntryFrame::for_entering on the hypothetical copy"]:::new
+  EAC --> J["ExceptionConditions::holding: each conditional exception, checked without itself"]:::new
+  J --> M["ExceptionConditions::matches: EntryFrame::for_entering on the hypothetical copy"]:::new
   M --> LA["compute_as_entering: a CR 614.12 look-ahead of a copy not yet made"]:::new
-  M --> OUT["Judge::outcome"]:::new
+  M --> OUT["ExceptionConditions::outcome"]:::new
   OUT --> EX["CopiableValues::except: 707.9a–d, and 707.9d's drop"]:::new
   OUT --> ET["evaluate_enter_template: 707.9e's status and counters"]:::changed
   EAC --> SP["strip_prohibited_counters, CR 614.17d"]
@@ -161,11 +162,11 @@ flowchart TD
 <ol class="trace">
 <li><span class="fn">change_zone(Spark Double, Battlefield, Returned)</span> proposes <code>EnterBattlefield { mods: EnterMods::NONE }</code> <span class="read state">state</span> (record 2). Iteration 1 builds the CR 614.12 frame of Spark Double itself, a 0/0 Illusion (record 4), and source 1a finds its own copy ability: one candidate, on CR 616.1c's step.</li>
 <li class="decide"><span class="fn">entry_copy_donor</span> asks player 0 to choose among "a creature or planeswalker you control": Isamaru alone, under "you may" (record 6) <span class="read player">player</span>. <span class="fn">copiable_values(Isamaru)</span> captures the values after layer 1: a legendary 2/2 creature.</li>
-<li class="new"><span class="fn">enter_as_copy</span>: there is no earlier copy to take back. <span class="fn">Judge::applying(0)</span> judges each conditional exception without itself, in printed order. The creature exception first. Inside its judgment the planeswalker exception is judged without both, on the copy with only "isn't legendary": a 2/2 creature and no planeswalker (record 7) <span class="read frame">frame</span>, so it does not apply there, and the creature exception's own frame is that same copy (record 8): a creature, so <b>it applies</b>. Then the planeswalker exception. Inside its judgment the creature exception, judged without both, applies (record 9, the same frame again), so the planeswalker exception's own frame carries that counter: a 3/3 creature and no planeswalker (record 10), so <b>it does not apply</b>.</li>
-<li class="new"><span class="fn">Judge::outcome</span> makes the exceptions that apply. <span class="fn">CopiableValues::except</span> removes Legendary from the captured supertypes, through <code>TypeChange::modifications</code>, the lowering <code>Primitive::ChangeType</code> uses. <span class="fn">evaluate_enter_template</span> turns "an additional +1/+1 counter" into one row. <span class="fn">strip_prohibited_counters</span> refuses nothing, and <span class="fn">EnterMods::merge</span> puts the row on the entry, which <code>EntryCopy.added</code> records <span class="read state">state</span>.</li>
+<li class="new"><span class="fn">enter_as_copy</span>: there is no earlier copy to take back. <span class="fn">ExceptionConditions::holding(0)</span> checks each conditional exception without itself, in printed order. The creature exception first. Inside its check the planeswalker exception is checked without both, on the copy with only "isn't legendary": a 2/2 creature and no planeswalker (record 7) <span class="read frame">frame</span>, so it does not apply there, and the creature exception's own frame is that same copy (record 8): a creature, so <b>it applies</b>. Then the planeswalker exception. Inside its check the creature exception, checked without both, applies (record 9, the same frame again), so the planeswalker exception's own frame carries that counter: a 3/3 creature and no planeswalker (record 10), so <b>it does not apply</b>.</li>
+<li class="new"><span class="fn">ExceptionConditions::outcome</span> makes the exceptions that apply. <span class="fn">CopiableValues::except</span> removes Legendary from the captured supertypes, through <code>TypeChange::modifications</code>, the lowering <code>Primitive::ChangeType</code> uses. <span class="fn">evaluate_enter_template</span> turns "an additional +1/+1 counter" into one row. <span class="fn">strip_prohibited_counters</span> refuses nothing, and <span class="fn">EnterMods::merge</span> puts the row on the entry, which <code>EntryCopy.added</code> records <span class="read state">state</span>.</li>
 <li>Iteration 2's frame is the copy with its counter, a 3/3 (record 12). Nothing is gathered (record 13), and the performer places a nonlegendary Isamaru with one +1/+1 counter (records 14–15). The copy's values reach the board pass at layer 1a as a finished snapshot, as CV-2a's did.</li>
 </ol>
-<div class="callout rule"><b>Four look-aheads for two conditions.</b> Each conditional exception is judged without itself, and inside that, the other is judged without both. The judgments are memoized on what is left out, so a subset the recursion reaches twice is judged once. The frames are not, so records 7, 8 and 9 are one frame taken three times. It happens only for a copy with conditional exceptions: Spark Double, and Moritte of the Frost when it is built.</div>
+<div class="callout rule"><b>Four look-aheads for two conditions.</b> Each conditional exception is checked without itself, and inside that, the other is checked without both. The checks are memoized on what is left out, so a subset the recursion reaches twice is checked once. The frames are not, so records 7, 8 and 9 are one frame taken three times. It happens only for a copy with conditional exceptions: Spark Double, and Moritte of the Frost when it is built.</div>
 
 <h2>Trace B — Spark Double copies Kaito, beside Oath of Gideon</h2>
 <div class="prose">
@@ -173,19 +174,19 @@ flowchart TD
 </div>
 <ol class="trace">
 <li class="decide">The donor question offers Kaito alone (record 6) <span class="read player">player</span>. Oath's filter reads Spark Double's frame, a 0/0 creature and no planeswalker, so Oath is not a candidate at iteration 1 (record 11: one candidate).</li>
-<li class="new">The creature exception first, judged without itself. Inside that, the planeswalker exception is judged without both, on the copy with only "isn't legendary" and no counters. Kaito's condition reads no loyalty counter, so the frame is a planeswalker (record 7) <span class="read frame">frame</span>, and in that hypothetical the planeswalker exception applies.</li>
+<li class="new">The creature exception first, checked without itself. Inside that, the planeswalker exception is checked without both, on the copy with only "isn't legendary" and no counters. Kaito's condition reads no loyalty counter, so the frame is a planeswalker (record 7) <span class="read frame">frame</span>, and in that hypothetical the planeswalker exception applies.</li>
 <li class="new">So the creature exception's own frame carries that loyalty counter. Kaito's condition holds, and it is a 3/4 creature (record 8) <span class="read frame">frame</span>. <b>The creature exception applies.</b></li>
-<li class="new">Then the planeswalker exception, judged without itself. Inside that, the creature exception judged without both sees the same planeswalker (record 9), so it does not apply there, and the planeswalker exception's own frame is that copy with no counters (record 10): a planeswalker, so <b>it applies too</b>.</li>
+<li class="new">Then the planeswalker exception, checked without itself. Inside that, the creature exception checked without both sees the same planeswalker (record 9), so it does not apply there, and the planeswalker exception's own frame is that copy with no counters (record 10): a planeswalker, so <b>it applies too</b>.</li>
 <li class="changed">Both counters go on the entry (record 13's event: one +1/+1 and one loyalty). Iteration 2's frame is a 4/5 creature (record 12). It is no planeswalker, so the walk does not synthesize CR 306.5b's ability on it, and Oath's "planeswalkers you control" does not match. Nothing is gathered, and nothing is asked but the donor.</li>
 </ol>
-<div class="callout gray"><b>The gray area this board sits on.</b> Two register rows (<code>engineering-practices.md</code> §3.4b) meet here. <code>lookahead-entry-counters</code>: the look-ahead counts the counters an entry already carries, by CR 614.12's text. Arixmethes's ruling reads it otherwise, and so does Spark Double's ruling #7 ("printed on the card plus one"), which gives 5 here; the engine gives 1, and the ruling keeps a <code>// RULING-DEVIATION:</code> test. <code>copy-exception-conditions</code>: 707.9f does not say how two conditional exceptions read each other. Its words, taken literally, give both counters, and they are the only reading that passes its own test here: the other one gives the loyalty counter and then, judging the creature exception, sees a creature. WotC has been asked this board twice and has not answered (§4.1a's evidence). Each row's switch is one place in the code: the <code>SourceHasCounters</code> arm, and the mask <code>Judge::applying</code> passes to <code>matches</code>.</div>
+<div class="callout gray"><b>The gray area this board sits on.</b> Two register rows (<code>engineering-practices.md</code> §3.4b) meet here. <code>lookahead-entry-counters</code>: the look-ahead counts the counters an entry already carries, by CR 614.12's text. Arixmethes's ruling reads it otherwise, and so does Spark Double's ruling #7 ("printed on the card plus one"), which gives 5 here; the engine gives 1, and the ruling keeps a <code>// RULING-DEVIATION:</code> test. <code>copy-exception-conditions</code>: 707.9f does not say how two conditional exceptions read each other. Its words, taken literally, give both counters, and they are the only reading that passes its own test here: the other one gives the loyalty counter and then, checking the creature exception, sees a creature. WotC has been asked this board twice and has not answered (§4.1a's evidence). Each row's switch is one place in the code: the <code>SourceHasCounters</code> arm, and the mask <code>ExceptionConditions::holding</code> passes to <code>matches</code>.</div>
 
 <h2>Trace C — a later copy takes the counter back</h2>
 <div class="prose">
 <p>CR 707.9e: "If another copy effect is applied to that object after applying the copy effect with that exception, the exception's effect doesn't happen." Its example is Altered Ego copying a Clone that copied nothing. Here it is Spark Double.</p>
 </div>
 <ol class="trace">
-<li class="decide">The donor question offers the empty Clone alone, the one creature player 0 controls (record 6) <span class="read player">player</span>. The judgments (records 7–10) find a creature: the creature exception applies, and the entry carries one +1/+1 counter (record 12: a 2/2 under the Anthem).</li>
+<li class="decide">The donor question offers the empty Clone alone, the one creature player 0 controls (record 6) <span class="read player">player</span>. The checks (records 7–10) find a creature: the creature exception applies, and the entry carries one +1/+1 counter (record 12: a 2/2 under the Anthem).</li>
 <li class="decide">Iteration 2: the copied Clone ability is on the frame, so source 1a gathers it, another CR 616.1c effect (record 14's candidate). Its donor question offers the Bears and the empty Clone (record 13) <span class="read player">player</span>, and the Bears are chosen.</li>
 <li class="new"><span class="fn">enter_as_copy</span> finds an earlier copy on the entry, and <span class="fn">EnterMods::take_back</span> subtracts what its <code>added</code> recorded: the one +1/+1 counter <span class="read state">state</span>. Clone has no exceptions, so the Bears' values go on as they were captured.</li>
 <li>Iteration 3's frame is a 3/3 Grizzly Bears, the Anthem's 2/2 with no counter (record 15). Nothing is gathered (record 16), and it enters so.</li>
@@ -198,7 +199,7 @@ flowchart TD
 <tr><th>The read</th><th>Before CV-2b</th><th>After</th><th>Where it shows</th></tr>
 <tr><td>What an entry copy carries</td><td><code>EnterMods::copy</code>: the captured values, <code>Arc&lt;CopiableValues&gt;</code></td><td><code>EntryCopy { values, added }</code>: the values with 707.9a–d made, and what its 707.9e exceptions wrote</td><td>A, step 4; C, step 3</td></tr>
 <tr><td>The copied values</td><td>the donor's, as captured</td><td>the donor's, with each <code>Modifies</code> and <code>DoesNotCopy</code> made once at the capture; the donor's characteristic-defining abilities for what an exception sets or keeps dropped (707.9d)</td><td>A, step 4</td></tr>
-<tr><td>A condition on a copy exception</td><td>n/a</td><td>a look-ahead of the copy without that exception, with every other exception that applies there, judged the same way</td><td>A, step 3; B, steps 2–4</td></tr>
+<tr><td>A condition on a copy exception</td><td>n/a</td><td>a look-ahead of the copy without that exception, with every other exception that applies there, checked the same way</td><td>A, step 3; B, steps 2–4</td></tr>
 <tr><td>A second copy in one entry</td><td>replaces the first</td><td>replaces the first and takes back the first's additions, a status as well as counters</td><td>C, step 3</td></tr>
 <tr><td>An entry edit an entry cannot make yet</td><td>unrepresentable: <code>CharacteristicEdit</code> had one arm</td><td>refused at <code>evaluate_enter_template</code>, loudly; the copy placement makes <code>GainsAbility</code>, <code>GainsKeyword</code>, <code>PowerToughness</code> and <code>Name</code></td><td>the tests' refusals</td></tr>
 </table>
