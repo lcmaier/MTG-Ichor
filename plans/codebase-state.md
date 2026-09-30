@@ -7908,6 +7908,14 @@ the file.
      (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
      lands this item deletes that shortcut.
 
+     **Full control meets this elision (the spike's review, 2026-09-30).**
+     Item 161's switch takes the decorators off a seat; this item takes the
+     `[Pass]`-only prompt off every seat, below the decorators. So a seat
+     under full control still never stops in an upkeep with nothing to cast,
+     and the owner's reading of full control is a stop at every step. If it
+     should stop, the elision skips a seat under full control, and A6j, which
+     builds both, is where that is decided.
+
 165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
      should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
      order because, by `cost-architecture.md` §3.4's theorem, every order gives
