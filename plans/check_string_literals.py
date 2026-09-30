@@ -48,7 +48,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-CRATE = ROOT / "mtgsim"
+#: The engine's crate, and the dev GUI's beside it.
+CRATES = [ROOT / "mtgsim", ROOT / "devgui"]
 
 #: Shorter than this and column alignment is indistinguishable from a scar.
 MIN_RUN = 10
@@ -98,9 +99,7 @@ def scarred(path: Path):
 
 
 def main() -> int:
-    files = sorted(
-        list((CRATE / "src").rglob("*.rs")) + list((CRATE / "tests").rglob("*.rs"))
-    )
+    files = sorted(p for crate in CRATES for part in ("src", "tests") for p in (crate / part).rglob("*.rs"))
     findings = []
     for p in files:
         for n, lit in scarred(p):

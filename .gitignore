@@ -1,5 +1,10 @@
 # Rust build artifacts
 mtgsim/target/
+devgui/target/
+
+# A failed picture comparison's outputs (egui_kittest); the committed PNG is the baseline
+devgui/tests/snapshots/**/*.new.png
+devgui/tests/snapshots/**/*.diff.png
 
 # Local reference materials
 MTG-Rules/

@@ -34,7 +34,9 @@ import re
 import sys
 from pathlib import Path
 
-CRATE_SRC = Path(__file__).resolve().parent.parent / "mtgsim" / "src"
+ROOT = Path(__file__).resolve().parent.parent
+#: The engine's crate, and the dev GUI's beside it.
+CRATE_SRCS = [ROOT / "mtgsim" / "src", ROOT / "devgui" / "src"]
 
 # Item keywords, anchored at the start of a line so a mention inside a doc
 # comment or a string does not count. `pub`, `pub(crate)` and friends may
@@ -105,12 +107,13 @@ def offenders(root: Path):
 
 
 def main() -> int:
-    if not CRATE_SRC.is_dir():
-        print(f"no crate source at {CRATE_SRC}", file=sys.stderr)
-        return 2
+    for src in CRATE_SRCS:
+        if not src.is_dir():
+            print(f"no crate source at {src}", file=sys.stderr)
+            return 2
 
-    found = list(offenders(CRATE_SRC))
-    checked = sum(1 for _ in CRATE_SRC.rglob("mod.rs"))
+    found = [hit for src in CRATE_SRCS for hit in offenders(src)]
+    checked = sum(1 for src in CRATE_SRCS for _ in src.rglob("mod.rs"))
 
     if not found:
         print(f"module layout: {checked} mod.rs files, none holds implementation.")
@@ -118,7 +121,7 @@ def main() -> int:
 
     print("module layout: a `mod.rs` defines items. Move them to a named file.\n")
     for path, hits in found:
-        rel = path.relative_to(CRATE_SRC.parent.parent)
+        rel = path.relative_to(ROOT)
         print(f"  {rel}")
         for n, line in hits[:8]:
             print(f"    {n:>5}  {line[:88]}")

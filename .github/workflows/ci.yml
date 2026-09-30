@@ -202,3 +202,41 @@ jobs:
       - name: Engine map
         working-directory: .
         run: python3 plans/check_engine_map.py
+
+  # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
+  # and target. A job of its own, so it runs beside `check` and is never the
+  # long pole: its cold build measured 49 s at four jobs in WSL (2026-09-30),
+  # about 75 s on a runner. `--locked` fails rather than re-resolve a
+  # dependency, so new code reaches the tree only through a lockfile diff.
+  #
+  # The review pictures are not compared here. They are drawn on the owner's
+  # machine, and one drawn by Linux's software renderer differs past
+  # egui_kittest's threshold (a probe: 222 of 8,528 pixels, one over).
+  devgui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devgui
+    steps:
+      - uses: actions/checkout@v5
+
+      # The engine's pin, for the engine's reasons above; the GUI's own floor
+      # is eframe 0.36's, 1.95.
+      - uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: devgui
+
+      - name: Build (zero warnings is the bar)
+        run: cargo build --all-targets --locked
+
+      - name: Clippy (the default lint set is a bar)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      # The view model's tests, and a whole game with a thread in the
+      # window's place. `tests/screenshots.rs` is the local check above.
+      - name: Test, without the pictures
+        run: cargo test --locked --lib --test headless_game

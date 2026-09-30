@@ -7810,6 +7810,20 @@ the file.
      human under the toggle, a harness flag off by default, read in its A/B as
      `Decisions` falling with the engine no faster. §2.22 rows 6 and 7.
 
+     **Found by the dev GUI's spike (2026-09-30): why the offer is loose, and
+     what the matching must not repeat.** `available_mana_sources` lists a
+     source per mana ability (`oracle/mana_helpers.rs:102–124`), so one
+     untapped Everywhere is five sources though its five abilities share one
+     `{T}`, and `find_mana_sources`' greedy count pays `{3}{G}` from it. At
+     seed 33, one Everywhere in play offered every spell in the hand and one
+     was affordable; the performance pool deals Everywheres into every deck,
+     so a human sees it most turns. A matching from pips to *abilities*
+     overcounts the same way: its other side has to be one capacity per cost
+     the abilities share (a permanent's tap), each ability an edge into it.
+     Removing a permanent's other sources after the greedy takes one is not
+     the fix: greedy then under-offers ({W}{U} from a W/U dual and a W-only
+     land), which hides a castable spell — worse for a human than a rewind.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
@@ -7888,6 +7902,19 @@ the file.
      proving a list is `[Pass]` is lever 4's enumeration, 19.2% of
      instructions when last measured (2026-09-16), and this item leaves it in
      place.
+
+     **Owed by the dev GUI's spike (2026-09-30).** A6g's spike ran ahead of
+     this item, so its seat answers any prompt with one legal answer itself
+     (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
+     lands this item deletes that shortcut.
+
+     **Full control meets this elision (the spike's review, 2026-09-30).**
+     Item 161's switch takes the decorators off a seat; this item takes the
+     `[Pass]`-only prompt off every seat, below the decorators. So a seat
+     under full control still never stops in an upkeep with nothing to cast,
+     and the owner's reading of full control is a stop at every step. If it
+     should stop, the elision skips a seat under full control, and A6j, which
+     builds both, is where that is decided.
 
 165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
      should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
@@ -8709,3 +8736,60 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      into `Power` and `Toughness`, and a test with a one-sided copy exception.
      **Slotted:** with the first registered card that defines one side,
      Adeline the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C).
+
+### Found by the A6g spike, the dev GUI (2026-09-30)
+
+191. **`ui/display.rs` names an object by its printed card, keeps its own
+     keyword list, and orders the mana pool by hash.** None of the four is a
+     rule; each is a formatter showing something other than the game.
+     - `card_label` and `card_name` (`ui/display.rs:16–28`) and the log's
+       `obj_name` (`:391`) read `card_data.name`, so a copy prints under its
+       printed name: a Clone copying Grizzly Bears is "Clone" on `cli_play`'s
+       board and in every `format_event` line, though Layer 1 writes its name
+       (`engine/layers/copy.rs:147`). The board half is `get_effective_name`.
+       **The log half is not.** An event carries ids, and an id survives a
+       zone change (`backlog.md` §2.38; main item 10 keeps it), so a line
+       formatted after a copy has died names the card in the graveyard,
+       whichever function reads the name. "Grizzly Bears dies" needs the name
+       as of the event, recorded with it, which every recorded game pays for.
+     - `collect_keywords` lists 13 of `KeywordFlag`'s 16: flash, intimidate
+       and shroud never print.
+     - `format_mana_pool` iterates `ManaPool::available()`'s `HashMap`, so the
+       pool's order differs per process.
+     - `cards/random_deck.rs:89` carries a double-encoded em dash (e2cb641).
+
+     **Reachability (2026-09-30):** reachable — wrong today, in display only:
+     every `cli_play` game with a copy in it, and every log line naming one.
+     No rule reads a formatter.
+
+     **Sized:** the board's names, the keyword list read off the effective
+     set, the pool's order and the em dash are about 30 lines, each with a
+     test that fails first: one small `ui/display` PR, proposed after the
+     spike, which leaves `mtgsim` untouched (the owner's call). The log half
+     is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
+     panel PR, its first reader.
+
+192. **A priority window's blacklist and retry budget are agent guards, and
+     they bind a human seat too.** `run_priority_round` drops a rejected
+     action from every re-prompt until the window closes, and forces `Pass`
+     after three times the window's first list in rejections
+     (`engine/priority.rs:72–118`). Both exist so a random agent re-picking a
+     rewound cast terminates. For a person they read as the game refusing:
+     the owner declined Bonesplitter's payment in the dev GUI and could not
+     choose it again that window, and in a main phase with an empty stack the
+     next window is the next phase. Nothing in CR 601.2 or 732 forbids
+     another attempt.
+
+     **Reachability (2026-09-30):** reachable — wrong today for a human seat,
+     in `cli_play` and the dev GUI; right for an agent's seat, where it is the
+     termination argument.
+
+     **Sized:** ~30–50 lines and a fixture per kind of seat. The seat decides,
+     not the attempt: a canceled cast looks like a failed one inside
+     `cast_spell` (the window declined with abilities left is both an agent
+     that cannot make a pip and a person changing their mind), so it is a
+     human seat's canceled action that is re-offered and not charged to the
+     budget, "human under the toggle" like items 161 to 163. **Slotted:**
+     with A6j, which builds that toggle, proposed (the owner's call); A6g's
+     playable PR at the latest. Going back further than the window, to try
+     another line, is A6g's undo, a replay without the last answer.
