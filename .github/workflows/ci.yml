@@ -193,3 +193,12 @@ jobs:
       - name: Clippy allows
         working-directory: .
         run: python3 plans/check_clippy_allows.py
+
+      # `plans/engine-map.md` is where a reader starts, and a map of a moving
+      # tree rots without a sound. This fails when its arm table stops being
+      # `GameAction`'s variants, or when it names a file, a function, a trace
+      # page or a doc section that no longer exists. A line that merely moved
+      # since the map's pin is reported, not failed. Reads files only.
+      - name: Engine map
+        working-directory: .
+        run: python3 plans/check_engine_map.py
