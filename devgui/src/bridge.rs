@@ -25,6 +25,7 @@ use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::display::format_phase;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 use rand::SeedableRng;
@@ -156,7 +157,7 @@ impl GuiSeat {
         // TEMPORARY, until `codebase-state.md` main item 164 has the engine
         // take the `[Pass]`-only priority prompt: one legal answer is not asked.
         if let Some(only) = prompt.only_answer() {
-            self.log.borrow_mut().answer(&prompt.kind, &only, true);
+            self.log.borrow_mut().answer(game, &prompt.kind, &only, true);
             return only;
         }
         let snapshot = Snapshot::build(game, self.events_shown.get());
@@ -167,7 +168,7 @@ impl GuiSeat {
             .expect("the window closed during the game");
         (self.wake)();
         let answer = self.from_window.recv().expect("the window closed with a prompt open");
-        self.log.borrow_mut().answer(&kind, &answer, false);
+        self.log.borrow_mut().answer(game, &kind, &answer, false);
         answer
     }
 }
@@ -246,10 +247,13 @@ impl DecisionLog {
         log
     }
 
-    fn answer(&mut self, kind: &str, answer: &Answer, only_answer: bool) {
+    /// `answer 23 [turn 3, Beginning — Draw] PriorityAction Picks([0])`, and
+    /// ` only` at the end when the seat answered for the window.
+    fn answer(&mut self, game: &GameState, kind: &str, answer: &Answer, only_answer: bool) {
         self.answers += 1;
         let forced = if only_answer { " only" } else { "" };
-        let line = format!("answer {} {kind} {answer:?}{forced}", self.answers);
+        let when = format!("turn {}, {}", game.turn_number, format_phase(game));
+        let line = format!("answer {} [{when}] {kind} {answer:?}{forced}", self.answers);
         self.line(&line);
     }
 
