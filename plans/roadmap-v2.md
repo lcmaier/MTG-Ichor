@@ -250,13 +250,19 @@ lives.
 — what each owes the doc, and its atoms, are in its B row: RS-2 after A6c's item 10
 (hexproof is the family, and item 10's own "before RS-2" is the link), CV-3 and CV-4, RS-3a → RS-4 → RS-3b (B5's order),
 CV-5 → CV-6 → CV-7 (B6, with CV-7's back-stop), §2.24's permission half after
-B5 (B8), §2.9's build (B4), item 30's capture PR (§5 amendment 1), B1–B3 once A4 is
-in, item 140 with the first fork harness (Phase 10's), and the four open
+B5 (B8), item 30's capture PR (§5 amendment 1), B1's CP-1 any time, item 140
+with the first fork harness (Phase 10's), and the four open
 layers items `layers-architecture.md` §13c names — "Before Layers" item 4,
 item 7's grant-over-a-filter half, item 7d, item 10's 1a/1b split — each with
 its own trigger.
 
 ### B. What breadth needs — beside and after triggers
+
+**The order after triggers (the owner, 2026-09-29): B2, B3 and B4 first, ahead of the
+mechanism rows B5–B10**, so a four-player Commander game is playable end to end before
+breadth: the format and its designation, then CR 800 and 802 at four seats, then the
+information model built on A6f's design. The mechanism rows follow, each keeping its
+back-stop and pulled by the card family that wants it; B1's last PR, CP-1, goes any time.
 
 | # | Do this | Why here | PRs |
 |---|---|---|---:|
