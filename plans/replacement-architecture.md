@@ -851,7 +851,7 @@ a leaf from matching to not matters.
 | `counters`, −1/−1 | with | power and toughness down, at 7c | `PowerLE` under a `Not` |
 | `counters`, a keyword kind | with | a keyword, at 6 (CR 122.1b) | none: no leaf reads keywords |
 | `counters`, any other kind | with | nothing | none |
-| `copy` | as | every copiable value, at 1a | every characteristic leaf. Exempt, since only CR 616.1c writes it and 616.1c's step never shares a bucket with 616.1e's |
+| `copy` | as | every copiable value, at 1a; and the counters and status its CR 707.9e exceptions add (CV-2b), into `counters` and `status` | every characteristic leaf. Exempt, since only CR 616.1c writes it and 616.1c's step never shares a bucket with 616.1e's; its 707.9e writes are made at the same step |
 | `edits`, one that adds | as | a value, at the edit's layer | the leaf for that value, under a `Not`: `Not(BySubtype(Mutant))` |
 | `edits`, one that sets or removes | as | a whole axis, at the edit's layer | every leaf on that axis |
 | `status` or `counters`, when the entering object has a static that changes its own characteristics under a condition on its status or counters (`Condition::reads_entry_state`) | with | whatever that static writes | every characteristic leaf (CR 614.12's clause (2) reads the static through the look-ahead) |
@@ -876,19 +876,23 @@ amount once whenever it applies.
 One edit to one characteristic, whose content is a type the engine already
 has (`TypeChange` and `ColorChange` are layers 4 and 5's own). **Where the
 edit is made decides whether it is copiable, never the edit.** An arm lands
-with its first placement's consumer; `Types` is built.
+with its first placement's consumer, and a placement is built only with its
+own: `CharacteristicEdit::has_entry_placement` says which arms an entry may
+make, and `evaluate_enter_template` refuses the rest rather than dropping
+them.
 
-| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §7c): inside `CopiableValues` (CR 707.9b) |
+| Arm | Entry placement: "enters as", not copiable (CR 707.2's last sentence) | Copy placement (CV-2b, `copy-effects-architecture.md` §4.1a): inside `CopiableValues` (CR 707.9b) |
 |---|---|---|
-| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a |
+| `Types(TypeChange)` | layer 4; **built**, for Master Biomancer | 1a; **built** (CV-2b), for Spark Double's "isn't legendary" and Copy Artifact's "in addition" |
 | `Colors(ColorChange)` | layer 5 | 1a |
-| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a |
-| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a |
-| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a |
+| `GainsAbility(AbilityDef)`, `GainsKeyword(KeywordFlag)` | layer 6. Registration then files the gained ability, as it files a copy's, because every gate's printed leg must see it (`CLAUDE.md`) | 1a; **built** (CV-2b), on fixtures shaped as Phantasmal Image and Mockingbird. Registration files the gained ability because it reads the captured list |
+| `PowerToughness(i32, i32)` | 7b for another object's effect. The object's own "as ... enters" that sets P/T is copiable (CR 613.2a), a third placement at 1a | 1a; **built** (CV-2b), on a Quicksilver Gargantuan-shaped fixture |
+| `Name(String)`, `ManaCost(Option<ManaCost>)`, `Loyalty(i32)` | none: copiable values only (CR 707.2) | 1a; `Name` **built** (CV-2b), on a Sakashima-shaped fixture |
 
 The entry placement lowers an edit through the function `Primitive::ChangeType`
 lowers through (`TypeChange::modifications`), so an edit and a continuous
-effect that say the same thing make the same modifications.
+effect that say the same thing make the same modifications. The copy
+placement lowers `Types` through the same function (`CopiableValues::except`).
 
 ---
 
@@ -1624,6 +1628,7 @@ The boards where the two readings part:
 | Kaito on your turn under an opponent's Authority of the Consuls | enters tapped | enters untapped |
 | Arixmethes under Master Biomancer | an order: Arixmethes's own effect first makes it a land, and Biomancer no longer applies | Biomancer always applies |
 | +1/+1 counters an entry adds, beside a "power N or less" filter | counted (RE-5's `PowerLE` cell) | not counted, taken consistently |
+| Spark Double, cast on your turn, copying Kaito (CV-2b; `copy-effects-architecture.md` §4.1a) | 1 loyalty, the copy's own additional counter, which makes the frame a creature, so CR 306.5b is never gathered; and one +1/+1 (`copy-exception-conditions`) | 5, Spark Double's ruling #7: printed plus one |
 
 **The evidence, dated.**
 - The CR baseline (`tmnt`, effective 2026-02-27) still says what it said.
@@ -1632,6 +1637,11 @@ The boards where the two readings part:
   rulings might need to change.
 - Matt Tabak (WotC) wrote on 2025-03-28 that under 614.12 the game should see
   Arixmethes enter as a land and behave accordingly.
+- Since then, found at CV-2b (2026-09-29), it stays open and acknowledged:
+  Tabak on Kaito beside Solemnity (2025-05-19) is not convinced the rules
+  cover it, and the rules team is considering it; he had seen no update on
+  2025-06-09. Jess Dunks, now rules architect, still named 614.12 among the
+  issues he wants fixed on 2026-05-22.
 - A judges' Discord thread the owner asked (2026-09-29) split three ways: 4-or-1
   by the text, 5 by the ruling, and a ruling "poorly written" rather than wrong.
 - MTG Arena was reported there to follow the ruling's reading, and not to follow
@@ -1647,7 +1657,8 @@ look-ahead, which RE-5's cell relies on and no ruling questions.
 counters (`Condition::SourceHasCounters`, evaluated against the would-be
 permanent). A flip to the ruling's reading would evaluate it against the
 counters the object had before its entry. Arixmethes is not registered. When it
-is, its ruling #2 gets a `// RULING-DEVIATION:` test naming this row.
+is, its ruling #2 gets a `// RULING-DEVIATION:` test naming this row. Spark
+Double's ruling #7 gets one with CV-2b, on the Kaito board.
 
 ---
 

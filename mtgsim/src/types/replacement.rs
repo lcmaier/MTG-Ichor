@@ -1013,7 +1013,7 @@ impl Rewrite {
     /// separate yes-or-no would ask the same question twice: devour's
     /// precedent, where declining is a count of zero.
     pub fn asks_its_own_may(&self) -> bool {
-        matches!(self, Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(_) }))
+        matches!(self, Rewrite::EnterAsCopy(EntryCopyTemplate { donor: CopyDonor::Chosen(_), .. }))
     }
 }
 
@@ -1383,12 +1383,38 @@ impl EnterModsTemplate {
 /// What an entry copy will be, before its donor is chosen and its values
 /// captured — the authored half of [`EnterMods::copy`], as
 /// [`EnterModsTemplate`] is of [`EnterMods`].
-///
-/// A struct for its second field: CV-2b adds CR 707.9's exceptions beside the
-/// donor (`copy-effects-architecture.md` §7c).
 #[derive(Debug, Clone, PartialEq)]
 pub struct EntryCopyTemplate {
     pub donor: CopyDonor,
+    /// CR 707.9 — the exceptions, in printed order: Spark Double's "except
+    /// it enters with an additional +1/+1 counter on it if it's a creature,
+    /// ... and it isn't legendary". Empty for Clone.
+    pub except: Vec<crate::types::effects::CopyException>,
+}
+
+/// CR 707.5 — the copy an entry carries: the values, with CR 707.9a–d's
+/// modifications made, and what its 707.9e exceptions wrote on the entry.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EntryCopy {
+    pub values: std::sync::Arc<crate::engine::layers::copy::CopiableValues>,
+    /// CR 707.9e — "if another copy effect is applied to that object after
+    /// applying the copy effect with that exception, the exception's effect
+    /// doesn't happen". What to take back when one is.
+    pub added: CopyAdditions,
+}
+
+/// What a copy's CR 707.9e exceptions wrote on the entry, beside the
+/// modifications its other exceptions made to the values.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CopyAdditions {
+    /// The counter rows merged into [`EnterMods::counters`], after CR 614.17d
+    /// struck what a "can't have counters" refuses.
+    pub counters: Vec<EntryCounters>,
+    /// The status an exception replaced, while the entry still carries the
+    /// exception's: `Some(None)` replaced CR 110.5b's default. A status is
+    /// set, not accumulated, so taking one back puts this back, and
+    /// [`EnterMods::merge`] clears it once a later effect sets a status.
+    pub replaced_status: Option<Option<TapStatus>>,
 }
 
 /// Whose copiable values an entry copy captures. One arm per binding the
@@ -1455,12 +1481,13 @@ pub struct EnterMods {
     ///
     /// Written by that arm alone, and a second copy in one entry replaces the
     /// first rather than merging with it: "the one whose copy effect you apply
-    /// last" (Essence of the Wild's rulings). The CR 614.12 frame reads it off
-    /// the would-be entity, so every later effect sees the copy, and the
-    /// performer moves it onto `PermanentState::entered_as`. Shared rather
-    /// than owned because the pipeline clones the event every iteration and a
-    /// fork clones the entity.
-    pub copy: Option<std::sync::Arc<crate::engine::layers::copy::CopiableValues>>,
+    /// last" (Essence of the Wild's rulings), taking back what the first's CR
+    /// 707.9e exceptions added. The CR 614.12 frame reads it off the would-be
+    /// entity, so every later effect sees the copy, and the performer moves
+    /// its values onto `PermanentState::entered_as`. The values are shared
+    /// rather than owned because the pipeline clones the event every
+    /// iteration and a fork clones the entity.
+    pub copy: Option<EntryCopy>,
 
     /// CR 614.1c — the characteristic edits the permanent enters as, in the
     /// order the effects applied, which is the order the board applies them
@@ -1542,6 +1569,11 @@ impl EnterMods {
         );
         if other.status.is_some() {
             self.status = other.status;
+            // This status was set after the copy's, so a later copy taking the
+            // copy's exceptions back has no status of theirs to restore.
+            if let Some(copy) = &mut self.copy {
+                copy.added.replaced_status = None;
+            }
         }
         if let Some(more) = &other.edits {
             self.edits = Some(match self.edits.take() {
@@ -1557,6 +1589,27 @@ impl EnterMods {
                 Some(existing) => existing.n += row.n,
                 None => self.counters.push(*row),
             }
+        }
+    }
+
+    /// CR 707.9e — "if another copy effect is applied to that object after
+    /// applying the copy effect with that exception, the exception's effect
+    /// doesn't happen": take back what a copy's additional effects wrote.
+    ///
+    /// Exact in the order CR 616.1c gives, where a copy applies before any
+    /// 616.1e effect that could scale its counters. A multiplier between two
+    /// copies of one entry needs the second copy to become applicable through
+    /// the multiplier's write, and no registered card can (`codebase-state.md`
+    /// main item 189).
+    pub fn take_back(&mut self, added: &CopyAdditions) {
+        for row in &added.counters {
+            if let Some(have) = self.counters.iter_mut().find(|c| c.counter == row.counter && c.by == row.by) {
+                have.n = have.n.saturating_sub(row.n);
+            }
+        }
+        self.counters.retain(|row| row.n > 0);
+        if let Some(was) = added.replaced_status {
+            self.status = was;
         }
     }
 }

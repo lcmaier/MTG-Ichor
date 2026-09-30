@@ -14,7 +14,7 @@ Ground-truth snapshot of CR coverage. Single source of truth — if another plan
 - **Not started:** CR 802's defending player and CR 800.4f–h's choices by a departed player ("Before Commander" item 4); the information model (`backlog.md` §2.9).
 - **Replacement effects (CR 614–616) — ✅ complete, Phases RA–RE, 2026-08-25 → 2026-09-15, twenty-four PRs; critical-path item 5 closed with RE-9 and was audited 2026-09-15.** Every observable mutation is a `GameAction` proposal (22 kinds) through one chokepoint; `apply_replacements` runs CR 616.1's loop between proposal and mutation; entering is one event through the CR 614.12 look-ahead frame, and what a permanent enters with and as is one shape since RG (2026-09-28, `replacement-architecture.md` §3.5); damage carries CR 120.3's results, CR 615.7's shields and CR 614.9's redirection; skips, draw, life, tokens, counters, the game's end and a player leaving it, discard, scry, mana and extra phases are all events. The CR 614–616 row below carries the "not yet" list; `replacement-architecture.md` §14 is the phase in hindsight.
 - **"Can't" effects (CR 101.2/614.17/613.11) — the spine is live (RS-0, RS-1, 2026-08-31).** `plans/cant-effects-architecture.md` is authoritative; `RestrictionDef` / `Restriction`, the third `DurationRegistry` customer, and `engine::restriction::is_prohibited` — one predicate over *effective* ability lists, checked ahead of the replacement pipeline. Still ahead: RS-2 (casting/activating/targeting), RS-3a/b (combat), RS-4 (costs).
-- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), and a permanent can enter as a copy (CV-2a, 2026-09-28).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value. Still ahead: CV-2b (CR 707.9's exceptions, Spark Double), CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
+- **Copy effects (CR 707/712/708/729 + Layer 1) — the capture is live (CV-1, 2026-09-02), a permanent can enter as a copy (CV-2a, 2026-09-28), and an entry copy makes CR 707.9's exceptions (CV-2b, 2026-09-29).** `plans/copy-effects-architecture.md` is authoritative; `CopiableValues`, `EffectModification::CopyFrom` from `Primitive::Copy`, and the two gate legs a copied ability lights; `Rewrite::EnterAsCopy`, CR 616.1c's producer, with the copy held in `PermanentState::entered_as` (RG) and loyalty a copiable value; `CopyException`, one arm per sub-rule of CR 707.9, made on the captured values (707.9a–d) and on the entry (707.9e–f, `engine/replacement/entry_copy.rs`), with Spark Double (§4.1a). Still ahead: CV-1b with main item 10, CV-3–CV-7; CV-7 (merging) back-stopped before Phase 8.
 - **Layers (CR 613) — the system is complete except Layer 3 and Layer 1b (Phases LA–LK, 2026-05 → 2026-09-14).** `Layer` with all nine sublayer variants, `EffectiveCharacteristics`, a `ContinuousEffect` registry over the shared `DurationRegistry`, and `compute_characteristics` inside **one board-wide pass per board** (LI-1) with **the CR 613.8 dependency algorithm** (LI-2) and conditional statics (LI-3); attachment as a layers input and CR 613.7e's timestamp split (LH-1/LH-2); the zone-reaching `ObjectSet` (LJ) and **CR 113.6, which abilities function in which zone** (LK — the registration leg; RF, 2026-09-16 — the replacement sweep's zone leg, `replacement-architecture.md` §9; TR-1 review theme C, 2026-09-22 — the trigger dispatcher's, per ability rather than per object; the restriction sweep still visits the battlefield alone, main item 146). `oracle/characteristics.rs` wrappers all route through it. Layer 3 (text) is an enum variant; Layer 1b (face-down) waits on CV-6. CR 305.7/305.6 ✅ (`engine/layers/land_types.rs`).
 - **Commander (CR 903) — the zone rules are in, the format is not.** Command zone ✅; commander damage ✅; **903.9a (CR 704.6d) and 903.9b ✅ (RB)**; games of three or more seats run, a lost player leaves (RE-6, RE-7: CR 104, 800.4a–e) and the rotation is N-player (RE-1's `turn_rotation`). Still missing: the tax (`cost-architecture.md` §3.8 — ~40 lines against the cost pipeline, waiting on designation), `GameConfig::commander()`, and a designation hook — nothing outside tests sets `is_commander`, so neither 903.9 half is reachable in a real game yet.
 - **What is next on the spine:** the triggers architecture doc and critical-path item 6 — the gather's zone leg landed 2026-09-16 (RF, `replacement-architecture.md` §9), which closed critical-path 6a. Between phases, in the order pass 4 of the post-RE audit proposed and the owner decides (`roadmap-v2.md` §3a, rows A4e–A4k): item 138's counters and its two callgrind levers landed 2026-09-16 (A4e, A4f, A4g); item 139 with the fork test, A4b's rulings ledger and A4c's trace sink remain; RS-2 and CV-2 beside, pulled when a card family wants them. The audit's record is "Was critical-path item 5 done, and what sits before item 6? — audited 2026-09-15" below.
@@ -8644,3 +8644,68 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** the candidates are unsized until each is confirmed.
      **Slotted:** `roadmap-v2.md` A6h, the end-of-phase docs audit, beside item
      185's inventory of elisions, which is the same kind of list.
+
+### Found by building CV-2b (2026-09-29)
+
+189. **When a second copy replaces a first in one entry, the first copy's
+     extra counters are removed at their original count, even if a doubler
+     multiplied them in between.** Spark Double copying a Clone that copied
+     nothing enters as a creature, so its exception puts one +1/+1 counter
+     on the entry. The Clone's own copy ability, which the entry now has,
+     then applies in the same entry, and CR 707.9e says the first copy's
+     exception "doesn't happen". So `EnterMods::take_back` removes that one
+     counter (`a_later_copy_takes_back_spark_doubles_counter`), reading how
+     many from `EntryCopy.added`. If a doubler such as Doubling Season had
+     applied between the two copies, the entry would hold two counters from
+     that one exception, and the take-back would remove one, leaving a
+     counter the rule says should not be there.
+
+     **Reachability (2026-09-29):** unreachable. A copy applies at CR
+     616.1c's step, ahead of every 616.1e effect applicable beside it, so a
+     multiplier comes between two copies only if the second copy becomes
+     applicable through the multiplier's own write (CR 616.2). That needs a
+     copy effect whose applicability hangs on the entering object's counter
+     count, and no registered card has one: Clone's and Spark Double's are the
+     entering object's own abilities, present from the iteration its copy is
+     made, and Essence of the Wild is a test fixture. The status half of the
+     same take-back is exact: `EnterMods::merge` drops a copy's claim to the
+     status once a later effect sets one
+     (`a_later_copy_does_not_restore_over_a_status_set_after_the_addition`).
+
+     **Sized:** ~30 lines: `CopyAdditions` keeps a per-row share, which the
+     `Amount` arm's entry leg scales as it scales the row, and a fixture copy
+     made applicable at two counters. A halving and a plus each need their
+     own reading of the share, which is why it is not built blind.
+     **Slotted:** the feedback-loop census (`roadmap-v2.md` A6i), whose first
+     loop this is. If it finds a printed copy effect a counter write makes
+     applicable, the fix lands with that card.
+
+### Found by the CV-2b review (2026-09-29)
+
+190. **A CDA cannot define one side of power and toughness.** CR 604.3a(1)
+     lists power and toughness separately, and 73 printed faces define one
+     side only: 66 power (Adeline, Resplendent Cathar, Crackling Drake,
+     Archpriest of Iona) and 7 toughness (Daxos, Blessed by the Sun, Aven
+     Trailblazer), beside 155 that define both (Scryfall, `(pow=* or tou=*)
+     game:paper -is:funny`, counted by the printed `*` on each face). The
+     only primitive a CDA can carry, `Primitive::SetPowerToughness`, sets
+     both, so such a card is written with its printed other side, which layer
+     7a then re-sets. `cda::CdaCharacteristic` keys the two as one for the
+     same reason (CV-2b's CR 707.9d drop).
+
+     **Reachability (2026-09-29):** unreachable. No registered card has a
+     one-sided P/T CDA. Written with its printed other side, one gives the
+     same numbers on every printed board: nothing below layer 7a changes
+     toughness without replacing the ability list (a copy, face-down), and
+     an effect that removes the CDA leaves the printed value, which is the
+     one it re-set. It would show only under an effect or a copy exception
+     that sets one side while the CDA survives, and none is printed: every
+     printed P/T exception sets both (Quicksilver Gargantuan's "it's 7/7"),
+     as `CharacteristicEdit::PowerToughness` does.
+
+     **Sized:** ~60–100 lines: a CDA that names the side it defines (one-sided
+     amounts on the primitive and on `EffectModification::SetPowerToughness`,
+     27 and 13 sites, or a one-sided primitive for CDAs alone), the key split
+     into `Power` and `Toughness`, and a test with a one-sided copy exception.
+     **Slotted:** with the first registered card that defines one side,
+     Adeline the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C).

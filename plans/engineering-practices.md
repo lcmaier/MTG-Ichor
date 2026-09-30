@@ -1099,7 +1099,8 @@ tournament play wants rulings throughout, the flip is that place and its tests.
 
 | Id | In tension | The engine follows | Switch | Reasoning | Tests |
 |---|---|---|---|---|---|
-| `lookahead-entry-counters` | CR 614.12, whose look-ahead counts "replacement effects that have already modified how it enters", against Arixmethes, Slumbering Isle's 2020 ruling, under which an entering permanent's "enters with" counters do not change what the look-ahead sees | the CR's text: Wizards called it a contradiction in 2024, and the latest staff statement (2025) reads Arixmethes by the text | whether the look-ahead's condition checks read the would-be permanent's counters: `Condition::SourceHasCounters` on the entering object | `replacement-architecture.md` §5e | `kaito_cast_beside_oath_of_gideon_is_its_controllers_order`, `kaito_enters_tapped_under_an_opponents_creatures_enter_tapped` |
+| `lookahead-entry-counters` | CR 614.12, whose look-ahead counts "replacement effects that have already modified how it enters", against Arixmethes, Slumbering Isle's 2020 ruling, under which an entering permanent's "enters with" counters do not change what the look-ahead sees; and, since CV-2b, against Spark Double's 2019 ruling #7, "printed on the card plus one", on a planeswalker whose type hangs on its counters | the CR's text: Wizards called it a contradiction in 2024, the latest staff statement on Arixmethes (2025) reads it by the text, and the rules architect still counted 614.12 among his open issues in 2026 | whether the look-ahead's condition checks read the would-be permanent's counters: `Condition::SourceHasCounters` on the entering object | `replacement-architecture.md` §5e; `copy-effects-architecture.md` §4.1a, "The Kaito board" | `kaito_cast_beside_oath_of_gideon_is_its_controllers_order`, `kaito_enters_tapped_under_an_opponents_creatures_enter_tapped`, `spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one` |
+| `copy-exception-conditions` | CR 707.9f checks a conditional copy exception "taking into account any other exceptions that effect includes", and is silent on two conditional exceptions whose effects decide each other's conditions: Spark Double's two counters, on a planeswalker whose type hangs on its loyalty counters, where a look-ahead that sees an entry's counters (`lookahead-entry-counters`) makes each exception's counter matter to the other | the words (the third rule; no official statement addresses it): each conditional exception is checked against the copy without it and with every other exception that applies there, a conditional one checked the same way without both. The only reading that passes 707.9f's own test on that board | whether 707.9f's frame includes the other conditional exceptions that apply, or only the unconditional ones: one line in the copy applier | `copy-effects-architecture.md` §4.1a, "The Kaito board" | `spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one` |
 
 ### 3.5 The input we have none of — a human playing the game
 
@@ -1425,6 +1426,7 @@ Three existed when the practice was written down, and they are the template:
 | `rd-2-a-decision-is-per-subject.html` | RD-2 | the CR 616.1 loop's new unit: two shield counters under two blockers through the per-member loop and the per-subject one, and the first-strike twin that shows the key is the batch; Furnace beside Mending Hands in both orders; a `NextDamage(3)` under sources of 2 and 4 with the allocation asked once; the two boards where nothing is consumed — Safe Passage beside Mending Hands, and a `Once` half chosen against 1 — and the consume-after-apply order that makes them right |
 | `rf-a-source-off-the-battlefield.html` | RF | the gather's zone leg read by read: a Colossus in a library while a Bolt resolves, which is why neither library is ever walked (the map, the printed-def precheck, and the two things that *would* walk a zone); the same Colossus second of three in a mill — one batch, one member replaced, the same-zone no-op, the rider after the batch; a Colossus commander sacrificed, which is CR 616.1 twice on one card and CR 701.24c's shuffle of a library the card never reached; the read-by-read table |
 | `rg-an-entry-write-changes-what-applies-next.html` | RG | the CR 616.1 loop over an entry, from traced runs: a Bears under Master Biomancer, where the Mutant lives as state and why Humility leaves it; Adaptive Shimmerer under Biomancer beside Doubling Season, premise (d)'s extra gather and the four orders; Kaito beside Oath of Gideon, CR 306.5b on the frame and the feeds table's last row, in both orders, with the gray area the judges split on; the read-by-read table |
+| `cv-2b-an-exception-is-checked-without-itself.html` | CV-2b | CR 707.9f's check, from traced runs: Spark Double copying a legend, where each conditional exception is checked on a look-ahead of the copy without it; the Kaito board, where the two exceptions read each other's counters and both apply, so neither CR 306.5b nor Oath of Gideon is gathered after; and a later copy in the same entry taking the exception's counter back |
 
 **When to write one: at phase close, for a phase that changes *how* a read is
 answered rather than what the answer is.** That is the property the two above
@@ -1521,14 +1523,18 @@ schedulable rather than done:
   became one `Option` branch per emit point with the payload built behind
   it, and the check was `IDENTICAL` on every counter with the sink compiled
   in and off, and on (`fuzz-record.md`, the A4c block).
-- **Tier 3 — the codebase map.** One structural page: the modules and what each
-  owns, the chokepoint's arms, the three gate legs a new replacement source
-  must extend, the two `object_matches_filter`s, the accessor pair, and the
+- **Tier 3 — the engine map.** One page: the modules and what each owns, the
+  chokepoint's arms, the three gate legs a new replacement source must
+  extend, the two `object_matches_filter`s, the accessor pair, and the
   decision sites item 40 tracks — everything `CLAUDE.md` states as an
-  invariant, drawn once. Unblocked since the entry-hop fix landed
-  (2026-09-02); a day to draw, then minutes per refresh. It wants a ten-line
-  check that its list of `perform_action` arms matches the enum, so it cannot
-  rot silently.
+  invariant, drawn once. **And, since the owner widened it at CV-2b's review
+  (2026-09-29), one event's path from proposal to triggers**: which
+  subsystem owns each step, and each seam where one reads another's output,
+  linked to its architecture doc section and trace page, so a reader moving
+  between triggers, copies and replacement has one place to start. Scheduled
+  as route row A4d. A day to draw, then minutes per refresh. It wants a
+  ten-line check that its list of `perform_action` arms matches the enum, so
+  it cannot rot silently.
 
 **Where this was written down before, and why that was wrong.** All of the
 above lived in a section of `rc-4b-entering-is-one-event.html` itself — a

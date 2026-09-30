@@ -247,7 +247,10 @@ impl PermanentState {
         let mut entity = PermanentState::new(object, controller, game.turn_number);
         entity.timestamp = timestamp;
         entity.tapped = mods.enters_tapped();
-        entity.entered_as = EnteredAs { copy: mods.copy.clone(), edits: mods.edits.clone() };
+        entity.entered_as = EnteredAs {
+            copy: mods.copy.as_ref().map(|copy| std::sync::Arc::clone(&copy.values)),
+            edits: mods.edits.clone(),
+        };
         for (stamp, row) in (first_counter..).zip(&mods.counters) {
             entity.add_counters(row.counter, row.n, stamp);
         }

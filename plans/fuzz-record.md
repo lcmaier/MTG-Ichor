@@ -37,6 +37,90 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-29 for CV-2b** (CR 707.9's exceptions on an entry copy,
+with Spark Double — `copy-effects-architecture.md` §7c, landed). **Pool
+change**: `performance` goes 100 → 101 and `stress` 180 → 181, both Spark
+Double. The shipped columns are a new baseline, and the engine columns are
+comparable to the cleanup fix's above.
+
+**Predictions, written before any arm ran** (§7c's A/B arms, now archived).
+- **engine vs `main`.** `IDENTICAL`: no registered card prints an exception
+  before Spark Double, so the applier never runs. Instructions per decision
+  within ±0.1 points.
+- **shipped.** A pool change, so every row moves. Spark Double reached in
+  about as many games as Clone at CV-2a (61% at two seats), copying less often
+  than Clone; two to four look-aheads per copy; 0 errors, panics and
+  turn-limit hits.
+
+**The A/B, three arms, `close_out.py`**: `main` (`4f057d4`, #198's merge);
+**engine** (`eccfc6b`, Spark Double written but unregistered); **shipped**
+(`e1bc838`).
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 179,382 / 192,907 | 356,547 / 377,160 |
+| audit, shipped | 186,510 / 185,438 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6386 M → 0.6394 M, **+0.12%** |
+
+The engine held `IDENTICAL` on every gameplay and cost row. **The instruction
+reading is 0.02 over its prediction and not a new path's cost: it is a wider
+proposal.** A size probe on both trees: `EnterMods::copy` went from one `Arc`
+to the whole `EntryCopy` (values and what the exceptions added), so
+`EnterMods` grew 56 → 88 bytes and `GameAction` 80 → 112, and every entry
+proposal the pipeline moves or clones carries the difference. The lever is
+`Option<Arc<EntryCopy>>`, which restores 56 bytes; it was left to the review,
+since the arm is far inside §3.1's budget.
+
+**The shipped arm is a pool change and is not budgeted.** In 200 traced
+two-seat `performance` games Spark Double asked its choice 34 times and copied
+19; Clone, beside it, asked 41 times and copied 22. Per choice it is the same
+coin, as the random provider answers a `(0, 1)` pick, over 2.1 donors on
+average against Clone's 4.0, since its candidates are its controller's own
+creatures. So it copies less often by count, as predicted, and not per choice.
+0 errors, panics and turn-limit hits in all 18 runs. The suite passed
+unchanged with Spark Double registered.
+
+**Reachability** (`--require`, shipped, `performance`, 200 games):
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| Spark Double — cast / resolved / games / copies per deck | 199 / 199 / 132 (66%) / 1.44 | 116 / 116 / 97 (48%) / 2.82 |
+| board diversity | 200 of 200 | 200 of 200 |
+
+**§3 fixture rows, shipped, 50 games / seed 12345**
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 25 (50.0%) / 25 (50.0%) | 24 (48.0%) / 26 (52.0%) |
+| Wins by effect | 0 | 0 |
+| Avg turns | 30.7 | 28.6 |
+| Spells cast | 24.0 | 21.2 |
+| Lands played | 18.1 | 17.3 |
+| Combat w/ atk | 11.1 | 9.1 |
+| Creatures died | 8.8 | 5.0 |
+| Damage events | 23.8 | 20.7 |
+| Total damage | 67.1 | 54.7 |
+| Life changes | 16.0 | 15.6 |
+| **Layer walks** | **388** | **446** |
+| **Board walks** | **248** | **278** |
+| **Memo hits** | **63,522** | **81,552** |
+| **Layer frames** | **4,662** | **5,740** |
+| **Frames/walk** | **12.00** | **12.87** |
+| **Dependency checks** | **7** | **8** |
+| **Replacement gathers** | **1137** | **1141** |
+| **Restriction queries** | **1139** | **1144** |
+| Mana productions | 96 | 117 |
+| Prevention allocations | 0.00 | 0.06 |
+| Replacement prompts | 0.96 | 2.56 |
+| Max batch depth | 5 | 4 |
+| Decisions | 246 | 332 |
+| Priority decisions | 90 | 130 |
+| Triggers placed | 1.5 | 1.7 |
+| Windows past gate | 30.1 | 43.7 |
+| Candidate visits | 38.9 | 56.3 |
+| Trigger matches | 2.9 | 2.3 |
+
 **Re-recorded 2026-09-29 for item 188's cleanup fix** (`turns/repeated-cleanup`,
 stacked on RG). No pool change. `close_out.py`: **base** `2e95119` (#197's head)
 against **cleanup** `f991069`.

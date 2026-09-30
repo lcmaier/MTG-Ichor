@@ -6,7 +6,7 @@
     "See the script's docstring for what each one has to carry."
   ],
   "created": "2026-09-17",
-  "fetched": "2026-09-28",
+  "fetched": "2026-09-29",
   "fixtures": ["Loyalty Probe"],
   "cards": {
     "Act of Treason": {
@@ -971,6 +971,20 @@
         {"n": 1, "published_at": "2025-01-24", "comment": "If this creature enters at the same time as one or more other creatures, its ability will trigger for each of those other creatures. "}
       ]
     },
+    "Spark Double": {
+      "first_seen": "2026-09-29",
+      "rulings": [
+        {"n": 1, "published_at": "2019-05-03", "comment": "Spark Double copies exactly what was printed on the original permanent (unless that permanent is copying something else or is a token; see below). It doesn’t copy whether that permanent is tapped or untapped, whether it has any counters on it or any Auras and Equipment attached to it, or any non-copy effects that have changed its power, toughness, types, color, or so on."},
+        {"n": 2, "published_at": "2019-05-03", "comment": "Spark Double isn’t legendary if it copies a legendary permanent, and this exception is copiable. If something else copies Spark Double later, that copy also won’t be legendary. If you control two or more permanents with the same name but only one is legendary, the “legend rule” doesn’t apply."},
+        {"n": 3, "published_at": "2019-05-03", "comment": "If the copied permanent has {X} in its mana cost, X is considered to be 0."},
+        {"n": 4, "published_at": "2019-05-03", "comment": "If the chosen permanent is copying something else (for example, if the chosen permanent is another Spark Double), then Spark Double enters the battlefield as whatever the chosen permanent copied."},
+        {"n": 5, "published_at": "2019-05-03", "comment": "If the chosen permanent is a token, Spark Double copies the original characteristics of that token as stated by the effect that created the token. Spark Double doesn’t become a token in this case."},
+        {"n": 6, "published_at": "2019-05-03", "comment": "Any enters-the-battlefield abilities of the copied permanent will trigger when Spark Double enters the battlefield. Any “as [this permanent] enters the battlefield” or “[this permanent] enters the battlefield with” abilities of the chosen permanent will also work."},
+        {"n": 7, "published_at": "2019-05-03", "comment": "If it copies a planeswalker, Spark Double enters with the appropriate number of loyalty counters as printed on the card plus one. If it copies a creature, Spark Double enters with a +1/+1 counter on it, plus any counters that will be put on it from abilities it copied and other abilities of other objects."},
+        {"n": 8, "published_at": "2019-05-03", "comment": "If the copied permanent is affected by a type-changing effect, Spark Double may enter the battlefield with different permanent types than the copied permanent currently has. Use the characteristics of Spark Double as it enters the battlefield, not of the copied permanent, to determine whether it enters with an additional counter on it. Notably, if Spark Double copies a Gideon planeswalker that’s a creature because its loyalty ability caused it to become a planeswalker creature, Spark Double enters as a noncreature planeswalker and doesn’t get a +1/+1 counter. On the other hand, if Spark Double copies Gideon Blackblade during your turn, Spark Double enters as a planeswalker creature and gets both kinds of counters."},
+        {"n": 9, "published_at": "2019-05-03", "comment": "If Spark Double somehow enters the battlefield at the same time as another permanent, it can’t become a copy of that permanent. You may choose only a creature or planeswalker that’s already on the battlefield."}
+      ]
+    },
     "Stunning Reversal": {
       "first_seen": "2026-09-17",
       "rulings": [
@@ -1015,10 +1029,10 @@
       "first_seen": "2026-09-17",
       "rulings": [
         {"n": 1, "published_at": "2024-06-07", "comment": "Some older printings of this card reference the \"tribal\" card type in their reminder text. That card type's name has been replaced with \"kindred\". This change does not affect the gameplay function of those cards or of Tarmogoyf. (The same older printings of this card also fail to reference the \"battle\" card type, which didn't exist at the time, but Tarmogoyf's ability still counts that card type.)"},
-        {"n": 2, "published_at": "2021-03-19", "comment": "The ability that defines Tarmogoyf's power and toughness works in all zones, not just the battlefield. If Tarmogoyf is in your graveyard, it will count itself."},
-        {"n": 3, "published_at": "2021-03-19", "comment": "Tarmogoyf counts card types, not cards. If the only card in all graveyards is a single artifact creature, Tarmogoyf will be 2/3. If the only cards in all graveyards are ten artifact creatures, Tarmogoyf will still be 2/3."},
-        {"n": 4, "published_at": "2021-03-19", "comment": "The card types that can appear on cards in a graveyard are artifact, battle, creature, enchantment, instant, kindred, land, planeswalker, and sorcery. Legendary, basic, and snow are supertypes, not card types."},
-        {"n": 5, "published_at": "2021-03-19", "comment": "If an instant or sorcery spell deals damage to Tarmogoyf or lowers its toughness, that spell is put into its owner's graveyard before state-based actions are performed. If that card is the first of its type to enter a graveyard, it will raise Tarmogoyf's toughness before the game checks to see if Tarmogoyf dies."}
+        {"n": 2, "published_at": "2026-08-21", "comment": "The ability that defines Tarmogoyf's power and toughness works in all zones, not just the battlefield. If Tarmogoyf is in your graveyard, it will count itself."},
+        {"n": 3, "published_at": "2026-08-21", "comment": "Tarmogoyf counts card types, not cards. If the only card in all graveyards is a single artifact creature, Tarmogoyf will be 2/3. If the only cards in all graveyards are ten artifact creatures, Tarmogoyf will still be 2/3."},
+        {"n": 4, "published_at": "2026-08-21", "comment": "The card types that can appear on cards in a graveyard are artifact, battle, creature, enchantment, instant, kindred, land, planeswalker, and sorcery. Legendary, basic, and snow are supertypes, not card types."},
+        {"n": 5, "published_at": "2026-08-21", "comment": "If an instant or sorcery spell deals damage to Tarmogoyf or lowers its toughness, that spell is put into its owner's graveyard before state-based actions are performed. If that card is the first of its type to enter a graveyard, it will raise Tarmogoyf's toughness before the game checks to see if Tarmogoyf dies."}
       ]
     },
     "Teferi's Ageless Insight": {

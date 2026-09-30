@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  plans/traces — hand-authored trace pages, one per phase (tier 1;
+  `plans/engineering-practices.md` §7 is the authority for the practice).
+  Pinned to branch copy/cv-2b at eb1e31b (review round 1; the traces
+  are identical to e1bc838's, where Spark Double was registered) and the
+  frozen CR `tmnt`; never maintained — a later phase that changes these
+  paths gets its own page. Every step is a record from a traced run of its
+  board at this commit. Self-contained: fonts from Google Fonts, mermaid
+  from jsDelivr, nothing else.
+-->
+<title>Checking a Copy's Exceptions — CV-2b</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+</head>
+<body>
+<style>
+  :root {
+    --bg: #F3F6F6;
+    --surface: #FFFFFF;
+    --surface-2: #EAF0F0;
+    --ink: #1B2226;
+    --muted: #5B6770;
+    --line: #D5DCDD;
+    --real: #1F6F78;
+    --real-tint: #E3F0F1;
+    --frame: #B0701A;
+    --frame-tint: #FBF1DF;
+    --new: #6B4FA0;
+    --new-tint: #EEE9F7;
+    --changed: #2E7D4F;
+    --changed-tint: #E4F2EA;
+    --decide: #8A2F3B;
+    --decide-tint: #F8E8EA;
+    --code-bg: #EEF2F2;
+    --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+    --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+      --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+      --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+      --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+      --decide-tint: #3D1F25; --code-bg: #232C30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14191B; --surface: #1C2326; --surface-2: #232C30; --ink: #E4E9E8;
+    --muted: #93A0A5; --line: #2E393D; --real: #58B7BF; --real-tint: #163338;
+    --frame: #E1A64A; --frame-tint: #3A2C12; --new: #B39DE0; --new-tint: #2B2340;
+    --changed: #6FC08F; --changed-tint: #173325; --decide: #E08A97;
+    --decide-tint: #3D1F25; --code-bg: #232C30;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.55; }
+  .page { max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 5rem; }
+  .prose { max-width: 66ch; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+  h1 { font-size: 2.6rem; line-height: 1.1; }
+  h2 { font-size: 1.85rem; line-height: 1.2; margin-top: 3.5rem; }
+  h3 { font-size: 1.3rem; line-height: 1.25; margin-top: 2rem; }
+  p { margin: 0.75rem 0; }
+  .lede { font-size: 1.15rem; color: var(--muted); max-width: 60ch; }
+  code, pre { font-family: var(--mono); font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; }
+  pre { background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 8px; overflow-x: auto; line-height: 1.45; }
+  pre code { background: none; padding: 0; }
+  .meta { color: var(--muted); font-size: 0.95rem; margin-top: 0.6rem; }
+  .pin { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.7rem; margin-right: 0.4rem; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0 1.5rem; font-size: 0.95rem; background: var(--surface); }
+  th, td { text-align: left; vertical-align: top; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; background: var(--surface-2); }
+  .wrap { overflow-x: auto; }
+  .trace { counter-reset: step; margin: 1rem 0 2rem; padding: 0; list-style: none; }
+  .trace li { position: relative; padding: 0.7rem 0 0.7rem 3.2rem; border-left: 2px solid var(--line); margin-left: 1rem; }
+  .trace li::before { counter-increment: step; content: counter(step); position: absolute; left: -1.05rem; top: 0.7rem; width: 2rem; height: 2rem; border-radius: 50%; background: var(--surface); border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+  .trace li.new { border-left-color: var(--new); }
+  .trace li.new::before { border-color: var(--new); color: var(--new); }
+  .trace li.changed { border-left-color: var(--changed); }
+  .trace li.changed::before { border-color: var(--changed); color: var(--changed); }
+  .trace li.decide { border-left-color: var(--decide); }
+  .trace li.decide::before { border-color: var(--decide); color: var(--decide); }
+  .fn { font-family: var(--mono); font-weight: 600; font-size: 0.86em; }
+  .read { display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; border-radius: 4px; padding: 0.05rem 0.45rem; margin-left: 0.4rem; vertical-align: middle; }
+  .read.board { background: var(--real-tint); color: var(--real); }
+  .read.registry { background: var(--frame-tint); color: var(--frame); }
+  .read.player { background: var(--decide-tint); color: var(--decide); }
+  .read.state { background: var(--new-tint); color: var(--new); }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; font-size: 0.9rem; color: var(--muted); margin: 1rem 0 0; }
+  .legend span::before { content: ""; display: inline-block; width: 0.8rem; height: 0.8rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: -0.05rem; }
+  .legend .n::before { background: var(--new); }
+  .legend .c::before { background: var(--changed); }
+  .legend .d::before { background: var(--decide); }
+  .callout { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--new); border-radius: 8px; padding: 0.9rem 1.2rem; margin: 1.2rem 0; }
+  .callout.rule { border-left-color: var(--real); }
+  .callout.before { border-left-color: var(--decide); }
+  .diff-old { color: var(--decide); }
+  .diff-new { color: var(--changed); font-weight: 600; }
+  .mermaid { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin: 1.2rem 0; overflow-x: auto; }
+  small { color: var(--muted); }
+
+  .read.frame { background: var(--frame-tint); color: var(--frame); }
+  .callout.gray { border-left-color: var(--frame); }
+  .legend-reads { color: var(--muted); font-size: 0.9rem; margin: 0.6rem 0 0; }
+</style>
+<div class="page">
+
+<h1>An Exception Is Checked Without Itself</h1>
+<p class="lede">CV-2b lets a permanent that enters as a copy make CR 707.9's exceptions. 707.9a–d change the copied values, once, as they are captured. 707.9e adds a status or counters to the entry. 707.9f makes an exception apply only if the copy is something, and the copy it asks about has not been made yet. So CV-2b adds one new kind of read: a CR 614.12 look-ahead of a hypothetical copy, taken once per check, inside the CR 616.1c application. Here are three boards, walked read by read from the records the engine's trace sink wrote.</p>
+<p class="meta"><span class="pin">copy/cv-2b @ eb1e31b</span><span class="pin">CR tmnt</span><span class="pin">2026-09-29</span> Authority for the design: <code>plans/copy-effects-architecture.md</code> §4.1a, with its Kaito board, and the phase in §7c and its archive. Tests: <code>mtgsim/tests/phase_cv2b_integration_test.rs</code>. Every step below is a record in a traced run of that board at this commit, returned from the graveyard so the entry is the only thing in the batch.</p>
+
+<h2>The map</h2>
+<div class="prose">
+<p>Spark Double's text is three exceptions: "an additional +1/+1 counter on it if it's a creature" (call it the <b>creature exception</b>), "an additional loyalty counter on it if it's a planeswalker" (the <b>planeswalker exception</b>), and "it isn't legendary". The first two are 707.9e counters under 707.9f conditions. The third is a 707.9b edit, and a copy of the copy keeps it.</p>
+<p>707.9f says to check each conditional exception against "the resulting permanent's characteristics ... if the copy effect were applied without that exception, taking into account any other exceptions that effect includes". Trace A is the ordinary case. Trace B is the board where the two conditional exceptions decide each other's condition. Trace C is 707.9e's other half: a later copy in the same entry takes an exception back.</p>
+</div>
+<div class="wrap">
+<table>
+<tr><th>Trace</th><th>Board</th><th>The question it answers</th><th>Test</th></tr>
+<tr><td><b>A</b></td><td><b>Isamaru, Hound of Konda</b> (a legendary 2/2) on player 0's battlefield; <b>Spark Double</b> returned, copying it</td><td>Where are the exceptions made, and what does each check read?</td><td><code>spark_double_cast_from_hand_copies_a_legend_with_a_counter_and_no_legend_rule</code></td></tr>
+<tr><td><b>B</b></td><td><b>Oath of Gideon</b> and a <b>Kaito-shaped</b> planeswalker (4 loyalty, so a 3/4 creature) on player 0's battlefield; Spark Double copying Kaito</td><td>Why does it enter with one loyalty counter <em>and</em> a +1/+1 counter, and why is neither CR 306.5b nor Oath gathered?</td><td><code>spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one</code></td></tr>
+<tr><td><b>C</b></td><td><b>Glorious Anthem</b>, a <b>Clone</b> that copied nothing (a 1/1 under the Anthem), and an opponent's <b>Grizzly Bears</b>; Spark Double copying the Clone, then the Clone's copied ability copying the Bears</td><td>How does "the exception's effect doesn't happen" undo a counter the entry already carries?</td><td><code>a_later_copy_takes_back_spark_doubles_counter</code></td></tr>
+</table>
+</div>
+
+<h3>The path, with CV-2b's nodes coloured</h3>
+<pre class="mermaid">
+flowchart TD
+  CZ["change_zone(object, Battlefield)"] --> AR["apply_replacements: the CR 616.1 loop"]
+  AR --> G["gather, source 1a: the entering permanent's own copy ability"]
+  G --> CH["must_choose_among: CR 616.1c's step comes first"]
+  CH --> RW["apply_rewrite: Rewrite::EnterAsCopy"]
+  RW --> DON["entry_copy_donor: ChooseCopySource"]:::decide
+  DON --> CAP["copiable_values(donor): the capture, CR 707.2"]
+  CAP --> EAC["enter_as_copy"]:::new
+  EAC --> TB["EnterMods::take_back: an earlier copy's additions, CR 707.9e"]:::new
+  EAC --> J["ExceptionConditions::holding: each conditional exception, checked without itself"]:::new
+  J --> M["ExceptionConditions::matches: EntryFrame::for_entering on the hypothetical copy"]:::new
+  M --> LA["compute_as_entering: a CR 614.12 look-ahead of a copy not yet made"]:::new
+  M --> OUT["ExceptionConditions::outcome"]:::new
+  OUT --> EX["CopiableValues::except: 707.9a–d, and 707.9d's drop"]:::new
+  OUT --> ET["evaluate_enter_template: 707.9e's status and counters"]:::changed
+  EAC --> SP["strip_prohibited_counters, CR 614.17d"]
+  SP --> MG["EnterMods::merge; EntryCopy { values, added }"]:::changed
+  MG -->|"next iteration, CR 616.1f"| AR
+  classDef new stroke:#6B4FA0,stroke-width:2px;
+  classDef changed stroke:#2E7D4F,stroke-width:2px;
+  classDef decide stroke:#8A2F3B,stroke-width:2px;
+</pre>
+<div class="legend"><span class="n">new in CV-2b</span><span class="c">changed in CV-2b</span><span class="d">a decision, or the point a wrong answer would be made</span></div>
+<p class="legend-reads">Each read is labelled by what it consulted: <span class="read board">board</span> a permanent's frame as it stands, <span class="read frame">frame</span> the look-ahead's would-be permanent, <span class="read state">state</span> the proposal or an entity's fields, <span class="read player">player</span> a question asked.</p>
+
+<h2>Trace A — Spark Double copies a legend</h2>
+<div class="prose">
+<p>The ordinary case, and the shape every copy with exceptions follows. The record numbers are the trace's <code>seq</code>.</p>
+</div>
+<ol class="trace">
+<li><span class="fn">change_zone(Spark Double, Battlefield, Returned)</span> proposes <code>EnterBattlefield { mods: EnterMods::NONE }</code> <span class="read state">state</span> (record 2). Iteration 1 builds the CR 614.12 frame of Spark Double itself, a 0/0 Illusion (record 4), and source 1a finds its own copy ability: one candidate, on CR 616.1c's step.</li>
+<li class="decide"><span class="fn">entry_copy_donor</span> asks player 0 to choose among "a creature or planeswalker you control": Isamaru alone, under "you may" (record 6) <span class="read player">player</span>. <span class="fn">copiable_values(Isamaru)</span> captures the values after layer 1: a legendary 2/2 creature.</li>
+<li class="new"><span class="fn">enter_as_copy</span>: there is no earlier copy to take back. <span class="fn">ExceptionConditions::holding(0)</span> checks each conditional exception without itself, in printed order. The creature exception first. Inside its check the planeswalker exception is checked without both, on the copy with only "isn't legendary": a 2/2 creature and no planeswalker (record 7) <span class="read frame">frame</span>, so it does not apply there, and the creature exception's own frame is that same copy (record 8): a creature, so <b>it applies</b>. Then the planeswalker exception. Inside its check the creature exception, checked without both, applies (record 9, the same frame again), so the planeswalker exception's own frame carries that counter: a 3/3 creature and no planeswalker (record 10), so <b>it does not apply</b>.</li>
+<li class="new"><span class="fn">ExceptionConditions::outcome</span> makes the exceptions that apply. <span class="fn">CopiableValues::except</span> removes Legendary from the captured supertypes, through <code>TypeChange::modifications</code>, the lowering <code>Primitive::ChangeType</code> uses. <span class="fn">evaluate_enter_template</span> turns "an additional +1/+1 counter" into one row. <span class="fn">strip_prohibited_counters</span> refuses nothing, and <span class="fn">EnterMods::merge</span> puts the row on the entry, which <code>EntryCopy.added</code> records <span class="read state">state</span>.</li>
+<li>Iteration 2's frame is the copy with its counter, a 3/3 (record 12). Nothing is gathered (record 13), and the performer places a nonlegendary Isamaru with one +1/+1 counter (records 14–15). The copy's values reach the board pass at layer 1a as a finished snapshot, as CV-2a's did.</li>
+</ol>
+<div class="callout rule"><b>Four look-aheads for two conditions.</b> Each conditional exception is checked without itself, and inside that, the other is checked without both. The checks are memoized on what is left out, so a subset the recursion reaches twice is checked once. The frames are not, so records 7, 8 and 9 are one frame taken three times. It happens only for a copy with conditional exceptions: Spark Double, and Moritte of the Frost when it is built.</div>
+
+<h2>Trace B — Spark Double copies Kaito, beside Oath of Gideon</h2>
+<div class="prose">
+<p>Kaito, Bane of Nightmares: "During your turn, as long as Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature". While he is a creature he is not a planeswalker (his seventh ruling). With 4 loyalty on him he is a creature, so Spark Double may choose him.</p>
+</div>
+<ol class="trace">
+<li class="decide">The donor question offers Kaito alone (record 6) <span class="read player">player</span>. Oath's filter reads Spark Double's frame, a 0/0 creature and no planeswalker, so Oath is not a candidate at iteration 1 (record 11: one candidate).</li>
+<li class="new">The creature exception first, checked without itself. Inside that, the planeswalker exception is checked without both, on the copy with only "isn't legendary" and no counters. Kaito's condition reads no loyalty counter, so the frame is a planeswalker (record 7) <span class="read frame">frame</span>, and in that hypothetical the planeswalker exception applies.</li>
+<li class="new">So the creature exception's own frame carries that loyalty counter. Kaito's condition holds, and it is a 3/4 creature (record 8) <span class="read frame">frame</span>. <b>The creature exception applies.</b></li>
+<li class="new">Then the planeswalker exception, checked without itself. Inside that, the creature exception checked without both sees the same planeswalker (record 9), so it does not apply there, and the planeswalker exception's own frame is that copy with no counters (record 10): a planeswalker, so <b>it applies too</b>.</li>
+<li class="changed">Both counters go on the entry (record 13's event: one +1/+1 and one loyalty). Iteration 2's frame is a 4/5 creature (record 12). It is no planeswalker, so the walk does not synthesize CR 306.5b's ability on it, and Oath's "planeswalkers you control" does not match. Nothing is gathered, and nothing is asked but the donor.</li>
+</ol>
+<div class="callout gray"><b>The gray area this board sits on.</b> Two register rows (<code>engineering-practices.md</code> §3.4b) meet here. <code>lookahead-entry-counters</code>: the look-ahead counts the counters an entry already carries, by CR 614.12's text. Arixmethes's ruling reads it otherwise, and so does Spark Double's ruling #7 ("printed on the card plus one"), which gives 5 here; the engine gives 1, and the ruling keeps a <code>// RULING-DEVIATION:</code> test. <code>copy-exception-conditions</code>: 707.9f does not say how two conditional exceptions read each other. Its words, taken literally, give both counters, and they are the only reading that passes its own test here: the other one gives the loyalty counter and then, checking the creature exception, sees a creature. WotC has been asked this board twice and has not answered (§4.1a's evidence). Each row's switch is one place in the code: the <code>SourceHasCounters</code> arm, and the mask <code>ExceptionConditions::holding</code> passes to <code>matches</code>.</div>
+
+<h2>Trace C — a later copy takes the counter back</h2>
+<div class="prose">
+<p>CR 707.9e: "If another copy effect is applied to that object after applying the copy effect with that exception, the exception's effect doesn't happen." Its example is Altered Ego copying a Clone that copied nothing. Here it is Spark Double.</p>
+</div>
+<ol class="trace">
+<li class="decide">The donor question offers the empty Clone alone, the one creature player 0 controls (record 6) <span class="read player">player</span>. The checks (records 7–10) find a creature: the creature exception applies, and the entry carries one +1/+1 counter (record 12: a 2/2 under the Anthem).</li>
+<li class="decide">Iteration 2: the copied Clone ability is on the frame, so source 1a gathers it, another CR 616.1c effect (record 14's candidate). Its donor question offers the Bears and the empty Clone (record 13) <span class="read player">player</span>, and the Bears are chosen.</li>
+<li class="new"><span class="fn">enter_as_copy</span> finds an earlier copy on the entry, and <span class="fn">EnterMods::take_back</span> subtracts what its <code>added</code> recorded: the one +1/+1 counter <span class="read state">state</span>. Clone has no exceptions, so the Bears' values go on as they were captured.</li>
+<li>Iteration 3's frame is a 3/3 Grizzly Bears, the Anthem's 2/2 with no counter (record 15). Nothing is gathered (record 16), and it enters so.</li>
+</ol>
+<div class="callout"><b>A status is taken back too, and not over a later one.</b> An exception may set the entry's status ("except it enters untapped", read as 707.9e). A status is set, not added, so <code>added</code> keeps the one it replaced, and <code>EnterMods::merge</code> drops that claim once a later effect sets a status: a take-back then leaves the later status alone. Counters are exact in CR 616.1's order. Item 189 records the one inexact case, a multiplier between two copies, which no registered card reaches.</div>
+
+<h2>Where the reads differ</h2>
+<div class="wrap">
+<table>
+<tr><th>The read</th><th>Before CV-2b</th><th>After</th><th>Where it shows</th></tr>
+<tr><td>What an entry copy carries</td><td><code>EnterMods::copy</code>: the captured values, <code>Arc&lt;CopiableValues&gt;</code></td><td><code>EntryCopy { values, added }</code>: the values with 707.9a–d made, and what its 707.9e exceptions wrote</td><td>A, step 4; C, step 3</td></tr>
+<tr><td>The copied values</td><td>the donor's, as captured</td><td>the donor's, with each <code>Modifies</code> and <code>DoesNotCopy</code> made once at the capture; the donor's characteristic-defining abilities for what an exception sets or keeps dropped (707.9d)</td><td>A, step 4</td></tr>
+<tr><td>A condition on a copy exception</td><td>n/a</td><td>a look-ahead of the copy without that exception, with every other exception that applies there, checked the same way</td><td>A, step 3; B, steps 2–4</td></tr>
+<tr><td>A second copy in one entry</td><td>replaces the first</td><td>replaces the first and takes back the first's additions, a status as well as counters</td><td>C, step 3</td></tr>
+<tr><td>An entry edit an entry cannot make yet</td><td>unrepresentable: <code>CharacteristicEdit</code> had one arm</td><td>refused at <code>evaluate_enter_template</code>, loudly; the copy placement makes <code>GainsAbility</code>, <code>GainsKeyword</code>, <code>PowerToughness</code> and <code>Name</code></td><td>the tests' refusals</td></tr>
+</table>
+</div>
+
+<h2>What CV-2b changed, trace by trace, and what is still open</h2>
+<div class="prose">
+<p><b>A</b> is the shape. The values are made once, at the capture, so layer 1a applies a finished snapshot and <code>compute.rs</code> did not change. The entry's own writes live on the entry, beside the record of what they were.</p>
+<p><b>B</b> is the finding. 707.9f's condition is read against a copy that does not exist yet, and where a copy's counter changes what the copy is, the two conditions read each other. The recursion is the words of the rule, and the gray area is two register rows, each one switch.</p>
+<p><b>C</b> is 707.9e's other half: a later copy undoes exactly what an earlier one's exceptions added.</p>
+<p><b>Open</b>, each with its owner. Item 189, the take-back beside a multiplier, is slotted with the feedback-loop census (<code>roadmap-v2.md</code> A6i). The facilities §7c lists for the other printed exceptions (a donor off the battlefield, an exception that reads the donor, X, changeling, 707.9g's linked trigger) land with their cards.</p>
+</div>
+
+</div>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+  mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", flowchart: { htmlLabels: true, curve: "basis" } });
+</script>
+</body>
+</html>

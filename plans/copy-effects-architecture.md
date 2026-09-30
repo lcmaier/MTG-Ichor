@@ -512,6 +512,236 @@ Three things this must get right, each with a rule behind it:
 - **CR 707.6: choices made for the copied permanent are not copied.** The
   capture is characteristics only; `PermanentState` is not consulted.
 
+### 4.1a CR 707.9's exceptions on an entry copy — the vocabulary, as built (CV-2b)
+
+**Built with CV-2b, 2026-09-29** (§7c, landed): `CopyException` in
+`types/effects.rs`, `EntryCopyTemplate.except` and `EntryCopy { values, added }`
+in `types/replacement.rs`, 707.9a–d made on the captured values in
+`engine/layers/copy.rs`, and 707.9e–f decided on the entry in
+`engine/replacement/entry_copy.rs`. CV-1b's "except it has this ability"
+(Dimir Doppelganger) and CV-3's embalm and eternalize reuse the vocabulary
+whole, so its design and the decisions it rests on stay here, live.
+
+#### The design: an arm per sub-rule of CR 707.9, with open content
+
+The first draft of this decision had one arm per printed shape
+(`GainsAbility`, `SetsName`, `SetsPowerToughness` and so on). A printed or
+custom card whose edit the list did not name would then need a new arm, which
+is the retrofit the review asked about. So `CopyException` instead has one arm
+per sub-rule of CR 707.9 that permits an exception, and each arm's content is
+vocabulary the engine already has. It lives in `types/effects.rs` beside
+`CopyRoles`, because CV-1b's "except it has this ability" (Dimir Doppelganger)
+and CV-3's embalm and eternalize are the same algebra.
+
+```rust
+/// CR 707.9 — one exception to a copy effect. One arm per sub-rule: a new
+/// arm needs a new rule, and a new card is data.
+pub enum CopyException {
+    /// 707.9a–b: one edit to one copiable characteristic.
+    Modifies(CharacteristicEdit),
+    /// 707.9c: "it doesn't copy that creature's color" (Vesuvan
+    /// Doppelganger, the only printed card) — the copy keeps its own.
+    DoesNotCopy(Characteristic),
+    /// 707.9e: an additional effect on the entry; a later copy cancels it.
+    Additionally(EnterModsTemplate),
+    /// 707.9f: applies only if the result, without this exception, matches.
+    If(ObjectFilter, Vec<CopyException>),
+}
+
+// `CharacteristicEdit`, the edit vocabulary, is defined with its two
+// placements in `replacement-architecture.md` §3.5.
+```
+
+**One edit vocabulary, placed two ways** (the owner, 2026-09-28, at CV-2a's
+review). The entry-state PR (RG, landed 2026-09-28; the vocabulary is
+`replacement-architecture.md` §3.5), before this one on `roadmap-v2.md` A6c,
+built `CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
+in addition to its other types", held as how the permanent entered and applied
+at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
+last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
+edit part of the copiable values. The "except it has flying" and "base power
+and toughness 1/1" exceptions of Tier C and token copies are this second
+placement too, so CV-1b and CV-3 reuse `CopyException` whole.
+
+- **A new card is data, printed or custom.** Every 707.9a–c exception edits a
+  characteristic on CR 707.2's list, and that list is the definition of
+  copiable values, so a new category needs the CR to change first.
+  `ColorChange` and `TypeChange` are layers 4 and 5's own types, so an edit a
+  continuous effect can make, a copy exception can make. A value the engine
+  cannot compute yet (Hulking Metamorph's "equal to this creature's power",
+  Dominion Saboteur's copied counters) grows a leaf, an `AmountExpr` where a
+  number is, and never an arm.
+- **9d is derived, not authored.** An edit that *sets* a characteristic a CDA
+  can define (colors, subtypes, P/T, per CR 604.3a(1)), or a `DoesNotCopy` of
+  one, drops the donor's CDAs that define it. An additive edit drops nothing:
+  `TypeChange`'s add axes are "in addition to its other types", so the
+  carve-out is a property of the edit rather than a case. CR 707.9d names
+  types for its carve-out; "in addition to its other colors" (Lazotep
+  Convert) is read the same way, and that reading is recorded here. One
+  function beside `cda_layer` in `layers/cda.rs` says which characteristic a
+  CDA defines.
+- **9e and 9f reuse the entry's and the filter's vocabularies.**
+  `EnterModsTemplate` says what the entry additionally gets (a status,
+  counters, amounts, a putter; never an edit, which is `Modifies`).
+  `ObjectFilter` says "if it's a creature", read off the CR 614.12 frame of
+  the result, because Spark Double's eighth ruling says "use the
+  characteristics of Spark Double as it enters". The frame is the copy without
+  the exception being checked, with every other exception that applies: an
+  unconditional one always, and a conditional one when the same check,
+  made without both, says it does (707.9f's "taking into account any other
+  exceptions that effect includes"). An `If` inside an `If` is refused, since
+  `ObjectFilter::And` already says "if it's both". `EntryCopy.added` records
+  what an exception added, and a later copy in the same entry removes exactly
+  that.
+- **The growth contract is `Rewrite`'s:** a new arm needs the CR sub-rule that
+  permits it. 707.9g, a linked triggered ability (Wall of Stolen Identity), is
+  the one known next arm, and it comes with reflexive triggers (TR-3).
+
+#### The Kaito board: a copied planeswalker whose type hangs on its counters (decided 2026-09-29)
+
+**The board.** Kaito, Bane of Nightmares: "During your turn, as long as
+Kaito has one or more loyalty counters on him, he's a 3/4 Ninja creature and
+has hexproof", and his seventh ruling says that while he is a creature he is
+not a planeswalker. On his controller's turn, with counters on him, he is a
+creature that player controls, so their Spark Double may copy him, cast from
+hand. The copy takes Kaito's printed values (CR 707.2), minus legendary
+(707.9b).
+
+**The rules, in the order they apply.**
+- CR 616.1c puts the copy first: it must be chosen before any 616.1e effect.
+- CR 707.9f decides both conditional exceptions as the copy applies, each
+  against "the resulting permanent's characteristics ... if the copy effect
+  were applied without that exception, taking into account any other
+  exceptions that effect includes", read off the CR 614.12 frame.
+- CR 614.5 gives the copy one opportunity, so CR 616.1f's re-gather never
+  offers it again. The +1/+1 exception is not a later candidate. "Once
+  counters are on it, does it apply too?" is answered inside the copy's
+  application by 707.9f, or not at all.
+- CR 616.1f then gathers what the frame, with the copy's counters on it,
+  still has: CR 306.5b's ability only while it is a planeswalker
+  (`replacement-architecture.md` §3.5), and Oath of Gideon only while its
+  filter matches.
+
+**Every reading, worked.**
+
+| The look-ahead (CR 614.12) | 707.9f's frame | +1/+1 | Loyalty from the copy | Then | Enters with |
+|---|---|---|---|---|---|
+| counts entry counters (the engine: `lookahead-entry-counters`) | the words: every other exception that applies | yes | 1 | a 4/5 creature, not a planeswalker: nothing more is gathered | **1 loyalty and one +1/+1** |
+| counts entry counters | as reviewed: unconditional exceptions only | no | 1 | a 3/4 creature: nothing more | 1 loyalty |
+| does not (Arixmethes's ruling; Spark Double's #7, "printed ... plus one") | either: no counter changes the frame | no | 1 | a planeswalker: CR 306.5b's 4, and Oath's 1 | 5 loyalty, or 6 beside Oath |
+
+The first row, step by step. The +1/+1 exception, checked without itself: the
+loyalty exception, checked without both, sees no counters and a planeswalker,
+so it applies there, and with its counter the frame is a creature, so the
++1/+1 exception applies. The loyalty exception, checked without itself: the
++1/+1 exception, checked without both, sees a planeswalker and no creature, so
+it does not apply there, and with nothing added the frame is a planeswalker,
+so the loyalty exception applies. Both apply. The second row gives the
+loyalty counter, and then fails 707.9f's own test for the +1/+1 exception:
+without it and with the loyalty exception, which that row says applies, the
+result is a creature.
+
+**Every order: there is one, and no prompt but the donor.** Beside Oath of
+Gideon nothing changes. Once the copy's loyalty counter is on it the frame is
+a creature, so neither CR 306.5b nor Oath is gathered. A Clone copying Kaito
+gets 4 or 1 in its controller's order, as Kaito does (RG's trace C), because
+its frame has no counters when the 616.1e effects are gathered. Spark
+Double's additional counter lands first, at 616.1c, and costs it CR 306.5b's
+four, so it gets fewer loyalty counters than a Clone. That is what a judge
+meant by "either outcome results in Spark Double being weird".
+
+**The evidence, dated.** Nothing official answers this board, and WotC has
+been asked it twice.
+- Spark Double's rulings #7 and #8 (2019-05-03), five years before Kaito: a
+  copied planeswalker gets "printed on the card plus one"; "use the
+  characteristics of Spark Double as it enters"; a Gideon Blackblade copied
+  on your turn gets both counters. Kaito's #7 (2024-09-20): with counters on
+  your turn he is a creature and not a planeswalker.
+- Asked, unanswered. MrMervius on X (2024-09-22), in the thread where Jess
+  Dunks, then rules manager, called Arixmethes "a really interesting
+  contradiction" (2024-09-03): if the look-ahead counts entry counters,
+  Spark Double copying Kaito on your turn enters with one loyalty counter.
+  The same player asked Matt Tabak directly on Bluesky (2025-03-28), under
+  Tabak's post reading Arixmethes by 614.12's text. Neither has a visible
+  reply.
+- Staff, on the look-ahead: `replacement-architecture.md` §5e's evidence,
+  and since then Tabak on Kaito beside Solemnity (2025-05-19): he is not
+  convinced the rules cover it, and the rules team is considering it.
+- A judge's answer: Cranial Insertion #4344 (2025-01-13, Carsten Haese) keeps
+  a ninjutsu Kaito from Containment Priest because the look-ahead's Kaito has
+  no counters. That is the ruling's reading, which gives Spark Double 5. No
+  judge source found discusses one conditional exception deciding the other's
+  condition.
+- Players, r/mtgrules "Kaito Clones question" (2024-09-24): one answer moved
+  from 4 + 1 loyalty to 1, on "a copy's own exception doesn't count", which
+  is the reviewed rule. Another read 707.9f's "taking into account any other
+  exceptions" and gave both counters. MrMervius also offered ordering the
+  additional counter against CR 306.5b's, which CR 616.1c rules out, since
+  the exception is part of the copy effect chosen at that step.
+
+**The decision, by `engineering-practices.md` §3.4b.**
+- **The loyalty count rests on `lookahead-entry-counters`.** Ruling #7
+  predates Kaito by five years and says "printed on the card plus one" of
+  every planeswalker Spark Double copies; on Kaito's board that is 5, which is
+  Arixmethes's reading of the look-ahead, and the row already decides that
+  reading. So the row gains this board, and ruling #7 has its
+  `// RULING-DEVIATION:` test here. Every planeswalker whose type does not
+  hang on its own counters gets printed plus one, as #7 says (Loyalty Probe,
+  and Grist's clause).
+- **The +1/+1 counter needs a decision of its own.** 707.9f does not say how
+  two conditional exceptions are read when each one's effect decides the
+  other's condition, and it arises only where the look-ahead sees an entry's
+  counters. No official statement addresses it (WotC was asked the board and
+  has not answered), so §3.4b's third rule takes the reading that fits the
+  neighboring rules: the words, the only reading here that passes 707.9f's
+  own test. A new row, `copy-exception-conditions`. Its switch: whether
+  707.9f's frame includes the other conditional exceptions that apply, one
+  line in the applier.
+- **One test pins both**,
+  `spark_double_copying_kaito_gets_one_loyalty_counter_and_a_plus_one`:
+  Spark Double, cast from hand, copying RG's Kaito-shaped fixture enters with one loyalty counter and one +1/+1 counter,
+  a 4/5 Ninja creature and not a planeswalker, and Oath of Gideon beside it
+  changes nothing. Under the table's other two readings it would enter with
+  1 loyalty and no +1/+1, or with 5.
+
+#### The printed population, which sizes the donor and exception arms
+
+`o:"enter as a copy" game:paper -is:funny`, `unique=cards`: **60 cards**, plus
+The Mimeoplasm ("enters as a copy") and Mystic Reflection ("enter as copies"),
+so **62** (Scryfall, 2026-09-28). 58 say "you may have", and the two that do
+not (Essence of the Wild, Infinite Reflection) name a fixed donor. 42 print
+"except".
+
+| Arm | CR | Printed (of 62) | Test |
+|---|---|---:|---|
+| `CopyDonor::Chosen` over the battlefield | 707.6 | 52 | Clone, Spark Double |
+| `CopyDonor::ThisObject` / `Host` | 707.5 | 1 / 1 | fixtures |
+| `Modifies(Types(..))` | 707.9b | 19 add-only; 3 "isn't legendary"; 2 set types | Spark Double; a Copy Artifact-shaped fixture |
+| `Modifies(GainsAbility \| GainsKeyword)` | 707.9a | 19 print "it has" | fixtures |
+| `Modifies(Name)` | 707.9b | 3 | fixture |
+| `Modifies(PowerToughness)` | 707.9b, 9d | 3 at a fixed P/T | a Quicksilver Gargantuan-shaped fixture over Tarmogoyf |
+| `DoesNotCopy(Colors)` | 707.9c, 9d | 1 (Vesuvan Doppelganger) | a Vesuvan-shaped fixture over Culling Drone |
+| `Additionally(..)` | 707.9e | 5; Spark Double's and Moritte's need nothing else | Spark Double |
+| `If(..)` | 707.9f | 2 (Spark Double, Moritte) | Spark Double |
+
+**Not in CV-2, and the facility each waits for.** Each is a Phase 8 card's.
+None needs a new arm: each is a leaf or a facility the PR does not have (§4,
+RE-4's exception), and each lands with its card.
+
+| Facility | Printed | What is missing |
+|---|---|---|
+| a donor off the battlefield | Body Double, Activated Sleeper, Lazotep Convert, Superior Spider-Man, The Fourteenth Doctor, The Master | a `SelectionFilter` over a graveyard or exile. `enumerate_legal_selections` enumerates the battlefield, the stack and players; the capture already reads `game.objects` |
+| an exception that reads the donor, not the result | Dominion Saboteur (its counters; a preview card on 2026-09-28, so no ruling or rules change says how yet), Undercover Operative (its controller), Flesh Duplicate (its vanishing) | a condition axis on the chosen object; 9f reads the result |
+| an exception that reads the entering card | Hulking Metamorph (this creature's P/T), Sakashima of a Thousand Faces (its other abilities) | the entering object's printed values beside the donor's |
+| X | Altered Ego | the resolving spell's X at the choice; `PermanentState.x_value` is written after it |
+| a candidate filter on payment or arrival | Mockingbird (mana spent), Sakashima's Protege (entered this turn) | the `ObjectFilter` leaves. The facts exist (`CastFacts.mana_spent`, `entered_battlefield_turn`); Protean Raider's raid is not in this row, since its condition is TR-2a's `TurnFact::AttackersDeclared` |
+| CR 707.9g's linked reflexive trigger | Wall of Stolen Identity | reflexive triggers (TR-3) |
+| changeling | Omni-Changeling, Moritte | a CDA for every creature type |
+| a donor chosen by a resolution | Mystic Reflection | `CopyDonor::Object`, filled at creation in `PatternFill`'s shape, and a "the next time one or more" batch scope |
+| CR 614.13's move with a copy | The Mimeoplasm | `EnterAfterMoving` and `EnterAsCopy` in one application |
+| embalm's token | Vizier of Many Faces | CV-3 |
+| "except it has this ability", the copy's own ability given back to it | Unstable Shapeshifter, Dimir Doppelganger, Vesuvan Doppelganger's upkeep copy (all Tier C) | a `GainsAbility` leaf naming the ability that makes the copy, filled as it applies, since a def cannot contain itself. CV-1b's |
+
 ### 4.2 Tier C — becomes a copy (CR 707.4 / 707.2c)
 
 **81 cards.** Two sub-shapes with different `Duration`s and one shared row:
@@ -1085,7 +1315,7 @@ and `layers-architecture.md` §13 uses Phase `LC`.
 |---|---|---|---|
 | **CV-1 — the capture, the row, and the two legs** | `CopiableValues`, `EffectModification::CopyFrom`, the ceiling-1 capture, `Primitive::Copy`, `RegistryScopeSummary::any_copied_replacement`, and static re-registration off the captured list. Turn-bounded durations only. **Consumer: Cytoshape** — "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn": a resolution, `ObjectSet::Fixed` by CR 611.2c, `UntilEndOfTurn`, no trigger. Plus a Clone-of-an-Anthem probe for §4.7 leg 2 | **1** new `EffectModification` arm; **1** apply site (`compute.rs` layer index 0, which today applies nothing); **1** new field on `RegistryScopeSummary` + its recompute (`continuous_effects.rs:114`); **1** gate leg (`gather.rs:143`); **1** re-registration path against `register_static_effects` (`game_state.rs:737`). New type sized against `EffectiveCharacteristics` (12 fields) | **medium-high** — one line in the hottest path in the engine, and `layers-architecture.md` §12 measured an ungated existence check at 5.2×–8.0×. The deliverable is as much the `fuzz_games --games 200 --seed 12345` measurement as the behaviour |
 | **CV-1b — indefinite-duration copies** | `Duration::Indefinite` on a `CopyFrom` row. **Consumer: Dimir Doppelganger** ("{1}{U}{B}: Exile target creature card from a graveyard. This creature becomes a copy of that card, except it has this ability") — which also exercises capturing from a **card in a graveyard**, a subject `compute_to_ceiling` reaches because it reads `game.objects`, not `game.battlefield` | **25** clauses (§2.4), printed by name by `--scope`; **0** new types — one `Duration` value plus its teardown | low mechanically; **ships in one PR with `codebase-state.md` item 10 (CR 400.7), sized and slotted 2026-09-03 after CV-2**, and §5.3 is why: an indefinite row is reachable by neither expiry nor `remove_by_source`, so it outlives its subject without bound |
-| **CV-2a, CV-2b — enters as a copy** | Two PRs: CV-2a ✅ (§7b), CV-2b designed in §7c. **CV-2a:** `PermanentState.entered_as_copy`, `Rewrite::EnterAsCopy`, the CR 707.6 choice and copiable loyalty; **consumer: Clone**. **CV-2b:** CR 707.9's exceptions; **consumer: Spark Double** | §7c | medium — RC-2 and RC-4 have landed |
+| **CV-2a, CV-2b — enters as a copy** | Two PRs: CV-2a ✅ (§7b), CV-2b ✅ (§7c; its vocabulary is §4.1a). **CV-2a:** `PermanentState.entered_as_copy`, `Rewrite::EnterAsCopy`, the CR 707.6 choice and copiable loyalty; **consumer: Clone**. **CV-2b:** CR 707.9's exceptions; **consumer: Spark Double** | §7c | medium — RC-2 and RC-4 have landed |
 | **CV-3 — token copies** | A second `Arc<CardData>` constructor from `CopiableValues`; CR 707.10f's permanent-spell-copy-becomes-a-token path. **Consumer: "create a token that's a copy of target creature"** | **1** constructor beside `token_card_data` (`resolve.rs:1450`); **1** `Primitive::CreateToken` arm | low — no row, no layer, no duration |
 | **CV-4 — spell copies** | `StackEntry` copy, CR 707.10c's retarget prompt, 707.10d/e's per-target copies, 707.10a's cease-to-exist SBA, and `is_copy`'s first writer. **Consumer: Fork, then Zada** | **542** clauses but **1** new object path; **186** clauses are the 707.10c prompt alone; **1** new SBA. Defers CR 707.10b ability copies (**39** clauses) to critical-path item 6 | medium — largest population, and the retarget prompt reuses `enumerate_legal_selections` rather than inventing a path |
 | **CV-5 — faces (CR 712)** | A back face on `CardData`, a face-up-side bit, CR 712.2 transform as a status change, 712.3 modal cast-time choice, 707.8's capture-the-up-face line, and the `BackFaceUp` producer for 616.1d. **Consumer: one transform creature and one modal DFC land** | **496** cards; touches `CardData`, the cast path (712.3's face choice), and one line of CV-1's capture | **highest** — it is a second card model, and it is the phase most likely to want its own split once someone counts `CardData`'s readers |
@@ -1124,213 +1354,41 @@ Clone, not the path that gives it.
 
 → The design as reviewed, what the building changed and the measurement:
 `plans/archive/copy-effects-architecture-landed.md`, "CV-2a" (evicted
-2026-09-28). CV-2b's half of the design is §7c.
+2026-09-28). CV-2b is §7c, landed, and its vocabulary §4.1a.
 
-### 7c. CV-2b — CR 707.9's exceptions (Spark Double)
+### 7c. CV-2b — CR 707.9's exceptions (Spark Double) — ✅ 2026-09-29
 
-**Designed and reviewed with CV-2a on 2026-09-28** (§7b, landed). CV-2b builds
-CR 707.9's applier on CV-2a's entry copy, and three of CV-2a's shapes grow for
-it:
-- `EntryCopyTemplate` gains `except: Vec<CopyException>`.
-- `EnterMods::copy` becomes `Option<EntryCopy { values, added }>`, so a later
-  copy in the same entry removes exactly what a 707.9e exception added.
-- A copy's application adds this copy's 707.9e counters, through
-  `strip_prohibited_counters` as an `EnterWith`'s are. It rebuilds nothing:
-  since RG, CR 306.5b is an ability the gather finds on the copy's frame
-  after the copy applies (`replacement-architecture.md` §3.5).
+**Shipped.** `CopyException`, one arm per sub-rule of CR 707.9 (`Modifies`,
+`DoesNotCopy`, `Additionally`, `If`), on `EntryCopyTemplate.except`. 707.9a–d
+are made on the captured values once, at the capture, with 707.9d's drop
+derived from what an exception sets or keeps, so layer 1a applies a finished
+snapshot. 707.9e's status and counters go onto the entry, and
+`EntryCopy { values, added }` records them, so a later copy of the same entry
+takes them back. 707.9f checks each condition on a CR 614.12 look-ahead of
+the copy without it, with every other exception that applies there.
+`CharacteristicEdit` gains the copy placement's `GainsAbility`,
+`GainsKeyword`, `PowerToughness` and `Name`, each refused at the entry door
+until an entry card needs it. Spark Double, pooled (100 → 101) and cast from
+hand; 33 tests, five atoms covered and four partially. The Kaito board
+extended the register row `lookahead-entry-counters` and added
+`copy-exception-conditions` (`engineering-practices.md` §3.4b), and Spark
+Double's ruling #7 keeps a `// RULING-DEVIATION:` test. +1,901 lines of code
+and tests.
 
-The consumer is Spark Double, a `CopyDonor::Chosen` over "a creature or
-planeswalker you control" whose exceptions are 707.9b's "isn't legendary" and
-two of 707.9f's conditions on 707.9e's additional counters.
+The engine arm is `IDENTICAL` to `main` on every counter, at +0.12%
+instructions per decision, 0.02 over the prediction: `EnterMods` grew 56 → 88
+bytes, since `copy` now carries what its exceptions added (`fuzz-record.md`,
+CV-2b's block).
 
-#### The design: an arm per sub-rule of CR 707.9, with open content
+**Trace page: `plans/traces/cv-2b-an-exception-is-checked-without-itself.html`**,
+decided yes at the design review: the look-ahead of a copy not yet made, on
+a plain legend, on the Kaito board, and under a later copy that takes a
+counter back.
 
-The first draft of this decision had one arm per printed shape
-(`GainsAbility`, `SetsName`, `SetsPowerToughness` and so on). A printed or
-custom card whose edit the list did not name would then need a new arm, which
-is the retrofit the review asked about. So `CopyException` instead has one arm
-per sub-rule of CR 707.9 that permits an exception, and each arm's content is
-vocabulary the engine already has. It lives in `types/effects.rs` beside
-`CopyRoles`, because CV-1b's "except it has this ability" (Dimir Doppelganger)
-and CV-3's embalm and eternalize are the same algebra.
-
-```rust
-/// CR 707.9 — one exception to a copy effect. One arm per sub-rule: a new
-/// arm needs a new rule, and a new card is data.
-pub enum CopyException {
-    /// 707.9a–b: one edit to one copiable characteristic.
-    Modifies(CharacteristicEdit),
-    /// 707.9c: "it doesn't copy that creature's [characteristic]" — the
-    /// copy keeps its own.
-    DoesNotCopy(Characteristic),
-    /// 707.9e: an additional effect on the entry; a later copy cancels it.
-    Additionally(EnterModsTemplate),
-    /// 707.9f: applies only if the result, without this exception, matches.
-    If(ObjectFilter, Vec<CopyException>),
-}
-
-// `CharacteristicEdit`, the edit vocabulary, is defined with its two
-// placements in `replacement-architecture.md` §3.5.
-```
-
-**One edit vocabulary, placed two ways** (the owner, 2026-09-28, at CV-2a's
-review). The entry-state PR (RG, landed 2026-09-28; the vocabulary is
-`replacement-architecture.md` §3.5), before this one on `roadmap-v2.md` A6c,
-built `CharacteristicEdit` with its first placement: Master Biomancer's "as a Mutant
-in addition to its other types", held as how the permanent entered and applied
-at the edit's own layer, which leaves it out of the copiable values (CR 707.2's
-last sentence). CV-2b's is the second: inside a copy, where CR 707.9b makes the
-edit part of the copiable values. The "except it has flying" and "base power
-and toughness 1/1" exceptions of Tier C and token copies are this second
-placement too, so CV-1b and CV-3 reuse `CopyException` whole.
-
-- **A new card is data, printed or custom.** Every 707.9a–c exception edits a
-  characteristic on CR 707.2's list, and that list is the definition of
-  copiable values, so a new category needs the CR to change first.
-  `ColorChange` and `TypeChange` are layers 4 and 5's own types, so an edit a
-  continuous effect can make, a copy exception can make. A value the engine
-  cannot compute yet (Hulking Metamorph's "equal to this creature's power",
-  Dominion Saboteur's copied counters) grows a leaf, an `AmountExpr` where a
-  number is, and never an arm.
-- **9d is derived, not authored.** An edit that *sets* a characteristic a CDA
-  can define (colors, subtypes, P/T, per CR 604.3a(1)), or a `DoesNotCopy` of
-  one, drops the donor's CDAs that define it. An additive edit drops nothing:
-  `TypeChange`'s add axes are "in addition to its other types", so the
-  carve-out is a property of the edit rather than a case. CR 707.9d names
-  types for its carve-out; "in addition to its other colors" (Lazotep
-  Convert) is read the same way, and that reading is recorded here. One
-  function beside `cda_layer` in `layers/cda.rs` says which characteristic a
-  CDA defines.
-- **9e and 9f reuse the entry's and the filter's vocabularies.**
-  `EnterModsTemplate` says what the entry additionally gets (a status,
-  counters, amounts, a putter). `ObjectFilter` says "if it's a creature", read
-  off the CR 614.12 frame of the result with every unconditional exception
-  applied and no conditional one, because Spark Double's eighth ruling says
-  "use the characteristics of Spark Double as it enters". `EntryCopy.added`
-  records what an exception added, and a later copy in the same entry removes
-  exactly that.
-- **The growth contract is `Rewrite`'s:** a new arm needs the CR sub-rule that
-  permits it. 707.9g, a linked triggered ability (Wall of Stolen Identity), is
-  the one known next arm, and it comes with reflexive triggers (TR-3).
-
-**The gray area: "except it enters untapped", copying a creature that enters
-tapped.** The engine does not settle it with a case of its own. The CR's
-categories already tell the two readings apart, and Spelunking's first ruling
-supplies the ordering rule: "Lands you control enter untapped" and a land's
-"enters tapped" are two replacement effects, "you choose the order in which
-[they] apply", and the last one applied wins.
-- Read as CR 707.9e's additional effect, like "except it enters with an
-  additional counter", the "untapped" applies with the copy, at 616.1c. The
-  copied "enters tapped" applies after it, at 616.1e, and the permanent enters
-  **tapped**.
-- Read as CR 707.9a's gained ability, "it has 'This creature enters
-  untapped'", the copy's own ability joins the 616.1e bucket beside the copied
-  one. Its controller orders the two, as with Spelunking, and can choose
-  **untapped**.
-
-The wording picks the category, the category picks the answer, and the
-engine gives the answer the CR's machinery gives: the stance
-`codebase-state.md` main item 11 took for Toph and Caged Sun. The flexibility a
-custom card needs is that vocabulary, not a judgment of the engine's own.
-
-**What the question found: the engine could not say "enters untapped" at
-all.** `EnterMods.tapped` merged with `|=`, so an effect that makes a
-permanent enter untapped changed nothing. Five printed cards need it:
-Spelunking, Horizon Explorer, The Wandering Minstrel, Gond Gate and Archelos,
-Lagoon Mystic. It landed with the entry-state PR (RG, 2026-09-28) as
-`EnterMods::status`, which the last applied effect sets, with CR 616.1's
-ordering prompt between opposite statuses (`replacement-architecture.md`
-§3.5). Neither reading of the gray area needs more than that.
-
-#### The printed population, which sizes the donor and exception arms
-
-`o:"enter as a copy" game:paper -is:funny`, `unique=cards`: **60 cards**, plus
-The Mimeoplasm ("enters as a copy") and Mystic Reflection ("enter as copies"),
-so **62** (Scryfall, 2026-09-28). 58 say "you may have", and the two that do
-not (Essence of the Wild, Infinite Reflection) name a fixed donor. 42 print
-"except".
-
-| Arm | CR | Printed (of 62) | Test |
-|---|---|---:|---|
-| `CopyDonor::Chosen` over the battlefield | 707.6 | 52 | Clone, Spark Double |
-| `CopyDonor::ThisObject` / `Host` | 707.5 | 1 / 1 | fixtures |
-| `Modifies(Types(..))` | 707.9b | 19 add-only; 3 "isn't legendary"; 2 set types | Spark Double; a Copy Artifact-shaped fixture |
-| `Modifies(GainsAbility \| GainsKeyword)` | 707.9a | 19 print "it has" | fixtures |
-| `Modifies(Name)` | 707.9b | 3 | fixture |
-| `Modifies(PowerToughness)` | 707.9b, 9d | 3 at a fixed P/T | a Quicksilver Gargantuan-shaped fixture over Tarmogoyf |
-| `DoesNotCopy(Colors)` | 707.9c, 9d | 1 (Vesuvan Doppelganger) | a Vesuvan-shaped fixture over Culling Drone |
-| `Additionally(..)` | 707.9e | 5; Spark Double's and Moritte's need nothing else | Spark Double |
-| `If(..)` | 707.9f | 2 (Spark Double, Moritte) | Spark Double |
-
-**Not in CV-2, and the facility each waits for.** Each is a Phase 8 card's.
-None needs a new arm: each is a leaf or a facility the PR does not have (§4,
-RE-4's exception), and each lands with its card.
-
-| Facility | Printed | What is missing |
-|---|---|---|
-| a donor off the battlefield | Body Double, Activated Sleeper, Lazotep Convert, Superior Spider-Man, The Fourteenth Doctor, The Master | a `SelectionFilter` over a graveyard or exile. `enumerate_legal_selections` enumerates the battlefield, the stack and players; the capture already reads `game.objects` |
-| an exception that reads the donor, not the result | Dominion Saboteur (its counters; a preview card on 2026-09-28, so no ruling or rules change says how yet), Undercover Operative (its controller), Flesh Duplicate (its vanishing) | a condition axis on the chosen object; 9f reads the result |
-| an exception that reads the entering card | Hulking Metamorph (this creature's P/T), Sakashima of a Thousand Faces (its other abilities) | the entering object's printed values beside the donor's |
-| X | Altered Ego | the resolving spell's X at the choice; `PermanentState.x_value` is written after it |
-| a candidate filter on payment or arrival | Mockingbird (mana spent), Sakashima's Protege (entered this turn) | the `ObjectFilter` leaves. The facts exist (`CastFacts.mana_spent`, `entered_battlefield_turn`); Protean Raider's raid is not in this row, since its condition is TR-2a's `TurnFact::AttackersDeclared` |
-| CR 707.9g's linked reflexive trigger | Wall of Stolen Identity | reflexive triggers (TR-3) |
-| changeling | Omni-Changeling, Moritte | a CDA for every creature type |
-| a donor chosen by a resolution | Mystic Reflection | `CopyDonor::Object`, filled at creation in `PatternFill`'s shape, and a "the next time one or more" batch scope |
-| CR 614.13's move with a copy | The Mimeoplasm | `EnterAfterMoving` and `EnterAsCopy` in one application |
-| embalm's token | Vizier of Many Faces | CV-3 |
-
-#### The sites
-
-- `types/replacement.rs`: `EntryCopyTemplate.except`; `copy` becomes `Option<EntryCopy>`
-- `types/effects.rs`: `CopyException` (4 arms, one per CR 707.9 sub-rule), over the entry state's `CharacteristicEdit`
-- `engine/replacement/pipeline.rs`: the arm's exceptions; 9e's `EntryCopy.added`; 9f's frame
-- `engine/layers/types.rs`, `compute.rs`, `copy.rs`: `apply_exceptions`; the CDA classifier in `cda.rs`
-- cards: Spark Double; 99 → 100
-
-#### Size against §4's band
-
-| | Engine | Cards | Tests | Code and tests | Docs |
-|---|---:|---:|---:|---:|---:|
-| CV-2b | ~450 | ~80 | ~700 | **~1,100–1,500** | ~150 |
-
-Calibrated on CV-2a, which was sized at ~1,700–2,200 and shipped 1,551
-added lines: engine ~600 against 401, tests ~1,000 against 1,075.
-
-#### The tests, and the atom each claims
-
-| Test | Atom | Claim |
-|---|---|---|
-| Spark Double cast from hand copies a legendary creature you control: a +1/+1 counter, not legendary, no legend rule | ATOM-707.9f-002 | COVERS |
-| Spark Double copies a noncreature artifact a resolution animated: no counter | ATOM-707.9f-001 | COVERS |
-| Spark Double copies a Clone that copied nothing (Glorious Anthem keeps it alive), then Clone's copied ability copies a Bear: no +1/+1 counter | ATOM-707.9e-001 | COVERS |
-| a Copy Artifact-shaped fixture copies Darksteel Myr, and a Clone of it is an artifact creature enchantment | ATOM-707.9b-001 | COVERS |
-| a Quicksilver Gargantuan-shaped fixture copies Tarmogoyf: 7/7, with no CDA | ATOM-707.9d-001, COMP-9A-006 | COVERS; PARTIAL (changeling) |
-| a Glasspool Mimic-shaped fixture keeps a subtype CDA | ATOM-707.9d-002 | PARTIAL: changeling is unbuilt |
-| a gains-an-ability fixture, and a Clone of it has the ability | ATOM-707.9a-001 | PARTIAL: the atom's Unstable Shapeshifter is Tier C |
-| a Vesuvan-shaped fixture copies Culling Drone and keeps its own color with no devoid, and a Clone of it is the same | ATOM-707.3-001 | PARTIAL: the upkeep copy is CV-1b's |
-
-
-In CV-2b: Spark Double copying Grist gets 3 + 1 loyalty and no +1/+1; Doubling
-Season doubles that; March of the Machines makes a copied Sol Ring a creature
-as it enters, so it gets the counter (the eighth ruling); a "can't have
-counters" fixture strips the +1/+1; `Modifies(Name)` and
-`Modifies(GainsKeyword)` fixtures; the gray area's two readings, on the
-entry state's "enters untapped" (`backlog.md` §2.40).
-
-**The gate:** `specdb owed` cannot close this phase, and it is two short, not
-one. Its default filter still hides the 707 atoms ticketed `D5` (§9 item 11),
-and `ATOM-707.5-002` is filed under Phase 7, which `SHIPPED_PHASES` leaves
-out, so even `owed --all` never lists it. CV-2 closes by hand, against this
-table.
-
-#### The A/B arms
-
-- `engine` against `main`: `IDENTICAL`. The frame's loyalty is the printed
-  number for everything that is not a copy, and the applier runs only for an
-  exception.
-- `shipped`, Spark Double pooled (99 → 100): every row moves. `--require
-  "Spark Double"` reads its +1/+1 path on `performance` and its planeswalker
-  path on `stress`, where Grist is registered.
+→ The design, live, where CV-1b and CV-3 reuse it: §4.1a. The re-derivation,
+the sites, size, tests and arms, and what the building changed:
+`plans/archive/copy-effects-architecture-landed.md`, "CV-2b" (evicted
+2026-09-29).
 
 ### 7.1 Where this sits in the interleaved order
 

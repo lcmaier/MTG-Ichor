@@ -10,6 +10,8 @@
 //!   §3.3's five sources.
 //! - [`apply_replacements`] is §4.1's loop: CR 616.1a–f, CR 614.5's applied
 //!   set, CR 614.17c's blocked-event path.
+//! - `entry_copy` makes an entry copy's CR 707.9 exceptions as the copy
+//!   applies (`copy-effects-architecture.md` §4.1a).
 //!
 //! Riders ([`Rider`]) are queued here and resolved by the caller **after** the
 //! surviving event is performed (CR 615.5, §4.1a).
@@ -22,6 +24,7 @@
 //! most once per pipeline iteration and only when a filter asks for it; the
 //! restriction sweep (`engine::restriction`) borrows it for CR 614.17d.
 
+mod entry_copy;
 mod gather;
 mod instance;
 mod lookahead;
