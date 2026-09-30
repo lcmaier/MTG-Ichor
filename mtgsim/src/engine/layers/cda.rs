@@ -115,9 +115,11 @@ pub(super) fn has_any_cda(chars: &EffectiveCharacteristics) -> bool {
 }
 
 /// The characteristics a characteristic-defining ability can define, CR
-/// 604.3a(1)'s list. Power and toughness are one here because a CDA's
-/// `SetPowerToughness` sets both. Card types and supertypes are not on the
-/// list, so no CDA defines them.
+/// 604.3a(1)'s list. Card types and supertypes are not on it, so no CDA
+/// defines them. Power and toughness are one key only because the CDA
+/// primitive, `SetPowerToughness`, sets both: a one-sided CDA such as
+/// Adeline, Resplendent Cathar's power is written with its printed toughness,
+/// and splitting the two is `codebase-state.md` main item 190.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CdaCharacteristic {
     Colors,

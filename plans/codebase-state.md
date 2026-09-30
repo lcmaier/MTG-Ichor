@@ -8679,3 +8679,33 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** the feedback-loop census (`roadmap-v2.md` A6i), whose first
      loop this is. If it finds a printed copy effect a counter write makes
      applicable, the fix lands with that card.
+
+### Found by the CV-2b review (2026-09-29)
+
+190. **A CDA cannot define one side of power and toughness.** CR 604.3a(1)
+     lists power and toughness separately, and 73 printed faces define one
+     side only: 66 power (Adeline, Resplendent Cathar, Crackling Drake,
+     Archpriest of Iona) and 7 toughness (Daxos, Blessed by the Sun, Aven
+     Trailblazer), beside 155 that define both (Scryfall, `(pow=* or tou=*)
+     game:paper -is:funny`, counted by the printed `*` on each face). The
+     only primitive a CDA can carry, `Primitive::SetPowerToughness`, sets
+     both, so such a card is written with its printed other side, which layer
+     7a then re-sets. `cda::CdaCharacteristic` keys the two as one for the
+     same reason (CV-2b's CR 707.9d drop).
+
+     **Reachability (2026-09-29):** unreachable. No registered card has a
+     one-sided P/T CDA. Written with its printed other side, one gives the
+     same numbers on every printed board: nothing below layer 7a changes
+     toughness without replacing the ability list (a copy, face-down), and
+     an effect that removes the CDA leaves the printed value, which is the
+     one it re-set. It would show only under an effect or a copy exception
+     that sets one side while the CDA survives, and none is printed: every
+     printed P/T exception sets both (Quicksilver Gargantuan's "it's 7/7"),
+     as `CharacteristicEdit::PowerToughness` does.
+
+     **Sized:** ~60–100 lines: a CDA that names the side it defines (one-sided
+     amounts on the primitive and on `EffectModification::SetPowerToughness`,
+     27 and 13 sites, or a one-sided primitive for CDAs alone), the key split
+     into `Power` and `Toughness`, and a test with a one-sided copy exception.
+     **Slotted:** with the first registered card that defines one side,
+     Adeline the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C).
