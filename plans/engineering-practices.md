@@ -1531,10 +1531,14 @@ schedulable rather than done:
   (2026-09-29), one event's path from proposal to triggers**: which
   subsystem owns each step, and each seam where one reads another's output,
   linked to its architecture doc section and trace page, so a reader moving
-  between triggers, copies and replacement has one place to start. Scheduled
-  as route row A4d. A day to draw, then minutes per refresh. It wants a
-  ten-line check that its list of `perform_action` arms matches the enum, so
-  it cannot rot silently.
+  between triggers, copies and replacement has one place to start. **Landed
+  2026-09-29 (row A4d) as `plans/engine-map.md`**: markdown rather than a page
+  beside the traces, because it is refreshed where a trace page is pinned, and
+  its walk is Spark Double copying Soul Warden beside Master Biomancer, read off
+  the trace sink. `plans/check_engine_map.py` keeps it true. The arm check is
+  the planned ten lines. The rest checks every file, name, link and section
+  the page cites, since the widened page cites hundreds. Its `--drift` is a
+  refresh's to-do list.
 
 **Where this was written down before, and why that was wrong.** All of the
 above lived in a section of `rc-4b-entering-is-one-event.html` itself — a
