@@ -7889,6 +7889,11 @@ the file.
      instructions when last measured (2026-09-16), and this item leaves it in
      place.
 
+     **Owed by the dev GUI's spike (2026-09-30).** A6g's spike ran ahead of
+     this item, so its seat answers any prompt with one legal answer itself
+     (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
+     lands this item deletes that shortcut.
+
 165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
      should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
      order because, by `cost-architecture.md` §3.4's theorem, every order gives
@@ -8709,3 +8714,35 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      into `Power` and `Toughness`, and a test with a one-sided copy exception.
      **Slotted:** with the first registered card that defines one side,
      Adeline the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C).
+
+### Found by the A6g spike, the dev GUI (2026-09-30)
+
+191. **`ui/display.rs` names an object by its printed card, keeps its own
+     keyword list, and orders the mana pool by hash.** None of the four is a
+     rule; each is a formatter showing something other than the game.
+     - `card_label` and `card_name` (`ui/display.rs:16–28`) and the log's
+       `obj_name` (`:391`) read `card_data.name`, so a copy prints under its
+       printed name: a Clone copying Grizzly Bears is "Clone" on `cli_play`'s
+       board and in every `format_event` line, though Layer 1 writes its name
+       (`engine/layers/copy.rs:147`). The board half is `get_effective_name`.
+       **The log half is not.** An event carries ids, and an id survives a
+       zone change (`backlog.md` §2.38; main item 10 keeps it), so a line
+       formatted after a copy has died names the card in the graveyard,
+       whichever function reads the name. "Grizzly Bears dies" needs the name
+       as of the event, recorded with it, which every recorded game pays for.
+     - `collect_keywords` lists 13 of `KeywordFlag`'s 16: flash, intimidate
+       and shroud never print.
+     - `format_mana_pool` iterates `ManaPool::available()`'s `HashMap`, so the
+       pool's order differs per process.
+     - `cards/random_deck.rs:89` carries a double-encoded em dash (e2cb641).
+
+     **Reachability (2026-09-30):** reachable — wrong today, in display only:
+     every `cli_play` game with a copy in it, and every log line naming one.
+     No rule reads a formatter.
+
+     **Sized:** the board's names, the keyword list read off the effective
+     set, the pool's order and the em dash are about 30 lines, each with a
+     test that fails first: one small `ui/display` PR, proposed after the
+     spike, which leaves `mtgsim` untouched (the owner's call). The log half
+     is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
+     panel PR, its first reader.
