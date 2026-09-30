@@ -11,7 +11,7 @@
 //! carries the result.
 
 use crate::engine::layers::board::frame_at_ceiling;
-use crate::engine::layers::cda;
+use crate::engine::layers::cda::{self, CdaCharacteristic};
 use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
@@ -166,10 +166,9 @@ impl CopiableValues {
     pub(crate) fn except(&mut self, exceptions: &[&CopyException], own: Option<&CopiableValues>) -> Result<(), String> {
         // CR 707.9d, over the copied list before any exception adds to it: an
         // ability an exception gives is not one "of the object being copied".
-        for layer in exceptions.iter().filter_map(|exception| characteristic_it_fixes(exception)) {
-            let CopiableValues { name, abilities, .. } = self;
-            if abilities.iter().any(|ability| cda::defines(ability, layer, name)) {
-                Arc::make_mut(abilities).retain(|ability| !cda::defines(ability, layer, name));
+        for characteristic in exceptions.iter().filter_map(|exception| characteristic_it_fixes(exception)) {
+            if self.abilities.iter().any(|ability| cda::defines(ability, characteristic)) {
+                Arc::make_mut(&mut self.abilities).retain(|ability| !cda::defines(ability, characteristic));
             }
         }
         for exception in exceptions {
@@ -183,7 +182,7 @@ impl CopiableValues {
                 }
                 CopyException::Additionally(_) => {}
                 CopyException::If(..) => {
-                    return Err("a conditional exception reaches the values only once CR 707.9f has judged it".into());
+                    return Err("a conditional exception reaches the values only once CR 707.9f has checked it".into());
                 }
             }
         }
@@ -251,17 +250,17 @@ impl CopiableValues {
     }
 }
 
-/// CR 707.9d — the characteristic, named by the layer a CDA defining it
-/// occupies, that an exception sets or keeps; `None` for one that only adds,
-/// or that fixes something no CDA can define (a name, an ability, a
-/// supertype).
-fn characteristic_it_fixes(exception: &CopyException) -> Option<Layer> {
+/// CR 707.9d — the characteristic a CDA could define that an exception sets
+/// or keeps. `None` for an exception that only adds ("in addition to its
+/// other types"), and for one that fixes something no CDA can define: a card
+/// type ("except it's an artifact"), a supertype, a name, an ability.
+fn characteristic_it_fixes(exception: &CopyException) -> Option<CdaCharacteristic> {
     match exception {
         CopyException::Modifies(CharacteristicEdit::Types(change)) => {
-            change.set_subtypes.is_some().then_some(Layer::Layer4Type)
+            change.set_subtypes.is_some().then_some(CdaCharacteristic::Subtypes)
         }
-        CopyException::Modifies(CharacteristicEdit::PowerToughness(..)) => Some(Layer::Layer7aCdaPT),
-        CopyException::DoesNotCopy(Characteristic::Color) => Some(Layer::Layer5Color),
+        CopyException::Modifies(CharacteristicEdit::PowerToughness(..)) => Some(CdaCharacteristic::PowerToughness),
+        CopyException::DoesNotCopy(Characteristic::Color) => Some(CdaCharacteristic::Colors),
         CopyException::Modifies(
             CharacteristicEdit::GainsAbility(_) | CharacteristicEdit::GainsKeyword(_) | CharacteristicEdit::Name(_),
         )

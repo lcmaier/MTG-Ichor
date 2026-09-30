@@ -81,7 +81,7 @@ WATCHLIST = [
     "trace", "sink", "emit point", "spine", "branch",
     "acid test", "applied set", "arm", "atom", "batch", "blocked", "bucket",
     "candidate", "ceiling", "cell", "census", "chokepoint", "containment",
-    "cursor", "customer", "def", "edit", "entity", "judgment", "placement",
+    "cursor", "customer", "def", "edit", "entity", "placement",
     "decomposition", "departed", "departing", "donor", "drain", "drainer",
     "emitter",
     "epoch", "frame", "gate", "host", "inner event", "instance", "ladder", "leg",

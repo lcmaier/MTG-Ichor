@@ -4,7 +4,7 @@
 //! What this file proves, in the order of the section:
 //!
 //! 1. Spark Double's three exceptions: two CR 707.9f conditions over CR
-//!    707.9e counters, judged against the CR 614.12 frame of the copy, and a
+//!    707.9e counters, checked against the CR 614.12 frame of the copy, and a
 //!    CR 707.9b edit that a copy of the copy keeps.
 //! 2. Planeswalkers, where the loyalty exception meets CR 306.5b's gathered
 //!    ability, a doubler's order, and the Kaito board (§4.1a, "The Kaito
@@ -14,7 +14,7 @@
 //! 4. The other arms, each on a fixture shaped after the printed card that
 //!    uses it: 707.9a's gained ability and keyword, 707.9b's types, P/T and
 //!    name, 707.9c's kept color, and 707.9d's derived drop.
-//! 5. The gray area of "except it enters untapped", both readings, and a
+//! 5. "Except it enters untapped" in both wordings, and a
 //!    later copy taking back a 707.9e status.
 //! 6. What the applier refuses.
 //!
@@ -691,7 +691,7 @@ fn spark_double_copying_a_planeswalker_creature_gets_both_counters() {
 /// The Kaito board (`copy-effects-architecture.md` §4.1a). Spark Double, cast
 /// on its controller's turn, copies Kaito, a creature because he has
 /// counters. With no counters the copy is a planeswalker, so the loyalty
-/// exception, judged without itself, applies. Judged without itself, the
+/// exception, checked without itself, applies. Checked without itself, the
 /// +1/+1 exception sees that loyalty counter and a creature, so it applies
 /// too (`copy-exception-conditions`). With its counters on it, the frame is a
 /// creature and no planeswalker, so CR 306.5b's ability is not there to
@@ -984,6 +984,14 @@ fn an_in_addition_exception_keeps_a_subtype_cda_and_a_setting_one_drops_it() {
     assert!(has_subtype(&game, construct, &Subtype::Creature(CreatureType::Construct)));
     assert!(!has_subtype(&game, construct, &Subtype::Creature(CreatureType::Sliver)));
     assert!(get_effective_abilities(&game, construct).iter().all(|a| !a.is_characteristic_defining));
+
+    // A card type is not a subtype, and no CDA defines one: "an artifact in
+    // addition to its other types" leaves the subtype CDA alone.
+    let artifact_except = vec![adding(TypeChange { add_types: vec![CardType::Artifact], ..TypeChange::NONE })];
+    let artifact = copy_of(&mut game, copier("Artifact copier", Color::Blue, artifact_except), 0, sliver);
+    assert_eq!(get_effective_types(&game, artifact), CardTypes::from([CardType::Artifact, CardType::Creature]));
+    assert!(has_subtype(&game, artifact, &Subtype::Creature(CreatureType::Sliver)));
+    assert!(get_effective_abilities(&game, artifact).iter().any(|a| a.is_characteristic_defining));
 }
 
 /// CR 707.9a: an exception that gives the copy "Creatures you control get
@@ -1092,7 +1100,7 @@ fn a_cant_have_counters_refuses_spark_doubles_counter() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. "Except it enters untapped": the gray area, and a status taken back
+// 5. "Except it enters untapped": two wordings, and a status taken back
 // ---------------------------------------------------------------------------
 
 fn enters_untapped_as_an_addition() -> Arc<CardData> {

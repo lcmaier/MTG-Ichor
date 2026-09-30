@@ -1308,11 +1308,14 @@ impl CharacteristicEdit {
         }
     }
 
-    /// Can a permanent's entry make this edit, as "enters as" state
-    /// (`replacement-architecture.md` §3.5's entry placement)? An arm lands
-    /// with its first placement's card, and every arm but `Types` was first
-    /// placed inside a copy. So `evaluate_enter_template` refuses the rest,
-    /// until an entry card needs one and builds its layer here.
+    /// Can an "enters as" effect make this edit? The vocabulary has two uses
+    /// (`replacement-architecture.md` §3.5): an edit a permanent enters with,
+    /// like Master Biomancer's Mutant, applied at the edit's own layer from
+    /// then on; and an edit inside a copy, like Spark Double's "isn't
+    /// legendary", made on the copied values. Only `Types` has the first use
+    /// built. The other arms exist for copy exceptions and no card enters
+    /// with one yet, so `evaluate_enter_template` refuses an "enters with"
+    /// that makes one, rather than let it do nothing.
     pub fn has_entry_placement(&self) -> bool {
         matches!(self, CharacteristicEdit::Types(_))
     }
@@ -1346,7 +1349,8 @@ pub enum CopyException {
     /// 707.9a–b: one edit to one characteristic, and the result is part of
     /// the copy's copiable values, so a copy of the copy has it too.
     Modifies(CharacteristicEdit),
-    /// 707.9c: "it doesn't copy that creature's color". The copy keeps its
+    /// 707.9c: "it doesn't copy that creature's color": Vesuvan
+    /// Doppelganger, the only printed card that uses it. The copy keeps its
     /// own value.
     DoesNotCopy(Characteristic),
     /// 707.9e: "an additional effect rather than a modification of the
@@ -1354,15 +1358,20 @@ pub enum CopyException {
     /// entry. A later copy in the same entry takes it back. An edit here is
     /// refused: it is `Modifies`.
     Additionally(crate::types::replacement::EnterModsTemplate),
-    /// 707.9f: these apply only if the copy, judged without them, matches.
+    /// 707.9f: these apply only if the copy, checked without them, matches.
     /// Spark Double's "if it's a creature". Not nested: `ObjectFilter::And`
     /// already says "if it's both".
     If(ObjectFilter, Vec<CopyException>),
 }
 
 impl CopyException {
-    /// Every ability this exception gives the copy, for
-    /// `CardDataBuilder::build` to stamp as it stamps the card's own.
+    /// Hand `f` every ability this exception gives the copy: the leg of
+    /// `Effect::for_each_ability_def_mut` into a copy exception.
+    /// `CardDataBuilder::build` is the caller, and it writes each def's
+    /// printed id and instances of "target", which is why the def is `&mut`.
+    /// The closure is `FnMut` because it counts the ordinal the ids derive
+    /// from, and it is passed as `&mut` so that one closure, and one count,
+    /// runs through every nested call.
     pub fn for_each_ability_def_mut(&mut self, f: &mut impl FnMut(&mut crate::objects::card_data::AbilityDef)) {
         match self {
             CopyException::Modifies(CharacteristicEdit::GainsAbility(def)) => {

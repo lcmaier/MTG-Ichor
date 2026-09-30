@@ -342,7 +342,7 @@ pub fn clone() -> Arc<CardData> {
 /// conditions, each over a CR 707.9e additional counter, and a CR 707.9b
 /// edit that is part of the copiable values, so a copy of this is not
 /// legendary either. The conditions read the CR 614.12 frame of the copy,
-/// each judged without itself and with the other where the other applies,
+/// each checked without itself and with the other where the other applies,
 /// which is what the words say and what a planeswalker whose type hangs on
 /// its counters makes observable (§4.1a, "The Kaito board").
 ///

@@ -44,7 +44,7 @@ pub(super) fn enter_as_copy(
     }
     refuse_misplaced(chosen, except)?;
     let own = keeps_own_value(except).then(|| copiable_values(game, object)).flatten();
-    let judge = Judge {
+    let conditions = ExceptionConditions {
         game,
         chosen,
         object,
@@ -55,7 +55,7 @@ pub(super) fn enter_as_copy(
         own: own.as_ref(),
         memo: RefCell::new(HashMap::new()),
     };
-    let (values, additions) = judge.outcome(judge.applying(0)?)?;
+    let (values, additions) = conditions.outcome(conditions.holding(0)?)?;
     // CR 614.17d at the door, against the copy the entry now is: Melira's
     // "can't have -1/-1 counters" refuses Spark Double's counter as it
     // refuses any "enters with".
@@ -70,12 +70,12 @@ pub(super) fn enter_as_copy(
     Ok(mods)
 }
 
-/// CR 707.9f's judgment of one copy effect's conditional exceptions: each
+/// CR 707.9f's check of one copy effect's conditional exceptions: each
 /// against the copy without it, with every other exception that applies
 /// there (§4.1a, "The Kaito board"; the register row
 /// `copy-exception-conditions`). Memoized on what is left out, so a subset
-/// the recursion reaches twice is judged once.
-struct Judge<'a> {
+/// the recursion reaches twice is checked once.
+struct ExceptionConditions<'a> {
     game: &'a GameState,
     chosen: &'a ReplacementInstance,
     object: ObjectId,
@@ -87,17 +87,26 @@ struct Judge<'a> {
     memo: RefCell<HashMap<u64, u64>>,
 }
 
-impl Judge<'_> {
-    /// The conditional exceptions that apply, as a mask over `except`, when
-    /// the effect is applied without those in `left_out`. Each one not left
-    /// out is judged against the effect without it as well, "taking into
-    /// account any other exceptions that effect includes": each judgment
-    /// leaves out one more, so the recursion ends.
-    fn applying(&self, left_out: u64) -> Result<u64, String> {
+impl ExceptionConditions<'_> {
+    /// The conditional exceptions that hold, as a mask over `except`, for the
+    /// copy effect with those in `left_out` removed.
+    ///
+    /// 707.9f checks exception E against "the copy effect applied without
+    /// that exception, taking into account any other exceptions that effect
+    /// includes". So for each conditional E not left out: first find which of
+    /// the others hold in the effect without E (the recursive call, with E's
+    /// bit added to `left_out`), then build that copy and match E's filter
+    /// against its CR 614.12 frame. The unconditional exceptions are always
+    /// made. Every call adds one bit to `left_out`, so the depth is at most
+    /// the number of conditional exceptions (two on Spark Double), and the
+    /// memo makes each subset a single check. No order is chosen and nothing
+    /// loops: unlike CR 613.8's dependency walk, this is one evaluation of a
+    /// finite tree.
+    fn holding(&self, left_out: u64) -> Result<u64, String> {
         if let Some(&known) = self.memo.borrow().get(&left_out) {
             return Ok(known);
         }
-        let mut applying = 0;
+        let mut holding = 0;
         for (i, exception) in self.except.iter().enumerate() {
             let CopyException::If(filter, _) = exception else { continue };
             let bit = 1u64 << i;
@@ -105,23 +114,23 @@ impl Judge<'_> {
                 continue;
             }
             // `copy-exception-conditions`' switch: the other conditional
-            // exceptions that apply without this one are in the frame it is
-            // judged against. Reading `0` here would judge it against the
+            // exceptions that hold without this one are in the frame it is
+            // checked against. Reading `0` here would check it against the
             // unconditional ones alone.
-            if self.matches(filter, self.applying(left_out | bit)?)? {
-                applying |= bit;
+            if self.matches(filter, self.holding(left_out | bit)?)? {
+                holding |= bit;
             }
         }
-        self.memo.borrow_mut().insert(left_out, applying);
-        Ok(applying)
+        self.memo.borrow_mut().insert(left_out, holding);
+        Ok(holding)
     }
 
     /// Does `filter` match the entering permanent as the copy would make it
-    /// with the conditional exceptions in `applying`? Read off the CR 614.12
+    /// with the conditional exceptions in `holding`? Read off the CR 614.12
     /// frame, as Spark Double's eighth ruling says: "use the characteristics
     /// of Spark Double as it enters".
-    fn matches(&self, filter: &ObjectFilter, applying: u64) -> Result<bool, String> {
-        let (values, additions) = self.outcome(applying)?;
+    fn matches(&self, filter: &ObjectFilter, holding: u64) -> Result<bool, String> {
+        let (values, additions) = self.outcome(holding)?;
         let mut would_be =
             EnterMods { copy: Some(EntryCopy { values, added: CopyAdditions::default() }), ..self.mods.clone() };
         would_be.merge(&additions);
@@ -140,14 +149,14 @@ impl Judge<'_> {
 
     /// The copy's values, and what its 707.9e exceptions add to the entry,
     /// with every unconditional exception and the conditional ones in
-    /// `applying`.
-    fn outcome(&self, applying: u64) -> Result<(Arc<CopiableValues>, EnterMods), String> {
+    /// `holding`.
+    fn outcome(&self, holding: u64) -> Result<(Arc<CopiableValues>, EnterMods), String> {
         let made: Vec<&CopyException> = self
             .except
             .iter()
             .enumerate()
             .flat_map(|(i, exception)| match exception {
-                CopyException::If(_, inner) if applying & (1 << i) != 0 => inner.iter().collect(),
+                CopyException::If(_, inner) if holding & (1 << i) != 0 => inner.iter().collect(),
                 CopyException::If(..) => Vec::new(),
                 unconditional => vec![unconditional],
             })
@@ -197,7 +206,7 @@ fn keeps_own_value(except: &[CopyException]) -> bool {
 fn refuse_misplaced(chosen: &ReplacementInstance, except: &[CopyException]) -> Result<(), String> {
     if except.len() > 64 {
         return Err(format!(
-            "the copy effect {:?} carries {} exceptions, and CR 707.9f's judgment masks them in 64 bits",
+            "the copy effect {:?} carries {} exceptions, and CR 707.9f's check masks them in 64 bits",
             chosen.id,
             except.len()
         ));

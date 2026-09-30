@@ -428,12 +428,6 @@ inside a copy, where CR 707.9b makes it part of the copiable values
 copiable, never the edit. → `replacement-architecture.md` §3.5;
 `copy-effects-architecture.md` §4.1a.
 
-**judgment** — CR 707.9f's test of whether a conditional copy exception
-applies: a CR 614.12 look-ahead of the copy without that exception, with
-every other exception that applies there, each of those judged the same way.
-`Judge` in `engine/replacement/entry_copy.rs`; the reading is the register
-row `copy-exception-conditions`. → `copy-effects-architecture.md` §4.1a.
-
 **placement** — where an **edit** is made, which decides whether it is
 copiable: the entry placement or the copy placement. An arm lands with its
 first placement's card, and `CharacteristicEdit::has_entry_placement` says

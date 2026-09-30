@@ -114,13 +114,30 @@ pub(super) fn has_any_cda(chars: &EffectiveCharacteristics) -> bool {
     chars.abilities.iter().any(|a| a.is_characteristic_defining)
 }
 
+/// The characteristics a characteristic-defining ability can define, CR
+/// 604.3a(1)'s list. Power and toughness are one here because a CDA's
+/// `SetPowerToughness` sets both. Card types and supertypes are not on the
+/// list, so no CDA defines them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CdaCharacteristic {
+    Colors,
+    Subtypes,
+    PowerToughness,
+}
+
 /// CR 707.9d — is `ability` a characteristic-defining ability that defines
-/// the characteristic `layer` holds? A copy exception that sets or keeps that
-/// characteristic does not copy it. The layer names the characteristic, since
-/// CR 604.3a(1)'s four sit one layer each, power and toughness together.
-pub(crate) fn defines(ability: &AbilityDef, layer: Layer, card_name: &str) -> bool {
+/// `characteristic`? A copy exception that sets or keeps that characteristic
+/// does not copy it.
+pub(crate) fn defines(ability: &AbilityDef, characteristic: CdaCharacteristic) -> bool {
     ability.is_characteristic_defining
-        && atoms(ability).into_iter().any(|(primitive, _)| cda_layer(primitive, card_name) == Some(layer))
+        && atoms(ability).into_iter().any(|(primitive, _)| match primitive {
+            Primitive::ChangeColor(..) => characteristic == CdaCharacteristic::Colors,
+            // `push_modifications` asserts that a CDA's type change touches
+            // subtypes alone (CR 604.3a(1)).
+            Primitive::ChangeType(..) => characteristic == CdaCharacteristic::Subtypes,
+            Primitive::SetPowerToughness(..) => characteristic == CdaCharacteristic::PowerToughness,
+            _ => false,
+        })
 }
 
 /// Which layer a CDA's primitive belongs to, or `None` if the primitive cannot
