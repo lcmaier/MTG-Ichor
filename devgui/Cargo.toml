@@ -1,0 +1,13 @@
+[package]
+name = "devgui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mtgsim = { path = "../mtgsim" }
+# `mtgsim::cards::random_deck` takes the engine's `StdRng`, so the same major.
+rand = "0.9"
+
+[dev-dependencies]
+# The engine's own board builders (`mtgsim::test_support`), for tests only.
+mtgsim = { path = "../mtgsim", features = ["test-support"] }

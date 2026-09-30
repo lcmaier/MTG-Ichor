@@ -1,5 +1,6 @@
 # Rust build artifacts
 mtgsim/target/
+devgui/target/
 
 # Local reference materials
 MTG-Rules/
