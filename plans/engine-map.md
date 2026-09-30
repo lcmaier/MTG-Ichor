@@ -165,7 +165,7 @@ table, the enum and the match disagree.
 | Arm | Performs | Proposes inside it |
 |---|---|---|
 | `DealDamage` | CR 120.3's results off the target's effective types: marked damage, deathtouch, commander damage; `DamageDealt` | `LoseLife` (120.3a), `RemoveCounters` of loyalty (120.3c) |
-| `DrawCards` | CR 121.2: `n` individual draws, each its own batch | `DrawCard`, decomposed (`execute_actions_decomposing`) |
+| `DrawCards` | CR 121.2: `n` individual draws, each its own batch | `DrawCard`, decomposed (`execute_actions_decomposing`; [re-2](traces/re-2-a-draw-carries-its-lineage.html)) |
 | `DrawCard` | `draw_card`, with CR 121.6a's empty-library flag | the library-to-hand `change_zone` |
 | `GainLife` | the life total; `LifeChanged` | — |
 | `LoseLife` | the life total, 0 a local no-op; `LifeChanged` | — |
