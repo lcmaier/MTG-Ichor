@@ -2,9 +2,12 @@
 name = "devgui"
 version = "0.1.0"
 edition = "2024"
+# eframe 0.36's floor. `mtgsim` keeps its own 1.88: it does not depend on this.
+rust-version = "1.95"
 
 [dependencies]
 mtgsim = { path = "../mtgsim" }
+eframe = "0.36.2"
 # `mtgsim::cards::random_deck` takes the engine's `StdRng`, so the same major.
 rand = "0.9"
 

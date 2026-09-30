@@ -3,9 +3,11 @@
 //!
 //! Read in this order: `bridge`, the thread and the seat that asks the window;
 //! `snapshot` and `prompt`, the owned data that crosses the channel;
-//! `view_model`, what the window shows and what a click means.
+//! `view_model`, what the window shows and what a click means; then `app`, the
+//! egui drawing over it, which decides nothing.
 
 pub mod bridge;
 pub mod snapshot;
 pub mod prompt;
 pub mod view_model;
+pub mod app;
