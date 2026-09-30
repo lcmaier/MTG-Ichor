@@ -72,6 +72,9 @@ if hasattr(sys.stdout, "reconfigure"):
 ROOT = Path(__file__).resolve().parent.parent
 GLOSSARY = ROOT / "plans" / "glossary.md"
 CRATE_SRC = ROOT / "mtgsim" / "src"
+#: The dev GUI, a client of the engine's crate: its prose is spelled like the
+#: engine's, and its names are not the glossary's.
+DEVGUI = ROOT / "devgui"
 CR_DIR = ROOT / "MTG-Rules" / "versions"
 
 # Every word this project uses in a sense a reader cannot recover from ordinary
@@ -286,10 +289,14 @@ def main() -> int:
         if word not in defined:
             failures.append(f'"{word}" is on the watch-list and is not defined')
 
-    # 4 - American spelling in the crate. Whole words, comments included: a
-    # doc comment is prose this project reads as often as it reads code.
+    # 4 - American spelling in the crate and the dev GUI. Whole words, comments
+    # included: a doc comment is prose this project reads as often as it reads code.
+    if not DEVGUI.is_dir():
+        print(f"no dev GUI crate at {DEVGUI}", file=sys.stderr)
+        return 2
+    spelled = rs + sorted(p for part in ("src", "tests") for p in (DEVGUI / part).rglob("*.rs"))
     british_hits = []
-    for path in rs:
+    for path in spelled:
         text = path.read_text(encoding="utf-8")
         for n, line in enumerate(text.splitlines(), 1):
             for word in re.findall(r"[A-Za-z]+", line):
