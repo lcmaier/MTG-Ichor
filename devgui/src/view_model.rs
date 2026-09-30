@@ -254,6 +254,8 @@ pub struct Item {
     /// The prompt is about it (`ChoiceKind::subject()`).
     pub subject: bool,
     pub tapped: bool,
+    /// Shown on hover; empty for none.
+    pub hover: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -324,6 +326,7 @@ impl Marks {
             chosen: self.chosen.contains(&target),
             subject: self.subject == Some(target),
             tapped,
+            hover: String::new(),
         }
     }
 
@@ -362,7 +365,9 @@ impl Marks {
             detail.push(format!("attached to {host}"));
         }
         let title = format!("{} ({})", permanent.card.name, permanent.card.id);
-        self.item(BoardRef::Object(permanent.card.id), title, detail.join(" · "), permanent.tapped)
+        let mut item = self.item(BoardRef::Object(permanent.card.id), title, detail.join(" · "), permanent.tapped);
+        item.hover = permanent.engine_text.clone();
+        item
     }
 
     fn player(&self, player: &PlayerView) -> Item {
@@ -391,7 +396,11 @@ impl BoardView {
                 .stack
                 .iter()
                 .map(|item| {
-                    let what = if item.is_spell { "" } else { " — ability" };
+                    let what = match item.is_spell {
+                        Some(true) => "",
+                        Some(false) => " — ability",
+                        None => " — being cast or activated",
+                    };
                     let mut detail = vec![format!("Player {}'s", item.controller)];
                     if !item.targets.is_empty() {
                         detail.push(format!("targets {}", item.targets.join(", ")));
@@ -414,6 +423,7 @@ impl BoardView {
                     chosen: false,
                     subject: false,
                     tapped: false,
+                    hover: String::new(),
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),

@@ -17,7 +17,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
-use mtgsim::ui::display::{format_event, format_phase};
+use mtgsim::ui::display::{format_event, format_permanent, format_phase};
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
@@ -84,13 +84,18 @@ pub struct PermanentView {
     pub attached_to: Option<ObjectId>,
     pub phased_out: bool,
     pub face_down: bool,
+    /// `ui::display::format_permanent`'s line, which lists the abilities in
+    /// the effective list's order: the order a prompt's `ability N` counts in.
+    pub engine_text: String,
 }
 
 #[derive(Clone, Debug)]
 pub struct StackItem {
     pub id: ObjectId,
     pub name: String,
-    pub is_spell: bool,
+    /// `None` until the stack entry is written: a spell or ability still being
+    /// cast or activated (CR 601.2, 602.2), which is when most prompts come.
+    pub is_spell: Option<bool>,
     pub controller: PlayerId,
     pub targets: Vec<String>,
     pub x: Option<u64>,
@@ -197,6 +202,7 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         attached_to: state.attached_to,
         phased_out: state.phased_out,
         face_down: state.face_down,
+        engine_text: format_permanent(game, id),
     })
 }
 
@@ -206,7 +212,7 @@ fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
     StackItem {
         id,
         name: chars.as_ref().map_or_else(|| id.to_string(), |c| c.name.clone()),
-        is_spell: entry.is_some_and(|e| e.is_spell),
+        is_spell: entry.map(|e| e.is_spell),
         controller: chars.as_ref().map(|c| c.controller).or(entry.map(|e| e.controller)).unwrap_or_default(),
         targets: entry
             .map(|e| e.chosen_targets.iter().flat_map(|t| &t.chosen).map(|t| target_name(game, t)).collect())

@@ -78,10 +78,13 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, setup_line: &str) -> Vec<Inp
         };
         egui::ScrollArea::vertical().show(ui, |ui| {
             for seat in &board.seats {
-                item(ui, &seat.player, &mut inputs);
-                for zone in &seat.zones {
-                    zone_view(ui, zone, &mut inputs);
-                }
+                // A collapsing header's id is its label, and every seat has a "Creatures".
+                ui.push_id(seat.player.target, |ui| {
+                    item(ui, &seat.player, &mut inputs);
+                    for zone in &seat.zones {
+                        zone_view(ui, zone, &mut inputs);
+                    }
+                });
                 ui.separator();
             }
         });
@@ -140,7 +143,11 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     };
     let sense = if item.clickable { egui::Sense::click() } else { egui::Sense::hover() };
     let button = egui::Button::new(text).selected(item.chosen).stroke(stroke).sense(sense);
-    if ui.add(button).clicked()
+    let mut response = ui.add(button);
+    if !item.hover.is_empty() {
+        response = response.on_hover_text(&item.hover);
+    }
+    if response.clicked()
         && let Some(target) = item.target
     {
         inputs.push(Input::Board(target));
