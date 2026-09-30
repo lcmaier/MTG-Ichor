@@ -14,3 +14,5 @@ rand = "0.9"
 [dev-dependencies]
 # The engine's own board builders (`mtgsim::test_support`), for tests only.
 mtgsim = { path = "../mtgsim", features = ["test-support"] }
+# Draws the window offscreen for the pictures in `tests/snapshots/`.
+egui_kittest = { version = "0.36.2", features = ["wgpu", "snapshot"] }
