@@ -360,6 +360,55 @@ pub enum GameEvent {
     StateBasedActionPerformed,
 }
 
+impl GameEvent {
+    /// The objects this event names as they are when it is announced, whose
+    /// names its record keeps where a copy makes one other than its card's
+    /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
+    /// zone it left instead, off its look-back frame or its card.
+    pub fn objects_named_as_announced(&self) -> impl Iterator<Item = ObjectId> + '_ {
+        use GameEvent::*;
+        // Up to three objects named one by one, then the two variants' lists.
+        let (named, listed, paired): ([Option<ObjectId>; 3], &[ObjectId], &[(ObjectId, ObjectId)]) = match self {
+            Tapped { object_id: id }
+            | Untapped { object_id: id }
+            | PermanentEnteredBattlefield { object_id: id, .. }
+            | CountersAnnihilated { object_id: id, .. }
+            | CountersChanged { subject: CounterSubject::Object(id), .. }
+            | TokenCreated { object_id: id, .. }
+            | TokenCeasedToExist { object_id: id }
+            | CardDrawn { card_id: id, .. }
+            | ManaAdded { source_id: id, .. }
+            | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
+            | SpellCast { spell_id: id, .. }
+            | SpellFizzled { spell_id: id } => ([Some(*id), None, None], &[], &[]),
+            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } => {
+                ([Some(identity.source.id), None, None], &[], &[])
+            }
+            AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
+            LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
+            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
+            | SpellCountered { spell_id: a, countered_by: b }
+            | AbilityCountered { ability_id: a, countered_by: b }
+            | EquipmentDetached { equipment_id: a, former_host: b } => ([Some(*a), Some(*b), None], &[], &[]),
+            Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
+            AttackersDeclared { attackers } => ([None; 3], attackers, &[]),
+            BlockersDeclared { blockers } => ([None; 3], &[], blockers),
+            ZoneChange { .. }
+            | LeftTheGame { .. }
+            | CountersChanged { .. }
+            | PhaseBegin { .. }
+            | StepBegin { .. }
+            | TurnBegin { .. }
+            | PlayerLost { .. }
+            | PlayerWon { .. }
+            | Scried { .. }
+            | LibraryShuffled { .. }
+            | StateBasedActionPerformed => ([None; 3], &[], &[]),
+        };
+        named.into_iter().flatten().chain(listed.iter().copied()).chain(paired.iter().flat_map(|&(a, b)| [a, b]))
+    }
+}
+
 /// Why a player lost the game.
 ///
 /// Carried by `GameAction::PlayerLoses` and read by nothing that decides: every
@@ -481,7 +530,18 @@ pub struct EventRecord {
     pub event: GameEvent,
     /// See [`EventStamp`].
     pub stamp: EventStamp,
+    /// See [`NamesAsAnnounced`].
+    pub names: NamesAsAnnounced,
 }
+
+/// The names an event's objects were announced under, where one was not its
+/// card's: a copy's (CR 707.2), a face-down permanent's, which is none (CR
+/// 708.2a), or one a text-changing effect wrote (CR 612.5–612.9). `None` on
+/// nearly every record. Kept because the log and the trace format a record
+/// after its objects may have changed; no rule reads it. Only those: every
+/// other object's name is its card's, which the store keeps, so recording it
+/// would cost a read and an allocation per object per event.
+pub type NamesAsAnnounced = Option<Arc<Vec<(ObjectId, String)>>>;
 
 impl EventRecord {
     /// The batch this event was performed as part of, if any.
@@ -539,19 +599,24 @@ impl EventWindow {
     }
 
     pub fn emit(&mut self, event: GameEvent) {
+        self.emit_with_names(event, None);
+    }
+
+    /// [`Self::emit`], with the names its objects were announced under.
+    pub(crate) fn emit_with_names(&mut self, event: GameEvent, names: NamesAsAnnounced) {
         let stamp = self.stamp;
-        self.push(event, stamp);
+        self.push(event, stamp, names);
     }
 
     /// Emit with no batch and no resolution whatever is ambient — for a
     /// record that is a consequence of an event rather than part of it
     /// (`GameEvent::AbilityTriggered`, §4.8).
-    pub(crate) fn emit_unstamped(&mut self, event: GameEvent) {
-        self.push(event, EventStamp::default());
+    pub(crate) fn emit_unstamped(&mut self, event: GameEvent, names: NamesAsAnnounced) {
+        self.push(event, EventStamp::default(), names);
     }
 
-    fn push(&mut self, event: GameEvent, stamp: EventStamp) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp });
+    fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
+        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names });
         self.next_seq += 1;
     }
 

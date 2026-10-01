@@ -205,7 +205,7 @@ pub(crate) fn trigger(
     let mut r = Record::new("trigger");
     r.field_u64("record", record.0 as u64);
     r.field_u64("source", identity.source.id.raw());
-    r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
+    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
     r.field_str("ability", &identity.ability.to_string());
     r.field_str("zone", &format!("{:?}", zone));
     r.field_bool("matched", matched);
@@ -231,7 +231,7 @@ pub(crate) fn pending(
     r.field_u64("tier", match entry.tier() { TriggerTier::First => 1, TriggerTier::Second => 2 });
     r.field_u64("controller", entry.controller as u64);
     r.field_u64("source", identity.source.id.raw());
-    r.field_str("name", &crate::ui::display::card_name(game, identity.source.id));
+    r.field_str("name", &crate::ui::display::printed_name(game, identity.source.id));
     let records: Vec<u64> = entry.binding.records.iter().map(|r| r.seq.0 as u64).collect();
     r.field_u64s("records", &records);
     r.field_opt_u64("object", object.map(|id| id.raw()));

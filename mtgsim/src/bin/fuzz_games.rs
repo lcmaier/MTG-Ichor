@@ -1665,7 +1665,7 @@ mod tests {
     }
 
     /// `--copies N` puts N of each required nonland in, and takes all N out of
-    /// the nonland slots â the deck size and the land count are the ones every
+    /// the nonland slots — the deck size and the land count are the ones every
     /// recorded baseline was measured at, or a heavy board is measuring two
     /// things at once. The RNG stream is untouched: the same seed draws the
     /// same deck at every `copies`, bar the slots the required cards overwrote.

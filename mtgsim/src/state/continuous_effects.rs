@@ -80,6 +80,13 @@ pub struct RegistryScopeSummary {
     /// numbers, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
 
+    /// True iff some row can write a name (`EffectModification::writes_name`):
+    /// a copy (CR 707.2), or a text-changing effect that renames (CR
+    /// 612.5–612.9). When it is false, an object's name is its card's unless it
+    /// entered as a copy or is face-down (CR 708.2a), which the event record's
+    /// names lean on (`NamesAsAnnounced`).
+    pub any_name_writing_row: bool,
+
     /// True iff some row grants an ability whose body is an
     /// `Effect::Replacement` — i.e. some object on the battlefield may have a
     /// replacement ability that it did not print.
@@ -234,6 +241,7 @@ impl RegistryScopeSummary {
                 summary.any_multi_row_group = true;
             }
             summary.reachable_zones |= effect.affected_objects.reachable_zones();
+            summary.any_name_writing_row |= effect.modification.writes_name();
             // Where an object carrying an ability this row puts on it can be:
             // a `Filter` row says which zones, a named row says which objects.
             if puts_a_replacement_ability(effect) {

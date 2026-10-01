@@ -3,25 +3,32 @@
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
+use std::sync::Arc;
+
+use crate::engine::layers::compute_characteristics;
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::events::event::{GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{
-    get_effective_power, get_effective_toughness, has_keyword, has_type, is_creature,
+    get_effective_power, get_effective_toughness, is_creature,
 };
 use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::card_types::CardType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
 
-/// Format a card name with its ObjectId, for disambiguation.
-pub fn card_label(game: &GameState, id: ObjectId) -> String {
-    match game.objects.get(&id) {
-        Some(obj) => format!("{} ({})", obj.card_data.name, id),
-        None => format!("<unknown {}>", id),
-    }
+/// The name the object has now, through the layers: a Clone copying Grizzly
+/// Bears is Grizzly Bears (CR 707.2).
+pub fn card_name(game: &GameState, id: ObjectId) -> String {
+    compute_characteristics(game, id)
+        .map(|chars| chars.name.clone())
+        .unwrap_or_else(|| "<unknown>".to_string())
 }
 
-/// Format a card name only (no ID).
-pub fn card_name(game: &GameState, id: ObjectId) -> String {
+/// The name printed on the card, for a record an observer writes. A read
+/// through the layers counts a walk and fills the memo, which the trace sink
+/// and the dispatch audit may not do (`the_sink_changes_nothing_the_game_does`,
+/// `an_audited_game_counts_and_traces_what_an_unaudited_one_does`).
+pub fn printed_name(game: &GameState, id: ObjectId) -> String {
     game.objects.get(&id)
         .map(|obj| obj.card_data.name.clone())
         .unwrap_or_else(|| "<unknown>".to_string())
@@ -81,29 +88,36 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     parts.join(" ")
 }
 
-/// Collect displayable keyword names for a permanent.
+/// A permanent's keywords in `KeywordFlag`'s order, since the effective set is
+/// a hash set.
 fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    let check = |kw: KeywordFlag, name: &'static str| -> Option<&'static str> {
-        if has_keyword(game, id, kw) { Some(name) } else { None }
-    };
-    [
-        check(KeywordFlag::Flying, "flying"),
-        check(KeywordFlag::Reach, "reach"),
-        check(KeywordFlag::Deathtouch, "deathtouch"),
-        check(KeywordFlag::Lifelink, "lifelink"),
-        check(KeywordFlag::FirstStrike, "first strike"),
-        check(KeywordFlag::DoubleStrike, "double strike"),
-        check(KeywordFlag::Trample, "trample"),
-        check(KeywordFlag::Vigilance, "vigilance"),
-        check(KeywordFlag::Haste, "haste"),
-        check(KeywordFlag::Defender, "defender"),
-        check(KeywordFlag::Hexproof, "hexproof"),
-        check(KeywordFlag::Indestructible, "indestructible"),
-        check(KeywordFlag::Menace, "menace"),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+    let Some(chars) = compute_characteristics(game, id) else { return Vec::new() };
+    let mut flags: Vec<KeywordFlag> = chars.keyword_flags.iter().copied().collect();
+    flags.sort();
+    flags.into_iter().map(keyword_name).collect()
+}
+
+/// A keyword as it prints, one arm per flag and no wildcard: a new flag does
+/// not compile until this says what it prints as.
+fn keyword_name(flag: KeywordFlag) -> &'static str {
+    match flag {
+        KeywordFlag::Deathtouch => "deathtouch",
+        KeywordFlag::Defender => "defender",
+        KeywordFlag::DoubleStrike => "double strike",
+        KeywordFlag::FirstStrike => "first strike",
+        KeywordFlag::Flash => "flash",
+        KeywordFlag::Flying => "flying",
+        KeywordFlag::Haste => "haste",
+        KeywordFlag::Hexproof => "hexproof",
+        KeywordFlag::Indestructible => "indestructible",
+        KeywordFlag::Intimidate => "intimidate",
+        KeywordFlag::Lifelink => "lifelink",
+        KeywordFlag::Menace => "menace",
+        KeywordFlag::Reach => "reach",
+        KeywordFlag::Shroud => "shroud",
+        KeywordFlag::Trample => "trample",
+        KeywordFlag::Vigilance => "vigilance",
+    }
 }
 
 /// Format non-keyword abilities on a permanent for inline display.
@@ -112,14 +126,10 @@ fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
 /// block. This function handles the remaining ability types: activated, triggered,
 /// static (non-keyword), and mana abilities. Each is shown as a short description.
 ///
-/// For cards with `rules_text`, we use that as a fallback for abilities that don't
-/// have a simple name. Long-term, a proper text template system will replace this.
+/// Never the printed rules text: the layers can empty the list (a copy of a
+/// vanilla creature, a creature under Humility), and the text would then
+/// describe abilities the object does not have.
 fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
-    let obj = match game.objects.get(&id) {
-        Some(o) => o,
-        None => return Vec::new(),
-    };
-
     // Effective abilities, so a Blood-Mooned land isn't displayed with the
     // abilities CR 305.7 took away.
     let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
@@ -175,140 +185,7 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
             AbilityType::Spell => {}
         }
     }
-
-    // If we have rules_text and no structured ability descriptions, show it
-    // as a fallback. Even simple text like "{T}: Add {G}." is fine to display —
-    // users reading CLI output can handle the redundancy.
-    if lines.is_empty() && !obj.card_data.rules_text.is_empty() {
-        lines.push(obj.card_data.rules_text.clone());
-    }
-
     lines
-}
-
-/// Format a player's hand for display.
-pub fn format_hand(game: &GameState, player_id: PlayerId) -> String {
-    let player = match game.players.get(player_id) {
-        Some(p) => p,
-        None => return "Invalid player".to_string(),
-    };
-
-    if player.hand.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    player.hand.iter()
-        .enumerate()
-        .map(|(i, &id)| {
-            let obj = match game.objects.get(&id) {
-                Some(o) => o,
-                None => return format!("  {}: <unknown>", i),
-            };
-            let cost_str = obj.card_data.mana_cost.as_ref()
-                .map(|c| format!(" {}", c))
-                .unwrap_or_default();
-            let pt_str = match (obj.card_data.power, obj.card_data.toughness) {
-                (Some(p), Some(t)) => format!(" {}/{}", p, t),
-                _ => String::new(),
-            };
-            format!("  {}: {}{}{}", i, obj.card_data.name, cost_str, pt_str)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Format a player's battlefield for display, grouped by permanent type.
-///
-/// Groups: Creatures, Lands, Other (artifacts, enchantments, planeswalkers, etc.).
-/// Each group is shown with a sub-header. Permanents are numbered sequentially
-/// across groups so CLI index references remain unambiguous.
-pub fn format_battlefield(game: &GameState, player_id: PlayerId) -> String {
-    // Ordered: the CLI numbers these and the human picks by index, so a stable
-    // order is the difference between "3" meaning the same permanent twice.
-    let perms: Vec<ObjectId> = game.battlefield_ordered()
-        .into_iter()
-        .filter(|(id, _)| crate::oracle::characteristics::controls(game, *id, player_id))
-        .map(|(id, _)| id)
-        .collect();
-
-    if perms.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    let mut creatures: Vec<ObjectId> = Vec::new();
-    let mut lands: Vec<ObjectId> = Vec::new();
-    let mut other: Vec<ObjectId> = Vec::new();
-
-    for &id in &perms {
-        let is_land = has_type(game, id, CardType::Land);
-        let is_creat = is_creature(game, id);
-        if is_creat {
-            creatures.push(id);
-        } else if is_land {
-            lands.push(id);
-        } else {
-            other.push(id);
-        }
-    }
-
-    let mut lines = Vec::new();
-    let mut idx = 0usize;
-
-    if !creatures.is_empty() {
-        lines.push("  Creatures:".to_string());
-        for &id in &creatures {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-    if !lands.is_empty() {
-        lines.push("  Lands:".to_string());
-        for &id in &lands {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-    if !other.is_empty() {
-        lines.push("  Other:".to_string());
-        for &id in &other {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-
-    lines.join("\n")
-}
-
-/// Format the stack for display, with top/bottom markers.
-pub fn format_stack(game: &GameState) -> String {
-    if game.stack.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    let count = game.stack.len();
-    game.stack.iter().rev()
-        .enumerate()
-        .map(|(i, &id)| {
-            let name = card_name(game, id);
-            // Effective, so a commandeered spell displays under the player who
-            // will actually resolve it (CR 108.4 gives a spell a controller and
-            // Layer 2 can move it).
-            let controller = crate::oracle::characteristics::get_effective_controller(game, id)
-                .map(|pid| format!(" (P{})", pid))
-                .unwrap_or_default();
-            let marker = if count == 1 {
-                " <- top/bottom"
-            } else if i == 0 {
-                " <- top (resolves next)"
-            } else if i == count - 1 {
-                " <- bottom"
-            } else {
-                ""
-            };
-            format!("  {}: {}{}{}", i, name, controller, marker)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// Format the current phase/step for display.
@@ -340,65 +217,46 @@ pub fn format_phase(game: &GameState) -> String {
     }
 }
 
-/// Format a summary line for a player (life, hand size, library size, graveyard size).
-pub fn format_player_summary(game: &GameState, player_id: PlayerId) -> String {
-    match game.players.get(player_id) {
-        Some(p) => format!(
-            "Player {} — Life: {} | Hand: {} | Library: {} | Graveyard: {}",
-            player_id,
-            p.life_total,
-            p.hand.len(),
-            p.library.len(),
-            p.graveyard.len(),
-        ),
-        None => format!("Player {} — invalid", player_id),
-    }
-}
-
-/// Format the mana pool for display.
-pub fn format_mana_pool(game: &GameState, player_id: PlayerId) -> String {
-    match game.players.get(player_id) {
-        Some(p) => {
-            let pool = p.mana_pool.available();
-            if pool.is_empty() || pool.values().all(|&v| v == 0) {
-                return "(empty)".to_string();
-            }
-            let mut parts = Vec::new();
-            for (mt, &amount) in pool {
-                if amount > 0 {
-                    let letter = match mt {
-                        crate::types::mana::ManaType::White => "W",
-                        crate::types::mana::ManaType::Blue => "U",
-                        crate::types::mana::ManaType::Black => "B",
-                        crate::types::mana::ManaType::Red => "R",
-                        crate::types::mana::ManaType::Green => "G",
-                        crate::types::mana::ManaType::Colorless => "C",
-                    };
-                    parts.push(format!("{}{}", amount, letter));
-                }
-            }
-            parts.join(" ")
-        }
-        None => "Invalid player".to_string(),
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Event log formatting
 // ---------------------------------------------------------------------------
 
-/// Resolve an ObjectId to "CardName (#id)" for readable logs.
-fn obj_name(game: &GameState, id: ObjectId) -> String {
-    match game.objects.get(&id) {
-        Some(obj) => format!("{} ({})", obj.card_data.name, id),
-        None => format!("{}", id),
+/// "Grizzly Bears (#12)", the shape every line naming an object uses, or
+/// "Grizzly Bears (Clone, #12)" when `name` is not its card's, so a copy reads
+/// as what it is.
+pub fn object_label(game: &GameState, id: ObjectId, name: &str) -> String {
+    match game.objects.get(&id).map(|obj| obj.card_data.name.as_str()) {
+        Some(card) if card != name => format!("{name} ({card}, {id})"),
+        _ => format!("{name} ({id})"),
     }
 }
 
-/// Format a single GameEvent with resolved card names.
-pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -> String {
+/// The object under the name the record kept for it, where a copy made it
+/// other than its card's, else its card's; the bare id for an object the
+/// store no longer holds.
+fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) -> String {
+    let kept = announced.as_deref().and_then(|names| names.iter().find(|(named, _)| *named == id));
+    match (kept, game.objects.get(&id)) {
+        (Some((_, name)), _) => object_label(game, id, name),
+        (None, Some(obj)) => format!("{} ({})", obj.card_data.name, id),
+        (None, None) => format!("{}", id),
+    }
+}
+
+/// An object as it was in the zone it left: its look-back frame from the
+/// battlefield (CR 603.10a), its card anywhere else.
+fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacteristics>>) -> String {
+    match lki {
+        Some(frame) => object_label(game, id, &frame.name),
+        None => name_with_id(game, id, &None),
+    }
+}
+
+/// Format one event, each object named as its record kept it.
+pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced) -> String {
     use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
+    let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
     match event {
         ZoneChange { object_id, owner, from, to, cause, lki } => {
             // The cause says which rule moved it and the CR 603.10a frame says every
@@ -411,7 +269,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
             format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}]",
-                    obj_name(game, *object_id), was, owner, from, to, cause)
+                    as_it_left(game, *object_id, lki), was, owner, from, to, cause)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -516,8 +374,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         EquipmentDetached { equipment_id, former_host } => {
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
         }
-        LeftTheGame { object_id, owner, from, .. } => {
-            format!("LeftTheGame: {} (P{}, from {:?})", obj_name(game, *object_id), owner, from)
+        LeftTheGame { object_id, owner, from, lki } => {
+            format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki), owner, from)
         }
         TokenCreated { object_id, owner, zone } => {
             format!("TokenCreated: {} (P{}, in {:?})", obj_name(game, *object_id), owner, zone)
@@ -533,8 +391,9 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
 /// recording (`GameState::record_events`).
 pub fn format_event_log(game: &GameState) -> Vec<String> {
     game.recorded_events()
-        .events()
-        .map(|e| format_event(game, e))
+        .records()
+        .iter()
+        .map(|record| format_event(game, &record.event, &record.names))
         .collect()
 }
 
@@ -542,7 +401,6 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
-    use crate::types::mana::ManaSpent;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase};
@@ -603,146 +461,6 @@ mod tests {
     }
 
     #[test]
-    fn test_format_player_summary() {
-        let game = GameState::new(2, 20);
-        let summary = format_player_summary(&game, 0);
-        assert!(summary.contains("Life: 20"));
-        assert!(summary.contains("Hand: 0"));
-    }
-
-    #[test]
-    fn test_format_stack_empty() {
-        let game = GameState::new(2, 20);
-        assert_eq!(format_stack(&game), "  (empty)");
-    }
-
-    #[test]
-    fn test_format_battlefield_grouped() {
-        use crate::types::card_types::*;
-        use crate::types::mana::ManaType;
-
-        let mut game = GameState::new(2, 20);
-
-        // Add a creature
-        let bears = CardDataBuilder::new("Grizzly Bears")
-            .card_type(CardType::Creature)
-            .power_toughness(2, 2)
-            .build();
-        let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let bears_id = game.add_object(obj);
-        let entry = PermanentState::new(bears_id, 0, 0);
-        game.insert_battlefield_entity(bears_id, entry);
-
-        // Add a land
-        let forest = CardDataBuilder::new("Forest")
-            .card_type(CardType::Land)
-            .supertype(Supertype::Basic)
-            .mana_ability_single(ManaType::Green)
-            .build();
-        let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let forest_id = game.add_object(obj);
-        let entry = PermanentState::new(forest_id, 0, 0);
-        game.insert_battlefield_entity(forest_id, entry);
-
-        let output = format_battlefield(&game, 0);
-        assert!(output.contains("Creatures:"), "Should have Creatures header");
-        assert!(output.contains("Lands:"), "Should have Lands header");
-        assert!(output.contains("Grizzly Bears"));
-        assert!(output.contains("Forest"));
-    }
-
-    #[test]
-    fn test_format_stack_single_item_marker() {
-        use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
-
-        let mut game = GameState::new(2, 20);
-        let bolt = CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .build();
-        let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = game.add_object(obj);
-        game.stack.push(bolt_id);
-        game.stack_entries.insert(bolt_id, StackEntry {
-            object_id: bolt_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let output = format_stack(&game);
-        assert!(output.contains("top/bottom"), "Single item should show top/bottom marker");
-    }
-
-    #[test]
-    fn test_format_stack_two_items_markers() {
-        use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
-
-        let mut game = GameState::new(2, 20);
-
-        let bolt = CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .build();
-        let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = game.add_object(obj);
-        game.stack.push(bolt_id);
-        game.stack_entries.insert(bolt_id, StackEntry {
-            object_id: bolt_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let recall = CardDataBuilder::new("Ancestral Recall")
-            .card_type(CardType::Instant)
-            .build();
-        let obj2 = GameObject::new(recall, 0, Zone::Stack);
-        let recall_id = game.add_object(obj2);
-        game.stack.push(recall_id);
-        game.stack_entries.insert(recall_id, StackEntry {
-            object_id: recall_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let output = format_stack(&game);
-        assert!(output.contains("top (resolves next)"), "Top item should have resolves-next marker");
-        assert!(output.contains("bottom"), "Bottom item should have bottom marker");
-    }
-
-    #[test]
     fn test_format_permanent_with_mana_ability() {
         use crate::types::card_types::*;
         use crate::types::mana::ManaType;
@@ -762,4 +480,74 @@ mod tests {
         assert!(display.contains("mana: Add"), "Should show mana ability");
         assert!(display.contains("{G}"), "Should show green mana");
     }
+
+    #[test]
+    fn a_clone_copying_grizzly_bears_shows_as_grizzly_bears() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
+
+        assert_eq!(card_name(&game, clone), "Grizzly Bears");
+        assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
+    }
+    #[test]
+    fn the_log_names_a_copy_as_it_was_at_each_event() {
+        use crate::engine::actions::{ActionContext, GameAction};
+        use crate::test_support::{
+            put_in_graveyard, put_on_battlefield, setup_two_player_game, test_ctx, RecordingDecisionProvider,
+        };
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.execute_action(GameAction::Tap { object: clone }, &test_ctx()).unwrap();
+        game.change_zone(clone, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+        // And one made a copy by a row, as Cytoshape does (CR 707.2), until
+        // the row ends.
+        let shaped = put_on_battlefield(&mut game, crate::test_support::vanilla_creature(1, 1, &[]), 0);
+        let values = crate::engine::layers::copy::copiable_values(&game, bears).unwrap();
+        let timestamp = game.allocate_timestamp();
+        let row = crate::test_support::registered(
+            shaped,
+            crate::engine::layers::types::Layer::Layer1Copy,
+            timestamp,
+            crate::engine::layers::types::EffectModification::CopyFrom(Arc::new(values)),
+        );
+        let row = game.continuous_effects.add(row);
+        game.execute_action(GameAction::Tap { object: shaped }, &test_ctx()).unwrap();
+        game.continuous_effects.remove(row);
+        game.execute_action(GameAction::Untap { object: shaped }, &test_ctx()).unwrap();
+
+        // Formatted after it died: each line names it as it was then. A zone
+        // change names the object as it was in the zone it left.
+        let log = format_event_log(&game);
+        let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
+        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Returned]"));
+        has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
+        has(format!("Tapped: Grizzly Bears (Clone, {clone})"));
+        has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
+        has(format!("Tapped: Grizzly Bears (Test Creature, {shaped})"));
+        has(format!("Untapped: Test Creature ({shaped})"));
+    }
+
+    #[test]
+    fn every_keyword_flag_prints_in_the_enums_order() {
+        use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
+
+        let mut game = setup_two_player_game();
+        let flags = [KeywordFlag::Shroud, KeywordFlag::Flying, KeywordFlag::Intimidate, KeywordFlag::Flash];
+        let id = put_on_battlefield(&mut game, vanilla_creature(1, 1, &flags), 0);
+        assert_eq!(format_permanent(&game, id), "Test Creature 1/1 [flash, flying, intimidate, shroud]");
+    }
+
 }

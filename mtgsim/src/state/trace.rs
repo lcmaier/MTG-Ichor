@@ -44,7 +44,8 @@ use std::io::{self, BufWriter, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::events::event::GameEvent;
+use crate::engine::layers::compute_characteristics;
+use crate::events::event::{GameEvent, NamesAsAnnounced};
 use crate::state::game_state::GameState;
 use crate::types::ids::ObjectId;
 
@@ -469,7 +470,7 @@ impl GameState {
                 let object = &self.objects[&id];
                 let mut r = Record::new("object");
                 r.field_u64("id", id.raw());
-                r.field_str("name", &crate::ui::display::card_name(self, id));
+                r.field_str("name", &crate::ui::display::printed_name(self, id));
                 r.field_u64("owner", object.owner as u64);
                 r.field_bool("token", object.is_token);
                 r
@@ -499,19 +500,20 @@ impl GameState {
         } else {
             self.events.current_stamp()
         };
+        let names = self.names_as_announced(&event);
         self.trace(|| {
             let mut r = Record::new("event");
             r.field_u64("index", self.events.next_seq().0 as u64);
             r.field_opt_u64("batch", stamp.batch.map(|b| b.0));
             r.field_opt_u64("resolution", stamp.resolution.map(|s| s.source.raw()));
-            r.field_str("text", &crate::ui::display::format_event(self, &event));
+            r.field_str("text", &crate::ui::display::format_event(self, &event, &names));
             r
         });
         let seq = self.events.next_seq();
         if unstamped {
-            self.events.emit_unstamped(event);
+            self.events.emit_unstamped(event, names);
         } else {
-            self.events.emit(event);
+            self.events.emit_with_names(event, names);
         }
         // CR 603.2 — an event outside any batch is its own window, and the
         // matcher runs before this returns (§4.1). A batched record waits for
@@ -519,6 +521,43 @@ impl GameState {
         if stamp.batch.is_none() {
             self.dispatch_unbatched(seq);
         }
+    }
+
+    /// The names `event`'s objects are announced under, where one is not its
+    /// card's; `None` on nearly every event.
+    fn names_as_announced(&mut self, event: &GameEvent) -> NamesAsAnnounced {
+        let names: Vec<(ObjectId, String)> = event
+            .objects_named_as_announced()
+            .filter_map(|id| self.name_unless_printed(id).map(|name| (id, name)))
+            .collect();
+        (!names.is_empty()).then(|| Arc::new(names))
+    }
+
+    /// `id`'s name now, where it is not its card's. A name is written by a row
+    /// ([`EffectModification::writes_name`]: a copy, or a text-changing rename,
+    /// which can reach a card off the battlefield, CR 612.9) or by a permanent's
+    /// own state (the copy it entered as, a face-down status). While no row
+    /// writes one, anything without that state costs a lookup. Read as the
+    /// dispatch audit reads, off the memo or inside the bracket that puts the
+    /// memo, the diagnostics and the trace back: naming is not engine work.
+    ///
+    /// [`EffectModification::writes_name`]: crate::engine::layers::types::EffectModification::writes_name
+    fn name_unless_printed(&mut self, id: ObjectId) -> Option<String> {
+        let may_differ = self.continuous_effects.summary().any_name_writing_row
+            || self.battlefield.get(&id).is_some_and(|p| p.entered_as.copy.is_some() || p.face_down);
+        if !may_differ {
+            return None;
+        }
+        let name = match self.layer_memo.get(id, self.layer_epoch()) {
+            Some(frame) => frame.name.clone(),
+            None => {
+                let saved = self.save_observers();
+                let name = compute_characteristics(self, id).map(|chars| chars.name.clone());
+                self.restore_observers(saved);
+                name?
+            }
+        };
+        (self.objects.get(&id)?.card_data.name != name).then_some(name)
     }
 }
 
@@ -546,5 +585,51 @@ mod tests {
     #[test]
     fn tidy_ids_rewrites_only_well_formed_ids() {
         assert_eq!(tidy_ids("Object(ObjectId(17)) ObjectId(x) ObjectId(3"), "Object(#17) ObjectId(x) ObjectId(3");
+    }
+
+    /// A copy's name is read for its record without a walk counted, a frame
+    /// left in the memo or a line written to the trace, as the audit reads.
+    #[test]
+    fn a_copys_name_is_kept_without_a_trace_of_the_read() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{
+            install_trace, put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider,
+        };
+        use crate::types::zones::{Zone, ZoneChangeCause};
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        let trace = install_trace(&mut game, "names");
+        game.bump_layer_epoch();
+        let (diagnostics, lines) = (format!("{:?}", game.diagnostics), trace.lines().len());
+
+        let names = game.names_as_announced(&GameEvent::Tapped { object_id: clone });
+        assert_eq!(names.as_deref(), Some(&vec![(clone, "Grizzly Bears".to_string())]));
+        assert_eq!(game.names_as_announced(&GameEvent::Tapped { object_id: bears }), None);
+        assert_eq!(format!("{:?}", game.diagnostics), diagnostics);
+        assert!(game.layer_memo.get(clone, game.layer_epoch()).is_none(), "the walk's frame stayed in the memo");
+        assert_eq!(trace.lines().len(), lines);
+    }
+
+    /// A row that writes a name can reach a card off the battlefield, as a
+    /// name sticker does (CR 612.9); a copy row stands in for one here.
+    #[test]
+    fn a_row_that_writes_a_name_reaches_a_card_off_the_battlefield() {
+        use crate::engine::layers::types::{EffectModification, Layer};
+        use crate::test_support::{forest, put_in_library, put_on_battlefield, registered, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let card = put_in_library(&mut game, forest(), 0);
+        let values = crate::engine::layers::copy::copiable_values(&game, bears).unwrap();
+        let timestamp = game.allocate_timestamp();
+        let row = registered(card, Layer::Layer1Copy, timestamp, EffectModification::CopyFrom(Arc::new(values)));
+        game.continuous_effects.add(row);
+
+        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card });
+        assert_eq!(names.as_deref(), Some(&vec![(card, "Grizzly Bears".to_string())]));
     }
 }

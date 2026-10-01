@@ -7804,6 +7804,26 @@ the file.
      the fix: greedy then under-offers ({W}{U} from a W/U dual and a W-only
      land), which hides a castable spell — worse for a human than a rewind.
 
+     **The owner's direction (2026-09-30, at #202's review).**
+     - **Slotted:** it waits for the payment alphabet (CP-1,
+       `cost-architecture.md`) and for item 33's mana-provenance design, and
+       is designed in one session with them at item 33's slot, before Phase
+       8. No payment path pays hybrid, mono-hybrid or Phyrexian mana yet,
+       which is why Mirrorweave is registered as `{2}{W}{U}`; `{S}` and
+       restricted mana need each unit's source.
+     - **The preference, by default: keep as many spells castable as
+       possible.** That covers what colors cannot say: Counterspell needs
+       two blue, a dual land keeps two colors, and Cavern of Souls' mana
+       casts only one creature type. A five-color wheel the player toggles
+       is the override. The order: toggled colors first, then the most
+       spells castable, then the least flexible land tapped first. This is
+       the default the entry's first paragraph left to each client, now set
+       for a person's seat; least-flexible-first stays, as the last tiebreak.
+     - **Its cost.** Comparing payments by what stays castable runs once
+       per payment, on a person's seat; the check at every priority point
+       only asks whether any payment exists. Performance is the session's
+       first measurement.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
@@ -8682,35 +8702,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the A6g spike, the dev GUI (2026-09-30)
 
-191. **`ui/display.rs` names an object by its printed card, keeps its own
-     keyword list, and orders the mana pool by hash.** None of the four is a
-     rule; each is a formatter showing something other than the game.
-     - `card_label` and `card_name` (`ui/display.rs:16–28`) and the log's
-       `obj_name` (`:391`) read `card_data.name`, so a copy prints under its
-       printed name: a Clone copying Grizzly Bears is "Clone" on `cli_play`'s
-       board and in every `format_event` line, though Layer 1 writes its name
-       (`engine/layers/copy.rs:147`). The board half is `get_effective_name`.
-       **The log half is not.** An event carries ids, and an id survives a
-       zone change (`backlog.md` §2.38; main item 10 keeps it), so a line
-       formatted after a copy has died names the card in the graveyard,
-       whichever function reads the name. "Grizzly Bears dies" needs the name
-       as of the event, recorded with it, which every recorded game pays for.
-     - `collect_keywords` lists 13 of `KeywordFlag`'s 16: flash, intimidate
-       and shroud never print.
-     - `format_mana_pool` iterates `ManaPool::available()`'s `HashMap`, so the
-       pool's order differs per process.
-     - `cards/random_deck.rs:89` carries a double-encoded em dash (e2cb641).
-
-     **Reachability (2026-09-30):** reachable — wrong today, in display only:
-     every `cli_play` game with a copy in it, and every log line naming one.
-     No rule reads a formatter.
-
-     **Sized:** the board's names, the keyword list read off the effective
-     set, the pool's order and the em dash are about 30 lines, each with a
-     test that fails first: one small `ui/display` PR, proposed after the
-     spike, which leaves `mtgsim` untouched (the owner's call). The log half
-     is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
-     panel PR, its first reader.
+191. **~~`ui/display.rs` names an object by its printed card, keeps its own
+     keyword list, and orders the mana pool by hash.~~ — ✅ CLOSED 2026-09-30
+     (A6g's display PR).** — archived. The dev GUI's hover text names a copy
+     through the layers and prints every keyword flag, and the board printer,
+     which nothing called, is deleted. The log names each object as it was
+     when its event happened, off one record the trace reads too.
+     **Reachability (2026-09-30):** closed — A6g's display PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 191".
 
 192. **~~A priority window's blacklist and retry budget are agent guards, and
      they bind a human seat too.~~ — ✅ CLOSED 2026-09-30 (A6j).** — archived.
@@ -8750,3 +8749,68 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      the hang guard; a few tests script a re-ask. **Slotted:** with A6g's
      playable PR, which designs the re-ask's reason for a person, and before
      its tools PR, the first replay.
+
+### Found by the owner's testing in the dev GUI (2026-09-30)
+
+194. **Every client starts a two-player game with the starting player
+     drawing, which CR 103.8a forbids.** The engine has the rule:
+     `GameConfig::first_player_draws` false sets `skip_first_draw`, which
+     `process_draw_step` reads (`engine/turns.rs`). But the dev GUI
+     (`devgui/src/bridge.rs`), `cli_play` and `fuzz_games` all build their
+     games from `GameConfig::test()`, whose `first_player_draws: true` exists
+     to simplify tests. At four seats that is right, since CR 103.8c skips no
+     one; at two the starting player draws on turn 1.
+
+     **Reachability (2026-09-30):** reachable — wrong today: every two-player
+     game in the dev GUI, `cli_play` and `fuzz_games`, so every two-seat
+     fixture row and A/B sitting has measured this game.
+
+     **Sized:** ~10–20 lines of code: the clients take CR 103.8's answer from
+     the player count (a `GameConfig` constructor for played games, or
+     `Game::new` deriving it with the test config's override kept), and a
+     test at two seats and at four. It moves every two-seat game, so its A/B
+     predicts `differ` at two seats and `IDENTICAL` at four, §3's two-seat
+     rows re-record, and the dev GUI's six review pictures are redrawn.
+     **Slotted:** its own PR after #203, before the scenario loader's build
+     (`roadmap-v2.md` A6g), whose games start the same way.
+
+### Found by #203's review (2026-09-30)
+
+195. **Layer 3 (CR 612) is unbuilt and has no slot, and about 20
+     vintage-legal cards need it.** The owner's call at #203's review: it is
+     not deferred indefinitely, as `Layer::Layer3Text` had said since Phase
+     LA, and new code is built for it rather than around it. Scryfall,
+     `legal:vintage`, 2026-09-30:
+     - 13 change words in rules text (CR 612.1–612.2, `o:"change the
+       text"`): Mind Bend, Sleight of Mind, Magical Hack, Artificial
+       Evolution among them;
+     - 2 exchange text boxes (612.5, `o:"text box"`): Exchange of Words,
+       Deadpool, Trading Card;
+     - 1 takes another object's full text (612.6): Volrath's Shapeshifter;
+     - 1 has all names (612.7): Spy Kit;
+     - 4 set a name (612.8, `o:" named " o:"loses all"`): Witness
+       Protection, Honest Work, The Irencrag, The Curse of Fenric;
+     - 1 puts on a name sticker (612.9): A Good Day to Pie.
+
+     What it owes, and where each piece waits:
+     - the word swaps (CR 612.2): the engine keeps no rules text, so a swap
+       rewrites the colors, subtypes and land types inside `AbilityDef`s and
+       their filters. This is the design's main question;
+     - the renames (612.5–612.9): each is an `EffectModification` variant
+       that answers `writes_name` true, so the event record's names read it
+       with no further change (#203). Spy Kit's "all names", and CR 201.2a's
+       object with several names, need a name that can be a set;
+     - the two gates' Layer 3 legs (`gather.rs`, `predicate.rs`, ~20 lines
+       each), in "Two ETB-time scans read *printed* abilities" above;
+     - the atoms waiting on it: `backlog.md`'s audit rows for CR 612 and
+       201.2a, `ATOM-400.7a-002` and `COMP-613-LAYERS-FULL-STACK-001`.
+
+     **Reachability (2026-09-30):** unreachable — nothing produces a Layer 3
+     effect, and no registered card is one of the 20.
+
+     **Sized:** by its design, written first in `layers-architecture.md`. The
+     word swaps over a structured ability are the unknown; the renames, the
+     gate legs and the record's names are each small.
+     **Slotted:** proposed, for the owner to place: its design, then its
+     build, back-stopped before Phase 8 beside item 33's mana provenance, so
+     that Phase 8's breadth does not add cards around it.

@@ -3060,3 +3060,39 @@ Closed as sized, in A6j as proposed, on the knowledge full control needed: `Seat
      with A6j, which builds that toggle, proposed (the owner's call); A6g's
      playable PR at the latest. Going back further than the window, to try
      another line, is A6g's undo, a replay without the last answer.
+
+### Item 191 — closed 2026-09-30 by A6g's display PR
+
+Closed with two of its claims corrected. **`cli_play` prints no board**: it lost one at SPECIAL-1c (eeb3108, 2026-04-15), and its prompt options print as `{:?}`. So `card_label`, `format_hand`, `format_battlefield`, `format_stack`, `format_player_summary` and `format_mana_pool` had no caller but `display.rs`'s own tests, and they are deleted, taking `card_label`'s printed name and the pool's hash order with them; the dev GUI draws its own board off the layers, its pool in WUBRGC order. **And not every caller of `card_name` was a display.** The dev GUI's hover text (`format_permanent`) is, and reads through `compute_characteristics` now, keeping `"<unknown>"` for an object that does not exist, since `get_effective_name`'s empty string is also a face-down permanent's name. The other four are records an observer writes, the trace's names table, its `trigger` and `pending` records, and the dispatch audit's report, and through the layers they count walks and fill the memo: `the_sink_changes_nothing_the_game_does` read 3 walks traced against 2, and `an_audited_game_counts_and_traces_what_an_unaudited_one_does` 12,525 memo hits against 12,519, since the audit writes its report after restoring its observers, which would have moved `close_out.py`'s audited counters too. They read `printed_name`, today's read under a name that says so. **The log half landed in the same PR, at the owner's request** (156 lines of code, 71 of tests): each event record keeps the names its objects were announced under where one is not its card's (`EventRecord::names`), read off the memo or inside the audit's bracket so no counter moves, and the trace's event text, the dev GUI's log, `--dump-events` and `cli_play` format from that one record, where each had read printed names at its own moment. A zone change names its object as it was in the zone it left. What still names an object by its card: the trace's names table, its `trigger` and `pending` records and the audit's report (`printed_name`), an `AbilityTriggered` line whose source has left the battlefield, and an object the store no longer holds, which is a bare id. `collect_keywords` reads the effective set, sorted, through an exhaustive name match, so flash, intimidate and shroud print. Found on the way: `format_abilities`' rules-text fallback fired only on an empty effective list, which no registered permanent has as printed, so it showed printed text only to an object whose layers had emptied the list (the same Clone read Clone's own "enter as a copy" text, and a creature under Humility would read its lost abilities); it is deleted. The em dash at `cards/random_deck.rs:89` came from the `--copies` commit (98a3435), which wrote three more, in `fuzz_games.rs` and `plans/fuzz_ab.py`; all four are fixed as bytes. The tests, each failing first on the unfixed tree: `a_clone_copying_grizzly_bears_shows_as_grizzly_bears` (the name, then the fallback's text), `every_keyword_flag_prints_in_the_enums_order` (`[flying]` alone) and `the_log_names_a_copy_as_it_was_at_each_event` (every line "Clone"); `a_copys_name_is_kept_without_a_trace_of_the_read` fails with the bracket removed. Every gameplay and cost row `IDENTICAL` on both pools at two seats and four (`fuzz-record.md`).
+
+*Original entry:*
+
+191. **`ui/display.rs` names an object by its printed card, keeps its own
+     keyword list, and orders the mana pool by hash.** None of the four is a
+     rule; each is a formatter showing something other than the game.
+     - `card_label` and `card_name` (`ui/display.rs:16–28`) and the log's
+       `obj_name` (`:391`) read `card_data.name`, so a copy prints under its
+       printed name: a Clone copying Grizzly Bears is "Clone" on `cli_play`'s
+       board and in every `format_event` line, though Layer 1 writes its name
+       (`engine/layers/copy.rs:147`). The board half is `get_effective_name`.
+       **The log half is not.** An event carries ids, and an id survives a
+       zone change (`backlog.md` §2.38; main item 10 keeps it), so a line
+       formatted after a copy has died names the card in the graveyard,
+       whichever function reads the name. "Grizzly Bears dies" needs the name
+       as of the event, recorded with it, which every recorded game pays for.
+     - `collect_keywords` lists 13 of `KeywordFlag`'s 16: flash, intimidate
+       and shroud never print.
+     - `format_mana_pool` iterates `ManaPool::available()`'s `HashMap`, so the
+       pool's order differs per process.
+     - `cards/random_deck.rs:89` carries a double-encoded em dash (e2cb641).
+
+     **Reachability (2026-09-30):** reachable — wrong today, in display only:
+     every `cli_play` game with a copy in it, and every log line naming one.
+     No rule reads a formatter.
+
+     **Sized:** the board's names, the keyword list read off the effective
+     set, the pool's order and the em dash are about 30 lines, each with a
+     test that fails first: one small `ui/display` PR, proposed after the
+     spike, which leaves `mtgsim` untouched (the owner's call). The log half
+     is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
+     panel PR, its first reader.

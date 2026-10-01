@@ -1131,6 +1131,10 @@ cheap first step is to sit with `cli_play` and write down what is actually
 unreadable: if the board prints fine but *why anything happened* is invisible,
 that is a different fix, and a much smaller one, than "we need a GUI".
 
+**Since 2026-09-30 that board printer is gone** (`codebase-state.md` item
+191, archived): `cli_play` had printed no board since SPECIAL-1c (2026-04-15),
+and A6g's dev GUI (`roadmap-v2.md`) draws its own.
+
 Not on the route. `roadmap-v2.md` row E owns the GUI as a v1 deliverable; this
 section owns the *reason* to want one early, so that when it is picked up the
 motivation on record is verification and not only delivery.

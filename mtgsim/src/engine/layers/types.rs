@@ -52,7 +52,9 @@ pub enum Layer {
     Layer1Copy,
     /// Layer 2 — control-changing effects (CR 613.3).
     Layer2Control,
-    /// Layer 3 — text-changing effects. Deferred indefinitely (25 cards).
+    /// Layer 3 — text-changing effects (CR 612): word swaps in rules text,
+    /// whole text boxes, and names. Unbuilt, and owed: about 20 vintage-legal
+    /// cards need it (`codebase-state.md` item 195).
     Layer3Text,
     /// Layer 4 — type-changing effects (types, subtypes, supertypes).
     Layer4Type,
@@ -194,6 +196,25 @@ pub enum EffectModification {
 
     // --- Layer 7d ---
     SwitchPowerToughness,
+}
+
+impl EffectModification {
+    /// Whether this can write an object's name: a copy's values carry one (CR
+    /// 707.2), and so does every text-changing effect that renames (CR
+    /// 612.5–612.9). No wildcard, so a new variant answers before it compiles;
+    /// the event record's names read every object while one is registered
+    /// (`RegistryScopeSummary::any_name_writing_row`).
+    pub fn writes_name(&self) -> bool {
+        use EffectModification::*;
+        match self {
+            CopyFrom(_) => true,
+            SetController(_) | AddType(_) | RemoveType(_) | SetTypes(_) | AddSubtype(_) | RemoveSubtype(_)
+            | SetSubtypes(_) | AddSupertype(_) | RemoveSupertype(_) | SetSupertypes(_) | AddColor(_)
+            | SetColors(_) | RemoveAllColors | GrantKeywordFlag(_) | RemoveKeywordFlag(_) | GrantAbility(_)
+            | LoseAbility(_) | LoseAllAbilities | SetPowerToughness { .. } | ModifyPowerToughness { .. }
+            | SwitchPowerToughness => false,
+        }
+    }
 }
 
 /// Where a continuous effect came from, which determines whether its
