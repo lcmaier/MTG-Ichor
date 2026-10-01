@@ -18,7 +18,7 @@ use std::thread::JoinHandle;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::scenario::Scenario;
+use mtgsim::scenario::{BuiltScenario, Scenario, SetupActions, SetupDriver};
 use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
@@ -112,9 +112,12 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
 }
 
 fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<Answer>, wake: &Arc<dyn Fn() + Send + Sync>) {
-    let (mut game, log, agent_seed) = match &setup.scenario {
+    let (mut game, setup_actions, log, agent_seed) = match &setup.scenario {
         Some(path) => match build_scenario_game(setup, path) {
-            Ok((game, text)) => (game, DecisionLog::open(setup, &GameStart::Scenario { path, text: &text }), RandomStreams::from_seed(setup.seed).agents),
+            Ok((BuiltScenario { game, setup: actions }, text)) => {
+                let log = DecisionLog::open(setup, &GameStart::Scenario { path, text: &text });
+                (game, actions, log, RandomStreams::from_seed(setup.seed).agents)
+            }
             Err(message) => {
                 let _ = to_window.send(ToWindow::Refused { message });
                 wake();
@@ -133,7 +136,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
             let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
             let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
             game.reseed(setup.seed.wrapping_add(1));
-            (game, log, setup.seed.wrapping_add(2))
+            (game, SetupActions::default(), log, setup.seed.wrapping_add(2))
         }
     };
     let log = Rc::new(RefCell::new(log));
@@ -152,7 +155,12 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
         Box::new(AutoPayer::new(ManaWindowStop::new(seat))),
         Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(agent_seed))),
     ]);
-    let played = if setup.scenario.is_some() { game.resume(&dp) } else { game.setup(&dp).and_then(|()| game.run(&dp)) };
+    // A scenario's setup actions play first, every seat's, so the window's
+    // first prompt comes once they have built their stack.
+    let played = match setup.scenario {
+        Some(_) => game.resume(&SetupDriver::new(setup_actions, &dp)),
+        None => game.setup(&dp).and_then(|()| game.run(&dp)),
+    };
     let outcome = match played {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
         Ok(GameResult::Draw) => Outcome::Draw,
@@ -165,14 +173,14 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
 }
 
 /// The scenario at `path` built at `setup.seed`, and its text; or why not.
-fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(Game, String), String> {
+fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(BuiltScenario, String), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
     if scenario.players != 2 {
         return Err(format!("the dev GUI plays two seats, and this scenario has {}", scenario.players));
     }
-    let game = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
-    Ok((game, text))
+    let built = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
+    Ok((built, text))
 }
 
 /// Seat 0: every question goes to the window. One with a single legal answer

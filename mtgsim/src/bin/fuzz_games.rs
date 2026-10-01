@@ -105,7 +105,7 @@ use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::scenario::Scenario;
+use mtgsim::scenario::{Scenario, SetupActions, SetupDriver};
 use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
@@ -927,11 +927,14 @@ fn run_one_game(
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         let mut config = GameConfig::unrestricted();
         config.starting_life = table.life;
-        let mut game = match start {
-            Some(scenario) => Scenario { seed: game_seed, ..scenario.clone() }
-                .build(&CardRegistry::default_registry())
-                .expect("built once before the first game"),
-            None => Game::new(config, decks).expect("Failed to create game"),
+        let (mut game, setup) = match start {
+            Some(scenario) => {
+                let built = Scenario { seed: game_seed, ..scenario.clone() }
+                    .build(&CardRegistry::default_registry())
+                    .expect("built once before the first game");
+                (built.game, built.setup)
+            }
+            None => (Game::new(config, decks).expect("Failed to create game"), SetupActions::default()),
         };
         // The fixture rows are read off the whole stream at the game's end,
         // and the engine keeps none of it (`codebase-state.md` item 42).
@@ -959,7 +962,7 @@ fn run_one_game(
         let dp = &*dp;
         if start.is_none() {
             game.setup(dp).expect("Failed to setup game");
-        } else if let Err(e) = game.resume_turn_at_priority(dp) {
+        } else if let Err(e) = game.resume_turn_at_priority(&SetupDriver::new(setup, dp)) {
             finish_trace(&game);
             let log = if keep_event_log { Some(game.event_log_snapshot()) } else { None };
             return Err((format!("Resume error: {e}"), log));

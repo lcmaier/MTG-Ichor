@@ -1,0 +1,23 @@
+# The stack of setup-architecture.md §5.3, built by setup actions: Lightning
+# Bolt at the Bears, Giant Growth in response, and the Thaumaturgist
+# switching the Bears' power and toughness on top. Player 0 then holds
+# priority over all three, with a second Bolt and a Mountain to answer with.
+# Setup actions resolve nothing: the seats' passes do, once play is theirs.
+turn 3
+active 0
+step precombat main
+
+hand 0: Lightning Bolt [a]
+hand 0: Lightning Bolt [b]
+hand 1: Giant Growth
+library 0: Mountain | x8
+library 1: Forest | x8
+
+battlefield: Mountain | controller 0, x2
+battlefield: Forest | controller 1
+battlefield: Grizzly Bears | controller 1
+battlefield: Merfolk Thaumaturgist | controller 1
+
+then: player 0 casts Lightning Bolt [a] | targeting Grizzly Bears
+then: player 1 casts Giant Growth | targeting Grizzly Bears
+then: player 1 activates Merfolk Thaumaturgist | targeting Grizzly Bears

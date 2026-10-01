@@ -17,7 +17,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 fn load(text: &str) -> Game {
-    Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"))
+    Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).map(|built| built.game).unwrap_or_else(|r| panic!("{r}"))
 }
 
 fn refused(text: &str) -> ScenarioError {
@@ -51,11 +51,12 @@ fn the_template_and_every_sample_load() {
         ("humility-opalescence", include_str!("../scenarios/humility-opalescence.scenario")),
         ("planeswalker", include_str!("../scenarios/planeswalker.scenario")),
         ("four-seats-commander", include_str!("../scenarios/four-seats-commander.scenario")),
+        ("bolt-into-giant-growth", include_str!("../scenarios/bolt-into-giant-growth.scenario")),
     ] {
         Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{name}: {r}"));
     }
     let listed = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/scenarios")).unwrap().count();
-    assert_eq!(listed, 5, "a new file under scenarios/ joins this test");
+    assert_eq!(listed, 6, "a new file under scenarios/ joins this test");
 }
 
 /// The same file and seed, the same answers: one game.
@@ -336,7 +337,7 @@ fn a_card_in_development_loads_and_stays_out_of_the_pools() {
             .build()
     });
     let scenario = Scenario::parse("battlefield: Dev Bear | controller 0").unwrap();
-    let game = scenario.build(&registry).unwrap();
+    let game = scenario.build(&registry).unwrap().game;
     assert_eq!(named(&game, "Dev Bear").len(), 1);
     assert!(!registry.card_names().contains(&"Dev Bear"));
     assert!(scenario.build(&CardRegistry::default_registry()).is_err());

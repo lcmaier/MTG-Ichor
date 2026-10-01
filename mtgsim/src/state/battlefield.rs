@@ -77,9 +77,9 @@ pub struct PermanentState {
 
     // Creature-specific (only meaningful if the permanent is a creature)
     pub damage_marked: u32,
-    /// Set when this creature is dealt damage by a source with deathtouch.
-    /// Checked in SBA 704.5g: any nonzero damage from deathtouch is lethal.
-    /// Cleared in cleanup alongside damage_marked.
+    /// Set when this creature is dealt damage by a source with deathtouch,
+    /// and read and cleared by the next state-based action check, which
+    /// destroys a creature dealt such damage since the last (CR 704.5h).
     pub damaged_by_deathtouch: bool,
 
     // Combat state (transient, cleared at end of combat)

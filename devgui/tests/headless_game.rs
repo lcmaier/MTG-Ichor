@@ -133,6 +133,23 @@ fn reload_builds_the_game_again_from_the_file_as_it_now_reads() {
     assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(7));
 }
 
+/// A scenario's setup actions play before the window is asked anything:
+/// its first prompt is over the stack §5.3's sample builds, and Reload
+/// builds it again.
+#[test]
+fn setup_actions_play_before_the_first_prompt_and_again_on_reload() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../mtgsim/scenarios/bolt-into-giant-growth.scenario");
+    let mut session = Session::start(GameSetup { scenario: Some(path), ..dealt(0, None) }, Arc::new(|| {}));
+    for _ in 0..2 {
+        first_prompt(&mut session);
+        let stack: Vec<&str> = session.state.board.iter().flat_map(|board| &board.stack).map(|item| item.name.as_str()).collect();
+        assert_eq!(stack, ["Merfolk Thaumaturgist", "Giant Growth", "Lightning Bolt"], "top first");
+        assert_eq!(session.state.prompt.as_ref().map(|prompt| prompt.kind.as_str()), Some("PriorityAction"));
+        session.input(Input::Reload);
+        assert!(session.state.board.is_none(), "the old game's board is gone");
+    }
+}
+
 /// "Save board as scenario" writes beside the decision log, a file that
 /// loads, and a second save never overwrites the first.
 #[test]
@@ -148,7 +165,7 @@ fn save_board_writes_a_file_that_loads_beside_the_log() {
     let saved = dir.join("bolt-seed-0-turn-1.scenario");
     assert_eq!(session.saved, Some(format!("saved {}", saved.display())));
     let text = std::fs::read_to_string(&saved).unwrap();
-    let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap();
+    let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap().game;
     assert_eq!(game.state.players[0].life_total, 13);
     session.input(Input::SaveBoard);
     assert!(dir.join("bolt-seed-0-turn-1-2.scenario").exists());

@@ -58,6 +58,8 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     }
     results.add(picture(&panicked(), &header("main.scenario"), None, "engine_panic"));
     results.add(picture(&refused(), &header("refused.scenario"), None, "scenario_refused"));
+    let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
+    results.add(picture(&setup_stack(sample), &format!("scenario {sample} · seed 0"), None, "setup_stack"));
     let (state, board) = &first["priority"];
     results.add(picture(state, &header(board), Some("saved logs/main-seed-0-turn-3.scenario"), "board_saved"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -83,6 +85,17 @@ fn panicked() -> WindowState {
     state.receive(next(&engine));
     engine.answers.send(Answer::Picks(vec![99])).unwrap();
     state.receive(next(&engine));
+    state
+}
+
+/// The window's first prompt on §5.3's sample: the stack its setup actions
+/// built, player 0 holding priority over it with a Bolt left to cast.
+fn setup_stack(sample: &str) -> WindowState {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(sample);
+    let engine = spawn_game(GameSetup { scenario: Some(path), ..from_board("main.scenario", None) }, Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
     state
 }
 

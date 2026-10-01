@@ -1,16 +1,19 @@
 //! A [`Scenario`] built into a `Game` (`setup-architecture.md` §3): every
 //! write through the engine's own doors, in file order, before the first
-//! turn, and nothing emitted. §4.1's refusals are here.
+//! turn, and nothing emitted. §4.1's refusals are here, and §5.3's setup
+//! actions resolved through the same table of names.
 
 use std::sync::Arc;
 
-use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
+use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupVerb, Targeted};
 use super::error::{ScenarioError, ScenarioErrorKind};
+use super::setup::{ResolvedSetupAction, SetupActions};
 use super::text::{in_combat_from, position_word};
 use crate::cards::registry::CardRegistry;
+use crate::engine::resolve::ResolvedTarget;
 use crate::objects::card_data::{AbilityType, CardData};
 use crate::objects::object::GameObject;
-use crate::oracle::characteristics::{get_effective_controller, get_effective_types};
+use crate::oracle::characteristics::{get_effective_abilities, get_effective_controller, get_effective_types};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo, PermanentState};
 use crate::state::game::{starting_player_skips_first_draw, Game, RandomStreams};
 use crate::state::game_config::GameConfig;
@@ -18,14 +21,23 @@ use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::PlayerHistory;
 use crate::types::card_types::CardType;
 use crate::types::history::{HistorySpan, TurnFact};
-use crate::types::ids::{ObjectId, ObjectRef, PlayerId};
+use crate::types::ids::{AbilityId, ObjectId, ObjectRef, PlayerId};
 use crate::types::zones::Zone;
+use crate::ui::decision::PriorityAction;
+
+/// A scenario built: its board at rest, and its setup actions with every
+/// name resolved. `game.resume(&SetupDriver::new(setup, &seats))` plays it,
+/// the setup actions first.
+pub struct BuiltScenario {
+    pub game: Game,
+    pub setup: SetupActions,
+}
 
 impl Scenario {
     /// Build the board this describes, at the start of `step`'s priority
     /// round with the active player to act; `Game::resume` plays it. Names
     /// are looked up in `registry`, then among its cards in development.
-    pub fn build(&self, registry: &CardRegistry) -> Result<Game, ScenarioError> {
+    pub fn build(&self, registry: &CardRegistry) -> Result<BuiltScenario, ScenarioError> {
         let mut loader = Loader::new(self)?;
         for line in &self.cards {
             loader.load_card_line(line, registry)?;
@@ -34,8 +46,9 @@ impl Scenario {
         loader.load_combat()?;
         loader.begin_turns()?;
         loader.load_this_turn_counts()?;
-        let state = loader.state;
-        Ok(Game { state, config: GameConfig { starting_life: self.starting_life, ..GameConfig::unrestricted() } })
+        let setup = loader.resolve_setup_actions()?;
+        let game = Game { state: loader.state, config: GameConfig { starting_life: self.starting_life, ..GameConfig::unrestricted() } };
+        Ok(BuiltScenario { game, setup })
     }
 }
 
@@ -114,19 +127,21 @@ impl<'s> Loader<'s> {
     /// The object `card` names among those created so far that `among`
     /// keeps, refusing a name that matches none, or two.
     fn object_named(&self, card: &NamedCard, line: usize, what: &str, among: impl Fn(&CreatedObject) -> bool) -> Result<ObjectId, ScenarioError> {
+        let none = format!("{card} names no {what} listed above this line (a word that names a card takes the rest of its line, so it comes last)");
+        self.one_named(card, line, what, none, among)
+    }
+
+    /// [`Self::object_named`], with the refusal for a name that matches none.
+    fn one_named(&self, card: &NamedCard, line: usize, what: &str, none: String, among: impl Fn(&CreatedObject) -> bool) -> Result<ObjectId, ScenarioError> {
         let matches: Vec<&CreatedObject> =
             self.created.iter().filter(|c| among(c) && c.card.name == card.name && (card.tag.is_none() || c.card.tag == card.tag)).collect();
         match matches.as_slice() {
             [one] => Ok(one.id),
-            [] => Err(ScenarioError::at(
-                ScenarioErrorKind::Reference,
-                line,
-                format!("{card} names no {what} listed above this line (a word that names a card takes the rest of its line, so it comes last)"),
-            )),
+            [] => Err(ScenarioError::at(ScenarioErrorKind::Reference, line, none)),
             [first, second, ..] => Err(ScenarioError::at(
                 ScenarioErrorKind::Reference,
                 line,
-                format!("{} names two {what}s, lines {} and {}; give each a tag, as `{} [a]`", card, first.line, second.line, card.name),
+                format!("{} names two objects, lines {} and {}, each a {what}; give each a tag, as `{} [a]`", card, first.line, second.line, card.name),
             )),
         }
     }
@@ -531,6 +546,107 @@ impl<'s> Loader<'s> {
             }
         }
         Ok(())
+    }
+
+    /// §5.3's setup actions, each name resolved through the objects this
+    /// file created, refusing what can be refused before play: a name that
+    /// means nothing or two things, a card not in the seat's hand, a
+    /// permanent another player controls, a word the card has no use for.
+    fn resolve_setup_actions(&self) -> Result<SetupActions, ScenarioError> {
+        let mut lines = Vec::new();
+        // Each card a line casts, and that line: a spell a later line may target.
+        let mut cast: Vec<(ObjectId, usize)> = Vec::new();
+        for located in &self.scenario.setup_actions {
+            let (line, written) = (located.line, &located.value);
+            let refused = |kind: ScenarioErrorKind, message: String| Err(ScenarioError::at(kind, line, message));
+            let seat = self.checked_player(written.seat, line)?;
+            if !self.state.in_game(seat) {
+                return refused(ScenarioErrorKind::Unreachable, format!("player {seat} has left the game, and acts no more (CR 800.4a)"));
+            }
+            let targets = written.targets.iter().map(|target| self.setup_target(target, &cast, line)).collect::<Result<Vec<_>, _>>()?;
+            let action = match written.verb {
+                SetupVerb::Casts => {
+                    let what = format!("card in player {seat}'s hand");
+                    let none = format!("{} is not in player {seat}'s hand, which a setup action casts from", written.card);
+                    let in_hand = |c: &CreatedObject| c.zone == Zone::Hand && self.state.objects[&c.id].owner == seat;
+                    let card = self.one_named(&written.card, line, &what, none, in_hand)?;
+                    if let Some((_, earlier)) = cast.iter().find(|(id, _)| *id == card) {
+                        return refused(ScenarioErrorKind::Reference, format!("{} is cast by line {earlier} already", written.card));
+                    }
+                    // PRE-LAYER ZONE: a card in a hand, before it is cast.
+                    let printed = &self.state.objects[&card].card_data;
+                    if printed.types.contains(&CardType::Land) {
+                        return refused(ScenarioErrorKind::Unreachable, format!("{} is a land, which is played, not cast (CR 305.1)", printed.name));
+                    }
+                    cast.push((card, line));
+                    PriorityAction::CastSpell(card)
+                }
+                SetupVerb::Activates { ability } => {
+                    let none = format!("{} is not on the battlefield", written.card);
+                    let permanent = self.one_named(&written.card, line, "permanent", none, |c| c.zone == Zone::Battlefield)?;
+                    if get_effective_controller(&self.state, permanent) != Some(seat) {
+                        let message = format!("player {seat} does not control {}, and only its controller activates its abilities (CR 602.2)", written.card);
+                        return refused(ScenarioErrorKind::Unreachable, message);
+                    }
+                    PriorityAction::ActivateAbility(permanent, self.activated_ability(permanent, ability, &written.card, line)?)
+                }
+            };
+            lines.push(ResolvedSetupAction { line, written: written.clone(), action, targets });
+        }
+        Ok(SetupActions { lines })
+    }
+
+    /// The activated ability `ability N` names among the permanent's
+    /// abilities as the layers give them, or its one activated ability when
+    /// the line names none. A mana ability is no setup action: its mana would
+    /// wait in a pool no scenario word writes (§5.2).
+    fn activated_ability(&self, permanent: ObjectId, ability: Option<usize>, card: &NamedCard, line: usize) -> Result<AbilityId, ScenarioError> {
+        let refused = |message: String| Err(ScenarioError::at(ScenarioErrorKind::Syntax, line, message));
+        let abilities = get_effective_abilities(&self.state, permanent);
+        let Some(n) = ability else {
+            let mut activated = abilities.iter().filter(|a| a.ability_type == AbilityType::Activated);
+            return match (activated.next(), activated.count()) {
+                (Some(one), 0) => Ok(one.id),
+                (None, _) => refused(format!("{card} has no activated ability but a mana ability, whose mana would wait in a pool no word writes")),
+                (Some(_), more) => refused(format!(
+                    "{card} has {} activated abilities: say which, `ability N`, its place among its abilities (1 for the first)",
+                    more + 1
+                )),
+            };
+        };
+        match n.checked_sub(1).and_then(|i| abilities.get(i)) {
+            Some(def) if def.ability_type == AbilityType::Activated => Ok(def.id),
+            Some(def) if def.ability_type == AbilityType::Mana => {
+                refused(format!("ability {n} of {card} is a mana ability (CR 605), whose mana would wait in a pool no word writes"))
+            }
+            Some(_) => refused(format!("ability {n} of {card} is not an activated ability (CR 602.1)")),
+            None => refused(format!("{card} has no ability {n}: it has {}, 1 for the first", abilities.len())),
+        }
+    }
+
+    /// A `targeting` segment's player or object. An object is a permanent, a
+    /// card in a graveyard or exile, or a spell an earlier line casts: what a
+    /// target can be when the line is played, with libraries and hands left
+    /// out, so twenty Forests in a library need no tags.
+    fn setup_target(&self, target: &Targeted, cast: &[(ObjectId, usize)], line: usize) -> Result<ResolvedTarget, ScenarioError> {
+        match target {
+            Targeted::Player(player) => {
+                let player = self.checked_player(*player, line)?;
+                if !self.state.in_game(player) {
+                    let message = format!("player {player} has left the game, and is no target (CR 800.4a)");
+                    return Err(ScenarioError::at(ScenarioErrorKind::Unreachable, line, message));
+                }
+                Ok(ResolvedTarget::Player(player))
+            }
+            Targeted::Card(card) => {
+                let what = "permanent, card in a graveyard or exile, or spell an earlier line casts";
+                let none = format!("{card} names no {what}");
+                let targetable = |c: &CreatedObject| {
+                    matches!(c.zone, Zone::Battlefield | Zone::Graveyard | Zone::Exile) || cast.iter().any(|(id, _)| *id == c.id)
+                };
+                self.one_named(card, line, what, none, targetable).map(ResolvedTarget::Object)
+            }
+        }
     }
 }
 

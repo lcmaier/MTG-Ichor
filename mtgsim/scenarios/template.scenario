@@ -12,8 +12,8 @@
 #
 # A spell on the stack, a resolved effect (Giant Growth's +3/+3, Act of
 # Treason's control), a delayed trigger and an extra turn are not written:
-# play them from the board. Whatever the file leaves out takes the default
-# in its comment.
+# play them from the board, with the setup actions at the end of this file.
+# Whatever the file leaves out takes the default in its comment.
 
 players 2               # seats, 2 or more; default 2
 starting life 20        # each player's life unless stated; default 20
@@ -52,6 +52,7 @@ graveyard 0: Savannah Lions                   # each card on top of the last
 #   attacking player p, attacking <planeswalker>, blocked, blocking <attacker>
 #   dealt first-strike damage    from the first-strike damage step on
 battlefield: Glorious Anthem | controller 0
+battlefield: Mountain | controller 0
 battlefield: Isamaru, Hound of Konda | owner 0, commander, tapped, attacking player 1
 battlefield: Holy Strength | controller 0, attached to Isamaru, Hound of Konda
 battlefield: Grizzly Bears | controller 0, arrived this turn, +1/+1 2
@@ -63,3 +64,17 @@ this turn: Elvish Warmaster | triggered, ability 2 resolved 1    # also: took it
 
 exile: Lightning Bolt | owner 1               # owner p is required here
 command: Thalia, Guardian of Thraben | owner 1, commander
+
+# Setup actions: any seat's, played from the board in file order before
+# anyone else is asked. The seat holding priority passes until the line's
+# seat holds it, and costs come off the untapped lands. Each answer after the
+# card is a segment of its own, after a bar:
+#   targeting <card>    a permanent, a card in a graveyard or exile, or a
+#                       spell an earlier line cast; in the card's own order
+#   targeting player p
+#   ability N           which activated ability, 1 for the first; default the
+#                       permanent's only one
+# They build a stack and resolve nothing: the seats' passes resolve it once
+# play is theirs. An activation, on a board with a Merfolk Thaumaturgist:
+#   then: player 1 activates Merfolk Thaumaturgist | targeting Wall of Stone
+then: player 0 casts Lightning Bolt | targeting Wall of Stone

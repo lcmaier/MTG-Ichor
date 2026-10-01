@@ -21,6 +21,9 @@ pub struct Scenario {
     /// The lines that create a card or speak of one, in file order: the
     /// order the loader stamps them in (CR 613.7d).
     pub cards: Vec<LineNumbered<CardLine>>,
+    /// The `then:` lines, in file order: played from the board once it is
+    /// built, before anyone else is asked (§5.3).
+    pub setup_actions: Vec<LineNumbered<SetupAction>>,
 }
 
 impl Default for Scenario {
@@ -36,6 +39,7 @@ impl Default for Scenario {
             step: Phase { phase_type: PhaseType::Precombat, step: None },
             player_words: Vec::new(),
             cards: Vec::new(),
+            setup_actions: Vec::new(),
         }
     }
 }
@@ -136,4 +140,35 @@ impl CardWord {
     pub fn names_a_card(&self) -> bool {
         matches!(self, CardWord::AttachedTo(_) | CardWord::Blocking(_) | CardWord::Attacking(Attacked::Permanent(_)))
     }
+}
+
+/// A `then:` line (§5.3): one seat's action, played from the board.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SetupAction {
+    pub seat: PlayerId,
+    pub verb: SetupVerb,
+    /// The card cast from the seat's hand, or the permanent whose ability
+    /// is activated.
+    pub card: NamedCard,
+    /// The `targeting` segments, in the line's order. Each CR 601.2c choice
+    /// the spell or ability asks takes the next of them it offers.
+    pub targets: Vec<Targeted>,
+}
+
+/// What a setup action does, with the answer only that verb has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetupVerb {
+    /// `casts`, from the seat's hand.
+    Casts,
+    /// `activates` (CR 602.2); `ability N` is the ability's place among the
+    /// permanent's abilities as the layers give them, 1 for the first.
+    Activates { ability: Option<usize> },
+}
+
+/// What a `targeting` segment names (CR 115.1): a player, or an object by
+/// its card's name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Targeted {
+    Player(PlayerId),
+    Card(NamedCard),
 }

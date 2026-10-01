@@ -3124,3 +3124,31 @@ Closed as sized, with the answer derived in `Game::new` rather than by a config 
      rows re-record, and the dev GUI's six review pictures are redrawn.
      **Slotted:** its own PR after #203, before the scenario loader's build
      (`roadmap-v2.md` A6g), whose games start the same way.
+
+### Item 198 — closed 2026-10-01 by SU-2's PR
+
+Closed as sized, in its own commit. `check_state_based_actions` reads every permanent's `damaged_by_deathtouch` into a set at its top and clears it, beside CR 704.5b's draw from an empty library, which it reads and clears at the same place for the same sentence; CR 704.5g's sweep asks the set. The mark is cleared whether or not the destruction it proposes happens, so an indestructible creature that survives one check is not destroyed by a later one for the same damage. The test is the item's probe on its reachable board, `tests/phase_sba_integration_test.rs`' `test_deathtouch_damage_is_read_by_one_check`: Vampire Nighthawk deals Darksteel Colossus 1, the Colossus survives the check, Cytoshape makes it a 3/3 Hill Giant, and the next check destroyed it on the pre-fix tree and leaves it now. The two doc comments that said cleanup clears the mark (`PermanentState::damaged_by_deathtouch`, `apply_deathtouch_flag`) now say the next check does. The scenario writer still reports a mark it finds, which now happens only at a prompt inside a resolution, never at a round's start.
+
+*Original entry:*
+
+198. **A creature's deathtouch damage outlives the state-based-action check
+     that read it.** CR 704.5h destroys a creature "dealt damage by a source
+     with deathtouch since the last time state-based actions were checked".
+     The engine marks `PermanentState::damaged_by_deathtouch` and clears it
+     only at cleanup or a regeneration, so a check later in the turn reads
+     damage an earlier check already read. A probe (throwaway, 2026-10-01):
+     Darksteel Colossus dealt 1 by a deathtouch source survives the check,
+     indestructible; it then loses its abilities, 11/11 with 1 damage, and the
+     next check destroys it. The rule leaves it on the battlefield. The scenario
+     writer reports the mark when it finds one at rest, since no word writes it.
+
+     **Reachability (2026-10-01):** reachable — wrong today. Vampire
+     Nighthawk's damage to Darksteel Colossus, then Cytoshape making the
+     Colossus a copy of a creature tougher than its damage in the same turn,
+     is three registered cards in the stress pool. Humility alone does not
+     show it: a 1/1 with damage dies to CR 704.5g anyway.
+
+     **Sized:** ~10–20 lines: each check clears the marks it read, once it has
+     read them, and the probe as a test that fails against the tree.
+     **Slotted:** `roadmap-v2.md` A6g, its own commit beside SU-2, ahead of the
+     tools PR whose replays would carry it.

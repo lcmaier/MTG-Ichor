@@ -37,6 +37,48 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-01 for SU-2** (setup actions; `setup-architecture.md` §8's ✅
+section) and item 198 (deathtouch damage read by one check; `codebase-state.md`,
+archived). No pool change and no game moved, so the §3 tables stand as item
+194's block below recorded them. `close_out.py`: **main** `4dbdd4a` (#206's
+merge) against **su2** `c62d493`, the last commit before item 198, and
+**engine** `b935367`, the last code commit; instructions read for each arm.
+
+**Predictions, before any arm ran** (PR #207's body): every gameplay and cost
+row `IDENTICAL` for both arms on both pools at two seats and four, `engine`'s
+perhaps a fraction lower on `Restriction queries`; instructions per decision
+within ±0.1 points for each.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, su2 vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| cost rows, both arms | unmoved | unmoved |
+| audit, both arms, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, su2 vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6569 M → 0.6588 M, **+0.28%** |
+| instructions / decision, engine vs `main`, the same board | | 0.6570 M → 0.6601 M, **+0.47%** |
+
+**The instructions missed for both arms, past the ±0.1 predicted.** The games
+are byte-identical and no pooled game runs a line of SU-2, so neither is work
+it adds. A probe arm, `su2` with its one change to shared code undone
+(`ui::random`'s window preference private again, the driver tapping the first
+source), read +0.26%, so that is not it either. Callgrind's functions, `main`
+against the probe: `has_subtype`'s hash lookup no longer inlined, +10 M
+instructions net over the 20 games, and `memcpy` +17 M; `engine` shows the
+same two. The crate builds in sixteen codegen units, and new code moves what
+inlines where, as SU-1's −0.23% read in the other direction. Item 198's own
+work is the pass each check makes over the battlefield to read and clear the
+marks, `RawIterRange::fold_impl` at +4.6 M of 8,291 M, 0.06%. All of it is
+inside §3.1's 2.5 points.
+
+**Scenario games** (`fuzz_games --scenario`, 20 games each, seed 12345): the
+template, which now casts a Bolt, 7.0 turns a game; §5.3's sample, 17.0, each
+game opening with the three setup actions' events before an agent is asked.
+No error, no panic, no turn-limit hit, and both identical under hasher seeds
+1, 2 and 3; CI's determinism step plays the template's. **The round trip** reads
+as SU-1's block below: 1,527 boards compared at two seats and 47 at four,
+every one identical.
+
 **Measured 2026-10-01 for SU-1** (the scenario loader; `setup-architecture.md`
 §8's ✅ section). No pool change and no game moved, so the §3 tables stand as
 item 194's block below recorded them. `close_out.py`: **main** `1fa5c90`

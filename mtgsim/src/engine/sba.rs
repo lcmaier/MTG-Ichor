@@ -133,6 +133,16 @@ impl GameState {
             .map(|p| std::mem::take(&mut p.has_drawn_from_empty_library))
             .collect();
 
+        // CR 704.5h's window, the same sentence again: deathtouch damage dealt
+        // since the last check, read here and cleared, so an indestructible
+        // creature that survives this check is not destroyed by a later one
+        // for the same damage (`codebase-state.md` item 198).
+        let dealt_deathtouch_damage: crate::types::ids::IdSet<ObjectId> = self
+            .battlefield
+            .iter_mut()
+            .filter_map(|(id, entry)| std::mem::take(&mut entry.damaged_by_deathtouch).then_some(*id))
+            .collect();
+
         // --- CR 704.5a–c: the losses, as batch members ---------------------
         //
         // One member per player, whatever the number of reasons: CR 704.7's "same
@@ -250,7 +260,7 @@ impl GameState {
             // replacement effect watching `GameAction::Destroy`, which this proposal is.
             let entry = self.battlefield.get(&id).unwrap();
             let lethal = entry.damage_marked >= effective_t as u32
-                || (entry.damage_marked > 0 && entry.damaged_by_deathtouch);
+                || (entry.damage_marked > 0 && dealt_deathtouch_damage.contains(&id));
             if lethal {
                 batch.push(sba_destroy(id));
             }
