@@ -62,7 +62,8 @@ count a line edited twice twice, so the whole is read off `main`.
 | 6. devgui | 150–220 | 198 | 60–100 | 149 |
 | **SU-1, against `main`** | **~1,010–1,360** | **2,307** | **~710–980** | **874** |
 
-What the sizing left out, by part: the grammar table in the module doc and
+What the sizing left out, by part: the grammar table in the module doc (moved to
+the design's §5.1 at review, 2026-10-01) and
 the refusal messages that say what to change (2 and 3); the writer's
 destructures, which name 97 fields a line each, and the report's ~30 checks
 (4); `CounterType::name` and the move of `intrinsic_entry_mods`, counted
