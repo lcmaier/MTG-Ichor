@@ -8749,3 +8749,27 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      the hang guard; a few tests script a re-ask. **Slotted:** with A6g's
      playable PR, which designs the re-ask's reason for a person, and before
      its tools PR, the first replay.
+
+### Found by the owner's testing in the dev GUI (2026-09-30)
+
+194. **Every client starts a two-player game with the starting player
+     drawing, which CR 103.8a forbids.** The engine has the rule:
+     `GameConfig::first_player_draws` false sets `skip_first_draw`, which
+     `process_draw_step` reads (`engine/turns.rs`). But the dev GUI
+     (`devgui/src/bridge.rs`), `cli_play` and `fuzz_games` all build their
+     games from `GameConfig::test()`, whose `first_player_draws: true` exists
+     to simplify tests. At four seats that is right, since CR 103.8c skips no
+     one; at two the starting player draws on turn 1.
+
+     **Reachability (2026-09-30):** reachable — wrong today: every two-player
+     game in the dev GUI, `cli_play` and `fuzz_games`, so every two-seat
+     fixture row and A/B sitting has measured this game.
+
+     **Sized:** ~10–20 lines of code: the clients take CR 103.8's answer from
+     the player count (a `GameConfig` constructor for played games, or
+     `Game::new` deriving it with the test config's override kept), and a
+     test at two seats and at four. It moves every two-seat game, so its A/B
+     predicts `differ` at two seats and `IDENTICAL` at four, §3's two-seat
+     rows re-record, and the dev GUI's six review pictures are redrawn.
+     **Slotted:** its own PR after #203, before the scenario loader's build
+     (`roadmap-v2.md` A6g), whose games start the same way.
