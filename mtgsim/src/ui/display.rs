@@ -6,20 +6,11 @@
 use crate::engine::layers::compute_characteristics;
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{
-    get_effective_power, get_effective_toughness, has_type, is_creature,
+    get_effective_power, get_effective_toughness, is_creature,
 };
 use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::card_types::CardType;
-use crate::types::ids::{ObjectId, PlayerId};
+use crate::types::ids::ObjectId;
 use crate::types::keywords::KeywordFlag;
-
-/// Format a card name with its ObjectId, for disambiguation.
-pub fn card_label(game: &GameState, id: ObjectId) -> String {
-    match game.objects.get(&id) {
-        Some(obj) => format!("{} ({})", obj.card_data.name, id),
-        None => format!("<unknown {}>", id),
-    }
-}
 
 /// The name the object has now, through the layers: a Clone copying Grizzly
 /// Bears is Grizzly Bears (CR 707.2).
@@ -193,131 +184,6 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
     lines
 }
 
-/// Format a player's hand for display.
-pub fn format_hand(game: &GameState, player_id: PlayerId) -> String {
-    let player = match game.players.get(player_id) {
-        Some(p) => p,
-        None => return "Invalid player".to_string(),
-    };
-
-    if player.hand.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    player.hand.iter()
-        .enumerate()
-        .map(|(i, &id)| {
-            let obj = match game.objects.get(&id) {
-                Some(o) => o,
-                None => return format!("  {}: <unknown>", i),
-            };
-            let cost_str = obj.card_data.mana_cost.as_ref()
-                .map(|c| format!(" {}", c))
-                .unwrap_or_default();
-            let pt_str = match (obj.card_data.power, obj.card_data.toughness) {
-                (Some(p), Some(t)) => format!(" {}/{}", p, t),
-                _ => String::new(),
-            };
-            format!("  {}: {}{}{}", i, obj.card_data.name, cost_str, pt_str)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Format a player's battlefield for display, grouped by permanent type.
-///
-/// Groups: Creatures, Lands, Other (artifacts, enchantments, planeswalkers, etc.).
-/// Each group is shown with a sub-header. Permanents are numbered sequentially
-/// across groups so CLI index references remain unambiguous.
-pub fn format_battlefield(game: &GameState, player_id: PlayerId) -> String {
-    // Ordered: the CLI numbers these and the human picks by index, so a stable
-    // order is the difference between "3" meaning the same permanent twice.
-    let perms: Vec<ObjectId> = game.battlefield_ordered()
-        .into_iter()
-        .filter(|(id, _)| crate::oracle::characteristics::controls(game, *id, player_id))
-        .map(|(id, _)| id)
-        .collect();
-
-    if perms.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    let mut creatures: Vec<ObjectId> = Vec::new();
-    let mut lands: Vec<ObjectId> = Vec::new();
-    let mut other: Vec<ObjectId> = Vec::new();
-
-    for &id in &perms {
-        let is_land = has_type(game, id, CardType::Land);
-        let is_creat = is_creature(game, id);
-        if is_creat {
-            creatures.push(id);
-        } else if is_land {
-            lands.push(id);
-        } else {
-            other.push(id);
-        }
-    }
-
-    let mut lines = Vec::new();
-    let mut idx = 0usize;
-
-    if !creatures.is_empty() {
-        lines.push("  Creatures:".to_string());
-        for &id in &creatures {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-    if !lands.is_empty() {
-        lines.push("  Lands:".to_string());
-        for &id in &lands {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-    if !other.is_empty() {
-        lines.push("  Other:".to_string());
-        for &id in &other {
-            lines.push(format!("    {}: {}", idx, format_permanent(game, id)));
-            idx += 1;
-        }
-    }
-
-    lines.join("\n")
-}
-
-/// Format the stack for display, with top/bottom markers.
-pub fn format_stack(game: &GameState) -> String {
-    if game.stack.is_empty() {
-        return "  (empty)".to_string();
-    }
-
-    let count = game.stack.len();
-    game.stack.iter().rev()
-        .enumerate()
-        .map(|(i, &id)| {
-            let name = card_name(game, id);
-            // Effective, so a commandeered spell displays under the player who
-            // will actually resolve it (CR 108.4 gives a spell a controller and
-            // Layer 2 can move it).
-            let controller = crate::oracle::characteristics::get_effective_controller(game, id)
-                .map(|pid| format!(" (P{})", pid))
-                .unwrap_or_default();
-            let marker = if count == 1 {
-                " <- top/bottom"
-            } else if i == 0 {
-                " <- top (resolves next)"
-            } else if i == count - 1 {
-                " <- bottom"
-            } else {
-                ""
-            };
-            format!("  {}: {}{}{}", i, name, controller, marker)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// Format the current phase/step for display.
 pub fn format_phase(game: &GameState) -> String {
     let phase = match game.phase.phase_type {
@@ -344,49 +210,6 @@ pub fn format_phase(game: &GameState) -> String {
     match step {
         Some(s) => format!("{} — {}", phase, s),
         None => phase.to_string(),
-    }
-}
-
-/// Format a summary line for a player (life, hand size, library size, graveyard size).
-pub fn format_player_summary(game: &GameState, player_id: PlayerId) -> String {
-    match game.players.get(player_id) {
-        Some(p) => format!(
-            "Player {} — Life: {} | Hand: {} | Library: {} | Graveyard: {}",
-            player_id,
-            p.life_total,
-            p.hand.len(),
-            p.library.len(),
-            p.graveyard.len(),
-        ),
-        None => format!("Player {} — invalid", player_id),
-    }
-}
-
-/// Format the mana pool for display.
-pub fn format_mana_pool(game: &GameState, player_id: PlayerId) -> String {
-    match game.players.get(player_id) {
-        Some(p) => {
-            let pool = p.mana_pool.available();
-            if pool.is_empty() || pool.values().all(|&v| v == 0) {
-                return "(empty)".to_string();
-            }
-            let mut parts = Vec::new();
-            for (mt, &amount) in pool {
-                if amount > 0 {
-                    let letter = match mt {
-                        crate::types::mana::ManaType::White => "W",
-                        crate::types::mana::ManaType::Blue => "U",
-                        crate::types::mana::ManaType::Black => "B",
-                        crate::types::mana::ManaType::Red => "R",
-                        crate::types::mana::ManaType::Green => "G",
-                        crate::types::mana::ManaType::Colorless => "C",
-                    };
-                    parts.push(format!("{}{}", amount, letter));
-                }
-            }
-            parts.join(" ")
-        }
-        None => "Invalid player".to_string(),
     }
 }
 
@@ -549,7 +372,6 @@ pub fn format_event_log(game: &GameState) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::objects::card_data::CardDataBuilder;
-    use crate::types::mana::ManaSpent;
     use crate::objects::object::GameObject;
     use crate::state::battlefield::PermanentState;
     use crate::state::game_state::{GameState, Phase};
@@ -607,146 +429,6 @@ mod tests {
 
         game.set_turn_position(Phase::new(PhaseType::Beginning));
         assert!(format_phase(&game).contains("Untap"));
-    }
-
-    #[test]
-    fn test_format_player_summary() {
-        let game = GameState::new(2, 20);
-        let summary = format_player_summary(&game, 0);
-        assert!(summary.contains("Life: 20"));
-        assert!(summary.contains("Hand: 0"));
-    }
-
-    #[test]
-    fn test_format_stack_empty() {
-        let game = GameState::new(2, 20);
-        assert_eq!(format_stack(&game), "  (empty)");
-    }
-
-    #[test]
-    fn test_format_battlefield_grouped() {
-        use crate::types::card_types::*;
-        use crate::types::mana::ManaType;
-
-        let mut game = GameState::new(2, 20);
-
-        // Add a creature
-        let bears = CardDataBuilder::new("Grizzly Bears")
-            .card_type(CardType::Creature)
-            .power_toughness(2, 2)
-            .build();
-        let obj = GameObject::new(bears, 0, Zone::Battlefield);
-        let bears_id = game.add_object(obj);
-        let entry = PermanentState::new(bears_id, 0, 0);
-        game.insert_battlefield_entity(bears_id, entry);
-
-        // Add a land
-        let forest = CardDataBuilder::new("Forest")
-            .card_type(CardType::Land)
-            .supertype(Supertype::Basic)
-            .mana_ability_single(ManaType::Green)
-            .build();
-        let obj = GameObject::new(forest, 0, Zone::Battlefield);
-        let forest_id = game.add_object(obj);
-        let entry = PermanentState::new(forest_id, 0, 0);
-        game.insert_battlefield_entity(forest_id, entry);
-
-        let output = format_battlefield(&game, 0);
-        assert!(output.contains("Creatures:"), "Should have Creatures header");
-        assert!(output.contains("Lands:"), "Should have Lands header");
-        assert!(output.contains("Grizzly Bears"));
-        assert!(output.contains("Forest"));
-    }
-
-    #[test]
-    fn test_format_stack_single_item_marker() {
-        use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
-
-        let mut game = GameState::new(2, 20);
-        let bolt = CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .build();
-        let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = game.add_object(obj);
-        game.stack.push(bolt_id);
-        game.stack_entries.insert(bolt_id, StackEntry {
-            object_id: bolt_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let output = format_stack(&game);
-        assert!(output.contains("top/bottom"), "Single item should show top/bottom marker");
-    }
-
-    #[test]
-    fn test_format_stack_two_items_markers() {
-        use crate::state::game_state::StackEntry;
-        use crate::types::effects::{Effect, Primitive, AmountExpr, EffectRecipient, SelectionFilter, TargetCount};
-
-        let mut game = GameState::new(2, 20);
-
-        let bolt = CardDataBuilder::new("Lightning Bolt")
-            .card_type(CardType::Instant)
-            .build();
-        let obj = GameObject::new(bolt, 0, Zone::Stack);
-        let bolt_id = game.add_object(obj);
-        game.stack.push(bolt_id);
-        game.stack_entries.insert(bolt_id, StackEntry {
-            object_id: bolt_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let recall = CardDataBuilder::new("Ancestral Recall")
-            .card_type(CardType::Instant)
-            .build();
-        let obj2 = GameObject::new(recall, 0, Zone::Stack);
-        let recall_id = game.add_object(obj2);
-        game.stack.push(recall_id);
-        game.stack_entries.insert(recall_id, StackEntry {
-            object_id: recall_id,
-            controller: 0,
-            chosen_targets: Vec::new(),
-            chosen_modes: Vec::new(),
-            x_value: None,
-            effect: std::sync::Arc::new(Effect::Atom(Primitive::DealDamage { amount: AmountExpr::Fixed(3), unpreventable: false }, EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)))),
-            is_spell: true,
-            chosen_alternative_cost: None,
-            additional_costs_paid: Vec::new(),
-            mana_spent: ManaSpent::NONE,
-                    cast_from: Some(Zone::Hand),
-                    ability_identity: None,
-    trigger: None,
-    departed: Vec::new(),
-});
-
-        let output = format_stack(&game);
-        assert!(output.contains("top (resolves next)"), "Top item should have resolves-next marker");
-        assert!(output.contains("bottom"), "Bottom item should have bottom marker");
     }
 
     #[test]
