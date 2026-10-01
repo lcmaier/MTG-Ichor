@@ -64,23 +64,24 @@ code shape, cost and upkeep.
 6. **The GUI** (§7) takes `--scenario <file>`, has Reload and "Save board as
    scenario", and shows a load error in the window. The decision log embeds the
    scenario, so the log is a save. **Savestates**, positions the tester sets
-   and moves between, are proposed for A6g (4) as bookmarks in the log.
+   and moves between, are proposed for A6g's tools PR (the one that builds
+   undo, the save and the export) as bookmarks in the log.
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
    before the tester takes over, which is how a deep stack or a resolved effect
    is built. They do not depend on what the tester does, so every reload
    reaches the same situation. One driver answers their prompts by matching
-   options' ids. **Proposed as SU-2, the next PR.** **No script for a seat
-   during play** (the owner, 2026-10-01): it breaks as soon as play leaves the
-   line it was written for. A fixed line is a regression test, which the log
-   replays exactly; exploring is a person playing both seats.
+   options' ids. **SU-2, the next PR** (the owner, 2026-10-01). **No script
+   for a seat during play** (the owner, the same day): it breaks as soon as
+   play leaves the line it was written for. A fixed line is a regression test,
+   which the log replays exactly; exploring is a person playing both seats.
 8. **This file is where the design lives** (§9): CR 103 is a subsystem with
    three open items and no document, and the loader is its second door.
    `CLAUDE.md`'s architecture row gains one entry on its existing line.
-9. **Building one from scratch** (§7a): a template and samples, forgiving names
-   and refusals that say what to change, a list of cards in development that a
-   scenario can name before they are registered, setup actions for what only
-   an effect makes, the growth contract for a new mechanic's state, and a board
-   editor in the dev GUI, **SU-3**.
+9. **Building one from scratch** (§7a): a template and samples, refusals that
+   say what to change, a list of cards in development that a scenario can name
+   before they are registered (in SU-1, the owner, 2026-10-01), setup actions
+   for what only an effect makes, the growth contract for a new mechanic's
+   state, and a board editor in the dev GUI, **SU-3**, after the tools PR.
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
 ~400–650 in all. **A/B:** `IDENTICAL` predicted for SU-1, since no path a fuzz
@@ -150,7 +151,7 @@ the tester takes over.
 **The save.** A save is a *start* and the decision log. The start is a dealt
 game (seed, pool, and the decks the log already records) or a scenario (its
 text, embedded so the save outlives edits to the file). Replaying builds the
-start and answers from the log; undo (A6g (4)) is the replay without the last
+start and answers from the log; undo (the tools PR) is the replay without the last
 answer. So a save is "scenario + log", and a dealt game is the other kind of
 start. An exact replay needs the start, every answer in order, the same engine,
 and until item 193 lands the same seat modes (the priority window's blacklist
@@ -332,7 +333,7 @@ moves into the engine so the parser, the writer and the window read one copy.
 
 | Class | Example | At load |
 |---|---|---|
-| Not a card | `Grizly Bears` | refused: the line, "not registered; did you mean Grizzly Bears?" |
+| Not a card | `Grizly Bears` | refused: the line and the name, "Grizly Bears is not registered" |
 | A reference that does not resolve | `attached to Grizzly Bears` with no Bears on the battlefield, or with two and no tag; a host listed after its attachment | refused, naming the lines |
 | A state no sequence of events reaches | an attacker in a main phase (CR 506.4, 511.3); a blocker of a creature that is not attacking; an attacker attacking its own controller (CR 508.1b; a control change removes it from combat, 506.4); declare blockers with no attacker (CR 508.8); an instant on the battlefield (CR 304.4); a card owned by a player who has left (CR 800.4a); the untap or cleanup step, where no player receives priority (CR 502.4, 514.3) | refused, naming the rule |
 | A state the rules correct | a 0-toughness creature (CR 704.5f), an Aura attached to nothing (704.5m), ten poison counters (704.5c), two legends with one name (704.5j) | built; CR 117.5 performs it before the first priority, and the log shows it |
@@ -583,14 +584,14 @@ A scenario's decks are described, so two remain:
 the dev GUI's dealt start uses the seed, +1 and +2, and `fuzz_games` uses the
 seed and two XOR salts. The scenario takes `fuzz_games`' salts, moved into the
 engine with the same values, so no fixture row moves. The dev GUI's dealt start
-converges on it in A6g (4), where the save pins the streams. Converging now
+converges on it in the tools PR, where the save pins the streams. Converging now
 would redraw the review pictures, which seed 33's stream picks, for nothing.
 
-**What a replay needs.** Once the log records every seat's answers (A6g (4)'s
+**What a replay needs.** Once the log records every seat's answers (the tools PR's
 decision, recommended there), a replay needs no agent stream. The streams
 matter only for playing on past the log's end, and a replay stops depending on
 the agent's policy. **What can still break it:** item 193's blacklist, which
-playable removes before (4), and a sweep that leaks map order, which
+playable removes before the tools PR, and a sweep that leaks map order, which
 `CLAUDE.md`'s three runs under three `MTGSIM_HASH_SEED`s catch. `fuzz_games
 --scenario` (§8) puts a scenario-started game under that check.
 
@@ -622,7 +623,7 @@ controls and is its natural home.
 
 **Savestates** (the owner's suggestion, 2026-10-01) are positions the tester
 sets during play and moves between, like a video game's save slots. Proposed
-for A6g (4), because they are its replay with more than one stop. A savestate is
+for the tools PR, because they are its replay with more than one stop. A savestate is
 a bookmark at an answer in the decision log, and moving to one replays the
 start and the log up to it, exactly, at any prompt. A cloned `GameState` would
 resume only at a round's start (item 140). Playing on from an earlier bookmark
@@ -630,8 +631,8 @@ starts a branch, and the save keeps every branch. ~100–200 lines on top of
 undo. A savestate can also be written out as a scenario, with the writer's
 report.
 
-**A scenario and a log as a regression test**, the shape A6g (4)'s export
-writes:
+**A scenario and a log as a regression test**, the shape the tools PR's
+export writes:
 
 ```rust
 #[test]
@@ -646,7 +647,7 @@ fn holy_strength_under_humility() {
 }
 ```
 
-What (4) owes it, decided there: a log that records every seat (today it
+What the tools PR owes it, decided there: a log that records every seat (today it
 records seat 0's, and the agent's replay only from its seed); a run that stops
 at the log's end, since a `DecisionProvider` cannot answer "stop"; and a
 `ChoiceKind` built from a logged name (`SelectRecipients` carries fields the
@@ -663,12 +664,13 @@ in the way, and each has a step with its slot.
 1. **Knowing what to write** (SU-1). `mtgsim/scenarios/` holds a commented
    template naming every word and its default, and a handful of samples (combat
    with an Aura, Humility against Opalescence, a planeswalker, four seats with
-   a commander). A test loads each file, so none goes stale. Names match
-   without regard to case, and a miss suggests the nearest registered names. A
-   refusal says what to change as well as what is wrong: "Grizzly Bears is
-   attacking in the precombat main phase; attackers exist from the declare
-   attackers step to the end of combat (CR 506.4, 511.3); set `step declare
-   attackers` or later."
+   a commander). A test loads each file, so none goes stale. Names are exact,
+   as the writer writes them; a name that matches no registered card is
+   refused with its line, which is all a typo needs. A refusal says what to
+   change as well as what is wrong: "Grizzly Bears is attacking in the
+   precombat main phase; attackers exist from the declare attackers step to
+   the end of combat (CR 506.4, 511.3); set `step declare attackers` or
+   later."
 2. **A card that is not registered yet** (SU-1, ~15–25 lines). The project
    registers a card only once the engine plays it, because `determinism_test`
    and every `--pool stress` game play the whole registry. A card under
@@ -692,8 +694,9 @@ in the way, and each has a step with its slot.
    counters, attachment and combat. It edits the same `Scenario` value the
    parser builds and saves through the writer, so it adds no third road. It is
    a plain-Rust editor model with tests under a thin egui layer, the GUI review
-   path's shape, at ~500–900 lines. **Proposed after A6g (4)**, so the dev GUI
-   can already save, undo and replay what the editor builds.
+   path's shape, at ~500–900 lines with its tests. **After the tools PR** (the
+   owner, 2026-10-01), so the dev GUI can already save, undo and replay what
+   the editor builds.
 
 So a board reaches a scenario three ways, all into one `Scenario` value:
 written as text (SU-1), saved from a game and edited (SU-1's writer), or built
@@ -710,8 +713,8 @@ Each commit is measured as code and tests apart.
    engine, both calling one copy; counter-kind names moved into the engine,
    devgui's labels reading them. Tests: the door emits nothing, registers rows
    and gives loyalty.
-2. **`mtgsim::scenario`'s types, parser and errors**, names and tags included,
-   matched without regard to case. Tests: each error class.
+2. **`mtgsim::scenario`'s types, parser and errors**, names and tags included.
+   Tests: each error class.
 3. **The loader**, its checks, the resume entry, the streams function, and the
    list of cards in development (§7a). Tests: one per word in §5.1; load emits
    nothing; a scenario game played twice is one game; the template and each
@@ -724,8 +727,9 @@ Each commit is measured as code and tests apart.
    header. Tests: the headless game from a scenario; the review pictures drawn
    from scenarios, with no seed hunted.
 7. **Docs:** this file's ✅ section, `codebase-state.md` items for §10's
-   findings with their slots, `roadmap-v2.md` A6g's pointer and (4)'s
-   savestates, the `fuzz-record.md` block.
+   findings with their slots, `roadmap-v2.md` A6g's row as built (it names
+   SU-1 to SU-3 in their slots since this design's review), the
+   `fuzz-record.md` block.
 
 | Part | Code | Tests |
 |---|---:|---:|
@@ -771,7 +775,7 @@ the save, `SU-*`).
 1. **Neither test builder builds a board at rest** (§3's probe). Not changed
    here (§3.3). Whether `put_on_battlefield` should stop announcing is item
    188's survey (A6h), which now has the construction door to compare against.
-2. **Two seed derivations** (§6), converged by A6g (4).
+2. **Two seed derivations** (§6), converged by the tools PR.
 3. **CR 304.4 and 307.4 have no check on the entry path**: nothing stops an
    instant entering the battlefield, and the loader is the first to refuse one.
    Whether a registered card can put a non-permanent card there
@@ -785,8 +789,8 @@ the save, `SU-*`).
 ## 11. Out of scope
 
 Hidden information (B4; the dev GUI shows every card); four seats in the GUI;
-save, undo, savestates and export (A6g (4)); item 193 (playable); the stack and
-resolved effects as written state (§2), which SU-2's setup actions play
-instead; a script for a seat during play (§5.3, dropped at review); the board
-editor (SU-3, §7a); CR 103.5's mulligans and CR 103.6's opening-hand actions,
-named in the header and owned elsewhere.
+save, undo, savestates and export (A6g's tools PR); item 193 (playable); the
+stack and resolved effects as written state (§2), which SU-2's setup actions
+play instead; a script for a seat during play (§5.3, dropped at review); the
+board editor (SU-3, §7a); CR 103.5's mulligans and CR 103.6's opening-hand
+actions, named in the header and owned elsewhere.
