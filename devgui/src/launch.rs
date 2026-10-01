@@ -17,7 +17,7 @@ pub const USAGE: &str = "usage: devgui [--seed N] [--pool performance|stress] [-
 #[derive(Clone, Debug)]
 pub struct Launch {
     pub setup: GameSetup,
-    /// The seed, the start and the decision log's path, for the header.
+    /// The seed and the start, for the header.
     pub setup_line: String,
 }
 
@@ -64,9 +64,8 @@ pub fn read(args: &[String], clock: impl FnOnce() -> u64) -> Result<Launch, Stri
         }
         None => (format!("seed-{seed}.log"), format!("seed {seed} · {pool:?} pool")),
     };
-    let log_path = PathBuf::from("logs").join(log_name);
-    let setup_line = format!("{start} · decision log {}", log_path.display());
-    Ok(Launch { setup: GameSetup { seed, pool, log_path: Some(log_path), scenario }, setup_line })
+    let log_path = Some(PathBuf::from("logs").join(log_name));
+    Ok(Launch { setup: GameSetup { seed, pool, log_path, scenario }, setup_line: start })
 }
 
 #[cfg(test)]
@@ -85,8 +84,8 @@ mod tests {
     fn a_dealt_game_takes_its_seed_from_the_flag_or_else_the_clock() {
         let clocked = launched("");
         assert_eq!((clocked.setup.seed, clocked.setup.pool), (41, Pool::Performance));
-        let log = PathBuf::from("logs").join("seed-41.log");
-        assert_eq!(clocked.setup_line, format!("seed 41 · Performance pool · decision log {}", log.display()));
+        assert_eq!(clocked.setup_line, "seed 41 · Performance pool");
+        assert_eq!(clocked.setup.log_path, Some(PathBuf::from("logs").join("seed-41.log")));
         let seeded = launched("--pool stress --seed 7");
         assert_eq!((seeded.setup.seed, seeded.setup.pool, seeded.setup.scenario), (7, Pool::Stress, None));
     }

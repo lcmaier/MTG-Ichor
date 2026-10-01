@@ -11,6 +11,7 @@ mod games;
 mod window_by_rule;
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use devgui::app::{SessionHeader, draw};
@@ -35,9 +36,10 @@ const PICTURES: [(&str, &str); 6] = [
 /// The review boards, in the order their prompts are taken.
 const BOARDS: [&str; 3] = ["main.scenario", "blocks.scenario", "damage.scenario"];
 
-fn header(board: &str) -> String {
+/// The header's line and decision log for a review board.
+fn header(board: &str) -> (String, PathBuf) {
     let stem = board.trim_end_matches(".scenario");
-    format!("scenario tests/scenarios/{board} · seed 0 · decision log logs/{stem}-seed-0.log")
+    (format!("scenario tests/scenarios/{board} · seed 0"), PathBuf::from(format!("logs/{stem}-seed-0.log")))
 }
 
 #[test]
@@ -61,7 +63,8 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     results.add(picture(&panicked(), &header("main.scenario"), None, "engine_panic"));
     results.add(picture(&refused(), &header("refused.scenario"), None, "scenario_refused"));
     let sample = "../mtgsim/scenarios/bolt-into-giant-growth.scenario";
-    results.add(picture(&setup_stack(sample), &format!("scenario {sample} · seed 0"), None, "setup_stack"));
+    let line = (format!("scenario {sample} · seed 0"), PathBuf::from("logs/bolt-into-giant-growth-seed-0.log"));
+    results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
     let (state, board) = &first["priority"];
     results.add(picture(state, &header(board), Some("saved logs/main-seed-0-turn-3.scenario"), "board_saved"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
@@ -113,10 +116,10 @@ fn refused() -> WindowState {
     state
 }
 
-fn picture(state: &WindowState, line: &str, saved: Option<&str>, name: &str) -> SnapshotResult {
-    let session = SessionHeader { line, reloadable: true, saved };
+fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<&str>, name: &str) -> SnapshotResult {
+    let header = SessionHeader { line, log: Some(log), reloadable: true, saved };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
-        draw(ui, state, &session);
+        draw(ui, state, &header);
     });
     harness.run();
     harness.try_snapshot(name)

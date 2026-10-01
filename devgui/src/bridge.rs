@@ -101,8 +101,9 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
             let played = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 play(&setup, &to_window, from_window, &wake)
             }));
-            if let Err(payload) = played {
-                // The window may be gone too, which is how a closed window ends this thread.
+            if let Err(payload) = played
+                && !payload.is::<WindowGone>()
+            {
                 let _ = to_window.send(ToWindow::Panicked { message: panic_message(payload.as_ref()) });
                 wake();
             }
@@ -199,11 +200,13 @@ impl GuiSeat {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
         let kind = prompt.kind.clone();
-        self.to_window
-            .send(ToWindow::Prompt { snapshot, prompt })
-            .expect("the window closed during the game");
+        if self.to_window.send(ToWindow::Prompt { snapshot, prompt }).is_err() {
+            std::panic::resume_unwind(Box::new(WindowGone));
+        }
         (self.wake)();
-        let answer = self.from_window.recv().expect("the window closed with a prompt open");
+        let Ok(answer) = self.from_window.recv() else {
+            std::panic::resume_unwind(Box::new(WindowGone));
+        };
         self.log.borrow_mut().answer(game, &kind, &answer);
         answer
     }
@@ -260,6 +263,12 @@ impl DecisionProvider for GuiSeat {
         SeatMode { person: true, ..SeatMode::default() }
     }
 }
+
+/// What a game whose window has gone unwinds with: the window closed, or
+/// Reload started another game. `resume_unwind` raises it without the panic
+/// hook, so the normal end of a superseded game prints nothing, and
+/// `spawn_game` sends no `Panicked` for it.
+struct WindowGone;
 
 /// How a game began, as its log records it.
 enum GameStart<'a> {

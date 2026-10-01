@@ -1,6 +1,7 @@
 //! The egui drawing: lays out what `view_model` built and hands each click to
 //! the `Session`. It decides nothing, so it is reviewed by running it.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use eframe::egui;
@@ -11,7 +12,7 @@ use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView,
 
 pub struct DevGui {
     session: Session,
-    /// The seed, the start and the decision log's path.
+    /// The seed and the start.
     setup_line: String,
 }
 
@@ -25,7 +26,12 @@ impl eframe::App for DevGui {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.session.receive();
         let session = &self.session;
-        let header = SessionHeader { line: &self.setup_line, reloadable: session.setup.scenario.is_some(), saved: session.saved.as_deref() };
+        let header = SessionHeader {
+            line: &self.setup_line,
+            log: session.log_path.as_deref(),
+            reloadable: session.setup.scenario.is_some(),
+            saved: session.saved.as_deref(),
+        };
         for input in draw(ui, &session.state, &header) {
             self.session.input(input);
         }
@@ -34,8 +40,10 @@ impl eframe::App for DevGui {
 
 /// What the header says of the session, beside the board.
 pub struct SessionHeader<'a> {
-    /// The seed, the start and the decision log's path.
+    /// The seed and the start.
     pub line: &'a str,
+    /// This game's decision log.
+    pub log: Option<&'a Path>,
     /// A scenario's game, which Reload builds again from its file.
     pub reloadable: bool,
     pub saved: Option<&'a str>,
@@ -53,7 +61,10 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
                 ui.label(&board.header);
             }
             ui.separator();
-            ui.weak(header.line);
+            match header.log {
+                Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
+                None => ui.weak(header.line),
+            };
             if header.reloadable && ui.button("Reload").clicked() {
                 inputs.push(Input::Reload);
             }

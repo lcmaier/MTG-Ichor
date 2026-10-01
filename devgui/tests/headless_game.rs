@@ -153,6 +153,28 @@ fn setup_actions_play_before_the_first_prompt_and_again_on_reload() {
     }
 }
 
+/// Reload starts a decision log of its own beside the first, which keeps the
+/// record of the game it replaced.
+#[test]
+fn reload_keeps_the_replaced_games_log_and_starts_its_own() {
+    let dir = std::env::temp_dir().join("devgui-session-reload-log");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = std::env::temp_dir().join("devgui-session-reload-log.scenario");
+    std::fs::write(&path, BOLT_IN_HAND).unwrap();
+    let first = dir.join("bolt-seed-0.log");
+    let setup = GameSetup { scenario: Some(path), ..dealt(0, Some(first.clone())) };
+    let mut session = Session::start(setup, Arc::new(|| {}));
+    first_prompt(&mut session);
+    session.input(Input::Reload);
+    first_prompt(&mut session);
+    let second = dir.join("bolt-seed-0-2.log");
+    assert_eq!(session.log_path.as_ref(), Some(&second));
+    for log in [&first, &second] {
+        let text = std::fs::read_to_string(log).unwrap();
+        assert!(text.starts_with("scenario ") && text.contains("end scenario text"), "{}: {text}", log.display());
+    }
+}
+
 /// "Save board as scenario" writes beside the decision log, a file that
 /// loads, and a second save never overwrites the first.
 #[test]
