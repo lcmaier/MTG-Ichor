@@ -5,6 +5,8 @@
 //! committed PNGs, which holds on the machine that drew them: another GPU
 //! draws a few pixels differently.
 
+#[path = "support/games.rs"]
+mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
@@ -16,7 +18,7 @@ use devgui::bridge::{GameSetup, ToWindow, spawn_game};
 use devgui::prompt::Answer;
 use devgui::view_model::{Input, WindowState};
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
-use window_by_rule::{from_board, next};
+use games::{from_board, next};
 
 /// Each picture: the first prompt of a kind any review board reaches, with
 /// any clicks made before it is drawn. Kept to what a review needs, since

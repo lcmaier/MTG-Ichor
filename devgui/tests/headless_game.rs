@@ -1,6 +1,8 @@
 //! The bridge with no window: another thread plays the window's part over the
 //! channels.
 
+#[path = "support/games.rs"]
+mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
@@ -14,7 +16,8 @@ use devgui::view_model::Input;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use devgui::prompt::{Answer, Primitive};
-use window_by_rule::{dealt, from_board, next, play_by_rule};
+use games::{dealt, from_board, next};
+use window_by_rule::play_by_rule;
 
 #[test]
 fn a_whole_game_finishes_with_a_thread_playing_the_window() {

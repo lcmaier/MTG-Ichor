@@ -258,7 +258,10 @@ jobs:
       - name: Clippy (the default lint set is a bar)
         run: cargo clippy --all-targets --locked -- -D warnings
 
-      # The view model's tests, and a whole game with a thread in the
-      # window's place. `tests/screenshots.rs` is the local check above.
+      # The view model's tests, and whole games with a thread in the
+      # window's place, by a fixed rule and by seeded random clicks (about
+      # 20 s of debug build: the layer memo's audit runs in it, which is
+      # how the random clicks found an engine bug). `tests/screenshots.rs`
+      # is the local check above.
       - name: Test, without the pictures
-        run: cargo test --locked --lib --test headless_game
+        run: cargo test --locked --lib --test headless_game --test random_clicks

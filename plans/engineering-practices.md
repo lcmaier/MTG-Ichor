@@ -1837,3 +1837,23 @@ literals are not read, so "nothing here knows egui" stays a doc comment.
 Its first run, on the tree before A6g's review fixed anything, found
 `main.rs` reading the command line, untested, and naming the engine to find a
 scenario's seed (finding 3 of that PR's table).
+
+### 10.3 Random clicks
+
+`devgui/tests/random_clicks.rs` plays whole games with the window's part
+taken by seeded random clicks, through `WindowState::input`. At each prompt
+it clicks anything the window would let a person click (a live button, a
+board item marked clickable, "Start over" one click in twenty) until an
+answer completes: the half chosen and abandoned, the ordering reset midway,
+the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
+pool and three seeds on each review board, fifteen games in about 20 s of
+CI's debug build. Each game must finish, the engine's thread must not panic,
+and the engine must accept every answer the view model builds. The games
+reach single and multiple picks and all three allocations (generic mana,
+combat damage, trample damage); no ordering and no number, which the view
+model's unit tests carry.
+
+**The debug build is the point.** The layer memo's audit runs in it, and the
+window's snapshot reads every object at every prompt, which no engine test
+does. Its first run found an engine bug that way: a loss bumped no layer
+epoch (A6g's review, finding 1).
