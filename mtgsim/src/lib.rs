@@ -6,6 +6,7 @@ pub mod events;
 pub mod cards;
 pub mod ui;
 pub mod oracle;
+pub mod scenario;
 
 #[cfg(feature = "test-support")]
 pub mod test_support;
