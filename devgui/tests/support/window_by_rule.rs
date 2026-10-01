@@ -20,7 +20,7 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
     };
     let last = prompt.options.len().checked_sub(1);
     match &prompt.primitive {
-        Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::Option)],
+        Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::OptionButton)],
         Primitive::PickN { min, max } => {
             let mut actors: Vec<BoardRef> = Vec::new();
             let mut picks: Vec<usize> = Vec::new();
@@ -33,14 +33,14 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
             }
             let short = (0..prompt.options.len()).filter(|i| !picks.contains(i)).take(min.saturating_sub(picks.len()));
             picks.extend(short.collect::<Vec<_>>());
-            picks.into_iter().map(Input::Option).chain([Input::Done]).collect()
+            picks.into_iter().map(Input::OptionButton).chain([Input::Done]).collect()
         }
         Primitive::Number { .. } => vec![Input::Done],
         Primitive::Allocate { total, .. } => (0..prompt.options.len())
-            .flat_map(|bucket| std::iter::repeat_n(Input::Adjust(bucket, true), *total as usize))
+            .flat_map(|bucket| std::iter::repeat_n(Input::OneMore(bucket), *total as usize))
             .chain([Input::Done])
             .collect(),
-        Primitive::Order => (0..prompt.options.len()).map(Input::Option).chain([Input::Done]).collect(),
+        Primitive::Order => (0..prompt.options.len()).map(Input::OptionButton).chain([Input::Done]).collect(),
     }
 }
 

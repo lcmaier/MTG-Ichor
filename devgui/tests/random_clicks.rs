@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use devgui::bridge::{GameSetup, Outcome, Pool, ToWindow, spawn_game};
 use devgui::prompt::Primitive;
-use devgui::view_model::{BoardView, Input, Item, WindowState};
+use devgui::view_model::{Amount, BoardView, DoneButton, Input, Item, NumberField, WindowState};
 use games::{dealt, from_board, next};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -116,17 +116,17 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
     let mut inputs = Vec::new();
     for (i, option) in prompt.options.iter().enumerate() {
         match option.amount {
-            Some((_, can_lower, can_raise)) => {
-                inputs.extend(can_lower.then_some(Input::Adjust(i, false)));
-                inputs.extend(can_raise.then_some(Input::Adjust(i, true)));
+            Some(Amount { can_lower, can_raise, .. }) => {
+                inputs.extend(can_lower.then_some(Input::OneFewer(i)));
+                inputs.extend(can_raise.then_some(Input::OneMore(i)));
             }
-            None => inputs.push(Input::Option(i)),
+            None => inputs.push(Input::OptionButton(i)),
         }
     }
-    if let Some((min, max, _)) = prompt.number {
+    if let Some(NumberField { min, max, .. }) = prompt.number {
         inputs.push(Input::Number(rng.random_range(min..=max.min(min.saturating_add(20)))));
     }
-    if let Some((_, true)) = prompt.done {
+    if let Some(DoneButton { live: true, .. }) = prompt.done {
         inputs.push(Input::Done);
     }
     if let Some(board) = state.board_view() {

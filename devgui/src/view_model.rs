@@ -16,14 +16,16 @@ use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 /// Something the player did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Input {
-    /// Clicked option `i` of the prompt.
-    Option(usize),
+    /// Clicked option `i`'s button.
+    OptionButton(usize),
     /// Clicked a card or a player on the board.
     Board(BoardRef),
     /// Set a `pick_number`'s number.
     Number(u64),
-    /// One more (`true`) or one fewer into bucket `i` of an allocation.
-    Adjust(usize, bool),
+    /// One more into bucket `i` of an allocation.
+    OneMore(usize),
+    /// One fewer in bucket `i` of an allocation.
+    OneFewer(usize),
     /// The confirm button.
     Done,
     /// Start the answer over.
@@ -79,7 +81,7 @@ impl Selection {
             }
             (Primitive::Order, Selection::Order(order)) => {
                 let item = match input {
-                    Input::Option(i) => Some(i),
+                    Input::OptionButton(i) => Some(i),
                     Input::Board(target) => (0..prompt.options.len())
                         .find(|i| prompt.options[*i].refs.first() == Some(&target) && !order.contains(i)),
                     Input::Done => {
@@ -109,7 +111,7 @@ fn pick(
     input: Input,
 ) -> Option<Answer> {
     let clicked = match input {
-        Input::Option(i) if i < prompt.options.len() => Some(i),
+        Input::OptionButton(i) if i < prompt.options.len() => Some(i),
         Input::Board(target) => board_option(prompt, half, target),
         Input::Done => return (min..=max).contains(&chosen.len()).then(|| Answer::Picks(chosen.clone())),
         _ => None,
@@ -156,8 +158,8 @@ fn allocate(
     input: Input,
 ) -> Option<Answer> {
     let (bucket, more) = match input {
-        Input::Adjust(bucket, more) => (bucket, more),
-        Input::Option(bucket) => (bucket, true),
+        Input::OneMore(bucket) | Input::OptionButton(bucket) => (bucket, true),
+        Input::OneFewer(bucket) => (bucket, false),
         Input::Board(target) => (prompt.options.iter().position(|o| o.refs.first() == Some(&target))?, true),
         Input::Done => return (amounts.iter().sum::<u64>() == total).then(|| Answer::Allocation(amounts.to_vec())),
         _ => return None,
@@ -214,7 +216,7 @@ impl WindowState {
     /// The answer to send, once `input` completes one. The prompt closes with
     /// it; the board stays until the engine's next message.
     pub fn input(&mut self, input: Input) -> Option<Answer> {
-        // The window's own controls, which `app` acts on; no prompt's answer.
+        // The window's own controls, which `Session::input` acts on; no prompt's answer.
         if matches!(input, Input::Reload | Input::SaveBoard) {
             return None;
         }
@@ -484,8 +486,30 @@ pub struct OptionButton {
     pub chosen: bool,
     /// Its place in an ordering, from 1.
     pub place: Option<usize>,
-    /// An allocation's amount in this bucket, and whether it can go down and up.
-    pub amount: Option<(u64, bool, bool)>,
+    /// An allocation's bucket, drawn as its amount between "−" and "+".
+    pub amount: Option<Amount>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Amount {
+    pub value: u64,
+    pub can_lower: bool,
+    pub can_raise: bool,
+}
+
+/// A `pick_number`'s field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NumberField {
+    pub min: u64,
+    pub max: u64,
+    pub value: u64,
+}
+
+/// The confirm button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DoneButton {
+    pub label: String,
+    pub live: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -494,10 +518,9 @@ pub struct PromptView {
     /// What makes an answer complete.
     pub rule: String,
     pub options: Vec<OptionButton>,
-    /// A number's range and its value now.
-    pub number: Option<(u64, u64, u64)>,
-    /// The confirm button, when the prompt has one, and whether it is live.
-    pub done: Option<(String, bool)>,
+    pub number: Option<NumberField>,
+    /// The confirm button, when the prompt has one.
+    pub done: Option<DoneButton>,
     pub can_reset: bool,
 }
 
@@ -520,25 +543,27 @@ impl PromptView {
                     })
                     .collect();
                 let done = match (*min, *max) {
-                    (0, 1) => Some((if may { "No" } else { "Decline" }.to_string(), true)),
+                    (0, 1) => Some(done_button(if may { "No" } else { "Decline" }, true)),
                     (_, 1) => None,
-                    _ => Some(("Done".to_string(), (*min..=*max).contains(&chosen.len()))),
+                    _ => Some(done_button("Done", (*min..=*max).contains(&chosen.len()))),
                 };
                 (rule, options, None, done)
             }
             (Primitive::Number { min, max }, Selection::Number(value)) => {
                 let top = if *max == u64::MAX { "any".to_string() } else { max.to_string() };
-                (format!("a number from {min} to {top}"), Vec::new(), Some((*min, *max, *value)), Some(("Done".to_string(), true)))
+                let field = NumberField { min: *min, max: *max, value: *value };
+                (format!("a number from {min} to {top}"), Vec::new(), Some(field), Some(done_button("Done", true)))
             }
             (Primitive::Allocate { total, mins, maxs }, Selection::Allocation(amounts)) => {
                 let left = total.saturating_sub(amounts.iter().sum());
                 let options = options
                     .map(|(i, o)| {
                         let cap = maxs.as_ref().map_or(u64::MAX, |maxs| maxs[i]);
-                        OptionButton { amount: Some((amounts[i], amounts[i] > mins[i], left > 0 && amounts[i] < cap)), ..button(&o.label) }
+                        let amount = Amount { value: amounts[i], can_lower: amounts[i] > mins[i], can_raise: left > 0 && amounts[i] < cap };
+                        OptionButton { amount: Some(amount), ..button(&o.label) }
                     })
                     .collect();
-                (format!("divide {total}: {left} left"), options, None, Some(("Done".to_string(), left == 0)))
+                (format!("divide {total}: {left} left"), options, None, Some(done_button("Done", left == 0)))
             }
             (Primitive::Order, Selection::Order(order)) => {
                 let options = options
@@ -548,13 +573,17 @@ impl PromptView {
                     })
                     .collect();
                 let rule = format!("click them in order: {} of {} placed", order.len(), prompt.options.len());
-                (rule, options, None, Some(("Done".to_string(), order.len() == prompt.options.len())))
+                (rule, options, None, Some(done_button("Done", order.len() == prompt.options.len())))
             }
             _ => (String::new(), Vec::new(), None, None),
         };
         let can_reset = !matches!(prompt.primitive, Primitive::PickN { max: 1, .. } | Primitive::Number { .. });
         PromptView { question: prompt.question.clone(), rule, options, number, done, can_reset }
     }
+}
+
+fn done_button(label: &str, live: bool) -> DoneButton {
+    DoneButton { label: label.to_string(), live }
 }
 
 fn pick_rule(min: usize, max: usize) -> String {
@@ -675,7 +704,7 @@ mod tests {
         assert!(item(&view, b.bolt).clickable);
         assert!(!item(&view, b.bear).clickable, "no option names it");
         assert_eq!(state.clone().input(Input::Board(Object(b.bear))), None);
-        assert_eq!(state.clone().input(Input::Option(0)), Some(Answer::Picks(vec![0])));
+        assert_eq!(state.clone().input(Input::OptionButton(0)), Some(Answer::Picks(vec![0])));
         let mut clicked = state.clone();
         assert_eq!(clicked.input(Input::Board(Object(b.bolt))), Some(Answer::Picks(vec![1])));
         assert!(clicked.prompt.is_none(), "the answer closes the prompt");
@@ -707,7 +736,7 @@ mod tests {
         let state = deciding(&b, prompt(Primitive::PickN { min: 0, max: 1 }, vec![option("Blood Artist", Vec::new())]));
         let view = state.prompt_view().unwrap();
         assert_eq!(view.options[0].label, "Yes: Blood Artist");
-        assert_eq!(view.done, Some(("No".to_string(), true)));
+        assert_eq!(view.done, Some(done_button("No", true)));
         assert_eq!(state.clone().input(Input::Done), Some(Answer::Picks(Vec::new())));
     }
 
@@ -715,14 +744,14 @@ mod tests {
     fn done_is_live_only_inside_the_bounds() {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 2, max: 3 }, unnamed(4)));
-        state.input(Input::Option(0));
-        assert_eq!(state.prompt_view().unwrap().done, Some(("Done".to_string(), false)));
+        state.input(Input::OptionButton(0));
+        assert_eq!(state.prompt_view().unwrap().done, Some(done_button("Done", false)));
         assert_eq!(state.input(Input::Done), None);
         for i in [3, 1, 2] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
-        assert_eq!(state.prompt_view().unwrap().done, Some(("Done".to_string(), true)));
-        state.input(Input::Option(3));
+        assert_eq!(state.prompt_view().unwrap().done, Some(done_button("Done", true)));
+        state.input(Input::OptionButton(3));
         assert_eq!(
             state.input(Input::Done),
             Some(Answer::Picks(vec![0, 1])),
@@ -736,12 +765,12 @@ mod tests {
         let buckets = vec![option("bear", vec![Object(b.their_bear)]), option("player", vec![Player(1)])];
         let split = Primitive::Allocate { total: 3, mins: vec![1, 0], maxs: Some(vec![2, 3]) };
         let mut state = deciding(&b, prompt(split, buckets));
-        state.input(Input::Adjust(0, false));
+        state.input(Input::OneFewer(0));
         for _ in 0..3 {
-            state.input(Input::Adjust(0, true));
+            state.input(Input::OneMore(0));
         }
         let amount = state.prompt_view().unwrap().options[0].amount;
-        assert_eq!(amount, Some((2, true, false)), "held between its minimum and its maximum");
+        assert_eq!(amount, Some(Amount { value: 2, can_lower: true, can_raise: false }), "held between its minimum and its maximum");
         assert_eq!(state.input(Input::Done), None, "one still to place");
         state.input(Input::Board(Player(1)));
         assert_eq!(state.input(Input::Done), Some(Answer::Allocation(vec![2, 1])));
@@ -752,13 +781,13 @@ mod tests {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::Order, unnamed(3)));
         for i in [2, 0, 2] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
         assert_eq!(state.prompt_view().unwrap().options[2].place, Some(1));
         assert_eq!(state.input(Input::Done), None);
         state.input(Input::Reset);
         for i in [1, 2, 0] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
         assert_eq!(state.input(Input::Done), Some(Answer::Order(vec![1, 2, 0])));
     }
@@ -789,6 +818,6 @@ mod tests {
         state.receive(ToWindow::Panicked { message });
         assert!(state.prompt.is_none() && state.prompt_view().is_none());
         assert_eq!(state.status(), "The engine panicked");
-        assert_eq!(state.input(Input::Option(0)), None);
+        assert_eq!(state.input(Input::OptionButton(0)), None);
     }
 }

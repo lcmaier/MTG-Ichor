@@ -7,7 +7,7 @@ use eframe::egui;
 
 use crate::bridge::GameSetup;
 use crate::session::Session;
-use crate::view_model::{BoardView, Input, Item, PromptView, WindowState, ZoneView};
+use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView, WindowState, ZoneView};
 
 pub struct DevGui {
     session: Session,
@@ -42,7 +42,7 @@ pub struct SessionHeader<'a> {
 }
 
 /// The whole window; the inputs the player made this frame.
-pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> Vec<Input> {
+pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> Vec<Input> {
     let mut inputs = Vec::new();
     let board = state.board_view();
     egui::Panel::top("header").show(ui, |ui| {
@@ -53,14 +53,14 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> 
                 ui.label(&board.header);
             }
             ui.separator();
-            ui.weak(session.line);
-            if session.reloadable && ui.button("Reload").clicked() {
+            ui.weak(header.line);
+            if header.reloadable && ui.button("Reload").clicked() {
                 inputs.push(Input::Reload);
             }
             if state.board.is_some() && ui.button("Save board as scenario").clicked() {
                 inputs.push(Input::SaveBoard);
             }
-            if let Some(saved) = session.saved {
+            if let Some(saved) = header.saved {
                 ui.weak(saved);
             }
         });
@@ -181,15 +181,15 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
     ui.horizontal_wrapped(|ui| {
         for (i, option) in prompt.options.iter().enumerate() {
             match option.amount {
-                Some((amount, can_lower, can_raise)) => {
+                Some(Amount { value, can_lower, can_raise }) => {
                     ui.group(|ui| {
                         ui.label(&option.label);
                         if ui.add_enabled(can_lower, egui::Button::new("−")).clicked() {
-                            inputs.push(Input::Adjust(i, false));
+                            inputs.push(Input::OneFewer(i));
                         }
-                        ui.strong(amount.to_string());
+                        ui.strong(value.to_string());
                         if ui.add_enabled(can_raise, egui::Button::new("+")).clicked() {
-                            inputs.push(Input::Adjust(i, true));
+                            inputs.push(Input::OneMore(i));
                         }
                     });
                 }
@@ -199,22 +199,22 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
                         None => option.label.clone(),
                     };
                     if ui.add(egui::Button::new(label).selected(option.chosen)).clicked() {
-                        inputs.push(Input::Option(i));
+                        inputs.push(Input::OptionButton(i));
                     }
                 }
             }
         }
     });
     ui.horizontal(|ui| {
-        if let Some((min, max, value)) = prompt.number {
+        if let Some(NumberField { min, max, value }) = prompt.number {
             let mut number = value;
             ui.add(egui::DragValue::new(&mut number).range(min..=max));
             if number != value {
                 inputs.push(Input::Number(number));
             }
         }
-        if let Some((label, live)) = &prompt.done
-            && ui.add_enabled(*live, egui::Button::new(label)).clicked()
+        if let Some(done) = &prompt.done
+            && ui.add_enabled(done.live, egui::Button::new(&done.label)).clicked()
         {
             inputs.push(Input::Done);
         }

@@ -142,12 +142,12 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     let log = Rc::new(RefCell::new(log));
     game.state.record_events();
 
-    let events_shown = Rc::new(Cell::new(0));
+    let events_logged = Rc::new(Cell::new(0));
     let seat = GuiSeat {
         to_window: to_window.clone(),
         from_window,
         wake: Arc::clone(wake),
-        events_shown: Rc::clone(&events_shown),
+        events_logged: Rc::clone(&events_logged),
         log: Rc::clone(&log),
     };
     // `cli_play`'s stacks: CR 601.2g's window closes once the cost is paid.
@@ -167,7 +167,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
         Err(error) => Outcome::Error(error),
     };
     log.borrow_mut().outcome(&outcome);
-    let snapshot = Snapshot::build(&game.state, events_shown.get());
+    let snapshot = Snapshot::build(&game.state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
 }
@@ -190,14 +190,14 @@ struct GuiSeat {
     from_window: Receiver<Answer>,
     wake: Arc<dyn Fn() + Send + Sync>,
     /// Shared with `play`, whose final board picks the log up from here.
-    events_shown: Rc<Cell<usize>>,
+    events_logged: Rc<Cell<usize>>,
     log: Rc<RefCell<DecisionLog>>,
 }
 
 impl GuiSeat {
     fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
-        let snapshot = Snapshot::build(game, self.events_shown.get());
-        self.events_shown.set(snapshot.events_seen);
+        let snapshot = Snapshot::build(game, self.events_logged.get());
+        self.events_logged.set(snapshot.events_logged);
         let kind = prompt.kind.clone();
         self.to_window
             .send(ToWindow::Prompt { snapshot, prompt })

@@ -34,8 +34,9 @@ pub struct Snapshot {
     pub command: Vec<CardView>,
     /// `format_event` lines for what happened since the previous snapshot.
     pub log: Vec<String>,
-    /// How many recorded events the log has covered, where the next one starts.
-    pub events_seen: usize,
+    /// How many recorded events the window's log holds, where the next
+    /// snapshot's starts.
+    pub events_logged: usize,
     /// The board as a scenario file, with what it could not write at the top
     /// (`Scenario::write`), for "Save board as scenario".
     pub board_text: String,
@@ -112,11 +113,11 @@ pub struct PendingTriggerView {
 }
 
 impl Snapshot {
-    /// The board now, with the log from event `events_shown` on.
-    pub fn build(game: &GameState, events_shown: usize) -> Snapshot {
+    /// The board now, with the log from event `events_logged` on.
+    pub fn build(game: &GameState, events_logged: usize) -> Snapshot {
         let recorded = game.recorded_events();
         let log = recorded
-            .records_from(events_shown)
+            .records_from(events_logged)
             .iter()
             .map(|record| format_event(game, &record.event, &record.names))
             .collect();
@@ -157,7 +158,7 @@ impl Snapshot {
             exile: cards(game, &game.exile),
             command: cards(game, &game.command),
             log,
-            events_seen: recorded.len(),
+            events_logged: recorded.len(),
             board_text: Scenario::write(game).to_string(),
         }
     }
