@@ -95,3 +95,63 @@ owner kept the PR whole there (2,515, with ~3,000–3,300 projected).
 - **The round trip's first run found a loader bug:** CR 508.8 skips declare
   blockers and the damage steps, and the loader also refused the end of
   combat step without attackers. Fixed before the writer's commit.
+
+#### SU-2 — setup actions — ✅ landed 2026-10-01
+
+*Evicted 2026-10-01 from `plans/setup-architecture.md` §8, where the heading and a stub remain.*
+
+### The build as sized (2026-10-01, before the build)
+
+§8 sized SU-2 at the driver ~180–260 lines, the action words ~80–120 and tests
+~150–270, ~400–650 in all. The brief asked for a re-sizing before the build,
+counting the arms its six open questions implied; it came to code ~570–735 and
+tests ~370–530 in the band, and ~60–90 more in devgui, with SU-1's factor of
+1.9 in mind.
+
+### Sized against built
+
+Measured at each part's commit, `mtgsim/src` and `mtgsim/tests` with a
+`src` file's `#[cfg(test)]` module counted as tests; the whole is read off
+`main`.
+
+| Part | Code, sized | Code, built | Tests, sized | Tests, built |
+|---|---:|---:|---:|---:|
+| 1. The words (`board.rs`, `text.rs`, `mod.rs`) | 80–120 | 121 | — | 31 |
+| 2. The loader's resolution and refusals (`build.rs`) | in the driver's | 129 | — | — |
+| 3. The driver (`setup.rs`), `fuzz_games` | 180–260 | 374 | 150–270 | 229 |
+| 4. devgui | — | 16 | — | 31 |
+| 5. Item 198 | 10–20 | 16 | a test | 54 |
+| **SU-2, against `main`** | **~260–380** | **640** | **~150–270** | **314** |
+
+The band's figure is +954 −47; devgui adds +47 −9 and one picture. What the
+sizing left out: the names resolved in the loader rather than the driver (the
+brief's one road for names), with their refusals; the match over all 22
+`ChoiceKind`s, which a new question has to pass; the tap and the generic
+split; and the refusal messages and doc comments, as SU-1's did. The
+re-sizing came within its range, with the six open questions' arms counted.
+
+### What the build changed in the design
+
+- **`mode N` and `x N` wait.** Nothing asks for a mode: `Effect::Modal`
+  cannot resolve (`backlog.md` §2.7). No X spell is offered at priority:
+  `ManaPool::can_pay` and `find_mana_sources` read no X (`codebase-state.md`'s
+  CR 107 row), so no game reaches CR 107.3a's question, and `AmountExpr::X`
+  errors at resolution besides. `x N` was built in the first commit and left
+  in the second, when its test found the window never offered the spell. The
+  driver names `ChooseXValue` among the questions no line answers.
+- **`AutoPayer` taps nothing.** It orders cost reductions; the window's pick
+  is the driver's, the random agent's preference taking its first source, and
+  the line's own permanent last: Mind Stone's ability otherwise taps the stone
+  for its own {1} and rewinds.
+- **The refusal of a line no seat reaches comes one prompt early.** The driver
+  stops every seat at every priority point while a line is left, so a seat
+  with `Pass` alone is asked rather than passed over, and the line is refused
+  when its seat holds priority without its action.
+- **Setup actions resolve nothing.** §0, §2, §5.2 and §7a had said they build
+  a resolved effect; with two verbs and that refusal, they build a stack, and
+  the seats' passes resolve it. A line that resolves the stack is open.
+- **Names resolve at the load.** The design had the driver resolve each name;
+  the loader does, through the table it built the board with, and hands the
+  ids over beside the game, so its checks are refusals at load rather than in
+  play. A target is a permanent, a card in a graveyard or exile, or a spell
+  an earlier line casts, so a library's twenty Forests need no tags.

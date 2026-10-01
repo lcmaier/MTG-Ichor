@@ -4,9 +4,9 @@
 > on PR #204, which carries the design alone. It covers `roadmap-v2.md` A6g's
 > scenario work: the scenario loader as phase **SU-1**, setup actions as
 > **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
-> before SU-1, built CR 103.8's derivation (§1), and SU-1 the loader, the
-> writer and the dev GUI's start (§8, landed 2026-10-01); SU-2 and SU-3 are
-> not built.
+> before SU-1, built CR 103.8's derivation (§1), SU-1 the loader, the writer
+> and the dev GUI's start, and SU-2 setup actions (§8, both landed
+> 2026-10-01); SU-3 is not built.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -90,8 +90,8 @@ code shape, cost and upkeep.
    ahead of playable and the tools PR at #206's review, the owner, 2026-10-01).
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
-~400–650 in all. **A/B:** `IDENTICAL` predicted for SU-1, since no path a fuzz
-game runs changes behavior.
+~400–650 in all, built at 640 and 314. **A/B:** `IDENTICAL` predicted for each,
+since no path a fuzz game runs changes behavior.
 
 ---
 
@@ -536,9 +536,9 @@ player priority. A stack, and a non-active player about to act, come from play.
 from the board in order before anyone else is asked:
 
 ```
-then: player 0 casts Lightning Bolt targeting Grizzly Bears [b]
-then: player 1 casts Giant Growth targeting Grizzly Bears [b]
-then: player 1 activates Merfolk Thaumaturgist targeting Grizzly Bears [b]
+then: player 0 casts Lightning Bolt | targeting Grizzly Bears [b]
+then: player 1 casts Giant Growth | targeting Grizzly Bears [b]
+then: player 1 activates Merfolk Thaumaturgist | targeting Grizzly Bears [b]
 ```
 
 - The seat holding priority passes until the next line's seat holds it. So a
@@ -720,9 +720,10 @@ fn holy_strength_under_humility() {
 
 What the tools PR owes it, decided there: a log that records every seat (today it
 records seat 0's, and the agent's replay only from its seed); a run that stops
-at the log's end, since a `DecisionProvider` cannot answer "stop"; and a
-`ChoiceKind` built from a logged name (`SelectRecipients` carries fields the
-scripted provider ignores).
+at the log's end, since a `DecisionProvider` cannot answer "stop", which is
+also what replaces the setup driver's refusal in play, a panic until then
+(§5.3); and a `ChoiceKind` built from a logged name (`SelectRecipients` carries
+fields the scripted provider ignores).
 
 ---
 
@@ -780,11 +781,41 @@ in the editor (SU-3).
 
 ## 8. The build, sized
 
-**SU-2**, setup actions: the driver ~180–260 lines, the action words ~80–120,
-tests ~150–270. **SU-3**, the board editor: ~500–900 lines (§7a). SU-1's code
-came in at about 1.9 times its sizing and its tests near theirs (the archive's
-table says where), so re-size each before its build, counting doc comments and
-refusal messages as SU-1's sizing did not.
+**SU-3**, the board editor: ~500–900 lines (§7a). SU-1's code came in at about
+1.9 times its sizing and SU-2's at about 2.0, their tests near theirs (the
+archive's tables say where), so re-size before the build, counting doc
+comments and refusal messages as neither sizing did.
+
+### SU-2 — setup actions — ✅ landed 2026-10-01
+
+**What shipped.** The `then:` line in §5.1's table: `then: player p casts
+<card>` or `… activates <card>`, each answer a segment of its own after a bar
+(`targeting <card>`, `targeting player p`, `ability N`). `Scenario::build`
+returns a `BuiltScenario`, the board and its `SetupActions`, each name
+resolved through the loader's own table and what can be checked refused
+there, naming the line. `SetupDriver`, a `DecisionProvider` over the seats'
+own, plays the lines as §5.3 says; `fuzz_games --scenario` and the dev GUI
+play through it, the GUI before its first prompt and again on Reload.
+`mtgsim/scenarios/bolt-into-giant-growth.scenario` is §5.3's stack, played by
+CI's determinism step under three hasher seeds, and the template casts a
+Bolt. Item 198 rode along in its own commit.
+
+**What moved on the way in.** `mode N` and `x N` are words that wait: nothing
+asks for a mode, and no X spell is offered at priority (§5.1). `AutoPayer`
+orders reductions and taps nothing, so the driver taps, by the random agent's
+preference. A line no seat reaches is refused when its seat holds priority
+without its action, since the driver stops every seat. Setup actions resolve
+nothing, and a line that resolves the stack is open (§5.3). It landed at
++954 code and tests against ~400–650 sized.
+
+**Measured** (`fuzz-record.md`, the SU-2 block). Both arms play every gameplay
+and cost row byte-identically to `main` on both pools at two seats and four,
+as predicted; instructions per decision +0.28% for SU-2 and +0.47% with item
+198's fix, past the ±0.1 predicted, from where the compiler inlines rather
+than from work (the fix's battlefield pass is 0.06%).
+
+→ `plans/archive/setup-architecture-landed.md`, "SU-2" (the build as sized,
+sized against built, and what the build changed in the design).
 
 ### SU-1 — the scenario loader — ✅ landed 2026-10-01
 

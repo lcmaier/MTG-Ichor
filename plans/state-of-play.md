@@ -89,6 +89,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `RG` — plans/replacement-architecture.md
 - `RS-1` — plans/cant-effects-architecture.md
 - `SU-1` — plans/setup-architecture.md
+- `SU-2` — plans/setup-architecture.md
 - `TR-1` — plans/triggers-architecture.md
 - `TR-1b` — plans/triggers-architecture.md
 - `TR-2a` — plans/triggers-architecture.md
