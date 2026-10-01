@@ -1645,7 +1645,10 @@ mechanic rather than a migration, which is why it is here and not in
     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
     in `src` unit tests**, an upper bound since some answer a longer list —
     against ~10 lines at `run_priority_round`. Item 145's class, owed for
-    item 145's reason; `codebase-state.md` item 164.
+    item 145's reason; `codebase-state.md` item 164. **Built 2026-09-30
+    (A6j):** the engine takes it unless the seat's `SeatMode` stops at every
+    priority point, as a person in full control does; run first, the change
+    failed 72 tests, and item 164's archive entry has the migration.
   - **(b) "Why can't I?"** — `engine::restriction::predicate::is_prohibited`
     is `pub(crate)` and returns a `bool`, so a GUI cannot glow the permanent
     that forbids an attack and an observation cannot name it. An oracle

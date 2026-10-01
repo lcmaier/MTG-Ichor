@@ -26,7 +26,7 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert_eq!(lines[..2], ["seed 7", "pool Performance"]);
     assert!(lines[2].starts_with("deck 0 ") && lines[3].starts_with("deck 1 "));
     assert!(lines[4].starts_with("answer 1 [turn 1, "), "each answer says when: {}", lines[4]);
-    let asked = lines.iter().filter(|l| l.starts_with("answer ") && !l.ends_with(" only")).count();
+    let asked = lines.iter().filter(|l| l.starts_with("answer ")).count();
     assert_eq!(asked, answered, "every answer the window gave is in the log");
     assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
 }

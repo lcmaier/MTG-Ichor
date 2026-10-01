@@ -2945,3 +2945,54 @@ Closed as sized (`replacement-architecture.md` §3.5). `engine::layers::intrinsi
      goes, since 306.5b applies after the copy on its own. **Slotted: the
      entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
      614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).
+
+### Item 164 — closed 2026-09-30 by A6j
+
+Closed as sized. `run_priority_round` takes `Pass` when the list is `[Pass]` alone (`engine/priority.rs`), unless the seat stops at every priority point: `SeatMode`, asked through a provided `DecisionProvider::seat_mode` whose default is an agent's, so no agent or test provider changed and `DispatchDecisionProvider` and the decorators forward it. Run first, the ten-line change failed 72 tests. 90 one-line expectations went, with the passes in four cast-and-resolve helpers and two loops, and `queue_empty_turn_passes` (16 passes a turn) became `queue_main_phase_passes` (2: a seat holding a land is asked in its main phases). Two things the sizing did not predict. The tests whose subject is every priority grant (the fork recorder, the window and stack watchers, CR 800.4j's rotation, the trace's re-ask) stop at every point rather than migrate. And four CR 104.1 boards, "nobody receives priority in a game that has ended", would have passed vacuously: an agent's strict script no longer sees a grant the CR does not make, so those stop at every point too. The dev GUI's shortcut went in the same PR; across 40 seeds a pool it had answered 9,330 and 11,187 prompts, every one a `[Pass]`-only priority prompt.
+
+*Original entry:*
+
+164. **The `[Pass]`-only priority prompt is still asked of the provider.**
+     `candidate_priority_actions` always offers `Pass`, and 91.5% of priority
+     prompts at four seats offer nothing else (item 138) — over two thousand
+     round trips a game for an answer the engine has, item 145's class exactly:
+     a prompt with one legal answer belongs to the engine (§2.22's rule 1),
+     and out of process it is CPU and a round trip spent against the ratchet's
+     numerator without a decision to count. Not middleware: a decorator can
+     only spare a round trip the engine had already decided to spend.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost. Every game,
+     every seat.
+
+     **Sized:** ~10 lines at `run_priority_round`, taking `Pass` without
+     asking when the list is `[Pass]` alone. No counter moves —
+     `Priority decisions` already excludes the one-option prompt — and the
+     random agent's stream does not either, since a one-option `pick_n` draws
+     nothing (item 145, lever 10); so the A/B prediction is `IDENTICAL` and
+     the whole cost is the fixture migration: **148 scripted
+     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
+     in `src` unit tests**, an upper bound because some answer a longer list.
+     Size the migration by running it before scheduling; if most of the 148
+     are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
+     was not, and cheap.
+
+     **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g** (the dev GUI),
+     whose seats should never be handed a `[Pass]`-only prompt; the migration
+     is still counted by running it first. **It is not the floor lever.** In
+     process it saves the provider round trip, item 138's lever 10 at ~2%;
+     proving a list is `[Pass]` is lever 4's enumeration, 19.2% of
+     instructions when last measured (2026-09-16), and this item leaves it in
+     place.
+
+     **Owed by the dev GUI's spike (2026-09-30).** A6g's spike ran ahead of
+     this item, so its seat answers any prompt with one legal answer itself
+     (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
+     lands this item deletes that shortcut.
+
+     **Full control meets this elision (the spike's review, 2026-09-30).**
+     Item 161's switch takes the decorators off a seat; this item takes the
+     `[Pass]`-only prompt off every seat, below the decorators. So a seat
+     under full control still never stops in an upkeep with nothing to cast,
+     and the owner's reading of full control is a stop at every step. If it
+     should stop, the elision skips a seat under full control, and A6j, which
+     builds both, is where that is decided.

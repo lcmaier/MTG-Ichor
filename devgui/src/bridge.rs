@@ -142,7 +142,8 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     wake();
 }
 
-/// Seat 0: every question with two or more answers goes to the window.
+/// Seat 0: every question goes to the window. One with a single legal answer
+/// never reaches a provider: the engine answers it before asking.
 struct GuiSeat {
     to_window: Sender<ToWindow>,
     from_window: Receiver<Answer>,
@@ -154,12 +155,6 @@ struct GuiSeat {
 
 impl GuiSeat {
     fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
-        // TEMPORARY, until `codebase-state.md` main item 164 has the engine
-        // take the `[Pass]`-only priority prompt: one legal answer is not asked.
-        if let Some(only) = prompt.only_answer() {
-            self.log.borrow_mut().answer(game, &prompt.kind, &only, true);
-            return only;
-        }
         let snapshot = Snapshot::build(game, self.events_shown.get());
         self.events_shown.set(snapshot.events_seen);
         let kind = prompt.kind.clone();
@@ -168,7 +163,7 @@ impl GuiSeat {
             .expect("the window closed during the game");
         (self.wake)();
         let answer = self.from_window.recv().expect("the window closed with a prompt open");
-        self.log.borrow_mut().answer(game, &kind, &answer, false);
+        self.log.borrow_mut().answer(game, &kind, &answer);
         answer
     }
 }
@@ -247,13 +242,11 @@ impl DecisionLog {
         log
     }
 
-    /// `answer 23 [turn 3, Beginning — Draw] PriorityAction Picks([0])`, and
-    /// ` only` at the end when the seat answered for the window.
-    fn answer(&mut self, game: &GameState, kind: &str, answer: &Answer, only_answer: bool) {
+    /// `answer 23 [turn 3, Beginning — Draw] PriorityAction Picks([0])`.
+    fn answer(&mut self, game: &GameState, kind: &str, answer: &Answer) {
         self.answers += 1;
-        let forced = if only_answer { " only" } else { "" };
         let when = format!("turn {}, {}", game.turn_number, format_phase(game));
-        let line = format!("answer {} [{when}] {kind} {answer:?}{forced}", self.answers);
+        let line = format!("answer {} [{when}] {kind} {answer:?}", self.answers);
         self.line(&line);
     }
 
