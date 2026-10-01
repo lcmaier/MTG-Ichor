@@ -59,6 +59,12 @@ predicted. The games are byte-identical, so it comes from the build's code,
 most likely what inlines once `place_on_battlefield` calls its state half.
 It is unattributed and far inside §3.1's budget.
 
+**Re-read after the review round** (engine `c7883e0`: the renames, the
+once-over's fixes, `HistorySpan` moved into `types::history`): every counter
+file byte-identical to `main`'s again, at both seat counts and on both pools,
+the audit's dispatches unchanged, and instructions per decision −0.31%
+(0.6591 M → 0.6571 M), the same direction on the same games.
+
 **The scenario round trip** (`tests/scenario_round_trip_test.rs`, release,
 CI's new step): 24 two-seat games from seeds 100–123 and 8 four-seat games
 from 200–207, `performance` decks, each round start the writer reports nothing
