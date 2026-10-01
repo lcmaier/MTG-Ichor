@@ -24,7 +24,7 @@ use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceOption};
-use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
+use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider, SeatMode};
 use mtgsim::ui::display::format_phase;
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
@@ -212,6 +212,11 @@ impl DecisionProvider for GuiSeat {
             Answer::Order(order) => order,
             other => panic!("a choose_ordering was answered with {other:?}"),
         }
+    }
+
+    /// A person, who may choose a cast again after canceling it.
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { person: true, ..SeatMode::default() }
     }
 }
 

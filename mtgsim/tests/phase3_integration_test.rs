@@ -424,7 +424,7 @@ fn test_combat_damage_kills_player() {
     // game there: nobody is asked to pass, though both seats stop at every
     // priority point.
     let after_loss = ScriptedDecisionProvider::new()
-        .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
+        .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
     game.state.run_priority_loop(&after_loss).unwrap();
     assert!(game.state.player_lost[1]);
 

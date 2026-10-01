@@ -536,7 +536,7 @@ mod tests {
         // now stop at every priority point.
         game.state.players[1].add_counters(crate::types::effects::CounterType::Poison, 10);
         let after_loss = ScriptedDecisionProvider::new()
-            .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
         game.run_turn(&after_loss).unwrap();
         assert!(game.is_over());
         assert_eq!(game.result(), Some(GameResult::Winner(0)));

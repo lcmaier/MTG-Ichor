@@ -333,7 +333,7 @@ impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
     }
 
     fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true }
+        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
     }
 }
 

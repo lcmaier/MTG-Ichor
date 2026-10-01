@@ -95,7 +95,7 @@ fn test_game_over_bolt_to_zero() {
     // Both seats stop at every priority point, so a grant the CR does not
     // make is a prompt this script does not hold.
     let scripted = ScriptedDecisionProvider::new()
-        .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
+        .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
     // CastSpell at index 1 in [Pass, CastSpell(bolt_id)]
     scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Target Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any

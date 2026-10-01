@@ -16,7 +16,7 @@ use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use crate::ui::decision::DecisionProvider;
+use crate::ui::decision::{DecisionProvider, SeatMode};
 use crate::ui::full_control::FullControlSwitch;
 
 /// Interactive CLI decision provider for human play.
@@ -413,6 +413,10 @@ impl DecisionProvider for CliDecisionProvider {
                 return order;
             }
         }
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { person: true, ..SeatMode::default() }
     }
 }
 

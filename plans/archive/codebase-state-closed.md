@@ -3029,3 +3029,34 @@ Closed as sized, with one decision the build took. `ui::full_control::FullContro
      `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
      step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
      GUI, which is the first GUI to need it.
+
+### Item 192 — closed 2026-09-30 by A6j
+
+Closed as sized, in A6j as proposed, on the knowledge full control needed: `SeatMode`'s second field, `person`, which `CliDecisionProvider` and the dev GUI's `GuiSeat` answer and every decorator forwards. `run_priority_round` blacklists a rejected action and charges it to the budget only for an agent; a person's is offered again and charged to nothing, so the seat decides and not the attempt, which reads the same inside `cast_spell` either way. Two fixtures on one board, Grizzly Bears and two Forests (`tests/phase_a6j_integration_test.rs`): a person cancels seven times, past the six an agent's window would charge, and is offered the cast each time, which fails against the pre-fix engine with 13 expectations unconsumed; an agent's rejected cast is dropped, and the `Pass` left is the engine's. The dev GUI's rule-played headless games read the same answer counts at 40 seeds before and after, so its window met no rejection there. The reason a person needs on the re-ask, which the engine does not give, stays with A6g's playable PR.
+
+*Original entry:*
+
+192. **A priority window's blacklist and retry budget are agent guards, and
+     they bind a human seat too.** `run_priority_round` drops a rejected
+     action from every re-prompt until the window closes, and forces `Pass`
+     after three times the window's first list in rejections
+     (`engine/priority.rs:72–118`). Both exist so a random agent re-picking a
+     rewound cast terminates. For a person they read as the game refusing:
+     the owner declined Bonesplitter's payment in the dev GUI and could not
+     choose it again that window, and in a main phase with an empty stack the
+     next window is the next phase. Nothing in CR 601.2 or 732 forbids
+     another attempt.
+
+     **Reachability (2026-09-30):** reachable — wrong today for a human seat,
+     in `cli_play` and the dev GUI; right for an agent's seat, where it is the
+     termination argument.
+
+     **Sized:** ~30–50 lines and a fixture per kind of seat. The seat decides,
+     not the attempt: a canceled cast looks like a failed one inside
+     `cast_spell` (the window declined with abilities left is both an agent
+     that cannot make a pip and a person changing their mind), so it is a
+     human seat's canceled action that is re-offered and not charged to the
+     budget, "human under the toggle" like items 161 to 163. **Slotted:**
+     with A6j, which builds that toggle, proposed (the owner's call); A6g's
+     playable PR at the latest. Going back further than the window, to try
+     another line, is A6g's undo, a replay without the last answer.

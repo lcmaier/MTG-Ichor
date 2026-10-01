@@ -19,6 +19,11 @@ pub struct SeatMode {
     /// the engine's (`backlog.md` §2.22, rule 1). A person in full control
     /// stops there, and so does a test that watches every grant.
     pub stops_at_every_priority_point: bool,
+    /// A person, who may cancel an action and choose it again. A priority
+    /// window drops an agent's rejected action until it closes and charges it
+    /// to a retry budget, which is what makes the agent's re-picks terminate;
+    /// neither binds a person (`codebase-state.md` item 192).
+    pub person: bool,
 }
 
 /// What a player chooses to do when they have priority.

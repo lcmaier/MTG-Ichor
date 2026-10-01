@@ -8712,27 +8712,10 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
      panel PR, its first reader.
 
-192. **A priority window's blacklist and retry budget are agent guards, and
-     they bind a human seat too.** `run_priority_round` drops a rejected
-     action from every re-prompt until the window closes, and forces `Pass`
-     after three times the window's first list in rejections
-     (`engine/priority.rs:72–118`). Both exist so a random agent re-picking a
-     rewound cast terminates. For a person they read as the game refusing:
-     the owner declined Bonesplitter's payment in the dev GUI and could not
-     choose it again that window, and in a main phase with an empty stack the
-     next window is the next phase. Nothing in CR 601.2 or 732 forbids
-     another attempt.
-
-     **Reachability (2026-09-30):** reachable — wrong today for a human seat,
-     in `cli_play` and the dev GUI; right for an agent's seat, where it is the
-     termination argument.
-
-     **Sized:** ~30–50 lines and a fixture per kind of seat. The seat decides,
-     not the attempt: a canceled cast looks like a failed one inside
-     `cast_spell` (the window declined with abilities left is both an agent
-     that cannot make a pip and a person changing their mind), so it is a
-     human seat's canceled action that is re-offered and not charged to the
-     budget, "human under the toggle" like items 161 to 163. **Slotted:**
-     with A6j, which builds that toggle, proposed (the owner's call); A6g's
-     playable PR at the latest. Going back further than the window, to try
-     another line, is A6g's undo, a replay without the last answer.
+192. **~~A priority window's blacklist and retry budget are agent guards, and
+     they bind a human seat too.~~ — ✅ CLOSED 2026-09-30 (A6j).** — archived.
+     `SeatMode::person` exempts a person's seat from both: a canceled action
+     is offered again and nothing is charged. `cli_play`'s and the dev GUI's
+     seats say they are a person's.
+     **Reachability (2026-09-30):** closed — A6j.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 192".
