@@ -16,18 +16,19 @@
 use mtgsim::cards::phase_rc_cards::{adaptive_shimmerer, chainbreaker};
 use mtgsim::cards::phase_sba_cards::battlegrowth;
 use mtgsim::cards::registry::CardRegistry;
-use mtgsim::engine::actions::ZoneChangeCause;
-use mtgsim::events::event::GameEvent;
+use mtgsim::engine::actions::{GameAction, ZoneChangeCause};
+use mtgsim::events::event::{DamageTarget, GameEvent};
 use mtgsim::objects::card_data::CardData;
-use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
+use mtgsim::oracle::characteristics::{get_effective_name, get_effective_power, get_effective_toughness};
 use mtgsim::state::game_state::GameState;
 use mtgsim::test_support::{
-    put_in_graveyard, put_in_hand, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
+    put_in_graveyard, put_in_hand, put_on_battlefield, setup_two_player_game, test_ctx, test_dp, vanilla_creature,
 };
-use mtgsim::types::effects::CounterType;
+use mtgsim::types::effects::{CounterType, EffectRecipient};
 use mtgsim::types::ids::ObjectId;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
+use mtgsim::ui::choice_types::ChoiceKind;
 use mtgsim::ui::decision::ScriptedDecisionProvider;
 use std::sync::Arc;
 
@@ -212,6 +213,54 @@ fn test_one_sign_alone_never_annihilates() {
         Some(3),
         "a 0/0 alive only on its counters — CR 704.5f would take it otherwise"
     );
+}
+
+// ---------------------------------------------------------------------------
+// CR 704.5h — deathtouch damage since the last check
+// ---------------------------------------------------------------------------
+
+/// CR 704.5h destroys a creature "dealt damage by a source with deathtouch
+/// since the last time state-based actions were checked", so one check reads
+/// that damage and the next does not. `codebase-state.md` item 198's board:
+/// Vampire Nighthawk deals Darksteel Colossus 1, which the check after it
+/// finds and indestructible survives (CR 702.12b). Cytoshape then makes the
+/// Colossus a Hill Giant until end of turn, a 3/3 with 1 damage and nothing
+/// to keep it, and the next check has no deathtouch damage to read.
+#[test]
+fn test_deathtouch_damage_is_read_by_one_check() {
+    let registry = CardRegistry::default_registry();
+    let card = |name: &str| registry.create(name).unwrap();
+    let mut game = setup_two_player_game();
+    put_on_battlefield(&mut game, card("Hill Giant"), 1);
+    let colossus = put_on_battlefield(&mut game, card("Darksteel Colossus"), 0);
+    let nighthawk = put_on_battlefield(&mut game, card("Vampire Nighthawk"), 1);
+    let damage = GameAction::DealDamage {
+        source: nighthawk,
+        target: DamageTarget::Object(colossus),
+        amount: 1,
+        is_combat: false,
+        unpreventable: false,
+    };
+    game.execute_action(damage, &test_ctx()).unwrap();
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(game.battlefield.contains_key(&colossus), "indestructible, at the check that read the damage");
+
+    let cytoshape = put_in_hand(&mut game, card("Cytoshape"), 0);
+    for mana in [ManaType::Green, ManaType::Blue, ManaType::Green] {
+        game.players[0].mana_pool.add(mana, 1);
+    }
+    let dp = ScriptedDecisionProvider::new();
+    // The target, then the creature copied, each out of the three in
+    // battlefield order: the Colossus, then the Hill Giant.
+    dp.expect_pick_n(ChoiceKind::SelectRecipients { recipient: EffectRecipient::Controller, spell_id: cytoshape }, vec![1]);
+    dp.expect_pick_n(ChoiceKind::ChooseCopySource { source: cytoshape }, vec![0]);
+    game.cast_spell(0, cytoshape, &dp).unwrap();
+    game.resolve_top_of_stack(&dp).unwrap();
+    assert_eq!(get_effective_name(&game, colossus), "Hill Giant");
+    assert_eq!((get_effective_toughness(&game, colossus), game.battlefield[&colossus].damage_marked), (Some(3), 1));
+
+    game.check_state_based_actions(&test_dp()).unwrap();
+    assert!(game.battlefield.contains_key(&colossus), "1 damage on a 3/3, and no deathtouch damage since the last check");
 }
 
 // ---------------------------------------------------------------------------

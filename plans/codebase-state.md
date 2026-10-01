@@ -8851,24 +8851,9 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
      `roadmap-v2.md` §C.
 
-198. **A creature's deathtouch damage outlives the state-based-action check
-     that read it.** CR 704.5h destroys a creature "dealt damage by a source
-     with deathtouch since the last time state-based actions were checked".
-     The engine marks `PermanentState::damaged_by_deathtouch` and clears it
-     only at cleanup or a regeneration, so a check later in the turn reads
-     damage an earlier check already read. A probe (throwaway, 2026-10-01):
-     Darksteel Colossus dealt 1 by a deathtouch source survives the check,
-     indestructible; it then loses its abilities, 11/11 with 1 damage, and the
-     next check destroys it. The rule leaves it on the battlefield. The scenario
-     writer reports the mark when it finds one at rest, since no word writes it.
-
-     **Reachability (2026-10-01):** reachable — wrong today. Vampire
-     Nighthawk's damage to Darksteel Colossus, then Cytoshape making the
-     Colossus a copy of a creature tougher than its damage in the same turn,
-     is three registered cards in the stress pool. Humility alone does not
-     show it: a 1/1 with damage dies to CR 704.5g anyway.
-
-     **Sized:** ~10–20 lines: each check clears the marks it read, once it has
-     read them, and the probe as a test that fails against the tree.
-     **Slotted:** `roadmap-v2.md` A6g, its own commit beside SU-2, ahead of the
-     tools PR whose replays would carry it.
+198. **~~A creature's deathtouch damage outlives the state-based-action check
+     that read it.~~ — ✅ CLOSED 2026-10-01 (SU-2's PR).** — archived. Each
+     check reads CR 704.5h's marks at its top and clears them, as it reads
+     and clears CR 704.5b's draw from an empty library.
+     **Reachability (2026-10-01):** closed — SU-2's PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 198".

@@ -14,8 +14,8 @@ use crate::types::keywords::KeywordFlag;
 ///
 /// Rule 702.2b: Any nonzero damage dealt by a source with deathtouch is
 /// considered lethal for SBA purposes. We mark the target's
-/// `damaged_by_deathtouch` flag, which is checked in SBA 704.5g and
-/// cleared during cleanup (rule 514.2).
+/// `damaged_by_deathtouch` flag, which the next state-based action check
+/// reads and clears (CR 704.5h).
 ///
 /// Returns Ok(()) always; the flag is only set if the target is on the
 /// battlefield.
