@@ -82,8 +82,9 @@ pub struct RegistryScopeSummary {
 
     /// True iff some row is a copy effect (`EffectModification::CopyFrom`).
     /// When it is false, an object's name is its card's unless it entered as a
-    /// copy or is face-down, because Layer 1 is the only channel that writes a
-    /// name; the event record's names lean on that (`NamesAsAnnounced`).
+    /// copy or is face-down: a copy is the only rename this engine builds, since
+    /// CR 612.6–612.9's Layer 3 renames are unbuilt (`codebase-state.md` item
+    /// 195). The event record's names lean on that (`NamesAsAnnounced`).
     pub any_copy_effect: bool,
 
     /// True iff some row grants an ability whose body is an

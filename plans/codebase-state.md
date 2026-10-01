@@ -8773,3 +8773,28 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      rows re-record, and the dev GUI's six review pictures are redrawn.
      **Slotted:** its own PR after #203, before the scenario loader's build
      (`roadmap-v2.md` A6g), whose games start the same way.
+
+### Found by #203's review (2026-09-30)
+
+195. **An event record keeps a name only where a copy or a face-down status
+     made it other than the card's, and Layer 3 can rename an object too.**
+     CR 612.6–612.9 put four renames in Layer 3 (CR 613.1c): Volrath's
+     Shapeshifter's "full text", Spy Kit's "all names", an effect that sets a
+     name (CR 612.8: Witness Protection's Legitimate Businessperson), and a
+     name sticker (CR 612.9), which also reaches a card off the battlefield.
+     `GameState::name_unless_printed` (`state/trace.rs`) asks only of a
+     permanent, and only its entry copy, its face-down status and
+     `RegistryScopeSummary::any_copy_effect`, so an object renamed in Layer 3
+     would be logged under its card's name. The owner chose the cheap check
+     with this caveat over reading every object's name on every event.
+
+     **Reachability (2026-09-30):** unreachable — Layer 3 is unbuilt
+     (`Layer::Layer3Text`, "deferred indefinitely"), no `EffectModification`
+     sets a name outside a copy's values, and no registered card renames.
+
+     **Sized:** ~5–15 lines with the first renaming effect: a summary flag set
+     by its variant beside `any_copy_effect`, a leg for an object off the
+     battlefield if it is a sticker, and a log line in that card's test.
+     **Slotted:** with the first registered card that renames, Witness
+     Protection the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C), in
+     the PR that builds its Layer 3 effect.

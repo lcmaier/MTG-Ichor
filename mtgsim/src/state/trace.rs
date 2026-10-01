@@ -533,11 +533,13 @@ impl GameState {
         (!names.is_empty()).then(|| Arc::new(names))
     }
 
-    /// `id`'s name now, where it is not its card's. Only a permanent's can be,
-    /// through a copy effect or a face-down status, so anything else costs a
-    /// lookup. Read as the dispatch audit reads, off the memo or inside the
-    /// bracket that puts the memo, the diagnostics and the trace back: naming
-    /// is not engine work.
+    /// `id`'s name now, where it is not its card's. In this engine only a
+    /// permanent's can be, through a copy effect or a face-down status, so
+    /// anything else costs a lookup; CR 612.6–612.9's Layer 3 renames, a
+    /// sticker's off the battlefield too, each need a leg here when they are
+    /// built (`codebase-state.md` item 195). Read as the dispatch audit reads,
+    /// off the memo or inside the bracket that puts the memo, the diagnostics
+    /// and the trace back: naming is not engine work.
     fn name_unless_printed(&mut self, id: ObjectId) -> Option<String> {
         let may_differ = self.battlefield.get(&id).is_some_and(|p| {
             p.entered_as.copy.is_some() || p.face_down || self.continuous_effects.summary().any_copy_effect
