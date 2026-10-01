@@ -57,7 +57,7 @@ impl RoundTrip<'_> {
         }
         tally.compared += 1;
         let text = written.to_string();
-        let loaded = match Scenario::parse(&text).and_then(|s| s.build(self.registry)) {
+        let loaded = match Scenario::parse(&text).and_then(|s| s.build(self.registry)).map(|built| built.game) {
             Ok(loaded) => loaded,
             Err(refusal) => return tally.mismatches.push(format!("refused: {refusal}\n{text}")),
         };

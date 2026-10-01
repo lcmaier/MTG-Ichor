@@ -148,7 +148,7 @@ fn save_board_writes_a_file_that_loads_beside_the_log() {
     let saved = dir.join("bolt-seed-0-turn-1.scenario");
     assert_eq!(session.saved, Some(format!("saved {}", saved.display())));
     let text = std::fs::read_to_string(&saved).unwrap();
-    let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap();
+    let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap().game;
     assert_eq!(game.state.players[0].life_total, 13);
     session.input(Input::SaveBoard);
     assert!(dir.join("bolt-seed-0-turn-1-2.scenario").exists());

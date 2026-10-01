@@ -171,7 +171,7 @@ fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(Game, Strin
     if scenario.players != 2 {
         return Err(format!("the dev GUI plays two seats, and this scenario has {}", scenario.players));
     }
-    let game = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
+    let game = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?.game;
     Ok((game, text))
 }
 

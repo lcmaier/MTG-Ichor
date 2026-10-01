@@ -41,7 +41,7 @@ use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// What a mana window's options can do for the pips a cost still owes.
-enum WindowPreference {
+pub(crate) enum WindowPreference {
     /// Indices of the options that make a type some unpaid pip accepts, among
     /// the sources with the fewest such types — tap the Forest before the
     /// five-color land, so the land is still there for the pip only it can
@@ -59,7 +59,7 @@ enum WindowPreference {
 /// produces. A hybrid pip accepts either half; a mono-hybrid or Phyrexian
 /// pip is payable without its color and so expresses no preference; X and
 /// generic never do.
-fn mana_window_preference(
+pub(crate) fn mana_window_preference(
     game: &GameState,
     player: PlayerId,
     remaining: &ManaCost,

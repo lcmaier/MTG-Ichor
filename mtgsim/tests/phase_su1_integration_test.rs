@@ -17,7 +17,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
 fn load(text: &str) -> Game {
-    Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"))
+    Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).map(|built| built.game).unwrap_or_else(|r| panic!("{r}"))
 }
 
 fn refused(text: &str) -> ScenarioError {
@@ -336,7 +336,7 @@ fn a_card_in_development_loads_and_stays_out_of_the_pools() {
             .build()
     });
     let scenario = Scenario::parse("battlefield: Dev Bear | controller 0").unwrap();
-    let game = scenario.build(&registry).unwrap();
+    let game = scenario.build(&registry).unwrap().game;
     assert_eq!(named(&game, "Dev Bear").len(), 1);
     assert!(!registry.card_names().contains(&"Dev Bear"));
     assert!(scenario.build(&CardRegistry::default_registry()).is_err());

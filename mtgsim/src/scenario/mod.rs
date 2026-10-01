@@ -4,17 +4,22 @@
 //! stack empty and nothing waiting to trigger. [`Scenario::parse`] reads a
 //! file, [`Scenario::write`] writes a game's board, and [`Scenario::build`]
 //! makes a `Game` of either through the engine's construction doors, emitting
-//! nothing. The grammar, every word with its default, is the design's §5.1
-//! table; `mtgsim/scenarios/template.scenario` shows each word in use.
+//! nothing. Its setup actions (§5.3) come back beside the game, their names
+//! resolved, and [`SetupDriver`] plays them before anyone else is asked. The
+//! grammar, every word with its default, is the design's §5.1 table;
+//! `mtgsim/scenarios/template.scenario` shows each word in use.
 
 mod board;
 mod build;
 mod error;
+mod setup;
 mod text;
 mod write;
 
 pub use board::{
     Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupAction, SetupVerb, Targeted,
 };
+pub use build::BuiltScenario;
 pub use error::{ScenarioError, ScenarioErrorKind};
+pub use setup::{SetupActions, SetupDriver};
 pub use write::WrittenBoard;

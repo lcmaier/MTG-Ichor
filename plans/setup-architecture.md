@@ -71,8 +71,9 @@ code shape, cost and upkeep.
    and moves between, go in A6g's tools PR (the one that builds undo, the save
    and the export) as bookmarks in the log (the owner, 2026-10-01).
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
-   before the tester takes over, which is how a deep stack or a resolved effect
-   is built. They do not depend on what the tester does, so every reload
+   before the tester takes over, which is how a deep stack is built; they
+   resolve nothing, so a resolved effect is their stack and the seats' passes
+   (SU-2's build). They do not depend on what the tester does, so every reload
    reaches the same situation. One driver answers their prompts by matching
    options' ids. **SU-2, the next PR** (the owner, 2026-10-01). **No script
    for a seat during play** (the owner, the same day): it breaks as soon as
@@ -166,8 +167,8 @@ what is played.
 **A scenario never needs what happened before it.** It needs the state at its
 start, and every piece of plain state, history included, is written. What it
 cannot write is only what writing would duplicate engine code for, and those
-are played: by the window or an agent today, and by §5.3's setup actions before
-the tester takes over.
+are played: by the window or an agent, after §5.3's setup actions have put
+them on the stack before the tester takes over.
 
 **The save.** A save is a *start* and the decision log. The start is a dealt
 game (seed, pool, and the decks the log already records) or a scenario (its
@@ -483,7 +484,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused before the first-strike damage step, and kept to the end of combat as the engine keeps it | no |
 | `then: player p casts <card>`, `then: player p activates <card>` | 117.1, 601.2, 602.2 | a setup action (§5.3), played from the board in file order: a cast from p's hand, or an activation of an ability of a permanent p controls | none |
 | `\| targeting <card>`, `\| targeting player p` | 115.1, 601.2c | the line's answers to CR 601.2c's choices, a target or a "choose": each choice the spell or ability asks takes the next segments it offers, so they read in the card's own order. A card here is a permanent, a card in a graveyard or exile, or a spell an earlier line casts | — |
-| `\| x N` | 107.3a, 601.2b | the spell's X; required for a card with X in its cost, refused for one without | — |
+| *(an X)* | 107.3a, 601.2b | not a word: no X spell is offered at priority, since `ManaPool::can_pay` and `find_mana_sources` read no X (`codebase-state.md`'s CR 107 row), and none is registered. The driver names `ChooseXValue` among the questions no line answers, so the PR that offers one adds `x N` | — |
 | `\| ability N` | 602.1 | the ability's place among the permanent's abilities as the layers give them, 1 for the first; never a mana ability, whose mana would wait in a pool no word writes (§5.2) | the permanent's one activated ability |
 | *(a mode)* | 700.2 | not a word: nothing asks for a mode, since `Effect::Modal` cannot resolve (`backlog.md` §2.7). The setup driver matches every `ChoiceKind` with no wildcard, so the PR that adds the prompt adds `mode N` | — |
 
@@ -495,7 +496,8 @@ prevention and regeneration shields, a "can't"), delayed triggers (CR 603.7),
 and extra turns and phases (500.7, 500.8). Triggers waiting to be put on the
 stack have no word either, since none is waiting at a round's start (CR 117.5).
 **Road in v1:** play them from the board, in the window's seat. **Road from
-SU-2:** setup actions (§5.3).
+SU-2:** setup actions (§5.3) put them on the stack, and the seats' passes
+resolve them.
 
 **Fields whose word waits for something:**
 
@@ -541,27 +543,55 @@ then: player 1 activates Merfolk Thaumaturgist targeting Grizzly Bears [b]
 
 - The seat holding priority passes until the next line's seat holds it. So a
   stack of ten is ten lines and nothing else: the opponent's responses are
-  lines like any other, and nobody scripts a pass.
-- Each line's own prompts are answered from the line: targets by name, modes
-  and X by number. Costs are paid automatically from the board's untapped
-  lands (`AutoPayer`), and the mana window is closed (`ManaWindowStop`). A deep
-  stack needs as many lands as its spells cost; floating mana waits for item
-  33's provenance.
-- A line the engine refuses (no legal target, no mana) fails the load, naming
-  the line.
+  lines like any other, and nobody scripts a pass. While a line is left, the
+  driver stops every seat at every priority point, so none is passed over
+  unseen.
+- Each line's own prompts are answered from the line: its targets by name or
+  player, its ability by place; nothing asks for a mode or an X yet (§5.1).
+  Costs are paid from the board's untapped lands, as a seat's `AutoPayer` over
+  `ManaWindowStop` pays them: the window taps a source that makes a pip still
+  owed, by the random agent's preference taking its first source rather than
+  a random one and the line's own permanent last, closes once paid, and the
+  generic split is the first the caps allow. (`AutoPayer` itself only orders
+  cost reductions; the tap is the driver's, until `backlog.md` §2.18's
+  solver.) A deep stack needs as many lands as its spells cost; floating mana
+  waits for item 33's provenance.
+- What can be checked before play fails the load, naming the line: a name
+  that means nothing or two things, a card not in the seat's hand, a
+  permanent another player controls, an ability that is not an activated one.
+  What only play shows is refused in play, naming the line: an action the
+  engine does not offer when its seat holds priority, which is how a line no
+  seat reaches before the stack would resolve is refused rather than played a
+  turn later; an action it rewinds once picked (CR 732.1); a target the choice
+  does not offer, one too few or one too many; and a question no line answers
+  (a trigger's, a replacement's, a "may", a cost choice). A `DecisionProvider`
+  cannot stop a game, so that refusal is a panic, shown in the window as the
+  engine's; the tools PR's "stop" answer replaces it.
 - When the list is spent, the next prompt goes to whoever plays that seat: the
   window or an agent.
 
 **Setup actions are part of the situation, not of the play.** They run before
 the tester is asked anything and read nothing the tester does, so every reload
 replays them identically and the tester tries a different line from the same
-board each time. The driver that plays them is a `DecisionProvider` that
-resolves each named card to its id and picks the option carrying that id:
-`ChoiceOption::Action(CastSpell(id))`, `Object(id)`, `Player(p)`,
-`BlockerAttacker(..)`. It matches by id rather than by text, so a change in how
-options are worded does not break a file. Every action still goes through
-`cast_spell`, `activate_ability` and the combat declarations, so the stack is
-exactly what play builds: targets per instance, costs, cast triggers.
+board each time. The driver that plays them, `SetupDriver`, is a
+`DecisionProvider` over the seats' own: the loader resolves each named card to
+its id through the table it built the board with (`Scenario::build` returns
+both), and the driver picks the option carrying that id:
+`ChoiceOption::Action(CastSpell(id))` or `ActivateAbility(id, ability)`,
+`Object(id)`, `Player(p)`. It matches by id rather than by text, so a change in
+how options are worded does not break a file. Every action still goes through
+`cast_spell` and `activate_ability`, so the stack is exactly what play builds:
+targets per instance, costs, cast triggers.
+
+**Setup actions resolve nothing** (the build, 2026-10-01). Every line is
+played before the stack it builds could resolve, since resolving needs every
+seat to pass and the line's seat never does, so the seats' passes resolve it
+once the tester takes over. A resolved effect (a creature under Act of
+Treason, a regeneration shield) is its line and those passes. A line that
+resolves the top of the stack before the tester is asked would build one
+outright: ~40 lines with its test, and it weakens the load's checks for every
+line after it, since a resolution can move a card or a permanent's control.
+Open for the owner at SU-2's review.
 
 **Why not write the stack down instead.** It would need the same lines (who
 cast what, targeting what, in which order), plus everything casting decides
@@ -581,8 +611,8 @@ situation is setup actions.
 **Why SU-2 and not SU-1.** The driver, the action words and their tests come to
 ~400–650 lines, and SU-1 with the writer comes to ~1,720–2,340, so together
 they cross the band's 2,500. SU-2 can follow SU-1 directly, ahead of playable,
-and needs nothing from item 193: a setup action the engine refuses fails the
-load.
+and needs nothing from item 193: a setup action the engine refuses is refused,
+naming its line.
 
 ### 5.4 N players
 
@@ -721,9 +751,10 @@ in the way, and each has a step with its slot.
    `determinism_test` do not. A card leaves the list in the commit that
    registers it. A test can do the same today by registering a fixture in the
    registry it passes.
-3. **State only an effect makes** (SU-2). A creature under Act of Treason, a
-   stack ten deep, a regeneration shield: setup actions play them from the
-   board. The kinds an effect leaves behind as stored state (a token, a copy)
+3. **State only an effect makes** (SU-2). A stack ten deep: setup actions
+   play it from the board. A creature under Act of Treason, a regeneration
+   shield: setup actions cast them, and the seats' first passes resolve them
+   (§5.3). The kinds an effect leaves behind as stored state (a token, a copy)
    get words in the order §4.3's count gives.
 4. **A new mechanic's own state** (the growth contract, §5.2). The PR that adds
    a field adds its word, because the writer does not compile until it does,
