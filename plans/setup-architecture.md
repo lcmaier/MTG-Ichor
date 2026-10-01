@@ -1,9 +1,9 @@
 # Game setup — CR 103's doors, the scenario loader, and the save
 
-> **Status:** design, 2026-09-30, revised 2026-10-01 after the first review
-> round on PR #204. This is `roadmap-v2.md` A6g's second PR, the scenario
-> loader, as phase **SU-1**, with its scripts proposed as **SU-2**. Nothing
-> here is built.
+> **Status:** design, 2026-09-30, revised 2026-10-01 after two review rounds
+> on PR #204. This is `roadmap-v2.md` A6g's second PR, the scenario loader, as
+> phase **SU-1**, with its setup actions proposed as **SU-2** and a board
+> editor as **SU-3**. Nothing here is built.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -65,19 +65,26 @@ code shape, cost and upkeep.
    scenario", and shows a load error in the window. The decision log embeds the
    scenario, so the log is a save. **Savestates**, positions the tester sets
    and moves between, are proposed for A6g (4) as bookmarks in the log.
-7. **Scripts** (§5.3): setup actions, any seat's, played in order from the board
-   before the tester takes over, which is how a deep stack is built; and a
-   script per seat, actions that seat takes during play against a live
-   opponent. One driver answers prompts by matching their options' ids.
-   **Proposed as SU-2, the next PR**, since SU-1 sits in the band's upper half
-   without them.
+7. **Setup actions** (§5.3): any seat's actions, played in order from the board
+   before the tester takes over, which is how a deep stack or a resolved effect
+   is built. They do not depend on what the tester does, so every reload
+   reaches the same situation. One driver answers their prompts by matching
+   options' ids. **Proposed as SU-2, the next PR.** **No script for a seat
+   during play** (the owner, 2026-10-01): it breaks as soon as play leaves the
+   line it was written for. A fixed line is a regression test, which the log
+   replays exactly; exploring is a person playing both seats.
 8. **This file is where the design lives** (§9): CR 103 is a subsystem with
    three open items and no document, and the loader is its second door.
    `CLAUDE.md`'s architecture row gains one entry on its existing line.
+9. **Building one from scratch** (§7a): a template and samples, forgiving names
+   and refusals that say what to change, a list of cards in development that a
+   scenario can name before they are registered, setup actions for what only
+   an effect makes, the growth contract for a new mechanic's state, and a board
+   editor in the dev GUI, **SU-3**.
 
-**Size** (§8): SU-1's code ~990–1,330 lines and tests ~690–960; SU-2 ~500–800
-in all. **A/B:** `IDENTICAL` predicted for SU-1, since no path a fuzz game runs
-changes behavior.
+**Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
+~400–650 in all. **A/B:** `IDENTICAL` predicted for SU-1, since no path a fuzz
+game runs changes behavior.
 
 ---
 
@@ -111,7 +118,7 @@ from a pool), so a board is hunted across seeds.
 | | **R. A recipe**: seed, decks, a scripted opening | **D. A described board** |
 |---|---|---|
 | Code | none new: `Game::new`, `setup`, a scripted provider | a loader, ~700 lines (§8) |
-| Authoring | find a seed that deals the cards, then script every answer of every seat until the board appears; library order and a turn-7 life total come only from play | write the board down, or save it from a game (§4.3) |
+| Authoring | find a seed that deals the cards, then script every answer of every seat until the board appears; library order and a turn-7 life total come only from play | write the board down, save it from a game (§4.3), or build it in the editor (§7a) |
 | Upkeep | answers are indices into option lists, so an engine change that adds or reorders an option anywhere upstream re-scripts every recipe past it | a vocabulary that grows with the engine's stored state (§5.2) |
 | Risk | none new | building a state no play reaches (item 188); answered in §3 by building through the engine's own doors, and checked in §4.3 against played boards |
 
@@ -477,14 +484,12 @@ it is answered in one of three ways:
 
 The four structs hold about 100 fields today.
 
-### 5.3 Priority, the stack, and scripts
+### 5.3 Priority, the stack, and setup actions
 
 v1 resumes every scenario at a round's start, where CR 117.3a gives the active
 player priority. A stack, and a non-active player about to act, come from play.
-**SU-2 adds two kinds of script, answered by one driver.**
-
-**Setup actions** are a list of actions, each naming its seat, played from the
-board in order before anyone else is asked:
+**SU-2 adds setup actions**: a list of actions, each naming its seat, played
+from the board in order before anyone else is asked:
 
 ```
 then: player 0 casts Lightning Bolt targeting Grizzly Bears [b]
@@ -503,27 +508,16 @@ then: player 1 activates Merfolk Thaumaturgist targeting Grizzly Bears [b]
 - A line the engine refuses (no legal target, no mana) fails the load, naming
   the line.
 - When the list is spent, the next prompt goes to whoever plays that seat: the
-  window, an agent, or a script.
+  window or an agent.
 
-**A seat's script** is actions one seat takes during play, against a live
-opponent (the window, or an agent under test):
-
-```
-script 1: casts Counterspell targeting the top of the stack
-script 1: blocks Grizzly Bears [a] with Wall of Stone
-```
-
-Each action is taken at the seat's first prompt where it can be. Until then the
-seat passes, or declares no blocks. When the script is spent, the seat passes
-for the rest of the game or hands over to the random agent, as the file says. A
-reference may name the top of the stack, since the spell an action answers may
-not exist when the file is written.
-
-**One driver** answers both. It is a `DecisionProvider` that resolves each
-named card to its id and picks the option carrying that id:
+**Setup actions are part of the situation, not of the play.** They run before
+the tester is asked anything and read nothing the tester does, so every reload
+replays them identically and the tester tries a different line from the same
+board each time. The driver that plays them is a `DecisionProvider` that
+resolves each named card to its id and picks the option carrying that id:
 `ChoiceOption::Action(CastSpell(id))`, `Object(id)`, `Player(p)`,
 `BlockerAttacker(..)`. It matches by id rather than by text, so a change in how
-options are worded does not break a script. Every action still goes through
+options are worded does not break a file. Every action still goes through
 `cast_spell`, `activate_ability` and the combat declarations, so the stack is
 exactly what play builds: targets per instance, costs, cast triggers.
 
@@ -532,11 +526,21 @@ cast what, targeting what, in which order), plus everything casting decides
 that the lines leave to the engine. And a stack written by hand is the second
 road §2 rules out.
 
-**Why SU-2 and not SU-1.** The driver, its words and their tests come to
-~500–800 lines, and SU-1 with the writer comes to ~1,700–2,300, so together
+**No script for a seat during play** (the owner, 2026-10-01, at the second
+review round). One was proposed: a seat taking listed actions against a live
+opponent, each at the first prompt where it could. It fails at the scenario's
+main use. A scenario is replayed to try different options, and a scripted
+response written for one line answers the wrong spell, or nothing, once play
+leaves that line. What it would have served is covered elsewhere: a fixed line
+is a regression test, which the decision log replays exactly (§7); exploring
+the opponent's side is a person playing both seats (§7); and building the
+situation is setup actions.
+
+**Why SU-2 and not SU-1.** The driver, the action words and their tests come to
+~400–650 lines, and SU-1 with the writer comes to ~1,720–2,340, so together
 they cross the band's 2,500. SU-2 can follow SU-1 directly, ahead of playable,
 and needs nothing from item 193: a setup action the engine refuses fails the
-load, and a seat's script passes until its action can be taken.
+load.
 
 ### 5.4 N players
 
@@ -609,10 +613,12 @@ a relaunch. The decision log of a scenario game starts with `scenario <path>`,
 `seed N` and the scenario's text verbatim, so the log is a save (§2) even after
 the file changes.
 
-**Seats.** The window plays seat 0, and the random agent or a seat's script
-(SU-2) plays the others. Offered, not recommended here: the window plays every
-seat (~60–90 lines: a prompt names its player, and "(you)" follows the seat
-being asked). Playable's PR builds the seat's controls and is its natural home.
+**Seats.** The window plays seat 0, and the random agent plays the others. To
+choose the opponent's responses too, the window plays every seat (~60–90
+lines: a prompt names its player, and "(you)" follows the seat being asked).
+With no script for a seat during play (§5.3), that is how a tester explores
+both sides of an interaction from one board. Playable's PR builds the seat's
+controls and is its natural home.
 
 **Savestates** (the owner's suggestion, 2026-10-01) are positions the tester
 sets during play and moves between, like a video game's save slots. Proposed
@@ -648,6 +654,53 @@ scripted provider ignores).
 
 ---
 
+## 7a. Building a scenario from scratch
+
+**The goal** (the owner, 2026-10-01): a developer sets up an obscure board to
+test a new card or mechanic, without a game to save one from. Five things stand
+in the way, and each has a step with its slot.
+
+1. **Knowing what to write** (SU-1). `mtgsim/scenarios/` holds a commented
+   template naming every word and its default, and a handful of samples (combat
+   with an Aura, Humility against Opalescence, a planeswalker, four seats with
+   a commander). A test loads each file, so none goes stale. Names match
+   without regard to case, and a miss suggests the nearest registered names. A
+   refusal says what to change as well as what is wrong: "Grizzly Bears is
+   attacking in the precombat main phase; attackers exist from the declare
+   attackers step to the end of combat (CR 506.4, 511.3); set `step declare
+   attackers` or later."
+2. **A card that is not registered yet** (SU-1, ~15–25 lines). The project
+   registers a card only once the engine plays it, because `determinism_test`
+   and every `--pool stress` game play the whole registry. A card under
+   development therefore has no name a scenario can use, which is the moment a
+   developer most wants one. A list of cards in development beside the
+   registry fixes that: scenario loading reads it, and the fuzz pools and
+   `determinism_test` do not. A card leaves the list in the commit that
+   registers it. A test can do the same today by registering a fixture in the
+   registry it passes.
+3. **State only an effect makes** (SU-2). A creature under Act of Treason, a
+   stack ten deep, a regeneration shield: setup actions play them from the
+   board. The kinds an effect leaves behind as stored state (a token, a copy)
+   get words in the order §4.3's count gives.
+4. **A new mechanic's own state** (the growth contract, §5.2). The PR that adds
+   a field adds its word, because the writer does not compile until it does,
+   so a mechanic's state can be set up the day the mechanic lands. The monarch
+   (CR 724), the initiative (725) and day and night (730) will each arrive with
+   a word.
+5. **Typing a board in at all** (SU-3). A board editor in the dev GUI: search a
+   registered name, put the card in a zone, then click its controller, status,
+   counters, attachment and combat. It edits the same `Scenario` value the
+   parser builds and saves through the writer, so it adds no third road. It is
+   a plain-Rust editor model with tests under a thin egui layer, the GUI review
+   path's shape, at ~500–900 lines. **Proposed after A6g (4)**, so the dev GUI
+   can already save, undo and replay what the editor builds.
+
+So a board reaches a scenario three ways, all into one `Scenario` value:
+written as text (SU-1), saved from a game and edited (SU-1's writer), or built
+in the editor (SU-3).
+
+---
+
 ## 8. The build, sized
 
 Each commit is measured as code and tests apart.
@@ -657,11 +710,12 @@ Each commit is measured as code and tests apart.
    engine, both calling one copy; counter-kind names moved into the engine,
    devgui's labels reading them. Tests: the door emits nothing, registers rows
    and gives loyalty.
-2. **`mtgsim::scenario`'s types, parser and errors**, names and tags included.
-   Tests: each error class.
-3. **The loader**, its checks, the resume entry and the streams function.
-   Tests: one per word in §5.1; load emits nothing; a scenario game played
-   twice is one game.
+2. **`mtgsim::scenario`'s types, parser and errors**, names and tags included,
+   matched without regard to case. Tests: each error class.
+3. **The loader**, its checks, the resume entry, the streams function, and the
+   list of cards in development (§7a). Tests: one per word in §5.1; load emits
+   nothing; a scenario game played twice is one game; the template and each
+   sample under `mtgsim/scenarios/` load.
 4. **The writer**, its destructure and its report, and the round-trip test over
    played boards (§4.3).
 5. **`fuzz_games --scenario`**, droppable (~40 lines): random games from a
@@ -676,17 +730,17 @@ Each commit is measured as code and tests apart.
 | Part | Code | Tests |
 |---|---:|---:|
 | 1. Doors | 60–90 | 60–90 |
-| 2. Parser | 240–300 | 130–170 |
-| 3. Loader, checks, resume, streams | 330–420 | 300–380 |
+| 2. Parser | 250–310 | 130–170 |
+| 3. Loader, checks, resume, streams, cards in development | 340–440 | 320–400 |
 | 4. Writer and round trip | 180–250 | 140–220 |
 | 5. `fuzz_games` | 30–50 | — |
 | 6. devgui | 150–220 | 60–100 |
-| **SU-1 total** | **~990–1,330** | **~690–960** |
+| **SU-1 total** | **~1,010–1,360** | **~710–980** |
 
-About 1,700–2,300 lines, inside `engineering-practices.md` §4's band of
-1,500–2,500, in its upper half. **SU-2**, the scripts: the driver ~200–300
-lines, the action words ~80–120, devgui's scripted seats ~30–50, tests
-~150–300.
+About 1,720–2,340 lines, inside `engineering-practices.md` §4's band of
+1,500–2,500, in its upper half. **SU-2**, setup actions: the driver ~180–260
+lines, the action words ~80–120, tests ~150–270. **SU-3**, the board editor:
+~500–900 lines (§7a).
 
 **A/B.** The performer's split and the arrival parameter carry the same values
 in play, so `close_out.py` runs once and predicts `IDENTICAL` on both pools,
@@ -732,6 +786,7 @@ the save, `SU-*`).
 
 Hidden information (B4; the dev GUI shows every card); four seats in the GUI;
 save, undo, savestates and export (A6g (4)); item 193 (playable); the stack and
-resolved effects as written state (§2), which SU-2's scripts play instead; CR
-103.5's mulligans and CR 103.6's opening-hand actions, named in the header and
-owned elsewhere.
+resolved effects as written state (§2), which SU-2's setup actions play
+instead; a script for a seat during play (§5.3, dropped at review); the board
+editor (SU-3, §7a); CR 103.5's mulligans and CR 103.6's opening-hand actions,
+named in the header and owned elsewhere.
