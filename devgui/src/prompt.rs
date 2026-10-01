@@ -12,7 +12,7 @@ use mtgsim::types::mana::ManaSymbol;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use mtgsim::ui::decision::PriorityAction;
 
-use crate::snapshot::{attack_target_name, counter_label, named, player_name};
+use crate::snapshot::{attack_target_name, named, player_name};
 
 /// An answer, in the shape of the primitive that asked.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -189,7 +189,7 @@ fn option_view(game: &GameState, option: &ChoiceOption) -> OptionView {
         ChoiceOption::AdditionalCost(cost) => (additional_cost_name(cost), vec![]),
         ChoiceOption::Number(number) => (number.to_string(), vec![]),
         ChoiceOption::Color(color) => (format!("{color:?}"), vec![]),
-        ChoiceOption::CounterType(counter) => (counter_label(*counter), vec![]),
+        ChoiceOption::CounterType(counter) => (counter.name().to_string(), vec![]),
         ChoiceOption::ManaType(mana) => (ManaSymbol::Colored(*mana).to_string(), vec![]),
     };
     OptionView { label, refs }

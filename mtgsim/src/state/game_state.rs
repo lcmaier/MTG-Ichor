@@ -1301,20 +1301,7 @@ impl GameState {
         controller: PlayerId,
         mods: &EnterMods,
     ) -> &mut PermanentState {
-        // CR 613.7d stamped the object as it entered the battlefield *zone*
-        // (`move_object`), or as it was created there (`add_object`, a token),
-        // and this performer runs after both. CR 613.7c's counters get theirs
-        // here, one per row in `mods` order, as the look-ahead predicted them.
-        // Not a nested `AddCounters` proposal: these counters are part of the
-        // entry event, which is why CR 614.16's doublers replace the `EnterMods`
-        // this performer is handed rather than an event of their own.
-        let first_counter = self.next_timestamp;
-        self.next_timestamp += mods.counters.len() as u64;
-        let entry = PermanentState::entering(self, id, controller, mods, self.object_timestamp(id), first_counter);
-        self.insert_battlefield_entity(id, entry);
-        self.bump_layer_epoch();
-
-        self.register_static_effects(id, controller, Zone::Battlefield);
+        self.make_permanent(id, controller, mods, self.turn_number);
 
         // The controller the *game* sees, not the CR 110.2b default it entered
         // under: a stolen permanent spell enters under its caster's control and
@@ -1328,6 +1315,32 @@ impl GameState {
         });
 
         self.battlefield.get_mut(&id).unwrap()
+    }
+
+    /// The state half of an entry: `id` becomes a permanent under
+    /// `controller` with `mods`, its abilities filed, and nothing announced.
+    ///
+    /// **One road for two doors** (`codebase-state.md` item 188): the
+    /// performer above, which announces after it, and construction's
+    /// `create_on_battlefield`, where an arrival is not an event. `arrived_on`
+    /// starts CR 302.6's clock on the entity and on a static Layer 2 row's
+    /// controller (`created_on_turn`); the performer passes the current turn.
+    pub(crate) fn make_permanent(&mut self, id: ObjectId, controller: PlayerId, mods: &EnterMods, arrived_on: u32) {
+        // CR 613.7d stamped the object as it entered the battlefield *zone*
+        // (`move_object`), or as it was created there (`add_object`, a token),
+        // and this runs after both. CR 613.7c's counters get theirs here, one
+        // per row in `mods` order, as the look-ahead predicted them. Not a
+        // nested `AddCounters` proposal: these counters are part of the entry
+        // event, which is why CR 614.16's doublers replace the `EnterMods` the
+        // performer is handed rather than an event of their own.
+        let first_counter = self.next_timestamp;
+        self.next_timestamp += mods.counters.len() as u64;
+        let timestamp = self.object_timestamp(id);
+        let entry = PermanentState::entering(self, id, controller, mods, timestamp, first_counter, arrived_on);
+        self.insert_battlefield_entity(id, entry);
+        self.bump_layer_epoch();
+
+        self.register_static_effects(id, controller, Zone::Battlefield, arrived_on);
     }
 
     /// CR 110.2b's **default** controller for an object that is entering the
@@ -1579,12 +1592,13 @@ impl GameState {
     /// entered as one (CR 707.5), which is how every gate's printed leg sees an
     /// entry copy. A copy made *later* registers through
     /// `register_copied_static_effects` (`copy-effects-architecture.md` §4.7
-    /// leg 2).
+    /// leg 2). `arrived_on` is the rows' `created_on_turn`.
     pub(crate) fn register_static_effects(
         &mut self,
         id: ObjectId,
         controller: PlayerId,
         zone: Zone,
+        arrived_on: u32,
     ) {
         use crate::engine::layers::types::{ContinuousEffect, EffectOrigin};
         use crate::objects::card_data::AbilityType;
@@ -1731,7 +1745,7 @@ impl GameState {
                         layer,
                         duration: Duration::WhileSourceOnBattlefield,
                         controller,
-                        created_on_turn: self.turn_number,
+                        created_on_turn: arrived_on,
                         timestamp,
                         affected_objects: affected.clone(),
                         modification,

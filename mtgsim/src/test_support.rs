@@ -47,7 +47,6 @@ use crate::engine::layers::types::{
     ObjectSet, ContinuousEffect, EffectModification, EffectOrigin, Layer, Timestamp,
 };
 use crate::types::effects::Duration;
-use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
 use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use crate::state::trace::{TraceHandle, TraceSink};
@@ -508,39 +507,9 @@ pub fn put_in_library(game: &mut GameState, card_data: Arc<CardData>, player: Pl
         .expect("a library takes any card")
 }
 
-/// What an object's own intrinsic "enters with" abilities give it as it
-/// enters under `controller`, and nothing else: CR 306.5b's loyalty counters,
-/// read off the ability the layer walk synthesizes onto its frame
-/// (`layers::intrinsic`). So a planeswalker the helpers place has its loyalty,
-/// and one Humility has stripped has none, as through the pipeline; the
-/// pipeline's other replacement effects are what the helpers skip.
-pub fn intrinsic_entry_mods(game: &GameState, id: ObjectId, controller: PlayerId) -> EnterMods {
-    use crate::types::replacement::Rewrite;
-    let mut mods = EnterMods::NONE;
-    // Most objects print no loyalty, and the frame is a walk a test counting
-    // walks would see; without a printed number the ability gives none.
-    if !game.objects.get(&id).is_some_and(|obj| obj.card_data.loyalty.is_some_and(|n| n > 0)) {
-        return mods;
-    }
-    let Some(frame) = crate::engine::layers::compute_as_entering(game, id, controller, &EnterMods::NONE) else {
-        return mods;
-    };
-    for ability in frame.abilities.iter() {
-        if !crate::engine::layers::intrinsic::is_intrinsic_entry_ability(ability, id) {
-            continue;
-        }
-        let Effect::Replacement(def) = &ability.effect else { continue };
-        let Rewrite::EnterWith(template) = &def.rewrite else { continue };
-        for row in &template.counters {
-            if let AmountExpr::Fixed(n) = row.amount
-                && n > 0
-            {
-                mods.merge(&EnterMods::with_counters(row.counter, n as u32));
-            }
-        }
-    }
-    mods
-}
+/// What an object's own intrinsic "enters with" abilities give it: the
+/// engine's, which a scenario's permanents enter with too.
+pub use crate::engine::layers::intrinsic::intrinsic_entry_mods;
 
 /// Put any permanent onto the battlefield **with ETB hooks**.
 ///
