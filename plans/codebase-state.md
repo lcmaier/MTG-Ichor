@@ -66,6 +66,7 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | 103.2 | Starting life | ✅ | `state/game_config.rs` |
 | 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
 | 103.6 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
+| 103.8 | The starting player's first draw step | ✅ 103.8a and 103.8c, from the seat count at `Game::new`; 103.8b (Two-Headed Giant) waits for teams, item 196 | `state/game.rs`, `starting_player_skips_first_draw` |
 | 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
 | 109 | Objects, characteristics | ✅ data model | `objects/card_data.rs`, `objects/object.rs` |
@@ -8752,27 +8753,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by the owner's testing in the dev GUI (2026-09-30)
 
-194. **Every client starts a two-player game with the starting player
-     drawing, which CR 103.8a forbids.** The engine has the rule:
-     `GameConfig::first_player_draws` false sets `skip_first_draw`, which
-     `process_draw_step` reads (`engine/turns.rs`). But the dev GUI
-     (`devgui/src/bridge.rs`), `cli_play` and `fuzz_games` all build their
-     games from `GameConfig::test()`, whose `first_player_draws: true` exists
-     to simplify tests. At four seats that is right, since CR 103.8c skips no
-     one; at two the starting player draws on turn 1.
-
-     **Reachability (2026-09-30):** reachable — wrong today: every two-player
-     game in the dev GUI, `cli_play` and `fuzz_games`, so every two-seat
-     fixture row and A/B sitting has measured this game.
-
-     **Sized:** ~10–20 lines of code: the clients take CR 103.8's answer from
-     the player count (a `GameConfig` constructor for played games, or
-     `Game::new` deriving it with the test config's override kept), and a
-     test at two seats and at four. It moves every two-seat game, so its A/B
-     predicts `differ` at two seats and `IDENTICAL` at four, §3's two-seat
-     rows re-record, and the dev GUI's six review pictures are redrawn.
-     **Slotted:** its own PR after #203, before the scenario loader's build
-     (`roadmap-v2.md` A6g), whose games start the same way.
+194. **~~Every client starts a two-player game with the starting player
+     drawing, which CR 103.8a forbids.~~ — ✅ CLOSED 2026-10-01 (the
+     first-draw PR).** — archived. `Game::new` derives CR 103.8's answer
+     from the seat count (`starting_player_skips_first_draw`), and
+     `GameConfig::first_player_draws` is an override only `test()` sets. The
+     clients build their games from `GameConfig::unrestricted()`.
+     **Reachability (2026-10-01):** closed — the first-draw PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 194".
 
 ### Found by #203's review (2026-09-30)
 
@@ -8814,3 +8802,27 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Slotted:** Phase 8, its own line item (`roadmap-v2.md` §C, C2; the
      owner, 2026-09-30, since the card pool is small): its design, then its
      build.
+
+### Found by the first-draw PR (2026-10-01)
+
+196. **CR 103.8b's answer has nothing to read: no game has teams.** "In a
+     Two-Headed Giant game, the team who plays first skips the draw step of
+     their first turn." `starting_player_skips_first_draw` (`state/game.rs`)
+     answers CR 103.8a and 103.8c from the seat count the game begins with
+     (`GameState::is_multiplayer`, CR 800.1), so every four-seat game's
+     starting player draws on turn 1: 103.8c's answer, and the wrong one
+     for a Two-Headed Giant game. The team's answer plugs in at that
+     function's input. Once `GameState` knows a game's variant and its
+     teams, the function reads them and answers true for the starting
+     team, whose players all draw in the team's one draw step (CR 805.4b),
+     so skipping it skips both. Its callers, `Game::new` and SU-1's loader
+     (`setup-architecture.md` §5.1), do not change.
+
+     **Reachability (2026-10-01):** unreachable — no game has teams, and
+     every game of three or more seats is a free-for-all, CR 103.8c's case.
+
+     **Sized:** ~5–10 lines once teams exist: the function's arm, and a
+     four-seat Two-Headed Giant game whose starting team draws nothing on
+     turn 1. **Slotted:** Phase 9 (`roadmap-v2.md` §D), in the PR that
+     models teams for CR 805's shared team turns, which CR 810.2 makes
+     Two-Headed Giant use.

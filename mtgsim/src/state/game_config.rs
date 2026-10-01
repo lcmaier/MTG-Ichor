@@ -36,8 +36,10 @@ pub struct GameConfig {
     pub starting_life: i64,
     pub starting_hand_size: usize,
     pub max_hand_size: i32,
-    /// Whether the first player draws on their first turn (false in standard 2-player).
-    pub first_player_draws: bool,
+    /// Whether the starting player draws in their first turn's draw step,
+    /// overriding CR 103.8. `None` leaves it to the rule, which `Game::new`
+    /// answers from the seat count (`starting_player_skips_first_draw`).
+    pub first_player_draws: Option<bool>,
     pub mulligan_rule: MulliganRule,
     pub deck_limits: DeckLimits,
 }
@@ -49,7 +51,7 @@ impl GameConfig {
             starting_life: 20,
             starting_hand_size: 7,
             max_hand_size: 7,
-            first_player_draws: false,
+            first_player_draws: None,
             mulligan_rule: MulliganRule::London,
             deck_limits: DeckLimits {
                 min_deck_size: 60,
@@ -66,7 +68,7 @@ impl GameConfig {
             starting_life: 20,
             starting_hand_size: 7,
             max_hand_size: 7,
-            first_player_draws: false,
+            first_player_draws: None,
             mulligan_rule: MulliganRule::London,
             deck_limits: DeckLimits {
                 min_deck_size: 40,
@@ -77,13 +79,14 @@ impl GameConfig {
         }
     }
 
-    /// Minimal config for tests — no deck restrictions, no mulligans.
-    pub fn test() -> Self {
+    /// No format's deck limits and no mulligans, for decks no format checks:
+    /// `cli_play`'s, `fuzz_games`' and the dev GUI's.
+    pub fn unrestricted() -> Self {
         GameConfig {
             starting_life: 20,
             starting_hand_size: 7,
             max_hand_size: 7,
-            first_player_draws: true, // simplifies tests
+            first_player_draws: None,
             mulligan_rule: MulliganRule::None,
             deck_limits: DeckLimits {
                 min_deck_size: 0,
@@ -92,6 +95,12 @@ impl GameConfig {
                 sideboard_size: None,
             },
         }
+    }
+
+    /// `unrestricted`, with the starting player drawing on their first turn at
+    /// any seat count, so a test's hand sizes do not depend on CR 103.8.
+    pub fn test() -> Self {
+        GameConfig { first_player_draws: Some(true), ..GameConfig::unrestricted() }
     }
 }
 
@@ -105,7 +114,7 @@ mod tests {
         assert_eq!(config.starting_life, 20);
         assert_eq!(config.starting_hand_size, 7);
         assert_eq!(config.max_hand_size, 7);
-        assert!(!config.first_player_draws);
+        assert_eq!(config.first_player_draws, None);
         assert_eq!(config.mulligan_rule, MulliganRule::London);
         assert_eq!(config.deck_limits.min_deck_size, 60);
         assert_eq!(config.deck_limits.max_copies, Some(4));
@@ -123,7 +132,7 @@ mod tests {
     #[test]
     fn test_test_config() {
         let config = GameConfig::test();
-        assert!(config.first_player_draws);
+        assert_eq!(config.first_player_draws, Some(true));
         assert_eq!(config.mulligan_rule, MulliganRule::None);
         assert_eq!(config.deck_limits.min_deck_size, 0);
     }

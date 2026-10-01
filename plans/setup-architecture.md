@@ -3,8 +3,8 @@
 > **Status:** design, 2026-09-30, revised 2026-10-01 over three review rounds
 > on PR #204, which carries the design alone. It covers `roadmap-v2.md` A6g's
 > scenario work: the scenario loader as phase **SU-1**, setup actions as
-> **SU-2**, and a board editor as **SU-3**, each its own PR, with item 194 in
-> its own PR before SU-1. Nothing here is built.
+> **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
+> before SU-1, built CR 103.8's derivation (§1); nothing else here is built.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -14,7 +14,8 @@
 > construction comes before); `triggers-architecture.md` §4.1 (why an
 > announcement outside a batch dispatches); `codebase-state.md` items 41 and
 > 140 (resuming at a priority prompt), 188 (two roads to one state), 193 (the
-> replay hazard) and 194 (CR 103.8a, which lands in its own PR first).
+> replay hazard), 194 (CR 103.8a, closed by the first-draw PR) and 196 (CR
+> 103.8b's teams).
 > **Neighbors, owned elsewhere until they are designed here:** CR 103.5's
 > mulligans (`backlog.md` §2.32), CR 103.6's opening-hand actions (item 119).
 
@@ -108,6 +109,20 @@ Scenario::build           a board at the start of a priority round, ────
             Game ── run, or resume_turn_at_priority ── CR 117.5's check ── priority …
               └── Scenario::write, at any prompt ──▶ a scenario file, and what it could not write
 ```
+
+**CR 103.8's first draw is derived where a game is built** (item 194, the
+first-draw PR, 2026-10-01). `Game::new` sets `skip_first_draw` from
+`state::game::starting_player_skips_first_draw`, which answers CR 103.8a and
+103.8c from the seat count the game begins with, as CR 800.1 reads it
+(`GameState::is_multiplayer`). The answer keys on the players, never on a
+format: a two-player Commander game skips the draw, and four players with
+60-card decks do not. So no config states it. `GameConfig::first_player_draws`
+is an override, `None` in every constructor but `test()`, whose `Some(true)`
+keeps a test's hand sizes independent of the seat count; the clients build
+their games from `GameConfig::unrestricted()`. A scenario that starts in turn 1
+before the draw step calls the same function (§5.1). CR 103.8b's Two-Headed
+Giant team plugs in at the function's input once Phase 9 models teams
+(`codebase-state.md` item 196); neither caller changes.
 
 ---
 
@@ -425,7 +440,7 @@ Defaults in the last column apply when the file says nothing. A reference
 | `turn T`, `active A` | 500.1, 102.1 | `begin_turn` and `begin_turn_history` for the turns the natural rotation over the players in the game gives, ending with A's turn T; `turn_rotation`; `priority_player` | 1, player 0 |
 | `step …` | 500.1, 117.3a | `set_turn_position`; `attacks_declared` from the combatants | precombat main |
 | *(who has priority)* | 117.3a | the active player, at the round's start | not a word: §5.3 |
-| *(the first draw)* | 103.8 | `skip_first_draw`, from item 194's derivation | derived |
+| *(the first draw)* | 103.8 | `skip_first_draw`, from `starting_player_skips_first_draw` (§1) | derived |
 | `player p: life N` | 119 | `life_total` | starting life |
 | `player p: poison N`, `energy N`, … | 122.1 | `PlayerState::add_counters` | none |
 | `player p: lands played N` | 305.2 | `lands_played_this_turn` | 0 |

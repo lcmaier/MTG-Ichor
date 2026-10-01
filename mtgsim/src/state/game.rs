@@ -66,9 +66,10 @@ impl Game {
             player.max_hand_size = config.max_hand_size;
         }
 
-        if !config.first_player_draws {
-            state.skip_first_draw = true;
-        }
+        state.skip_first_draw = match config.first_player_draws {
+            Some(draws) => !draws,
+            None => starting_player_skips_first_draw(&state),
+        };
 
         Ok(Game { state, config })
     }
@@ -385,6 +386,13 @@ impl Game {
 
 }
 
+/// CR 103.8a and 103.8c — whether the starting player skips the draw step of
+/// their first turn: in a two-player game they do, and in a game that begins
+/// with more than two players (CR 800.1) nobody does.
+pub fn starting_player_skips_first_draw(state: &GameState) -> bool {
+    !state.is_multiplayer()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -453,6 +461,58 @@ mod tests {
             vec![make_test_decklist(60), make_test_decklist(60)],
         ).unwrap();
         assert!(game.state.skip_first_draw);
+    }
+
+    /// Every constructor but `test`'s, each leaving CR 103.8 to the seat count.
+    fn configs_without_an_override() -> [GameConfig; 3] {
+        [GameConfig::standard(), GameConfig::limited(), GameConfig::unrestricted()]
+    }
+
+    /// A game of Forests at `seats` seats, set up. An eighth card fits in hand,
+    /// so cleanup asks no discard whichever answer CR 103.8 gives.
+    fn first_draw_game(mut config: GameConfig, seats: usize) -> (Game, ScriptedDecisionProvider) {
+        config.max_hand_size = 8;
+        let mut game = Game::new(config, vec![make_test_decklist(20); seats]).unwrap();
+        let decisions = ScriptedDecisionProvider::new();
+        game.setup(&decisions).unwrap();
+        (game, decisions)
+    }
+
+    /// Plays the next turn, passing in its main phases: did `player` draw in it?
+    fn drew_in_next_turn(game: &mut Game, decisions: &ScriptedDecisionProvider, player: usize) -> bool {
+        let library = game.state.players[player].library.len();
+        decisions.queue_main_phase_passes();
+        game.run_turn(decisions).unwrap();
+        game.state.players[player].library.len() < library
+    }
+
+    // COVERS: ATOM-103.8a-001, ATOM-504.1-002
+    #[test]
+    fn test_two_seats_skip_the_first_draw() {
+        for config in configs_without_an_override() {
+            let (mut game, decisions) = first_draw_game(config, 2);
+            assert!(!drew_in_next_turn(&mut game, &decisions, 0), "CR 103.8a: the starting player skips it");
+            assert!(!game.state.skip_first_draw);
+            assert!(drew_in_next_turn(&mut game, &decisions, 1));
+            assert!(drew_in_next_turn(&mut game, &decisions, 0), "their second turn draws");
+        }
+    }
+
+    // COVERS: ATOM-103.8c-001
+    #[test]
+    fn test_three_and_four_seats_do_not_skip_it() {
+        for seats in [3, 4] {
+            for config in configs_without_an_override() {
+                let (mut game, decisions) = first_draw_game(config, seats);
+                assert!(drew_in_next_turn(&mut game, &decisions, 0), "CR 103.8c at {seats} seats");
+            }
+        }
+    }
+
+    #[test]
+    fn test_the_test_configs_override_still_draws() {
+        let (mut game, decisions) = first_draw_game(GameConfig::test(), 2);
+        assert!(drew_in_next_turn(&mut game, &decisions, 0));
     }
 
     /// A loss proposed the way `Primitive::LoseGame` proposes one, in its own

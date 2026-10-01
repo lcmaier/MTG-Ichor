@@ -456,9 +456,9 @@ impl GameState {
     fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
-        // CR 103.8a — the first player skips their first draw step. A one-time
-        // flag `Game::new` sets from `GameConfig`; every other skip is a CR 614.10
-        // replacement on the proposal below.
+        // CR 103.8a — the starting player skips their first draw step. A one-time
+        // flag `Game::new` sets (`starting_player_skips_first_draw`); every other
+        // skip is a CR 614.10 replacement on the proposal below.
         if self.skip_first_draw {
             self.skip_first_draw = false;
         } else {

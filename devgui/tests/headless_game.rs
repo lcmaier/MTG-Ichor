@@ -31,6 +31,20 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
 }
 
+/// CR 103.8a: seat 0 plays first in a two-player game and skips its first draw
+/// step, so the window's first prompt, in turn 1's main phase, shows the seven
+/// cards it kept.
+#[test]
+fn the_window_starts_holding_seven_since_its_first_draw_is_skipped() {
+    let engine = spawn_game(GameSetup { seed: 7, pool: Pool::Performance, log_path: None }, Arc::new(|| {}));
+    let ToWindow::Prompt { snapshot, .. } = next(&engine) else {
+        panic!("expected a prompt first");
+    };
+    assert_eq!((snapshot.turn, snapshot.active_player, snapshot.phase.as_str()), (1, 0, "Precombat Main"));
+    assert_eq!(snapshot.players[0].hand.len(), 7);
+    assert_eq!(snapshot.players[0].library.len(), 53);
+}
+
 #[test]
 fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
     let engine = spawn_game(GameSetup { seed: 7, pool: Pool::Performance, log_path: None }, Arc::new(|| {}));
