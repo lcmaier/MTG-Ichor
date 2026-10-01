@@ -1750,7 +1750,8 @@ into an answer, and a session that owns one game. Those are reviewed as the
 engine is, by reading them against §2b's names and asking whether a test fails
 when the code breaks, and they carry the tests. The drawing files lay out what
 the view model built and report the person's clicks; they are reviewed against
-§10.1's checklist and by running them.
+§10.1's checklist and by running them, and §10.2's gate holds the line between
+the two halves.
 
 **Every GUI PR body carries three things** besides the usual ones:
 - **its files sorted by how to review them**: read closely (the plain Rust),
@@ -1819,3 +1820,20 @@ everything a drawing function calls runs that often.
 **First applied to the whole crate at A6g's review practices PR**, by a review
 agent given this list, a budget and a stop-and-report rule; the findings are
 in that PR's table, each fixed there or given a `codebase-state.md` item.
+
+### 10.2 The rule as a gate
+
+`python plans/check_egui_only_draws.py`, in CI's check job and on
+`CLAUDE.md`'s line, fails when a file other than the drawing files names a
+window crate (egui and its family, eframe, winit, wgpu), and when a drawing
+file names the engine (`mtgsim::`): what the window shows comes through the
+view model, where a test can read it. The drawing files are three, each listed
+in the script with why it is one: `src/app.rs`, the window; `src/main.rs`, which
+starts eframe over what `launch` read from the command line; and
+`tests/screenshots.rs`, which draws the review pictures. A new drawing file is
+a line in that list, which a review reads in the diff. Comments and string
+literals are not read, so "nothing here knows egui" stays a doc comment.
+
+Its first run, on the tree before A6g's review fixed anything, found
+`main.rs` reading the command line, untested, and naming the engine to find a
+scenario's seed (finding 3 of that PR's table).
