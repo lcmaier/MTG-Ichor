@@ -100,6 +100,8 @@ WATCHLIST = [
     "flush",
     # Added 2026-09-25, item 180's review.
     "fork",
+    # Added 2026-09-30, A6j.
+    "person", "agent", "yield",
 ]
 
 # Words that name more than one thing, and how many senses the glossary owes

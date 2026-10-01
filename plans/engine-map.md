@@ -149,7 +149,7 @@ each.
 | `oracle/legality.rs`, `oracle/mana_helpers.rs`, `oracle/board.rs` | candidate actions and legal selections; castability and `activatable_abilities`; board queries |
 | `types/` | the type surface: `effects.rs`, `replacement.rs`, `restriction.rs`, `triggers.rs`, `cost_modification.rs`, `costs.rs`, `zones.rs`, `ids.rs`, `card_types.rs`, `colors.rs`, `mana.rs`, `keywords.rs`, `keyword_actions.rs`, `history.rs`; `mod.rs` holds `counted_enum!` |
 | `ui/decision.rs`, `ui/ask.rs`, `ui/choice_types.rs` | the four-method `DecisionProvider`; the typed `ask_*` bridge, where every prompt is validated and traced; `ChoiceKind` |
-| `ui/random.rs`, `ui/cli.rs`, `ui/mana_window_stop.rs`, `ui/auto_payer.rs`, `ui/display.rs` | two providers, two decorators, the text formatters |
+| `ui/random.rs`, `ui/cli.rs`, `ui/mana_window_stop.rs`, `ui/auto_payer.rs`, `ui/auto_yield.rs`, `ui/full_control.rs`, `ui/display.rs` | two providers, three decorators, the full-control switch above a person's stack, the text formatters |
 | `cards/registry.rs`, `cards/random_deck.rs`, `cards/authoring/` | the registry and the two pools; the fuzz harness's decks; the card-authoring words, `triggers.rs` today |
 | `cards/*.rs` | card definitions, filed by the phase that first needed them |
 | `bin/fuzz_games.rs`, `bin/cli_play.rs`, `test_support.rs`, `lib.rs`, `main.rs` | the random-versus-random harness; terminal play; the `test-support` feature's helpers; the crate root; a stub |
@@ -271,7 +271,7 @@ Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 
 | Site | Where | Held off `GameState` | Status |
 |---|---|---|---|
-| the priority loop | `run_priority_round` `engine/priority.rs:30`; locals at `engine/priority.rs:77` | `blacklist` (outcome-bearing), `retries` | `codebase-state.md` item 140 |
+| the priority loop | `run_priority_round` `engine/priority.rs:30`; locals at `engine/priority.rs:77` | `blacklist` (outcome-bearing), `retries` — an agent's seat's only since A6j | `codebase-state.md` item 140 |
 | the mana window | `run_mana_ability_window` `engine/put_on_stack.rs:540`; the set at `engine/put_on_stack.rs:566` | `failed` | not outcome-bearing |
 | CR 601.2b–d's announcement | `cast_spell` `engine/put_on_stack.rs:52`, rewound by `rollback_cast_to_hand` `engine/put_on_stack.rs:629` | the unpushed `StackEntry` | violator 2 |
 | the CR 616.1 loop | `apply_replacements` `engine/replacement/pipeline.rs:318`; the sets at `engine/replacement/pipeline.rs:339` | `applied`, `declined`, `exempt_applied`, the rewritten members | violator 1 |

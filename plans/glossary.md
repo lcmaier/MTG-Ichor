@@ -526,6 +526,22 @@ somewhere odd is *correct and unfindable*, where a missing rule is wrong. Most
 of this project's refactors are re-spellings: the behaviour is already right
 and the change is where a reader would look for it.
 
+**person** / **agent** — who plays a seat, as far as the engine's own conduct
+depends on it: `SeatMode`'s `person`, which a provider reports and every
+decorator forwards. An *agent* is a program (the random provider, a harness's
+policy, a test's script) and the default: a priority window drops its rejected
+action until the window closes and charges it to a retry budget, so its
+re-picks terminate. A *person* may cancel an action and choose it again
+(`codebase-state.md` item 192), and is the seat full control and auto-yield
+are for. Not *player*, the CR's word for whoever plays.
+→ `ui::decision::SeatMode`.
+
+**yield** — a person's standing pass, Arena's word and not the CR's: until
+the turn ends, until the stack changes, or until their own next turn. Set at a
+priority prompt, with that prompt's pass, and answered by `AutoYield` at the
+seat's priority prompts while it holds; under full control the seat's prompts
+never reach it. → `ui::auto_yield`.
+
 **dispatch** — CR 603.2's first instant, run once over a window of records:
 when the outermost batch closes, or at an emission outside any batch. It finds
 the objects whose triggered abilities read any of the window's record kinds,

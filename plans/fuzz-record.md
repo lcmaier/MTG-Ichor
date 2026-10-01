@@ -37,6 +37,32 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-30 for A6j** (full control, auto-yield and the
+`[Pass]`-only prompt: `codebase-state.md` items 161, 164 and 192, archived).
+No pool change. `close_out.py`: **main** `6aaaf38` (#201's merge) against
+**engine** `89c56ec`.
+
+**Predictions, the brief's and the items', before any arm ran:** every
+gameplay and cost row `IDENTICAL` on both pools at two seats and four. Item
+164's forced prompt because the random agent draws nothing on a one-option pick and
+`Priority decisions` never counted those prompts; items 161 and 192 because an
+agent reports `SeatMode`'s default and `fuzz_games` stacks neither new
+decorator. No instruction prediction was written; item 138 had priced the
+provider round trip, its lever 10, at about 2%.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 186,510 / 185,438 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6630 M → 0.6580 M, **−0.75%** |
+
+All held, cost rows included. The instruction reading is item 164's
+saving: a `[Pass]`-only priority point no longer builds an option list,
+validates an answer or passes through the bot's stack. It is under half of
+lever 10's price, which was read on 2026-09-16, before the triggers phase made
+a decision dearer, and proving a list is `[Pass]` (lever 4's enumeration) still
+runs.
+
 **Re-recorded 2026-09-29 for CV-2b** (CR 707.9's exceptions on an entry copy,
 with Spark Double — `copy-effects-architecture.md` §7c, landed). **Pool
 change**: `performance` goes 100 → 101 and `stress` 180 → 181, both Spark
