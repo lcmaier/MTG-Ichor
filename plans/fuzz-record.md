@@ -61,14 +61,18 @@ have renamed it.
 |---|---|---|
 | gameplay rows, both arms vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
 | audit, both arms, performance / stress, dispatches agreed | 186,510 / 185,438 | 350,537 / 388,612 |
-| instructions / decision vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | display 0.6576 M → 0.6574 M, **−0.03%**; engine 0.6578 M → 0.6589 M, **+0.16%** |
+| instructions / decision vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | display 0.6576 M → 0.6574 M, **−0.03%**; engine 0.6578 M → 0.6589 M, **+0.16%**; after review, `00d0419`, 0.6576 M → 0.6591 M, **+0.23%** |
 
 All held, cost rows included: the counter files differ only in their timing
 lines. The display arm's reading is unattributed, since no path `fuzz_games`
 runs changed. The engine arm's +0.16% is the names' price: a match over the
 event and a battlefield lookup per object it names, on every announced event.
 The two readings come from two sittings, which callgrind's pinned seed makes
-comparable, and both are far inside §3.1's budget.
+comparable, and both are far inside §3.1's budget. The review's last reading
+(`00d0419`, its own sitting, every gameplay and cost row again `IDENTICAL`)
+adds 0.07 points: while a row that writes a name is registered, the record
+now reads every object an event names in any zone, not only permanents, and
+Cytoshape's copy row is one, in the pool.
 
 **Re-recorded 2026-09-30 for A6j** (full control, auto-yield and the
 `[Pass]`-only prompt: `codebase-state.md` items 161, 164 and 192, archived).
