@@ -106,7 +106,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::Scenario;
-use mtgsim::state::game::{Game, Streams};
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
@@ -902,9 +902,9 @@ fn run_one_game(
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
     // Three independent streams, all a pure function of `game_seed`: deck
-    // construction off the seed itself, then the engine's two (`Streams`), the
+    // construction off the seed itself, then the engine's two (`RandomStreams`), the
     // in-game shuffle and the AI's choices.
-    let Streams { game: shuffle_seed, agents: dp_seed } = Streams::from_seed(game_seed);
+    let RandomStreams { game: shuffle_seed, agents: dp_seed } = RandomStreams::from_seed(game_seed);
 
     // One deck per seat, drawn from the one stream in seat order — so a
     // two-player run draws exactly the two decks it always drew.

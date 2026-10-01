@@ -67,7 +67,7 @@ pub fn is_intrinsic_entry_ability(ability: &AbilityDef, object: ObjectId) -> boo
 /// loyalty, when it prints a loyalty number (CR 306.5b). Read off the printed
 /// card on purpose, as the gate before a frame is walked; whether the object
 /// has the ability as it enters is the frame's question.
-pub fn intrinsic_entry_counter(card: &CardData) -> Option<CounterType> {
+pub fn intrinsic_entry_counter_kind(card: &CardData) -> Option<CounterType> {
     card.loyalty.is_some_and(|n| n > 0).then_some(CounterType::Loyalty)
 }
 
@@ -82,7 +82,7 @@ pub fn intrinsic_entry_mods(game: &GameState, id: ObjectId, controller: PlayerId
     let mut mods = EnterMods::NONE;
     // The frame is a walk a test counting walks would see; without a printed
     // number the ability gives none.
-    if game.objects.get(&id).and_then(|obj| intrinsic_entry_counter(&obj.card_data)).is_none() {
+    if game.objects.get(&id).and_then(|obj| intrinsic_entry_counter_kind(&obj.card_data)).is_none() {
         return mods;
     }
     let Some(frame) = compute_as_entering(game, id, controller, &EnterMods::NONE) else {

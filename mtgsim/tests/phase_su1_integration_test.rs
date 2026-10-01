@@ -5,9 +5,9 @@
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness, has_summoning_sickness};
-use mtgsim::scenario::{Refusal, RefusalKind, Scenario};
+use mtgsim::scenario::{ScenarioError, ScenarioErrorKind, Scenario};
 use mtgsim::state::battlefield::AttackTarget;
-use mtgsim::state::game::{Game, Streams};
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_state::{PhaseType, StepType};
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::history::TurnFact;
@@ -20,7 +20,7 @@ fn load(text: &str) -> Game {
     Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{r}"))
 }
 
-fn refused(text: &str) -> Refusal {
+fn refused(text: &str) -> ScenarioError {
     Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).map(|_| ()).expect_err(text)
 }
 
@@ -64,7 +64,7 @@ fn a_scenario_game_played_twice_is_one_game() {
     let play = || {
         let mut game = load(include_str!("../scenarios/holy-strength.scenario"));
         game.state.record_events();
-        let agents = ManaWindowStop::new(RandomDecisionProvider::seeded(Streams::from_seed(7).agents));
+        let agents = ManaWindowStop::new(RandomDecisionProvider::seeded(RandomStreams::from_seed(7).agents));
         let result = game.resume(&agents).unwrap();
         (result, game.event_log_snapshot())
     };
@@ -259,7 +259,7 @@ fn damage_and_attached_to() {
     assert_eq!((get_effective_power(state, bears), get_effective_toughness(state, bears)), (Some(3), Some(4)));
     assert!(state.object_timestamp(aura) > state.object_timestamp(bears));
     let host_after = refused("battlefield: Holy Strength | controller 0, attached to Grizzly Bears\nbattlefield: Grizzly Bears | controller 0");
-    assert_eq!((host_after.kind, host_after.line), (RefusalKind::Reference, Some(1)));
+    assert_eq!((host_after.kind, host_after.line), (ScenarioErrorKind::Reference, Some(1)));
 }
 
 #[test]
@@ -294,11 +294,11 @@ fn dealt_first_strike_damage() {
 #[test]
 fn the_classes_of_refusal() {
     let not_a_card = refused("hand 0: Grizly Bears");
-    assert_eq!((not_a_card.kind, not_a_card.line), (RefusalKind::NotACard, Some(1)));
+    assert_eq!((not_a_card.kind, not_a_card.line), (ScenarioErrorKind::NotACard, Some(1)));
     assert!(not_a_card.message.contains("Grizly Bears is not registered"));
 
     let two = refused("battlefield: Grizzly Bears | controller 0\nbattlefield: Grizzly Bears | controller 0\nbattlefield: Holy Strength | controller 0, attached to Grizzly Bears");
-    assert_eq!((two.kind, two.line), (RefusalKind::Reference, Some(3)));
+    assert_eq!((two.kind, two.line), (ScenarioErrorKind::Reference, Some(3)));
     assert!(two.message.contains("lines 1 and 2"), "{two}");
 
     for (text, says) in [
@@ -308,9 +308,13 @@ fn the_classes_of_refusal() {
         ("step declare blockers\nbattlefield: Grizzly Bears | controller 0\nbattlefield: Wall of Stone | controller 1, blocking Grizzly Bears", "not attacking"),
         ("step declare blockers", "CR 508.8"),
         ("battlefield: Lightning Bolt | controller 0", "CR 304.4"),
+        ("players 3
+step declare attackers
+player 2: left the game
+battlefield: Grizzly Bears | controller 0, attacking player 2", "who has left the game"),
     ] {
         let refusal = refused(text);
-        assert_eq!(refusal.kind, RefusalKind::Unreachable, "{text}");
+        assert_eq!(refusal.kind, ScenarioErrorKind::Unreachable, "{text}");
         assert!(refusal.message.contains(says), "{text}: {refusal}");
     }
 
@@ -357,6 +361,17 @@ fn a_loaded_board_is_written_back_in_its_own_words() {
         assert!(text.contains(line), "missing {line:?} in\n{text}");
     }
     assert_eq!(Scenario::write(&load(&text).state).to_string(), text);
+}
+
+/// A life total below zero is at rest under Platinum Angel, so it reads
+/// and writes back like any other.
+#[test]
+fn a_life_total_below_zero_reads_and_writes_back() {
+    let game = load("player 0: life -3
+battlefield: Platinum Angel | controller 0");
+    assert_eq!(game.state.players[0].life_total, -3);
+    assert!(Scenario::write(&game.state).to_string().contains("player 0: life -3
+"));
 }
 
 /// What §2 plays rather than writes is reported, a line each, at the top.

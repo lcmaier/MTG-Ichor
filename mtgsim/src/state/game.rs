@@ -406,14 +406,14 @@ pub fn starting_player_skips_first_draw(state: &GameState) -> bool {
 /// shuffles from, and the agents'. Distinct sub-seeds, since two `StdRng`s
 /// seeded alike would correlate a shuffle with the choices made over it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Streams {
+pub struct RandomStreams {
     pub game: u64,
     pub agents: u64,
 }
 
-impl Streams {
-    pub fn from_seed(seed: u64) -> Streams {
-        Streams { game: seed ^ 0x9E37_79B9_7F4A_7C15, agents: seed ^ 0xD1B5_4A32_D192_ED03 }
+impl RandomStreams {
+    pub fn from_seed(seed: u64) -> RandomStreams {
+        RandomStreams { game: seed ^ 0x9E37_79B9_7F4A_7C15, agents: seed ^ 0xD1B5_4A32_D192_ED03 }
     }
 }
 

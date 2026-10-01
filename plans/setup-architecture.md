@@ -431,7 +431,17 @@ the vocabulary's next words. Tokens and copies are the likely first.
 A *word* is anything a scenario file can say: a line's head (`hand 0:`) or an
 attribute after the bar (`tapped`).
 
-### 5.1 v1
+### 5.1 v1, as built
+
+**The one table of the grammar**: the parser (`scenario/text.rs`) reads it,
+`Display` writes it, and `mtgsim/scenarios/template.scenario` shows every
+word in use. One line states one thing, and `#` starts a comment. A line that
+names a card puts the name after the head's colon (only the first colon is the
+head's, so "Circle of Protection: Red" parses), then an optional tag in square
+brackets, then `|` and its words, separated by commas. A word that names
+another card takes the rest of the line, so it comes last
+(`CardWord::names_a_card`, which `Display` writes last). A count is `xN` after
+the bar, never `N Forest`, since a name may begin with a digit.
 
 Defaults in the last column apply when the file says nothing. A reference
 (`<card>`) is a name, with its tag where it has one (§4.2).
@@ -450,12 +460,13 @@ Defaults in the last column apply when the file says nothing. A reference
 | `player p: lands played N` | 305.2 | `lands_played_this_turn` | 0 |
 | `player p: left the game` | 104.5, 800.4a | `player_lost`; refused if p owns or controls anything, is active, or leaves fewer than two in the game | in the game |
 | `player p: commander damage N from <card>` | 903.10a | `commander_damage_taken` | none |
-| `player p this turn:`, `last turn:`, `this game:`, each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
+| `player p this turn:`, `last turn:`, `this game:` (and `since your last turn:`, which reads and is refused: the rows derive it), each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
 | `this turn: <card> \| triggered`, `resolved N`, `took its once-each-turn action`, each after an optional `ability N` (its printed place, needed when the card has two that could be meant) | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
 | `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`: a library top first; a graveyard bottom first, each card on top of the last, since lines are stamped in file order (§4.3) | empty |
 | `library p shuffled:` | 401, 701.24 | then `shuffle_library` from the game's stream | — |
 | `exile:`, `command:` | 406, 408 | `create_in_zone`, with `owner` | empty |
 | `commander` | 903.3 | `GameObject::is_commander` | no |
+| `xN` | — | N copies of the line's card, each its own object; refused with a tag | 1 |
 | `battlefield:` | 613.7d | the door (§3.1), in the file's order | — |
 | `controller p`, `owner p` | 110.2b, 108.3 | the entity's default controller; the object's owner | each the other |
 | `tapped` | 110.5 | `tapped` | untapped |
@@ -739,10 +750,11 @@ refusal messages as SU-1's sizing did not.
 **What shipped.** The entry performer's state half, `make_permanent`, which
 `place_on_battlefield` and the construction door `create_on_battlefield` share,
 with the arrival turn a parameter of both it and `register_static_effects`.
-`mtgsim::scenario`: the grammar as one table in the module doc, `Scenario::parse`,
+`mtgsim::scenario`: the grammar as §5.1's one table (a module doc's copy moved here at
+review), `Scenario::parse`,
 `build` (§4.1's refusals, saying what to change), `write` (the four structs
 destructured with no `..`, and its report) and `Display`. `Game::resume`;
-`Streams::from_seed`, with `fuzz_games`' salts; the registry's list of cards in
+`RandomStreams::from_seed`, with `fuzz_games`' salts; the registry's list of cards in
 development; `CounterType::name`. `mtgsim/scenarios/`: a template naming every
 word and four samples. `fuzz_games --scenario`, under CI's three hasher seeds.
 The dev GUI's `--scenario`, Reload, "Save board as scenario", a refusal in the

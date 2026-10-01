@@ -3,7 +3,7 @@
 
 use crate::state::game_state::{Phase, PhaseType};
 use crate::types::effects::CounterType;
-use crate::types::history::TurnFact;
+use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::PlayerId;
 
 /// A board described at rest (`setup-architecture.md` §2): the start of a
@@ -17,10 +17,10 @@ pub struct Scenario {
     pub active: PlayerId,
     pub step: Phase,
     /// What the `player p…:` lines say, in file order.
-    pub player_facts: Vec<Located<PlayerFact>>,
+    pub player_words: Vec<LineNumbered<PlayerWord>>,
     /// The lines that create a card or speak of one, in file order: the
     /// order the loader stamps them in (CR 613.7d).
-    pub cards: Vec<Located<CardLine>>,
+    pub cards: Vec<LineNumbered<CardLine>>,
 }
 
 impl Default for Scenario {
@@ -34,7 +34,7 @@ impl Default for Scenario {
             turn: 1,
             active: 0,
             step: Phase { phase_type: PhaseType::Precombat, step: None },
-            player_facts: Vec::new(),
+            player_words: Vec::new(),
             cards: Vec::new(),
         }
     }
@@ -42,42 +42,33 @@ impl Default for Scenario {
 
 /// An item and the 1-based line it came from, so a refusal can name it.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Located<T> {
+pub struct LineNumbered<T> {
     pub line: usize,
-    pub item: T,
+    pub value: T,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum PlayerFact {
+pub enum PlayerWord {
     Life { player: PlayerId, life: i64 },
     Counter { player: PlayerId, kind: CounterType, count: u32 },
     LandsPlayed { player: PlayerId, count: u32 },
     LeftTheGame { player: PlayerId },
-    CommanderDamage { player: PlayerId, damage: u32, from: CardRef },
-    History { player: PlayerId, row: HistoryRow, fact: TurnFact, count: u64 },
-}
-
-/// The three rows of `PlayerHistory` a file writes. "Since your last turn"
-/// is derived from them (`setup-architecture.md` §5.1).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HistoryRow {
-    ThisTurn,
-    LastTurn,
-    ThisGame,
+    CommanderDamage { player: PlayerId, damage: u32, from: NamedCard },
+    History { player: PlayerId, span: HistorySpan, fact: TurnFact, count: u64 },
 }
 
 /// One card line: a card created in a zone, or more said about one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CardLine {
-    pub head: Head,
-    pub card: CardRef,
+    pub kind: LineKind,
+    pub card: NamedCard,
     pub copies: u32,
-    pub words: Vec<Word>,
+    pub words: Vec<CardWord>,
 }
 
 /// Where a line's card is, or what the line says about an earlier one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Head {
+pub enum LineKind {
     Hand(PlayerId),
     /// Top first; `shuffled` orders the whole library from the game's stream.
     Library { player: PlayerId, shuffled: bool },
@@ -94,7 +85,7 @@ pub enum Head {
 
 /// A card by name, and the tag that tells two with one name apart.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CardRef {
+pub struct NamedCard {
     pub name: String,
     pub tag: Option<String>,
 }
@@ -111,14 +102,14 @@ pub enum Arrival {
 /// What an attacker attacks (CR 508.1b): a player, or a planeswalker or
 /// battle by name.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Target {
+pub enum Attacked {
     Player(PlayerId),
-    Permanent(CardRef),
+    Permanent(NamedCard),
 }
 
 /// One word after a card's bar. The module doc's second table.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Word {
+pub enum CardWord {
     Owner(PlayerId),
     Controller(PlayerId),
     Commander,
@@ -129,12 +120,20 @@ pub enum Word {
     Damage(u32),
     DealtFirstStrikeDamage,
     Blocked,
-    AttachedTo(CardRef),
-    Attacking(Target),
-    Blocking(CardRef),
+    AttachedTo(NamedCard),
+    Attacking(Attacked),
+    Blocking(NamedCard),
     /// `this turn:` words, each naming the ability by its printed position
     /// (1 for the first), or none when the card has one that can.
     Triggered { ability: Option<usize> },
     Resolved { ability: Option<usize>, times: u32 },
     TookOnceEachTurnAction { ability: Option<usize> },
+}
+
+impl CardWord {
+    /// Does this word name another card? Such a word takes the rest of its
+    /// line, since a name may hold a comma, so it is written last.
+    pub fn names_a_card(&self) -> bool {
+        matches!(self, CardWord::AttachedTo(_) | CardWord::Blocking(_) | CardWord::Attacking(Attacked::Permanent(_)))
+    }
 }

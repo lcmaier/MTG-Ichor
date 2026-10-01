@@ -3,32 +3,32 @@
 //! Every field of `GameState`, `PlayerState`, `PermanentState` and
 //! `GameObject` is named below with no `..`, so a field the engine adds fails
 //! to compile here until it is answered (§5.2's growth contract): written as
-//! a word, reported in [`Written::unwritten`], or bound to `_` as the
+//! a word, reported in [`WrittenBoard::unwritten`], or bound to `_` as the
 //! engine's own, with the reason beside it.
 
-use super::board::{Arrival, CardLine, CardRef, Head, HistoryRow, Located, PlayerFact, Scenario, Target, Word};
-use super::text::{every_fact, in_combat_from};
-use crate::engine::layers::intrinsic::intrinsic_entry_counter;
+use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
+use super::text::{every_turn_fact, in_combat_from};
+use crate::engine::layers::intrinsic::intrinsic_entry_counter_kind;
 use crate::engine::layers::types::EffectOrigin;
 use crate::objects::object::GameObject;
 use crate::state::battlefield::{AttackTarget, CostChoices, PermanentState};
 use crate::state::game::starting_player_skips_first_draw;
 use crate::state::game_state::{GameState, StepType, TurnPlan};
 use crate::state::player::PlayerState;
-use crate::types::history::TurnFact;
+use crate::types::history::{HistorySpan, TurnFact};
 use crate::types::ids::{ObjectId, PlayerId};
 use crate::types::zones::Zone;
 
 /// A board written from a game, and what it could not write.
 #[derive(Debug, Clone)]
-pub struct Written {
+pub struct WrittenBoard {
     pub scenario: Scenario,
     /// What §2 plays rather than writes, and the fields whose word waits
     /// (§5.2), a sentence each. Empty when the board is exact.
     pub unwritten: Vec<String>,
 }
 
-impl std::fmt::Display for Written {
+impl std::fmt::Display for WrittenBoard {
     /// The report as comments at the top, then the board.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for line in &self.unwritten {
@@ -43,13 +43,13 @@ impl Scenario {
     /// round with the active player to act. Its randomness is fresh: a
     /// `StdRng` keeps its position private, so the save, not this, continues
     /// a game exactly.
-    pub fn write(state: &GameState) -> Written {
+    pub fn write(state: &GameState) -> WrittenBoard {
         let mut writer = Writer { state, scenario: Scenario::default(), unwritten: Vec::new(), tags: Vec::new() };
-        writer.tags();
-        writer.game();
-        writer.players();
-        writer.cards();
-        Written { scenario: writer.scenario, unwritten: writer.unwritten }
+        writer.assign_tags();
+        writer.write_game();
+        writer.write_players();
+        writer.write_cards();
+        WrittenBoard { scenario: writer.scenario, unwritten: writer.unwritten }
     }
 }
 
@@ -61,8 +61,8 @@ struct Writer<'g> {
     tags: Vec<(ObjectId, String)>,
 }
 
-fn written<T>(item: T) -> Located<T> {
-    Located { line: 0, item }
+fn unnumbered<T>(value: T) -> LineNumbered<T> {
+    LineNumbered { line: 0, value }
 }
 
 impl<'g> Writer<'g> {
@@ -70,7 +70,7 @@ impl<'g> Writer<'g> {
         self.unwritten.push(what.into());
     }
 
-    fn game(&mut self) {
+    fn write_game(&mut self) {
         let GameState {
             objects: _,             // by zone, in `cards`
             players,
@@ -190,7 +190,7 @@ impl<'g> Writer<'g> {
         }
     }
 
-    fn players(&mut self) {
+    fn write_players(&mut self) {
         let state = self.state;
         let turn = state.turn_number;
         for (p, player) in state.players.iter().enumerate() {
@@ -211,36 +211,36 @@ impl<'g> Writer<'g> {
             } = player;
             let mut facts = Vec::new();
             if *life_total != state.starting_life {
-                facts.push(PlayerFact::Life { player: p, life: *life_total });
+                facts.push(PlayerWord::Life { player: p, life: *life_total });
             }
-            facts.extend(counters.iter().map(|(kind, count)| PlayerFact::Counter { player: p, kind: *kind, count: *count }));
+            facts.extend(counters.iter().map(|(kind, count)| PlayerWord::Counter { player: p, kind: *kind, count: *count }));
             if *lands_played_this_turn > 0 {
-                facts.push(PlayerFact::LandsPlayed { player: p, count: *lands_played_this_turn });
+                facts.push(PlayerWord::LandsPlayed { player: p, count: *lands_played_this_turn });
             }
             if state.player_lost[p] {
-                facts.push(PlayerFact::LeftTheGame { player: p });
+                facts.push(PlayerWord::LeftTheGame { player: p });
             }
             let mut damage: Vec<(&ObjectId, &u32)> = commander_damage_taken.iter().collect();
             damage.sort_by_key(|(id, _)| state.object_timestamp(**id));
             for (commander, damage) in damage {
                 match state.objects.get(commander) {
-                    Some(obj) => facts.push(PlayerFact::CommanderDamage { player: p, damage: *damage, from: self.reference(obj) }),
+                    Some(obj) => facts.push(PlayerWord::CommanderDamage { player: p, damage: *damage, from: self.named_card(obj) }),
                     None => self.report(format!("player {p}'s commander damage from a commander no longer in the game")),
                 }
             }
-            for fact in every_fact() {
+            for fact in every_turn_fact() {
                 let (this, last, game) =
                     (history.this_turn(turn).count(fact), history.last_turn(turn).count(fact), history.this_game().count(fact));
-                for (row, count) in [(HistoryRow::ThisTurn, this), (HistoryRow::LastTurn, last)] {
+                for (span, count) in [(HistorySpan::ThisTurn, this), (HistorySpan::LastTurn, last)] {
                     if count > 0 {
-                        facts.push(PlayerFact::History { player: p, row, fact, count });
+                        facts.push(PlayerWord::History { player: p, span, fact, count });
                     }
                 }
                 if game != this + last {
-                    facts.push(PlayerFact::History { player: p, row: HistoryRow::ThisGame, fact, count: game });
+                    facts.push(PlayerWord::History { player: p, span: HistorySpan::ThisGame, fact, count: game });
                 }
             }
-            self.scenario.player_facts.extend(facts.into_iter().map(written));
+            self.scenario.player_words.extend(facts.into_iter().map(unnumbered));
             if mana_pool.total() > 0 || !mana_pool.special_atoms().is_empty() {
                 self.report(format!("player {p}'s mana pool (the word waits for item 33's provenance)"));
             }
@@ -270,7 +270,7 @@ impl<'g> Writer<'g> {
         };
         let mine = &state.players[player].history;
         state.players.iter().enumerate().any(|(q, theirs)| {
-            every_fact().any(|fact| {
+            every_turn_fact().any(|fact| {
                 let (this, last) = (theirs.history.this_turn(turn).count(fact), theirs.history.last_turn(turn).count(fact));
                 let derived = match turn.checked_sub(ended) {
                     Some(1) if ended > 0 => this,
@@ -284,14 +284,14 @@ impl<'g> Writer<'g> {
 
     /// `obj`'s name, with its tag if two objects it could be confused with
     /// share it.
-    fn reference(&self, obj: &GameObject) -> CardRef {
+    fn named_card(&self, obj: &GameObject) -> NamedCard {
         let tag = self.tags.iter().find(|(id, _)| *id == obj.id).map(|(_, tag)| tag.clone());
-        CardRef { name: obj.card_data.name.clone(), tag }
+        NamedCard { name: obj.card_data.name.clone(), tag }
     }
 
     /// A tag for each name two permanents share, or two commanders, as the
     /// loader resolves a reference among the one or the other.
-    fn tags(&mut self) {
+    fn assign_tags(&mut self) {
         let state = self.state;
         let permanents = state.battlefield_ids_ordered();
         let mut commanders: Vec<ObjectId> = state.objects.values().filter(|o| o.is_commander).map(|o| o.id).collect();
@@ -302,13 +302,13 @@ impl<'g> Writer<'g> {
                 let shared = group.iter().filter(|other| state.objects[other].card_data.name == *name).count() > 1;
                 if shared && !self.tags.iter().any(|(tagged, _)| *tagged == id) {
                     let used = self.tags.iter().filter(|(other, _)| state.objects[other].card_data.name == *name).count();
-                    self.tags.push((id, ((b'a' + (used % 26) as u8) as char).to_string()));
+                    self.tags.push((id, tag_letters(used)));
                 }
             }
         }
     }
 
-    fn cards(&mut self) {
+    fn write_cards(&mut self) {
         let state = self.state;
         let permanents = state.battlefield_ids_ordered();
         // Each library top first, then everything else in CR 613.7d's order,
@@ -316,8 +316,8 @@ impl<'g> Writer<'g> {
         // stamped between them (CR 613.7c).
         for (p, player) in state.players.iter().enumerate() {
             for id in player.library.iter().rev() {
-                let line = CardLine { head: Head::Library { player: p, shuffled: false }, ..self.card_line(*id) };
-                self.push(line);
+                let line = CardLine { kind: LineKind::Library { player: p, shuffled: false }, ..self.object_line(*id) };
+                self.push_line(line);
             }
         }
         let mut stamps: Vec<(u64, ObjectId, Option<crate::types::effects::CounterType>)> = Vec::new();
@@ -329,7 +329,7 @@ impl<'g> Writer<'g> {
             stamps.extend(state.battlefield[&id].counters.iter().map(|(kind, stack)| (stack.timestamp, id, Some(*kind))));
         }
         stamps.sort_by_key(|&(stamp, _, _)| stamp);
-        let mut references: Vec<(usize, Word)> = Vec::new();
+        let mut references: Vec<(usize, CardWord)> = Vec::new();
         let mut last: Option<ObjectId> = None;
         for (_, id, counter) in stamps {
             let Some(kind) = counter else {
@@ -337,48 +337,48 @@ impl<'g> Writer<'g> {
                 if let Some(word) = reference {
                     references.push((self.scenario.cards.len(), word));
                 }
-                self.push(line);
+                self.push_line(line);
                 last = Some(id);
                 continue;
             };
-            let count = Word::Counter(kind, state.battlefield[&id].counter_count(kind));
+            let count = CardWord::Counter(kind, state.battlefield[&id].counter_count(kind));
             if last == Some(id) {
                 if let Some(line) = self.scenario.cards.last_mut() {
-                    line.item.words.push(count);
+                    line.value.words.push(count);
                 }
             } else {
-                let card = self.reference(&state.objects[&id]);
-                if !self.scenario.cards.iter().any(|line| line.item.card == card) {
+                let card = self.named_card(&state.objects[&id]);
+                if !self.scenario.cards.iter().any(|line| line.value.card == card) {
                     self.report(format!("{card}'s {} counters, older than its timestamp", kind.name()));
                 }
-                self.push(CardLine { head: Head::Counters, card, copies: 1, words: vec![count] });
+                self.push_line(CardLine { kind: LineKind::Counters, card, copies: 1, words: vec![count] });
                 last = Some(id);
             }
         }
         for (index, word) in references {
-            self.scenario.cards[index].item.words.push(word);
+            self.scenario.cards[index].value.words.push(word);
         }
-        self.this_turn();
+        self.write_this_turn_counts();
     }
 
     /// `line`, folded into the line before it when the two say the same of
     /// two cards in one zone.
-    fn push(&mut self, line: CardLine) {
+    fn push_line(&mut self, line: CardLine) {
         if let Some(previous) = self.scenario.cards.last_mut()
-            && line.head != Head::Battlefield
-            && line.head != Head::Counters
-            && previous.item.head == line.head
-            && previous.item.card == line.card
-            && previous.item.words == line.words
+            && line.kind != LineKind::Battlefield
+            && line.kind != LineKind::Counters
+            && previous.value.kind == line.kind
+            && previous.value.card == line.card
+            && previous.value.words == line.words
         {
-            previous.item.copies += 1;
+            previous.value.copies += 1;
             return;
         }
-        self.scenario.cards.push(written(line));
+        self.scenario.cards.push(unnumbered(line));
     }
 
     /// The object's line in its zone, with the `GameObject` words.
-    fn card_line(&mut self, id: ObjectId) -> CardLine {
+    fn object_line(&mut self, id: ObjectId) -> CardLine {
         let GameObject {
             id: _,                  // minted in file order by the loader
             owner,
@@ -391,31 +391,31 @@ impl<'g> Writer<'g> {
             timestamp: _,           // the file's order
         } = &self.state.objects[&id];
         let obj = &self.state.objects[&id];
-        let card = self.reference(obj);
+        let card = self.named_card(obj);
         if *is_token || *is_copy {
             self.report(format!("{card}, a token or a copy, whose word waits (§5.2)"));
         }
         let mut words = Vec::new();
-        let head = match zone {
-            Zone::Hand => Head::Hand(*owner),
-            Zone::Library => Head::Library { player: *owner, shuffled: false },
-            Zone::Graveyard => Head::Graveyard(*owner),
+        let kind = match zone {
+            Zone::Hand => LineKind::Hand(*owner),
+            Zone::Library => LineKind::Library { player: *owner, shuffled: false },
+            Zone::Graveyard => LineKind::Graveyard(*owner),
             Zone::Exile | Zone::Command => {
-                words.push(Word::Owner(*owner));
-                if *zone == Zone::Exile { Head::Exile } else { Head::Command }
+                words.push(CardWord::Owner(*owner));
+                if *zone == Zone::Exile { LineKind::Exile } else { LineKind::Command }
             }
-            Zone::Battlefield | Zone::Stack => Head::Battlefield,
+            Zone::Battlefield | Zone::Stack => LineKind::Battlefield,
         };
         if *is_commander {
-            words.push(Word::Commander);
+            words.push(CardWord::Commander);
         }
-        CardLine { head, card, copies: 1, words }
+        CardLine { kind, card, copies: 1, words }
     }
 
     /// A permanent's line, or any other object's, and the one word naming
     /// another card that the line ends with, added once its counters are.
-    fn permanent_line(&mut self, id: ObjectId) -> (CardLine, Option<Word>) {
-        let mut line = self.card_line(id);
+    fn permanent_line(&mut self, id: ObjectId) -> (CardLine, Option<CardWord>) {
+        let mut line = self.object_line(id);
         let state = self.state;
         let Some(entry) = state.battlefield.get(&id) else { return (line, None) };
         let PermanentState {
@@ -442,42 +442,42 @@ impl<'g> Writer<'g> {
         } = entry;
         let obj = &state.objects[&id];
         let card = line.card.to_string();
-        let mut words = vec![Word::Controller(*controller)];
+        let mut words = vec![CardWord::Controller(*controller)];
         if obj.owner != *controller {
-            words.push(Word::Owner(obj.owner));
+            words.push(CardWord::Owner(obj.owner));
         }
         words.append(&mut line.words);
         if *tapped {
-            words.push(Word::Tapped);
+            words.push(CardWord::Tapped);
         }
         // CR 302.6 reads the arrival only against the controller's most
         // recent turn; an arrival before it is the default's answer.
         let arrived = *entered_battlefield_turn;
         let since = state.most_recent_turn_began(*controller).unwrap_or(1);
         if arrived == state.turn_number {
-            words.push(Word::Arrived(Arrival::ThisTurn));
+            words.push(CardWord::Arrived(Arrival::ThisTurn));
         } else if arrived > 0 && arrived >= since {
-            words.push(Word::Arrived(Arrival::Turn(arrived)));
+            words.push(CardWord::Arrived(Arrival::Turn(arrived)));
         }
-        if let Some(kind) = intrinsic_entry_counter(&obj.card_data).filter(|kind| entry.counter_count(*kind) == 0) {
-            words.push(Word::Counter(kind, 0));
+        if let Some(kind) = intrinsic_entry_counter_kind(&obj.card_data).filter(|kind| entry.counter_count(*kind) == 0) {
+            words.push(CardWord::Counter(kind, 0));
         }
         if *damage_marked > 0 {
-            words.push(Word::Damage(*damage_marked));
+            words.push(CardWord::Damage(*damage_marked));
         }
         if state.dealt_first_strike_damage.contains(&id) {
-            words.push(Word::DealtFirstStrikeDamage);
+            words.push(CardWord::DealtFirstStrikeDamage);
         }
         let mut references = Vec::new();
         if let Some(attack) = attacking {
             match attack.target {
-                AttackTarget::Player(p) => words.push(Word::Attacking(Target::Player(p))),
+                AttackTarget::Player(p) => words.push(CardWord::Attacking(Attacked::Player(p))),
                 AttackTarget::Planeswalker(target) | AttackTarget::Battle(target) => {
-                    references.push(Word::Attacking(Target::Permanent(self.reference(&state.objects[&target]))));
+                    references.push(CardWord::Attacking(Attacked::Permanent(self.named_card(&state.objects[&target]))));
                 }
             }
             if attack.is_blocked && attack.blocked_by.is_empty() {
-                words.push(Word::Blocked);
+                words.push(CardWord::Blocked);
             }
             let mut ordered = attack.blocked_by.clone();
             ordered.sort_by_key(|&b| state.object_timestamp(b));
@@ -489,13 +489,13 @@ impl<'g> Writer<'g> {
             if block.blocking.len() > 1 {
                 self.report(format!("{card} blocking more than one attacker"));
             }
-            references.extend(block.blocking.first().map(|a| Word::Blocking(self.reference(&state.objects[a]))));
+            references.extend(block.blocking.first().map(|a| CardWord::Blocking(self.named_card(&state.objects[a]))));
         }
         if let Some(host) = attached_to {
             if state.object_timestamp(*host) > obj.timestamp {
                 self.report(format!("{card}, attached to a permanent stamped after it"));
             }
-            references.push(Word::AttachedTo(self.reference(&state.objects[host])));
+            references.push(CardWord::AttachedTo(self.named_card(&state.objects[host])));
         }
         if references.len() > 1 {
             self.report(format!("{card}'s second reference to another card on its line"));
@@ -515,9 +515,9 @@ impl<'g> Writer<'g> {
     }
 
     /// CR 603.2h and 603.7h's counts, a `this turn:` line per source.
-    fn this_turn(&mut self) {
+    fn write_this_turn_counts(&mut self) {
         let state = self.state;
-        let mut facts: Vec<(ObjectId, usize, Word)> = Vec::new();
+        let mut facts: Vec<(ObjectId, usize, CardWord)> = Vec::new();
         // A count of an object that has since moved names nothing: the object
         // it was is gone (CR 400.7), and nothing reads the entry again.
         let ability_of = |writer: &mut Self, source: crate::types::ids::ObjectRef, ability: crate::types::ids::AbilityId| {
@@ -530,12 +530,12 @@ impl<'g> Writer<'g> {
         };
         for identity in &state.triggered_this_turn {
             if let Some((id, n)) = ability_of(self, identity.source, identity.ability) {
-                facts.push((id, n, Word::Triggered { ability: Some(n) }));
+                facts.push((id, n, CardWord::Triggered { ability: Some(n) }));
             }
         }
         for (&(source, ability), &times) in &state.resolutions_this_turn {
             if let Some((id, n)) = ability_of(self, source, ability) {
-                facts.push((id, n, Word::Resolved { ability: Some(n), times }));
+                facts.push((id, n, CardWord::Resolved { ability: Some(n), times }));
             }
         }
         for (identity, player) in &state.action_taken_this_turn {
@@ -543,17 +543,43 @@ impl<'g> Writer<'g> {
                 if crate::oracle::characteristics::get_effective_controller(state, id) != Some(*player) {
                     self.report("a once-each-turn action taken under another controller");
                 }
-                facts.push((id, n, Word::TookOnceEachTurnAction { ability: Some(n) }));
+                facts.push((id, n, CardWord::TookOnceEachTurnAction { ability: Some(n) }));
             }
         }
         // The sets are hashed, so the order comes from the board.
         facts.sort_by_key(|(id, n, word)| (state.object_timestamp(*id), *n, format!("{word:?}")));
         for (id, _, word) in facts {
-            let card = self.reference(&state.objects[&id]);
+            let card = self.named_card(&state.objects[&id]);
             match self.scenario.cards.last_mut() {
-                Some(line) if line.item.head == Head::ThisTurn && line.item.card == card => line.item.words.push(word),
-                _ => self.scenario.cards.push(written(CardLine { head: Head::ThisTurn, card, copies: 1, words: vec![word] })),
+                Some(line) if line.value.kind == LineKind::ThisTurn && line.value.card == card => line.value.words.push(word),
+                _ => self.scenario.cards.push(unnumbered(CardLine { kind: LineKind::ThisTurn, card, copies: 1, words: vec![word] })),
             }
         }
+    }
+}
+
+/// The `n`th tag, from 0: `a` to `z`, then `aa`, `ab`, … — so a board with
+/// more than 26 permanents of one name still tells each apart.
+fn tag_letters(mut n: usize) -> String {
+    let mut letters = Vec::new();
+    loop {
+        letters.push(b'a' + (n % 26) as u8);
+        if n < 26 {
+            break;
+        }
+        n = n / 26 - 1;
+    }
+    letters.reverse();
+    String::from_utf8(letters).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tag_letters;
+
+    #[test]
+    fn tags_run_past_z() {
+        let tags: Vec<String> = [0, 25, 26, 27, 701, 702].into_iter().map(tag_letters).collect();
+        assert_eq!(tags, ["a", "z", "aa", "ab", "zz", "aaa"]);
     }
 }

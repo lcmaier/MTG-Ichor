@@ -4,7 +4,7 @@
 /// (0 toughness, an Aura attached to nothing) is no refusal: it is built, and
 /// CR 117.5's check performs it before the first priority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RefusalKind {
+pub enum ScenarioErrorKind {
     /// A line the grammar does not read.
     Syntax,
     /// A name no registered card, and no card in development, has.
@@ -17,20 +17,20 @@ pub enum RefusalKind {
 
 /// The line, what is wrong, and what to change.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Refusal {
-    pub kind: RefusalKind,
+pub struct ScenarioError {
+    pub kind: ScenarioErrorKind,
     /// 1-based; `None` for a fact about the file as a whole.
     pub line: Option<usize>,
     pub message: String,
 }
 
-impl Refusal {
-    pub(crate) fn at(kind: RefusalKind, line: usize, message: impl Into<String>) -> Refusal {
-        Refusal { kind, line: Some(line), message: message.into() }
+impl ScenarioError {
+    pub(crate) fn at(kind: ScenarioErrorKind, line: usize, message: impl Into<String>) -> ScenarioError {
+        ScenarioError { kind, line: Some(line), message: message.into() }
     }
 }
 
-impl std::fmt::Display for Refusal {
+impl std::fmt::Display for ScenarioError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.line {
             Some(line) => write!(f, "line {line}: {}", self.message),
@@ -39,4 +39,4 @@ impl std::fmt::Display for Refusal {
     }
 }
 
-impl std::error::Error for Refusal {}
+impl std::error::Error for ScenarioError {}

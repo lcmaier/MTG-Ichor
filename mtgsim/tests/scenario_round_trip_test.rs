@@ -17,7 +17,7 @@ use mtgsim::cards::registry::CardRegistry;
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
-use mtgsim::state::game::{Game, Streams};
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::ids::{ObjectId, PlayerId};
@@ -179,7 +179,7 @@ fn round_trip(seeds: std::ops::Range<u64>, seats: usize) -> Tally {
         let mut deck_rng = StdRng::seed_from_u64(seed);
         let lists = (0..seats).map(|_| random_deck(&decks, &mut deck_rng, &[], 1, 60)).collect();
         let mut game = Game::new(GameConfig::unrestricted(), lists).unwrap();
-        let streams = Streams::from_seed(seed);
+        let streams = RandomStreams::from_seed(seed);
         game.reseed(streams.game);
         let checker = RoundTrip {
             agent: ManaWindowStop::new(RandomDecisionProvider::seeded(streams.agents)),

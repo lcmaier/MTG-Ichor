@@ -29,7 +29,7 @@ use crate::state::game_state::GameState;
 use crate::state::player::PlayerState;
 use crate::types::costs::AdditionalCost;
 use crate::types::effects::{Condition, ObjectFilter, PlayerFact, PlayerSet};
-use crate::types::history::HistoryCount;
+use crate::types::history::{HistoryCount, HistorySpan};
 use crate::types::ids::{ObjectId, PlayerId};
 
 /// Does `source`'s "as long as" clause hold against the board as the pass has
@@ -194,15 +194,6 @@ pub(super) fn holds(
 /// current controller.
 pub fn settled_holds(condition: &Condition, game: &GameState, source: ObjectId, locked_you: Option<PlayerId>) -> bool {
     holds(condition, game, &Board::settled(), source, LAYER_ORDER.len(), locked_you)
-}
-
-/// Which turns a history leaf reads.
-#[derive(Clone, Copy)]
-enum HistorySpan {
-    ThisTurn,
-    LastTurn,
-    SinceYourLastTurn,
-    ThisGame,
 }
 
 /// A history leaf: the counts of the players `count.players` names, each over
