@@ -7804,6 +7804,26 @@ the file.
      the fix: greedy then under-offers ({W}{U} from a W/U dual and a W-only
      land), which hides a castable spell — worse for a human than a rewind.
 
+     **The owner's direction (2026-09-30, at #202's review).**
+     - **Slotted:** it waits for the payment alphabet (CP-1,
+       `cost-architecture.md`) and for item 33's mana-provenance design, and
+       is designed in one session with them at item 33's slot, before Phase
+       8. No payment path pays hybrid, mono-hybrid or Phyrexian mana yet,
+       which is why Mirrorweave is registered as `{2}{W}{U}`; `{S}` and
+       restricted mana need each unit's source.
+     - **The preference, by default: keep as many spells castable as
+       possible.** That covers what colors cannot say: Counterspell needs
+       two blue, a dual land keeps two colors, and Cavern of Souls' mana
+       casts only one creature type. A five-color wheel the player toggles
+       is the override. The order: toggled colors first, then the most
+       spells castable, then the least flexible land tapped first. This is
+       the default the entry's first paragraph left to each client, now set
+       for a person's seat; least-flexible-first stays, as the last tiebreak.
+     - **Its cost.** Comparing payments by what stays castable runs once
+       per payment, on a person's seat; the check at every priority point
+       only asks whether any payment exists. Performance is the session's
+       first measurement.
+
 163. **CR 603.3b's ordering prompt, classified before it exists — and the
      reversal's shape settled beside it.** In §2.22's fork-model table the
      ordering is a **C** row and part of the residual: asked of each trigger's
