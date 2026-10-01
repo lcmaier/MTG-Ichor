@@ -51,11 +51,12 @@ fn the_template_and_every_sample_load() {
         ("humility-opalescence", include_str!("../scenarios/humility-opalescence.scenario")),
         ("planeswalker", include_str!("../scenarios/planeswalker.scenario")),
         ("four-seats-commander", include_str!("../scenarios/four-seats-commander.scenario")),
+        ("bolt-into-giant-growth", include_str!("../scenarios/bolt-into-giant-growth.scenario")),
     ] {
         Scenario::parse(text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap_or_else(|r| panic!("{name}: {r}"));
     }
     let listed = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/scenarios")).unwrap().count();
-    assert_eq!(listed, 5, "a new file under scenarios/ joins this test");
+    assert_eq!(listed, 6, "a new file under scenarios/ joins this test");
 }
 
 /// The same file and seed, the same answers: one game.

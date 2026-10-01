@@ -73,28 +73,16 @@ fn targets_on_the_stack(state: &GameState) -> Vec<Vec<Vec<ResolvedTarget>>> {
     state.stack.iter().map(entry).collect()
 }
 
-/// §5.3's stack, one line an action, and the seat holding priority passing
-/// until the line's seat holds it.
-const BOLT_INTO_GIANT_GROWTH: &str = "\
-turn 3
-step precombat main
-hand 0: Lightning Bolt
-hand 1: Giant Growth
-battlefield: Mountain | controller 0
-battlefield: Forest | controller 1
-battlefield: Grizzly Bears | controller 1
-battlefield: Merfolk Thaumaturgist | controller 1
-then: player 0 casts Lightning Bolt | targeting Grizzly Bears
-then: player 1 casts Giant Growth | targeting Grizzly Bears
-then: player 1 activates Merfolk Thaumaturgist | targeting Grizzly Bears
-";
+/// §5.3's stack: Bolt at the Bears, Giant Growth in response, and the
+/// Thaumaturgist on top, with a second Bolt in player 0's hand.
+const SECTION_5_3: &str = include_str!("../scenarios/bolt-into-giant-growth.scenario");
 
-/// Each verb, each seat's: the stack is the lines' in order, each with its
-/// target, the costs paid from the untapped lands, and the next prompt is the
-/// seats' own.
+/// Each verb, each seat's, and each seat passing until the next line's seat
+/// holds priority: the stack is the lines' in order, each with its target,
+/// the costs paid from the untapped lands, and the next prompt is the seats'.
 #[test]
 fn each_verb_builds_the_stack_its_lines_describe() {
-    let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), BOLT_INTO_GIANT_GROWTH);
+    let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), SECTION_5_3);
     let stops = SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() };
     let seats = ScriptedDecisionProvider::new().with_seat_mode(stops);
     let driver = SetupDriver::new(setup, &seats);
@@ -107,9 +95,11 @@ fn each_verb_builds_the_stack_its_lines_describe() {
     let ability = state.stack_entries[&state.stack[2]].ability_identity.expect("an activated ability");
     assert_eq!(ability.source.id, permanent(state, "Merfolk Thaumaturgist"));
     assert_eq!(targets_on_the_stack(state), [[[bears]], [[bears]], [[bears]]]);
-    for paid in ["Mountain", "Forest", "Merfolk Thaumaturgist"] {
+    for paid in ["Forest", "Merfolk Thaumaturgist"] {
         assert!(state.battlefield[&permanent(state, paid)].tapped, "{paid}");
     }
+    let mountains = state.battlefield_ordered().into_iter().filter(|(id, _)| state.objects[id].card_data.name == "Mountain").map(|(_, entry)| entry.tapped);
+    assert_eq!(mountains.collect::<Vec<_>>(), [true, false], "one Mountain pays the first Bolt");
     // The seats' own from here: each is asked, and passing resolves the top.
     seats.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     seats.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
@@ -221,9 +211,8 @@ fn a_setup_action_is_refused_in_play_naming_its_line() {
 /// file and seed are one game, the lines played before anyone else is asked.
 #[test]
 fn a_stack_built_by_setup_actions_played_twice_is_one_game() {
-    let text = format!("{BOLT_INTO_GIANT_GROWTH}library 0: Mountain | x6\nlibrary 1: Forest | x6\n");
     let play = || {
-        let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), &text);
+        let BuiltScenario { mut game, setup } = build_with(&CardRegistry::default_registry(), SECTION_5_3);
         game.state.record_events();
         let agents = ManaWindowStop::new(RandomDecisionProvider::seeded(RandomStreams::from_seed(7).agents));
         let result = game.resume(&SetupDriver::new(setup, &agents)).unwrap();
