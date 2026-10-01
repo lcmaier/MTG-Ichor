@@ -320,7 +320,7 @@ hand 0: Lightning Bolt
 library 0: Mountain                         # top first
 library 0: Forest | x10
 library 1 shuffled: Forest | x20
-graveyard 0: Savannah Lions                 # top first
+graveyard 0: Savannah Lions                 # each card on top of the last
 
 battlefield: Glorious Anthem | controller 0
 battlefield: Grizzly Bears [a] | controller 0, tapped, attacking player 1
@@ -353,7 +353,7 @@ moves into the engine so the parser, the writer and the window read one copy.
 |---|---|---|
 | Not a card | `Grizly Bears` | refused: the line and the name, "Grizly Bears is not registered" |
 | A reference that does not resolve | `attached to Grizzly Bears` with no Bears on the battlefield, or with two and no tag; a host listed after its attachment | refused, naming the lines |
-| A state no sequence of events reaches | an attacker in a main phase (CR 506.4, 511.3); a blocker of a creature that is not attacking; an attacker attacking its own controller (CR 508.1b; a control change removes it from combat, 506.4); declare blockers with no attacker (CR 508.8); an instant on the battlefield (CR 304.4); a card owned by a player who has left (CR 800.4a); the untap or cleanup step, where no player receives priority (CR 502.4, 514.3) | refused, naming the rule |
+| A state no sequence of events reaches | an attacker in a main phase (CR 506.4, 511.3); a blocker of a creature that is not attacking; an attacker attacking its own controller (CR 508.1b; a control change removes it from combat, 506.4); declare blockers with no attacker (CR 508.8); an instant on the battlefield (CR 304.4); a card owned by a player who has left (CR 800.4a); the untap or cleanup step, where no player receives priority (CR 502.4, 514.3); turn 1's draw step in a two-player game, which CR 103.8a skips as though it didn't exist (500.11) | refused, naming the rule |
 | A state the rules correct | a 0-toughness creature (CR 704.5f), an Aura attached to nothing (704.5m), ten poison counters (704.5c), two legends with one name (704.5j) | built; CR 117.5 performs it before the first priority, and the log shows it |
 
 **SBAs are not checked at load.** A check is an event, the resumed game's first
@@ -449,22 +449,22 @@ Defaults in the last column apply when the file says nothing. A reference
 | `player p: left the game` | 104.5, 800.4a | `player_lost`; refused if p owns or controls anything, is active, or leaves fewer than two in the game | in the game |
 | `player p: commander damage N from <card>` | 903.10a | `commander_damage_taken` | none |
 | `player p this turn:`, `last turn:`, `this game:`, each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
-| `this turn: <card> triggered`, `<card> resolved N`, `<card> took its once-each-turn action` | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
-| `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`, top first | empty |
+| `this turn: <card> \| triggered`, `resolved N`, `took its once-each-turn action`, each after an optional `ability N` (its printed place, needed when the card has two that could be meant) | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
+| `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`: a library top first; a graveyard bottom first, each card on top of the last, since lines are stamped in file order (§4.3) | empty |
 | `library p shuffled:` | 401, 701.24 | then `shuffle_library` from the game's stream | — |
 | `exile:`, `command:` | 406, 408 | `create_in_zone`, with `owner` | empty |
 | `commander` | 903.3 | `GameObject::is_commander` | no |
 | `battlefield:` | 613.7d | the door (§3.1), in the file's order | — |
 | `controller p`, `owner p` | 110.2b, 108.3 | the entity's default controller; the object's owner | each the other |
 | `tapped` | 110.5 | `tapped` | untapped |
-| `arrived this turn` | 302.6 | the door's arrival turn | arrived before this turn |
+| `arrived this turn`, `arrived turn N` | 302.6 | the door's arrival turn. CR 302.6 measures from the controller's own most recent turn, so a non-active player's creature that arrived on their last turn is still sick, which "this turn" alone cannot say (the build, 2026-10-01) | arrived before the first turn |
 | `<kind> N`, a counter | 122.1, 613.7c, 306.5b | `add_counters`, in order; a stated kind replaces its intrinsic count | the intrinsic entry counters |
 | `counters: <card> \| <kind> N` | 613.7c | a counter kind stamped at its own line (§4.3) | — |
 | `damage N` | 120.6 | `damage_marked` | 0 |
 | `attached to <card>` | 301.5, 303.4, 613.7e | `attach`, at its line | — |
 | `attacking player p`, `attacking <card>`, `blocked` | 506, 508.1, 509.1h | `attacking` | — |
-| `blocking <card>, …` | 509.1a | `blocking`, and each attacker's `blocked_by` in the file's order | — |
-| `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused off the first-strike damage step | no |
+| `blocking <card>` | 509.1a | `blocking`, and each attacker's `blocked_by` in the file's order. One attacker per blocker: a word that names a card takes the rest of its line, since a name may hold a comma, and no registered card blocks two | — |
+| `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused before the first-strike damage step, and kept to the end of combat as the engine keeps it | no |
 
 ### 5.2 Later, and the growth contract
 

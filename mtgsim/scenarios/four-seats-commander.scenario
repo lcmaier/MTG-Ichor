@@ -1,0 +1,21 @@
+# Four seats with a commander: Isamaru swings at a player who has taken 18
+# commander damage from it, one seat has left the game, and it is the second
+# time around the table. Loads in tests and fuzz_games; the dev GUI plays two.
+players 4
+starting life 40
+seed 11
+turn 6
+active 2
+step declare attackers
+
+player 1: left the game
+player 3: life 9, commander damage 18 from Isamaru, Hound of Konda
+player 2 this turn: attackers declared 1
+library 0: Forest | x10
+library 2: Plains | x10
+library 3: Mountain | x10
+
+battlefield: Isamaru, Hound of Konda | controller 2, commander, tapped, attacking player 3
+battlefield: Wall of Stone | controller 3
+battlefield: Grizzly Bears | controller 0, arrived turn 5
+command: Thalia, Guardian of Thraben | owner 3, commander

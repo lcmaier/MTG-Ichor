@@ -1,0 +1,14 @@
+# Humility against Opalescence: which arrived last decides the board
+# (CR 613.8's dependency, then CR 613.7's timestamps). Swap the two lines
+# and reload to see the other answer.
+turn 4
+active 1
+step precombat main
+
+library 0: Plains | x10
+library 1: Plains | x10
+
+battlefield: Opalescence | controller 0
+battlefield: Humility | controller 1
+battlefield: Grizzly Bears | controller 0
+battlefield: Serra Angel | controller 1

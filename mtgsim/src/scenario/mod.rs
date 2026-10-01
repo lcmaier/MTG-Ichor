@@ -63,6 +63,7 @@
 //! may begin with a digit.
 
 mod board;
+mod build;
 mod refusal;
 mod text;
 

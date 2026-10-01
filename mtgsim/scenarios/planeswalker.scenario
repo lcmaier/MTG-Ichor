@@ -1,0 +1,15 @@
+# A planeswalker under attack: Savannah Lions attacks Loyalty Probe, and its
+# controller has a blocker to decide on. CR 306.5b gives the Probe its printed
+# loyalty unless a line states it.
+turn 5
+active 0
+step declare attackers
+
+player 0 this turn: attackers declared 1
+library 0: Plains | x10
+library 1: Plains | x10
+
+battlefield: Loyalty Probe | controller 1
+battlefield: Grizzly Bears | controller 1
+battlefield: Plains | controller 0, tapped
+battlefield: Savannah Lions | controller 0, tapped, attacking Loyalty Probe

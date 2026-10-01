@@ -162,6 +162,14 @@ impl Game {
         self.run_turn_steps(decisions, starting_turn, true)
     }
 
+    /// Play a game built at the start of a priority round, as a scenario
+    /// builds one (`setup-architecture.md` §1): finish this turn from that
+    /// round, then run it to its end.
+    pub fn resume(&mut self, decisions: &dyn DecisionProvider) -> Result<GameResult, String> {
+        self.resume_turn_at_priority(decisions)?;
+        self.run(decisions)
+    }
+
     /// The step drainer behind [`Game::run_turn`] and
     /// [`Game::resume_turn_at_priority`]. `starting_turn` is the turn number
     /// this call is finishing; `resuming` skips the current step's turn-based
@@ -391,6 +399,22 @@ impl Game {
 /// with more than two players (CR 800.1) nobody does.
 pub fn starting_player_skips_first_draw(state: &GameState) -> bool {
     !state.is_multiplayer()
+}
+
+/// The two random streams a game draws from besides its decks, derived from
+/// one seed (`setup-architecture.md` §6): the game's, which `GameState::rng`
+/// shuffles from, and the agents'. Distinct sub-seeds, since two `StdRng`s
+/// seeded alike would correlate a shuffle with the choices made over it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Streams {
+    pub game: u64,
+    pub agents: u64,
+}
+
+impl Streams {
+    pub fn from_seed(seed: u64) -> Streams {
+        Streams { game: seed ^ 0x9E37_79B9_7F4A_7C15, agents: seed ^ 0xD1B5_4A32_D192_ED03 }
+    }
 }
 
 #[cfg(test)]
