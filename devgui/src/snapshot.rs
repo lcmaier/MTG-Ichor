@@ -84,9 +84,10 @@ pub struct PermanentView {
     pub summoning_sick: bool,
     /// What it attacks, by name.
     pub attacking: Option<String>,
-    /// The attackers it blocks.
-    pub blocking: Vec<ObjectId>,
-    pub attached_to: Option<ObjectId>,
+    /// The attackers it blocks, by name.
+    pub blocking: Vec<String>,
+    /// What it is attached to, by name.
+    pub attached_to: Option<String>,
     pub phased_out: bool,
     pub face_down: bool,
     /// `ui::display::format_permanent`'s line, which lists the abilities in
@@ -204,8 +205,8 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         tapped: state.tapped,
         summoning_sick: has_summoning_sickness(game, id),
         attacking: state.attacking.as_ref().map(|a| attack_target_name(game, &a.target)),
-        blocking: state.blocking.as_ref().map(|b| b.blocking.clone()).unwrap_or_default(),
-        attached_to: state.attached_to,
+        blocking: state.blocking.iter().flat_map(|b| &b.blocking).map(|attacker| named(game, *attacker)).collect(),
+        attached_to: state.attached_to.map(|host| named(game, host)),
         phased_out: state.phased_out,
         face_down: state.face_down,
         engine_text: format_permanent(game, id),

@@ -252,7 +252,7 @@ impl WindowState {
     }
 
     pub fn prompt_view(&self) -> Option<PromptView> {
-        Some(PromptView::new(self.prompt.as_ref()?, self.selection.as_ref()?))
+        Some(PromptView::new(self.prompt.as_ref()?, self.selection.as_ref()?, self.board.as_ref()))
     }
 }
 
@@ -376,7 +376,7 @@ impl Marks {
         for attacker in &permanent.blocking {
             detail.push(format!("blocking {attacker}"));
         }
-        if let Some(host) = permanent.attached_to {
+        if let Some(host) = &permanent.attached_to {
             detail.push(format!("attached to {host}"));
         }
         let title = format!("{} ({})", permanent.card.name, permanent.card.id);
@@ -525,13 +525,13 @@ pub struct PromptView {
 }
 
 impl PromptView {
-    fn new(prompt: &Prompt, selection: &Selection) -> PromptView {
+    fn new(prompt: &Prompt, selection: &Selection, board: Option<&Snapshot>) -> PromptView {
         let options = prompt.options.iter().enumerate();
         let button = |label: &str| OptionButton { label: label.to_string(), chosen: false, place: None, amount: None };
         let (rule, options, number, done): (String, Vec<OptionButton>, _, _) = match (&prompt.primitive, selection) {
             (Primitive::PickN { min, max }, Selection::Picks { chosen, half }) => {
                 let rule = match half {
-                    Some(half) => format!("now click what {} goes with", name_of(half)),
+                    Some(half) => format!("now click what {} goes with", name_of(board, half)),
                     None => pick_rule(*min, *max),
                 };
                 // A lone option with a way out is a "may": yes or no.
@@ -596,9 +596,13 @@ fn pick_rule(min: usize, max: usize) -> String {
     }
 }
 
-fn name_of(target: &BoardRef) -> String {
+/// `target` as the board titles it: `Hill Giant (#17)`, `Player 1`. A pair's
+/// half is a permanent, so the battlefield is where it is looked for.
+fn name_of(board: Option<&Snapshot>, target: &BoardRef) -> String {
     match target {
-        BoardRef::Object(id) => id.to_string(),
+        BoardRef::Object(id) => board
+            .and_then(|board| board.players.iter().flat_map(|p| &p.battlefield).find(|p| p.card.id == *id))
+            .map_or_else(|| id.to_string(), |permanent| format!("{} ({id})", permanent.card.name)),
         BoardRef::Player(player) => format!("Player {player}"),
     }
 }
@@ -607,8 +611,8 @@ fn name_of(target: &BoardRef) -> String {
 mod tests {
     use mtgsim::objects::card_data::CardDataBuilder;
     use mtgsim::test_support::{
-        card_of_type, forest, lightning_bolt, put_in_hand, put_on_battlefield, set_attacking, setup_two_player_game,
-        vanilla_creature,
+        card_of_type, forest, lightning_bolt, put_in_hand, put_on_battlefield, set_attacking, set_blocking,
+        setup_two_player_game, vanilla_creature,
     };
     use mtgsim::types::card_types::CardType;
     use mtgsim::types::ids::ObjectId;
@@ -644,6 +648,7 @@ mod tests {
         let their_giant = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
         set_attacking(&mut game, their_bear, 0);
         set_attacking(&mut game, their_giant, 0);
+        set_blocking(&mut game, arbor, vec![their_giant]);
         let snapshot = Snapshot::build(&game, 0);
         Board { snapshot, bear, forest, arbor, relic, bolt, their_bear, their_giant }
     }
@@ -693,6 +698,8 @@ mod tests {
         assert!(item(&view, b.bear).detail.starts_with("2/2"), "{}", item(&view, b.bear).detail);
         assert!(!item(&view, b.relic).detail.contains('/'), "no power or toughness off a creature");
         assert!(item(&view, b.their_bear).detail.contains("attacking Player 0"));
+        let giant = item(&view, b.their_giant).title;
+        assert!(item(&view, b.arbor).detail.ends_with(&format!("blocking {giant}")), "named as the board titles it");
     }
 
     #[test]
@@ -724,7 +731,8 @@ mod tests {
         assert!(item(&view, b.bear).chosen, "the half shows as chosen");
         assert!(item(&view, b.their_bear).clickable && item(&view, b.their_giant).clickable);
         assert!(!item(&view, b.arbor).clickable, "only the half's partners, until it is completed");
-        assert!(state.prompt_view().unwrap().rule.starts_with("now click"));
+        let bear = item(&view, b.bear).title;
+        assert_eq!(state.prompt_view().unwrap().rule, format!("now click what {bear} goes with"));
         state.input(Input::Board(Object(b.their_giant)));
         state.input(Input::Board(Object(b.arbor)));
         assert_eq!(state.input(Input::Done), Some(Answer::Picks(vec![1, 2])));
