@@ -8706,8 +8706,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      keyword list, and orders the mana pool by hash.~~ — ✅ CLOSED 2026-09-30
      (A6g's display PR).** — archived. The dev GUI's hover text names a copy
      through the layers and prints every keyword flag, and the board printer,
-     which nothing called, is deleted. The log half, now with the trace's and
-     the audit's names, is A6g's "why" panel's (`roadmap-v2.md`).
+     which nothing called, is deleted. The log names each object as it was
+     when its event happened, off one record the trace reads too.
      **Reachability (2026-09-30):** closed — A6g's display PR.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 191".
 
