@@ -130,14 +130,17 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
                 Pool::Performance => CardRegistry::performance_pool(),
                 Pool::Stress => CardRegistry::default_registry(),
             };
-            // Three streams from the one seed: the decks, the shuffle, the bot.
+            // `fuzz_games`' three streams from one seed: the decks off the seed
+            // itself, the shuffle and the bot off `RandomStreams`, so a fuzz
+            // game's printed seed deals the same game here.
+            let streams = RandomStreams::from_seed(setup.seed);
             let mut deck_rng = StdRng::seed_from_u64(setup.seed);
             let decks: Vec<Vec<Arc<CardData>>> =
                 (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
             let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
             let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
-            game.reseed(setup.seed.wrapping_add(1));
-            (game, SetupActions::default(), log, setup.seed.wrapping_add(2))
+            game.reseed(streams.game);
+            (game, SetupActions::default(), log, streams.agents)
         }
     };
     let log = Rc::new(RefCell::new(log));
