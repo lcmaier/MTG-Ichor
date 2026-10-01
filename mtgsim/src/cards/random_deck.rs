@@ -86,7 +86,7 @@ pub const NONBASIC_LANDS_PER_DECK: usize = 5;
 /// and the object count, not the deck-building law.
 ///
 /// `copies` is `--copies`: how many of each required nonland the deck gets.
-/// It multiplies the slot fill below and nothing else â the deck size, the
+/// It multiplies the slot fill below and nothing else — the deck size, the
 /// land count and every RNG draw are what they were, so a heavy board differs
 /// from a one-copy one in the required cards' share of the 36 nonland slots
 /// and in no other way. 1 reproduces every recorded `--require` row.

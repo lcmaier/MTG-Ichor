@@ -5,7 +5,7 @@ fuzz_ab - one sitting of the fuzz A/B, sized to what each number needs.
     python plans/fuzz_ab.py --arm main=../mtgsim_v2_main/mtgsim/target/release/fuzz_games.exe \
                             --arm new=mtgsim/target/release/fuzz_games.exe [--require "Cytoshape"]
 
-A heavy board â the whole sitting on N copies of each named card, which is how
+A heavy board — the whole sitting on N copies of each named card, which is how
 a mechanic-heavy reading is re-taken without a throwaway build:
 
     python plans/fuzz_ab.py --arm main=... --arm new=... \r
@@ -308,7 +308,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     common = ["--seed", str(args.seed)]
     # `--copies` without `--require` requires nothing N times, which is a run
-    # that looks heavy in the header and is the shipped pool underneath â the
+    # that looks heavy in the header and is the shipped pool underneath — the
     # exact way to publish a number nobody can reproduce. Fatal instead.
     if args.copies is not None:
         if not args.require:
