@@ -76,7 +76,14 @@ impl CliDecisionProvider {
             println!("A yield is set where you have priority.");
             return Typed::Again;
         }
-        self.yields.set(game, until);
+        if self.full_control.is_on() {
+            println!("Full control supersedes yields; type 'full' to turn it off first.");
+            return Typed::Again;
+        }
+        if !self.yields.set(game, until) {
+            println!("Nothing is on the stack to wait on.");
+            return Typed::Again;
+        }
         println!("Passing {until:?}.");
         Typed::Answer(pass_index(options))
     }
@@ -461,6 +468,20 @@ mod tests {
         assert_eq!(cli.command("Yield Turn", &game, &ChoiceKind::PriorityAction, &options), Typed::Answer(1));
         assert!(yields.holds(&game, 0));
         assert_eq!(cli.command("yield off", &game, &ChoiceKind::PriorityAction, &options), Typed::Again);
+        assert!(!yields.holds(&game, 0));
+    }
+
+    /// A stack yield on an empty stack, and any yield under full control,
+    /// would be gone before it passed anything: both are refused, and the
+    /// prompt is asked again.
+    #[test]
+    fn a_yield_with_nothing_to_wait_on_or_under_full_control_is_refused() {
+        let game = setup_two_player_game();
+        let (cli, switch, yields) = cli();
+        let options = [ChoiceOption::Action(PriorityAction::Pass)];
+        assert_eq!(cli.command("yield stack", &game, &ChoiceKind::PriorityAction, &options), Typed::Again);
+        switch.set(true);
+        assert_eq!(cli.command("yield turn", &game, &ChoiceKind::PriorityAction, &options), Typed::Again);
         assert!(!yields.holds(&game, 0));
     }
 }

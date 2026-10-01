@@ -1513,7 +1513,14 @@ mechanic rather than a migration, which is why it is here and not in
   stream, and a window that flips the switch between prompts records each
   answer the switch routes at the top of the seat, the decorators' too. A
   yield is set at a priority prompt, with that prompt's pass, so its record is
-  the answer that set it. `codebase-state.md` item 161's archive entry.
+  the answer that set it. `codebase-state.md` item 161's archive entry. **At
+  review (the owner, 2026-09-30), two rules.** A stack yield is refused on an
+  empty stack, where it would pass until anyone cast anything, through the
+  seat's own main phases (`Yields::set` says so). And full control supersedes
+  yields: while it is on the seat's yields are cancelled, so switching it off
+  does not bring one back, and the CLI refuses a yield typed under it. That
+  second rule is one call where a seat is built (`FullControl::superseding`),
+  so a test of the experience can reverse it there.
 
   **Row 5, combat defaults.** Item 84's two callerless helpers,
   `default_damage_assignment` and `default_trample_assignment`, are the body
@@ -2330,7 +2337,7 @@ the matrix waits for the design that needs it.
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
-### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and three open questions
+### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and its open questions
 
 **The surface that cannot serve it.** v1's first use case is four-player
 Commander through a GUI, and `roadmap-v2.md` §6 puts the target between
@@ -2408,6 +2415,20 @@ and SmartScreen warns. Building from source needs neither. Display scaling,
 Cmd against Ctrl and file locations are the client's to get right, and review
 pictures differ per platform, so they compare only on the machine that drew
 them.
+
+**Open question 4: stops without the tell** (the owner, 2026-09-30, at A6j's
+review; noted, not designed). Arena's default leaks hidden information: it
+stops a player only where they can respond, so an opponent who casts something
+cheap and watches whether the client waits learns whether they hold an
+instant. A6j builds the same tell for every person not in full control, since
+the engine takes a priority prompt that offers `Pass` alone. Full control
+closes it by stopping everywhere. Stops decided from public state alone,
+whether or not the player can act, would close it with less friction, and the
+engine side is small: ask the seat whether it stops at each priority point
+with the game in hand, where today it reads one switch. A player's own
+thinking time is a tell no client closes. The dev GUI does not care: it shows
+every card on purpose, and keeps a perfect-information toggle for the tester
+once §2.9's information model lands.
 
 **One client, not the interface.** Nothing in the engine is shaped for this
 GUI beyond what any client is owed: item 141's payload rule and §2.22's census.

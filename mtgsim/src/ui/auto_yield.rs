@@ -27,7 +27,9 @@ pub enum Yield {
     /// Arena's "end turn": until the turn ends.
     UntilEndOfTurn,
     /// Until the stack is not what it was — something added to it or gone from
-    /// it, which is when a response may be wanted.
+    /// it, which is when a response may be wanted. Only set on a stack with
+    /// something on it: on an empty one it would pass until anyone cast
+    /// anything, through the seat's own main phases.
     UntilStackChanges,
     /// Until the seat's own next turn begins.
     UntilYourNextTurn,
@@ -57,9 +59,15 @@ impl Held {
 pub struct Yields(Rc<RefCell<Option<Held>>>);
 
 impl Yields {
-    /// Pass until `until`, measured from `game` as it is now.
-    pub fn set(&self, game: &GameState, until: Yield) {
+    /// Pass until `until`, measured from `game` as it is now, and say whether
+    /// it was set: a stack yield on an empty stack is refused.
+    #[must_use]
+    pub fn set(&self, game: &GameState, until: Yield) -> bool {
+        if until == Yield::UntilStackChanges && game.stack.is_empty() {
+            return false;
+        }
         *self.0.borrow_mut() = Some(Held { until, turn: game.turn_number, stack: game.stack.clone() });
+        true
     }
 
     pub fn clear(&self) {
@@ -183,7 +191,7 @@ mod tests {
     fn until_end_of_turn_passes_this_turn_and_is_gone_the_next() {
         let mut game = setup_two_player_game();
         let yields = Yields::default();
-        yields.set(&game, Yield::UntilEndOfTurn);
+        assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let seat = AutoYield::new(asked_once(), yields);
 
         assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "yielded");
@@ -198,12 +206,22 @@ mod tests {
         let mut game = setup_two_player_game();
         game.stack.push(new_object_id());
         let yields = Yields::default();
-        yields.set(&game, Yield::UntilStackChanges);
+        assert!(yields.set(&game, Yield::UntilStackChanges));
         let seat = AutoYield::new(asked_once(), yields);
 
         assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "yielded");
         game.stack.push(new_object_id());
         assert_eq!(seat.pick_n(&game, 1, &PRIORITY, &pass_or_cast(), (1, 1)), vec![1], "a response is wanted");
+    }
+
+    /// With nothing on the stack there is nothing to wait on, and a yield
+    /// that waited anyway would pass until anyone cast anything.
+    #[test]
+    fn a_stack_yield_is_refused_on_an_empty_stack() {
+        let game = setup_two_player_game();
+        let yields = Yields::default();
+        assert!(!yields.set(&game, Yield::UntilStackChanges));
+        assert!(!yields.holds(&game, 0), "nothing was set");
     }
 
     /// Set on seat 0's own turn: it passes through the opponent's, and its
@@ -212,7 +230,7 @@ mod tests {
     fn until_your_next_turn_passes_until_the_seat_is_active_again() {
         let mut game = setup_two_player_game();
         let yields = Yields::default();
-        yields.set(&game, Yield::UntilYourNextTurn);
+        assert!(yields.set(&game, Yield::UntilYourNextTurn));
         let seat = AutoYield::new(asked_once(), yields);
 
         assert_eq!(seat.pick_n(&game, 0, &PRIORITY, &pass_or_cast(), (1, 1)), vec![0], "the rest of this turn");
@@ -229,7 +247,7 @@ mod tests {
     fn a_yield_answers_no_prompt_but_priority() {
         let game = setup_two_player_game();
         let yields = Yields::default();
-        yields.set(&game, Yield::UntilEndOfTurn);
+        assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let person = ScriptedDecisionProvider::new();
         person.expect_pick_n(ChoiceKind::DeclareBlockers, vec![]);
         let seat = AutoYield::new(person, yields);
@@ -244,7 +262,7 @@ mod tests {
     fn full_control_puts_a_yielded_prompt_back() {
         let game = setup_two_player_game();
         let yields = Yields::default();
-        yields.set(&game, Yield::UntilEndOfTurn);
+        assert!(yields.set(&game, Yield::UntilEndOfTurn));
         let switch = FullControlSwitch::default();
         let seat = FullControl::new(AutoYield::new(ScriptedDecisionProvider::new(), yields), asked_once(), switch.clone());
 

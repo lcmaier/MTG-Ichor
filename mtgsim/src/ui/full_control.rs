@@ -16,12 +16,18 @@
 // the provider at the bottom, which a decorator's answer never reaches.
 // `cli_play` flips it only while the seat answers a prompt, so its input
 // stream is already that record.
+//
+// **Full control supersedes a yield** (the owner, 2026-09-30): while it is on,
+// the seat's yields are cancelled, so turning it off again does not bring one
+// back. A seat built without `superseding` keeps its yields through the
+// switch, which is the other answer a test of the experience might want.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
+use crate::ui::auto_yield::Yields;
 use crate::ui::choice_types::{ChoiceContext, ChoiceOption};
 use crate::ui::decision::{DecisionProvider, SeatMode};
 
@@ -52,15 +58,32 @@ pub struct FullControl<D, R> {
     decorated: D,
     raw: R,
     switch: FullControlSwitch,
+    /// The seat's yields, cancelled while the switch is on.
+    superseded: Option<Yields>,
 }
 
 impl<D: DecisionProvider, R: DecisionProvider> FullControl<D, R> {
     pub fn new(decorated: D, raw: R, switch: FullControlSwitch) -> Self {
-        FullControl { decorated, raw, switch }
+        FullControl { decorated, raw, switch, superseded: None }
+    }
+
+    /// Cancel the seat's yields while the switch is on.
+    pub fn superseding(mut self, yields: Yields) -> Self {
+        self.superseded = Some(yields);
+        self
+    }
+
+    /// Whether the switch is on, cancelling the yields it supersedes if so.
+    fn on(&self) -> bool {
+        let on = self.switch.is_on();
+        if on && let Some(yields) = &self.superseded {
+            yields.clear();
+        }
+        on
     }
 
     fn routed(&self) -> &dyn DecisionProvider {
-        if self.switch.is_on() { &self.raw } else { &self.decorated }
+        if self.on() { &self.raw } else { &self.decorated }
     }
 }
 
@@ -111,7 +134,7 @@ impl<D: DecisionProvider, R: DecisionProvider> DecisionProvider for FullControl<
     }
 
     fn seat_mode(&self, player: PlayerId) -> SeatMode {
-        if !self.switch.is_on() {
+        if !self.on() {
             return self.decorated.seat_mode(player);
         }
         let mut mode = self.raw.seat_mode(player);
@@ -177,6 +200,33 @@ mod tests {
         std::thread::spawn(move || window.set(true)).join().expect("the window's thread");
 
         assert!(seat.seat_mode(0).stops_at_every_priority_point);
+    }
+
+    /// Turning full control on cancels the yield, so turning it off again
+    /// asks the person rather than passing for them.
+    #[test]
+    fn full_control_cancels_the_yields_it_supersedes() {
+        use crate::ui::auto_yield::{AutoYield, Yield};
+        let game = setup_two_player_game();
+        let priority = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let options = vec![
+            ChoiceOption::Action(PriorityAction::Pass),
+            ChoiceOption::Action(PriorityAction::CastSpell(new_object_id())),
+        ];
+        let yields = Yields::default();
+        assert!(yields.set(&game, Yield::UntilEndOfTurn));
+        let person = ScriptedDecisionProvider::new();
+        person.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        let raw = ScriptedDecisionProvider::new();
+        raw.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
+        let switch = FullControlSwitch::default();
+        let seat = FullControl::new(AutoYield::new(person, yields.clone()), raw, switch.clone()).superseding(yields);
+
+        assert_eq!(seat.pick_n(&game, 0, &priority, &options, (1, 1)), vec![0], "yielded");
+        switch.set(true);
+        assert_eq!(seat.pick_n(&game, 0, &priority, &options, (1, 1)), vec![1], "full control");
+        switch.set(false);
+        assert_eq!(seat.pick_n(&game, 0, &priority, &options, (1, 1)), vec![1], "the yield is gone");
     }
 
     /// Under full control the seat is asked where `Pass` is all it can do;

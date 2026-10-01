@@ -30,8 +30,9 @@
 // decorator is off and you are asked at every priority point, even where you
 // can only pass. **Auto-yield sits in the stack** (`ui::auto_yield`): `yield
 // turn`, `stack` or `next` at a priority prompt passes it and keeps passing
-// until the turn ends, the stack changes or your next turn begins. Neither
-// flag drops them, and the bot's seat takes neither: its passes are its own.
+// until the turn ends, the stack changes or your next turn begins; full
+// control cancels it. Neither flag drops them, and the bot's seat takes
+// neither: its passes are its own.
 
 use std::sync::Arc;
 
@@ -122,9 +123,10 @@ fn main() {
     let terminal = || CliDecisionProvider::new(full_control.clone(), yields.clone());
     let human: Box<dyn DecisionProvider> = if auto_pay {
         let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(terminal())), yields.clone());
-        Box::new(FullControl::new(decorated, terminal(), full_control.clone()))
+        Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     } else {
-        Box::new(FullControl::new(AutoYield::new(terminal(), yields.clone()), terminal(), full_control.clone()))
+        let decorated = AutoYield::new(terminal(), yields.clone());
+        Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     };
     let bot: Box<dyn DecisionProvider> = if auto_pay {
         Box::new(ManaWindowStop::new(RandomDecisionProvider::new()))
