@@ -114,7 +114,7 @@ impl Snapshot {
         let log = recorded
             .records_from(events_shown)
             .iter()
-            .map(|record| format_event(game, &record.event))
+            .map(|record| format_event(game, &record.event, &record.names))
             .collect();
         let permanents: Vec<PermanentView> = game
             .battlefield_ids_ordered()

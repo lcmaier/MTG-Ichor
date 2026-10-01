@@ -360,6 +360,58 @@ pub enum GameEvent {
     StateBasedActionPerformed,
 }
 
+impl GameEvent {
+    /// Calls `f` with each object this event names as it is when announced,
+    /// whose name its record keeps where a copy makes it other than its card's
+    /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
+    /// zone it left instead, off its look-back frame or its card.
+    pub fn objects_named_as_announced(&self, mut f: impl FnMut(ObjectId)) {
+        use GameEvent::*;
+        match self {
+            Tapped { object_id: id }
+            | Untapped { object_id: id }
+            | PermanentEnteredBattlefield { object_id: id, .. }
+            | CountersAnnihilated { object_id: id, .. }
+            | CountersChanged { subject: CounterSubject::Object(id), .. }
+            | TokenCreated { object_id: id, .. }
+            | TokenCeasedToExist { object_id: id }
+            | CardDrawn { card_id: id, .. }
+            | ManaAdded { source_id: id, .. }
+            | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
+            | LifeChanged { source: Some(id), .. }
+            | SpellCast { spell_id: id, .. }
+            | SpellFizzled { spell_id: id } => f(*id),
+            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } => f(identity.source.id),
+            AbilityTriggered { origin, .. } => f(origin.source()),
+            DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
+            | SpellCountered { spell_id: a, countered_by: b }
+            | AbilityCountered { ability_id: a, countered_by: b }
+            | Attached { attachment: a, host: b, former_host: None }
+            | EquipmentDetached { equipment_id: a, former_host: b } => [a, b].into_iter().for_each(|id| f(*id)),
+            Attached { attachment, host, former_host: Some(former) } => {
+                [attachment, host, former].into_iter().for_each(|id| f(*id))
+            }
+            AttackersDeclared { attackers } => attackers.iter().for_each(|id| f(*id)),
+            BlockersDeclared { blockers } => blockers.iter().for_each(|(blocker, attacker)| {
+                f(*blocker);
+                f(*attacker);
+            }),
+            ZoneChange { .. }
+            | LeftTheGame { .. }
+            | CountersChanged { .. }
+            | LifeChanged { .. }
+            | PhaseBegin { .. }
+            | StepBegin { .. }
+            | TurnBegin { .. }
+            | PlayerLost { .. }
+            | PlayerWon { .. }
+            | Scried { .. }
+            | LibraryShuffled { .. }
+            | StateBasedActionPerformed => {}
+        }
+    }
+}
+
 /// Why a player lost the game.
 ///
 /// Carried by `GameAction::PlayerLoses` and read by nothing that decides: every
@@ -481,7 +533,15 @@ pub struct EventRecord {
     pub event: GameEvent,
     /// See [`EventStamp`].
     pub stamp: EventStamp,
+    /// See [`NamesAsAnnounced`].
+    pub names: NamesAsAnnounced,
 }
+
+/// The names an event's objects were announced under, where one was not its
+/// card's: a copy's (CR 707.2), or a face-down permanent's, which is none (CR
+/// 708.2a). `None` on nearly every record. Kept because the log and the trace
+/// format a record after its objects may have changed; no rule reads it.
+pub type NamesAsAnnounced = Option<Arc<Vec<(ObjectId, String)>>>;
 
 impl EventRecord {
     /// The batch this event was performed as part of, if any.
@@ -538,21 +598,23 @@ impl EventWindow {
         EventWindow::default()
     }
 
-    pub fn emit(&mut self, event: GameEvent) {
+    pub fn emit(&mut self, event: GameEvent) -> &mut EventRecord {
         let stamp = self.stamp;
-        self.push(event, stamp);
+        self.push(event, stamp)
     }
 
     /// Emit with no batch and no resolution whatever is ambient — for a
     /// record that is a consequence of an event rather than part of it
     /// (`GameEvent::AbilityTriggered`, §4.8).
-    pub(crate) fn emit_unstamped(&mut self, event: GameEvent) {
-        self.push(event, EventStamp::default());
+    pub(crate) fn emit_unstamped(&mut self, event: GameEvent) -> &mut EventRecord {
+        self.push(event, EventStamp::default())
     }
 
-    fn push(&mut self, event: GameEvent, stamp: EventStamp) {
-        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp });
+    fn push(&mut self, event: GameEvent, stamp: EventStamp) -> &mut EventRecord {
+        let seq = EventSeq(self.next_seq);
         self.next_seq += 1;
+        self.records.push(EventRecord { seq, event, stamp, names: None });
+        self.records.last_mut().expect("the record just pushed")
     }
 
     /// The record at `seq`, or `None` for one the window no longer holds.

@@ -3,7 +3,11 @@
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
+use std::sync::Arc;
+
 use crate::engine::layers::compute_characteristics;
+use crate::engine::layers::types::EffectiveCharacteristics;
+use crate::events::event::{GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{
     get_effective_power, get_effective_toughness, is_creature,
@@ -217,18 +221,32 @@ pub fn format_phase(game: &GameState) -> String {
 // Event log formatting
 // ---------------------------------------------------------------------------
 
-/// Resolve an ObjectId to "CardName (#id)" for readable logs.
-fn obj_name(game: &GameState, id: ObjectId) -> String {
-    match game.objects.get(&id) {
-        Some(obj) => format!("{} ({})", obj.card_data.name, id),
-        None => format!("{}", id),
+/// "Grizzly Bears (#12)": the name the record kept for the object, where a
+/// copy made it other than its card's, else its card's; the bare id for an
+/// object the store no longer holds.
+fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) -> String {
+    let kept = announced.as_deref().and_then(|names| names.iter().find(|(named, _)| *named == id));
+    match (kept, game.objects.get(&id)) {
+        (Some((_, name)), _) => format!("{} ({})", name, id),
+        (None, Some(obj)) => format!("{} ({})", obj.card_data.name, id),
+        (None, None) => format!("{}", id),
     }
 }
 
-/// Format a single GameEvent with resolved card names.
-pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -> String {
+/// An object as it was in the zone it left: its look-back frame from the
+/// battlefield (CR 603.10a), its card anywhere else.
+fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacteristics>>) -> String {
+    match lki {
+        Some(frame) => format!("{} ({})", frame.name, id),
+        None => name_with_id(game, id, &None),
+    }
+}
+
+/// Format one event, each object named as its record kept it.
+pub fn format_event(game: &GameState, event: &GameEvent, announced: &NamesAsAnnounced) -> String {
     use crate::events::event::CounterSubject;
     use crate::events::event::GameEvent::*;
+    let obj_name = |game: &GameState, id: ObjectId| name_with_id(game, id, announced);
     match event {
         ZoneChange { object_id, owner, from, to, cause, lki } => {
             // The cause says which rule moved it and the CR 603.10a frame says every
@@ -241,7 +259,7 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
                 format!(" ({})", names.join(" "))
             }).unwrap_or_default();
             format!("ZoneChange: {}{} [P{}] {:?} -> {:?} [{:?}]",
-                    obj_name(game, *object_id), was, owner, from, to, cause)
+                    as_it_left(game, *object_id, lki), was, owner, from, to, cause)
         }
         AbilityActivated { identity, controller } => format!(
             "AbilityActivated: {} [P{}]", obj_name(game, identity.source.id), controller),
@@ -346,8 +364,8 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
         EquipmentDetached { equipment_id, former_host } => {
             format!("EquipmentDetached: {} from {}", obj_name(game, *equipment_id), obj_name(game, *former_host))
         }
-        LeftTheGame { object_id, owner, from, .. } => {
-            format!("LeftTheGame: {} (P{}, from {:?})", obj_name(game, *object_id), owner, from)
+        LeftTheGame { object_id, owner, from, lki } => {
+            format!("LeftTheGame: {} (P{}, from {:?})", as_it_left(game, *object_id, lki), owner, from)
         }
         TokenCreated { object_id, owner, zone } => {
             format!("TokenCreated: {} (P{}, in {:?})", obj_name(game, *object_id), owner, zone)
@@ -363,8 +381,9 @@ pub fn format_event(game: &GameState, event: &crate::events::event::GameEvent) -
 /// recording (`GameState::record_events`).
 pub fn format_event_log(game: &GameState) -> Vec<String> {
     game.recorded_events()
-        .events()
-        .map(|e| format_event(game, e))
+        .records()
+        .iter()
+        .map(|record| format_event(game, &record.event, &record.names))
         .collect()
 }
 
@@ -468,6 +487,49 @@ mod tests {
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
     }
+    #[test]
+    fn the_log_names_a_copy_as_it_was_at_each_event() {
+        use crate::engine::actions::{ActionContext, GameAction};
+        use crate::test_support::{
+            put_in_graveyard, put_on_battlefield, setup_two_player_game, test_ctx, RecordingDecisionProvider,
+        };
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        game.execute_action(GameAction::Tap { object: clone }, &test_ctx()).unwrap();
+        game.change_zone(clone, Zone::Graveyard, ZoneChangeCause::Destroyed, &test_ctx()).unwrap();
+        // And one made a copy by a row, as Cytoshape does (CR 707.2), until
+        // the row ends.
+        let shaped = put_on_battlefield(&mut game, crate::test_support::vanilla_creature(1, 1, &[]), 0);
+        let values = crate::engine::layers::copy::copiable_values(&game, bears).unwrap();
+        let timestamp = game.allocate_timestamp();
+        let row = crate::test_support::registered(
+            shaped,
+            crate::engine::layers::types::Layer::Layer1Copy,
+            timestamp,
+            crate::engine::layers::types::EffectModification::CopyFrom(Arc::new(values)),
+        );
+        let row = game.continuous_effects.add(row);
+        game.execute_action(GameAction::Tap { object: shaped }, &test_ctx()).unwrap();
+        game.continuous_effects.remove(row);
+        game.execute_action(GameAction::Untap { object: shaped }, &test_ctx()).unwrap();
+
+        // Formatted after it died: each line names it as it was then. A zone
+        // change names the object as it was in the zone it left.
+        let log = format_event_log(&game);
+        let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
+        has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Returned]"));
+        has(format!("ETB: Grizzly Bears ({clone}) [P0]"));
+        has(format!("Tapped: Grizzly Bears ({clone})"));
+        has(format!("ZoneChange: Grizzly Bears ({clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
+        has(format!("Tapped: Grizzly Bears ({shaped})"));
+        has(format!("Untapped: Test Creature ({shaped})"));
+    }
+
     #[test]
     fn every_keyword_flag_prints_in_the_enums_order() {
         use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};

@@ -80,6 +80,12 @@ pub struct RegistryScopeSummary {
     /// numbers, so it does not get rebuilt on the same reasoning.
     pub any_control_changing: bool,
 
+    /// True iff some row is a copy effect (`EffectModification::CopyFrom`).
+    /// When it is false, an object's name is its card's unless it entered as a
+    /// copy or is face-down, because Layer 1 is the only channel that writes a
+    /// name; the event record's names lean on that (`NamesAsAnnounced`).
+    pub any_copy_effect: bool,
+
     /// True iff some row grants an ability whose body is an
     /// `Effect::Replacement` — i.e. some object on the battlefield may have a
     /// replacement ability that it did not print.
@@ -283,6 +289,7 @@ impl RegistryScopeSummary {
                 // because both gates ask about a *body*, not about a copy. A
                 // copy of a vanilla creature must not turn either fast path on.
                 EffectModification::CopyFrom(values) => {
+                    summary.any_copy_effect = true;
                     for ability in values.abilities.iter() {
                         if matches!(ability.effect, Effect::Restriction(_)) {
                             summary.any_copied_restriction = true;

@@ -49,8 +49,9 @@ pub struct DispatchAudit {
     triggers: u64,
 }
 
-/// What an audit read may touch and must put back.
-struct Observers {
+/// What an observer's read may touch and must put back: the audit's, and an
+/// event record's names (`GameState::emit_record`).
+pub(crate) struct Observers {
     memo: LayerMemo,
     diagnostics: Diagnostics,
     trace: Option<TraceHandle>,
@@ -117,7 +118,7 @@ impl GameState {
         }
     }
 
-    fn save_observers(&mut self) -> Observers {
+    pub(crate) fn save_observers(&mut self) -> Observers {
         Observers {
             memo: self.layer_memo.clone(),
             diagnostics: self.diagnostics.clone(),
@@ -125,7 +126,7 @@ impl GameState {
         }
     }
 
-    fn restore_observers(&mut self, saved: Observers) {
+    pub(crate) fn restore_observers(&mut self, saved: Observers) {
         self.layer_memo = saved.memo;
         self.diagnostics = saved.diagnostics;
         self.trace = saved.trace;
@@ -230,7 +231,7 @@ impl GameState {
         let records: Vec<String> = window
             .iter()
             .filter_map(|seq| {
-                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::ui::display::format_event(self, &r.event)))
+                self.events.record(*seq).map(|r| format!("#{} {}", seq.0, crate::ui::display::format_event(self, &r.event, &r.names)))
             })
             .collect();
         records.join("; ")

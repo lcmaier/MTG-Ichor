@@ -158,7 +158,7 @@ fn main() {
             let turn_began = records.iter().rposition(|r| matches!(r.event, GameEvent::TurnBegin { .. })).unwrap_or(0);
             println!("This turn's events, up to the error:");
             for record in &records[turn_began..] {
-                println!("  {}", format_event(&game.state, &record.event));
+                println!("  {}", format_event(&game.state, &record.event, &record.names));
             }
         }
     }
