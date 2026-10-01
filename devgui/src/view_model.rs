@@ -284,7 +284,11 @@ pub struct Item {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ZoneView {
+    /// The header, with the zone's count where it has one.
     pub name: String,
+    /// The zone without its count, which keys the header's open state, so a
+    /// card arriving does not close a graveyard the person opened.
+    pub key: &'static str,
     pub items: Vec<Item>,
     /// Shown open rather than collapsed.
     pub open: bool,
@@ -479,10 +483,11 @@ fn seat(player: &PlayerView, marks: &Marks) -> SeatView {
     let mut zones: Vec<ZoneView> = battlefield
         .into_iter()
         .filter(|(_, items)| !items.is_empty())
-        .map(|(name, items)| ZoneView { name: name.to_string(), items, open: true })
+        .map(|(name, items)| ZoneView { name: name.to_string(), key: name, items, open: true })
         .collect();
-    let counted = |name: &str, cards: &[CardView], open: bool| ZoneView {
+    let counted = |name: &'static str, cards: &[CardView], open: bool| ZoneView {
         name: format!("{name} ({})", cards.len()),
+        key: name,
         items: cards.iter().map(|card| marks.card(card)).collect(),
         open,
     };
@@ -711,6 +716,8 @@ mod tests {
         assert_eq!(mine.player.target, Some(Player(WINDOW_SEAT)), "the window's seat is drawn last");
         let names: Vec<&str> = mine.zones.iter().map(|zone| zone.name.as_str()).collect();
         assert_eq!(names, ["Creatures", "Lands", "Other permanents", "Hand (1)", "Graveyard (0)", "Library (0)"]);
+        let keys: Vec<&str> = mine.zones.iter().map(|zone| zone.key).collect();
+        assert_eq!(keys, ["Creatures", "Lands", "Other permanents", "Hand", "Graveyard", "Library"], "no count in a key");
         let targets = |zone: &ZoneView| zone.items.iter().map(|item| item.target).collect::<Vec<_>>();
         assert_eq!(targets(&mine.zones[0]), [Some(Object(b.bear)), Some(Object(b.arbor))]);
         assert_eq!(targets(&mine.zones[1]), [Some(Object(b.forest))]);

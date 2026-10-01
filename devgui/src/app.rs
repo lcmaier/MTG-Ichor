@@ -98,8 +98,9 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
         ui.strong("Log");
         let row_height = ui.text_style_height(&egui::TextStyle::Body);
         egui::ScrollArea::vertical().stick_to_bottom(true).show_rows(ui, row_height, state.log.len(), |ui, rows| {
+            // One text line a row, as `show_rows` counts them; the whole line on hover.
             for line in &state.log[rows] {
-                ui.label(line);
+                ui.add(egui::Label::new(line).truncate());
             }
         });
     });
@@ -124,28 +125,30 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
     inputs
 }
 
+/// The stack, empty or not, then each other shared zone that holds anything.
 fn side_panel(ui: &mut egui::Ui, board: &BoardView, inputs: &mut Vec<Input>) {
-    let lists = [
-        ("Stack, top first", &board.stack),
+    ui.strong("Stack, top first");
+    if board.stack.is_empty() {
+        ui.weak("empty");
+    }
+    for entry in &board.stack {
+        item(ui, entry, inputs);
+    }
+    let others = [
         ("Triggered, waiting to be put on the stack", &board.pending_triggers),
         ("Exile", &board.exile),
         ("Command zone", &board.command),
     ];
-    for (name, items) in lists {
-        if name.starts_with("Stack") || !items.is_empty() {
-            ui.strong(name);
-            if items.is_empty() {
-                ui.weak("empty");
-            }
-            for entry in items {
-                item(ui, entry, inputs);
-            }
+    for (name, items) in others.into_iter().filter(|(_, items)| !items.is_empty()) {
+        ui.strong(name);
+        for entry in items {
+            item(ui, entry, inputs);
         }
     }
 }
 
 fn zone_view(ui: &mut egui::Ui, zone: &ZoneView, inputs: &mut Vec<Input>) {
-    egui::CollapsingHeader::new(&zone.name).default_open(zone.open).show(ui, |ui| {
+    egui::CollapsingHeader::new(&zone.name).id_salt(zone.key).default_open(zone.open).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for entry in &zone.items {
                 item(ui, entry, inputs);
