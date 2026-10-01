@@ -1771,8 +1771,8 @@ everything a drawing function calls runs that often.
 1. **Per-frame work and allocation.** Does a call's result change between two
    frames that had no new message and no input? If not, it is built where the
    change happens (`WindowState::receive`, `WindowState::input`) and the frame
-   only reads it, unless a reading of its cost says it is too small to
-   matter, which is a measurement and not an argument. A list that grows with the game is drawn
+   only reads it, unless §10.4's reading says it is too small to matter,
+   which is a measurement and not an argument. A list that grows with the game is drawn
    through `ScrollArea::show_rows`, so a frame costs the rows on screen, and
    every row is the one height `show_rows` was given: a row that wraps breaks
    its arithmetic.
@@ -1857,3 +1857,36 @@ model's unit tests carry.
 window's snapshot reads every object at every prompt, which no engine test
 does. Its first run found an engine bug that way: a loss bumped no layer
 epoch (A6g's review, finding 1).
+
+### 10.4 What one prompt costs the window
+
+`cargo run --release --example prompt_cost`, in `devgui/`, reads what the
+window pays at each prompt and at each repaint, on a large board
+(`tests/scenarios/large.scenario`: 188 objects, seat 0's priority prompt) or
+on one given as its argument: `Snapshot::build` on the engine's thread, with
+the layer memo warm and cold, and of that the board's scenario text;
+`WindowState::receive` as the prompt arrives; and the views `app::draw`
+builds again at every repaint. Each is the median and the slowest tenth of
+200 runs, beside the allocations and bytes one run asks for. **A number to
+read beside a change, not a gate**: the time is the machine's and the
+allocations are the code's, and a GUI PR that touches the snapshot or the
+view model quotes its before and after.
+
+**The first reading**, 2026-10-01, on the owner's Windows machine, release,
+at A6g's review PR before its fixes:
+
+| | median | p90 | allocations | bytes |
+|---|---|---|---|---|
+| snapshot, memo warm | 196 µs | 296 µs | 3,829 | 274,665 |
+| snapshot, memo cold | 272 µs | 351 µs | 4,778 | 462,305 |
+| of which the board text | 60 µs | 94 µs | 838 | 72,735 |
+| receive | 13 µs | 21 µs | 573 | 40,210 |
+| views, every repaint | 27 µs | 34 µs | 671 | 40,185 |
+
+So §10.1's first question has a measured answer for the views and the board
+text: each is built again every time, and neither is worth a cache. **A debug
+build is another matter.** The snapshot read 125 ms a prompt there, about 640
+times its release cost, because the layer memo's audit walks the board again
+at every memo hit and the snapshot hits the memo several times a permanent.
+That audit is what found the engine bug in §10.3, so the window runs in debug
+to test cards and in release for a large board, which `main.rs`'s usage says.

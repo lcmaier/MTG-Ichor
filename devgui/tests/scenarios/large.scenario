@@ -1,0 +1,71 @@
+# The cost reading's board (`examples/prompt_cost.rs`): a late game at two
+# seats, about a hundred objects each, every creature with a mana ability
+# from Citanul Hierophants, so seat 0's priority prompt is a long one.
+seed 3
+turn 12
+active 0
+step precombat main
+
+player 0: life 14, lands played 1
+player 1: life 9
+
+hand 0: Lightning Bolt
+hand 0: Mind Rot
+hand 0: Giant Growth
+hand 0: Grizzly Bears
+hand 0: Serra Angel
+hand 0: Hymn to Tourach
+hand 0: Kird Ape
+hand 1: Lightning Bolt
+hand 1: Mind Rot
+hand 1: Giant Growth
+hand 1: Hill Giant
+hand 1: Savannah Lions
+hand 1: Mending Hands
+hand 1: Seeds of Strength
+library 0: Forest | x20
+library 0: Mountain | x20
+library 1: Plains | x20
+library 1: Mountain | x20
+graveyard 0: Grizzly Bears | x5
+graveyard 0: Lightning Bolt | x5
+graveyard 0: Giant Growth | x5
+graveyard 1: Savannah Lions | x5
+graveyard 1: Mind Rot | x5
+graveyard 1: Hill Giant | x5
+
+battlefield: Forest | controller 0, x4
+battlefield: Mountain | controller 0, x4
+battlefield: Plains | controller 0, x3
+battlefield: Taiga | controller 0
+battlefield: Everywhere | controller 0, x3
+battlefield: Glorious Anthem | controller 0, x2
+battlefield: Citanul Hierophants | controller 0
+battlefield: Grizzly Bears [a] | controller 0, +1/+1 2
+battlefield: Holy Strength | controller 0, attached to Grizzly Bears [a]
+battlefield: Grizzly Bears | controller 0, x2
+battlefield: Savannah Lions | controller 0, x2
+battlefield: Hill Giant | controller 0, x2
+battlefield: Kird Ape | controller 0, x2
+battlefield: Serra Angel | controller 0
+battlefield: Elvish Warmaster | controller 0
+battlefield: Thornweald Archer | controller 0
+battlefield: Wall of Stone | controller 0, damage 2
+battlefield: Words of Worship | controller 0
+battlefield: Aggravated Assault | controller 0
+
+battlefield: Plains | controller 1, x4
+battlefield: Mountain | controller 1, x4
+battlefield: Forest | controller 1, x3
+battlefield: Everywhere | controller 1, x3
+battlefield: Glorious Anthem | controller 1
+battlefield: Thalia, Guardian of Thraben | controller 1
+battlefield: Angel of Suffering | controller 1
+battlefield: Savannah Lions [b] | controller 1
+battlefield: Holy Strength | controller 1, attached to Savannah Lions [b]
+battlefield: Savannah Lions | controller 1, x3
+battlefield: Hill Giant | controller 1, x2
+battlefield: Grizzly Bears | controller 1, x3, tapped
+battlefield: Serra Angel | controller 1
+battlefield: Isamaru, Hound of Konda | controller 1
+battlefield: Loyalty Probe | controller 1
