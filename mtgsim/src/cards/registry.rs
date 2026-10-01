@@ -471,6 +471,13 @@ const PERFORMANCE_POOL: [&str; 101] = [
     "Spark Double",
 ];
 
+/// Cards in development (`setup-architecture.md` §7a): a card a developer is
+/// building, which a scenario can name before the engine plays it. Only
+/// scenarios read this list: `card_names`, and so `random_deck`, the fuzz
+/// pools and `determinism_test`, never see it. A card leaves the list in the
+/// commit that registers it.
+const IN_DEVELOPMENT: [(&str, fn() -> Arc<CardData>); 0] = [];
+
 /// Card registry: maps card names to factory functions that produce CardData.
 ///
 /// Contributors add new cards by:
@@ -484,12 +491,15 @@ const PERFORMANCE_POOL: [&str; 101] = [
 /// "Two card pools" says which to reach for.
 pub struct CardRegistry {
     cards: HashMap<String, fn() -> Arc<CardData>>,
+    /// [`IN_DEVELOPMENT`]'s cards, or a test's.
+    in_development: HashMap<String, fn() -> Arc<CardData>>,
 }
 
 impl CardRegistry {
     pub fn new() -> Self {
         CardRegistry {
             cards: HashMap::new(),
+            in_development: HashMap::new(),
         }
     }
 
@@ -503,6 +513,17 @@ impl CardRegistry {
         self.cards.get(name)
             .map(|factory| factory())
             .ok_or_else(|| format!("Card '{}' not found in registry", name))
+    }
+
+    /// List `name` among the cards in development, which scenarios can name
+    /// and nothing else draws from.
+    pub fn register_in_development(&mut self, name: &str, factory: fn() -> Arc<CardData>) {
+        self.in_development.insert(name.to_string(), factory);
+    }
+
+    /// A card in development by name, for a scenario.
+    pub fn create_in_development(&self, name: &str) -> Option<Arc<CardData>> {
+        self.in_development.get(name).map(|factory| factory())
     }
 
     /// Get all registered card names, alphabetically.
@@ -960,6 +981,10 @@ impl CardRegistry {
         registry.register("Jagged Lightning", phase_a4i_cards::jagged_lightning);
         registry.register("Plague Spores", phase_a4i_cards::plague_spores);
         registry.register("Seat of the Synod", phase_a4i_cards::seat_of_the_synod);
+
+        for (name, factory) in IN_DEVELOPMENT {
+            registry.register_in_development(name, factory);
+        }
 
         registry
     }

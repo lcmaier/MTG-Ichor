@@ -8,6 +8,17 @@
 use crate::types::card_types::CardType;
 use crate::types::effects::PlayerSet;
 
+/// Which turns a count spans. A `Condition` leaf reads any of the four; a
+/// scenario writes the three `state::history` keeps, and derives "since
+/// your last turn" from them (`setup-architecture.md` §5.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistorySpan {
+    ThisTurn,
+    LastTurn,
+    SinceYourLastTurn,
+    ThisGame,
+}
+
 /// One quantity of one player's turn. Each is counted on exactly one row, and
 /// the name says whose: the caster's, the drawer's, the player whose life
 /// total moved, the player dealt the damage, the player who controlled the

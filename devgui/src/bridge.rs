@@ -18,7 +18,8 @@ use std::thread::JoinHandle;
 use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::Game;
+use mtgsim::scenario::Scenario;
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
@@ -55,6 +56,10 @@ pub struct GameSetup {
     pub pool: Pool,
     /// Where the decision log goes; `None` keeps none.
     pub log_path: Option<PathBuf>,
+    /// A board to start from instead of dealt decks, read again at each
+    /// start, so Reload picks up an edit. Its seed is `seed`, which the
+    /// command line's `--seed` overrides.
+    pub scenario: Option<PathBuf>,
 }
 
 /// What the engine thread tells the window.
@@ -66,6 +71,8 @@ pub enum ToWindow {
     Finished { snapshot: Snapshot, outcome: Outcome },
     /// The engine thread panicked: an `ask_*` validator, or an engine bug.
     Panicked { message: String },
+    /// The scenario did not load: the file's line, and what to change.
+    Refused { message: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,18 +112,32 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
 }
 
 fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<Answer>, wake: &Arc<dyn Fn() + Send + Sync>) {
-    let registry = match setup.pool {
-        Pool::Performance => CardRegistry::performance_pool(),
-        Pool::Stress => CardRegistry::default_registry(),
+    let (mut game, log, agent_seed) = match &setup.scenario {
+        Some(path) => match build_scenario_game(setup, path) {
+            Ok((game, text)) => (game, DecisionLog::open(setup, &GameStart::Scenario { path, text: &text }), RandomStreams::from_seed(setup.seed).agents),
+            Err(message) => {
+                let _ = to_window.send(ToWindow::Refused { message });
+                wake();
+                return;
+            }
+        },
+        None => {
+            let registry = match setup.pool {
+                Pool::Performance => CardRegistry::performance_pool(),
+                Pool::Stress => CardRegistry::default_registry(),
+            };
+            // Three streams from the one seed: the decks, the shuffle, the bot.
+            let mut deck_rng = StdRng::seed_from_u64(setup.seed);
+            let decks: Vec<Vec<Arc<CardData>>> =
+                (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
+            let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
+            let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
+            game.reseed(setup.seed.wrapping_add(1));
+            (game, log, setup.seed.wrapping_add(2))
+        }
     };
-    // Three streams from the one seed: the decks, the shuffle, the bot.
-    let mut deck_rng = StdRng::seed_from_u64(setup.seed);
-    let decks: Vec<Vec<Arc<CardData>>> =
-        (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
-    let log = Rc::new(RefCell::new(DecisionLog::open(setup, &decks)));
-    let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
+    let log = Rc::new(RefCell::new(log));
     game.state.record_events();
-    game.reseed(setup.seed.wrapping_add(1));
 
     let events_shown = Rc::new(Cell::new(0));
     let seat = GuiSeat {
@@ -129,9 +150,10 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     // `cli_play`'s stacks: CR 601.2g's window closes once the cost is paid.
     let dp = DispatchDecisionProvider::new(vec![
         Box::new(AutoPayer::new(ManaWindowStop::new(seat))),
-        Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(setup.seed.wrapping_add(2)))),
+        Box::new(ManaWindowStop::new(RandomDecisionProvider::seeded(agent_seed))),
     ]);
-    let outcome = match game.setup(&dp).and_then(|()| game.run(&dp)) {
+    let played = if setup.scenario.is_some() { game.resume(&dp) } else { game.setup(&dp).and_then(|()| game.run(&dp)) };
+    let outcome = match played {
         Ok(GameResult::Winner(player)) => Outcome::Won(player),
         Ok(GameResult::Draw) => Outcome::Draw,
         Err(error) => Outcome::Error(error),
@@ -140,6 +162,17 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     let snapshot = Snapshot::build(&game.state, events_shown.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
+}
+
+/// The scenario at `path` built at `setup.seed`, and its text; or why not.
+fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(Game, String), String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
+    if scenario.players != 2 {
+        return Err(format!("the dev GUI plays two seats, and this scenario has {}", scenario.players));
+    }
+    let game = scenario.build(&CardRegistry::default_registry()).map_err(|r| r.to_string())?;
+    Ok((game, text))
 }
 
 /// Seat 0: every question goes to the window. One with a single legal answer
@@ -220,16 +253,25 @@ impl DecisionProvider for GuiSeat {
     }
 }
 
-/// The seed, the decks and every answer seat 0 gave, a line each and flushed
+/// How a game began, as its log records it.
+enum GameStart<'a> {
+    Dealt(&'a [Vec<Arc<CardData>>]),
+    /// The file and its text when it was read, so the log is a save even
+    /// after the file changes (`setup-architecture.md` §7).
+    Scenario { path: &'a PathBuf, text: &'a str },
+}
+
+/// The seed, the start and every answer seat 0 gave, a line each and flushed
 /// as written, so a game that panics leaves its whole record. Replaying it is
-/// PR 2's; keeping it now is what makes anything the spike shows reproducible.
+/// the tools PR's; keeping it now is what makes anything the window shows
+/// reproducible.
 struct DecisionLog {
     file: Option<File>,
     answers: usize,
 }
 
 impl DecisionLog {
-    fn open(setup: &GameSetup, decks: &[Vec<Arc<CardData>>]) -> DecisionLog {
+    fn open(setup: &GameSetup, start: &GameStart) -> DecisionLog {
         let file = setup.log_path.as_ref().map(|path| {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
@@ -237,12 +279,25 @@ impl DecisionLog {
             File::create(path).unwrap_or_else(|e| panic!("cannot create the decision log {}: {e}", path.display()))
         });
         let mut log = DecisionLog { file, answers: 0 };
-        log.line(&format!("seed {}", setup.seed));
-        log.line(&format!("pool {:?}", setup.pool));
-        for (seat, deck) in decks.iter().enumerate() {
-            // A decklist, before the game: the cards' definitions, not objects.
-            let names: Vec<&str> = deck.iter().map(|card| card.name.as_str()).collect();
-            log.line(&format!("deck {seat} {}", names.join("; ")));
+        match start {
+            GameStart::Dealt(decks) => {
+                log.line(&format!("seed {}", setup.seed));
+                log.line(&format!("pool {:?}", setup.pool));
+                for (seat, deck) in decks.iter().enumerate() {
+                    // A decklist, before the game: the cards' definitions, not objects.
+                    let names: Vec<&str> = deck.iter().map(|card| card.name.as_str()).collect();
+                    log.line(&format!("deck {seat} {}", names.join("; ")));
+                }
+            }
+            GameStart::Scenario { path, text } => {
+                log.line(&format!("scenario {}", path.display()));
+                log.line(&format!("seed {}", setup.seed));
+                log.line("begin scenario text");
+                for line in text.lines() {
+                    log.line(line);
+                }
+                log.line("end scenario text");
+            }
         }
         log
     }

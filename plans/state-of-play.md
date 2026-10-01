@@ -88,6 +88,7 @@ says nothing about progress, so there is one answer and it is derived.
 - `RF` — plans/replacement-architecture.md
 - `RG` — plans/replacement-architecture.md
 - `RS-1` — plans/cant-effects-architecture.md
+- `SU-1` — plans/setup-architecture.md
 - `TR-1` — plans/triggers-architecture.md
 - `TR-1b` — plans/triggers-architecture.md
 - `TR-2a` — plans/triggers-architecture.md
@@ -99,7 +100,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 101 |
-| `#[test]` functions | 1900 |
+| `#[test]` functions | 1933 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -107,14 +108,14 @@ Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
 | | |
 |---|---:|
-| Numbered items | 256 |
+| Numbered items | 258 |
 | …closed, still recorded | 92 |
-| …open — unreachable, and says why | 106 |
-| **…open — reachable, wrong today** | **1** |
+| …open — unreachable, and says why | 107 |
+| **…open — reachable, wrong today** | **2** |
 | …open — reachable, not wrong (perf, a name, a harness) | 29 |
 | …open — nothing to build, a record for a later phase | 28 |
 | **…open — reachability *not* stated** | **0** |
-| …open, carrying an explicit `**Sized:**` | 159 of 164 |
+| …open, carrying an explicit `**Sized:**` | 161 of 166 |
 
 Two bolded rows. "Not stated" is the one to act on: an item that does not say
 why it cannot bite yet is an unchecked claim rather than a deferral. "Wrong

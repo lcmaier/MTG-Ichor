@@ -4,7 +4,9 @@
 > on PR #204, which carries the design alone. It covers `roadmap-v2.md` A6g's
 > scenario work: the scenario loader as phase **SU-1**, setup actions as
 > **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
-> before SU-1, built CR 103.8's derivation (§1); nothing else here is built.
+> before SU-1, built CR 103.8's derivation (§1), and SU-1 the loader, the
+> writer and the dev GUI's start (§8, landed 2026-10-01); SU-2 and SU-3 are
+> not built.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -320,7 +322,7 @@ hand 0: Lightning Bolt
 library 0: Mountain                         # top first
 library 0: Forest | x10
 library 1 shuffled: Forest | x20
-graveyard 0: Savannah Lions                 # top first
+graveyard 0: Savannah Lions                 # each card on top of the last
 
 battlefield: Glorious Anthem | controller 0
 battlefield: Grizzly Bears [a] | controller 0, tapped, attacking player 1
@@ -353,7 +355,7 @@ moves into the engine so the parser, the writer and the window read one copy.
 |---|---|---|
 | Not a card | `Grizly Bears` | refused: the line and the name, "Grizly Bears is not registered" |
 | A reference that does not resolve | `attached to Grizzly Bears` with no Bears on the battlefield, or with two and no tag; a host listed after its attachment | refused, naming the lines |
-| A state no sequence of events reaches | an attacker in a main phase (CR 506.4, 511.3); a blocker of a creature that is not attacking; an attacker attacking its own controller (CR 508.1b; a control change removes it from combat, 506.4); declare blockers with no attacker (CR 508.8); an instant on the battlefield (CR 304.4); a card owned by a player who has left (CR 800.4a); the untap or cleanup step, where no player receives priority (CR 502.4, 514.3) | refused, naming the rule |
+| A state no sequence of events reaches | an attacker in a main phase (CR 506.4, 511.3); a blocker of a creature that is not attacking; an attacker attacking its own controller (CR 508.1b; a control change removes it from combat, 506.4); declare blockers with no attacker (CR 508.8); an instant on the battlefield (CR 304.4); a card owned by a player who has left (CR 800.4a); the untap or cleanup step, where no player receives priority (CR 502.4, 514.3); turn 1's draw step in a two-player game, which CR 103.8a skips as though it didn't exist (500.11) | refused, naming the rule |
 | A state the rules correct | a 0-toughness creature (CR 704.5f), an Aura attached to nothing (704.5m), ten poison counters (704.5c), two legends with one name (704.5j) | built; CR 117.5 performs it before the first priority, and the log shows it |
 
 **SBAs are not checked at load.** A check is an event, the resumed game's first
@@ -429,7 +431,17 @@ the vocabulary's next words. Tokens and copies are the likely first.
 A *word* is anything a scenario file can say: a line's head (`hand 0:`) or an
 attribute after the bar (`tapped`).
 
-### 5.1 v1
+### 5.1 v1, as built
+
+**The one table of the grammar**: the parser (`scenario/text.rs`) reads it,
+`Display` writes it, and `mtgsim/scenarios/template.scenario` shows every
+word in use. One line states one thing, and `#` starts a comment. A line that
+names a card puts the name after the head's colon (only the first colon is the
+head's, so "Circle of Protection: Red" parses), then an optional tag in square
+brackets, then `|` and its words, separated by commas. A word that names
+another card takes the rest of the line, so it comes last
+(`CardWord::names_a_card`, which `Display` writes last). A count is `xN` after
+the bar, never `N Forest`, since a name may begin with a digit.
 
 Defaults in the last column apply when the file says nothing. A reference
 (`<card>`) is a name, with its tag where it has one (§4.2).
@@ -448,23 +460,24 @@ Defaults in the last column apply when the file says nothing. A reference
 | `player p: lands played N` | 305.2 | `lands_played_this_turn` | 0 |
 | `player p: left the game` | 104.5, 800.4a | `player_lost`; refused if p owns or controls anything, is active, or leaves fewer than two in the game | in the game |
 | `player p: commander damage N from <card>` | 903.10a | `commander_damage_taken` | none |
-| `player p this turn:`, `last turn:`, `this game:`, each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
-| `this turn: <card> triggered`, `<card> resolved N`, `<card> took its once-each-turn action` | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
-| `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`, top first | empty |
+| `player p this turn:`, `last turn:`, `this game:` (and `since your last turn:`, which reads and is refused: the rows derive it), each with `spells cast N`, `<type> spells cast N`, `cards drawn N`, `life gained N`, `life gain events N`, `life lost N`, `life loss events N`, `damage taken N`, `creatures died N`, `attackers declared N` | — | `PlayerHistory`'s rows, one word per `TurnFact`; "this game" defaults to the other two rows' sum, and "since your last turn" is derived from the rows | zero |
+| `this turn: <card> \| triggered`, `resolved N`, `took its once-each-turn action`, each after an optional `ability N` (its printed place, needed when the card has two that could be meant) | 603.2h, 603.7h | `triggered_this_turn`, `resolutions_this_turn`, `action_taken_this_turn` | none |
+| `hand p:`, `library p:`, `graveyard p:` | 402, 401, 404 | `create_in_zone`: a library top first; a graveyard bottom first, each card on top of the last, since lines are stamped in file order (§4.3) | empty |
 | `library p shuffled:` | 401, 701.24 | then `shuffle_library` from the game's stream | — |
 | `exile:`, `command:` | 406, 408 | `create_in_zone`, with `owner` | empty |
 | `commander` | 903.3 | `GameObject::is_commander` | no |
+| `xN` | — | N copies of the line's card, each its own object; refused with a tag | 1 |
 | `battlefield:` | 613.7d | the door (§3.1), in the file's order | — |
 | `controller p`, `owner p` | 110.2b, 108.3 | the entity's default controller; the object's owner | each the other |
 | `tapped` | 110.5 | `tapped` | untapped |
-| `arrived this turn` | 302.6 | the door's arrival turn | arrived before this turn |
+| `arrived this turn`, `arrived turn N` | 302.6 | the door's arrival turn. CR 302.6 measures from the controller's own most recent turn, so a non-active player's creature that arrived on their last turn is still sick, which "this turn" alone cannot say (the build, 2026-10-01) | arrived before the first turn |
 | `<kind> N`, a counter | 122.1, 613.7c, 306.5b | `add_counters`, in order; a stated kind replaces its intrinsic count | the intrinsic entry counters |
 | `counters: <card> \| <kind> N` | 613.7c | a counter kind stamped at its own line (§4.3) | — |
 | `damage N` | 120.6 | `damage_marked` | 0 |
 | `attached to <card>` | 301.5, 303.4, 613.7e | `attach`, at its line | — |
 | `attacking player p`, `attacking <card>`, `blocked` | 506, 508.1, 509.1h | `attacking` | — |
-| `blocking <card>, …` | 509.1a | `blocking`, and each attacker's `blocked_by` in the file's order | — |
-| `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused off the first-strike damage step | no |
+| `blocking <card>` | 509.1a | `blocking`, and each attacker's `blocked_by` in the file's order. One attacker per blocker: a word that names a card takes the rest of its line, since a name may hold a comma, and no registered card blocks two | — |
+| `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused before the first-strike damage step, and kept to the end of combat as the engine keeps it | no |
 
 ### 5.2 Later, and the growth contract
 
@@ -488,6 +501,8 @@ SU-2:** setup actions (§5.3).
 | counters on a card off the battlefield | 122.1, 702.62 | `GameObject` carrying counters (suspend's time counters) | — |
 | how many times a commander was cast from the command zone | 903.8 | the PR that counts it for commander tax | — |
 | exiled face down | 406.3 | CR 708's PR | — |
+| "since your last turn" past two seats | — | a word for the counts a player's last turn ended at; the loader derives them from two rows, exact at two seats and the round trip's commonest skip at four (1,312 of 1,901 boards) | the save |
+| turns off the natural rotation: a player who left after taking turns, an extra turn | 302.6, 500.7 | a word for each player's most recent turn; the loader rotates over the players in the game | the save |
 
 **The growth contract.** The format grows with the engine's stored state, never
 with its cards or its effects. A new card, trigger or effect needs no word,
@@ -724,51 +739,43 @@ in the editor (SU-3).
 
 ## 8. The build, sized
 
-Each commit is measured as code and tests apart.
+**SU-2**, setup actions: the driver ~180–260 lines, the action words ~80–120,
+tests ~150–270. **SU-3**, the board editor: ~500–900 lines (§7a). SU-1's code
+came in at about 1.9 times its sizing and its tests near theirs (the archive's
+table says where), so re-size each before its build, counting doc comments and
+refusal messages as SU-1's sizing did not.
 
-1. **The doors.** The performer's state half and the construction door; the
-   arrival turn; `intrinsic_entry_mods` moved from `test_support` into the
-   engine, both calling one copy; counter-kind names moved into the engine,
-   devgui's labels reading them. Tests: the door emits nothing, registers rows
-   and gives loyalty.
-2. **`mtgsim::scenario`'s types, parser and errors**, names and tags included.
-   Tests: each error class.
-3. **The loader**, its checks, the resume entry, the streams function, and the
-   list of cards in development (§7a). Tests: one per word in §5.1; load emits
-   nothing; a scenario game played twice is one game; the template and each
-   sample under `mtgsim/scenarios/` load.
-4. **The writer**, its destructure and its report, and the round-trip test over
-   played boards (§4.3).
-5. **`fuzz_games --scenario`**, droppable (~40 lines): random games from a
-   board, and the three-hash-seed check from one.
-6. **devgui:** the start, the argument, Reload, Save, load errors and the log
-   header. Tests: the headless game from a scenario; the review pictures drawn
-   from scenarios, with no seed hunted.
-7. **Docs:** this file's ✅ section, `codebase-state.md` items for §10's
-   findings with their slots, `roadmap-v2.md` A6g's row as built (it names
-   SU-1 to SU-3 in their slots since this design's review), the
-   `fuzz-record.md` block.
+### SU-1 — the scenario loader — ✅ landed 2026-10-01
 
-| Part | Code | Tests |
-|---|---:|---:|
-| 1. Doors | 60–90 | 60–90 |
-| 2. Parser | 250–310 | 130–170 |
-| 3. Loader, checks, resume, streams, cards in development | 340–440 | 320–400 |
-| 4. Writer and round trip | 180–250 | 140–220 |
-| 5. `fuzz_games` | 30–50 | — |
-| 6. devgui | 150–220 | 60–100 |
-| **SU-1 total** | **~1,010–1,360** | **~710–980** |
+**What shipped.** The entry performer's state half, `make_permanent`, which
+`place_on_battlefield` and the construction door `create_on_battlefield` share,
+with the arrival turn a parameter of both it and `register_static_effects`.
+`mtgsim::scenario`: the grammar as §5.1's one table (a module doc's copy moved here at
+review), `Scenario::parse`,
+`build` (§4.1's refusals, saying what to change), `write` (the four structs
+destructured with no `..`, and its report) and `Display`. `Game::resume`;
+`RandomStreams::from_seed`, with `fuzz_games`' salts; the registry's list of cards in
+development; `CounterType::name`. `mtgsim/scenarios/`: a template naming every
+word and four samples. `fuzz_games --scenario`, under CI's three hasher seeds.
+The dev GUI's `--scenario`, Reload, "Save board as scenario", a refusal in the
+window and the log's header, its review pictures drawn from three boards.
 
-About 1,720–2,340 lines, inside `engineering-practices.md` §4's band of
-1,500–2,500, in its upper half. **SU-2**, setup actions: the driver ~180–260
-lines, the action words ~80–120, tests ~150–270. **SU-3**, the board editor:
-~500–900 lines (§7a).
+**What moved on the way in.** The design gained `arrived turn N` (CR 302.6
+reads the controller's own most recent turn), lost the list after `blocking`
+(one attacker per blocker, since a reference takes the rest of its line), and
+lists a graveyard bottom first; the rest is in the archive. It landed at
++3,181 code and tests against ~1,720–2,340 sized; the owner kept it whole when
+it crossed 2,500 at the writer.
 
-**A/B.** The performer's split and the arrival parameter carry the same values
-in play, so `close_out.py` runs once and predicts `IDENTICAL` on both pools,
-with item 194 merged first since it moves every two-seat game. **Review path:**
-the PR body sorts files by how to review them, carries a click script in Magic
-terms, and shows the pictures.
+**Measured** (`fuzz-record.md`, the SU-1 block). `main` and the last code
+commit play every gameplay and cost row byte-identically on both pools at two
+seats and four, as predicted; instructions per decision −0.23%. The round
+trip compared 1,527 written boards at two seats and 47 at four with no
+difference. Its skips order the next words: at two seats the mana pool,
+copies, tokens and a resolution's rows; at four, "since your last turn" (§5.2).
+
+→ `plans/archive/setup-architecture-landed.md`, "SU-1" (the build as sized,
+sized against built, and what the build changed in the design).
 
 ---
 
@@ -798,9 +805,11 @@ the save, `SU-*`).
    instant entering the battlefield, and the loader is the first to refuse one.
    Whether a registered card can put a non-permanent card there
    (`ReturnToBattlefield` is the primitive to read) is checked in the build and
-   filed as an item with its reachability and slot.
+   filed as an item with its reachability and slot. **Answered by SU-1:** none
+   can, and the check is `codebase-state.md` item 197.
 4. **`shuffle_library` cites CR 701.20 for shuffling.** In `tmnt.txt` 701.20 is
    Reveal and Shuffle is 701.24. A one-word fix that rides with the build.
+   **Fixed in SU-1.**
 
 ---
 

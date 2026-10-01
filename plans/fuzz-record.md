@@ -37,6 +37,63 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-01 for SU-1** (the scenario loader; `setup-architecture.md`
+§8's ✅ section). No pool change and no game moved, so the §3 tables stand as
+item 194's block below recorded them. `close_out.py`: **main** `1fa5c90`
+(#205's merge) against **engine** `f34374b`, the last code commit.
+
+**Predictions, before any arm ran:** every gameplay and cost row `IDENTICAL`
+on both pools at two seats and four, since play passes the current turn
+wherever it now passes an arrival turn and the streams keep their salts; and
+instructions per decision within ±0.1 points.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| each counter file outside `=== Timing ===`, cost rows included | byte-identical / byte-identical | byte-identical / byte-identical |
+| audit, engine, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6593 M → 0.6578 M, **−0.23%** |
+
+**One prediction missed: the instructions fell 0.23%,** past the ±0.1
+predicted. The games are byte-identical, so it comes from the build's code,
+most likely what inlines once `place_on_battlefield` calls its state half.
+It is unattributed and far inside §3.1's budget.
+
+**Re-read after the review round** (engine `c7883e0`: the renames, the
+once-over's fixes, `HistorySpan` moved into `types::history`): every counter
+file byte-identical to `main`'s again, at both seat counts and on both pools,
+the audit's dispatches unchanged, and instructions per decision −0.31%
+(0.6591 M → 0.6571 M), the same direction on the same games.
+
+**The scenario round trip** (`tests/scenario_round_trip_test.rs`, release,
+CI's new step): 24 two-seat games from seeds 100–123 and 8 four-seat games
+from 200–207, `performance` decks, each round start the writer reports nothing
+for written, loaded and compared by the text written again and every object's
+computed characteristics.
+
+| | 2 seats | 4 seats |
+|---|---:|---:|
+| boards compared, every one identical | 1,527 | 47 |
+| boards skipped | 548 | 1,901 |
+| … "since your last turn" past two seats | — | 1,312 |
+| … turns off the natural rotation | — | 288 |
+| … the mana pool | 191 | 96 |
+| … entered as a copy | 126 | 57 |
+| … a token | 122 | 51 |
+| … a resolution's rows | 88 | 64 |
+| … the stack | 19 | 30 |
+| … a resolution's shield or "can't" | 2 | 2 |
+
+A board counts once per reason it has. The first run found the loader
+refusing the end of combat step without attackers, which CR 508.8 does not
+skip; fixed before the writer's commit.
+
+**Scenario games** (`fuzz_games --scenario`, 20 games each): the template
+at seed 12345, 8.4 turns a game; `holy-strength` and `four-seats-commander` at
+seed 1, 19.4 and 26.6. No error, no panic, no turn-limit hit. The template's
+twenty games read identical under hasher seeds 1, 2 and 3, the check CI's
+determinism step now runs.
+
 **Re-recorded 2026-10-01 for item 194** (the first-draw PR: CR 103.8's
 answer derived where a game is built, and the starting player's first draw
 step skipped as a step, CR 500.11; `codebase-state.md` item 194, archived).

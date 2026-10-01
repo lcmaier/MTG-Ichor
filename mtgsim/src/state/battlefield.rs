@@ -236,6 +236,8 @@ impl PermanentState {
     ///
     /// CR 400.7d's facts come off `GameState::resolving` when `object` is the
     /// resolving spell; a permanent that arrives any other way was never one.
+    /// `arrived_on` starts CR 302.6's clock: the current turn in play, and a
+    /// scenario's stated turn at construction.
     pub(crate) fn entering(
         game: &crate::state::game_state::GameState,
         object: ObjectId,
@@ -243,8 +245,9 @@ impl PermanentState {
         mods: &crate::types::replacement::EnterMods,
         timestamp: Timestamp,
         first_counter: Timestamp,
+        arrived_on: u32,
     ) -> PermanentState {
-        let mut entity = PermanentState::new(object, controller, game.turn_number);
+        let mut entity = PermanentState::new(object, controller, arrived_on);
         entity.timestamp = timestamp;
         entity.tapped = mods.enters_tapped();
         entity.entered_as = EnteredAs {

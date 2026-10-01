@@ -11,6 +11,7 @@ use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
@@ -35,6 +36,9 @@ pub struct Snapshot {
     pub log: Vec<String>,
     /// How many recorded events the log has covered, where the next one starts.
     pub events_seen: usize,
+    /// The board as a scenario file, with what it could not write at the top
+    /// (`Scenario::write`), for "Save board as scenario".
+    pub board_text: String,
 }
 
 #[derive(Clone, Debug)]
@@ -128,7 +132,7 @@ impl Snapshot {
                 id: player.id,
                 life: player.life_total,
                 mana_pool: mana_pool(player.mana_pool.available()),
-                counters: player.counters.iter().map(|(kind, n)| (counter_label(*kind), *n)).collect(),
+                counters: player.counters.iter().map(|(kind, n)| (kind.name().to_string(), *n)).collect(),
                 lost: game.player_lost.get(player.id).copied().unwrap_or(false),
                 hand: cards(game, &player.hand),
                 library: cards(game, player.library.iter().rev()),
@@ -154,6 +158,7 @@ impl Snapshot {
             command: cards(game, &game.command),
             log,
             events_seen: recorded.len(),
+            board_text: Scenario::write(game).to_string(),
         }
     }
 }
@@ -194,7 +199,7 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         power_toughness: if is_creature { chars.power.zip(chars.toughness) } else { None },
         damage: state.damage_marked,
         keywords: keywords.into_iter().map(|k| words(&format!("{k:?}"))).collect(),
-        counters: counters.into_iter().map(|(kind, n)| (counter_label(kind), n)).collect(),
+        counters: counters.into_iter().map(|(kind, n)| (kind.name().to_string(), n)).collect(),
         tapped: state.tapped,
         summoning_sick: has_summoning_sickness(game, id),
         attacking: state.attacking.as_ref().map(|a| attack_target_name(game, &a.target)),
@@ -253,14 +258,6 @@ fn wubrgc_rank(mana: ManaType) -> u8 {
     }
 }
 
-pub(crate) fn counter_label(counter: CounterType) -> String {
-    match counter {
-        CounterType::PlusOnePlusOne => "+1/+1".to_string(),
-        CounterType::MinusOneMinusOne => "-1/-1".to_string(),
-        other => words(&format!("{other:?}")),
-    }
-}
-
 /// `FirstStrike` → `first strike`: a variant's name as the words it prints as.
 pub(crate) fn words(variant: &str) -> String {
     let mut out = String::with_capacity(variant.len() + 4);
@@ -309,8 +306,8 @@ mod tests {
     fn a_variant_name_reads_as_its_printed_words() {
         assert_eq!(words("FirstStrike"), "first strike");
         assert_eq!(words("Flying"), "flying");
-        assert_eq!(counter_label(CounterType::PlusOnePlusOne), "+1/+1");
-        assert_eq!(counter_label(CounterType::Shield), "shield");
+        assert_eq!(CounterType::PlusOnePlusOne.name(), "+1/+1");
+        assert_eq!(CounterType::Shield.name(), "shield");
     }
 
     #[test]

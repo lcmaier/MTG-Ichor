@@ -6,16 +6,22 @@ mod window_by_rule;
 
 use std::sync::Arc;
 
-use devgui::bridge::{GameSetup, Outcome, Pool, ToWindow, spawn_game};
+use std::time::{Duration, Instant};
+
+use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
+use devgui::session::Session;
+use devgui::view_model::Input;
+use mtgsim::cards::registry::CardRegistry;
+use mtgsim::scenario::Scenario;
 use devgui::prompt::{Answer, Primitive};
-use window_by_rule::{next, play_by_rule};
+use window_by_rule::{dealt, from_board, next, play_by_rule};
 
 #[test]
 fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     let log = std::env::temp_dir().join("devgui-headless-seed-7.log");
     let window = std::thread::spawn({
         let log = log.clone();
-        move || play_by_rule(7, Some(log), |_| {})
+        move || play_by_rule(dealt(7, Some(log)), |_| {})
     });
     let (outcome, answered) = window.join().expect("the window's thread panicked");
     assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
@@ -36,7 +42,7 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
 /// cards it kept.
 #[test]
 fn the_window_starts_holding_seven_since_its_first_draw_is_skipped() {
-    let engine = spawn_game(GameSetup { seed: 7, pool: Pool::Performance, log_path: None }, Arc::new(|| {}));
+    let engine = spawn_game(dealt(7, None), Arc::new(|| {}));
     let ToWindow::Prompt { snapshot, .. } = next(&engine) else {
         panic!("expected a prompt first");
     };
@@ -47,7 +53,7 @@ fn the_window_starts_holding_seven_since_its_first_draw_is_skipped() {
 
 #[test]
 fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
-    let engine = spawn_game(GameSetup { seed: 7, pool: Pool::Performance, log_path: None }, Arc::new(|| {}));
+    let engine = spawn_game(dealt(7, None), Arc::new(|| {}));
     match next(&engine) {
         ToWindow::Prompt { prompt, .. } if matches!(prompt.primitive, Primitive::PickN { .. }) => {
             engine.answers.send(Answer::Picks(vec![99])).unwrap();
@@ -58,4 +64,92 @@ fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
         ToWindow::Panicked { message } => assert!(message.contains("DP returned index 99"), "{message}"),
         other => panic!("expected the validator's panic, got {other:?}"),
     }
+}
+
+/// A game from a scenario: the log opens with the file, its seed and its
+/// text verbatim, so it is a save even after the file changes, and the game
+/// plays from the board to its end.
+#[test]
+fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
+    let log = std::env::temp_dir().join("devgui-headless-scenario.log");
+    let setup = from_board("main.scenario", Some(log.clone()));
+    let board = std::fs::read_to_string(setup.scenario.as_ref().unwrap()).unwrap();
+    let (outcome, answered) = play_by_rule(setup, |_| {});
+    assert!(matches!(outcome, Outcome::Won(_) | Outcome::Draw), "{outcome:?}");
+    let log = std::fs::read_to_string(&log).expect("the decision log");
+    let lines: Vec<&str> = log.lines().collect();
+    assert!(lines[0].starts_with("scenario ") && lines[0].ends_with("main.scenario"), "{}", lines[0]);
+    assert_eq!(lines[1..3], ["seed 0", "begin scenario text"]);
+    let text_lines = board.lines().count();
+    assert_eq!(lines[3..3 + text_lines], board.lines().collect::<Vec<_>>()[..]);
+    assert_eq!(lines[3 + text_lines], "end scenario text");
+    assert_eq!(lines.iter().filter(|l| l.starts_with("answer ")).count(), answered);
+}
+
+/// A file the loader refuses reaches the window as its line and its fix.
+#[test]
+fn a_refused_scenario_reaches_the_window_with_its_line() {
+    let path = std::env::temp_dir().join("devgui-refused.scenario");
+    std::fs::write(&path, "turn 2
+hand 0: Grizly Bears
+").unwrap();
+    let engine = spawn_game(GameSetup { scenario: Some(path), ..dealt(0, None) }, Arc::new(|| {}));
+    match next(&engine) {
+        ToWindow::Refused { message } => assert!(message.starts_with("line 2: Grizly Bears is not registered"), "{message}"),
+        other => panic!("expected the refusal, got {other:?}"),
+    }
+}
+
+/// A session's first prompt, waited for: the engine thread sends it.
+fn first_prompt(session: &mut Session) {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while session.state.prompt.is_none() {
+        assert!(Instant::now() < deadline, "no prompt in a minute");
+        std::thread::sleep(Duration::from_millis(10));
+        session.receive();
+    }
+}
+
+/// Seat 0 holds a spell it can cast, so its first prompt is turn 1's.
+const BOLT_IN_HAND: &str = "hand 0: Lightning Bolt
+library 0: Mountain | x5
+library 1: Mountain | x5
+                            battlefield: Mountain | controller 0
+player 0: life 13
+";
+
+/// Reload reads the file again, so an edit shows with no relaunch.
+#[test]
+fn reload_builds_the_game_again_from_the_file_as_it_now_reads() {
+    let path = std::env::temp_dir().join("devgui-session-reload.scenario");
+    std::fs::write(&path, BOLT_IN_HAND).unwrap();
+    let mut session = Session::start(GameSetup { scenario: Some(path.clone()), ..dealt(0, None) }, Arc::new(|| {}));
+    first_prompt(&mut session);
+    assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(13));
+    std::fs::write(&path, BOLT_IN_HAND.replace("life 13", "life 7")).unwrap();
+    session.input(Input::Reload);
+    assert!(session.state.board.is_none(), "the old game's board is gone");
+    first_prompt(&mut session);
+    assert_eq!(session.state.board.as_ref().map(|b| b.players[0].life), Some(7));
+}
+
+/// "Save board as scenario" writes beside the decision log, a file that
+/// loads, and a second save never overwrites the first.
+#[test]
+fn save_board_writes_a_file_that_loads_beside_the_log() {
+    let dir = std::env::temp_dir().join("devgui-session-save");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = std::env::temp_dir().join("devgui-session-save.scenario");
+    std::fs::write(&path, BOLT_IN_HAND).unwrap();
+    let setup = GameSetup { scenario: Some(path), ..dealt(0, Some(dir.join("bolt-seed-0.log"))) };
+    let mut session = Session::start(setup, Arc::new(|| {}));
+    first_prompt(&mut session);
+    session.input(Input::SaveBoard);
+    let saved = dir.join("bolt-seed-0-turn-1.scenario");
+    assert_eq!(session.saved, Some(format!("saved {}", saved.display())));
+    let text = std::fs::read_to_string(&saved).unwrap();
+    let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap();
+    assert_eq!(game.state.players[0].life_total, 13);
+    session.input(Input::SaveBoard);
+    assert!(dir.join("bolt-seed-0-turn-1-2.scenario").exists());
 }

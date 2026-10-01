@@ -190,14 +190,27 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
 
 /// Format the current phase/step for display.
 pub fn format_phase(game: &GameState) -> String {
-    let phase = match game.phase.phase_type {
+    let phase = phase_name(game.phase.phase_type);
+    match game.phase.step {
+        Some(step) => format!("{} — {}", phase, step_name(step)),
+        None => phase.to_string(),
+    }
+}
+
+/// A phase as a person reads it, which a scenario's `step` word reuses.
+pub fn phase_name(phase: PhaseType) -> &'static str {
+    match phase {
         PhaseType::Beginning => "Beginning",
         PhaseType::Precombat => "Precombat Main",
         PhaseType::Combat => "Combat",
         PhaseType::Postcombat => "Postcombat Main",
         PhaseType::Ending => "Ending",
-    };
-    let step = game.phase.step.map(|s| match s {
+    }
+}
+
+/// A step as a person reads it.
+pub fn step_name(step: StepType) -> &'static str {
+    match step {
         StepType::Untap => "Untap",
         StepType::Upkeep => "Upkeep",
         StepType::Draw => "Draw",
@@ -209,11 +222,6 @@ pub fn format_phase(game: &GameState) -> String {
         StepType::EndCombat => "End Combat",
         StepType::End => "End",
         StepType::Cleanup => "Cleanup",
-    });
-
-    match step {
-        Some(s) => format!("{} — {}", phase, s),
-        None => phase.to_string(),
     }
 }
 

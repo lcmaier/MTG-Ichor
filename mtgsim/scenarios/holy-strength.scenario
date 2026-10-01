@@ -1,0 +1,25 @@
+# Holy Strength on an attacker, Wall of Stone blocking, Humility arrived this turn
+players 2
+seed 7
+turn 3
+active 0
+step declare blockers
+
+player 0: life 18
+player 0 this turn: attackers declared 1
+player 1: life 20, poison 2
+hand 0: Lightning Bolt
+library 0: Mountain                         # top first
+library 0: Forest | x10
+library 1 shuffled: Forest | x20
+graveyard 0: Savannah Lions                 # each card on top of the last
+
+battlefield: Glorious Anthem | controller 0
+battlefield: Grizzly Bears [a] | controller 0, tapped, attacking player 1
+battlefield: Grizzly Bears [b] | controller 0
+battlefield: Holy Strength | controller 0, attached to Grizzly Bears [a]
+battlefield: Wall of Stone | controller 1, blocking Grizzly Bears [a]
+battlefield: Loyalty Probe | controller 1, loyalty 1
+battlefield: Humility | controller 1, arrived this turn
+exile: Lightning Bolt | owner 1
+command: Isamaru, Hound of Konda | owner 0, commander

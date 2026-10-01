@@ -1071,6 +1071,7 @@ impl TokenDef {
     }
 }
 
+counted_enum! {
 /// Counter types that can be placed on permanents/players.
 ///
 /// One enum for both subjects — CR 701.34a's proliferate gives "each one
@@ -1125,8 +1126,44 @@ pub enum CounterType {
     Finality,
     // Non-evergreen counter types added as relevant cards are implemented
 }
+}
 
 impl CounterType {
+    /// The kind as a person reads it: `+1/+1`, `loyalty`, `first strike`. One
+    /// table for everything that prints or parses a kind — the dev GUI, the
+    /// scenario parser and its writer — so a new kind fails to compile until
+    /// it has a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            CounterType::PlusOnePlusOne => "+1/+1",
+            CounterType::MinusOneMinusOne => "-1/-1",
+            CounterType::Loyalty => "loyalty",
+            CounterType::Charge => "charge",
+            CounterType::Poison => "poison",
+            CounterType::Energy => "energy",
+            CounterType::Flying => "flying",
+            CounterType::Deathtouch => "deathtouch",
+            CounterType::Lifelink => "lifelink",
+            CounterType::Trample => "trample",
+            CounterType::FirstStrike => "first strike",
+            CounterType::DoubleStrike => "double strike",
+            CounterType::Hexproof => "hexproof",
+            CounterType::Indestructible => "indestructible",
+            CounterType::Menace => "menace",
+            CounterType::Reach => "reach",
+            CounterType::Vigilance => "vigilance",
+            CounterType::Haste => "haste",
+            CounterType::Shield => "shield",
+            CounterType::Stun => "stun",
+            CounterType::Finality => "finality",
+        }
+    }
+
+    /// The kind [`Self::name`] spells as `name`.
+    pub fn named(name: &str) -> Option<CounterType> {
+        CounterType::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+
     /// The keyword this counter grants (CR 122.1b), or `None` if it is not a
     /// keyword counter.
     ///

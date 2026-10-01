@@ -1,0 +1,12 @@
+# Player 1's Hill Giant attacks seat 0, which has two creatures to block with.
+turn 4
+active 1
+step declare attackers
+
+player 1 this turn: attackers declared 1
+library 0: Plains | x8
+library 1: Plains | x8
+
+battlefield: Wall of Stone | controller 0
+battlefield: Grizzly Bears | controller 0
+battlefield: Hill Giant | controller 1, tapped, attacking player 0

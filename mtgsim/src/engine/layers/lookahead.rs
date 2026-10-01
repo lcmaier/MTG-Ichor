@@ -62,7 +62,9 @@ impl Lookahead {
         // later than every registered row, which is where CR 613.7a puts an
         // object's own static-ability effects and CR 613.7c its counters.
         let entity_timestamp = game.next_timestamp;
-        let entity = PermanentState::entering(game, object, controller, mods, entity_timestamp, entity_timestamp + 1);
+        let entity = PermanentState::entering(
+            game, object, controller, mods, entity_timestamp, entity_timestamp + 1, game.turn_number,
+        );
 
         let rows = would_be_rows(game, object, controller, entity_timestamp, mods);
         let summary = RegistryScopeSummary::of(&rows);

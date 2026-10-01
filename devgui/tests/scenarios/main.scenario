@@ -1,0 +1,15 @@
+# The review pictures' main phase: seat 0 holds spells it can and cannot pay
+# for, Everywhere gives the mana window five choices, and the Lions can attack.
+turn 3
+active 0
+step precombat main
+
+hand 0: Lightning Bolt
+hand 0: Mind Rot
+hand 0: Grizzly Bears
+library 0: Plains | x8
+library 1: Plains | x8
+
+battlefield: Everywhere | controller 0
+battlefield: Savannah Lions | controller 0
+battlefield: Hill Giant | controller 1

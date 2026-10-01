@@ -22,12 +22,14 @@
 
 use std::sync::Arc;
 
+use crate::engine::layers::lookahead::compute_as_entering;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction};
+use crate::objects::card_data::{AbilityDef, AbilityType, ActivationRestriction, CardData};
+use crate::state::game_state::GameState;
 use crate::types::card_types::CardType;
-use crate::types::effects::{CounterType, Effect, ObjectSet};
-use crate::types::ids::{AbilityId, ObjectId, SynthesizedAbility};
-use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
+use crate::types::effects::{AmountExpr, CounterType, Effect, ObjectSet};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId, SynthesizedAbility};
+use crate::types::replacement::{EnterMods, EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
 /// Put CR 306.5b's ability on `chars`, the frame of `object` at the end of
 /// layer 4, if the object is a planeswalker there.
@@ -59,4 +61,46 @@ pub(super) fn add_intrinsic_entry_abilities(chars: &mut EffectiveCharacteristics
 /// Is `ability` an intrinsic "enters with" ability this module gave `object`?
 pub fn is_intrinsic_entry_ability(ability: &AbilityDef, object: ObjectId) -> bool {
     ability.id == AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty)
+}
+
+/// The kind of counter an intrinsic "enters with" ability could give `card`:
+/// loyalty, when it prints a loyalty number (CR 306.5b). Read off the printed
+/// card on purpose, as the gate before a frame is walked; whether the object
+/// has the ability as it enters is the frame's question.
+pub fn intrinsic_entry_counter_kind(card: &CardData) -> Option<CounterType> {
+    card.loyalty.is_some_and(|n| n > 0).then_some(CounterType::Loyalty)
+}
+
+/// What `id`'s own intrinsic "enters with" abilities give it as it enters
+/// under `controller`, and nothing else: CR 306.5b's loyalty counters, read
+/// off the ability the walk synthesizes onto its frame. So a planeswalker
+/// gets its loyalty, and one Humility has stripped gets none, as through the
+/// pipeline; the pipeline's other replacement effects are what a caller of
+/// this skips. A scenario's permanents and `test_support`'s builders enter
+/// with it.
+pub fn intrinsic_entry_mods(game: &GameState, id: ObjectId, controller: PlayerId) -> EnterMods {
+    let mut mods = EnterMods::NONE;
+    // The frame is a walk a test counting walks would see; without a printed
+    // number the ability gives none.
+    if game.objects.get(&id).and_then(|obj| intrinsic_entry_counter_kind(&obj.card_data)).is_none() {
+        return mods;
+    }
+    let Some(frame) = compute_as_entering(game, id, controller, &EnterMods::NONE) else {
+        return mods;
+    };
+    for ability in frame.abilities.iter() {
+        if !is_intrinsic_entry_ability(ability, id) {
+            continue;
+        }
+        let Effect::Replacement(def) = &ability.effect else { continue };
+        let Rewrite::EnterWith(template) = &def.rewrite else { continue };
+        for row in &template.counters {
+            if let AmountExpr::Fixed(n) = row.amount
+                && n > 0
+            {
+                mods.merge(&EnterMods::with_counters(row.counter, n as u32));
+            }
+        }
+    }
+    mods
 }

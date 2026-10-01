@@ -10,6 +10,7 @@
 //        cargo run --bin fuzz_games -- -r "Opt" -r "Eligeth, Crossroads Augur"
 //        cargo run --bin fuzz_games -- -r "Soul Warden" --copies 8   (a heavy board)
 //        cargo run --bin fuzz_games -- --no-auto-pay          (CR 605.3a raw)
+//        cargo run --bin fuzz_games -- --scenario scenarios/template.scenario
 //
 // `--require` takes a comma-separated list **and repeats**: the union of every
 // flag, deduplicated, in the order given. Repeating is how a card whose name
@@ -104,7 +105,8 @@ use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::events::event::GameEvent;
 use mtgsim::objects::card_data::CardData;
-use mtgsim::state::game::Game;
+use mtgsim::scenario::Scenario;
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::diagnostics::TriggerDispatchWork;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::trace::{TraceHandle, TraceSink};
@@ -144,6 +146,10 @@ struct Args {
     /// offered, so it taps out to `WINDOW_ACTIVATION_CAP` on every cast. That is
     /// the A/B's middle arm and not a way to play.
     auto_pay: bool,
+    /// `--scenario FILE`: every game starts from this board instead of dealt
+    /// decks (`setup-architecture.md` §8), each with the game's seed as the
+    /// file's, so a `shuffled` library and the agents differ game to game.
+    scenario: Option<Scenario>,
     /// How many players sit at the table — one random deck each, `--players`.
     ///
     /// Two by default, which keeps every earlier phase's output byte
@@ -229,6 +235,7 @@ fn parse_args() -> Args {
         trace: None,
         trace_game: None,
         audit: false,
+        scenario: None,
     };
 
     let mut i = 1;
@@ -350,6 +357,23 @@ fn parse_args() -> Args {
                             std::process::exit(2);
                         }
                     };
+                }
+            }
+            "--scenario" => {
+                i += 1;
+                let path = args.get(i).map(String::as_str).unwrap_or_default();
+                // Built once here, so a refusal stops the run before any game.
+                let text = std::fs::read_to_string(path).map_err(|e| e.to_string());
+                let built = text.and_then(|text| {
+                    let scenario = Scenario::parse(&text).map_err(|r| r.to_string())?;
+                    scenario.build(&CardRegistry::default_registry()).map(|_| scenario).map_err(|r| r.to_string())
+                });
+                match built {
+                    Ok(scenario) => result.scenario = Some(scenario),
+                    Err(refusal) => {
+                        eprintln!("--scenario {path}: {refusal}");
+                        std::process::exit(2);
+                    }
                 }
             }
             "--life" => {
@@ -872,21 +896,20 @@ fn run_one_game(
     table: TableConfig,
     trace: &TraceConfig,
     audit: bool,
+    start: Option<&Scenario>,
 ) -> (GameOutcome, std::time::Duration) {
     let game_seed = master_seed.wrapping_add(game_num as u64);
     let mut deck_rng = StdRng::seed_from_u64(game_seed);
 
     // Three independent streams, all a pure function of `game_seed`: deck
-    // construction, the in-game shuffle, and the AI's choices. Distinct
-    // sub-seeds rather than one — seeding three `StdRng`s identically would
-    // correlate the shuffle with the deck it shuffles.
-    let shuffle_seed = game_seed ^ 0x9E37_79B9_7F4A_7C15;
-    let dp_seed = game_seed ^ 0xD1B5_4A32_D192_ED03;
+    // construction off the seed itself, then the engine's two (`RandomStreams`), the
+    // in-game shuffle and the AI's choices.
+    let RandomStreams { game: shuffle_seed, agents: dp_seed } = RandomStreams::from_seed(game_seed);
 
     // One deck per seat, drawn from the one stream in seat order — so a
     // two-player run draws exactly the two decks it always drew.
     let decks: Vec<Vec<Arc<CardData>>> =
-        (0..table.players)
+        (0..if start.is_some() { 0 } else { table.players })
             .map(|_| random_deck(registry, &mut deck_rng, required, table.required_copies, table.deck_size))
             .collect();
     let copies: Vec<u32> = require_names
@@ -904,14 +927,21 @@ fn run_one_game(
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         let mut config = GameConfig::unrestricted();
         config.starting_life = table.life;
-        let mut game = Game::new(config, decks).expect("Failed to create game");
+        let mut game = match start {
+            Some(scenario) => Scenario { seed: game_seed, ..scenario.clone() }
+                .build(&CardRegistry::default_registry())
+                .expect("built once before the first game"),
+            None => Game::new(config, decks).expect("Failed to create game"),
+        };
         // The fixture rows are read off the whole stream at the game's end,
         // and the engine keeps none of it (`codebase-state.md` item 42).
         game.state.record_events();
         if audit {
             game.state.enable_dispatch_audit();
         }
-        game.reseed(shuffle_seed);
+        if start.is_none() {
+            game.reseed(shuffle_seed);
+        }
         let sink = trace.sink_for(game_num, game_seed);
         if let Some(sink) = &sink {
             game.state.install_trace(TraceHandle::new(sink));
@@ -927,7 +957,13 @@ fn run_one_game(
         };
         let dp = build_stack(dp_seed, middleware);
         let dp = &*dp;
-        game.setup(dp).expect("Failed to setup game");
+        if start.is_none() {
+            game.setup(dp).expect("Failed to setup game");
+        } else if let Err(e) = game.resume_turn_at_priority(dp) {
+            finish_trace(&game);
+            let log = if keep_event_log { Some(game.event_log_snapshot()) } else { None };
+            return Err((format!("Resume error: {e}"), log));
+        }
 
         let mut turns = 0u32;
 
@@ -1027,13 +1063,14 @@ fn run_games(
     table: TableConfig,
     trace: &TraceConfig,
     audit: bool,
+    start: Option<&Scenario>,
 ) -> Vec<(GameOutcome, std::time::Duration)> {
     if threads <= 1 || games <= 1 {
         return (0..games)
             .map(|n| {
                 run_one_game(
                     registry, master_seed, n, max_turns, keep_event_log, required, require_names,
-                    middleware, table, trace, audit,
+                    middleware, table, trace, audit, start,
                 )
             })
             .collect();
@@ -1066,6 +1103,7 @@ fn run_games(
                                     table,
                                     trace,
                                     audit,
+                                    start,
                                 ),
                             ));
                         }
@@ -1136,6 +1174,9 @@ fn main() {
     // mean nothing without it — the two pools are not comparable to each other.
     let registry = args.pool.registry();
     println!("Card pool: {} ({} cards)", args.pool.name(), registry.card_names().len());
+    if args.scenario.is_some() {
+        println!("Every game starts from the --scenario board, at its seed");
+    }
 
     // Resolved once, up front, and **fatal on a miss**. A typo that silently
     // required nothing would report the same thin reachability the mode exists
@@ -1231,6 +1272,7 @@ fn main() {
         },
         &TraceConfig { dir: args.trace.clone(), only: args.trace_game },
         args.audit,
+        args.scenario.as_ref(),
     );
 
     // Reporting is a serial pass over the games in order, so every line printed

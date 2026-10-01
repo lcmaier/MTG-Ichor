@@ -123,6 +123,11 @@ Three invariants fall out, and each is load-bearing:
 2. **A `GameEvent` is a performed record and is emitted only from inside the
    chokepoint.** Ad-hoc emission is what produced the activation-invisibility
    gap (`codebase-state.md`, Before Triggers item 2). Phase RA closes it.
+   Construction is no event and so needs no tag: `Game::new`'s libraries,
+   `Game::setup`'s opening hands and `Scenario::build`'s board are written
+   before the first turn by a caller holding no `DecisionProvider`, through the
+   engine's construction doors, and emit nothing (`setup-architecture.md`
+   §3.2), so `// CAST-ROLLBACK:` stays the one exemption in play.
 3. **`GameAction` carries semantics the state delta cannot.** "Destroyed" is not
    "moved to graveyard" (CR 701.8b); "drawn" is not "put into hand" (CR 121.5);
    "sacrificed" is not "destroyed". These are `cause` fields on the action, set

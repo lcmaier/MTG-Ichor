@@ -156,7 +156,8 @@ impl GameState {
     /// the event it must be found for.
     ///
     /// Not the battlefield, which is an entry with a performer of its own
-    /// (`place_on_battlefield`); loud about it, like [`Self::put_token_into`].
+    /// (`place_on_battlefield`), or before the first turn
+    /// [`Self::create_on_battlefield`]; loud about it, like [`Self::put_token_into`].
     /// A spell put on the stack this way still needs its `StackEntry`, which
     /// is the caller's. The command zone at setup — a commander before the
     /// first turn (CR 903.6) — is this door's next production caller.
@@ -173,7 +174,40 @@ impl GameState {
         self.add_to_zone_collection(id, zone)?;
         // CR 108.4 — a card off the battlefield has no controller, so "you" is
         // its owner, as `arrive_in_zone` reads it.
-        self.register_static_effects(id, owner, zone);
+        self.register_static_effects(id, owner, zone, self.turn_number);
+        Ok(id)
+    }
+
+    /// The battlefield's construction door: `obj` becomes a permanent under
+    /// `controller`, entering with its intrinsic counters (CR 306.5b) through
+    /// the entry performer's state half (`make_permanent`), and nothing is
+    /// announced.
+    ///
+    /// [`Self::create_in_zone`]'s counterpart, which refuses the battlefield
+    /// because during play an arrival is an entry. Before the first turn it
+    /// is not: nothing has resolved, so no replacement exists to see one (CR
+    /// 614.4), and no trigger is waiting to read it. So this refuses once a
+    /// turn has begun, as `Game::setup` deals the opening hands in turn 0.
+    /// `arrived_on` is the turn CR 302.6's clock starts from, which a
+    /// scenario states.
+    pub fn create_on_battlefield(
+        &mut self,
+        obj: GameObject,
+        controller: PlayerId,
+        arrived_on: u32,
+    ) -> Result<ObjectId, String> {
+        if self.turn_number != 0 {
+            return Err(format!(
+                "creating {} on the battlefield in turn {} is an entry, not construction",
+                obj.card_data.name, self.turn_number
+            ));
+        }
+        if obj.zone != Zone::Battlefield {
+            return Err(format!("{} is created in {:?}, not on the battlefield", obj.card_data.name, obj.zone));
+        }
+        let id = self.add_object(obj);
+        let mods = crate::engine::layers::intrinsic::intrinsic_entry_mods(self, id, controller);
+        self.make_permanent(id, controller, &mods, arrived_on);
         Ok(id)
     }
 
@@ -209,7 +243,7 @@ impl GameState {
         // is skipped for the reason above; CR 108.4 answers for every other zone,
         // where a card has no controller and its owner is who "you" means.
         if zone != Zone::Battlefield {
-            self.register_static_effects(id, owner, zone);
+            self.register_static_effects(id, owner, zone, self.turn_number);
         }
 
         // Every collection touched by the caller and the zone written here are
@@ -533,6 +567,39 @@ mod tests {
             crate::events::event::GameEvent::CardDrawn { card_id, .. } => Some(*card_id),
             _ => None,
         }).collect()
+    }
+
+    /// A game before its first turn, as the scenario loader builds one, with
+    /// `cards` put onto the battlefield through the construction door.
+    fn constructed(cards: Vec<std::sync::Arc<crate::objects::card_data::CardData>>) -> (GameState, Vec<crate::types::ids::ObjectId>) {
+        let mut game = GameState::new(2, 20);
+        game.record_events();
+        game.turn_number = 0;
+        let ids = cards
+            .into_iter()
+            .map(|card| game.create_on_battlefield(GameObject::new(card, 0, Zone::Battlefield), 0, 0).unwrap())
+            .collect();
+        (game, ids)
+    }
+
+    #[test]
+    fn the_construction_door_files_rows_and_counters_and_announces_nothing() {
+        use crate::cards::{phase5_pre_cards::glorious_anthem, creatures::grizzly_bears, phase_rd_cards::loyalty_probe};
+        use crate::types::effects::CounterType;
+        let (game, ids) = constructed(vec![glorious_anthem(), grizzly_bears(), loyalty_probe()]);
+        assert_eq!(game.continuous_effects.len(), 1, "Glorious Anthem's row is filed");
+        let bears = crate::oracle::characteristics::get_effective_power(&game, ids[1]);
+        assert_eq!(bears, Some(3), "and applies to the Bears");
+        assert_eq!(game.battlefield[&ids[2]].counter_count(CounterType::Loyalty), 3, "CR 306.5b");
+        assert_eq!(game.events.next_seq().0, 0, "no event was emitted");
+        assert_eq!(game.recorded_events().events().count(), 0);
+    }
+
+    #[test]
+    fn the_construction_door_is_shut_once_a_turn_has_begun() {
+        let mut game = GameState::new(2, 20);
+        let refused = game.create_on_battlefield(GameObject::new(make_forest(), 0, Zone::Battlefield), 0, 1);
+        assert!(refused.unwrap_err().contains("is an entry"));
     }
 
     #[test]

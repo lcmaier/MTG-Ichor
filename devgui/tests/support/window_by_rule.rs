@@ -43,16 +43,28 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
     }
 }
 
+/// A dealt game at `seed` from the performance pool.
+pub fn dealt(seed: u64, log_path: Option<std::path::PathBuf>) -> GameSetup {
+    GameSetup { seed, pool: Pool::Performance, log_path, scenario: None }
+}
+
+/// A game from the review board `name` under `tests/scenarios/`.
+pub fn from_board(name: &str, log_path: Option<std::path::PathBuf>) -> GameSetup {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("scenarios").join(name);
+    GameSetup { scenario: Some(path), ..dealt(0, log_path) }
+}
+
 /// Play a whole game by rule. `watch` sees the window after each message,
 /// before it answers. The outcome, and how many prompts the window answered.
-pub fn play_by_rule(seed: u64, log: Option<std::path::PathBuf>, mut watch: impl FnMut(&WindowState)) -> (Outcome, usize) {
-    let engine = spawn_game(GameSetup { seed, pool: Pool::Performance, log_path: log }, Arc::new(|| {}));
+pub fn play_by_rule(setup: GameSetup, mut watch: impl FnMut(&WindowState)) -> (Outcome, usize) {
+    let engine = spawn_game(setup, Arc::new(|| {}));
     let mut state = WindowState::default();
     for answered in 0..PROMPT_CAP {
         let message = next(&engine);
         let finished = match &message {
             ToWindow::Finished { outcome, .. } => Some(outcome.clone()),
             ToWindow::Panicked { message } => panic!("the engine panicked: {message}"),
+            ToWindow::Refused { message } => panic!("the scenario did not load: {message}"),
             ToWindow::Prompt { .. } => None,
         };
         state.receive(message);

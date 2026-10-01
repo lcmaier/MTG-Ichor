@@ -1,40 +1,48 @@
-//! The egui drawing: lays out what `view_model` built and reports clicks back
-//! as `Input`s. It decides nothing, so it is reviewed by running it.
+//! The egui drawing: lays out what `view_model` built and hands each click to
+//! the `Session`. It decides nothing, so it is reviewed by running it.
+
+use std::sync::Arc;
 
 use eframe::egui;
 
-use crate::bridge::EngineHandle;
+use crate::bridge::GameSetup;
+use crate::session::Session;
 use crate::view_model::{BoardView, Input, Item, PromptView, WindowState, ZoneView};
 
 pub struct DevGui {
-    state: WindowState,
-    engine: EngineHandle,
-    /// The seed, the pool and the decision log's path.
+    session: Session,
+    /// The seed, the start and the decision log's path.
     setup_line: String,
 }
 
 impl DevGui {
-    pub fn new(engine: EngineHandle, setup_line: String) -> DevGui {
-        DevGui { state: WindowState::default(), engine, setup_line }
+    pub fn new(setup: GameSetup, setup_line: String, wake: Arc<dyn Fn() + Send + Sync>) -> DevGui {
+        DevGui { session: Session::start(setup, wake), setup_line }
     }
 }
 
 impl eframe::App for DevGui {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        while let Ok(message) = self.engine.from_engine.try_recv() {
-            self.state.receive(message);
-        }
-        for input in draw(ui, &self.state, &self.setup_line) {
-            if let Some(answer) = self.state.input(input) {
-                // Fails only once the engine thread has ended, and its last message said why.
-                let _ = self.engine.answers.send(answer);
-            }
+        self.session.receive();
+        let session = &self.session;
+        let header = SessionHeader { line: &self.setup_line, reloadable: session.setup.scenario.is_some(), saved: session.saved.as_deref() };
+        for input in draw(ui, &session.state, &header) {
+            self.session.input(input);
         }
     }
 }
 
+/// What the header says of the session, beside the board.
+pub struct SessionHeader<'a> {
+    /// The seed, the start and the decision log's path.
+    pub line: &'a str,
+    /// A scenario's game, which Reload builds again from its file.
+    pub reloadable: bool,
+    pub saved: Option<&'a str>,
+}
+
 /// The whole window; the inputs the player made this frame.
-pub fn draw(ui: &mut egui::Ui, state: &WindowState, setup_line: &str) -> Vec<Input> {
+pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> Vec<Input> {
     let mut inputs = Vec::new();
     let board = state.board_view();
     egui::Panel::top("header").show(ui, |ui| {
@@ -45,11 +53,24 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, setup_line: &str) -> Vec<Inp
                 ui.label(&board.header);
             }
             ui.separator();
-            ui.weak(setup_line);
+            ui.weak(session.line);
+            if session.reloadable && ui.button("Reload").clicked() {
+                inputs.push(Input::Reload);
+            }
+            if state.board.is_some() && ui.button("Save board as scenario").clicked() {
+                inputs.push(Input::SaveBoard);
+            }
+            if let Some(saved) = session.saved {
+                ui.weak(saved);
+            }
         });
     });
     egui::Panel::bottom("prompt").show(ui, |ui| {
-        if let Some(message) = &state.panic {
+        if let Some(message) = &state.refused {
+            ui.colored_label(ui.visuals().error_fg_color, "The scenario did not load:");
+            ui.monospace(message);
+            ui.weak("Fix the file, then click Reload.");
+        } else if let Some(message) = &state.panic {
             ui.colored_label(ui.visuals().error_fg_color, "The engine thread panicked:");
             ui.monospace(message);
         } else if let Some(prompt) = state.prompt_view() {
@@ -73,7 +94,7 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, setup_line: &str) -> Vec<Inp
     });
     egui::CentralPanel::default().show(ui, |ui| {
         let Some(board) = &board else {
-            ui.weak("Waiting for the engine's first prompt.");
+            ui.weak(if state.refused.is_some() { "No board: the scenario did not load." } else { "Waiting for the engine's first prompt." });
             return;
         };
         egui::ScrollArea::vertical().show(ui, |ui| {

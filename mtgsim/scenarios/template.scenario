@@ -1,0 +1,65 @@
+# A scenario: a board at the start of a step's priority round, with the
+# active player to act, the stack empty and nothing waiting to trigger.
+# Copy this file, delete what you do not need, and load it:
+#   cargo run -- --scenario ../mtgsim/scenarios/template.scenario   (in devgui/)
+#
+# One line states one thing; `#` starts a comment. A card line is
+#   <head>: <exact card name> [tag] | word, word, ...
+# A tag in square brackets tells two cards with one name apart, on the line
+# that creates the card and in every line that refers to it. A word that
+# names another card (attached to, attacking, blocking, commander damage)
+# takes the rest of its line, so it comes last.
+#
+# A spell on the stack, a resolved effect (Giant Growth's +3/+3, Act of
+# Treason's control), a delayed trigger and an extra turn are not written:
+# play them from the board. Whatever the file leaves out takes the default
+# in its comment.
+
+players 2               # seats, 2 or more; default 2
+starting life 20        # each player's life unless stated; default 20
+seed 0                  # the game's shuffles and the agents' choices; default 0
+turn 3                  # default 1
+active 0                # whose turn it is; default player 0
+step declare blockers   # upkeep, draw, precombat main, begin combat, declare attackers,
+                        # declare blockers, first strike damage, combat damage,
+                        # end combat, postcombat main, end; default precombat main
+
+player 0: life 20, lands played 1             # also: energy N, poison N
+player 1: life 17, poison 1                   # also: left the game (owning nothing, in a game of three or more)
+player 1: commander damage 2 from Isamaru, Hound of Konda
+player 0 this turn: spells cast 1, creature spells cast 1, attackers declared 1
+player 0 last turn: cards drawn 1             # each count defaults to 0
+player 0 this game: cards drawn 3             # default: this turn plus last turn
+# The counts: spells cast, <type> spells cast, cards drawn, life gained,
+# life gain events, life lost, life loss events, damage taken,
+# creatures died, attackers declared.
+
+hand 0: Lightning Bolt                        # also: commander
+library 0: Mountain                           # top first
+library 0: Forest | x5                        # xN: N copies
+library 1 shuffled: Forest | x5               # ordered from the seed; never mixed with listed lines
+graveyard 0: Savannah Lions                   # each card on top of the last
+
+# Permanents, in the order they arrived (CR 613.7). Words, with defaults:
+#   controller p, owner p    each defaults to the other
+#   tapped                   untapped
+#   arrived this turn        arrived before the game; also `arrived turn N`
+#   <kind> N                 a counter: +1/+1, -1/-1, loyalty, flying, shield, ...;
+#                            the intrinsic ones (a planeswalker's loyalty) unless stated
+#   damage N                 0
+#   commander                not a commander
+#   attached to <card>       the card listed above this line
+#   attacking player p, attacking <planeswalker>, blocked, blocking <attacker>
+#   dealt first-strike damage    from the first-strike damage step on
+battlefield: Glorious Anthem | controller 0
+battlefield: Isamaru, Hound of Konda | owner 0, commander, tapped, attacking player 1
+battlefield: Holy Strength | controller 0, attached to Isamaru, Hound of Konda
+battlefield: Grizzly Bears | controller 0, arrived this turn, +1/+1 2
+battlefield: Elvish Warmaster | controller 0, arrived turn 2
+battlefield: Wall of Stone | controller 1, damage 1, blocking Isamaru, Hound of Konda
+battlefield: Loyalty Probe | controller 1, loyalty 2
+counters: Grizzly Bears | flying 1            # counters stamped after the lines above
+this turn: Elvish Warmaster | triggered, ability 2 resolved 1    # also: took its once-each-turn action
+
+exile: Lightning Bolt | owner 1               # owner p is required here
+command: Thalia, Guardian of Thraben | owner 1, commander

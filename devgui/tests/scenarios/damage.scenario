@@ -1,0 +1,13 @@
+# Seat 0's Hill Giant is blocked by two creatures, so it divides its damage
+# (CR 510.1c) as the combat damage step begins.
+turn 5
+active 0
+step declare blockers
+
+player 0 this turn: attackers declared 1
+library 0: Plains | x8
+library 1: Plains | x8
+
+battlefield: Hill Giant | controller 0, tapped, attacking player 1
+battlefield: Grizzly Bears | controller 1, blocking Hill Giant
+battlefield: Savannah Lions | controller 1, blocking Hill Giant
