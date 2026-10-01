@@ -41,8 +41,6 @@ fn test_cast_and_resolve_lightning_bolt() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Red), 0);
 
     // Round 2: Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert_eq!(game.players[1].life_total, 17);
@@ -77,8 +75,6 @@ fn test_cast_and_resolve_ancestral_recall() {
     assert!(game.stack.contains(&recall_id));
 
     // Resolve: both pass
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
     assert_eq!(game.players[0].hand.len(), 3); // drew 3 cards
     assert_eq!(game.players[0].library.len(), 7);
@@ -112,7 +108,6 @@ fn test_counterspell_counters_bolt() {
 
     // Player 1 responds with Counterspell targeting the bolt
     // After ActionTaken, priority returns to caster (player 0) who passes
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     // Player 1 casts: CastSpell(cs_id) at index 1 in [Pass, CastSpell(cs_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // The bolt is the only spell on the stack — a forced target, not asked.
@@ -123,8 +118,6 @@ fn test_counterspell_counters_bolt() {
     assert!(game.stack.contains(&bolt_id)); // bolt still on stack below it
 
     // Both pass — Counterspell resolves
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
@@ -164,8 +157,6 @@ fn test_volcanic_upheaval_destroys_land() {
     assert!(game.battlefield.contains_key(&target_land));
 
     // Resolve: both pass
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
@@ -198,8 +189,6 @@ fn test_burst_of_energy_untaps_land() {
     // Cast (returns ActionTaken immediately)
     game.run_priority_round(&decisions).unwrap();
     // Resolve: both pass
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Land should be untapped
@@ -245,15 +234,11 @@ fn test_volcanic_upheaval_fizzles_when_target_destroyed() {
     assert_eq!(game.stack.len(), 2);
 
     // Both pass — upheaval2 resolves, destroying the land
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert!(!game.battlefield.contains_key(&target_land));
 
     // Both pass again — upheaval1 resolves but should fizzle (target gone)
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
@@ -289,7 +274,6 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
 
     // Player 1 responds with Volcanic Upheaval targeting the same land
     // After ActionTaken, priority returns to caster (player 0) who passes
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     // Player 1 casts: CastSpell(upheaval_id) at idx 1 in [Pass, CastSpell(upheaval_id)]
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // The only legal target, so CR 102.2 makes the choice forced and
@@ -302,16 +286,12 @@ fn test_burst_of_energy_fizzles_after_upheaval_destroys_target() {
     assert_eq!(game.stack.len(), 2);
 
     // Both pass — Upheaval resolves, destroying the land
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert!(!game.battlefield.contains_key(&target_land));
     assert_eq!(game.get_object(target_land).unwrap().zone, Zone::Graveyard);
 
     // Both pass — Burst of Energy resolves but fizzles (target gone)
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
@@ -356,15 +336,11 @@ fn test_stack_lifo_order_bolt_then_recall() {
     assert_eq!(game.stack.len(), 2);
 
     // Resolve top: Recall draws 3 for player 1 (both pass)
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
     assert_eq!(game.players[1].hand.len(), 3);
     assert_eq!(game.players[1].life_total, 20); // bolt hasn't resolved yet
 
     // Resolve next: Bolt deals 3 to player 1 (both pass)
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
     assert_eq!(game.players[1].life_total, 17);
 }
@@ -405,14 +381,8 @@ fn test_priority_loop_cast_and_resolve() {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![1]);
-    // Round 2: both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    // Round 3: both pass → phase ends
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-
-    // run_priority_loop will: cast → pass pass → resolve → pass pass → phase ends
+    // Rounds 2 and 3 offer both players `Pass` alone, which the engine takes:
+    // cast → pass pass → resolve → pass pass → phase ends
     game.run_priority_loop(&decisions).unwrap();
 
     assert_eq!(game.players[1].life_total, 17);

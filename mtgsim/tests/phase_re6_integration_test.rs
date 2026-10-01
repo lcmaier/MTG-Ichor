@@ -328,7 +328,7 @@ fn the_state_based_check_performs_nothing_in_a_game_that_has_ended() {
 fn nobody_receives_priority_in_a_game_that_has_ended() {
     let mut game = setup_game(2);
     game.players[1].life_total = 0;
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::picking(0).stopping_at_every_priority_point();
 
     let result = game.run_priority_round(&dp).expect("a round");
 
@@ -345,7 +345,7 @@ fn nobody_receives_priority_in_a_game_that_has_ended() {
 fn a_lost_player_is_passed_over_in_the_priority_rotation() {
     let mut game = setup_game(4);
     game.players[2].life_total = 0;
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::picking(0).stopping_at_every_priority_point();
 
     let result = game.run_priority_round(&dp).expect("a round");
 
@@ -365,7 +365,7 @@ fn a_lost_player_is_passed_over_in_the_priority_rotation() {
 fn a_departed_active_players_priority_passes_to_the_next_player_in_turn_order() {
     let mut game = setup_game(4);
     game.players[0].life_total = 0;
-    let dp = RecordingDecisionProvider::picking(0);
+    let dp = RecordingDecisionProvider::picking(0).stopping_at_every_priority_point();
 
     let result = game.run_priority_round(&dp).expect("a round");
 

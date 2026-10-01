@@ -55,8 +55,6 @@ fn test_nights_whisper_draw_and_life_loss() {
     // The colorless is the only mana the pips do not claim, so the split is
     // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -82,8 +80,6 @@ fn test_nights_whisper_sorcery_speed_wrong_phase() {
 
     // Sorcery can't be cast in combat — not in candidates, both pass
     let decisions = ScriptedDecisionProvider::new();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     let result = game.run_priority_round(&decisions);
     // Should pass through — both players pass, stack empty → AllPassed
@@ -107,8 +103,6 @@ fn test_angels_mercy_gains_life() {
     // The colorless is the only mana the pips do not claim, so the split is
     // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -129,8 +123,6 @@ fn test_dark_ritual_adds_three_black_mana() {
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -159,8 +151,6 @@ fn test_dark_ritual_uses_stack_not_mana_ability() {
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 0);
 
     // Now resolve (both pass)
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Black), 3);
@@ -187,8 +177,6 @@ fn test_doom_blade_destroys_nonblack_creature() {
     // The colorless is the only mana the pips do not claim, so the split is
     // forced (CR 102.2) and nothing is asked (`ui::ask::forced_allocation`).
     // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     cast_and_resolve(&mut game, &decisions);
 
@@ -266,8 +254,6 @@ fn test_isamaru_legend_rule_second_copy_dies() {
     let decisions = ScriptedDecisionProvider::new();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Both pass → resolve. SBAs fire after resolution and detect legend rule.
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     // LegendRule fires during SBA check after resolution: keep first (index 0)
     decisions.expect_pick_n(ChoiceKind::LegendRule {
         legend_name: "Isamaru, Hound of Konda".to_string(),

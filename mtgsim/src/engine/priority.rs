@@ -116,6 +116,14 @@ impl GameState {
                     }
                     break (PriorityAction::Pass, false);
                 }
+                // `Pass` is always offered, so a list of one is `[Pass]` alone:
+                // one legal answer, the engine's (`backlog.md` §2.22, rule 1),
+                // unless the seat stops at every priority point.
+                if available.len() == 1
+                    && !decisions.seat_mode(current_priority).stops_at_every_priority_point
+                {
+                    break (PriorityAction::Pass, false);
+                }
 
                 let action = ask_choose_priority_action(
                     decisions, self, current_priority, &available,
@@ -317,14 +325,30 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::ChoiceKind;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
+    /// Each player has `Pass` alone, which the engine takes: an empty script
+    /// panics on any prompt, so the round ending is the assertion that
+    /// nobody was asked.
     #[test]
     fn test_all_pass_empty_stack_ends_phase() {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
-        // Both players pass (index 0 = Pass)
+
+        let result = game.run_priority_round(&decisions).unwrap();
+        assert_eq!(result, PriorityResult::PhaseEnds);
+    }
+
+    /// The same round with both seats stopping at every priority point, as a
+    /// person in full control does: each is asked, though `Pass` is all
+    /// either can do.
+    #[test]
+    fn a_seat_that_stops_at_every_priority_point_is_asked_to_pass() {
+        let mut game = GameState::new(2, 20);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        let decisions = ScriptedDecisionProvider::new()
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
@@ -375,9 +399,7 @@ mod tests {
         assert_eq!(result, PriorityResult::ActionTaken);
         assert!(game.stack.contains(&card_id));
 
-        // Second round: both pass, stack resolves
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        // Second round: both pass, stack resolves — each has `Pass` alone
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::StackResolved);
 
@@ -385,8 +407,6 @@ mod tests {
         assert_eq!(game.players[1].life_total, 17);
 
         // Third round: empty stack, both pass -> phase ends
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
@@ -397,8 +417,6 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
         // Both players pass — phase ends
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
         game.run_priority_loop(&decisions).unwrap();
         // Should complete without error — phase ended

@@ -11,6 +11,7 @@ use mtgsim::cards::utility_creatures;
 use mtgsim::cards::phase5_pre_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_power, get_effective_toughness};
+use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
@@ -50,8 +51,6 @@ fn test_giant_growth_pumps_creature() {
     assert!(game.stack.contains(&growth_id));
 
     // Both players pass → resolve Giant Growth
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     let result = game.run_priority_round(&decisions).unwrap();
     assert_eq!(result, PriorityResult::StackResolved);
 
@@ -86,8 +85,6 @@ fn test_giant_growth_expires_at_cleanup() {
     // (CR 102.2) and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
 
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Creature is 5/5
@@ -144,7 +141,6 @@ fn test_two_giant_growths_stack() {
     // (CR 102.2) and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
     decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     assert_eq!(get_effective_power(&game, bears_id), Some(5));
@@ -154,8 +150,6 @@ fn test_two_giant_growths_stack() {
     // Nothing to script: the only legal target, so the choice is forced
     // (CR 102.2) and no prompt is made.
     game.run_priority_round(&decisions).unwrap();
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Should be 2 + 3 + 3 = 8/8
@@ -334,8 +328,6 @@ fn test_anthem_plus_pump_spell() {
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // 2 base + 1 anthem + 3 growth = 6/6
@@ -375,8 +367,6 @@ fn test_zhalfirin_shapecraft_sets_base_pt() {
     assert_eq!(result, PriorityResult::ActionTaken);
 
     // Resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Creature should be 4/3, and we drew a card
@@ -417,8 +407,6 @@ fn test_inside_out_switches_pt() {
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Creature should be 5/4 (swapped), and we drew a card
@@ -448,8 +436,6 @@ fn test_bull_rush_pumps_power() {
     game.run_priority_round(&decisions).unwrap();
 
     // Resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // 2+2 = 4 power, toughness stays 2
@@ -485,9 +471,11 @@ fn cast_and_resolve_targeted_spell(
     let result = game.run_priority_round(decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
-    // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve. The caster is asked while another spell in hand is
+    // castable; the opponent has `Pass` alone, which the engine takes.
+    if candidate_priority_actions(game, game.active_player).len() > 1 {
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    }
     game.run_priority_round(decisions).unwrap();
 }
 
@@ -711,8 +699,6 @@ fn test_merfolk_thaumaturgist_switches_pt_from_an_activated_ability() {
         "and nothing has happened yet — the ability is still on the stack"
     );
 
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     assert_eq!(get_effective_power(&game, elemental), Some(5), "Layer 7d");

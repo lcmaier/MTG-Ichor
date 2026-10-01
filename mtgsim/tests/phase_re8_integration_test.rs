@@ -195,7 +195,8 @@ fn resolve_spell(
 /// The cleanup discard has no entry point of its own — it is a turn-based
 /// action — so these boards run a whole turn, which is how
 /// `pre_phase3_integration_test` reaches it too. The decks are blank cards, so
-/// the only decisions in the turn are the passes and the discard.
+/// the only decision in the turn is the discard: every priority point offers
+/// `Pass` alone, which the engine takes.
 fn cleanup_game(hand: usize, academy: bool) -> (Game, ScriptedDecisionProvider) {
     let decklist: Vec<Arc<CardData>> = (0..30).map(|i| blank(&format!("Deck {i}"))).collect();
     let mut game = Game::new(GameConfig::test(), vec![decklist.clone(), decklist])
@@ -210,7 +211,6 @@ fn cleanup_game(hand: usize, academy: bool) -> (Game, ScriptedDecisionProvider) 
     while game.state.players[active].hand.len() < hand {
         put_in_hand(&mut game.state, blank("Extra"), active);
     }
-    dp.queue_empty_turn_passes();
     (game, dp)
 }
 

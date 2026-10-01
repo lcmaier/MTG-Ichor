@@ -52,7 +52,7 @@ use mtgsim::state::game_state::{GameState, PhaseType, StepType};
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::random::RandomDecisionProvider;
 
 /// Turns played before the harness stops, original and branch alike.
@@ -96,7 +96,9 @@ struct Fork {
 /// Two roles, because a branch wants half of what the original run wants: over
 /// the original it snapshots the game at every resumable prompt (`forks`); over
 /// a branch it records the first priority list it is shown, which is what says
-/// whether a divergence was announced at the fork or went silent past it.
+/// whether a divergence was announced at the fork or went silent past it. It
+/// stops at every priority point, so a round start where `Pass` is all the
+/// active player can do is a fork too.
 struct ForkRecorder {
     inner: RandomDecisionProvider,
     snapshot: bool,
@@ -219,6 +221,10 @@ impl DecisionProvider for ForkRecorder {
     ) -> Vec<usize> {
         *self.prompts.borrow_mut() += 1;
         self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { stops_at_every_priority_point: true }
     }
 }
 

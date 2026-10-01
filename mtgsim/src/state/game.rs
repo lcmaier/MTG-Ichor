@@ -391,7 +391,7 @@ mod tests {
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::mana::ManaType;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
     fn make_test_decklist(count: usize) -> Decklist {
         (0..count)
@@ -526,15 +526,18 @@ mod tests {
 
         // Turn completes normally with no SBAs during cleanup
         let starting_turn = game.state.turn_number;
-        decisions.queue_empty_turn_passes();
+        decisions.queue_main_phase_passes();
         game.run_turn(&decisions).unwrap();
         assert_eq!(game.state.turn_number, starting_turn + 1);
 
         // Set poison to 10; the SBA check ahead of the upkeep's first priority
         // grant performs player 1's loss, and CR 104.1 ends the game there —
-        // nobody is asked to pass in a game that has ended.
+        // nobody is asked to pass in a game that has ended, though both seats
+        // now stop at every priority point.
         game.state.players[1].add_counters(crate::types::effects::CounterType::Poison, 10);
-        game.run_turn(&decisions).unwrap();
+        let after_loss = ScriptedDecisionProvider::new()
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
+        game.run_turn(&after_loss).unwrap();
         assert!(game.is_over());
         assert_eq!(game.result(), Some(GameResult::Winner(0)));
     }
@@ -552,7 +555,7 @@ mod tests {
         game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
         let starting_turn = game.state.turn_number;
-        decisions.queue_empty_turn_passes();
+        decisions.queue_main_phase_passes();
         game.run_turn(&decisions).unwrap();
 
         assert_eq!(game.state.turn_number, starting_turn + 1);

@@ -431,8 +431,8 @@ pub fn ask_choose_priority_action(
     validate_pick_n(&index, &options, (1, 1), "choose_priority_action", game, player, &ctx);
     // Item 138's split of the count above. `Pass` is always offered
     // (`engine::priority`), so a longer list is a seat with something else to
-    // do — and the priority prompts that are `[Pass]` alone, 91.5% of them at
-    // four seats, are what a prompt count would have measured instead.
+    // do; `[Pass]` alone reaches here only for a seat that stops at every
+    // priority point, and is no decision.
     if legal_actions.len() > 1 {
         game.diagnostics.record_priority_decision();
     }
