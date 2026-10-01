@@ -902,7 +902,7 @@ fn run_one_game(
 
     let started = Instant::now();
     let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-        let mut config = GameConfig::test();
+        let mut config = GameConfig::unrestricted();
         config.starting_life = table.life;
         let mut game = Game::new(config, decks).expect("Failed to create game");
         // The fixture rows are read off the whole stream at the game's end,

@@ -3096,3 +3096,31 @@ Closed with two of its claims corrected. **`cli_play` prints no board**: it lost
      spike, which leaves `mtgsim` untouched (the owner's call). The log half
      is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
      panel PR, its first reader.
+
+### Item 194 — closed 2026-10-01 by the first-draw PR
+
+Closed as sized, with the answer derived in `Game::new` rather than by a config for played games. `state::game::starting_player_skips_first_draw` answers CR 103.8a and 103.8c from the seat count the game begins with, through `GameState::is_multiplayer` (CR 800.1), and `Game::new` sets `skip_first_draw` from it. `GameConfig::first_player_draws` became an `Option`: an override, `None` in `standard()` and `limited()`, which had hard-coded the two-player answer and so skipped a four-seat game's first draw too, and `Some(true)` in `test()`, so none of the 41 test call sites moved. Option (a) still moves the clients, since `test()` keeps its override: `cli_play`, `fuzz_games` and the dev GUI build their games from `GameConfig::unrestricted()`, the test config without the override, which `test()` is now built from. The four tests are in `state/game.rs`: two seats skip the first draw and draw on their next turn, three and four seats do not skip it, each for `standard()`, `limited()` and `unrestricted()`; the test config's override still draws; and `test_standard_config_skips_first_draw`, unchanged, still passes. The client's half is `devgui/tests/headless_game.rs`' `the_window_starts_holding_seven_since_its_first_draw_is_skipped`, which read eight cards at the window's first prompt on the pre-fix tree. **Found in the build: the draw was skipped, not the step.** The draw step of turn 1 still began and granted priority, with only its turn-based draw skipped, where CR 500.11 passes a skipped step "as though it didn't exist"; no client had reached it, since none skipped. `begin_step` now refuses that step at its proposal, as it refuses CR 508.8's, ahead of the pipeline so a CR 614.10 skip of the next draw step waits for the next one (614.10a), and `test_two_seats_skip_the_first_draw` counts no draw step begun on turn 1, which read one with the derivation alone. Measured: every two-seat game changed and every four-seat row held `IDENTICAL`; the step skip alone changed no game, since turn 1's draw step had only ever offered `Pass` (`fuzz-record.md`). CR 103.8b's team answer waits for teams: item 196.
+
+*Original entry:*
+
+194. **Every client starts a two-player game with the starting player
+     drawing, which CR 103.8a forbids.** The engine has the rule:
+     `GameConfig::first_player_draws` false sets `skip_first_draw`, which
+     `process_draw_step` reads (`engine/turns.rs`). But the dev GUI
+     (`devgui/src/bridge.rs`), `cli_play` and `fuzz_games` all build their
+     games from `GameConfig::test()`, whose `first_player_draws: true` exists
+     to simplify tests. At four seats that is right, since CR 103.8c skips no
+     one; at two the starting player draws on turn 1.
+
+     **Reachability (2026-09-30):** reachable — wrong today: every two-player
+     game in the dev GUI, `cli_play` and `fuzz_games`, so every two-seat
+     fixture row and A/B sitting has measured this game.
+
+     **Sized:** ~10–20 lines of code: the clients take CR 103.8's answer from
+     the player count (a `GameConfig` constructor for played games, or
+     `Game::new` deriving it with the test config's override kept), and a
+     test at two seats and at four. It moves every two-seat game, so its A/B
+     predicts `differ` at two seats and `IDENTICAL` at four, §3's two-seat
+     rows re-record, and the dev GUI's six review pictures are redrawn.
+     **Slotted:** its own PR after #203, before the scenario loader's build
+     (`roadmap-v2.md` A6g), whose games start the same way.

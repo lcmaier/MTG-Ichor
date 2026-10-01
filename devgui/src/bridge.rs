@@ -114,7 +114,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     let decks: Vec<Vec<Arc<CardData>>> =
         (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
     let log = Rc::new(RefCell::new(DecisionLog::open(setup, &decks)));
-    let mut game = Game::new(GameConfig::test(), decks).expect("two decks always make a game");
+    let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
     game.state.record_events();
     game.reseed(setup.seed.wrapping_add(1));
 

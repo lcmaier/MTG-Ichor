@@ -91,7 +91,7 @@ fn main() {
     println!();
 
     let registry = CardRegistry::default_registry();
-    let config = GameConfig::test();
+    let config = GameConfig::unrestricted();
 
     let deck0 = build_test_deck(&registry);
     let deck1 = build_test_deck(&registry);
