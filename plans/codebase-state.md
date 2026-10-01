@@ -7748,32 +7748,12 @@ form nowhere, and the anchors the tree actually rests on are CR 616.1's "two
 or more" and 601.2f's "if multiple". A comment fix, next time a hand is in
 the file.
 
-161. **Full control and auto-yield — sized, sequenced, not built.** Full
-     control is the raw provider entered and left mid-game: a
-     `FullControl<D, R>` at the top of the seat holding the decorated stack and
-     the raw provider, forwarding each of the four methods to one or the other
-     on a `Cell<bool>`, plus a `CliDecisionProvider` command intercepted before
-     an index is parsed. The decorators stay stateless and know nothing of it.
-     Auto-yield is `AutoYield<D>`, answering `PriorityAction` with `Pass` while
-     one of three yield conditions holds, read off the `&GameState` every
-     prompt carries. **Neither ships without the other** (§2.22 rows 3 and 4):
-     auto-yield makes the tell — a fast-forwarded turn says the player holds
-     nothing at instant speed — and the switch is what puts the prompts back.
-     Human seats only; a bot's non-forced pass is its agent's decision. The
-     switch's position and the yield command must ride in the recorded input
-     stream or a CLI game stops replaying. A GUI provider with state wants
-     `Rc<P>` and a forwarding impl so the raw side and the decorated side are
-     one provider.
-
-     **Reachability (2026-09-18):** unreachable — a facility that does not
-     exist; nothing wrong today, since nothing auto-passes.
-
-     **Sized:** one PR, ~250–350 lines with tests — the switch ~100 with the
-     command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
-     review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
-     `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
-     step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
-     GUI, which is the first GUI to need it.
+161. **~~Full control and auto-yield — sized, sequenced, not built.~~ — ✅
+     CLOSED 2026-09-30 (A6j).** — archived. `ui::full_control` and
+     `ui::auto_yield`, stacked on `cli_play`'s human seat; under full control
+     the seat also stops at every priority point.
+     **Reachability (2026-09-30):** closed — A6j.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 161".
 
 162. **The tap solver's two halves — the matching and its two customers.**
      §2.18's oracle half is a bipartite matching from the pips

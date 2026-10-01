@@ -2996,3 +2996,36 @@ Closed as sized. `run_priority_round` takes `Pass` when the list is `[Pass]` alo
      and the owner's reading of full control is a stop at every step. If it
      should stop, the elision skips a seat under full control, and A6j, which
      builds both, is where that is decided.
+
+### Item 161 — closed 2026-09-30 by A6j
+
+Closed as sized, with one decision the build took. `ui::full_control::FullControl<D, R>` routes a seat's prompts to its decorated stack or to its raw provider on a `FullControlSwitch`, an `Arc<AtomicBool>` the client owns and the switch reads once per prompt, so a window can flip it from its own thread. On, the seat also stops at every priority point (`SeatMode`): the owner reads full control as a stop at every step, and item 164's elision, built in the same PR, would otherwise have taken those stops away. `ui::auto_yield::AutoYield<D>` answers `PriorityAction` with `Pass` while one of Arena's three yields holds (until end of turn, until the stack changes, until your next turn), set through a `Yields` handle at a priority prompt the person answers with a pass. `cli_play` stacks both on the human's seat (`full`, `yield turn|stack|next|off`); the bot's takes neither. The record a replay needs: a CLI command is typed at a prompt, so it is in the input stream; a client that flips the switch between prompts records each answer the switch routes at the top of the seat, the decorators' too, which is the dev GUI's with its button in A6g's playable PR. The `Rc<P>` forwarding impl waits for that PR, its first customer, since the CLI's provider is two values sharing two handles.
+
+*Original entry:*
+
+161. **Full control and auto-yield — sized, sequenced, not built.** Full
+     control is the raw provider entered and left mid-game: a
+     `FullControl<D, R>` at the top of the seat holding the decorated stack and
+     the raw provider, forwarding each of the four methods to one or the other
+     on a `Cell<bool>`, plus a `CliDecisionProvider` command intercepted before
+     an index is parsed. The decorators stay stateless and know nothing of it.
+     Auto-yield is `AutoYield<D>`, answering `PriorityAction` with `Pass` while
+     one of three yield conditions holds, read off the `&GameState` every
+     prompt carries. **Neither ships without the other** (§2.22 rows 3 and 4):
+     auto-yield makes the tell — a fast-forwarded turn says the player holds
+     nothing at instant speed — and the switch is what puts the prompts back.
+     Human seats only; a bot's non-forced pass is its agent's decision. The
+     switch's position and the yield command must ride in the recorded input
+     stream or a CLI game stops replaying. A GUI provider with state wants
+     `Rc<P>` and a forwarding impl so the raw side and the decorated side are
+     one provider.
+
+     **Reachability (2026-09-18):** unreachable — a facility that does not
+     exist; nothing wrong today, since nothing auto-passes.
+
+     **Sized:** one PR, ~250–350 lines with tests — the switch ~100 with the
+     command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
+     review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
+     `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
+     step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
+     GUI, which is the first GUI to need it.

@@ -4,14 +4,17 @@
 // show affordable spells and suggest land taps. Retries on bad input.
 //
 // A prompt that reads one index also takes a command in place of it: `full`
-// flips the full-control switch above this seat (`ui::full_control`). Typed
-// at a prompt, the command is in the input stream, which is what replaying
-// the game needs of it.
+// flips the full-control switch above this seat (`ui::full_control`), and at
+// a priority prompt `yield turn`, `yield stack` or `yield next` passes and
+// keeps passing (`ui::auto_yield`), `yield off` stops. Typed at a prompt, a
+// command is in the input stream, which is what replaying the game needs of
+// it.
 
 use std::io::{self, BufRead, Write};
 
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
+use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
 use crate::ui::full_control::FullControlSwitch;
@@ -24,26 +27,58 @@ use crate::ui::full_control::FullControlSwitch;
 pub struct CliDecisionProvider {
     /// The switch above this seat, which `full` flips.
     full_control: FullControlSwitch,
+    /// The seat's yield, which `yield` sets.
+    yields: Yields,
+}
+
+/// What a line typed in place of an index did.
+#[derive(Debug, PartialEq, Eq)]
+enum Typed {
+    /// Nothing: it is not a command, so read it as an index.
+    Index,
+    /// A command, carried out; ask again.
+    Again,
+    /// A command that answers the prompt with this index.
+    Answer(usize),
 }
 
 impl CliDecisionProvider {
-    pub fn new(full_control: FullControlSwitch) -> Self {
-        CliDecisionProvider { full_control }
+    pub fn new(full_control: FullControlSwitch, yields: Yields) -> Self {
+        CliDecisionProvider { full_control, yields }
     }
 
-    /// Carry out `input` if it is a command, and say whether it was.
-    fn command(&self, input: &str) -> bool {
-        if !input.eq_ignore_ascii_case("full") {
-            return false;
+    /// Carry out `input` if it is a command.
+    fn command(&self, input: &str, game: &GameState, kind: &ChoiceKind, options: &[ChoiceOption]) -> Typed {
+        let words: Vec<String> = input.split_whitespace().map(str::to_ascii_lowercase).collect();
+        let words: Vec<&str> = words.iter().map(String::as_str).collect();
+        let until = match words.as_slice() {
+            ["full"] => {
+                let on = !self.full_control.is_on();
+                self.full_control.set(on);
+                println!("{}", if on { "Full control on: asked at every priority point." } else { "Full control off." });
+                return Typed::Again;
+            }
+            ["yield", "off"] => {
+                self.yields.clear();
+                println!("Yield off.");
+                return Typed::Again;
+            }
+            ["yield", "turn"] => Yield::UntilEndOfTurn,
+            ["yield", "stack"] => Yield::UntilStackChanges,
+            ["yield", "next"] => Yield::UntilYourNextTurn,
+            ["yield", ..] => {
+                println!("yield turn (until end of turn), stack (until the stack changes), next (until your next turn), or off");
+                return Typed::Again;
+            }
+            _ => return Typed::Index,
+        };
+        if !matches!(kind, ChoiceKind::PriorityAction) {
+            println!("A yield is set where you have priority.");
+            return Typed::Again;
         }
-        let on = !self.full_control.is_on();
-        self.full_control.set(on);
-        if on {
-            println!("Full control on: every prompt is yours, at every priority point.");
-        } else {
-            println!("Full control off.");
-        }
-        true
+        self.yields.set(game, until);
+        println!("Passing {until:?}.");
+        Typed::Answer(pass_index(options))
     }
 }
 
@@ -188,7 +223,7 @@ fn prompt_line(kind: &ChoiceKind) -> String {
 impl DecisionProvider for CliDecisionProvider {
     fn pick_n(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
         options: &[ChoiceOption],
@@ -205,10 +240,12 @@ impl DecisionProvider for CliDecisionProvider {
             if bounds.0 == 1 {
                 // Single selection
                 loop {
-                    println!("Select exactly 1 (0..{}), or 'full' to toggle full control:", options.len() - 1);
+                    println!("Select exactly 1 (0..{}), or 'full', or 'yield ...':", options.len() - 1);
                     let input = read_line();
-                    if self.command(&input) {
-                        continue;
+                    match self.command(&input, game, &context.kind, options) {
+                        Typed::Answer(idx) => return vec![idx],
+                        Typed::Again => continue,
+                        Typed::Index => {}
                     }
                     match parse_index(&input, options.len()) {
                         Some(idx) => return vec![idx],
@@ -383,16 +420,43 @@ impl DecisionProvider for CliDecisionProvider {
 mod tests {
     use super::*;
 
+    use crate::test_support::setup_two_player_game;
+    use crate::ui::decision::PriorityAction;
+
+    fn cli() -> (CliDecisionProvider, FullControlSwitch, Yields) {
+        let (switch, yields) = (FullControlSwitch::default(), Yields::default());
+        (CliDecisionProvider::new(switch.clone(), yields.clone()), switch, yields)
+    }
+
     /// `full` flips the switch above the seat either way, in any case, and an
     /// index is not a command.
     #[test]
     fn full_flips_the_switch_and_an_index_is_not_a_command() {
-        let switch = FullControlSwitch::default();
-        let cli = CliDecisionProvider::new(switch.clone());
-        assert!(!cli.command("2"));
-        assert!(cli.command("full"));
+        let game = setup_two_player_game();
+        let (cli, switch, _) = cli();
+        let kind = ChoiceKind::PriorityAction;
+        assert_eq!(cli.command("2", &game, &kind, &[]), Typed::Index);
+        assert_eq!(cli.command("full", &game, &kind, &[]), Typed::Again);
         assert!(switch.is_on());
-        assert!(cli.command("FULL"));
+        assert_eq!(cli.command("FULL", &game, &kind, &[]), Typed::Again);
         assert!(!switch.is_on());
+    }
+
+    /// A yield is set where the seat has priority, and answers that prompt
+    /// with `Pass`; anywhere else it asks again and sets nothing.
+    #[test]
+    fn a_yield_passes_the_priority_prompt_it_is_typed_at() {
+        let game = setup_two_player_game();
+        let (cli, _, yields) = cli();
+        let options = [
+            ChoiceOption::Action(PriorityAction::CastSpell(crate::types::ids::new_object_id())),
+            ChoiceOption::Action(PriorityAction::Pass),
+        ];
+        assert_eq!(cli.command("yield turn", &game, &ChoiceKind::DeclareBlockers, &options), Typed::Again);
+        assert!(!yields.holds(&game, 0));
+        assert_eq!(cli.command("Yield Turn", &game, &ChoiceKind::PriorityAction, &options), Typed::Answer(1));
+        assert!(yields.holds(&game, 0));
+        assert_eq!(cli.command("yield off", &game, &ChoiceKind::PriorityAction, &options), Typed::Again);
+        assert!(!yields.holds(&game, 0));
     }
 }

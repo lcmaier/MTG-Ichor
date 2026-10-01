@@ -1421,8 +1421,8 @@ mechanic rather than a migration, which is why it is here and not in
   |---|---|---|---|---|---:|---|
   | 1 | `ManaWindowStop` | `ManaAbilityWindow`, decline once covered | policy — declining forecloses CR 605.3a's float | toggle (`--no-auto-pay` today) / on by default | 0 | built, CM-4 |
   | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | an elision the engine owes (rule 1, item 47's shape) | both, no toggle | −50 this PR; the decorator goes next | built, CM-4; **forced split retired here, the rest moves into the engine in the follow-up PR** |
-  | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | re-derived at review, below |
-  | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **one PR with row 3** |
+  | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
+  | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
@@ -1501,6 +1501,19 @@ mechanic rather than a migration, which is why it is here and not in
   in the recorded input stream — cheap now, expensive once a replay format
   exists; it binds rows 3 and 4 alike, and any client setting a decorator
   reads.
+
+  **Rows 3 and 4, built (A6j, 2026-09-30).** As sized, and the build decided
+  two things. Under full control the seat also stops at every priority point:
+  (a) became the engine's in the same PR, and without the stop a person in
+  full control would never be asked in an upkeep with nothing to cast, which
+  is the owner's reading of the switch and where row 3's premise has the
+  toggle typed. And the replay caveat is settled per client. The switch is
+  client state set from any thread, read once per prompt, so it lands
+  wherever the engine is: a command typed at a prompt is in the CLI's input
+  stream, and a window that flips the switch between prompts records each
+  answer the switch routes at the top of the seat, the decorators' too. A
+  yield is set at a priority prompt, with that prompt's pass, so its record is
+  the answer that set it. `codebase-state.md` item 161's archive entry.
 
   **Row 5, combat defaults.** Item 84's two callerless helpers,
   `default_damage_assignment` and `default_trample_assignment`, are the body
@@ -1675,7 +1688,7 @@ mechanic rather than a migration, which is why it is here and not in
   remainder, alone**: the ordering elided in the engine and `AutoPayer`
   deleted, ~20 lines and a restated test, its own `differ` A/B — the one
   engine change the census owes, small and stream-moving, so it travels by
-  itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR**,
+  itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR** (done, A6j),
   ~250–350 lines with tests — the toggle's first customer is auto-yield and
   auto-yield's counterweight is the toggle, so neither ships alone
   (`engineering-practices.md` §4's consumer rule, applied to a toggle). Any
