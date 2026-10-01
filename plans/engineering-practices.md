@@ -1734,3 +1734,88 @@ which is the glossary's own obligation at a phase close; `roadmap-v2.md` §3b's
 table re-derived, since every count in it carries the date it was read; and
 A4d's two artifacts, if still open, because the trigger phase is the largest
 new subsystem the map would have to absorb.
+
+## 10. GUI code — logic in plain Rust, egui only drawing
+
+Added 2026-10-01, at A6g's review practices PR (`roadmap-v2.md` A6g). The
+owner's call at SU-2's review: GUI code is the part of the tree the owner can
+least review line by line. The review that catches an engine bug leans on the
+algorithm and the CR, and a frame loop leans on neither, so the GUI's review
+is made mechanical, and the code is shaped so that most of it is not GUI code.
+
+**The rule: logic is plain Rust under tests, and egui only draws.** The dev GUI
+(`devgui/`) is a bridge to the engine's thread, an owned snapshot of the board,
+a view model that turns the snapshot into what the window shows and a click
+into an answer, and a session that owns one game. Those are reviewed as the
+engine is, by reading them against §2b's names and asking whether a test fails
+when the code breaks, and they carry the tests. The drawing files lay out what
+the view model built and report the person's clicks; they are reviewed against
+§10.1's checklist and by running them.
+
+**Every GUI PR body carries three things** besides the usual ones:
+- **its files sorted by how to review them**: read closely (the plain Rust),
+  read against §10.1 (the drawing), check by running;
+- **a click script in Magic terms**: the board to load, what to click, and
+  what the window should then say;
+- **every picture it changed** (`devgui/tests/snapshots/`), old beside new.
+
+### 10.1 The checklist for egui code
+
+A GUI PR's review reads each drawing file against these questions, and a
+review agent given the PR is given this section. egui is immediate mode:
+`eframe::App::ui` runs whole at every repaint, which is every pointer move over
+the window, every key, and every message the engine's thread wakes it for, and
+everything a drawing function calls runs that often.
+
+1. **Per-frame work and allocation.** Does a call's result change between two
+   frames that had no new message and no input? If not, it is built where the
+   change happens (`WindowState::receive`, `WindowState::input`) and the frame
+   only reads it, unless a reading of its cost says it is too small to
+   matter, which is a measurement and not an argument. A list that grows with the game is drawn
+   through `ScrollArea::show_rows`, so a frame costs the rows on screen, and
+   every row is the one height `show_rows` was given: a row that wraps breaks
+   its arithmetic.
+2. **Blocking the UI thread.** Nothing a frame calls waits: `try_recv`, never
+   `recv`; no `join`, no `sleep`, no lock held across engine work, no file
+   read. A small write at a click, such as a saved board, is allowed; anything
+   slower is a thread whose result comes back as a message. The engine's
+   thread blocks on `recv` by design, and the UI thread never does.
+3. **What owns state between frames.** A value that survives a frame and can
+   change an answer is a field of the plain-Rust state, changed only through
+   `Session::input`; drawing takes the state by shared reference and returns
+   `Input`s. egui's own memory holds only what may reset with no answer
+   changing: a header's open flag, a scroll offset, a panel's width. No
+   `static`, `thread_local!`, `Cell` or `ui.data_mut` in a drawing file. A
+   widget that edits a value in place (`DragValue`) edits a copy, and the
+   change goes out as an `Input`.
+4. **Repaints.** eframe repaints on input and on request, so every message the
+   engine's thread sends is followed by the `wake` that requests a repaint, or
+   the window shows a stale board until the pointer moves. Nothing requests a
+   repaint unconditionally from inside a frame, which is a busy loop at full
+   CPU.
+5. **The lifetimes of threads and channels.** For each thread: what ends it,
+   and what each end of each channel does when its partner is gone. A
+   superseded game's thread ends when its channel closes, which is normal and
+   prints nothing, and nothing it does afterward reaches a file or a window that
+   a new game owns.
+6. **Errors shown to the person.** Every failure a person can cause or meet
+   reaches the window in words: what happened, and what to do. A refusal (a
+   scenario that does not load, a file that cannot be written) reads
+   differently from an engine panic, which is a bug report and says where its
+   decision log is. Nothing the person does ends in a panic on the UI thread,
+   or in a message only the terminal shows.
+7. **egui ids.** A stateful widget (`CollapsingHeader`, `ScrollArea`,
+   `ComboBox`, a window, a `DragValue` being typed into) keeps its state under
+   an id taken from its label unless it is given one. Two with one label in
+   one parent share their state, and one whose label changes loses it: a
+   header labeled "Graveyard (3)" snaps shut when a card arrives. Each gets an
+   `id_salt` from a key that names what it shows (the seat, the zone), never
+   from a list position or the label's text.
+8. **Input read against a changed frame.** egui reads a click against the
+   layout drawn in the frame that reads it. A prompt that replaces another
+   under the pointer takes the second click of a double click, or a held key's
+   repeat, that the person aimed at the first.
+
+**First applied to the whole crate at A6g's review practices PR**, by a review
+agent given this list, a budget and a stop-and-report rule; the findings are
+in that PR's table, each fixed there or given a `codebase-state.md` item.
