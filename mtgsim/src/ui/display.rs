@@ -6,7 +6,7 @@
 use crate::engine::layers::compute_characteristics;
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{
-    get_effective_power, get_effective_toughness, has_keyword, has_type, is_creature,
+    get_effective_power, get_effective_toughness, has_type, is_creature,
 };
 use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::card_types::CardType;
@@ -93,29 +93,36 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     parts.join(" ")
 }
 
-/// Collect displayable keyword names for a permanent.
+/// A permanent's keywords in `KeywordFlag`'s order, since the effective set is
+/// a hash set.
 fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    let check = |kw: KeywordFlag, name: &'static str| -> Option<&'static str> {
-        if has_keyword(game, id, kw) { Some(name) } else { None }
-    };
-    [
-        check(KeywordFlag::Flying, "flying"),
-        check(KeywordFlag::Reach, "reach"),
-        check(KeywordFlag::Deathtouch, "deathtouch"),
-        check(KeywordFlag::Lifelink, "lifelink"),
-        check(KeywordFlag::FirstStrike, "first strike"),
-        check(KeywordFlag::DoubleStrike, "double strike"),
-        check(KeywordFlag::Trample, "trample"),
-        check(KeywordFlag::Vigilance, "vigilance"),
-        check(KeywordFlag::Haste, "haste"),
-        check(KeywordFlag::Defender, "defender"),
-        check(KeywordFlag::Hexproof, "hexproof"),
-        check(KeywordFlag::Indestructible, "indestructible"),
-        check(KeywordFlag::Menace, "menace"),
-    ]
-    .into_iter()
-    .flatten()
-    .collect()
+    let Some(chars) = compute_characteristics(game, id) else { return Vec::new() };
+    let mut flags: Vec<KeywordFlag> = chars.keyword_flags.iter().copied().collect();
+    flags.sort();
+    flags.into_iter().map(keyword_name).collect()
+}
+
+/// A keyword as it prints, one arm per flag and no wildcard: a new flag does
+/// not compile until this says what it prints as.
+fn keyword_name(flag: KeywordFlag) -> &'static str {
+    match flag {
+        KeywordFlag::Deathtouch => "deathtouch",
+        KeywordFlag::Defender => "defender",
+        KeywordFlag::DoubleStrike => "double strike",
+        KeywordFlag::FirstStrike => "first strike",
+        KeywordFlag::Flash => "flash",
+        KeywordFlag::Flying => "flying",
+        KeywordFlag::Haste => "haste",
+        KeywordFlag::Hexproof => "hexproof",
+        KeywordFlag::Indestructible => "indestructible",
+        KeywordFlag::Intimidate => "intimidate",
+        KeywordFlag::Lifelink => "lifelink",
+        KeywordFlag::Menace => "menace",
+        KeywordFlag::Reach => "reach",
+        KeywordFlag::Shroud => "shroud",
+        KeywordFlag::Trample => "trample",
+        KeywordFlag::Vigilance => "vigilance",
+    }
 }
 
 /// Format non-keyword abilities on a permanent for inline display.
@@ -778,6 +785,15 @@ mod tests {
 
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
+    }
+    #[test]
+    fn every_keyword_flag_prints_in_the_enums_order() {
+        use crate::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
+
+        let mut game = setup_two_player_game();
+        let flags = [KeywordFlag::Shroud, KeywordFlag::Flying, KeywordFlag::Intimidate, KeywordFlag::Flash];
+        let id = put_on_battlefield(&mut game, vanilla_creature(1, 1, &flags), 0);
+        assert_eq!(format_permanent(&game, id), "Test Creature 1/1 [flash, flying, intimidate, shroud]");
     }
 
 }
