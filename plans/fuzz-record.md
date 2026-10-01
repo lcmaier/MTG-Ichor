@@ -37,6 +37,83 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-01 for item 194** (the first-draw PR: CR 103.8's
+answer derived where a game is built, and the starting player's first draw
+step skipped as a step, CR 500.11; `codebase-state.md` item 194, archived).
+No pool change, but **every two-seat row is a new baseline**: every two-seat
+game the clients play changes at turn 1. `close_out.py`: **main** `f80cab6`
+(#204's merge) against **derivation** `348ae50`, the derivation alone, and
+**engine** `78b8467`, with the step skip.
+
+**Predictions, before any arm ran:** two seats `differ` on both pools for
+both arms, every game's starting player keeping seven cards; four seats
+`IDENTICAL` on every row for both arms, since CR 103.8c's answer is the one
+the test config gave, and the audit's 350,537 / 388,612 there on every arm;
+instructions per decision within ±0.02%; and, derivation against engine, a
+few games of 200 differing, those where an agent acted in turn 1's draw step.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, derivation vs `main`, performance / stress | differ / differ | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs `main`, performance / stress | differ / differ | **IDENTICAL** / **IDENTICAL** |
+| gameplay rows, engine vs derivation, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Replacement gathers`, main → derivation → engine, performance / stress | 1199 → 1216 → 1215 / 1124 → 1173 → 1172 | 2254 / 2412 on every arm |
+| `Restriction queries`, main → derivation → engine, performance / stress | 1201 → 1218 → 1217 / 1126 → 1175 → 1174 | 2258 / 2417 on every arm |
+| audit, performance / stress, dispatches agreed: main; derivation; engine | 186,510 / 185,438; 189,425 / 193,477; 189,225 / 193,277 | 350,537 / 388,612 on every arm |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6592 M → 0.6590 M, **−0.04%** |
+
+Every other cost row moved with the games at two seats, between `main` and
+the derivation only, and none moved at four.
+
+**One prediction missed: the step skip changed no game.** No game of 200
+differed between the two arms on either pool. In turn 1's draw step nobody
+has a land on the battlefield yet, so its priority window only ever offered
+`Pass`, which the engine takes without asking. What the skip removed is the
+step's `BeginStep` proposal, one a game: one replacement gather, one
+restriction query, and one dispatch (`StepBegin`), 200 of them in the audit.
+The instruction reading is twice the prediction's width on byte-identical
+four-seat games, so it comes from the build's code and not from the games,
+unattributed, and far inside §3.1's budget.
+
+At 200 games the starting player won 57.5% → 52.0% of `performance` games
+and 51.0% → 51.5% of `stress` ones, a share carrying about ±3.5 points of
+noise there; games ran 32.1 → 32.8 and 28.8 → 29.7 turns.
+
+**§3 fixture rows, engine, two seats, 50 games / seed 12345.** A new
+baseline. CV-2b's block below holds the last one, and `main` reproduced it
+to the digit first.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.9 | 30.8 |
+| Spells cast | 22.9 | 22.5 |
+| Lands played | 17.3 | 17.6 |
+| Combat w/ atk | 10.6 | 9.9 |
+| Creatures died | 7.2 | 6.2 |
+| Damage events | 22.2 | 21.2 |
+| Total damage | 61.5 | 55.3 |
+| Life changes | 15.7 | 17.1 |
+| **Layer walks** | **374** | **481** |
+| **Board walks** | **237** | **302** |
+| **Memo hits** | **58,973** | **91,693** |
+| **Layer frames** | **4,279** | **6,550** |
+| **Frames/walk** | **11.45** | **13.63** |
+| **Dependency checks** | **14** | **50** |
+| **Replacement gathers** | **1079** | **1233** |
+| **Restriction queries** | **1081** | **1235** |
+| Mana productions | 87 | 134 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.42 | 2.22 |
+| Max batch depth | 5 | 5 |
+| Decisions | 232 | 376 |
+| Priority decisions | 87 | 147 |
+| Triggers placed | 1.3 | 2.1 |
+| Windows past gate | 29.1 | 56.2 |
+| Candidate visits | 37.5 | 99.5 |
+| Trigger matches | 2.7 | 3.2 |
+
 **Re-recorded 2026-09-30 for A6g's display PR** (`ui/display.rs`'s names
 and keywords, its board printer deleted, and each log line naming an object as
 it was: `codebase-state.md` item 191, archived). No pool change.
