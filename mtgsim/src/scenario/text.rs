@@ -2,7 +2,9 @@
 //! [`Scenario`], which checks the grammar only (names, references and the
 //! rules are the loader's), and a `Scenario` back to its text.
 
-use super::board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
+use super::board::{
+    Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupAction, SetupVerb, Targeted,
+};
 use super::error::{ScenarioError, ScenarioErrorKind};
 use crate::state::game_state::{initial_step, next_step, Phase, PhaseType, StepType, TurnPlan};
 use crate::types::card_types::CardType;
@@ -124,6 +126,7 @@ fn parse_headed_line(scenario: &mut Scenario, head: &str, rest: &str, line: usiz
         ["battlefield"] => LineKind::Battlefield,
         ["counters"] => LineKind::Counters,
         ["this", "turn"] => LineKind::ThisTurn,
+        ["then"] => return parse_setup_action(scenario, rest, line),
         ["player" | "hand" | "library" | "graveyard"] => {
             return Err(syntax_error(line, format!("`{head}:` names no player: `{head} 0:`")));
         }
@@ -188,8 +191,8 @@ fn parse_card_words(text: &str, line: usize) -> Result<(Vec<CardWord>, u32), Sce
             .into_iter()
             .find_map(|prefix| rest.strip_prefix(prefix).map(|card| (prefix, card)));
         match reference {
-            Some(("attacking ", _)) if attacked_player_number(word).is_some() => {
-                let player = attacked_player_number(word).unwrap_or_default();
+            Some(("attacking ", _)) if player_number_after(word, "attacking player ").is_some() => {
+                let player = player_number_after(word, "attacking player ").unwrap_or_default();
                 words.push(CardWord::Attacking(Attacked::Player(parse_number(player, "attacking player", line)?)));
             }
             Some((prefix, card)) => {
@@ -212,9 +215,54 @@ fn parse_card_words(text: &str, line: usize) -> Result<(Vec<CardWord>, u32), Sce
     Ok((words, copies.unwrap_or(1)))
 }
 
-/// `attacking player N`'s number: an attack on a player rather than on a card.
-fn attacked_player_number(word: &str) -> Option<&str> {
-    word.trim().strip_prefix("attacking player ").filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+/// The number in `attacking player N` or `targeting player N`, when `prefix`
+/// is followed by one: a player rather than a card.
+fn player_number_after<'w>(word: &'w str, prefix: &str) -> Option<&'w str> {
+    word.trim().strip_prefix(prefix).filter(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// `then: player p casts <card>` or `… activates <card>`, then `| <answer>`
+/// segments: a bar is in no card's name, so a segment may hold a name with a
+/// comma in it.
+fn parse_setup_action(scenario: &mut Scenario, rest: &str, line: usize) -> Result<(), ScenarioError> {
+    let shape = || syntax_error(line, "a setup action reads `then: player p casts <card>` or `then: player p activates <card>`");
+    let (seat, rest) = rest.strip_prefix("player ").and_then(|rest| rest.split_once(' ')).ok_or_else(shape)?;
+    let seat = parse_number(seat, "player", line)?;
+    let (verb, rest) = rest.trim_start().split_once(' ').ok_or_else(shape)?;
+    let mut segments = rest.split('|');
+    let card = parse_named_card(segments.next().unwrap_or_default(), line)?;
+    let (mut targets, mut x, mut ability) = (Vec::new(), None, None);
+    for segment in segments.map(str::trim) {
+        let once = |stated: bool, word: &str| {
+            if stated { Err(syntax_error(line, format!("`{word} N` is stated twice"))) } else { Ok(()) }
+        };
+        if let Some(target) = segment.strip_prefix("targeting ") {
+            targets.push(match player_number_after(segment, "targeting player ") {
+                Some(n) => Targeted::Player(parse_number(n, "targeting player", line)?),
+                None => Targeted::Card(parse_named_card(target, line)?),
+            });
+        } else if let Some(n) = segment.strip_prefix("x ") {
+            once(x.is_some(), "x")?;
+            x = Some(parse_number(n, "x", line)?);
+        } else if let Some(n) = segment.strip_prefix("ability ") {
+            once(ability.is_some(), "ability")?;
+            ability = Some(parse_number(n, "ability", line)?);
+        } else {
+            let message = format!("`{segment}` is not an answer a setup action has: `targeting <card>`, `targeting player p`, `x N` or `ability N`");
+            return Err(syntax_error(line, message));
+        }
+    }
+    let verb = match (verb, ability, x) {
+        ("casts", None, x) => SetupVerb::Casts { x },
+        ("activates", ability, None) => SetupVerb::Activates { ability },
+        ("casts", Some(_), _) => return Err(syntax_error(line, "`ability N` names an activated ability, and a spell is cast")),
+        ("activates", _, Some(_)) => {
+            return Err(syntax_error(line, "`x N` is a spell's X (CR 107.3a), and an activated ability asks for none"));
+        }
+        _ => return Err(syntax_error(line, format!("`{verb}` is not a setup action's verb: casts or activates"))),
+    };
+    scenario.setup_actions.push(LineNumbered { line, value: SetupAction { seat, verb, card, targets } });
+    Ok(())
 }
 
 /// `<words> N`: the words, and the number that ends them, which may be
@@ -381,6 +429,31 @@ impl std::fmt::Display for Scenario {
         for card in &self.cards {
             writeln!(f, "{}", card.value)?;
         }
+        for action in &self.setup_actions {
+            writeln!(f, "{}", action.value)?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for SetupAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let verb = match self.verb {
+            SetupVerb::Casts { .. } => "casts",
+            SetupVerb::Activates { .. } => "activates",
+        };
+        write!(f, "then: player {} {verb} {}", self.seat, self.card)?;
+        match self.verb {
+            SetupVerb::Casts { x: Some(x) } => write!(f, " | x {x}")?,
+            SetupVerb::Activates { ability: Some(n) } => write!(f, " | ability {n}")?,
+            SetupVerb::Casts { x: None } | SetupVerb::Activates { ability: None } => {}
+        }
+        for target in &self.targets {
+            match target {
+                Targeted::Player(p) => write!(f, " | targeting player {p}")?,
+                Targeted::Card(card) => write!(f, " | targeting {card}")?,
+            }
+        }
         Ok(())
     }
 }
@@ -514,6 +587,23 @@ mod tests {
         assert_eq!(scenario.player_words[1].value, PlayerWord::CommanderDamage { player: 1, damage: 18, from: isamaru });
     }
 
+    /// Each answer has its own segment, so a target's name may hold a comma,
+    /// and only the head's colon is the head's.
+    #[test]
+    fn a_setup_action_reads_each_answer_from_its_own_segment() {
+        let scenario = Scenario::parse(
+            "then: player 1 activates Circle of Protection: Red\n\
+             then: player 0 casts Fireball | targeting Isamaru, Hound of Konda [b] | targeting player 1 | x 3",
+        )
+        .unwrap();
+        let named = |name: &str, tag: Option<&str>| NamedCard { name: name.to_string(), tag: tag.map(str::to_string) };
+        let [activates, casts] = [&scenario.setup_actions[0], &scenario.setup_actions[1]];
+        assert_eq!((activates.line, activates.value.seat, activates.value.verb), (1, 1, SetupVerb::Activates { ability: None }));
+        assert_eq!(activates.value.card, named("Circle of Protection: Red", None));
+        assert_eq!(casts.value.verb, SetupVerb::Casts { x: Some(3) });
+        assert_eq!(casts.value.targets, [Targeted::Card(named("Isamaru, Hound of Konda", Some("b"))), Targeted::Player(1)]);
+    }
+
     #[test]
     fn the_grammar_refuses_what_it_does_not_read_naming_the_line() {
         for (text, says) in [
@@ -528,6 +618,12 @@ mod tests {
             ("battlefield: Grizzly Bears [a] | controller 0, x2", "mean 2 cards"),
             ("player 0 this turn: spells resolved 1", "not a count a history row has"),
             ("player 0 next turn: spells cast 1", "not a history row"),
+            ("then: casts Lightning Bolt", "a setup action reads"),
+            ("then: player 0 plays Forest", "not a setup action's verb"),
+            ("then: player 0 casts Lightning Bolt | at Grizzly Bears", "not an answer a setup action has"),
+            ("then: player 0 casts Blaze | x 2 | x 3", "stated twice"),
+            ("then: player 0 casts Lightning Bolt | ability 1", "a spell is cast"),
+            ("then: player 0 activates Mind Stone | x 1", "asks for none"),
         ] {
             let refusal = refused(text);
             assert_eq!(refusal.kind, ScenarioErrorKind::Syntax, "{text}");
@@ -600,10 +696,17 @@ mod tests {
         ] {
             scenario.player_words.push(LineNumbered { line: 0, value });
         }
+        for verb in [SetupVerb::Casts { x: None }, SetupVerb::Casts { x: Some(4) }, SetupVerb::Activates { ability: None }, SetupVerb::Activates { ability: Some(2) }] {
+            let targets = vec![Targeted::Card(card.clone()), Targeted::Player(1)];
+            scenario.setup_actions.push(LineNumbered { line: 0, value: SetupAction { seat: 2, verb, card: card.clone(), targets } });
+        }
         let text = scenario.to_string();
         let read = Scenario::parse(&text).unwrap_or_else(|e| panic!("{e}
 {text}"));
-        let values = |s: &Scenario| (s.cards.iter().map(|c| c.value.clone()).collect::<Vec<_>>(), s.player_words.iter().map(|p| p.value.clone()).collect::<Vec<_>>());
+        let values = |s: &Scenario| {
+            let numbered = |lines: &[LineNumbered<SetupAction>]| lines.iter().map(|a| a.value.clone()).collect::<Vec<_>>();
+            (s.cards.iter().map(|c| c.value.clone()).collect::<Vec<_>>(), s.player_words.iter().map(|p| p.value.clone()).collect::<Vec<_>>(), numbered(&s.setup_actions))
+        };
         assert_eq!(values(&read), values(&scenario), "{text}");
         assert_eq!((read.players, read.starting_life, read.seed, read.turn, read.active), (3, -4, 9, 4, 2));
     }

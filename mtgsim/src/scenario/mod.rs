@@ -13,6 +13,8 @@ mod error;
 mod text;
 mod write;
 
-pub use board::{Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario};
+pub use board::{
+    Arrival, Attacked, CardLine, CardWord, LineKind, LineNumbered, NamedCard, PlayerWord, Scenario, SetupAction, SetupVerb, Targeted,
+};
 pub use error::{ScenarioError, ScenarioErrorKind};
 pub use write::WrittenBoard;

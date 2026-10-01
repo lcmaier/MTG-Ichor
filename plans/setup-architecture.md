@@ -442,7 +442,9 @@ head's, so "Circle of Protection: Red" parses), then an optional tag in square
 brackets, then `|` and its words, separated by commas. A word that names
 another card takes the rest of the line, so it comes last
 (`CardWord::names_a_card`, which `Display` writes last). A count is `xN` after
-the bar, never `N Forest`, since a name may begin with a digit.
+the bar, never `N Forest`, since a name may begin with a digit. A setup action
+(`then:`, §5.3) gives each answer a segment of its own after a bar instead: a
+bar is in no card's name, and a target's name may hold a comma.
 
 Defaults in the last column apply when the file says nothing. A reference
 (`<card>`) is a name, with its tag where it has one (§4.2).
@@ -479,6 +481,11 @@ Defaults in the last column apply when the file says nothing. A reference
 | `attacking player p`, `attacking <card>`, `blocked` | 506, 508.1, 509.1h | `attacking` | — |
 | `blocking <card>` | 509.1a | `blocking`, and each attacker's `blocked_by` in the file's order. One attacker per blocker: a word that names a card takes the rest of its line, since a name may hold a comma, and no registered card blocks two | — |
 | `dealt first-strike damage` | 510.4 | `dealt_first_strike_damage`; refused before the first-strike damage step, and kept to the end of combat as the engine keeps it | no |
+| `then: player p casts <card>`, `then: player p activates <card>` | 117.1, 601.2, 602.2 | a setup action (§5.3), played from the board in file order: a cast from p's hand, or an activation of an ability of a permanent p controls | none |
+| `\| targeting <card>`, `\| targeting player p` | 115.1, 601.2c | the line's answers to CR 601.2c's choices, a target or a "choose": each choice the spell or ability asks takes the next segments it offers, so they read in the card's own order. A card here is a permanent, a card in a graveyard or exile, or a spell an earlier line casts | — |
+| `\| x N` | 107.3a, 601.2b | the spell's X; required for a card with X in its cost, refused for one without | — |
+| `\| ability N` | 602.1 | the ability's place among the permanent's abilities as the layers give them, 1 for the first; never a mana ability, whose mana would wait in a pool no word writes (§5.2) | the permanent's one activated ability |
+| *(a mode)* | 700.2 | not a word: nothing asks for a mode, since `Effect::Modal` cannot resolve (`backlog.md` §2.7). The setup driver matches every `ChoiceKind` with no wildcard, so the PR that adds the prompt adds `mode N` | — |
 
 ### 5.2 Later, and the growth contract
 
