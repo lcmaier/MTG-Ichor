@@ -2,6 +2,11 @@
 //
 // Implements the four `DecisionProvider` methods. Uses oracle/mana_helpers to
 // show affordable spells and suggest land taps. Retries on bad input.
+//
+// A prompt that reads one index also takes a command in place of it: `full`
+// flips the full-control switch above this seat (`ui::full_control`). Typed
+// at a prompt, the command is in the input stream, which is what replaying
+// the game needs of it.
 
 use std::io::{self, BufRead, Write};
 
@@ -9,23 +14,36 @@ use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::DecisionProvider;
+use crate::ui::full_control::FullControlSwitch;
 
 /// Interactive CLI decision provider for human play.
 ///
 /// Reads from stdin and writes prompts to stdout. Implements the 4-primitive
 /// `DecisionProvider` trait. The `ask_*` functions in `ui::ask` handle semantic
 /// context; this provider handles the interactive I/O.
-pub struct CliDecisionProvider;
-
-impl CliDecisionProvider {
-    pub fn new() -> Self {
-        CliDecisionProvider
-    }
+pub struct CliDecisionProvider {
+    /// The switch above this seat, which `full` flips.
+    full_control: FullControlSwitch,
 }
 
-impl Default for CliDecisionProvider {
-    fn default() -> Self {
-        Self::new()
+impl CliDecisionProvider {
+    pub fn new(full_control: FullControlSwitch) -> Self {
+        CliDecisionProvider { full_control }
+    }
+
+    /// Carry out `input` if it is a command, and say whether it was.
+    fn command(&self, input: &str) -> bool {
+        if !input.eq_ignore_ascii_case("full") {
+            return false;
+        }
+        let on = !self.full_control.is_on();
+        self.full_control.set(on);
+        if on {
+            println!("Full control on: every prompt is yours, at every priority point.");
+        } else {
+            println!("Full control off.");
+        }
+        true
     }
 }
 
@@ -41,9 +59,7 @@ fn read_line() -> String {
     buf.trim().to_string()
 }
 
-fn read_usize(prompt: &str, max: usize) -> Option<usize> {
-    println!("{}", prompt);
-    let input = read_line();
+fn parse_index(input: &str, max: usize) -> Option<usize> {
     if input.is_empty() || input.eq_ignore_ascii_case("none") {
         return None;
     }
@@ -189,12 +205,14 @@ impl DecisionProvider for CliDecisionProvider {
             if bounds.0 == 1 {
                 // Single selection
                 loop {
-                    match read_usize(&format!("Select exactly 1 (0..{}):", options.len() - 1), options.len()) {
+                    println!("Select exactly 1 (0..{}), or 'full' to toggle full control:", options.len() - 1);
+                    let input = read_line();
+                    if self.command(&input) {
+                        continue;
+                    }
+                    match parse_index(&input, options.len()) {
                         Some(idx) => return vec![idx],
-                        None => {
-                            println!("A selection is required.");
-                            continue;
-                        }
+                        None => println!("A selection is required."),
                     }
                 }
             }
@@ -358,5 +376,23 @@ impl DecisionProvider for CliDecisionProvider {
                 return order;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `full` flips the switch above the seat either way, in any case, and an
+    /// index is not a command.
+    #[test]
+    fn full_flips_the_switch_and_an_index_is_not_a_command() {
+        let switch = FullControlSwitch::default();
+        let cli = CliDecisionProvider::new(switch.clone());
+        assert!(!cli.command("2"));
+        assert!(cli.command("full"));
+        assert!(switch.is_on());
+        assert!(cli.command("FULL"));
+        assert!(!switch.is_on());
     }
 }

@@ -24,6 +24,11 @@
 // window keeps asking after the cost is covered, so you can float mana
 // mid-cast — tap a fourth land while paying for a three-drop, or sacrifice to
 // Krark-Clan Ironworks after its mana is already spoken for.
+//
+// **Full control is a switch above the human's stack** (`ui::full_control`),
+// flipped by typing `full` at any prompt that takes one index: on, every
+// decorator is off and you are asked at every priority point, even where you
+// can only pass.
 
 use std::sync::Arc;
 
@@ -38,6 +43,7 @@ use mtgsim::ui::auto_payer::AutoPayer;
 use mtgsim::ui::cli::CliDecisionProvider;
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
 use mtgsim::ui::display::format_event;
+use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -108,10 +114,12 @@ fn main() {
     if !auto_pay {
         println!("Auto-pay off: the mana window keeps asking after your cost is covered.");
     }
+    let full_control = FullControlSwitch::default();
+    let terminal = || CliDecisionProvider::new(full_control.clone());
     let human: Box<dyn DecisionProvider> = if auto_pay {
-        Box::new(AutoPayer::new(ManaWindowStop::new(CliDecisionProvider::new())))
+        Box::new(FullControl::new(AutoPayer::new(ManaWindowStop::new(terminal())), terminal(), full_control.clone()))
     } else {
-        Box::new(CliDecisionProvider::new())
+        Box::new(FullControl::new(terminal(), terminal(), full_control.clone()))
     };
     let bot: Box<dyn DecisionProvider> = if auto_pay {
         Box::new(ManaWindowStop::new(RandomDecisionProvider::new()))
