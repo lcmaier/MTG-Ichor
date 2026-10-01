@@ -2314,7 +2314,7 @@ the matrix waits for the design that needs it.
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
-### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and two open questions
+### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and three open questions
 
 **The surface that cannot serve it.** v1's first use case is four-player
 Commander through a GUI, and `roadmap-v2.md` §6 puts the target between
@@ -2375,6 +2375,23 @@ says "peer-to-peer 4-player Commander through a GUI" and §6 says "Network play
 is a stretch goal". If they are, the GUI gains host and join, reconnection,
 and a way through home routers. Reconnection does not need main item 40: the
 host's engine thread is still blocked on the pending prompt and sends it again.
+
+**Open question 3: which desktop platforms, and how it ships.** v1 should run
+on Windows, macOS and Linux (the owner, 2026-09-30, after A6g's spike). The
+engine is already portable: plain Rust with one dependency, built on Linux by
+CI and on Windows by hand. The client's toolkit decides the rest. egui on
+wgpu, the dev GUI's, targets all three, which is most of `devgui/Cargo.lock`;
+Tauri, recommended below, draws through each platform's own web view
+(WebView2, WKWebView, WebKitGTK), so one page is shown by three engines, and
+its TypeScript frontend brings npm's supply chain with it. What the platforms
+cost is mostly not code: a macOS machine to test on (GitHub's macOS runners,
+on a schedule rather than every PR, since they are slow), and for builds
+people download, macOS signing and notarization (Apple's developer program,
+$99 a year) and Windows code signing, without which Gatekeeper blocks the app
+and SmartScreen warns. Building from source needs neither. Display scaling,
+Cmd against Ctrl and file locations are the client's to get right, and review
+pictures differ per platform, so they compare only on the machine that drew
+them.
 
 **One client, not the interface.** Nothing in the engine is shaped for this
 GUI beyond what any client is owed: item 141's payload rule and §2.22's census.
