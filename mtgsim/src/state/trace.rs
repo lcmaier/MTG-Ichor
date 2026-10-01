@@ -510,8 +510,11 @@ impl GameState {
             r
         });
         let seq = self.events.next_seq();
-        let record = if unstamped { self.events.emit_unstamped(event) } else { self.events.emit(event) };
-        record.names = names;
+        if unstamped {
+            self.events.emit_unstamped(event, names);
+        } else {
+            self.events.emit_with_names(event, names);
+        }
         // CR 603.2 — an event outside any batch is its own window, and the
         // matcher runs before this returns (§4.1). A batched record waits for
         // its batch's close in `execute_actions`.
@@ -523,12 +526,10 @@ impl GameState {
     /// The names `event`'s objects are announced under, where one is not its
     /// card's; `None` on nearly every event.
     fn names_as_announced(&mut self, event: &GameEvent) -> NamesAsAnnounced {
-        let mut names = Vec::new();
-        event.objects_named_as_announced(|id| {
-            if let Some(name) = self.name_unless_printed(id) {
-                names.push((id, name));
-            }
-        });
+        let names: Vec<(ObjectId, String)> = event
+            .objects_named_as_announced()
+            .filter_map(|id| self.name_unless_printed(id).map(|name| (id, name)))
+            .collect();
         (!names.is_empty()).then(|| Arc::new(names))
     }
 

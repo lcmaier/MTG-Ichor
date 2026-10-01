@@ -361,13 +361,14 @@ pub enum GameEvent {
 }
 
 impl GameEvent {
-    /// Calls `f` with each object this event names as it is when announced,
-    /// whose name its record keeps where a copy makes it other than its card's
+    /// The objects this event names as they are when it is announced, whose
+    /// names its record keeps where a copy makes one other than its card's
     /// ([`NamesAsAnnounced`]). A zone change names its object as it was in the
     /// zone it left instead, off its look-back frame or its card.
-    pub fn objects_named_as_announced(&self, mut f: impl FnMut(ObjectId)) {
+    pub fn objects_named_as_announced(&self) -> impl Iterator<Item = ObjectId> + '_ {
         use GameEvent::*;
-        match self {
+        // Up to three objects named one by one, then the two variants' lists.
+        let (named, listed, paired): ([Option<ObjectId>; 3], &[ObjectId], &[(ObjectId, ObjectId)]) = match self {
             Tapped { object_id: id }
             | Untapped { object_id: id }
             | PermanentEnteredBattlefield { object_id: id, .. }
@@ -378,28 +379,23 @@ impl GameEvent {
             | CardDrawn { card_id: id, .. }
             | ManaAdded { source_id: id, .. }
             | DamageDealt { source_id: id, target: DamageTarget::Player(_), .. }
-            | LifeChanged { source: Some(id), .. }
             | SpellCast { spell_id: id, .. }
-            | SpellFizzled { spell_id: id } => f(*id),
-            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } => f(identity.source.id),
-            AbilityTriggered { origin, .. } => f(origin.source()),
+            | SpellFizzled { spell_id: id } => ([Some(*id), None, None], &[], &[]),
+            AbilityActivated { identity, .. } | AbilityResolved { identity, .. } => {
+                ([Some(identity.source.id), None, None], &[], &[])
+            }
+            AbilityTriggered { origin, .. } => ([Some(origin.source()), None, None], &[], &[]),
+            LifeChanged { source, .. } => ([*source, None, None], &[], &[]),
             DamageDealt { source_id: a, target: DamageTarget::Object(b), .. }
             | SpellCountered { spell_id: a, countered_by: b }
             | AbilityCountered { ability_id: a, countered_by: b }
-            | Attached { attachment: a, host: b, former_host: None }
-            | EquipmentDetached { equipment_id: a, former_host: b } => [a, b].into_iter().for_each(|id| f(*id)),
-            Attached { attachment, host, former_host: Some(former) } => {
-                [attachment, host, former].into_iter().for_each(|id| f(*id))
-            }
-            AttackersDeclared { attackers } => attackers.iter().for_each(|id| f(*id)),
-            BlockersDeclared { blockers } => blockers.iter().for_each(|(blocker, attacker)| {
-                f(*blocker);
-                f(*attacker);
-            }),
+            | EquipmentDetached { equipment_id: a, former_host: b } => ([Some(*a), Some(*b), None], &[], &[]),
+            Attached { attachment, host, former_host } => ([Some(*attachment), Some(*host), *former_host], &[], &[]),
+            AttackersDeclared { attackers } => ([None; 3], attackers, &[]),
+            BlockersDeclared { blockers } => ([None; 3], &[], blockers),
             ZoneChange { .. }
             | LeftTheGame { .. }
             | CountersChanged { .. }
-            | LifeChanged { .. }
             | PhaseBegin { .. }
             | StepBegin { .. }
             | TurnBegin { .. }
@@ -407,8 +403,9 @@ impl GameEvent {
             | PlayerWon { .. }
             | Scried { .. }
             | LibraryShuffled { .. }
-            | StateBasedActionPerformed => {}
-        }
+            | StateBasedActionPerformed => ([None; 3], &[], &[]),
+        };
+        named.into_iter().flatten().chain(listed.iter().copied()).chain(paired.iter().flat_map(|&(a, b)| [a, b]))
     }
 }
 
@@ -540,7 +537,9 @@ pub struct EventRecord {
 /// The names an event's objects were announced under, where one was not its
 /// card's: a copy's (CR 707.2), or a face-down permanent's, which is none (CR
 /// 708.2a). `None` on nearly every record. Kept because the log and the trace
-/// format a record after its objects may have changed; no rule reads it.
+/// format a record after its objects may have changed; no rule reads it. Only
+/// those: every other object's name is its card's, which the store keeps, so
+/// recording it would cost a read and an allocation per object per event.
 pub type NamesAsAnnounced = Option<Arc<Vec<(ObjectId, String)>>>;
 
 impl EventRecord {
@@ -598,23 +597,26 @@ impl EventWindow {
         EventWindow::default()
     }
 
-    pub fn emit(&mut self, event: GameEvent) -> &mut EventRecord {
+    pub fn emit(&mut self, event: GameEvent) {
+        self.emit_with_names(event, None);
+    }
+
+    /// [`Self::emit`], with the names its objects were announced under.
+    pub(crate) fn emit_with_names(&mut self, event: GameEvent, names: NamesAsAnnounced) {
         let stamp = self.stamp;
-        self.push(event, stamp)
+        self.push(event, stamp, names);
     }
 
     /// Emit with no batch and no resolution whatever is ambient — for a
     /// record that is a consequence of an event rather than part of it
     /// (`GameEvent::AbilityTriggered`, §4.8).
-    pub(crate) fn emit_unstamped(&mut self, event: GameEvent) -> &mut EventRecord {
-        self.push(event, EventStamp::default())
+    pub(crate) fn emit_unstamped(&mut self, event: GameEvent, names: NamesAsAnnounced) {
+        self.push(event, EventStamp::default(), names);
     }
 
-    fn push(&mut self, event: GameEvent, stamp: EventStamp) -> &mut EventRecord {
-        let seq = EventSeq(self.next_seq);
+    fn push(&mut self, event: GameEvent, stamp: EventStamp, names: NamesAsAnnounced) {
+        self.records.push(EventRecord { seq: EventSeq(self.next_seq), event, stamp, names });
         self.next_seq += 1;
-        self.records.push(EventRecord { seq, event, stamp, names: None });
-        self.records.last_mut().expect("the record just pushed")
     }
 
     /// The record at `seq`, or `None` for one the window no longer holds.
