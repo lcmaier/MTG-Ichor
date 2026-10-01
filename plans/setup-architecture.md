@@ -1,9 +1,10 @@
 # Game setup — CR 103's doors, the scenario loader, and the save
 
-> **Status:** design, 2026-09-30, revised 2026-10-01 after two review rounds
-> on PR #204. This is `roadmap-v2.md` A6g's second PR, the scenario loader, as
-> phase **SU-1**, with its setup actions proposed as **SU-2** and a board
-> editor as **SU-3**. Nothing here is built.
+> **Status:** design, 2026-09-30, revised 2026-10-01 over three review rounds
+> on PR #204, which carries the design alone. It covers `roadmap-v2.md` A6g's
+> scenario work: the scenario loader as phase **SU-1**, setup actions as
+> **SU-2**, and a board editor as **SU-3**, each its own PR, with item 194 in
+> its own PR before SU-1. Nothing here is built.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
