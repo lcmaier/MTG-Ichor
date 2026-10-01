@@ -37,6 +37,31 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-09-30 for A6g's display PR** (`ui/display.rs`'s names
+and keywords, its board printer deleted: `codebase-state.md` item 191,
+archived). No pool change. `close_out.py`: **main** `f53e8cf` (#202's merge)
+against **engine** `5ffa6c2`.
+
+**Predictions, the brief's, before any arm ran:** every gameplay and cost row
+`IDENTICAL` on both pools at two seats and four, by construction, since no
+engine logic changes and `fuzz_games` prints no names. The first draft of the
+name fix would have broken it, and a test caught that before any arm was built:
+the dispatch audit writes its report after restoring its observers, so a name
+read through the layers there moved `Memo hits` in an audited game (12,525
+against 12,519, `an_audited_game_counts_and_traces_what_an_unaudited_one_does`),
+and `close_out.py` reads audited counters. The observers read `printed_name`.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 186,510 / 185,438 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6577 M → 0.6574 M, **−0.04%** |
+
+All held, cost rows included: the counter files differ only in their timing
+lines. The instruction reading is unattributed. No path `fuzz_games` runs
+changed, so it is codegen from the deleted and rewritten functions, far
+inside §3.1's budget either way.
+
 **Re-recorded 2026-09-30 for A6j** (full control, auto-yield and the
 `[Pass]`-only prompt: `codebase-state.md` items 161, 164 and 192, archived).
 No pool change. `close_out.py`: **main** `6aaaf38` (#201's merge) against
