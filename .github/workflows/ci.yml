@@ -85,6 +85,13 @@ jobs:
       - name: Clone bound — allocations and bytes per clone
         run: cargo test --release --test clone_bound_test
 
+      # The scenario writer's round trip over played boards
+      # (`plans/setup-architecture.md` §4.3): 32 games, about 1.5 s here and
+      # 40 s in debug, for the same reason as the step above. Two games run
+      # in the debug `cargo test`.
+      - name: Scenario round trip — boards written, loaded and compared
+        run: cargo test --release --test scenario_round_trip_test
+
       # `fuzz_games` exits 1 on panics or errors, so the exit code is the gate
       # and nothing here parses output. Threaded on purpose: the harness's own
       # header says coverage wants threads (6.7x) and precision does not matter

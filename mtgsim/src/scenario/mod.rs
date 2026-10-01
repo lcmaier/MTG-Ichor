@@ -66,6 +66,8 @@ mod board;
 mod build;
 mod refusal;
 mod text;
+mod write;
 
 pub use board::{Arrival, CardLine, CardRef, Head, HistoryRow, Located, PlayerFact, Scenario, Target, Word};
 pub use refusal::{Refusal, RefusalKind};
+pub use write::Written;

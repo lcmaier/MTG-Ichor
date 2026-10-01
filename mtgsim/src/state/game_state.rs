@@ -291,7 +291,9 @@ pub struct GameState {
     /// of [`LayerMemo`]. Read through [`GameState::layer_epoch`], which folds
     /// in the registry's own count; written through
     /// [`GameState::bump_layer_epoch`]. → `layers-architecture.md` §12 "7a".
-    layer_epoch: u64,
+    /// Crate-visible for the scenario writer's destructure alone, which names
+    /// every field (`setup-architecture.md` §5.2).
+    pub(crate) layer_epoch: u64,
     /// The frames the walk has already computed at the current epoch. Read
     /// and filled by `compute_characteristics` and nothing else.
     pub(crate) layer_memo: LayerMemo,
@@ -373,8 +375,9 @@ pub struct GameState {
     /// The next `ObjectId`, stamped by `add_object` beside the timestamp —
     /// the one door into the store. Starts at one so that
     /// `ObjectId::UNASSIGNED` is never a stored object's id. Cloned with the
-    /// state, so a fork mints where its parent left off.
-    next_object_id: u64,
+    /// state, so a fork mints where its parent left off. Crate-visible for
+    /// the scenario writer's destructure alone.
+    pub(crate) next_object_id: u64,
 
     // --- The game's end (CR 104) ---
     /// Per-player loss flags, written by the `GameAction::PlayerLoses`

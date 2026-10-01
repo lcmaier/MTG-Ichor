@@ -1,9 +1,10 @@
-//! The module doc's grammar, read: text to a [`Scenario`]. Checks the
-//! grammar only; names, references and the rules are the loader's.
+//! The module doc's grammar, both ways: text to a [`Scenario`], which checks
+//! the grammar only (names, references and the rules are the loader's), and
+//! a `Scenario` back to its text.
 
 use super::board::{Arrival, CardLine, CardRef, Head, HistoryRow, Located, PlayerFact, Scenario, Target, Word};
 use super::refusal::{Refusal, RefusalKind};
-use crate::state::game_state::{initial_step, next_step, Phase, TurnPlan};
+use crate::state::game_state::{initial_step, next_step, Phase, PhaseType, StepType, TurnPlan};
 use crate::types::card_types::CardType;
 use crate::types::effects::CounterType;
 use crate::types::history::TurnFact;
@@ -81,6 +82,12 @@ pub(super) fn positions() -> impl Iterator<Item = Phase> {
         }
         steps
     })
+}
+
+/// Is `position` this turn's combat, at `from` or later?
+pub(super) fn in_combat_from(position: Phase, from: StepType) -> bool {
+    let index = |p: Phase| positions().position(|q| q == p);
+    position.phase_type == PhaseType::Combat && index(position) >= index(Phase { phase_type: PhaseType::Combat, step: Some(from) })
 }
 
 /// A position as `step` spells it: `format_phase`'s name, lower case.
@@ -329,6 +336,128 @@ pub(super) fn fact_word(fact: TurnFact) -> String {
         TurnFact::DamageTaken => "damage taken".to_string(),
         TurnFact::ControlledCreaturesDied => "creatures died".to_string(),
         TurnFact::AttackersDeclared => "attackers declared".to_string(),
+    }
+}
+
+// The grammar, written: the parser's inverse, so a value written and read
+// back is the value. A default is left out.
+
+impl std::fmt::Display for Scenario {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let defaults = Scenario::default();
+        let headers = [
+            ("players", self.players != defaults.players, self.players.to_string()),
+            ("starting life", self.starting_life != defaults.starting_life, self.starting_life.to_string()),
+            ("seed", self.seed != defaults.seed, self.seed.to_string()),
+            ("turn", self.turn != defaults.turn, self.turn.to_string()),
+            ("active", self.active != defaults.active, self.active.to_string()),
+            ("step", self.step != defaults.step, position_word(self.step)),
+        ];
+        for (key, _, value) in headers.iter().filter(|(_, stated, _)| *stated) {
+            writeln!(f, "{key} {value}")?;
+        }
+        // Consecutive facts that share a head share a line, but for the
+        // commander damage, which ends its line.
+        let mut open: Option<String> = None;
+        for fact in &self.player_facts {
+            let (head, word, ends) = player_fact_text(&fact.item);
+            match &open {
+                Some(current) if *current == head => write!(f, ", {word}")?,
+                _ => {
+                    if open.is_some() {
+                        writeln!(f)?;
+                    }
+                    write!(f, "{head}: {word}")?;
+                }
+            }
+            open = if ends { writeln!(f)?; None } else { Some(head) };
+        }
+        if open.is_some() {
+            writeln!(f)?;
+        }
+        for card in &self.cards {
+            writeln!(f, "{}", card.item)?;
+        }
+        Ok(())
+    }
+}
+
+/// A fact's head, its word, and whether the word ends its line.
+fn player_fact_text(fact: &PlayerFact) -> (String, String, bool) {
+    match fact {
+        PlayerFact::Life { player, life } => (format!("player {player}"), format!("life {life}"), false),
+        PlayerFact::Counter { player, kind, count } => (format!("player {player}"), format!("{} {count}", kind.name()), false),
+        PlayerFact::LandsPlayed { player, count } => (format!("player {player}"), format!("lands played {count}"), false),
+        PlayerFact::LeftTheGame { player } => (format!("player {player}"), "left the game".to_string(), false),
+        PlayerFact::CommanderDamage { player, damage, from } => {
+            (format!("player {player}"), format!("commander damage {damage} from {from}"), true)
+        }
+        PlayerFact::History { player, row, fact, count } => {
+            let row = match row {
+                HistoryRow::ThisTurn => "this turn",
+                HistoryRow::LastTurn => "last turn",
+                HistoryRow::ThisGame => "this game",
+            };
+            (format!("player {player} {row}"), format!("{} {count}", fact_word(*fact)), false)
+        }
+    }
+}
+
+impl std::fmt::Display for CardRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.tag {
+            Some(tag) => write!(f, "{} [{tag}]", self.name),
+            None => f.write_str(&self.name),
+        }
+    }
+}
+
+impl std::fmt::Display for CardLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.head {
+            Head::Hand(p) => write!(f, "hand {p}")?,
+            Head::Library { player, shuffled: false } => write!(f, "library {player}")?,
+            Head::Library { player, shuffled: true } => write!(f, "library {player} shuffled")?,
+            Head::Graveyard(p) => write!(f, "graveyard {p}")?,
+            Head::Exile => f.write_str("exile")?,
+            Head::Command => f.write_str("command")?,
+            Head::Battlefield => f.write_str("battlefield")?,
+            Head::Counters => f.write_str("counters")?,
+            Head::ThisTurn => f.write_str("this turn")?,
+        }
+        write!(f, ": {}", self.card)?;
+        let mut words: Vec<String> = Vec::new();
+        if self.copies > 1 {
+            words.push(format!("x{}", self.copies));
+        }
+        words.extend(self.words.iter().map(word_text));
+        if !words.is_empty() {
+            write!(f, " | {}", words.join(", "))?;
+        }
+        Ok(())
+    }
+}
+
+fn word_text(word: &Word) -> String {
+    let ability = |n: &Option<usize>| n.map(|n| format!("ability {n} ")).unwrap_or_default();
+    match word {
+        Word::Owner(p) => format!("owner {p}"),
+        Word::Controller(p) => format!("controller {p}"),
+        Word::Commander => "commander".to_string(),
+        Word::Tapped => "tapped".to_string(),
+        Word::Arrived(Arrival::ThisTurn) => "arrived this turn".to_string(),
+        Word::Arrived(Arrival::Turn(n)) => format!("arrived turn {n}"),
+        Word::Counter(kind, n) => format!("{} {n}", kind.name()),
+        Word::Damage(n) => format!("damage {n}"),
+        Word::DealtFirstStrikeDamage => "dealt first-strike damage".to_string(),
+        Word::Blocked => "blocked".to_string(),
+        Word::AttachedTo(card) => format!("attached to {card}"),
+        Word::Attacking(Target::Player(p)) => format!("attacking player {p}"),
+        Word::Attacking(Target::Permanent(card)) => format!("attacking {card}"),
+        Word::Blocking(card) => format!("blocking {card}"),
+        Word::Triggered { ability: n } => format!("{}triggered", ability(n)),
+        Word::Resolved { ability: n, times } => format!("{}resolved {times}", ability(n)),
+        Word::TookOnceEachTurnAction { ability: n } => format!("{}took its once-each-turn action", ability(n)),
     }
 }
 

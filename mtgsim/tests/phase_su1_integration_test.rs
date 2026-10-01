@@ -337,3 +337,35 @@ fn a_card_in_development_loads_and_stays_out_of_the_pools() {
     assert!(!registry.card_names().contains(&"Dev Bear"));
     assert!(scenario.build(&CardRegistry::default_registry()).is_err());
 }
+
+/// The writer spells what the loader built: the design's board comes back in
+/// the file's words, timestamp order kept, and reloads to the same text.
+#[test]
+fn a_loaded_board_is_written_back_in_its_own_words() {
+    let game = load(include_str!("../scenarios/holy-strength.scenario"));
+    let written = Scenario::write(&game.state);
+    assert!(written.unwritten.is_empty(), "{:?}", written.unwritten);
+    let text = written.to_string();
+    for line in [
+        "turn 3\nstep declare blockers\nplayer 0: life 18\nplayer 0 this turn: attackers declared 1\nplayer 1: poison 2\n",
+        "graveyard 0: Savannah Lions\nbattlefield: Glorious Anthem | controller 0\n",
+        "battlefield: Grizzly Bears [a] | controller 0, tapped, attacking player 1\n",
+        "battlefield: Holy Strength | controller 0, attached to Grizzly Bears [a]\n",
+        "battlefield: Loyalty Probe | controller 1, loyalty 1\nbattlefield: Humility | controller 1, arrived this turn\n",
+        "command: Isamaru, Hound of Konda | owner 0, commander\n",
+    ] {
+        assert!(text.contains(line), "missing {line:?} in\n{text}");
+    }
+    assert_eq!(Scenario::write(&load(&text).state).to_string(), text);
+}
+
+/// What §2 plays rather than writes is reported, a line each, at the top.
+#[test]
+fn the_writer_reports_what_it_cannot_write() {
+    let mut game = load("battlefield: Grizzly Bears | controller 0");
+    game.state.players[0].mana_pool.add(mtgsim::types::mana::ManaType::Red, 1);
+    game.state.turn_queue.push(1);
+    let written = Scenario::write(&game.state);
+    assert_eq!(written.unwritten.len(), 2, "{:?}", written.unwritten);
+    assert!(written.to_string().starts_with("# not written: an extra turn (CR 500.7)\n# not written: player 0's mana pool"));
+}

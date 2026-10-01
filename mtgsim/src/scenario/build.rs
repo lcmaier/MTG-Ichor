@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use super::board::{Arrival, CardLine, CardRef, Head, HistoryRow, Located, PlayerFact, Scenario, Target, Word};
 use super::refusal::{Refusal, RefusalKind};
-use super::text::{position_word, positions};
+use super::text::{in_combat_from, position_word};
 use crate::cards::registry::CardRegistry;
 use crate::objects::card_data::{AbilityType, CardData};
 use crate::objects::object::GameObject;
@@ -14,7 +14,7 @@ use crate::oracle::characteristics::{get_effective_controller, get_effective_typ
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo, PermanentState};
 use crate::state::game::{starting_player_skips_first_draw, Game, Streams};
 use crate::state::game_config::GameConfig;
-use crate::state::game_state::{AbilityIdentity, GameState, Phase, PhaseType, StepType};
+use crate::state::game_state::{AbilityIdentity, GameState, StepType};
 use crate::state::history::PlayerHistory;
 use crate::types::card_types::CardType;
 use crate::types::history::TurnFact;
@@ -278,9 +278,7 @@ impl<'s> Loader<'s> {
 
     /// Is the board at `from` or later in this turn's combat?
     fn in_combat_from(&self, from: StepType) -> bool {
-        let index = |phase: Phase| positions().position(|p| p == phase);
-        self.scenario.step.phase_type == PhaseType::Combat
-            && index(self.scenario.step) >= index(Phase { phase_type: PhaseType::Combat, step: Some(from) })
+        in_combat_from(self.scenario.step, from)
     }
 
     fn combat(&mut self) -> Result<(), Refusal> {
@@ -423,7 +421,11 @@ impl<'s> Loader<'s> {
             || self.state.players[active].history.this_turn(turn).count(TurnFact::AttackersDeclared) > 0;
         self.state.attacks_declared = self.in_combat_from(StepType::DeclareAttackers) && attacked;
         self.state.blockers_declared = self.in_combat_from(StepType::DeclareBlockers) && attacked;
-        if self.in_combat_from(StepType::DeclareBlockers) && !attacked {
+        let skipped_without_attackers = matches!(
+            self.scenario.step.step,
+            Some(StepType::DeclareBlockers | StepType::FirstStrikeDamage | StepType::CombatDamage)
+        );
+        if skipped_without_attackers && !attacked {
             return Err(Refusal {
                 kind: RefusalKind::Unreachable,
                 line: None,
