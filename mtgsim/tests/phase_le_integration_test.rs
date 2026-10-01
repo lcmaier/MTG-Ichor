@@ -261,8 +261,6 @@ fn test_lightning_bolt_does_not_kill_tarmogoyf_because_bolt_itself_grows_it() {
     );
 
     // Both pass — Bolt resolves, then SBAs run.
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     assert_eq!(
         game.run_priority_round(&decisions).unwrap(),
         PriorityResult::StackResolved

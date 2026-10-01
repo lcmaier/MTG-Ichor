@@ -26,7 +26,7 @@
 use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use crate::ui::decision::DecisionProvider;
+use crate::ui::decision::{DecisionProvider, SeatMode};
 
 /// Declines CR 601.2g's mana-ability window once the locked mana component is
 /// covered, and passes every other decision to `D`.
@@ -104,6 +104,10 @@ impl<D: DecisionProvider> DecisionProvider for ManaWindowStop<D> {
         items: &[ChoiceOption],
     ) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.inner.seat_mode(player)
     }
 }
 

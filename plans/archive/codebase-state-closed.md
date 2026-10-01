@@ -2945,3 +2945,118 @@ Closed as sized (`replacement-architecture.md` §3.5). `engine::layers::intrinsi
      goes, since 306.5b applies after the copy on its own. **Slotted: the
      entry-state PR** (`roadmap-v2.md` A6c, before CV-2b), which owns CR
      614.1c's seed. CR 310.4b follows with battles (`backlog.md` §2.23).
+
+### Item 164 — closed 2026-09-30 by A6j
+
+Closed as sized. `run_priority_round` takes `Pass` when the list is `[Pass]` alone (`engine/priority.rs`), unless the seat stops at every priority point: `SeatMode`, asked through a provided `DecisionProvider::seat_mode` whose default is an agent's, so no agent or test provider changed and `DispatchDecisionProvider` and the decorators forward it. Run first, the ten-line change failed 72 tests. 90 one-line expectations went, with the passes in four cast-and-resolve helpers and two loops, and `queue_empty_turn_passes` (16 passes a turn) became `queue_main_phase_passes` (2: a seat holding a land is asked in its main phases). Two things the sizing did not predict. The tests whose subject is every priority grant (the fork recorder, the window and stack watchers, CR 800.4j's rotation, the trace's re-ask) stop at every point rather than migrate. And four CR 104.1 boards, "nobody receives priority in a game that has ended", would have passed vacuously: an agent's strict script no longer sees a grant the CR does not make, so those stop at every point too. The dev GUI's shortcut went in the same PR; across 40 seeds a pool it had answered 9,330 and 11,187 prompts, every one a `[Pass]`-only priority prompt.
+
+*Original entry:*
+
+164. **The `[Pass]`-only priority prompt is still asked of the provider.**
+     `candidate_priority_actions` always offers `Pass`, and 91.5% of priority
+     prompts at four seats offer nothing else (item 138) — over two thousand
+     round trips a game for an answer the engine has, item 145's class exactly:
+     a prompt with one legal answer belongs to the engine (§2.22's rule 1),
+     and out of process it is CPU and a round trip spent against the ratchet's
+     numerator without a decision to count. Not middleware: a decorator can
+     only spare a round trip the engine had already decided to spend.
+
+     **Reachability (2026-09-18):** reachable — not wrong; a cost. Every game,
+     every seat.
+
+     **Sized:** ~10 lines at `run_priority_round`, taking `Pass` without
+     asking when the list is `[Pass]` alone. No counter moves —
+     `Priority decisions` already excludes the one-option prompt — and the
+     random agent's stream does not either, since a one-option `pick_n` draws
+     nothing (item 145, lever 10); so the A/B prediction is `IDENTICAL` and
+     the whole cost is the fixture migration: **148 scripted
+     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
+     in `src` unit tests**, an upper bound because some answer a longer list.
+     Size the migration by running it before scheduling; if most of the 148
+     are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
+     was not, and cheap.
+
+     **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g** (the dev GUI),
+     whose seats should never be handed a `[Pass]`-only prompt; the migration
+     is still counted by running it first. **It is not the floor lever.** In
+     process it saves the provider round trip, item 138's lever 10 at ~2%;
+     proving a list is `[Pass]` is lever 4's enumeration, 19.2% of
+     instructions when last measured (2026-09-16), and this item leaves it in
+     place.
+
+     **Owed by the dev GUI's spike (2026-09-30).** A6g's spike ran ahead of
+     this item, so its seat answers any prompt with one legal answer itself
+     (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
+     lands this item deletes that shortcut.
+
+     **Full control meets this elision (the spike's review, 2026-09-30).**
+     Item 161's switch takes the decorators off a seat; this item takes the
+     `[Pass]`-only prompt off every seat, below the decorators. So a seat
+     under full control still never stops in an upkeep with nothing to cast,
+     and the owner's reading of full control is a stop at every step. If it
+     should stop, the elision skips a seat under full control, and A6j, which
+     builds both, is where that is decided.
+
+### Item 161 — closed 2026-09-30 by A6j
+
+Closed as sized, with one decision the build took. `ui::full_control::FullControl<D, R>` routes a seat's prompts to its decorated stack or to its raw provider on a `FullControlSwitch`, an `Arc<AtomicBool>` the client owns and the switch reads once per prompt, so a window can flip it from its own thread. On, the seat also stops at every priority point (`SeatMode`): the owner reads full control as a stop at every step, and item 164, the engine taking the `[Pass]`-only prompt in the same PR, would otherwise have taken those stops away. `ui::auto_yield::AutoYield<D>` answers `PriorityAction` with `Pass` while one of Arena's three yields holds (until end of turn, until the stack changes, until your next turn), set through a `Yields` handle at a priority prompt the person answers with a pass. `cli_play` stacks both on the human's seat (`full`, `yield turn|stack|next|off`); the bot's takes neither. The record a replay needs: a CLI command is typed at a prompt, so it is in the input stream; a client that flips the switch between prompts records each answer the switch routes at the top of the seat, the decorators' too, which is the dev GUI's with its button in A6g's playable PR. The `Rc<P>` forwarding impl waits for that PR, its first customer, since the CLI's provider is two values sharing two handles.
+
+*Original entry:*
+
+161. **Full control and auto-yield — sized, sequenced, not built.** Full
+     control is the raw provider entered and left mid-game: a
+     `FullControl<D, R>` at the top of the seat holding the decorated stack and
+     the raw provider, forwarding each of the four methods to one or the other
+     on a `Cell<bool>`, plus a `CliDecisionProvider` command intercepted before
+     an index is parsed. The decorators stay stateless and know nothing of it.
+     Auto-yield is `AutoYield<D>`, answering `PriorityAction` with `Pass` while
+     one of three yield conditions holds, read off the `&GameState` every
+     prompt carries. **Neither ships without the other** (§2.22 rows 3 and 4):
+     auto-yield makes the tell — a fast-forwarded turn says the player holds
+     nothing at instant speed — and the switch is what puts the prompts back.
+     Human seats only; a bot's non-forced pass is its agent's decision. The
+     switch's position and the yield command must ride in the recorded input
+     stream or a CLI game stops replaying. A GUI provider with state wants
+     `Rc<P>` and a forwarding impl so the raw side and the decorated side are
+     one provider.
+
+     **Reachability (2026-09-18):** unreachable — a facility that does not
+     exist; nothing wrong today, since nothing auto-passes.
+
+     **Sized:** one PR, ~250–350 lines with tests — the switch ~100 with the
+     command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
+     review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
+     `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
+     step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
+     GUI, which is the first GUI to need it.
+
+### Item 192 — closed 2026-09-30 by A6j
+
+Closed as sized, in A6j as proposed, on the knowledge full control needed: `SeatMode`'s second field, `person`, which `CliDecisionProvider` and the dev GUI's `GuiSeat` answer and every decorator forwards. `run_priority_round` blacklists a rejected action and charges it to the budget only for an agent; a person's is offered again and charged to nothing, so the seat decides and not the attempt, which reads the same inside `cast_spell` either way. Two fixtures on one board, Grizzly Bears and two Forests (`tests/phase_a6j_integration_test.rs`): a person cancels seven times, past the six an agent's window would charge, and is offered the cast each time, which fails against the pre-fix engine with 13 expectations unconsumed; an agent's rejected cast is dropped, and the `Pass` left is the engine's. The dev GUI's rule-played headless games read the same answer counts at 40 seeds before and after, so its window met no rejection there. The reason a person needs on the re-ask, which the engine does not give, stays with A6g's playable PR.
+
+*Original entry:*
+
+192. **A priority window's blacklist and retry budget are agent guards, and
+     they bind a human seat too.** `run_priority_round` drops a rejected
+     action from every re-prompt until the window closes, and forces `Pass`
+     after three times the window's first list in rejections
+     (`engine/priority.rs:72–118`). Both exist so a random agent re-picking a
+     rewound cast terminates. For a person they read as the game refusing:
+     the owner declined Bonesplitter's payment in the dev GUI and could not
+     choose it again that window, and in a main phase with an empty stack the
+     next window is the next phase. Nothing in CR 601.2 or 732 forbids
+     another attempt.
+
+     **Reachability (2026-09-30):** reachable — wrong today for a human seat,
+     in `cli_play` and the dev GUI; right for an agent's seat, where it is the
+     termination argument.
+
+     **Sized:** ~30–50 lines and a fixture per kind of seat. The seat decides,
+     not the attempt: a canceled cast looks like a failed one inside
+     `cast_spell` (the window declined with abilities left is both an agent
+     that cannot make a pip and a person changing their mind), so it is a
+     human seat's canceled action that is re-offered and not charged to the
+     budget, "human under the toggle" like items 161 to 163. **Slotted:**
+     with A6j, which builds that toggle, proposed (the owner's call); A6g's
+     playable PR at the latest. Going back further than the window, to try
+     another line, is A6g's undo, a replay without the last answer.

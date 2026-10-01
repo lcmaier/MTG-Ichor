@@ -59,9 +59,7 @@ fn cast_and_resolve_targeted_perm_spell(
     let result = game.run_priority_round(decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
-    // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve: each has `Pass` alone, which the engine takes
     game.run_priority_round(decisions).unwrap();
 }
 
@@ -189,8 +187,6 @@ fn test_ensoul_artifact_makes_artifact_creature() {
     assert_eq!(result, PriorityResult::ActionTaken);
 
     // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.run_priority_round(&decisions).unwrap();
 
     // Now it should be an artifact creature

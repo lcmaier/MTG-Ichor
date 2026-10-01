@@ -258,8 +258,9 @@ fn render_option(option: &ChoiceOption) -> String {
 /// `priority_rejected` — an action the prompt offered and the engine refused
 /// (A4h, `codebase-state.md` "Before Triggered abilities" item 5): the
 /// `decision` before this is the list that offered it, the one after is the
-/// re-ask, and this is what happened in between, which no event log can show
-/// because a rejected action performs nothing.
+/// re-ask — unless the re-ask offers `Pass` alone, which the engine takes
+/// without one (`engine::priority`) — and this is what happened in between,
+/// which no event log can show because a rejected action performs nothing.
 pub(crate) fn priority_rejected(
     player: PlayerId,
     action: &PriorityAction,

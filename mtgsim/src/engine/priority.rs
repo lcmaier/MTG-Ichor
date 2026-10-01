@@ -69,11 +69,14 @@ impl GameState {
             // retries when execution rejects a DP-chosen action (§2.2 of
             // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
             //
-            // Retry loop: on execution failure, blacklist the action for this
-            // priority window and re-prompt with a freshly enumerated list minus
-            // the blacklist; bound retries at `3 × candidates.len()` (minimum 6)
-            // and fall back to `Pass` when the budget is exhausted, with a
-            // diagnostic on stderr.
+            // Retry loop: on execution failure, blacklist an agent's action for
+            // this priority window and re-prompt with a freshly enumerated list
+            // minus the blacklist; bound retries at `3 × candidates.len()`
+            // (minimum 6) and fall back to `Pass` when the budget is exhausted,
+            // with a diagnostic on stderr. A person's rejected action is offered
+            // again and charged to nothing: a cast they canceled looks like one
+            // that failed, and they may choose it again (`codebase-state.md`
+            // item 192).
             let mut blacklist: Vec<PriorityAction> = Vec::new();
             let mut retries: usize = 0;
             // The budget is 3× the list this window *started* with: re-deriving it
@@ -116,6 +119,14 @@ impl GameState {
                     }
                     break (PriorityAction::Pass, false);
                 }
+                // `Pass` is always offered, so a list of one is `[Pass]` alone:
+                // one legal answer, the engine's (`backlog.md` §2.22, rule 1),
+                // unless the seat stops at every priority point.
+                if available.len() == 1
+                    && !decisions.seat_mode(current_priority).stops_at_every_priority_point
+                {
+                    break (PriorityAction::Pass, false);
+                }
 
                 let action = ask_choose_priority_action(
                     decisions, self, current_priority, &available,
@@ -146,9 +157,11 @@ impl GameState {
                         // Dispatch mana-vs-non-mana. Mana abilities resolve
                         // immediately (rule 605) and don't trigger SBAs.
                         if let Err(e) = self.get_object(*permanent_id) {
-                            // Source disappeared — blacklist and retry.
-                            blacklist.push(action.clone());
-                            retries = retries.saturating_add(1);
+                            // Source disappeared — rejected like any other.
+                            if !decisions.seat_mode(current_priority).person {
+                                blacklist.push(action.clone());
+                                retries = retries.saturating_add(1);
+                            }
                             eprintln!(
                                 "WARN: activate_ability source {} missing: {}",
                                 permanent_id, e
@@ -195,16 +208,16 @@ impl GameState {
                 match exec_result {
                     Ok(()) => break (action, was_mana_ability),
                     Err(e) => {
-                        blacklist.push(action);
-                        retries = retries.saturating_add(1);
+                        if !decisions.seat_mode(current_priority).person {
+                            blacklist.push(action.clone());
+                            retries = retries.saturating_add(1);
+                        }
                         // What `--dump-events` cannot show: a cast the enumeration
                         // offered and the engine rejected performs nothing, so the
                         // re-ask that follows is only explicable from here.
                         self.trace(|| {
-                            let rejected = blacklist.last().expect("pushed above");
-                            crate::engine::trace_records::priority_rejected(current_priority, rejected, &e, retries, &blacklist)
+                            crate::engine::trace_records::priority_rejected(current_priority, &action, &e, retries, &blacklist)
                         });
-                        // Loop again with tighter candidate list.
                     }
                 }
             };
@@ -317,14 +330,30 @@ mod tests {
     use crate::types::effects::{AmountExpr, Effect, Primitive, EffectRecipient, SelectionFilter, TargetCount};
     use crate::types::mana::{ManaCost, ManaType};
     use crate::ui::choice_types::ChoiceKind;
-    use crate::ui::decision::ScriptedDecisionProvider;
+    use crate::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
+    /// Each player has `Pass` alone, which the engine takes: an empty script
+    /// panics on any prompt, so the round ending is the assertion that
+    /// nobody was asked.
     #[test]
     fn test_all_pass_empty_stack_ends_phase() {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
-        // Both players pass (index 0 = Pass)
+
+        let result = game.run_priority_round(&decisions).unwrap();
+        assert_eq!(result, PriorityResult::PhaseEnds);
+    }
+
+    /// The same round with both seats stopping at every priority point, as a
+    /// person in full control does: each is asked, though `Pass` is all
+    /// either can do.
+    #[test]
+    fn a_seat_that_stops_at_every_priority_point_is_asked_to_pass() {
+        let mut game = GameState::new(2, 20);
+        game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
+        let decisions = ScriptedDecisionProvider::new()
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
@@ -375,9 +404,7 @@ mod tests {
         assert_eq!(result, PriorityResult::ActionTaken);
         assert!(game.stack.contains(&card_id));
 
-        // Second round: both pass, stack resolves
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+        // Second round: both pass, stack resolves — each has `Pass` alone
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::StackResolved);
 
@@ -385,8 +412,6 @@ mod tests {
         assert_eq!(game.players[1].life_total, 17);
 
         // Third round: empty stack, both pass -> phase ends
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         let result = game.run_priority_round(&decisions).unwrap();
         assert_eq!(result, PriorityResult::PhaseEnds);
     }
@@ -397,8 +422,6 @@ mod tests {
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new();
         // Both players pass — phase ends
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
         game.run_priority_loop(&decisions).unwrap();
         // Should complete without error — phase ended

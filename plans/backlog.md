@@ -1421,8 +1421,8 @@ mechanic rather than a migration, which is why it is here and not in
   |---|---|---|---|---|---:|---|
   | 1 | `ManaWindowStop` | `ManaAbilityWindow`, decline once covered | policy — declining forecloses CR 605.3a's float | toggle (`--no-auto-pay` today) / on by default | 0 | built, CM-4 |
   | 2 | `AutoPayer` | `OrderCostReductions` (0 / 0.07 / 0.02 a game) | an elision the engine owes (rule 1, item 47's shape) | both, no toggle | −50 this PR; the decorator goes next | built, CM-4; **forced split retired here, the rest moves into the engine in the follow-up PR** |
-  | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | re-derived at review, below |
-  | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **one PR with row 3** |
+  | 3 | full control | nothing — a switch above the stack: raw or decorated | the toggle | human only | ~100 + tests | **built 2026-09-30 (A6j)**, below |
+  | 4 | auto-yield | `PriorityAction` → `Pass` while a yield holds | policy | human only; never a bot's | ~100–150 + tests | **built 2026-09-30 (A6j)**, with row 3 |
   | 5 | combat defaults | `AssignCombatDamage` (2.1 / 2.3 / 3.7), `AssignTrampleDamage` (0.17 / 0.28 / 0.40) | policy | human under the toggle / the agent's own | ~60 + a CR read | item 84's helpers are its body; after 3 |
   | 6 | tap solver, oracle half | nothing — a query: a covering set for `remaining_cost` | an oracle, not a decorator | both, as a query | ~150–250, plain case | §2.18; two customers; **the one row with algorithmic legwork**, below |
   | 7 | tap solver, decorator | `ManaAbilityWindow`, *pick* while uncovered (194 / 332 / 476); `GenericManaAllocation` with surplus (41 / 88 / 136) | policy | human under the toggle / a flag, off by default | ~60 | after 3 and 6 |
@@ -1501,6 +1501,26 @@ mechanic rather than a migration, which is why it is here and not in
   in the recorded input stream — cheap now, expensive once a replay format
   exists; it binds rows 3 and 4 alike, and any client setting a decorator
   reads.
+
+  **Rows 3 and 4, built (A6j, 2026-09-30).** As sized, and the build decided
+  two things. Under full control the seat also stops at every priority point:
+  (a) became the engine's in the same PR, and without the stop a person in
+  full control would never be asked in an upkeep with nothing to cast, which
+  is the owner's reading of the switch and where row 3's premise has the
+  toggle typed. And the replay caveat is settled per client. The switch is
+  client state set from any thread, read once per prompt, so it lands
+  wherever the engine is: a command typed at a prompt is in the CLI's input
+  stream, and a window that flips the switch between prompts records each
+  answer the switch routes at the top of the seat, the decorators' too. A
+  yield is set at a priority prompt, with that prompt's pass, so its record is
+  the answer that set it. `codebase-state.md` item 161's archive entry. **At
+  review (the owner, 2026-09-30), two rules.** A stack yield is refused on an
+  empty stack, where it would pass until anyone cast anything, through the
+  seat's own main phases (`Yields::set` says so). And full control supersedes
+  yields: while it is on the seat's yields are cancelled, so switching it off
+  does not bring one back, and the CLI refuses a yield typed under it. That
+  second rule is one call where a seat is built (`FullControl::superseding`),
+  so a test of the experience can reverse it there.
 
   **Row 5, combat defaults.** Item 84's two callerless helpers,
   `default_damage_assignment` and `default_trample_assignment`, are the body
@@ -1645,7 +1665,10 @@ mechanic rather than a migration, which is why it is here and not in
     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
     in `src` unit tests**, an upper bound since some answer a longer list —
     against ~10 lines at `run_priority_round`. Item 145's class, owed for
-    item 145's reason; `codebase-state.md` item 164.
+    item 145's reason; `codebase-state.md` item 164. **Built 2026-09-30
+    (A6j):** the engine takes it unless the seat's `SeatMode` stops at every
+    priority point, as a person in full control does; run first, the change
+    failed 72 tests, and item 164's archive entry has the migration.
   - **(b) "Why can't I?"** — `engine::restriction::predicate::is_prohibited`
     is `pub(crate)` and returns a `bool`, so a GUI cannot glow the permanent
     that forbids an attack and an observation cannot name it. An oracle
@@ -1672,7 +1695,7 @@ mechanic rather than a migration, which is why it is here and not in
   remainder, alone**: the ordering elided in the engine and `AutoPayer`
   deleted, ~20 lines and a restated test, its own `differ` A/B — the one
   engine change the census owes, small and stream-moving, so it travels by
-  itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR**,
+  itself (`codebase-state.md` item 165). (3) **Rows 3 and 4 in one PR** (done, A6j),
   ~250–350 lines with tests — the toggle's first customer is auto-yield and
   auto-yield's counterweight is the toggle, so neither ships alone
   (`engineering-practices.md` §4's consumer rule, applied to a toggle). Any
@@ -2314,7 +2337,7 @@ the matrix waits for the design that needs it.
 | **Atoms** | none; the CR states the slots, not their implementation |
 | **Owner** | — ; parity goes to `triggers-architecture.md` at TR-6's close, the matrix to the custom-card design. Filed and revised 2026-09-24, from the owner's questions while closing PR #182 |
 
-### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and two open questions
+### 2.38 The v1 GUI (Arena-lite) — what the engine owes it, and its open questions
 
 **The surface that cannot serve it.** v1's first use case is four-player
 Commander through a GUI, and `roadmap-v2.md` §6 puts the target between
@@ -2375,6 +2398,37 @@ says "peer-to-peer 4-player Commander through a GUI" and §6 says "Network play
 is a stretch goal". If they are, the GUI gains host and join, reconnection,
 and a way through home routers. Reconnection does not need main item 40: the
 host's engine thread is still blocked on the pending prompt and sends it again.
+
+**Open question 3: which desktop platforms, and how it ships.** v1 should run
+on Windows, macOS and Linux (the owner, 2026-09-30, after A6g's spike). The
+engine is already portable: plain Rust with one dependency, built on Linux by
+CI and on Windows by hand. The client's toolkit decides the rest. egui on
+wgpu, the dev GUI's, targets all three, which is most of `devgui/Cargo.lock`;
+Tauri, recommended below, draws through each platform's own web view
+(WebView2, WKWebView, WebKitGTK), so one page is shown by three engines, and
+its TypeScript frontend brings npm's supply chain with it. What the platforms
+cost is mostly not code: a macOS machine to test on (GitHub's macOS runners,
+on a schedule rather than every PR, since they are slow), and for builds
+people download, macOS signing and notarization (Apple's developer program,
+$99 a year) and Windows code signing, without which Gatekeeper blocks the app
+and SmartScreen warns. Building from source needs neither. Display scaling,
+Cmd against Ctrl and file locations are the client's to get right, and review
+pictures differ per platform, so they compare only on the machine that drew
+them.
+
+**Open question 4: stops without the tell** (the owner, 2026-09-30, at A6j's
+review; noted, not designed). Arena's default leaks hidden information: it
+stops a player only where they can respond, so an opponent who casts something
+cheap and watches whether the client waits learns whether they hold an
+instant. A6j builds the same tell for every person not in full control, since
+the engine takes a priority prompt that offers `Pass` alone. Full control
+closes it by stopping everywhere. Stops decided from public state alone,
+whether or not the player can act, would close it with less friction, and the
+engine side is small: ask the seat whether it stops at each priority point
+with the game in hand, where today it reads one switch. A player's own
+thinking time is a tell no client closes. The dev GUI does not care: it shows
+every card on purpose, and keeps a perfect-information toggle for the tester
+once §2.9's information model lands.
 
 **One client, not the interface.** Nothing in the engine is shaped for this
 GUI beyond what any client is owed: item 141's payload rule and §2.22's census.

@@ -192,7 +192,9 @@ fn every_prompt_a_game_raises_says_what_it_is_about() {
     // What the walk reached, for `--nocapture` and the record.
     eprintln!("{total} prompts: {seen:?}");
     // The guard: a walk that raised little would pass the checks for free.
-    assert!(total >= 1_000, "only {total} prompts across four games: {seen:?}");
+    // About 530 since the engine took the priority prompts that offer `Pass`
+    // alone (`engine::priority`), which were most of the 1,000 this once read.
+    assert!(total >= 400, "only {total} prompts across four games: {seen:?}");
     for must in [
         "PriorityAction",
         "DeclareAttackers",

@@ -24,6 +24,15 @@
 // window keeps asking after the cost is covered, so you can float mana
 // mid-cast — tap a fourth land while paying for a three-drop, or sacrifice to
 // Krark-Clan Ironworks after its mana is already spoken for.
+//
+// **Full control is a switch above the human's stack** (`ui::full_control`),
+// flipped by typing `full` at any prompt that takes one index: on, every
+// decorator is off and you are asked at every priority point, even where you
+// can only pass. **Auto-yield sits in the stack** (`ui::auto_yield`): `yield
+// turn`, `stack` or `next` at a priority prompt passes it and keeps passing
+// until the turn ends, the stack changes or your next turn begins; full
+// control cancels it. Neither flag drops them, and the bot's seat takes
+// neither: its passes are its own.
 
 use std::sync::Arc;
 
@@ -35,9 +44,11 @@ use mtgsim::state::trace::{TraceHandle, TraceSink};
 use mtgsim::state::game_state::GameResult;
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::ui::auto_payer::AutoPayer;
+use mtgsim::ui::auto_yield::{AutoYield, Yields};
 use mtgsim::ui::cli::CliDecisionProvider;
 use mtgsim::ui::decision::{DecisionProvider, DispatchDecisionProvider};
 use mtgsim::ui::display::format_event;
+use mtgsim::ui::full_control::{FullControl, FullControlSwitch};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -108,10 +119,14 @@ fn main() {
     if !auto_pay {
         println!("Auto-pay off: the mana window keeps asking after your cost is covered.");
     }
+    let (full_control, yields) = (FullControlSwitch::default(), Yields::default());
+    let terminal = || CliDecisionProvider::new(full_control.clone(), yields.clone());
     let human: Box<dyn DecisionProvider> = if auto_pay {
-        Box::new(AutoPayer::new(ManaWindowStop::new(CliDecisionProvider::new())))
+        let decorated = AutoYield::new(AutoPayer::new(ManaWindowStop::new(terminal())), yields.clone());
+        Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     } else {
-        Box::new(CliDecisionProvider::new())
+        let decorated = AutoYield::new(terminal(), yields.clone());
+        Box::new(FullControl::new(decorated, terminal(), full_control.clone()).superseding(yields.clone()))
     };
     let bot: Box<dyn DecisionProvider> = if auto_pay {
         Box::new(ManaWindowStop::new(RandomDecisionProvider::new()))

@@ -9,6 +9,7 @@ use mtgsim::cards::creatures;
 use mtgsim::cards::phase_lc_cards;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::oracle::characteristics::{get_effective_colors, get_effective_power, get_effective_toughness};
+use mtgsim::oracle::legality::candidate_priority_actions;
 use mtgsim::types::colors::Color;
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
@@ -32,9 +33,11 @@ fn cast_and_resolve_targeted_spell(
     let result = game.run_priority_round(decisions).unwrap();
     assert_eq!(result, PriorityResult::ActionTaken);
 
-    // Both pass → resolve
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve. The caster is asked while another spell in hand is
+    // castable; the opponent has `Pass` alone, which the engine takes.
+    if candidate_priority_actions(game, game.active_player).len() > 1 {
+        decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    }
     game.run_priority_round(decisions).unwrap();
 }
 

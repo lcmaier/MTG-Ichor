@@ -31,9 +31,9 @@ use mtgsim::test_support::{
     setup_two_player_game, test_ctx, TraceBuffer,
 };
 use mtgsim::types::effects::CounterType;
-use mtgsim::types::ids::ObjectId;
-use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::types::ids::{ObjectId, PlayerId};
+use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -294,6 +294,49 @@ fn strings_are_escaped() {
 // The A4h question: a re-ask, answerable from the trace
 // ---------------------------------------------------------------------------
 
+/// A seat that stops at every priority point, so a re-ask is a `decision`
+/// even when the rejection left `Pass` alone, which the engine otherwise takes
+/// without one.
+struct EveryPriorityPoint<D>(D);
+
+impl<D: DecisionProvider> DecisionProvider for EveryPriorityPoint<D> {
+    fn pick_n(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        options: &[ChoiceOption],
+        bounds: (usize, usize),
+    ) -> Vec<usize> {
+        self.0.pick_n(game, player, context, options, bounds)
+    }
+
+    fn pick_number(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, min: u64, max: u64) -> u64 {
+        self.0.pick_number(game, player, context, min, max)
+    }
+
+    fn allocate(
+        &self,
+        game: &GameState,
+        player: PlayerId,
+        context: &ChoiceContext,
+        total: u64,
+        buckets: &[ChoiceOption],
+        per_bucket_mins: &[u64],
+        per_bucket_maxs: Option<&[u64]>,
+    ) -> Vec<u64> {
+        self.0.allocate(game, player, context, total, buckets, per_bucket_mins, per_bucket_maxs)
+    }
+
+    fn choose_ordering(&self, game: &GameState, player: PlayerId, context: &ChoiceContext, items: &[ChoiceOption]) -> Vec<usize> {
+        self.0.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
+    }
+}
+
 /// Play seeded random games until the engine rejects an action a priority
 /// prompt offered; every rejection has to sit between the `decision` that
 /// offered it and a `decision` for the same player that does not.
@@ -318,7 +361,7 @@ fn a_re_ask_is_explained_by_the_rejection_between_two_decisions() {
         let mut game = Game::new(GameConfig::test(), vec![deck.clone(); 2]).expect("game");
         game.reseed(seed);
         let trace = install_trace(&mut game.state, &format!("re-ask seed {seed}"));
-        let dp = ManaWindowStop::new(RandomDecisionProvider::seeded(seed));
+        let dp = EveryPriorityPoint(ManaWindowStop::new(RandomDecisionProvider::seeded(seed)));
         game.setup(&dp).expect("setup");
         let mut turns = 0;
         while !game.is_over() && turns < 12 {

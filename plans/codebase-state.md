@@ -7748,32 +7748,12 @@ form nowhere, and the anchors the tree actually rests on are CR 616.1's "two
 or more" and 601.2f's "if multiple". A comment fix, next time a hand is in
 the file.
 
-161. **Full control and auto-yield — sized, sequenced, not built.** Full
-     control is the raw provider entered and left mid-game: a
-     `FullControl<D, R>` at the top of the seat holding the decorated stack and
-     the raw provider, forwarding each of the four methods to one or the other
-     on a `Cell<bool>`, plus a `CliDecisionProvider` command intercepted before
-     an index is parsed. The decorators stay stateless and know nothing of it.
-     Auto-yield is `AutoYield<D>`, answering `PriorityAction` with `Pass` while
-     one of three yield conditions holds, read off the `&GameState` every
-     prompt carries. **Neither ships without the other** (§2.22 rows 3 and 4):
-     auto-yield makes the tell — a fast-forwarded turn says the player holds
-     nothing at instant speed — and the switch is what puts the prompts back.
-     Human seats only; a bot's non-forced pass is its agent's decision. The
-     switch's position and the yield command must ride in the recorded input
-     stream or a CLI game stops replaying. A GUI provider with state wants
-     `Rc<P>` and a forwarding impl so the raw side and the decorated side are
-     one provider.
-
-     **Reachability (2026-09-18):** unreachable — a facility that does not
-     exist; nothing wrong today, since nothing auto-passes.
-
-     **Sized:** one PR, ~250–350 lines with tests — the switch ~100 with the
-     command and wiring (2026-09-08's ~200 was the handle shape, re-derived at
-     review), auto-yield ~100–150. A/B `IDENTICAL` by construction:
-     `fuzz_games` stacks neither. Any time, before the GUI; §2.22's sequence
-     step 3. **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g**, the dev
-     GUI, which is the first GUI to need it.
+161. **~~Full control and auto-yield — sized, sequenced, not built.~~ — ✅
+     CLOSED 2026-09-30 (A6j).** — archived. `ui::full_control` and
+     `ui::auto_yield`, stacked on `cli_play`'s human seat; under full control
+     the seat also stops at every priority point.
+     **Reachability (2026-09-30):** closed — A6j.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 161".
 
 162. **The tap solver's two halves — the matching and its two customers.**
      §2.18's oracle half is a bipartite matching from the pips
@@ -7871,50 +7851,13 @@ the file.
      (the clone, the restore, the truncation) and its decorator arm ~15; §2.22
      rows 8 and 9.
 
-164. **The `[Pass]`-only priority prompt is still asked of the provider.**
-     `candidate_priority_actions` always offers `Pass`, and 91.5% of priority
-     prompts at four seats offer nothing else (item 138) — over two thousand
-     round trips a game for an answer the engine has, item 145's class exactly:
-     a prompt with one legal answer belongs to the engine (§2.22's rule 1),
-     and out of process it is CPU and a round trip spent against the ratchet's
-     numerator without a decision to count. Not middleware: a decorator can
-     only spare a round trip the engine had already decided to spend.
-
-     **Reachability (2026-09-18):** reachable — not wrong; a cost. Every game,
-     every seat.
-
-     **Sized:** ~10 lines at `run_priority_round`, taking `Pass` without
-     asking when the list is `[Pass]` alone. No counter moves —
-     `Priority decisions` already excludes the one-option prompt — and the
-     random agent's stream does not either, since a one-option `pick_n` draws
-     nothing (item 145, lever 10); so the A/B prediction is `IDENTICAL` and
-     the whole cost is the fixture migration: **148 scripted
-     `ChoiceKind::PriorityAction` expectations, 134 in ten test files and 14
-     in `src` unit tests**, an upper bound because some answer a longer list.
-     Size the migration by running it before scheduling; if most of the 148
-     are `[Pass]` answers this is a stream-preserving PR of the kind item 145's
-     was not, and cheap.
-
-     **Back-stopped 2026-09-25, before `roadmap-v2.md` A6g** (the dev GUI),
-     whose seats should never be handed a `[Pass]`-only prompt; the migration
-     is still counted by running it first. **It is not the floor lever.** In
-     process it saves the provider round trip, item 138's lever 10 at ~2%;
-     proving a list is `[Pass]` is lever 4's enumeration, 19.2% of
-     instructions when last measured (2026-09-16), and this item leaves it in
-     place.
-
-     **Owed by the dev GUI's spike (2026-09-30).** A6g's spike ran ahead of
-     this item, so its seat answers any prompt with one legal answer itself
-     (`devgui/src/bridge.rs`, `GuiSeat::answer`, marked TEMPORARY). The PR that
-     lands this item deletes that shortcut.
-
-     **Full control meets this elision (the spike's review, 2026-09-30).**
-     Item 161's switch takes the decorators off a seat; this item takes the
-     `[Pass]`-only prompt off every seat, below the decorators. So a seat
-     under full control still never stops in an upkeep with nothing to cast,
-     and the owner's reading of full control is a stop at every step. If it
-     should stop, the elision skips a seat under full control, and A6j, which
-     builds both, is where that is decided.
+164. **~~The `[Pass]`-only priority prompt is still asked of the provider.~~
+     — ✅ CLOSED 2026-09-30 (A6j).** — archived. `run_priority_round` takes
+     `Pass` when the list is `[Pass]` alone, unless the seat's `SeatMode`
+     says it stops at every priority point, as a person in full control does;
+     the dev GUI's one-answer shortcut went with it.
+     **Reachability (2026-09-30):** closed — A6j.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 164".
 
 165. **CR 601.2f's ordering prompt is answered by a decorator where the engine
      should not ask.** `AutoPayer` answers `OrderCostReductions` with gather
@@ -8769,27 +8712,41 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      is a design question with an A/B, routed to `roadmap-v2.md` A6g's "why"
      panel PR, its first reader.
 
-192. **A priority window's blacklist and retry budget are agent guards, and
-     they bind a human seat too.** `run_priority_round` drops a rejected
-     action from every re-prompt until the window closes, and forces `Pass`
-     after three times the window's first list in rejections
-     (`engine/priority.rs:72–118`). Both exist so a random agent re-picking a
-     rewound cast terminates. For a person they read as the game refusing:
-     the owner declined Bonesplitter's payment in the dev GUI and could not
-     choose it again that window, and in a main phase with an empty stack the
-     next window is the next phase. Nothing in CR 601.2 or 732 forbids
-     another attempt.
+192. **~~A priority window's blacklist and retry budget are agent guards, and
+     they bind a human seat too.~~ — ✅ CLOSED 2026-09-30 (A6j).** — archived.
+     `SeatMode::person` exempts a person's seat from both: a canceled action
+     is offered again and nothing is charged. `cli_play`'s and the dev GUI's
+     seats say they are a person's.
+     **Reachability (2026-09-30):** closed — A6j.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 192".
 
-     **Reachability (2026-09-30):** reachable — wrong today for a human seat,
-     in `cli_play` and the dev GUI; right for an agent's seat, where it is the
-     termination argument.
+### Found by A6j's review (2026-09-30)
 
-     **Sized:** ~30–50 lines and a fixture per kind of seat. The seat decides,
-     not the attempt: a canceled cast looks like a failed one inside
-     `cast_spell` (the window declined with abilities left is both an agent
-     that cannot make a pip and a person changing their mind), so it is a
-     human seat's canceled action that is re-offered and not charged to the
-     budget, "human under the toggle" like items 161 to 163. **Slotted:**
-     with A6j, which builds that toggle, proposed (the owner's call); A6g's
-     playable PR at the latest. Going back further than the window, to try
-     another line, is A6g's undo, a replay without the last answer.
+193. **A priority window's blacklist is a bot's policy living in the engine,
+     and a replay pays for it.** Within one window `run_priority_round` stops
+     offering an action that failed, so the random agent's re-picks of a
+     rewound cast terminate. That filters the offered list by state off
+     `GameState`, and since item 192 by who sits at the seat
+     (`SeatMode::person`), so the same answers, which are positions in that
+     list, replay as a different game under a different seat. **The owner's
+     call at review, the clean option:** the engine stops filtering. The
+     re-asked prompt carries what was rejected and why, which is the surface
+     `roadmap-v2.md` A6g's playable PR owes a person anyway ("a reason on a
+     re-asked prompt"); the random agent skips what it was told failed, since
+     a bot's policy lives on the bot's seat (`backlog.md` §2.22, rule 2);
+     `person` leaves `SeatMode`; and the engine keeps only a hang guard set
+     where no person reaches it. The prompt then depends on the board alone,
+     which also takes the blacklist out of item 140's loop locals.
+
+     **Reachability (2026-09-30):** reachable — not wrong; a replay hazard.
+     No replay exists yet, and the dev GUI's decision log replays today only
+     as a person's seat.
+
+     **Sized:** ~80–150 lines. Where the rejection rides is the design
+     question: on `ChoiceKind::PriorityAction` it touches every scripted
+     priority expectation, on `ChoiceContext` its 57 literal sites in 7
+     files. The random agent filters before it shuffles, so its draws should
+     not change (A/B predicted `IDENTICAL`, to be read); the budget becomes
+     the hang guard; a few tests script a re-ask. **Slotted:** with A6g's
+     playable PR, which designs the re-ask's reason for a person, and before
+     its tools PR, the first replay.

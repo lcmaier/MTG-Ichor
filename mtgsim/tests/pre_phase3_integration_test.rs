@@ -15,7 +15,7 @@ use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::types::effects::{EffectRecipient, SelectionFilter, TargetCount};
 use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode};
 
 use mtgsim::test_support::{put_in_hand, put_land_on_battlefield};
 
@@ -50,14 +50,15 @@ fn test_game_lifecycle_two_turns() {
     // Skip first draw to avoid discard-to-hand-size noise.
     game.state.skip_first_draw = true;
 
-    // Turn 1: all players pass all priority (16 passes for 8 steps × 2 players)
-    decisions.queue_empty_turn_passes();
+    // Turn 1: all players pass all priority — the active player is asked in
+    // its main phases, holding lands, and the engine takes the rest
+    decisions.queue_main_phase_passes();
     game.run_turn(&decisions).unwrap();
     assert_eq!(game.state.turn_number, 2);
     assert_eq!(game.state.active_player, 1);
 
     // Turn 2: player 1 draws (hand=8), cleanup discards 1
-    decisions.queue_empty_turn_passes();
+    decisions.queue_main_phase_passes();
     decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0]);
     game.run_turn(&decisions).unwrap();
     assert_eq!(game.state.turn_number, 3);
@@ -90,8 +91,11 @@ fn test_game_over_bolt_to_zero() {
     game.state.set_turn_position(mtgsim::state::game_state::Phase::new(PhaseType::Precombat));
     game.state.active_player = 0;
 
-    // Script: cast bolt targeting player 1, then pass for everything else
-    let scripted = ScriptedDecisionProvider::new();
+    // Script: cast bolt targeting player 1, then pass for everything else.
+    // Both seats stop at every priority point, so a grant the CR does not
+    // make is a prompt this script does not hold.
+    let scripted = ScriptedDecisionProvider::new()
+        .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
     // CastSpell at index 1 in [Pass, CastSpell(bolt_id)]
     scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     // Target Player(1) at index 1 in [Player(0), Player(1)] for SelectionFilter::Any
@@ -202,7 +206,7 @@ fn test_discard_to_hand_size() {
     // **One prompt for all four** (CR 514.1: "they discard enough cards"),
     // and one batch — RE-8 replaced the one-card-at-a-time loop, which put
     // each card in a batch of its own.
-    decisions.queue_empty_turn_passes();
+    decisions.queue_main_phase_passes();
     decisions.expect_pick_n(ChoiceKind::Discard { source: None }, vec![0, 1, 2, 3]);
     game.run_turn(&decisions).unwrap();
 
@@ -238,7 +242,7 @@ fn test_first_player_draw_skip() {
     // No creatures → no DeclareAttackers TBA.
     // skip_first_draw is already true (standard config), so draw is skipped
     // and hand stays at 7 (no discard needed).
-    decisions.queue_empty_turn_passes();
+    decisions.queue_main_phase_passes();
     game.run_turn(&decisions).unwrap();
 
     // Player 0 did NOT draw → hand should still be 7

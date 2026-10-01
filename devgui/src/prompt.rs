@@ -93,21 +93,6 @@ impl Prompt {
             options: options.iter().map(|option| option_view(game, option)).collect(),
         }
     }
-
-    /// The answer, when there is only one — `ui/ask.rs`'s own test for a
-    /// decision: a pick of none or of all, one number, under two things to
-    /// order. A split with one answer never gets here: the engine answers it
-    /// before asking (`ask.rs`'s `forced_allocation`).
-    pub fn only_answer(&self) -> Option<Answer> {
-        match &self.primitive {
-            Primitive::PickN { min, max } if min == max && (*min == 0 || *min == self.options.len()) => {
-                Some(Answer::Picks((0..*min).collect()))
-            }
-            Primitive::Number { min, max } if min == max => Some(Answer::Number(*min)),
-            Primitive::Order if self.options.len() < 2 => Some(Answer::Order((0..self.options.len()).collect())),
-            _ => None,
-        }
-    }
 }
 
 /// `AssignCombatDamage { attacker_id: #7 }` → `AssignCombatDamage`.
@@ -255,37 +240,6 @@ fn variant_name(debug: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn prompt(primitive: Primitive, options: usize) -> Prompt {
-        Prompt {
-            kind: "PriorityAction".to_string(),
-            question: String::new(),
-            subject: None,
-            primitive,
-            options: (0..options).map(|i| OptionView { label: i.to_string(), refs: vec![] }).collect(),
-        }
-    }
-
-    #[test]
-    fn a_pass_only_priority_prompt_has_one_answer() {
-        let only = prompt(Primitive::PickN { min: 1, max: 1 }, 1).only_answer();
-        assert_eq!(only, Some(Answer::Picks(vec![0])));
-    }
-
-    #[test]
-    fn a_may_with_one_option_has_two_answers() {
-        assert_eq!(prompt(Primitive::PickN { min: 0, max: 1 }, 1).only_answer(), None);
-        assert_eq!(prompt(Primitive::PickN { min: 1, max: 1 }, 2).only_answer(), None);
-    }
-
-    #[test]
-    fn a_fixed_count_of_all_or_none_one_number_or_one_item_is_forced() {
-        assert_eq!(prompt(Primitive::PickN { min: 3, max: 3 }, 3).only_answer(), Some(Answer::Picks(vec![0, 1, 2])));
-        assert_eq!(prompt(Primitive::PickN { min: 0, max: 0 }, 2).only_answer(), Some(Answer::Picks(vec![])));
-        assert_eq!(prompt(Primitive::Number { min: 4, max: 4 }, 0).only_answer(), Some(Answer::Number(4)));
-        assert_eq!(prompt(Primitive::Order, 1).only_answer(), Some(Answer::Order(vec![0])));
-        assert_eq!(prompt(Primitive::Order, 2).only_answer(), None);
-    }
 
     #[test]
     fn a_kind_is_named_by_its_variant() {

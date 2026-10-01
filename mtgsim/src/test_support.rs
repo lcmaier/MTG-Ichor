@@ -49,7 +49,7 @@ use crate::engine::layers::types::{
 use crate::types::effects::Duration;
 use crate::types::replacement::EnterMods;
 use crate::types::zones::Zone;
-use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
+use crate::ui::decision::{DecisionProvider, ScriptedDecisionProvider, SeatMode};
 use crate::state::trace::{TraceHandle, TraceSink};
 
 // ---------------------------------------------------------------------------
@@ -240,6 +240,7 @@ pub struct RecordingDecisionProvider {
     pick: usize,
     all: bool,
     seen: std::cell::RefCell<Vec<String>>,
+    mode: SeatMode,
 }
 
 impl RecordingDecisionProvider {
@@ -249,6 +250,7 @@ impl RecordingDecisionProvider {
             pick: index,
             all: false,
             seen: std::cell::RefCell::new(Vec::new()),
+            mode: SeatMode::default(),
         }
     }
 
@@ -264,7 +266,15 @@ impl RecordingDecisionProvider {
             pick: 0,
             all: true,
             seen: std::cell::RefCell::new(Vec::new()),
+            mode: SeatMode::default(),
         }
+    }
+
+    /// Be asked at every priority point, `Pass` alone included, so the
+    /// recording shows who received priority and not only who had a choice.
+    pub fn stopping_at_every_priority_point(mut self) -> Self {
+        self.mode.stops_at_every_priority_point = true;
+        self
     }
 
     /// The `ChoiceKind`s seen so far, `Debug`-formatted, in prompt order.
@@ -349,12 +359,17 @@ impl DecisionProvider for RecordingDecisionProvider {
         self.seen.borrow_mut().push(format!("{:?}", _ctx.kind));
         (0..items.len()).collect()
     }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        self.mode
+    }
 }
 
 /// A provider that passes at every priority prompt and records what the
 /// stack and the pending-trigger queue held at the **first** one — CR 117.5's
-/// "before any player gets priority" made observable. Every other prompt takes
-/// its minimum, in order.
+/// "before any player gets priority" made observable, so it stops at every
+/// priority point rather than at the first with a choice. Every other prompt
+/// takes its minimum, in order.
 pub struct StackWatcher {
     first: std::cell::RefCell<Option<(usize, usize)>>,
 }
@@ -430,6 +445,10 @@ impl DecisionProvider for StackWatcher {
         items: &[crate::ui::choice_types::ChoiceOption],
     ) -> Vec<usize> {
         (0..items.len()).collect()
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
     }
 }
 

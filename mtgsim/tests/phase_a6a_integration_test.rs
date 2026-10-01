@@ -38,7 +38,7 @@ use mtgsim::types::ids::{new_ability_id, ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::types::triggers::{TriggerCondition, TriggerDef};
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use mtgsim::ui::decision::DecisionProvider;
+use mtgsim::ui::decision::{DecisionProvider, SeatMode};
 use mtgsim::ui::mana_window_stop::ManaWindowStop;
 use mtgsim::ui::random::RandomDecisionProvider;
 
@@ -47,7 +47,7 @@ use mtgsim::ui::random::RandomDecisionProvider;
 // ---------------------------------------------------------------------------
 
 /// A random provider that looks at the window whenever a player is asked for a
-/// priority action.
+/// priority action — at every priority point, so `Pass` alone is asked too.
 struct WindowWatch {
     inner: RandomDecisionProvider,
     prompts: Cell<u64>,
@@ -97,6 +97,10 @@ impl DecisionProvider for WindowWatch {
         items: &[ChoiceOption],
     ) -> Vec<usize> {
         self.inner.choose_ordering(game, player, context, items)
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
     }
 }
 

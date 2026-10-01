@@ -23,7 +23,7 @@ use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaType;
 use mtgsim::types::zones::Zone;
 use mtgsim::ui::choice_types::ChoiceKind;
-use mtgsim::ui::decision::ScriptedDecisionProvider;
+use mtgsim::ui::decision::{ScriptedDecisionProvider, SeatMode};
 use mtgsim::types::replacement::EnterMods;
 
 // ---------------------------------------------------------------------------
@@ -195,10 +195,8 @@ fn test_blocked_creatures_trade() {
     assert_eq!(game.state.battlefield.get(&attacker).unwrap().damage_marked, 2);
     assert_eq!(game.state.battlefield.get(&blocker).unwrap().damage_marked, 2);
 
-    // Run priority loop — SBAs fire automatically (rule 117.5), killing both
-    // Both pass once after SBAs (no actions available)
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Run priority loop — SBAs fire automatically (rule 117.5), killing both;
+    // then each player has `Pass` alone, which the engine takes
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Both creatures should be in graveyard, not on battlefield
@@ -252,8 +250,6 @@ fn test_bigger_creature_survives() {
     assert_eq!(game.state.battlefield.get(&blocker).unwrap().damage_marked, 3);
 
     // Run priority loop — SBAs fire, killing Bears but not Hill Giant
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Bears die, Hill Giant survives
@@ -303,8 +299,6 @@ fn test_overkill_damage_both_die() {
     assert_eq!(game.state.battlefield.get(&lions).unwrap().damage_marked, 2);
 
     // Run priority loop — SBAs fire, both should die
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     // Both creatures dead
@@ -338,18 +332,14 @@ fn test_no_attackers_no_damage() {
     game.state.skip_first_draw = true; // avoid discard-to-hand-size noise
 
     // Run an entire turn — all players pass all priority (no attacks).
-    // Turn priority points: Upkeep, Draw, Precombat, BeginCombat,
-    //   DeclareAttackers (TBA + priority), EndCombat, Postcombat, End.
-    // Bears is not summoning-sick (placed before run_turn), so
-    // ask_choose_attackers fires. We choose no attackers.
-    for _ in 0..8 { // Upkeep(2) + Draw(2) + Precombat(2) + BeginCombat(2)
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    }
+    // Player 0 holds Forests, so it is asked in each main phase, where it
+    // could play one; every other priority point offers `Pass` alone, which
+    // the engine takes. Bears is not summoning-sick (placed before run_turn),
+    // so ask_choose_attackers fires. We choose no attackers.
+    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // precombat main
     // DeclareAttackers TBA: choose no attackers
     dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![]);
-    for _ in 0..8 { // DeclareAttackers priority(2) + EndCombat(2) + Postcombat(2) + End(2)
-        dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    }
+    dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0]); // postcombat main
     game.run_turn(&dp).unwrap();
 
     // No damage should have been dealt
@@ -431,8 +421,11 @@ fn test_combat_damage_kills_player() {
 
     // Run priority loop — the SBA check ahead of the first grant performs
     // player 1's loss, the batch settles the result, and CR 104.1 ends the
-    // game there: nobody is asked to pass.
-    game.state.run_priority_loop(&scripted).unwrap();
+    // game there: nobody is asked to pass, though both seats stop at every
+    // priority point.
+    let after_loss = ScriptedDecisionProvider::new()
+        .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
+    game.state.run_priority_loop(&after_loss).unwrap();
     assert!(game.state.player_lost[1]);
 
     assert_eq!(game.result(), Some(GameResult::Winner(0)));
@@ -545,8 +538,6 @@ fn test_damage_persists_bolt_in_second_main_kills() {
     assert_eq!(game.state.battlefield.get(&lions).unwrap().damage_marked, 4);
 
     // Run priority → SBAs kill Lions, Elemental survives
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     assert!(game.state.battlefield.contains_key(&elemental));
@@ -572,11 +563,9 @@ fn test_damage_persists_bolt_in_second_main_kills() {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![2]);
-    // Both pass → resolve
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    // After resolve, SBAs kill Elemental. Both pass → phase ends
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve: with the bolt on the stack neither has more than
+    // `Pass`, which the engine takes. After it, SBAs kill Elemental, player 0
+    // passes holding a land, and the phase ends
     bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
     // Run priority loop: P0 pass → P1 cast bolt → all pass → resolve → SBAs fire
@@ -632,8 +621,6 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
     game.state.process_combat_damage(&scripted, false).unwrap();
 
     // Run priority → SBAs kill Lions
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
     game.state.run_priority_loop(&scripted).unwrap();
 
     assert!(game.state.battlefield.contains_key(&elemental));
@@ -660,12 +647,8 @@ fn test_damage_clears_at_cleanup_bolt_next_turn_survives() {
         recipient: EffectRecipient::Target(SelectionFilter::Any, TargetCount::Exactly(1)),
         spell_id: bolt_id,
     }, vec![2]);
-    // Both pass → resolve
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    // After resolve, SBAs check (elemental survives). Both pass → phase ends
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    bolt_scripted.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve, then SBAs check (elemental survives) and both pass
+    // → phase ends: neither has more than `Pass`, which the engine takes
 
     // Run priority loop: cast bolt → resolve → SBAs check
     game.state.run_priority_loop(&bolt_scripted).unwrap();

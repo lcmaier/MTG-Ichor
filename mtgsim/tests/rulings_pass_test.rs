@@ -73,8 +73,7 @@ fn cast_and_resolve(game: &mut GameState, cast_index: usize) {
         game.run_priority_round(&decisions).unwrap(),
         PriorityResult::ActionTaken
     );
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
+    // Both pass → resolve: each has `Pass` alone, which the engine takes
     game.run_priority_round(&decisions).unwrap();
 }
 

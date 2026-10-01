@@ -8,6 +8,24 @@ use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 
 use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 
+/// What the engine asks a seat's provider about the seat, rather than about a
+/// decision ([`DecisionProvider::seat_mode`]). Client state, never
+/// `GameState`'s: each field changes what the seat is asked, so a replay of
+/// the seat's answers keeps it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SeatMode {
+    /// Asked at a priority point where `Pass` is all the seat can do, which
+    /// the engine otherwise takes itself: a prompt with one legal answer is
+    /// the engine's (`backlog.md` §2.22, rule 1). A person in full control
+    /// stops there, and so does a test that watches every grant.
+    pub stops_at_every_priority_point: bool,
+    /// A person, who may cancel an action and choose it again. A priority
+    /// window drops an agent's rejected action until it closes and charges it
+    /// to a retry budget, which is what makes the agent's re-picks terminate;
+    /// neither binds a person (`codebase-state.md` item 192).
+    pub person: bool,
+}
+
 /// What a player chooses to do when they have priority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PriorityAction {
@@ -195,6 +213,10 @@ impl DecisionProvider for DispatchDecisionProvider {
     ) -> Vec<usize> {
         self.dp_for(player).choose_ordering(game, player, context, items)
     }
+
+    fn seat_mode(&self, player: PlayerId) -> SeatMode {
+        self.dp_for(player).seat_mode(player)
+    }
 }
 
 // ===========================================================================
@@ -255,6 +277,14 @@ pub trait DecisionProvider {
         context: &ChoiceContext,
         items: &[ChoiceOption],
     ) -> Vec<usize>;
+
+    /// The seat's mode. The default, every field off, is an agent's; a
+    /// provider that is not an agent says so, and anything standing between
+    /// the engine and that provider — a decorator,
+    /// [`DispatchDecisionProvider`] — forwards the question.
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        SeatMode::default()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -290,6 +320,7 @@ pub struct ScriptedDecisionProvider {
     /// The `per_bucket_mins` of every [`DecisionProvider::allocate`] this
     /// provider has answered, in prompt order — see [`Self::allocation_mins`].
     allocation_mins: RefCell<Vec<Vec<u64>>>,
+    mode: SeatMode,
 }
 
 impl ScriptedDecisionProvider {
@@ -297,7 +328,15 @@ impl ScriptedDecisionProvider {
         ScriptedDecisionProvider {
             queue: RefCell::new(VecDeque::new()),
             allocation_mins: RefCell::new(Vec::new()),
+            mode: SeatMode::default(),
         }
+    }
+
+    /// Report `mode` as the seat's, for a test that scripts what a seat which
+    /// is not an agent's is asked.
+    pub fn with_seat_mode(mut self, mode: SeatMode) -> Self {
+        self.mode = mode;
+        self
     }
 
     /// The per-bucket **minimums** each `allocate` was offered, in prompt
@@ -386,24 +425,13 @@ impl ScriptedDecisionProvider {
         self.queue.borrow().len()
     }
 
-    /// Enqueue all priority passes for one full empty turn (no creatures,
-    /// no spells cast). The turn structure yields 8 priority points where
-    /// both players pass:
-    ///
-    ///   Upkeep, Draw, Precombat, BeginCombat, DeclareAttackers,
-    ///   EndCombat, Postcombat, End
-    ///
-    /// = 8 × 2 players = 16 passes total.
-    ///
-    /// DeclareBlockers / FirstStrikeDamage / CombatDamage are skipped
-    /// when no attackers are declared (rule 508.8). Untap and Cleanup
-    /// never grant priority.
-    pub fn queue_empty_turn_passes(&self) {
-        for _ in 0..16 {
-            self.expect_pick_n(
-                crate::ui::choice_types::ChoiceKind::PriorityAction,
-                vec![0],
-            );
+    /// Enqueue the passes of a turn in which the active player holds a land
+    /// and does nothing else: one in each main phase, where playing it is
+    /// offered. Every other priority point offers `Pass` alone, which the
+    /// engine takes without asking (`engine::priority`).
+    pub fn queue_main_phase_passes(&self) {
+        for _ in 0..2 {
+            self.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         }
     }
 }
@@ -491,5 +519,9 @@ impl DecisionProvider for ScriptedDecisionProvider {
                 other
             ),
         }
+    }
+
+    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
+        self.mode
     }
 }
