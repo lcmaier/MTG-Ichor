@@ -66,7 +66,7 @@ fn the_window_at_each_kind_of_prompt_the_review_boards_reach() {
     let line = (format!("scenario {sample} · seed 0"), PathBuf::from("logs/bolt-into-giant-growth-seed-0.log"));
     results.add(picture(&setup_stack(sample), &line, None, "setup_stack"));
     let (state, board) = &first["priority"];
-    results.add(picture(state, &header(board), Some("saved logs/main-seed-0-turn-3.scenario"), "board_saved"));
+    results.add(picture(state, &header(board), Some(Ok("saved logs/main-seed-0-turn-3.scenario")), "board_saved"));
     let missing: Vec<&str> = PICTURES.iter().map(|(_, name)| *name).filter(|name| !first.contains_key(name)).collect();
     assert!(missing.is_empty(), "the review boards no longer reach {missing:?}");
 }
@@ -116,7 +116,7 @@ fn refused() -> WindowState {
     state
 }
 
-fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<&str>, name: &str) -> SnapshotResult {
+fn picture(state: &WindowState, (line, log): &(String, PathBuf), saved: Option<Result<&str, &str>>, name: &str) -> SnapshotResult {
     let header = SessionHeader { line, log: Some(log), reloadable: true, saved };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
         draw(ui, state, &header);

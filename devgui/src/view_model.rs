@@ -255,6 +255,17 @@ impl WindowState {
         }
     }
 
+    /// What the board's place says while there is no board.
+    pub fn no_board(&self) -> &'static str {
+        if self.refused.is_some() {
+            "No board: the scenario did not load."
+        } else if self.panic.is_some() {
+            "No board: the engine panicked before its first prompt."
+        } else {
+            "Waiting for the engine's first prompt."
+        }
+    }
+
     pub fn board_view(&self) -> Option<BoardView> {
         let board = self.board.as_ref()?;
         Some(BoardView::new(board, &Marks::new(self.prompt.as_ref(), self.selection.as_ref())))
@@ -887,5 +898,7 @@ mod tests {
         assert!(state.prompt.is_none() && state.prompt_view().is_none());
         assert_eq!(state.status(), "The engine panicked");
         assert_eq!(state.input(Input::OptionButton(0)), None);
+        let before_any_board = WindowState { panic: Some("early".to_string()), ..WindowState::default() };
+        assert_eq!(before_any_board.no_board(), "No board: the engine panicked before its first prompt.");
     }
 }

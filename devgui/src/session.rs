@@ -17,8 +17,9 @@ pub struct Session {
     /// What the window shows: the engine's last messages and the answer in
     /// progress.
     pub state: WindowState,
-    /// What the last "Save board as scenario" did, for the header.
-    pub saved: Option<String>,
+    /// What the last "Save board as scenario" did, for the header: where it
+    /// saved, or why it could not.
+    pub saved: Option<Result<String, String>>,
     engine: EngineHandle,
     wake: Arc<dyn Fn() + Send + Sync>,
 }
@@ -51,8 +52,8 @@ impl Session {
                 let Some(board) = &self.state.board else { return };
                 let path = saved_board_path(self.log_path.as_deref(), board.turn);
                 self.saved = Some(match std::fs::write(&path, &board.board_text) {
-                    Ok(()) => format!("saved {}", path.display()),
-                    Err(e) => format!("cannot save {}: {e}", path.display()),
+                    Ok(()) => Ok(format!("saved {}", path.display())),
+                    Err(e) => Err(format!("cannot save {}: {e}", path.display())),
                 });
             }
             input => {
