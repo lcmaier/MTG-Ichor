@@ -101,7 +101,7 @@ says nothing about progress, so there is one answer and it is derived.
 |---|---:|
 | Cards registered | 181 |
 | …of them in `PERFORMANCE_POOL` | 101 |
-| `#[test]` functions | 1942 |
+| `#[test]` functions | 1943 |
 
 Coverage is a separate query and stays one: `python plans/specdb.py stats`.
 
@@ -149,7 +149,7 @@ discipline. → `engineering-practices.md` §5.
 `plans/handoffs/*.md`. These are deleted when the work lands, so a file here
 is an open plate.
 
-- (none — nothing half-finished)
+- `plans/handoffs/a6g-gui-review.md`
 
 ## What this file deliberately does not know
 
