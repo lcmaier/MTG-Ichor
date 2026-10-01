@@ -329,6 +329,19 @@ files and touches no test, so either may go first. It closes when
 `check_rulings.py --check` gates every registered printing rather than the
 cards read or registered since the ledger began.
 
+**C2 — Layer 3, text-changing effects (CR 612), a line item (the owner,
+2026-09-30).** About 20 vintage-legal cards need it: too few for a phase of
+their own, and a vintage-sized Commander pool cannot leave them out. 13 swap
+words in rules text (Mind Bend, Sleight of Mind, Magical Hack), and the rest
+are Exchange of Words, Deadpool, Trading Card, Volrath's Shapeshifter, Spy Kit,
+four that set a name (Witness Protection among them) and a name sticker.
+`codebase-state.md` item 195 has the queries, what Layer 3 owes and where each
+piece waits. Its design comes first, in `layers-architecture.md`: the engine
+keeps no rules text, so a word swap rewrites the colors, subtypes and land
+types inside structured abilities. Then its build, which gives each gate its
+Layer 3 leg and makes each rename an `EffectModification` variant that answers
+`writes_name`. Independent of C0 and C1.
+
 ### D. Phase 9 — formats and multiplayer (230 atoms)
 
 The `Format` trait dispatching Commander against Standard; Commander complete
