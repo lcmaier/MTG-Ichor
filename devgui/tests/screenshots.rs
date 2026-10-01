@@ -11,7 +11,7 @@ mod window_by_rule;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use devgui::app::{Session, draw};
+use devgui::app::{SessionHeader, draw};
 use devgui::bridge::{GameSetup, ToWindow, spawn_game};
 use devgui::prompt::Answer;
 use devgui::view_model::{Input, WindowState};
@@ -99,7 +99,7 @@ fn refused() -> WindowState {
 }
 
 fn picture(state: &WindowState, line: &str, saved: Option<&str>, name: &str) -> SnapshotResult {
-    let session = Session { line, reloadable: true, saved };
+    let session = SessionHeader { line, reloadable: true, saved };
     let mut harness = Harness::builder().with_size([1280.0, 800.0]).build_ui(|ui| {
         draw(ui, state, &session);
     });

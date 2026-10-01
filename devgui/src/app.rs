@@ -1,69 +1,39 @@
-//! The egui drawing: lays out what `view_model` built and reports clicks back
-//! as `Input`s. It decides nothing, so it is reviewed by running it.
+//! The egui drawing: lays out what `view_model` built and hands each click to
+//! the `Session`. It decides nothing, so it is reviewed by running it.
 
 use std::sync::Arc;
 
 use eframe::egui;
 
-use crate::bridge::{EngineHandle, GameSetup, board_path, spawn_game};
+use crate::bridge::GameSetup;
+use crate::session::Session;
 use crate::view_model::{BoardView, Input, Item, PromptView, WindowState, ZoneView};
 
 pub struct DevGui {
-    state: WindowState,
-    engine: EngineHandle,
-    setup: GameSetup,
+    session: Session,
     /// The seed, the start and the decision log's path.
     setup_line: String,
-    wake: Arc<dyn Fn() + Send + Sync>,
-    /// What the last "Save board as scenario" did.
-    saved: Option<String>,
 }
 
 impl DevGui {
     pub fn new(setup: GameSetup, setup_line: String, wake: Arc<dyn Fn() + Send + Sync>) -> DevGui {
-        let engine = spawn_game(setup.clone(), Arc::clone(&wake));
-        DevGui { state: WindowState::default(), engine, setup, setup_line, wake, saved: None }
+        DevGui { session: Session::start(setup, wake), setup_line }
     }
 }
 
 impl eframe::App for DevGui {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        while let Ok(message) = self.engine.from_engine.try_recv() {
-            self.state.receive(message);
-        }
-        let session = Session { line: &self.setup_line, reloadable: self.setup.scenario.is_some(), saved: self.saved.as_deref() };
-        for input in draw(ui, &self.state, &session) {
-            match input {
-                // A new game from the file; the old engine thread unwinds when
-                // its channel closes, as a closed window ends it.
-                Input::Reload => {
-                    self.engine = spawn_game(self.setup.clone(), Arc::clone(&self.wake));
-                    self.state = WindowState::default();
-                    self.saved = None;
-                }
-                Input::SaveBoard => {
-                    if let Some(board) = &self.state.board {
-                        let path = board_path(&self.setup, board.turn);
-                        let written = std::fs::write(&path, &board.board_text);
-                        self.saved = Some(match written {
-                            Ok(()) => format!("saved {}", path.display()),
-                            Err(e) => format!("cannot save {}: {e}", path.display()),
-                        });
-                    }
-                }
-                input => {
-                    if let Some(answer) = self.state.input(input) {
-                        // Fails only once the engine thread has ended, and its last message said why.
-                        let _ = self.engine.answers.send(answer);
-                    }
-                }
-            }
+        self.session.receive();
+        let session = &self.session;
+        let header = SessionHeader { line: &self.setup_line, reloadable: session.setup.scenario.is_some(), saved: session.saved.as_deref() };
+        for input in draw(ui, &session.state, &header) {
+            self.session.input(input);
         }
     }
 }
 
 /// What the header says of the session, beside the board.
-pub struct Session<'a> {
+pub struct SessionHeader<'a> {
     /// The seed, the start and the decision log's path.
     pub line: &'a str,
     /// A scenario's game, which Reload builds again from its file.
@@ -72,7 +42,7 @@ pub struct Session<'a> {
 }
 
 /// The whole window; the inputs the player made this frame.
-pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &Session) -> Vec<Input> {
+pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> Vec<Input> {
     let mut inputs = Vec::new();
     let board = state.board_view();
     egui::Panel::top("header").show(ui, |ui| {

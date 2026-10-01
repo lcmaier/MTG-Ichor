@@ -19,7 +19,7 @@ use mtgsim::cards::random_deck::random_deck;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::Scenario;
-use mtgsim::state::game::{Game, Streams};
+use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
@@ -113,8 +113,8 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
 
 fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<Answer>, wake: &Arc<dyn Fn() + Send + Sync>) {
     let (mut game, log, agent_seed) = match &setup.scenario {
-        Some(path) => match scenario_game(setup, path) {
-            Ok((game, text)) => (game, DecisionLog::open(setup, &Start::Scenario { path, text: &text }), Streams::from_seed(setup.seed).agents),
+        Some(path) => match build_scenario_game(setup, path) {
+            Ok((game, text)) => (game, DecisionLog::open(setup, &GameStart::Scenario { path, text: &text }), RandomStreams::from_seed(setup.seed).agents),
             Err(message) => {
                 let _ = to_window.send(ToWindow::Refused { message });
                 wake();
@@ -130,7 +130,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
             let mut deck_rng = StdRng::seed_from_u64(setup.seed);
             let decks: Vec<Vec<Arc<CardData>>> =
                 (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
-            let log = DecisionLog::open(setup, &Start::Dealt(&decks));
+            let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
             let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
             game.reseed(setup.seed.wrapping_add(1));
             (game, log, setup.seed.wrapping_add(2))
@@ -164,20 +164,8 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
     wake();
 }
 
-/// Where "Save board as scenario" writes: beside the decision log, named for
-/// the turn, and never over an earlier save.
-pub fn board_path(setup: &GameSetup, turn: u32) -> PathBuf {
-    let log = setup.log_path.clone().unwrap_or_else(|| PathBuf::from("logs").join("board.log"));
-    let stem = log.file_stem().map_or("board".to_string(), |s| s.to_string_lossy().into_owned());
-    let named = |n: u32| match n {
-        1 => log.with_file_name(format!("{stem}-turn-{turn}.scenario")),
-        n => log.with_file_name(format!("{stem}-turn-{turn}-{n}.scenario")),
-    };
-    (1..).map(named).find(|path| !path.exists()).unwrap_or_else(|| named(1))
-}
-
 /// The scenario at `path` built at `setup.seed`, and its text; or why not.
-fn scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(Game, String), String> {
+fn build_scenario_game(setup: &GameSetup, path: &PathBuf) -> Result<(Game, String), String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let scenario = Scenario { seed: setup.seed, ..Scenario::parse(&text).map_err(|r| r.to_string())? };
     if scenario.players != 2 {
@@ -266,7 +254,7 @@ impl DecisionProvider for GuiSeat {
 }
 
 /// How a game began, as its log records it.
-enum Start<'a> {
+enum GameStart<'a> {
     Dealt(&'a [Vec<Arc<CardData>>]),
     /// The file and its text when it was read, so the log is a save even
     /// after the file changes (`setup-architecture.md` §7).
@@ -283,7 +271,7 @@ struct DecisionLog {
 }
 
 impl DecisionLog {
-    fn open(setup: &GameSetup, start: &Start) -> DecisionLog {
+    fn open(setup: &GameSetup, start: &GameStart) -> DecisionLog {
         let file = setup.log_path.as_ref().map(|path| {
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir).unwrap_or_else(|e| panic!("cannot create {}: {e}", dir.display()));
@@ -292,7 +280,7 @@ impl DecisionLog {
         });
         let mut log = DecisionLog { file, answers: 0 };
         match start {
-            Start::Dealt(decks) => {
+            GameStart::Dealt(decks) => {
                 log.line(&format!("seed {}", setup.seed));
                 log.line(&format!("pool {:?}", setup.pool));
                 for (seat, deck) in decks.iter().enumerate() {
@@ -301,7 +289,7 @@ impl DecisionLog {
                     log.line(&format!("deck {seat} {}", names.join("; ")));
                 }
             }
-            Start::Scenario { path, text } => {
+            GameStart::Scenario { path, text } => {
                 log.line(&format!("scenario {}", path.display()));
                 log.line(&format!("seed {}", setup.seed));
                 log.line("begin scenario text");
