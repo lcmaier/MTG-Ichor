@@ -533,17 +533,18 @@ impl GameState {
         (!names.is_empty()).then(|| Arc::new(names))
     }
 
-    /// `id`'s name now, where it is not its card's. In this engine only a
-    /// permanent's can be, through a copy effect or a face-down status, so
-    /// anything else costs a lookup; CR 612.6–612.9's Layer 3 renames, a
-    /// sticker's off the battlefield too, each need a leg here when they are
-    /// built (`codebase-state.md` item 195). Read as the dispatch audit reads,
-    /// off the memo or inside the bracket that puts the memo, the diagnostics
-    /// and the trace back: naming is not engine work.
+    /// `id`'s name now, where it is not its card's. A name is written by a row
+    /// ([`EffectModification::writes_name`]: a copy, or a text-changing rename,
+    /// which can reach a card off the battlefield, CR 612.9) or by a permanent's
+    /// own state (the copy it entered as, a face-down status). While no row
+    /// writes one, anything without that state costs a lookup. Read as the
+    /// dispatch audit reads, off the memo or inside the bracket that puts the
+    /// memo, the diagnostics and the trace back: naming is not engine work.
+    ///
+    /// [`EffectModification::writes_name`]: crate::engine::layers::types::EffectModification::writes_name
     fn name_unless_printed(&mut self, id: ObjectId) -> Option<String> {
-        let may_differ = self.battlefield.get(&id).is_some_and(|p| {
-            p.entered_as.copy.is_some() || p.face_down || self.continuous_effects.summary().any_copy_effect
-        });
+        let may_differ = self.continuous_effects.summary().any_name_writing_row
+            || self.battlefield.get(&id).is_some_and(|p| p.entered_as.copy.is_some() || p.face_down);
         if !may_differ {
             return None;
         }
@@ -611,5 +612,24 @@ mod tests {
         assert_eq!(format!("{:?}", game.diagnostics), diagnostics);
         assert!(game.layer_memo.get(clone, game.layer_epoch()).is_none(), "the walk's frame stayed in the memo");
         assert_eq!(trace.lines().len(), lines);
+    }
+
+    /// A row that writes a name can reach a card off the battlefield, as a
+    /// name sticker does (CR 612.9); a copy row stands in for one here.
+    #[test]
+    fn a_row_that_writes_a_name_reaches_a_card_off_the_battlefield() {
+        use crate::engine::layers::types::{EffectModification, Layer};
+        use crate::test_support::{forest, put_in_library, put_on_battlefield, registered, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let bears = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let card = put_in_library(&mut game, forest(), 0);
+        let values = crate::engine::layers::copy::copiable_values(&game, bears).unwrap();
+        let timestamp = game.allocate_timestamp();
+        let row = registered(card, Layer::Layer1Copy, timestamp, EffectModification::CopyFrom(Arc::new(values)));
+        game.continuous_effects.add(row);
+
+        let names = game.names_as_announced(&GameEvent::CardDrawn { player_id: 0, card_id: card });
+        assert_eq!(names.as_deref(), Some(&vec![(card, "Grizzly Bears".to_string())]));
     }
 }

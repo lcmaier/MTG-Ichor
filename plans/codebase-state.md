@@ -8776,25 +8776,41 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by #203's review (2026-09-30)
 
-195. **An event record keeps a name only where a copy or a face-down status
-     made it other than the card's, and Layer 3 can rename an object too.**
-     CR 612.6–612.9 put four renames in Layer 3 (CR 613.1c): Volrath's
-     Shapeshifter's "full text", Spy Kit's "all names", an effect that sets a
-     name (CR 612.8: Witness Protection's Legitimate Businessperson), and a
-     name sticker (CR 612.9), which also reaches a card off the battlefield.
-     `GameState::name_unless_printed` (`state/trace.rs`) asks only of a
-     permanent, and only its entry copy, its face-down status and
-     `RegistryScopeSummary::any_copy_effect`, so an object renamed in Layer 3
-     would be logged under its card's name. The owner chose the cheap check
-     with this caveat over reading every object's name on every event.
+195. **Layer 3 (CR 612) is unbuilt and has no slot, and about 20
+     vintage-legal cards need it.** The owner's call at #203's review: it is
+     not deferred indefinitely, as `Layer::Layer3Text` had said since Phase
+     LA, and new code is built for it rather than around it. Scryfall,
+     `legal:vintage`, 2026-09-30:
+     - 13 change words in rules text (CR 612.1–612.2, `o:"change the
+       text"`): Mind Bend, Sleight of Mind, Magical Hack, Artificial
+       Evolution among them;
+     - 2 exchange text boxes (612.5, `o:"text box"`): Exchange of Words,
+       Deadpool, Trading Card;
+     - 1 takes another object's full text (612.6): Volrath's Shapeshifter;
+     - 1 has all names (612.7): Spy Kit;
+     - 4 set a name (612.8, `o:" named " o:"loses all"`): Witness
+       Protection, Honest Work, The Irencrag, The Curse of Fenric;
+     - 1 puts on a name sticker (612.9): A Good Day to Pie.
 
-     **Reachability (2026-09-30):** unreachable — Layer 3 is unbuilt
-     (`Layer::Layer3Text`, "deferred indefinitely"), no `EffectModification`
-     sets a name outside a copy's values, and no registered card renames.
+     What it owes, and where each piece waits:
+     - the word swaps (CR 612.2): the engine keeps no rules text, so a swap
+       rewrites the colors, subtypes and land types inside `AbilityDef`s and
+       their filters. This is the design's main question;
+     - the renames (612.5–612.9): each is an `EffectModification` variant
+       that answers `writes_name` true, so the event record's names read it
+       with no further change (#203). Spy Kit's "all names", and CR 201.2a's
+       object with several names, need a name that can be a set;
+     - the two gates' Layer 3 legs (`gather.rs`, `predicate.rs`, ~20 lines
+       each), in "Two ETB-time scans read *printed* abilities" above;
+     - the atoms waiting on it: `backlog.md`'s audit rows for CR 612 and
+       201.2a, `ATOM-400.7a-002` and `COMP-613-LAYERS-FULL-STACK-001`.
 
-     **Sized:** ~5–15 lines with the first renaming effect: a summary flag set
-     by its variant beside `any_copy_effect`, a leg for an object off the
-     battlefield if it is a sticker, and a log line in that card's test.
-     **Slotted:** with the first registered card that renames, Witness
-     Protection the likeliest, in Phase 8's breadth (`roadmap-v2.md` §C), in
-     the PR that builds its Layer 3 effect.
+     **Reachability (2026-09-30):** unreachable — nothing produces a Layer 3
+     effect, and no registered card is one of the 20.
+
+     **Sized:** by its design, written first in `layers-architecture.md`. The
+     word swaps over a structured ability are the unknown; the renames, the
+     gate legs and the record's names are each small.
+     **Slotted:** proposed, for the owner to place: its design, then its
+     build, back-stopped before Phase 8 beside item 33's mana provenance, so
+     that Phase 8's breadth does not add cards around it.

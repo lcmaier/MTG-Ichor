@@ -535,13 +535,12 @@ pub struct EventRecord {
 }
 
 /// The names an event's objects were announced under, where one was not its
-/// card's: a copy's (CR 707.2), or a face-down permanent's, which is none (CR
-/// 708.2a). `None` on nearly every record. Kept because the log and the trace
-/// format a record after its objects may have changed; no rule reads it. Only
-/// those: in this engine every other object's name is its card's
-/// (`codebase-state.md` item 195 has the Layer 3 caveat), which the store
-/// keeps, so recording it would cost a read and an allocation per object per
-/// event.
+/// card's: a copy's (CR 707.2), a face-down permanent's, which is none (CR
+/// 708.2a), or one a text-changing effect wrote (CR 612.5–612.9). `None` on
+/// nearly every record. Kept because the log and the trace format a record
+/// after its objects may have changed; no rule reads it. Only those: every
+/// other object's name is its card's, which the store keeps, so recording it
+/// would cost a read and an allocation per object per event.
 pub type NamesAsAnnounced = Option<Arc<Vec<(ObjectId, String)>>>;
 
 impl EventRecord {
