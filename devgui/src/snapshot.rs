@@ -17,7 +17,7 @@ use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
-use mtgsim::ui::display::{format_event, format_permanent, format_phase};
+use mtgsim::ui::display::{format_event, format_permanent, format_phase, object_label};
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
@@ -273,11 +273,12 @@ pub(crate) fn words(variant: &str) -> String {
     out
 }
 
-/// `Grizzly Bears (#12)`, the shape `format_event`'s log lines use, so a name
-/// on the board and one in the log read the same.
+/// `Grizzly Bears (#12)`, or `Grizzly Bears (Clone, #12)` for a copy: the
+/// shape `format_event`'s log lines use, so a name on the board and one in the
+/// log read the same.
 pub(crate) fn named(game: &GameState, id: ObjectId) -> String {
     match compute_characteristics(game, id) {
-        Some(chars) => format!("{} ({id})", chars.name),
+        Some(chars) => object_label(game, id, &chars.name),
         None => format!("{id} (gone)"),
     }
 }

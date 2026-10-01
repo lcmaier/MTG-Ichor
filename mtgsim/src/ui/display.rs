@@ -221,13 +221,23 @@ pub fn format_phase(game: &GameState) -> String {
 // Event log formatting
 // ---------------------------------------------------------------------------
 
-/// "Grizzly Bears (#12)": the name the record kept for the object, where a
-/// copy made it other than its card's, else its card's; the bare id for an
-/// object the store no longer holds.
+/// "Grizzly Bears (#12)", the shape every line naming an object uses, or
+/// "Grizzly Bears (Clone, #12)" when `name` is not its card's, so a copy reads
+/// as what it is.
+pub fn object_label(game: &GameState, id: ObjectId, name: &str) -> String {
+    match game.objects.get(&id).map(|obj| obj.card_data.name.as_str()) {
+        Some(card) if card != name => format!("{name} ({card}, {id})"),
+        _ => format!("{name} ({id})"),
+    }
+}
+
+/// The object under the name the record kept for it, where a copy made it
+/// other than its card's, else its card's; the bare id for an object the
+/// store no longer holds.
 fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) -> String {
     let kept = announced.as_deref().and_then(|names| names.iter().find(|(named, _)| *named == id));
     match (kept, game.objects.get(&id)) {
-        (Some((_, name)), _) => format!("{} ({})", name, id),
+        (Some((_, name)), _) => object_label(game, id, name),
         (None, Some(obj)) => format!("{} ({})", obj.card_data.name, id),
         (None, None) => format!("{}", id),
     }
@@ -237,7 +247,7 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
 /// battlefield (CR 603.10a), its card anywhere else.
 fn as_it_left(game: &GameState, id: ObjectId, lki: &Option<Arc<EffectiveCharacteristics>>) -> String {
     match lki {
-        Some(frame) => format!("{} ({})", frame.name, id),
+        Some(frame) => object_label(game, id, &frame.name),
         None => name_with_id(game, id, &None),
     }
 }
@@ -523,10 +533,10 @@ mod tests {
         let log = format_event_log(&game);
         let has = |line: String| assert!(log.contains(&line), "{line}\n{log:#?}");
         has(format!("ZoneChange: Clone ({clone}) [P0] Graveyard -> Battlefield [Returned]"));
-        has(format!("ETB: Grizzly Bears ({clone}) [P0]"));
-        has(format!("Tapped: Grizzly Bears ({clone})"));
-        has(format!("ZoneChange: Grizzly Bears ({clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
-        has(format!("Tapped: Grizzly Bears ({shaped})"));
+        has(format!("ETB: Grizzly Bears (Clone, {clone}) [P0]"));
+        has(format!("Tapped: Grizzly Bears (Clone, {clone})"));
+        has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
+        has(format!("Tapped: Grizzly Bears (Test Creature, {shaped})"));
         has(format!("Untapped: Test Creature ({shaped})"));
     }
 
