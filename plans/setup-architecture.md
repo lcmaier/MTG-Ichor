@@ -86,8 +86,8 @@ code shape, cost and upkeep.
    say what to change, a list of cards in development that a scenario can name
    before they are registered (in SU-1, the owner, 2026-10-01), setup actions
    for what only an effect makes, the growth contract for a new mechanic's
-   state, and a board editor in the dev GUI, **SU-3**, right after SU-2 (moved
-   ahead of playable and the tools PR at #206's review, the owner, 2026-10-01).
+   state, and a board editor in the dev GUI, **SU-3**, after the tools PR (moved
+   up at #206's review and back at SU-2's, the owner, 2026-10-01).
 
 **Size** (§8): SU-1's code ~1,010–1,360 lines and tests ~710–980; SU-2
 ~400–650 in all, built at 640 and 314. **A/B:** `IDENTICAL` predicted for each,
@@ -767,11 +767,11 @@ in the way, and each has a step with its slot.
    counters, attachment and combat. It edits the same `Scenario` value the
    parser builds and saves through the writer, so it adds no third road. It is
    a plain-Rust editor model with tests under a thin egui layer, the GUI review
-   path's shape, at ~500–900 lines with its tests. **Right after SU-2** (the
-   owner, at #206's review, 2026-10-01), ahead of playable and the tools PR:
-   a board is built by clicking before one is saved from a game. It needs only
-   the `Scenario` value and the writer, both SU-1's; the editor's undo is its
-   own model's, so the tools PR's replay is not needed to build a board.
+   path's shape, at ~500–900 lines with its tests. **After the tools PR** (the
+   owner, 2026-10-01: moved up to follow SU-2 at #206's review, and back at
+   SU-2's, behind the GUI review practices, ability names and playable, so the
+   window names what it shows first). It needs only the `Scenario` value and
+   the writer, both SU-1's, and the editor's undo is its own model's.
 
 So a board reaches a scenario three ways, all into one `Scenario` value:
 written as text (SU-1), saved from a game and edited (SU-1's writer), or built
