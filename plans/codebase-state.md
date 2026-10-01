@@ -8758,7 +8758,8 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      first-draw PR).** — archived. `Game::new` derives CR 103.8's answer
      from the seat count (`starting_player_skips_first_draw`), and
      `GameConfig::first_player_draws` is an override only `test()` sets. The
-     clients build their games from `GameConfig::unrestricted()`.
+     clients build their games from `GameConfig::unrestricted()`, and the
+     skipped draw step no longer begins (CR 500.11).
      **Reachability (2026-10-01):** closed — the first-draw PR.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 194".
 

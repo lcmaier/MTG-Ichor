@@ -252,6 +252,14 @@ impl GameState {
         {
             return Ok(false);
         }
+        // CR 103.8a — the starting player skips the draw step of their first
+        // turn, the same way: to skip a step "is to proceed past it as though it
+        // didn't exist" (CR 500.11). A CR 614.10 skip of the next draw step waits
+        // for the first one that is not skipped (614.10a), so this comes first.
+        if step == StepType::Draw && self.skip_first_draw {
+            self.skip_first_draw = false;
+            return Ok(false);
+        }
         let player = self.active_player;
         let performed = self.execute_actions(vec![GameAction::BeginStep { step, player }], ctx)?;
         if performed.is_empty() {
@@ -456,29 +464,23 @@ impl GameState {
     fn process_draw_step(&mut self, ctx: &ActionContext) -> Result<(), String> {
         let active = self.active_player;
 
-        // CR 103.8a — the starting player skips their first draw step. A one-time
-        // flag `Game::new` sets (`starting_player_skips_first_draw`); every other
-        // skip is a CR 614.10 replacement on the proposal below.
-        if self.skip_first_draw {
-            self.skip_first_draw = false;
-        } else {
-            // Through the chokepoint, not straight to `draw_card`: CR 614.11 draw
-            // replacements and CR 614.10 skips both act on the *proposal*, and the
-            // turn-based action is where the proposal is born. The **instruction**
-            // rather than the draw (CR 121.2a): CR 504.1's turn-based action is "draw a
-            // card", one "draw" of one card, and every draw instruction proposes the
-            // outer so that Divination and a pair of cantrips are told apart by `n`.
-            // The engine's one `DrawCause::TurnBased` site (CR 121.1).
-            //
-            // Not for an active player who has left the game (CR 800.4j — "the turn
-            // continues to its completion without an active player"): the turn-based
-            // action is theirs to perform, and there is nobody to perform it.
-            if self.in_game(active) {
-                self.execute_action(
-                    GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
-                    ctx,
-                )?;
-            }
+        // Through the chokepoint, not straight to `draw_card`: CR 614.11 draw
+        // replacements and CR 614.10 skips both act on the *proposal*, and the
+        // turn-based action is where the proposal is born. The **instruction**
+        // rather than the draw (CR 121.2a): CR 504.1's turn-based action is "draw a
+        // card", one "draw" of one card, and every draw instruction proposes the
+        // outer so that Divination and a pair of cantrips are told apart by `n`.
+        // The engine's one `DrawCause::TurnBased` site (CR 121.1). CR 103.8a's
+        // skip is not here: that draw step never begins (`begin_step`).
+        //
+        // Not for an active player who has left the game (CR 800.4j — "the turn
+        // continues to its completion without an active player"): the turn-based
+        // action is theirs to perform, and there is nobody to perform it.
+        if self.in_game(active) {
+            self.execute_action(
+                GameAction::DrawCards { player: active, n: 1, cause: DrawCause::TurnBased },
+                ctx,
+            )?;
         }
 
         self.priority_player = active;

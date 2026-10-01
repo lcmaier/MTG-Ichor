@@ -114,15 +114,17 @@ Scenario::build           a board at the start of a priority round, ────
 first-draw PR, 2026-10-01). `Game::new` sets `skip_first_draw` from
 `state::game::starting_player_skips_first_draw`, which answers CR 103.8a and
 103.8c from the seat count the game begins with, as CR 800.1 reads it
-(`GameState::is_multiplayer`). The answer keys on the players, never on a
-format: a two-player Commander game skips the draw, and four players with
-60-card decks do not. So no config states it. `GameConfig::first_player_draws`
-is an override, `None` in every constructor but `test()`, whose `Some(true)`
-keeps a test's hand sizes independent of the seat count; the clients build
-their games from `GameConfig::unrestricted()`. A scenario that starts in turn 1
-before the draw step calls the same function (§5.1). CR 103.8b's Two-Headed
-Giant team plugs in at the function's input once Phase 9 models teams
-(`codebase-state.md` item 196); neither caller changes.
+(`GameState::is_multiplayer`). `begin_step` reads the flag and refuses that
+draw step at its proposal, since a skipped step is passed "as though it didn't
+exist" (CR 500.11): it begins nothing and grants no priority. The answer keys
+on the players, never on a format: a two-player Commander game skips the draw,
+and four players with 60-card decks do not. So no config states it.
+`GameConfig::first_player_draws` is an override, `None` in every constructor
+but `test()`, whose `Some(true)` keeps a test's hand sizes independent of the
+seat count; the clients build their games from `GameConfig::unrestricted()`. A
+scenario that starts in turn 1 before the draw step calls the same function
+(§5.1). CR 103.8b's Two-Headed Giant team plugs in at the function's input once
+Phase 9 models teams (`codebase-state.md` item 196); neither caller changes.
 
 ---
 

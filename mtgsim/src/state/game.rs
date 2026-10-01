@@ -396,6 +396,7 @@ pub fn starting_player_skips_first_draw(state: &GameState) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::event::GameEvent;
     use crate::objects::card_data::CardDataBuilder;
     use crate::types::card_types::{CardType, Supertype, Subtype, LandType};
     use crate::types::mana::ManaType;
@@ -473,9 +474,18 @@ mod tests {
     fn first_draw_game(mut config: GameConfig, seats: usize) -> (Game, ScriptedDecisionProvider) {
         config.max_hand_size = 8;
         let mut game = Game::new(config, vec![make_test_decklist(20); seats]).unwrap();
+        game.state.record_events();
         let decisions = ScriptedDecisionProvider::new();
         game.setup(&decisions).unwrap();
         (game, decisions)
+    }
+
+    fn draw_steps_begun(game: &Game) -> usize {
+        game.state
+            .recorded_events()
+            .events()
+            .filter(|event| matches!(event, GameEvent::StepBegin { step: StepType::Draw, .. }))
+            .count()
     }
 
     /// Plays the next turn, passing in its main phases: did `player` draw in it?
@@ -492,9 +502,11 @@ mod tests {
         for config in configs_without_an_override() {
             let (mut game, decisions) = first_draw_game(config, 2);
             assert!(!drew_in_next_turn(&mut game, &decisions, 0), "CR 103.8a: the starting player skips it");
+            assert_eq!(draw_steps_begun(&game), 0, "CR 500.11: as though it didn't exist");
             assert!(!game.state.skip_first_draw);
             assert!(drew_in_next_turn(&mut game, &decisions, 1));
             assert!(drew_in_next_turn(&mut game, &decisions, 0), "their second turn draws");
+            assert_eq!(draw_steps_begun(&game), 2);
         }
     }
 
