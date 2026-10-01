@@ -63,9 +63,9 @@ Legend: ✅ done (with test coverage) · 🟡 partial · ⚠️ stub or sketch �
 | Section | Rule topic | Status | Where |
 |---|---|---|---|
 | 100 | Formats / deck legality (size, copy limits) | 🟡 config present, enforcement not wired | `state/game_config.rs` |
-| 103.2 | Starting life | ✅ | `state/game_config.rs` |
+| 103.4 | Starting life | ✅ | `state/game_config.rs` |
 | 103.5 | Mulligan (London) | ⚠️ **stubbed** — "players always keep their first hand"; `backlog.md` §2.32 | `state/game.rs`, `Game::setup` |
-| 103.6 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
+| 103.5 | Starting hand size | ✅ | `state/game_config.rs`, `state/game.rs:98-104` |
 | 103.8 | The starting player's first draw step | ✅ 103.8a and 103.8c, from the seat count at `Game::new`; 103.8b (Two-Headed Giant) waits for teams, item 196 | `state/game.rs`, `starting_player_skips_first_draw` |
 | 107 | Mana values, X costs, hybrid/Phyrexian symbols (enum) | 🟡 enum defined; hybrid/Phyrexian/X payment = `NotImplemented` | `types/mana.rs`, `can_pay` returns false for hybrid |
 | 108 | Tokens and cards | ✅ `is_token`, `is_copy` flags | `objects/object.rs` |
@@ -8827,3 +8827,48 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      turn 1. **Slotted:** Phase 9 (`roadmap-v2.md` §D), in the PR that
      models teams for CR 805's shared team turns, which CR 810.2 makes
      Two-Headed Giant use.
+
+### Found by SU-1, the scenario loader (2026-10-01)
+
+197. **Nothing on the entry path checks CR 304.4 and 307.4: "instants can't
+     enter the battlefield", and sorceries likewise, "it remains in its
+     previous zone instead".** `place_on_battlefield` makes a permanent of
+     whatever it is handed. The scenario loader is the first to refuse one
+     (`Scenario::build`, `// PRE-LAYER ZONE:`), at construction rather than
+     in play.
+
+     **Reachability (2026-10-01):** unreachable — no registered effect puts a
+     card onto the battlefield without casting it (`Primitive::ReturnToBattlefield`
+     is a stub that errors), every registered zone-change redirect goes to exile
+     or a library, and a resolving spell enters only when `has_permanent_type`
+     says it is a permanent spell.
+
+     **Sized:** ~15–25 lines: the check where an entry is proposed, as a rule
+     ahead of the pipeline (CR 304.4's "remains in its previous zone" is no
+     replacement effect), and a fixture test that returns an instant.
+     **Slotted:** with the first registered card that puts a card onto the
+     battlefield without casting it, whose PR builds `Primitive::ReturnToBattlefield`
+     (`resolve.rs` files it under `backlog.md` §2.5): Phase 8's breadth,
+     `roadmap-v2.md` §C.
+
+198. **A creature's deathtouch damage outlives the state-based-action check
+     that read it.** CR 704.5h destroys a creature "dealt damage by a source
+     with deathtouch since the last time state-based actions were checked".
+     The engine marks `PermanentState::damaged_by_deathtouch` and clears it
+     only at cleanup or a regeneration, so a check later in the turn reads
+     damage an earlier check already read. A probe (throwaway, 2026-10-01):
+     Darksteel Colossus dealt 1 by a deathtouch source survives the check,
+     indestructible; it then loses its abilities, 11/11 with 1 damage, and the
+     next check destroys it. The rule leaves it on the battlefield. The scenario
+     writer reports the mark when it finds one at rest, since no word writes it.
+
+     **Reachability (2026-10-01):** reachable — wrong today. Vampire
+     Nighthawk's damage to Darksteel Colossus, then Cytoshape making the
+     Colossus a copy of a creature tougher than its damage in the same turn,
+     is three registered cards in the stress pool. Humility alone does not
+     show it: a 1/1 with damage dies to CR 704.5g anyway.
+
+     **Sized:** ~10–20 lines: each check clears the marks it read, once it has
+     read them, and the probe as a test that fails against the tree.
+     **Slotted:** `roadmap-v2.md` A6g, its own commit beside SU-2, ahead of the
+     tools PR whose replays would carry it.

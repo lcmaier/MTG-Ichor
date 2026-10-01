@@ -1055,7 +1055,7 @@ impl GameState {
         self.rng = StdRng::from_os_rng();
     }
 
-    /// Shuffle a player's library with the game's RNG (CR 701.20).
+    /// Shuffle a player's library with the game's RNG (CR 701.24).
     ///
     /// Lives here rather than on `Game` because it needs `rng` and `players`
     /// borrowed at once, and because in-game shuffle effects will want it.
