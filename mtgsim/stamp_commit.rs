@@ -33,19 +33,22 @@ fn main() {
     };
     println!("cargo:rustc-env=MTGSIM_COMMIT={commit}");
 
-    // The paths that change the answer: the tree, and the refs HEAD reads.
+    // The paths that change the answer: the tree, and the refs HEAD reads. A git
+    // path only if it exists, since cargo reruns a script whose watched path is
+    // missing on every build, and recompiles the crate after it: a shallow
+    // checkout, CI's, has no `packed-refs`.
     println!("cargo:rerun-if-changed=stamp_commit.rs");
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=tests");
-    for path in ["HEAD", "packed-refs"] {
-        if let Some(p) = git(&["rev-parse", "--git-path", path]) {
+    let watch = |path: &str| {
+        if let Some(p) = git(&["rev-parse", "--git-path", path]).filter(|p| std::path::Path::new(p).exists()) {
             println!("cargo:rerun-if-changed={p}");
         }
-    }
-    if let Some(branch) = git(&["symbolic-ref", "-q", "HEAD"])
-        && let Some(p) = git(&["rev-parse", "--git-path", &branch])
-    {
-        println!("cargo:rerun-if-changed={p}");
+    };
+    watch("HEAD");
+    watch("packed-refs");
+    if let Some(branch) = git(&["symbolic-ref", "-q", "HEAD"]) {
+        watch(&branch);
     }
 }
