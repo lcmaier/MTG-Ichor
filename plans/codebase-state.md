@@ -8811,6 +8811,6 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      **Sized:** by its design, written first in `layers-architecture.md`. The
      word swaps over a structured ability are the unknown; the renames, the
      gate legs and the record's names are each small.
-     **Slotted:** proposed, for the owner to place: its design, then its
-     build, back-stopped before Phase 8 beside item 33's mana provenance, so
-     that Phase 8's breadth does not add cards around it.
+     **Slotted:** Phase 8, its own line item (`roadmap-v2.md` §C, C2; the
+     owner, 2026-09-30, since the card pool is small): its design, then its
+     build.
