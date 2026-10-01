@@ -198,7 +198,7 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
                         Some(place) => format!("{place}. {}", option.label),
                         None => option.label.clone(),
                     };
-                    if ui.add(egui::Button::new(label).selected(option.chosen)).clicked() {
+                    if ui.add_enabled(option.live, egui::Button::new(label).selected(option.chosen)).clicked() {
                         inputs.push(Input::OptionButton(i));
                     }
                 }

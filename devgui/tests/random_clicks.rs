@@ -2,8 +2,9 @@
 //! prompt the test clicks anything the window would let a person click, until
 //! an answer completes: a half chosen and abandoned, a reset in the middle of
 //! an ordering, a bucket filled and emptied, the clicks no fixed rule makes.
-//! Every game must finish, the engine thread must not panic, and the engine
-//! must accept every answer the view model builds.
+//! Every game must finish, the engine thread must not panic, the engine must
+//! accept every answer the view model builds, and every click the window
+//! offers must move the answer along.
 
 #[path = "support/games.rs"]
 mod games;
@@ -99,9 +100,12 @@ fn click_until_answered(state: &mut WindowState, rng: &mut StdRng) -> Option<dev
             assert!(!offered.is_empty(), "the window offers nothing to click at {:?}", state.prompt);
             offered[rng.random_range(0..offered.len())]
         };
+        let before = state.selection.clone();
         if let Some(answer) = state.input(input) {
             return Some(answer);
         }
+        let typed = matches!(input, Input::Number(_));
+        assert!(typed || state.selection != before, "the window offered {input:?}, which did nothing, at {:?}", state.prompt);
     }
     None
 }
@@ -120,7 +124,7 @@ fn clickable(state: &WindowState, rng: &mut StdRng) -> Vec<Input> {
                 inputs.extend(can_lower.then_some(Input::OneFewer(i)));
                 inputs.extend(can_raise.then_some(Input::OneMore(i)));
             }
-            None => inputs.push(Input::OptionButton(i)),
+            None => inputs.extend(option.live.then_some(Input::OptionButton(i))),
         }
     }
     if let Some(NumberField { min, max, .. }) = prompt.number {
