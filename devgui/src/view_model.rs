@@ -28,6 +28,10 @@ pub enum Input {
     Done,
     /// Start the answer over.
     Reset,
+    /// Build the game again from its scenario file, read again.
+    Reload,
+    /// Write the board at this prompt to a scenario file.
+    SaveBoard,
 }
 
 /// The answer being put together.
@@ -178,6 +182,8 @@ pub struct WindowState {
     pub log: Vec<String>,
     pub outcome: Option<Outcome>,
     pub panic: Option<String>,
+    /// Why the scenario did not load.
+    pub refused: Option<String>,
 }
 
 impl WindowState {
@@ -201,12 +207,17 @@ impl WindowState {
                 self.selection = None;
                 self.panic = Some(message);
             }
+            ToWindow::Refused { message } => self.refused = Some(message),
         }
     }
 
     /// The answer to send, once `input` completes one. The prompt closes with
     /// it; the board stays until the engine's next message.
     pub fn input(&mut self, input: Input) -> Option<Answer> {
+        // The window's own controls, which `app` acts on; no prompt's answer.
+        if matches!(input, Input::Reload | Input::SaveBoard) {
+            return None;
+        }
         let answer = self.selection.as_mut()?.apply(self.prompt.as_ref()?, input)?;
         self.prompt = None;
         self.selection = None;
@@ -215,7 +226,9 @@ impl WindowState {
 
     /// What the window is doing, for the header.
     pub fn status(&self) -> String {
-        if self.panic.is_some() {
+        if self.refused.is_some() {
+            "The scenario did not load".to_string()
+        } else if self.panic.is_some() {
             "The engine panicked".to_string()
         } else if let Some(outcome) = &self.outcome {
             match outcome {

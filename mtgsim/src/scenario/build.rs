@@ -282,7 +282,9 @@ impl<'s> Loader<'s> {
     }
 
     fn combat(&mut self) -> Result<(), Refusal> {
-        let (active, step) = (self.scenario.active, position_word(self.scenario.step));
+        let active = self.scenario.active;
+        // "the precombat main phase", "the declare blockers step".
+        let step = format!("{} {}", position_word(self.scenario.step), if self.scenario.step.step.is_some() { "step" } else { "phase" });
         let unreachable = |line: usize, message: String| refusal(RefusalKind::Unreachable, line, message);
         for (line, id, target) in std::mem::take(&mut self.attackers) {
             let name = self.state.objects[&id].card_data.name.clone();

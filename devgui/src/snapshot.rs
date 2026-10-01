@@ -11,6 +11,7 @@ use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
+use mtgsim::scenario::Scenario;
 use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
@@ -35,6 +36,9 @@ pub struct Snapshot {
     pub log: Vec<String>,
     /// How many recorded events the log has covered, where the next one starts.
     pub events_seen: usize,
+    /// The board as a scenario file, with what it could not write at the top
+    /// (`Scenario::write`), for "Save board as scenario".
+    pub board_text: String,
 }
 
 #[derive(Clone, Debug)]
@@ -154,6 +158,7 @@ impl Snapshot {
             command: cards(game, &game.command),
             log,
             events_seen: recorded.len(),
+            board_text: Scenario::write(game).to_string(),
         }
     }
 }
