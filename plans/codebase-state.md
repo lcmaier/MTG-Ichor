@@ -8857,3 +8857,28 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      and clears CR 704.5b's draw from an empty library.
      **Reachability (2026-10-01):** closed — SU-2's PR.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 198".
+
+### Found by A6g's review practices (2026-10-01)
+
+199. **A life change bumps no layer epoch, and a layer condition can read a
+     life total.** `Condition::Player` reads `PlayerFact::LifeAtLeast` and
+     `LifeAtMost` in the walk when a static ability carries it (Bloodghast's
+     "as long as an opponent has 10 or less life"), and `perform_action`'s
+     `GainLife` and `LoseLife` arms move no epoch, so the memo can answer
+     with a frame from before the change. The condition's other player
+     input, whether a player is still in the game, bumps since A6g's review
+     PR: the dev GUI's random-click games found it (`a_loss_bumps`).
+
+     **Reachability (2026-10-01):** unreachable — no registered static
+     ability's condition reads a life total. Felidar Sovereign's is a
+     trigger's intervening "if", read when the trigger is checked and never
+     memoized. The memo's debug audit would catch the stale frame on the
+     first such board.
+
+     **Sized:** ~20 lines and a fixture, item 187's shape: a registry
+     summary bit for "a row's condition reads a life total", and the two
+     arms bump when it is set, since a bump at every life change would cost
+     a walk per queried object after each combat damage step. **Slotted:**
+     with the first registered card whose static ability reads a life total,
+     in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
+     whose summary bit it shares, if that comes first.
