@@ -155,27 +155,35 @@ fn line_answer(kind: &ChoiceKind) -> LineAnswer<'_> {
         // No X spell is offered at priority yet: `ManaPool::can_pay` and
         // `find_mana_sources` read no X (`codebase-state.md`'s CR 107 row).
         ChoiceKind::ChooseXValue { .. } => LineAnswer::Unanswered,
+        // Asked while a line plays, with no word to answer them yet: the
+        // line's own costs, the order of what it triggers, a replacement on
+        // its events, and the state-based actions checked before and after
+        // it. A board that needs one adds the word.
+        ChoiceKind::ChooseAlternativeCost { .. }
+        | ChoiceKind::ChooseAdditionalCosts { .. }
+        | ChoiceKind::ChooseSacrificeForCost { .. }
+        | ChoiceKind::OrderTriggers { .. }
+        | ChoiceKind::ChooseReplacementEffect { .. }
+        | ChoiceKind::ApplyOptionalReplacement { .. }
+        | ChoiceKind::LegendRule { .. }
+        | ChoiceKind::CommanderToCommandZoneSba { .. } => LineAnswer::Unanswered,
+        // Never asked while a line plays: each waits for a step to pass
+        // (combat's declarations and damage, cleanup's discard) or for a spell
+        // or ability to resolve, and setup actions do neither. After the last
+        // line the seats answer them as in any game, a trampler's damage too.
         ChoiceKind::DeclareAttackers
         | ChoiceKind::DeclareBlockers
         | ChoiceKind::AssignCombatDamage { .. }
         | ChoiceKind::AssignTrampleDamage { .. }
-        | ChoiceKind::ChooseAlternativeCost { .. }
-        | ChoiceKind::ChooseAdditionalCosts { .. }
-        | ChoiceKind::ChooseSacrificeForCost { .. }
-        | ChoiceKind::ChooseReplacementEffect { .. }
-        | ChoiceKind::OrderTriggers { .. }
-        | ChoiceKind::ApplyOptionalReplacement { .. }
+        | ChoiceKind::Discard { .. }
+        | ChoiceKind::Scry { .. }
+        | ChoiceKind::ScryOrder { .. }
         | ChoiceKind::ApplyOptionalEffect { .. }
         | ChoiceKind::AllocateNextDamage { .. }
         | ChoiceKind::ChooseDamageSource { .. }
         | ChoiceKind::ChooseEnteringController { .. }
         | ChoiceKind::ChooseAuxiliaryZoneChange { .. }
-        | ChoiceKind::ChooseCopySource { .. }
-        | ChoiceKind::CommanderToCommandZoneSba { .. }
-        | ChoiceKind::Discard { .. }
-        | ChoiceKind::Scry { .. }
-        | ChoiceKind::ScryOrder { .. }
-        | ChoiceKind::LegendRule { .. } => LineAnswer::Unanswered,
+        | ChoiceKind::ChooseCopySource { .. } => LineAnswer::Unanswered,
     }
 }
 

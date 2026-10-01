@@ -75,7 +75,7 @@ inside §3.1's 2.5 points.
 template, which now casts a Bolt, 7.0 turns a game; §5.3's sample, 17.0, each
 game opening with the three setup actions' events before an agent is asked.
 No error, no panic, no turn-limit hit, and both identical under hasher seeds
-1, 2 and 3, as CI's determinism step now plays them. **The round trip** reads
+1, 2 and 3; CI's determinism step plays the template's. **The round trip** reads
 as SU-1's block below: 1,527 boards compared at two seats and 47 at four,
 every one identical.
 

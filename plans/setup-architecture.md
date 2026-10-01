@@ -796,9 +796,9 @@ resolved through the loader's own table and what can be checked refused
 there, naming the line. `SetupDriver`, a `DecisionProvider` over the seats'
 own, plays the lines as §5.3 says; `fuzz_games --scenario` and the dev GUI
 play through it, the GUI before its first prompt and again on Reload.
-`mtgsim/scenarios/bolt-into-giant-growth.scenario` is §5.3's stack, played by
-CI's determinism step under three hasher seeds, and the template casts a
-Bolt. Item 198 rode along in its own commit.
+`mtgsim/scenarios/bolt-into-giant-growth.scenario` is §5.3's stack, and the
+template casts a Bolt, so CI's determinism step plays a setup action under its
+three hasher seeds. Item 198 rode along in its own commit.
 
 **What moved on the way in.** `mode N` and `x N` are words that wait: nothing
 asks for a mode, and no X spell is offered at priority (§5.1). `AutoPayer`
