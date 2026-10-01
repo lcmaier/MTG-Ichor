@@ -64,8 +64,8 @@ code shape, cost and upkeep.
 6. **The GUI** (§7) takes `--scenario <file>`, has Reload and "Save board as
    scenario", and shows a load error in the window. The decision log embeds the
    scenario, so the log is a save. **Savestates**, positions the tester sets
-   and moves between, are proposed for A6g's tools PR (the one that builds
-   undo, the save and the export) as bookmarks in the log.
+   and moves between, go in A6g's tools PR (the one that builds undo, the save
+   and the export) as bookmarks in the log (the owner, 2026-10-01).
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
    before the tester takes over, which is how a deep stack or a resolved effect
    is built. They do not depend on what the tester does, so every reload
@@ -621,15 +621,15 @@ With no script for a seat during play (§5.3), that is how a tester explores
 both sides of an interaction from one board. Playable's PR builds the seat's
 controls and is its natural home.
 
-**Savestates** (the owner's suggestion, 2026-10-01) are positions the tester
-sets during play and moves between, like a video game's save slots. Proposed
-for the tools PR, because they are its replay with more than one stop. A savestate is
-a bookmark at an answer in the decision log, and moving to one replays the
-start and the log up to it, exactly, at any prompt. A cloned `GameState` would
-resume only at a round's start (item 140). Playing on from an earlier bookmark
-starts a branch, and the save keeps every branch. ~100–200 lines on top of
-undo. A savestate can also be written out as a scenario, with the writer's
-report.
+**Savestates** (the owner's suggestion, placed in the tools PR by the owner,
+2026-10-01) are positions the tester sets during play and moves between, like a
+video game's save slots. They belong there because they are its replay with
+more than one stop. A savestate is a bookmark at an answer in the decision log,
+and moving to one replays the start and the log up to it, exactly, at any
+prompt. A cloned `GameState` would resume only at a round's start (item 140).
+Playing on from an earlier bookmark starts a branch, and the save keeps every
+branch. ~100–200 lines on top of undo. A savestate can also be written out as a
+scenario, with the writer's report.
 
 **A scenario and a log as a regression test**, the shape the tools PR's
 export writes:
