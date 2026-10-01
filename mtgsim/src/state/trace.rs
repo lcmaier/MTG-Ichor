@@ -469,7 +469,7 @@ impl GameState {
                 let object = &self.objects[&id];
                 let mut r = Record::new("object");
                 r.field_u64("id", id.raw());
-                r.field_str("name", &crate::ui::display::card_name(self, id));
+                r.field_str("name", &crate::ui::display::printed_name(self, id));
                 r.field_u64("owner", object.owner as u64);
                 r.field_bool("token", object.is_token);
                 r

@@ -216,7 +216,7 @@ impl GameState {
         records.sort_unstable();
         format!(
             "{} {}@{} ability {} arm {} records {records:?} subject {:?} controller {}",
-            crate::ui::display::card_name(self, source.id),
+            crate::ui::display::printed_name(self, source.id),
             source.id,
             source.zone_change_epoch,
             matched.identity.ability,

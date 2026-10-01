@@ -3,6 +3,7 @@
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
+use crate::engine::layers::compute_characteristics;
 use crate::objects::card_data::AbilityType;
 use crate::oracle::characteristics::{
     get_effective_power, get_effective_toughness, has_keyword, has_type, is_creature,
@@ -20,8 +21,19 @@ pub fn card_label(game: &GameState, id: ObjectId) -> String {
     }
 }
 
-/// Format a card name only (no ID).
+/// The name the object has now, through the layers: a Clone copying Grizzly
+/// Bears is Grizzly Bears (CR 707.2).
 pub fn card_name(game: &GameState, id: ObjectId) -> String {
+    compute_characteristics(game, id)
+        .map(|chars| chars.name.clone())
+        .unwrap_or_else(|| "<unknown>".to_string())
+}
+
+/// The name printed on the card, for a record an observer writes. A read
+/// through the layers counts a walk and fills the memo, which the trace sink
+/// and the dispatch audit may not do (`the_sink_changes_nothing_the_game_does`,
+/// `an_audited_game_counts_and_traces_what_an_unaudited_one_does`).
+pub fn printed_name(game: &GameState, id: ObjectId) -> String {
     game.objects.get(&id)
         .map(|obj| obj.card_data.name.clone())
         .unwrap_or_else(|| "<unknown>".to_string())
@@ -112,14 +124,10 @@ fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
 /// block. This function handles the remaining ability types: activated, triggered,
 /// static (non-keyword), and mana abilities. Each is shown as a short description.
 ///
-/// For cards with `rules_text`, we use that as a fallback for abilities that don't
-/// have a simple name. Long-term, a proper text template system will replace this.
+/// Never the printed rules text: the layers can empty the list (a copy of a
+/// vanilla creature, a creature under Humility), and the text would then
+/// describe abilities the object does not have.
 fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
-    let obj = match game.objects.get(&id) {
-        Some(o) => o,
-        None => return Vec::new(),
-    };
-
     // Effective abilities, so a Blood-Mooned land isn't displayed with the
     // abilities CR 305.7 took away.
     let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
@@ -175,14 +183,6 @@ fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
             AbilityType::Spell => {}
         }
     }
-
-    // If we have rules_text and no structured ability descriptions, show it
-    // as a fallback. Even simple text like "{T}: Add {G}." is fine to display —
-    // users reading CLI output can handle the redundancy.
-    if lines.is_empty() && !obj.card_data.rules_text.is_empty() {
-        lines.push(obj.card_data.rules_text.clone());
-    }
-
     lines
 }
 
@@ -762,4 +762,22 @@ mod tests {
         assert!(display.contains("mana: Add"), "Should show mana ability");
         assert!(display.contains("{G}"), "Should show green mana");
     }
+
+    #[test]
+    fn a_clone_copying_grizzly_bears_shows_as_grizzly_bears() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        assert!(dp.kinds()[0].starts_with("ChooseCopySource"), "{:?}", dp.kinds());
+
+        assert_eq!(card_name(&game, clone), "Grizzly Bears");
+        assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
+    }
+
 }
