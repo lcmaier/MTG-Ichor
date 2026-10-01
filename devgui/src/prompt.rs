@@ -239,7 +239,22 @@ fn variant_name(debug: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use mtgsim::test_support::{put_on_battlefield, setup_two_player_game, vanilla_creature};
+
     use super::*;
+
+    /// The view model reads a pair's first ref as what the person clicks
+    /// first, so an attack and a block name the creature acting first.
+    #[test]
+    fn a_pair_names_the_creature_acting_first() {
+        let mut game = setup_two_player_game();
+        let attacker = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
+        let blocker = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
+        let attack = option_view(&game, &ChoiceOption::AttackerTarget(attacker, AttackTarget::Player(1)));
+        assert_eq!(attack.refs, [BoardRef::Object(attacker), BoardRef::Player(1)], "{}", attack.label);
+        let block = option_view(&game, &ChoiceOption::BlockerAttacker(blocker, attacker));
+        assert_eq!(block.refs, [BoardRef::Object(blocker), BoardRef::Object(attacker)], "{}", block.label);
+    }
 
     #[test]
     fn a_kind_is_named_by_its_variant() {
