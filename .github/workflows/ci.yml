@@ -119,11 +119,16 @@ jobs:
       # process and a sweep that leaks that order into a decision would agree
       # with itself three times. Three seeds give the check back the property
       # it had under `RandomState`: an unordered sweep shows up as a diff.
+      #
+      # Each run's second half starts every game from the template's board,
+      # so the scenario loader is under the same check (`setup-architecture.md` §8).
       - name: Determinism — three runs at one seed, three hasher seeds
         run: |
           for i in 1 2 3; do
-            MTGSIM_HASH_SEED="$i" cargo run --release --bin fuzz_games -- --games 50 --seed 12345 \
-              | sed '/^=== Timing ===$/,/^$/d' > "run$i.txt"
+            { MTGSIM_HASH_SEED="$i" cargo run --release --bin fuzz_games -- --games 50 --seed 12345
+              MTGSIM_HASH_SEED="$i" cargo run --release --bin fuzz_games -- --games 20 --seed 12345 \
+                --scenario scenarios/template.scenario
+            } | sed '/^=== Timing ===$/,/^$/d' > "run$i.txt"
           done
           diff run1.txt run2.txt
           diff run1.txt run3.txt
