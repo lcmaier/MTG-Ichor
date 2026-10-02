@@ -12,13 +12,14 @@ use mtgsim::engine::layers::types::EffectiveCharacteristics;
 use mtgsim::engine::resolve::ResolvedTarget;
 use mtgsim::oracle::characteristics::has_summoning_sickness;
 use mtgsim::scenario::Scenario;
-use mtgsim::state::battlefield::AttackTarget;
 use mtgsim::state::game_state::GameState;
 use mtgsim::types::card_types::CardType;
 use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
-use mtgsim::ui::display::{format_event, format_permanent, format_phase, object_label};
+use mtgsim::ui::display::{
+    attack_target_name, format_event, format_permanent, format_phase, keyword_name, named, player_name,
+};
 
 #[derive(Clone, Debug)]
 pub struct Snapshot {
@@ -90,8 +91,8 @@ pub struct PermanentView {
     pub attached_to: Option<String>,
     pub phased_out: bool,
     pub face_down: bool,
-    /// `ui::display::format_permanent`'s line, which lists the abilities in
-    /// the effective list's order: the order a prompt's `ability N` counts in.
+    /// `ui::display::format_permanent`'s lines: the status, then each
+    /// ability's own text in the effective list's order.
     pub engine_text: String,
 }
 
@@ -200,7 +201,7 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         is_land: chars.types.contains(&CardType::Land),
         power_toughness: if is_creature { chars.power.zip(chars.toughness) } else { None },
         damage: state.damage_marked,
-        keywords: keywords.into_iter().map(|k| words(&format!("{k:?}"))).collect(),
+        keywords: keywords.into_iter().map(|k| keyword_name(k).to_string()).collect(),
         counters: counters.into_iter().map(|(kind, n)| (kind.name().to_string(), n)).collect(),
         tapped: state.tapped,
         summoning_sick: has_summoning_sickness(game, id),
@@ -260,39 +261,6 @@ fn wubrgc_rank(mana: ManaType) -> u8 {
     }
 }
 
-/// `FirstStrike` → `first strike`: a variant's name as the words it prints as.
-pub(crate) fn words(variant: &str) -> String {
-    let mut out = String::with_capacity(variant.len() + 4);
-    for (i, c) in variant.chars().enumerate() {
-        if c.is_uppercase() && i > 0 {
-            out.push(' ');
-        }
-        out.extend(c.to_lowercase());
-    }
-    out
-}
-
-/// `Grizzly Bears (#12)`, or `Grizzly Bears (Clone, #12)` for a copy: the
-/// shape `format_event`'s log lines use, so a name on the board and one in the
-/// log read the same.
-pub(crate) fn named(game: &GameState, id: ObjectId) -> String {
-    match compute_characteristics(game, id) {
-        Some(chars) => object_label(game, id, &chars.name),
-        None => format!("{id} (gone)"),
-    }
-}
-
-pub(crate) fn player_name(player: PlayerId) -> String {
-    format!("Player {player}")
-}
-
-pub(crate) fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
-    match target {
-        AttackTarget::Player(player) => player_name(*player),
-        AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => named(game, *id),
-    }
-}
-
 fn target_name(game: &GameState, target: &ResolvedTarget) -> String {
     match target {
         ResolvedTarget::Object(id) => named(game, *id),
@@ -303,14 +271,6 @@ fn target_name(game: &GameState, target: &ResolvedTarget) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_variant_name_reads_as_its_printed_words() {
-        assert_eq!(words("FirstStrike"), "first strike");
-        assert_eq!(words("Flying"), "flying");
-        assert_eq!(CounterType::PlusOnePlusOne.name(), "+1/+1");
-        assert_eq!(CounterType::Shield.name(), "shield");
-    }
 
     #[test]
     fn the_mana_pool_reads_in_wubrgc_order_whatever_the_hash_order() {
