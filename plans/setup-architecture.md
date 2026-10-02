@@ -6,7 +6,9 @@
 > **SU-2**, and a board editor as **SU-3**, each its own PR. Item 194's PR,
 > before SU-1, built CR 103.8's derivation (§1), SU-1 the loader, the writer
 > and the dev GUI's start, and SU-2 setup actions (§8, both landed
-> 2026-10-01); SU-3 is not built.
+> 2026-10-01); SU-3 is not built. A6g's tools (undo, the save, savestates and
+> the exported test) are designed in §7.1–§7.3 for review (2026-10-02), to be
+> built as **SU-4** and **SU-5** before SU-3.
 > **Authority:** how a game is built before its first event, and what makes a
 > built game reproducible: CR 103's dealt game (`Game::new`, `Game::setup`),
 > the second door this adds (a described board), and the save. Where this
@@ -69,7 +71,9 @@ code shape, cost and upkeep.
    scenario", and shows a load error in the window. The decision log embeds the
    scenario, so the log is a save. **Savestates**, positions the tester sets
    and moves between, go in A6g's tools PR (the one that builds undo, the save
-   and the export) as bookmarks in the log (the owner, 2026-10-01).
+   and the export) as bookmarks in the log (the owner, 2026-10-01). The tools'
+   five open decisions are §7.2's: how a run stops, what an undo removes, the
+   agents under replay, where the save's branches live, and the exported test.
 7. **Setup actions** (§5.3): any seat's actions, played in order from the board
    before the tester takes over, which is how a deep stack is built; they
    resolve nothing, so a resolved effect is their stack and the seats' passes
@@ -649,12 +653,12 @@ A scenario's decks are described, so two remain:
 2. **The agents'**, `RandomDecisionProvider::seeded`: one per agent seat in the
    GUI, one for every seat in `fuzz_games`, as today.
 
-**One function derives both from the seed.** Today there are two derivations:
-the dev GUI's dealt start uses the seed, +1 and +2, and `fuzz_games` uses the
-seed and two XOR salts. The scenario takes `fuzz_games`' salts, moved into the
-engine with the same values, so no fixture row moves. The dev GUI's dealt start
-converges on it in the tools PR, where the save pins the streams. Converging now
-would redraw the review pictures, which seed 33's stream picks, for nothing.
+**One function derives both from the seed**, `RandomStreams::from_seed`, with
+`fuzz_games`' two XOR salts moved into the engine at their values, so no
+fixture row moved. The dev GUI's dealt start used the seed, +1 and +2 until A6g's
+review practices PR converged it (#208, finding 23), ahead of the tools PR this
+section had planned it for, so a fuzz game's printed seed deals that game's
+decks and shuffle in the window.
 
 **What a replay needs.** The log records every seat's answers since A6g's
 playable PR, written by the engine with the passes it makes itself
@@ -700,32 +704,231 @@ more than one stop. A savestate is a bookmark at an answer in the decision log,
 and moving to one replays the start and the log up to it, exactly, at any
 prompt. A cloned `GameState` would resume only at a round's start (item 140).
 Playing on from an earlier bookmark starts a branch, and the save keeps every
-branch. ~100–200 lines on top of undo. A savestate can also be written out as a
-scenario, with the writer's report.
+branch. A savestate can also be written out as a scenario, with the writer's
+report. §7.1–§7.3 design them with undo, the save and the export, and §8 sizes
+the build.
 
-**A scenario and a log as a regression test**, the shape the tools PR's
-export writes:
+### 7.1 The tools: where they sit, and what the tree has
+
+> **Status:** design, 2026-10-02, for the owner's review before any code. The
+> recommendations below are proposals until then.
+
+**Where it sits.** On the decision boundary's far side, beside the decision
+log. Since playable (#211) the engine writes every answer to the log, whoever
+gave it, and marks the passes it makes itself `forced` (`state::decision_log`).
+Every tool here reads that record. A replay is a `DecisionProvider` that
+answers from it, so the engine cannot tell a replayed answer from a live one,
+and no proposal, event or trigger changes. The one change to the boundary
+itself is the stop (decision 1), which lets a run return to its caller from
+inside a prompt.
+
+```
+a start ── build ──▶ Game ── run ── each prompt ──▶ the replay: the log's next line
+(dealt, or                                           └─ the log spent ─▶ the seats (the window), or a stop (a test)
+ a scenario)        every answer ──▶ the engine's log ──▶ the session's save
+```
+
+**What the tree has** (read 2026-10-02):
+- The line, `answer N [turn T, step] player P Kind Answer[ forced]`, is written
+  by the dev GUI (`DecisionLog`, `bridge.rs`) from the engine's
+  `LoggedDecision`, so its text is a client's. The answer is `Picks`, `Number`,
+  `Allocation` or `Order`. A dealt start is `seed`, `pool` and a `deck` line a
+  seat; a scenario's is `scenario <path>`, `seed` and the file's text between
+  `begin scenario text` and `end scenario text`.
+- A replay exists only as a test (`phase_a6g_integration_test.rs`). It answers
+  every line, with every seat stopping at every priority point, and asserts
+  the same event log.
+- A kind's name is read off its `Debug` text in three places: the dev GUI's
+  `kind_name`, the setup driver's `refuse_question` and that test's `variant`.
+- `ScriptedDecisionProvider` matches a kind by its variant alone and ignores
+  the player. `ChoiceKind` has 27 variants.
+- No profile sets `panic = "abort"`. The engine's one `Drop` is the scripted
+  provider's queue check, which skips while unwinding. A provider's panic is
+  already how a run ends early: `fuzz_games` catches one per game, SU-2's
+  tests catch the setup driver's, and the dev GUI unwinds a superseded game
+  with `WindowGone`.
+
+**Measured** (a throwaway probe, 2026-10-02: eight dealt games on the
+performance pool, two seeded random agents, each played to its end and then
+replayed from its log). A game ran 18–40 turns and 465–884 lines, of which
+141–284 were not forced. A whole game replays in 3–6 ms in release and in
+0.7–2.9 s in debug, where the layer memo's audit is most of the cost. Every
+rebuild below (an undo, a move to a savestate, a load) replays from the
+start, so late in a long game a debug window waits up to about 3 s, and a
+release window does not wait.
+
+### 7.2 The decisions
+
+#### Decision 1 — how a run stops at the log's end
+
+**The problem.** A `DecisionProvider` must return an answer and cannot say
+"stop". The window does not need to: a replay that reaches its last line hands
+the next prompt to the seats. Three things do. An exported test must end where
+its script ends and then read the board. The setup driver's refusal (§5.3) is
+a panic today, which the window shows as an engine bug. And a replay that
+disagrees with its log (another question at a line, or an answer the prompt
+cannot take) must say which line.
+
+| | **A. A typed unwind** | **B. A stop through the boundary** |
+|---|---|---|
+| Code | a `Stop` value naming why (the log spent, a line that disagrees, a setup line refused), raised with `std::panic::resume_unwind`; one engine function, `Game::run_until_stopped`, catches that payload and no other; the setup driver's `refuse` raises it instead of `panic!`; ~80–110 lines | every `DecisionProvider` method returns `Result<_, Stop>`, every `ask_*` call site passes it up, and `run`'s `Result<_, String>` gains a typed error; 33 provider impls (engine, tests, dev GUI) and 33 `ask_*` call sites in 15 files, ~300–600 lines changed |
+| Performance | nothing on a game's path; a stop is one unwind | one branch per answer |
+| Upkeep | control flow by unwinding, as the tree already ends a run early; it relies on `panic = "unwind"` and on no engine `Drop` writing `GameState`, both true today. Work in flight at the prompt is dropped, so a stopped game is read and never continued: the run methods refuse one | the stop is in the types and nothing unwinds; every provider written from now on handles it |
+
+**Recommendation: A.** A stop leaves the state as it was at the prompt, which
+is what the window shows there and what `Scenario::write` writes. Continuing
+it would play a game missing what the unwound frames held (a batch's decided
+members, a cast's remaining steps), which is why the run methods refuse a
+stopped game rather than trusting every caller.
+
+#### Decision 2 — what one undo removes
+
+**The problem.** A person's click is one line among many. In the probe's games
+about three lines in ten are choices, and the rest are passes the engine made
+itself. Some choices at the window's seat are its decorators', not the
+person's: `ManaWindowStop` closing a paid window, `AutoPayer` ordering
+reductions, `AutoYield` passing. Whatever undo removes, the replay hands the
+next prompt to the seats, and anything a seat answers without asking the
+person is answered again at once.
+
+| | **A. The log's last line** | **B. The window's last prompt** | **C. The window seat's last chosen line** |
+|---|---|---|---|
+| What the person sees | usually nothing: a forced pass, an agent's or a decorator's answer is given again at once, and the window shows the prompt it showed before, so undo is pressed until one of theirs comes back | the question they last answered, asked again, with everything after it removed and played again live | as B where they answered that line; where a decorator did, it answers again, and the window shows the prompt it showed before |
+| Code | drop one line | the session records where each window prompt fell (the log's length when it was asked, one number a prompt), and undo goes back to the last | from the log alone |
+| After a reload | the same | the record is in the save (decision 4) | the same |
+
+**Recommendation: B.** Where the window was asked is the session's record, not
+the game's: `engineering-practices.md` §10's rule keeps who answered out of
+the log, so it goes in the save beside the savestates. Undo stops at the
+window's first prompt, which comes after a scenario's setup actions. A yield
+ends at an undo, since it was set at a prompt the undo removes; full control
+is the window's and stays, as Reload keeps it.
+
+#### Decision 3 — the other seats under replay
+
+**The problem.** The log answers every seat. A replay that answers the agent's
+lines from it never asks the agent, so at the hand-over the agent's random
+stream is where a fresh one starts, not where the original's stood, and an
+undo followed by the same click plays a different game from the one the person
+saw. The agent's other state hardly matters there: `RandomDecisionProvider`'s
+list of rejected actions empties at its next priority prompt that carries no
+rejection, and its mana-window tracker only caps activations, at 32, for the
+spell or ability being paid for.
+
+| | **A. Answer from the log; the agent restarts** | **B. Ask the agent again, and check it against the log** | **C. Answer from the log; key the agent's randomness by the log's length** |
+|---|---|---|---|
+| At the hand-over | the agent's stream at its start: the same game for the same save and place, not the original's continuation | exactly the original's | the original's, from any window prompt, which is where undo and savestates land |
+| Code | the A6g test's replay, moved into the engine | the replay asks the agents' seats and compares. It must know which seats were agents, which the log does not say (`engineering-practices.md` §10); run the setup driver above itself, so the agent is not asked the driver's lines; and follow the engine's own writes to know which line it is at. ~+80 lines over A | the agent reseeds before each question from its seed and the number of lines the log holds, which the client counts: `RandomDecisionProvider::reseed`, ~10 lines, and a wrapper beside it, ~40 |
+| Performance | none | the agent's choices again at each rebuild, small beside the engine's | one `StdRng` seeded per agent question, ~100 ns |
+| Upkeep | none | a save stops loading when the agent's policy changes, which every PR touching `ui::random` does; a free determinism check at each rebuild | `fuzz_games`' agent is untouched. The dev GUI's agent draws differently from today's, so games against it change; the review pictures redraw anyway for the new buttons |
+
+**Recommendation: C.** The agent's answers are the log's like every other
+seat's, so a save loads whatever the agent's policy becomes, and the agent's
+next choice depends on where the game is, not on how the replay got there.
+§6's agent seed is still where its randomness comes from; each question's draw
+is keyed by the log's length.
+
+#### Decision 4 — where savestates and branches live, and loading a save
+
+**The problem.** A save is a start and every answer (§2). With undo and
+savestates it becomes a tree. An undo or a move to an earlier savestate starts
+a branch once play goes on, the save keeps every branch, and a savestate names
+a place on one. The tree also holds where the window was asked (decision 2),
+which is the session's record and not the game's.
+
+| | **A. Lines in the log file** | **B. A save file beside the log** | **C. A tree of logs** |
+|---|---|---|---|
+| Shape | the log becomes a journal: the engine's answer lines, with the session's lines between them for a window prompt, a savestate and a move back; reading it applies the moves to rebuild the tree | the log stays the engine's record of the line of play the window is on, written again by each rebuild's replay. The save, `<log>.save`, is the session's journal: the start, every answer as the engine wrote it, and the session's own lines | a folder for each session: each branch a whole log, the start and every answer from it, and an index of the savestates, the window prompts and which branch left which |
+| Writing | appended and flushed a line at a time, as the log is today, so a crash loses nothing | the same, into the save | each branch's log as today; the index written again at each change |
+| Reading | one parser; every reader of the game's record (the export, a bug report) applies the moves first | a log is one line of play and replays alone, as now; the save's reader rebuilds the tree | every log replays alone; the index is a save file under another name |
+| `engineering-practices.md` §10 | who answered (the window's prompts) sits in the log | the log is untouched | the log is untouched |
+
+**Recommendation: B, the save a journal.** The engine's thread appends to it,
+since that thread sees every line in order and knows when it asks the window;
+a savestate is a reply the window sends while a prompt is open, as "stop
+yielding" is today; and a superseded game's writer is shut before the next one
+starts, since a game still running toward its next prompt would otherwise
+append to the new line. Loading is §7.3's.
+
+#### Decision 5 — the exported test
+
+**The problem.** §7's shape is a start plus one `expect_*` line per logged
+answer, run until the script is spent (decision 1), then asserted:
 
 ```rust
 #[test]
 fn holy_strength_under_humility() {
-    let scenario = Scenario::parse(include_str!("../scenarios/holy-strength.scenario")).unwrap();
-    let mut game = scenario.build(&CardRegistry::default_registry()).unwrap();
-    let script = ScriptedDecisionProvider::new();
-    script.expect_pick_n(ChoiceKind::PriorityAction, vec![2]); // answer 1, seat 0
-    // … one line per logged answer, every seat's
-    game.resume(&script).unwrap();
-    assert_eq!(/* the board, or the event log */);
+    let script = ScriptedDecisionProvider::new().stopping_when_spent();
+    // answer 4 · turn 3, Combat — Declare Blockers · player 1: Wall of Stone blocks Grizzly Bears [a]
+    script.expect_pick_n(ChoiceKind::named("DeclareBlockers"), vec![1]);
+    // … a line per chosen answer, every seat's
+    // The harness's helper: build the start, play it as it begins, and check
+    // that the script ran out rather than anything else stopping it.
+    let game = played_until_spent(include_str!("regressions/holy-strength.start"), &script);
+    assert_eq!(Scenario::write(&game.state).to_string(), include_str!("regressions/holy-strength.board"));
 }
 ```
 
-What the tools PR owes it, decided there: a run that stops at the log's end,
-since a `DecisionProvider` cannot answer "stop", which is also what replaces
-the setup driver's refusal in play, a panic until then (§5.3); and a
-`ChoiceKind` built from a logged name (`SelectRecipients` carries fields the
-scripted provider ignores). The log records every seat since playable, the
-engine's passes among its lines marked forced, so a script of it either stops
-at every priority point or skips those lines.
+Open: where it goes, what it asserts and the forced lines.
+
+- **Where.** (a) A module of one harness, `mtgsim/tests/regressions.rs`, each
+  test in `tests/regressions/` beside its fixtures: one test binary however
+  many accumulate. (b) A file each in `mtgsim/tests/`: no harness, but each is
+  its own binary, linked on every build, seconds apiece on Windows. (c) Beside
+  the save in `logs/`, for the developer to move into the tree.
+- **What it asserts.** (a) The board at the stop through `Scenario::write`,
+  its text whole: about as long as the board, unmoved by wording elsewhere, and
+  blind to what the writer only counts (the stack's contents, a resolution's
+  rows). (b) The event log: everything, thousands of lines, and every change
+  to `format_event_log`'s words breaks every export. (c) Only that the script
+  is spent with every kind matching.
+- **The forced lines.** (a) Skipped: the script's seats do not stop, so the
+  engine takes those passes itself, the test is about a third as long (the
+  probe: 141–284 of 465–884 lines), and a change in where the engine passes
+  alone does not break it. (b) Kept, with the seats stopping at every priority
+  point: stricter and three times as long.
+
+**Recommendation: the harness, the written board, and the forced lines
+skipped.** The developer narrows the board to the assertion the bug is about
+once it is fixed. Each `expect_*` line carries a
+comment naming its answer: the number, the turn and step, the player, and the
+picks in `ui::display`'s words, which the export gets by replaying the line
+once. The start is the log's own text in a fixture, read by the engine's
+parser, so a dealt start and a scenario read one way. §7's owed `ChoiceKind`
+from a name is `ChoiceKind::named`, the inverse of a new `ChoiceKind::name`
+(an exhaustive match that replaces the three copies), building placeholder
+fields the scripted provider ignores, with a test that round-trips every
+variant.
+
+**Not recommended, for the record: the log as the fixture.** The save's line
+of play as a file and a five-line test replaying it with the window's replay:
+about 150 lines less, and one replay path rather than two. It loses the
+inline, labeled script a reviewer reads as a transcript of the game.
+
+### 7.3 What the window shows, and where each surface lives
+
+**Loading.** `devgui --load FILE` takes a save, or a plain log, read as one
+line of play with no savestates and no undo until the person answers. The
+window replays the line the save ended on, saying "replaying N answers" while
+it does, and then asks the next question. The header gains Undo; Savestate,
+which marks the open prompt and names it for its turn and step; and a menu of
+the savestates and the ends of the lines an undo or a move left, each replayed
+on a click. A savestate is written out as a scenario by moving to it and
+clicking "Save board as scenario". Reload is unchanged: a scenario read again
+is a new start, so a new save.
+
+**`engineering-practices.md` §10's question** for each new surface: would a
+second display client compute the same thing from the same facts?
+
+| Surface | Home | Why |
+|---|---|---|
+| `ChoiceKind::name` | the engine, `ui::choice_types` | the log, the prompt, the setup driver's refusal and the export say one name |
+| A line's text and a start's, written and read | the engine, `state::decision_log` | every client's log and save say the same words, and one parser reads them |
+| The replay | the engine, a provider in `ui` | a second client's undo replays the same way |
+| The stop | the engine, `ui::decision` and `Game` | it crosses the boundary |
+| The keyed agent | the engine, `ui::random`, given the position by its caller | a second client's undo needs the same continuation |
+| The save's journal and tree; where the window was asked | the dev GUI | which prompts reach a person is one client's seat stack; it moves to the engine when a second client reads saves (`backlog.md` §2.38) |
+| The replaying status, the buttons, the menu | the dev GUI's drawing | how it looks |
 
 ---
 
@@ -787,6 +990,45 @@ in the editor (SU-3).
 1.9 times its sizing and SU-2's at about 2.0, their tests near theirs (the
 archive's tables say where), so re-size before the build, counting doc
 comments and refusal messages as neither sizing did.
+
+**The tools (§7.1–§7.3), sized 2026-10-02 with doc comments and messages
+counted.** Whole, they come to ~2,300–3,400 lines of code and tests, past the
+band, so they are two PRs, each with its consumer: **SU-4**, the replay, undo,
+the save and savestates, whose consumer is the window; and **SU-5**, the
+exported test, whose consumer is a committed export. Both come before SU-3.
+
+| SU-4 piece | Where | Code | Tests |
+|---|---|---|---|
+| `ChoiceKind::name`, replacing the three copies | `ui::choice_types` | 40–60 | 15–25 |
+| A line's and a start's text, written and read; a start built | `state::decision_log` | 250–350 | 90–140 |
+| The replay: each line's player, kind, turn and step checked, and the answer's fit; then the seats, or a stop | a provider in `ui` | 120–180 | 140–200 |
+| The stop, the run that catches it, a stopped game refused; the setup driver's refusal as a stop | `ui::decision`, `state::game`, `scenario::setup` | 90–130 | 60–90 |
+| `RandomDecisionProvider::reseed` and the keyed agent | `ui::random` | 50–70 | 20–40 |
+| The save: its journal, the tree, undo's place, the savestates and the ends of lines left | devgui `save.rs` | 220–320 | 150–220 |
+| The bridge: a start from a save, the log's and the save's writers, the window's prompts, the savestate reply, a superseded writer shut | devgui `bridge.rs` | 130–200 | — |
+| Session, launch and view model: Undo, Savestate, the menu, `--load`, the replaying status | devgui | 170–250 | 120–180 |
+| The drawing | devgui `app.rs` | 40–60 | the pictures |
+| **SU-4** | | **1,110–1,620** | **595–895** |
+
+SU-4's tests are the proofs the tools owe: a dealt game and a scenario game
+replay to one event log; undo gives the board a game played to that answer gives,
+through `Scenario::write`; a savestate and a branch survive a save and a load;
+the stop on its own; a cast from hand with exact mana under `ManaWindowStop`,
+replayed. **At 1,700–2,500 it sits at the band's top**, so the build measures
+at each commit, and if it crosses 2,500 it stops and reports, the savestate
+menu being what would move to SU-5.
+
+**SU-5**, the export: `ChoiceKind::named` (~50 and ~35 of tests),
+`ScriptedDecisionProvider::stopping_when_spent` (~20 and ~20), the export with
+its labeling replay and the harness line (~200–300 and ~60–100), the window's
+button (~30–50), and one committed export with a copy whose changed answer
+fails (~180–300 of tests): ~600–850 in all.
+
+**A/B, predicted before any arm runs.** Neither PR changes what a fuzz game
+runs: `fuzz_games` attaches no log, uses no replay, and meets the stop only on
+a scenario's refused line. So every gameplay and cost row is predicted
+`IDENTICAL` on both pools at two seats and four, and instructions per decision
+within ±0.3%, for code the compiler places differently.
 
 ### SU-2 — setup actions — ✅ landed 2026-10-01
 
@@ -874,7 +1116,8 @@ the save, `SU-*`).
 1. **Neither test builder builds a board at rest** (§3's probe). Not changed
    here (§3.3). Whether `put_on_battlefield` should stop announcing is item
    188's survey (A6h), which now has the construction door to compare against.
-2. **Two seed derivations** (§6), converged by the tools PR.
+2. **Two seed derivations** (§6). **Converged at #208** (finding 23), ahead of
+   the tools PR.
 3. **CR 304.4 and 307.4 have no check on the entry path**: nothing stops an
    instant entering the battlefield, and the loader is the first to refuse one.
    Whether a registered card can put a non-permanent card there
