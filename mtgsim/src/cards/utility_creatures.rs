@@ -40,7 +40,7 @@ pub fn merfolk_thaumaturgist() -> Arc<CardData> {
         .power_toughness(1, 2)
         .rules_text("{T}: Switch target creature's power and toughness until end of turn.")
         .ability(AbilityDef {
-            rules_text: "{T}: Switch target creature's power and toughness until end of turn.",
+            rules_text: "{T}: Switch target creature's power and toughness until end of turn.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

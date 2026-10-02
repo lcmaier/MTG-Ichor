@@ -59,7 +59,7 @@ pub fn tarmogoyf() -> Arc<CardData> {
              graveyards and its toughness is equal to that number plus 1.",
         )
         .ability(AbilityDef {
-            rules_text: "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.",
+            rules_text: "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,
@@ -101,7 +101,7 @@ pub fn culling_drone() -> Arc<CardData> {
         .power_toughness(2, 2)
         .rules_text("Devoid\nIngest")
         .ability(AbilityDef {
-            rules_text: "Devoid",
+            rules_text: "Devoid".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,

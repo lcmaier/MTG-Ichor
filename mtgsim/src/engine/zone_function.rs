@@ -304,7 +304,7 @@ mod tests {
 
     fn ability(effect: Effect) -> AbilityDef {
         AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,

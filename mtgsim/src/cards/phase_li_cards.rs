@@ -47,7 +47,7 @@ fn adds(types: &[CardType], subtypes: &[Subtype], supertypes: &[Supertype]) -> T
 
 fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -217,7 +217,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         .power_toughness(0, 0)
         .rules_text("Ashaya's power and toughness are each equal to the number of lands you control.\nNontoken creatures you control are Forest lands in addition to their other types.")
         .ability(AbilityDef {
-            rules_text: "Ashaya's power and toughness are each equal to the number of lands you control.",
+            rules_text: "Ashaya's power and toughness are each equal to the number of lands you control.".into(),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

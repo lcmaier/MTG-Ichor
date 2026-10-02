@@ -67,7 +67,7 @@ impl CostModificationDef {
     fn into_ability_body(self, rules_text: &'static str, condition: Option<Condition>) -> AbilityDef {
         let body = Effect::CostModification(Box::new(self));
         AbilityDef {
-            rules_text,
+            rules_text: rules_text.into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,

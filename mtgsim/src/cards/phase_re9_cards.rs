@@ -85,7 +85,7 @@ use crate::types::replacement::{
 /// ability list on every gather.
 fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -242,7 +242,7 @@ pub fn deep_water() -> Arc<CardData> {
             "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
         )
         .ability(AbilityDef {
-            rules_text: "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
+            rules_text: "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -303,7 +303,7 @@ pub fn pale_moon() -> Arc<CardData> {
             "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
         )
         .ability(AbilityDef {
-            rules_text: "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
+            rules_text: "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -384,7 +384,7 @@ pub fn doubling_cube() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("{3}, {T}: Double the amount of each type of unspent mana you have.")
         .ability(AbilityDef {
-            rules_text: "{3}, {T}: Double the amount of each type of unspent mana you have.",
+            rules_text: "{3}, {T}: Double the amount of each type of unspent mana you have.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

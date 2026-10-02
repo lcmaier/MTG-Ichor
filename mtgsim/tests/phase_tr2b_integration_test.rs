@@ -131,7 +131,7 @@ fn cast_a_spell(game: &mut GameState, player: PlayerId) {
         .mana_cost(ManaCost::build(&[], 0))
         .card_type(CardType::Instant)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Spell,

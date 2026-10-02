@@ -188,7 +188,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
         multiplicity: Multiplicity::OncePerEvent,
     };
     let pump = AbilityDef {
-        rules_text: "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.",
+        rules_text: "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.".into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
@@ -244,7 +244,7 @@ pub fn temple_bell() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("{T}: Each player draws a card.")
         .ability(AbilityDef {
-            rules_text: "{T}: Each player draws a card.",
+            rules_text: "{T}: Each player draws a card.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Activated,

@@ -539,7 +539,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
 /// resolved this turn, you gain 3 life."
 fn kindling_pilgrim() -> Arc<CardData> {
     let ability = AbilityDef {
-        rules_text: "",
+        rules_text: "".into(),
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
@@ -937,7 +937,7 @@ fn free_spell(name: &str, card_type: CardType) -> Arc<CardData> {
 /// The spell ability a fixture instant or sorcery carries.
 fn spell_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text: "",
+        rules_text: "".into(),
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Spell,

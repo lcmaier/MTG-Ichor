@@ -99,7 +99,7 @@ pub fn sigarda_host_of_herons() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying, hexproof\nSpells and abilities your opponents control can't cause you to sacrifice permanents.")
         .ability(AbilityDef {
-            rules_text: "Spells and abilities your opponents control can't cause you to sacrifice permanents.",
+            rules_text: "Spells and abilities your opponents control can't cause you to sacrifice permanents.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -156,7 +156,7 @@ pub fn diabolic_edict() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target player sacrifices a creature of their choice.")
         .ability(AbilityDef {
-            rules_text: "Target player sacrifices a creature of their choice.",
+            rules_text: "Target player sacrifices a creature of their choice.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

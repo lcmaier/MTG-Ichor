@@ -65,7 +65,7 @@ use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 /// only in who picks (CR 701.9b).
 fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChooser) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -181,7 +181,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
             "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.\n{T}: Add {C}.",
         )
         .ability(AbilityDef {
-            rules_text: "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.",
+            rules_text: "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -244,7 +244,7 @@ pub fn opt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Scry 1.\nDraw a card.")
         .ability(AbilityDef {
-            rules_text: "Scry 1.",
+            rules_text: "Scry 1.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -257,7 +257,7 @@ pub fn opt() -> Arc<CardData> {
             ),
         })
         .ability(AbilityDef {
-            rules_text: "Draw a card.",
+            rules_text: "Draw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -317,7 +317,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner")
         .ability(AbilityDef {
-            rules_text: "If you would scry a number of cards, draw that many cards instead.",
+            rules_text: "If you would scry a number of cards, draw that many cards instead.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

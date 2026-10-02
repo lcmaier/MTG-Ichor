@@ -41,7 +41,7 @@ use crate::types::zones::{Zone, ZoneSet};
 /// `codebase-state.md` item 120's constructor, the copy this file owes it.
 fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -54,7 +54,7 @@ fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
 
 fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Spell,

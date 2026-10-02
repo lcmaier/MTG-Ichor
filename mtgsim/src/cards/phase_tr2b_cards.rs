@@ -128,7 +128,7 @@ pub fn psychosis_crawler() -> Arc<CardData> {
              Whenever you draw a card, each opponent loses 1 life.",
         )
         .ability(AbilityDef {
-            rules_text: "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.",
+            rules_text: "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,

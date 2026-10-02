@@ -614,7 +614,7 @@ fn skip_is_a_replacement_effect_and_an_at_the_beginning_of_ability_is_not() {
             .card_type(mtgsim::types::card_types::CardType::Enchantment)
             .rules_text("At the beginning of your draw step, draw an additional card.")
             .ability(AbilityDef {
-                rules_text: "",
+                rules_text: "".into(),
                 id: new_ability_id(),
                 instances: Vec::new(),
                 ability_type: AbilityType::Triggered,

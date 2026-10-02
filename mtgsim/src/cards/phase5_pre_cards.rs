@@ -31,7 +31,7 @@ pub fn nights_whisper() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("You draw two cards and lose 2 life.")
         .ability(AbilityDef {
-            rules_text: "You draw two cards and lose 2 life.",
+            rules_text: "You draw two cards and lose 2 life.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -62,7 +62,7 @@ pub fn doom_blade() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Destroy target nonblack creature.")
         .ability(AbilityDef {
-            rules_text: "Destroy target nonblack creature.",
+            rules_text: "Destroy target nonblack creature.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -90,7 +90,7 @@ pub fn angels_mercy() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("You gain 7 life.")
         .ability(AbilityDef {
-            rules_text: "You gain 7 life.",
+            rules_text: "You gain 7 life.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -112,7 +112,7 @@ pub fn glorious_anthem() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Creatures you control get +1/+1.")
         .ability(AbilityDef {
-            rules_text: "Creatures you control get +1/+1.",
+            rules_text: "Creatures you control get +1/+1.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -144,7 +144,7 @@ pub fn zhalfirin_shapecraft() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
-            rules_text: "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.",
+            rules_text: "Target creature has base power and toughness 4/3 until end of turn.\nDraw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -185,7 +185,7 @@ pub fn inside_out() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
-            rules_text: "Switch target creature's power and toughness until end of turn.\nDraw a card.",
+            rules_text: "Switch target creature's power and toughness until end of turn.\nDraw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -215,7 +215,7 @@ pub fn bull_rush() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
-            rules_text: "Target creature gets +2/+0 until end of turn.",
+            rules_text: "Target creature gets +2/+0 until end of turn.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -244,7 +244,7 @@ pub fn dark_ritual() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Add {B}{B}{B}.")
         .ability(AbilityDef {
-            rules_text: "Add {B}{B}{B}.",
+            rules_text: "Add {B}{B}{B}.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

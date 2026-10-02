@@ -119,7 +119,7 @@ pub struct AbilityDef {
     ///
     /// Empty only on a test fixture: `cards::registry`'s tests hold every
     /// registered card's abilities to its text.
-    pub rules_text: &'static str,
+    pub rules_text: AbilityText,
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
@@ -168,6 +168,33 @@ pub struct AbilityDef {
     /// effective ability list. CDAs are never registered as continuous effects
     /// — see `Layer::Layer7aCdaPT`.
     pub is_characteristic_defining: bool,
+}
+
+/// An ability's words, and which paragraph of its card's rules text they are.
+/// A card file writes the words (`"Flying".into()`); `CardDataBuilder::build`
+/// finds the paragraph. Words alone cannot say whether two abilities are one
+/// printed ability: Platinum Angel's one paragraph is two abilities to the
+/// engine, a can't-lose and a can't-win, while Seeds of Strength prints one
+/// paragraph three times as three abilities (CR 113.2c).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AbilityText {
+    pub words: &'static str,
+    paragraph: Option<u16>,
+}
+
+impl AbilityText {
+    /// Which paragraph of its card's rules text, counted from zero, the
+    /// ability prints as. `None` for one no paragraph prints: CR 305.6's
+    /// mana ability, a granted ability, a test fixture's.
+    pub fn paragraph(self) -> Option<u16> {
+        self.paragraph
+    }
+}
+
+impl From<&'static str> for AbilityText {
+    fn from(words: &'static str) -> AbilityText {
+        AbilityText { words, paragraph: None }
+    }
 }
 
 // --- Builder Pattern ---
@@ -307,7 +334,7 @@ impl CardDataBuilder {
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
         Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
-            rules_text: tap_to_add_text(mana_type),
+            rules_text: tap_to_add_text(mana_type).into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -357,6 +384,11 @@ impl CardDataBuilder {
     /// ability for an Aura (CR 303.4a), otherwise from the printed spell
     /// abilities' [`spell_effect`], otherwise empty — a permanent spell
     /// announces nothing.
+    ///
+    /// A printed def's paragraph is the first paragraph with its words that
+    /// no earlier def took, or, when none is left, the paragraph of the def
+    /// before it with the same words: the engine writes one printed ability
+    /// it builds as several defs (Platinum Angel's) as neighbors.
     pub fn build(mut self) -> Arc<CardData> {
         let name = self.data.name.clone();
         let mut ordinal = 0u32;
@@ -367,9 +399,25 @@ impl CardDataBuilder {
             ordinal += 1;
             def.instances = def.effect.instances();
         };
+        let rules_text = &self.data.rules_text;
         let abilities = Arc::make_mut(&mut self.data.abilities);
-        for def in abilities.iter_mut() {
+        for at in 0..abilities.len() {
+            let (earlier, rest) = abilities.split_at_mut(at);
+            let def = &mut rest[0];
             stamp(def);
+            let words = def.rules_text.words;
+            // Defs take the paragraphs with their words in printed order.
+            let last_taken = earlier
+                .iter()
+                .filter(|other| other.rules_text.words == words)
+                .filter_map(|other| other.rules_text.paragraph)
+                .max();
+            let untaken = paragraphs(rules_text)
+                .enumerate()
+                .filter(|&(index, paragraph)| paragraph == words && last_taken.is_none_or(|last| index > usize::from(last)))
+                .find_map(|(index, _)| u16::try_from(index).ok());
+            let neighbor = earlier.last().map(|other| other.rules_text).filter(|text| text.words == words);
+            def.rules_text.paragraph = untaken.or(neighbor.and_then(AbilityText::paragraph));
         }
         for def in abilities.iter_mut() {
             def.effect.for_each_ability_def_mut(&mut stamp);
@@ -401,6 +449,27 @@ pub fn spell_effect(abilities: &[AbilityDef]) -> Option<Effect> {
         1 => effects.pop(),
         _ => Some(Effect::Sequence(effects)),
     }
+}
+
+/// A card's rules text cut into paragraphs, each one ability (CR 113.2c): a
+/// line, with the bullet lines after it, since a modal ability's modes are
+/// part of its paragraph (CR 700.2).
+pub fn paragraphs(rules_text: &str) -> impl Iterator<Item = &str> {
+    let mut rest = Some(rules_text).filter(|text| !text.is_empty());
+    std::iter::from_fn(move || {
+        let text = rest?;
+        let end = text.match_indices('\n').map(|(at, _)| at).find(|&at| !text[at + 1..].starts_with('•'));
+        match end {
+            Some(at) => {
+                rest = Some(&text[at + 1..]);
+                Some(&text[..at])
+            }
+            None => {
+                rest = None;
+                Some(text)
+            }
+        }
+    })
 }
 
 /// "{T}: Add {G}." — CR 305.6's words for the mana ability a basic land type
@@ -438,7 +507,27 @@ mod tests {
         assert!(forest.mana_cost.is_none());
         assert_eq!(forest.abilities.len(), 1);
         assert_eq!(forest.abilities[0].ability_type, AbilityType::Mana);
-        assert_eq!(forest.abilities[0].rules_text, "{T}: Add {G}.");
+        assert_eq!(forest.abilities[0].rules_text.words, "{T}: Add {G}.");
+    }
+
+    /// The builder finds each printed ability's paragraph (CR 113.2c): Seeds
+    /// of Strength prints one paragraph three times as three abilities, the
+    /// first, second and third; Platinum Angel's one paragraph after Flying
+    /// is both abilities the engine builds it as; a basic land's mana
+    /// ability is printed only as reminder text, so it has none. A modal
+    /// ability's paragraph takes its bullets (CR 700.2).
+    #[test]
+    fn each_printed_ability_knows_its_paragraph() {
+        let found = |card: Arc<CardData>| -> Vec<Option<u16>> {
+            card.abilities.iter().map(|ability| ability.rules_text.paragraph()).collect()
+        };
+        assert_eq!(found(crate::cards::phase_a4i_cards::seeds_of_strength()), [Some(0), Some(1), Some(2)]);
+        assert_eq!(found(crate::cards::phase_re_cards::platinum_angel()), [Some(1), Some(1)]);
+        assert_eq!(found(crate::cards::basic_lands::forest()), [None]);
+        assert_eq!(
+            paragraphs("Choose one —\n• Draw a card.\n• You gain 2 life.\nFlying").collect::<Vec<_>>(),
+            ["Choose one —\n• Draw a card.\n• You gain 2 life.", "Flying"]
+        );
     }
 
     /// Each paragraph of a spell is its own spell ability (CR 113.2c), and
@@ -449,7 +538,7 @@ mod tests {
     #[test]
     fn a_spell_resolves_its_abilities_in_printed_order_as_one_effect() {
         let opt = crate::cards::phase_re8_cards::opt();
-        assert_eq!(opt.abilities[0].rules_text, "Scry 1.");
+        assert_eq!(opt.abilities[0].rules_text.words, "Scry 1.");
         assert_eq!(
             spell_effect(&opt.abilities),
             Some(Effect::Sequence(vec![opt.abilities[0].effect.clone(), opt.abilities[1].effect.clone()]))

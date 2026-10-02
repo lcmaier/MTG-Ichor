@@ -116,7 +116,7 @@ pub fn aggravated_assault() -> Arc<CardData> {
              phase. Activate only as a sorcery.",
         )
         .ability(AbilityDef {
-            rules_text: "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.",
+            rules_text: "{3}{R}{R}: Untap all creatures you control. After this main phase, there is an additional combat phase followed by an additional main phase. Activate only as a sorcery.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::OnlyAsSorcery,
             id: AbilityId::UNASSIGNED,

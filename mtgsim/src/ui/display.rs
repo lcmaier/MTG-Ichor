@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
-use crate::objects::card_data::AbilityType;
+use crate::objects::card_data::{AbilityText, AbilityType};
 use crate::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
 };
@@ -129,18 +129,24 @@ pub fn keyword_name(flag: KeywordFlag) -> &'static str {
 /// The text of each ability a permanent has that is not a keyword flag, in its
 /// effective list's order: the abilities CR 305.7 or a Layer 6 effect left it,
 /// never the card's printed text, which can describe abilities the object does
-/// not have (a copy of a vanilla creature, a creature under Humility).
+/// not have (a copy of a vanilla creature, a creature under Humility). A
+/// printed ability the engine builds as several shows once, as printed: its
+/// parts share a paragraph and, when granted, the grant.
 fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
-    get_effective_abilities(game, id)
-        .iter()
-        .filter_map(|ability| match ability.ability_type {
-            AbilityType::Mana | AbilityType::Activated | AbilityType::Triggered | AbilityType::Static => {
-                Some(ability.rules_text)
-            }
+    let mut shown: Vec<(AbilityText, Option<u64>)> = Vec::new();
+    for ability in get_effective_abilities(game, id).iter() {
+        match ability.ability_type {
+            AbilityType::Mana | AbilityType::Activated | AbilityType::Triggered | AbilityType::Static => {}
             // An instant's or sorcery's (CR 113.3a), which no permanent is.
-            AbilityType::Spell => None,
-        })
-        .collect()
+            AbilityType::Spell => continue,
+        }
+        let part = (ability.rules_text, ability.id.granting_row());
+        if ability.rules_text.paragraph().is_some() && shown.contains(&part) {
+            continue;
+        }
+        shown.push(part);
+    }
+    shown.into_iter().map(|(text, _)| text.words).collect()
 }
 
 /// "Grizzly Bears (#12)", or "Grizzly Bears (Clone, #12)" for a copy: the
@@ -273,7 +279,7 @@ fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static 
     get_effective_abilities(game, id)
         .iter()
         .find(|def| def.id == ability)
-        .map_or("an ability it no longer has", |def| def.rules_text)
+        .map_or("an ability it no longer has", |def| def.rules_text.words)
 }
 
 fn alternative_cost_label(cost: &AlternativeCost) -> String {
@@ -760,6 +766,27 @@ mod tests {
         put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
         assert_eq!(format_permanent(&game, bears), "Grizzly Bears 2/2\n{T}: Add {G}.");
         assert_eq!(activation_labels(&game, bears), [format!("Grizzly Bears ({bears}) · {{T}}: Add {{G}}.")]);
+    }
+
+    /// A printed ability shows once however the engine builds it: Platinum
+    /// Angel's second paragraph is two abilities, a can't-lose and a
+    /// can't-win. The same words are two abilities when one is printed and
+    /// one granted: Dryad Arbor's own mana ability and the one Citanul
+    /// Hierophants grants it.
+    #[test]
+    fn a_printed_ability_shows_once_and_a_granted_one_beside_it() {
+        use crate::cards::{phase_lf_cards, phase_rc_cards, phase_re_cards};
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let angel = put_on_battlefield(&mut game, phase_re_cards::platinum_angel(), 0);
+        assert_eq!(
+            format_permanent(&game, angel),
+            "Platinum Angel 4/4 [flying]\nYou can't lose the game and your opponents can't win the game."
+        );
+        let arbor = put_on_battlefield(&mut game, phase_rc_cards::dryad_arbor(), 0);
+        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        assert_eq!(format_permanent(&game, arbor), "Dryad Arbor 1/1\n{T}: Add {G}.\n{T}: Add {G}.");
     }
 
     /// A cost keyword's option prints as the card does, "[keyword] [cost]",

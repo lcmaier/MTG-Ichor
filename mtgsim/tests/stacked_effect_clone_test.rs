@@ -32,7 +32,7 @@ fn heap_free_instant() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target player loses 1 life.")
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

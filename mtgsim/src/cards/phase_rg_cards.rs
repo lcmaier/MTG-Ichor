@@ -16,7 +16,7 @@ use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef,
 
 fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,

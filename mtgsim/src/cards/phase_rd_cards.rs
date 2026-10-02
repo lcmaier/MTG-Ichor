@@ -166,7 +166,7 @@ use crate::types::replacement::{
 /// `test_support`.
 fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -468,7 +468,7 @@ pub fn loyalty_probe() -> Arc<CardData> {
 /// A spell or activated ability whose whole effect is one atom.
 fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type,

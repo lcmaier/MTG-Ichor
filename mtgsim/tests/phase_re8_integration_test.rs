@@ -79,7 +79,7 @@ fn blank(name: &str) -> Arc<CardData> {
 fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -102,7 +102,7 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
 fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -698,7 +698,7 @@ fn scry_plus_one() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Scry Doubler")
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),

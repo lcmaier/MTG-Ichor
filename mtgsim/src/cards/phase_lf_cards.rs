@@ -51,7 +51,7 @@ pub fn humility() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("All creatures lose all abilities and have base power and toughness 1/1.")
         .ability(AbilityDef {
-            rules_text: "All creatures lose all abilities and have base power and toughness 1/1.",
+            rules_text: "All creatures lose all abilities and have base power and toughness 1/1.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -104,7 +104,7 @@ pub fn humility() -> Arc<CardData> {
 pub fn citanul_hierophants() -> Arc<CardData> {
     // The granted body: `{T}: Add {G}`, exactly what a Forest carries.
     let granted = AbilityDef {
-        rules_text: "{T}: Add {G}.",
+        rules_text: "{T}: Add {G}.".into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -127,7 +127,7 @@ pub fn citanul_hierophants() -> Arc<CardData> {
         .power_toughness(3, 2)
         .rules_text("Creatures you control have \"{T}: Add {G}.\"")
         .ability(AbilityDef {
-            rules_text: "Creatures you control have \"{T}: Add {G}.\"",
+            rules_text: "Creatures you control have \"{T}: Add {G}.\"".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

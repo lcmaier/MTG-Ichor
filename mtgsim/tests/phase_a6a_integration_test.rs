@@ -330,7 +330,7 @@ fn free_instant() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Spell,

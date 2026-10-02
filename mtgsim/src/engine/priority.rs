@@ -373,7 +373,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 0))
             .ability(AbilityDef {
-                rules_text: "",
+                rules_text: "".into(),
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),

@@ -71,7 +71,7 @@ fn undying_probe(name: &str) -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -315,7 +315,7 @@ fn graveyard_probe(name: &str) -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -773,7 +773,7 @@ fn replacement_creature(name: &str, def: ReplacementDef) -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),

@@ -337,7 +337,7 @@ use crate::types::zones::{DrawCause, Zone};
 /// ability list on every gather.
 fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -353,7 +353,7 @@ fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityD
 /// proposal, the way the layer pass asks it of a Kird Ape.
 fn static_conditional_replacement(rules_text: &'static str, condition: Condition, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -368,7 +368,7 @@ fn static_conditional_replacement(rules_text: &'static str, condition: Condition
 /// ability list by `engine::restriction::is_prohibited` at each proposal.
 fn static_restriction(rules_text: &'static str, what: Restriction) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -382,7 +382,7 @@ fn static_restriction(rules_text: &'static str, what: Restriction) -> AbilityDef
 /// One ability with no costs beyond the ones given.
 fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type,
@@ -2299,7 +2299,7 @@ pub fn live_fast() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("You draw two cards, lose 2 life, and get {E}{E}.")
         .ability(AbilityDef {
-            rules_text: "You draw two cards, lose 2 life, and get {E}{E}.",
+            rules_text: "You draw two cards, lose 2 life, and get {E}{E}.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Spell,

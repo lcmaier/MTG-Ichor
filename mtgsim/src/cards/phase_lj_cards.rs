@@ -28,7 +28,7 @@ use crate::types::zones::ZoneSet;
 
 fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -82,7 +82,7 @@ pub fn yixlid_jailer() -> Arc<CardData> {
         .power_toughness(2, 1)
         .rules_text("Cards in graveyards lose all abilities.")
         .ability(AbilityDef {
-            rules_text: "Cards in graveyards lose all abilities.",
+            rules_text: "Cards in graveyards lose all abilities.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -126,7 +126,7 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
         .power_toughness(3, 5)
         .rules_text("This creature enters tapped.")
         .ability(AbilityDef {
-            rules_text: "This creature enters tapped.",
+            rules_text: "This creature enters tapped.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

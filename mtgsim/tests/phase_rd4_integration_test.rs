@@ -194,7 +194,7 @@ fn leyline_fixture() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Players can't gain life.\nDamage can't be prevented.")
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,
@@ -209,7 +209,7 @@ fn leyline_fixture() -> Arc<CardData> {
             activation_restriction: ActivationRestriction::None,
         })
         .ability(AbilityDef {
-            rules_text: "",
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,

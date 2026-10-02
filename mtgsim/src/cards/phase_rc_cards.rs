@@ -139,7 +139,7 @@ pub fn idyllic_beachfront() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Island))
         .rules_text("This land enters tapped.")
         .ability(AbilityDef {
-            rules_text: "This land enters tapped.",
+            rules_text: "This land enters tapped.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -206,7 +206,7 @@ pub fn chainbreaker() -> Arc<CardData> {
              {3}, {T}: Remove a -1/-1 counter from target creature.",
         )
         .ability(AbilityDef {
-            rules_text: "This creature enters with two -1/-1 counters on it.",
+            rules_text: "This creature enters with two -1/-1 counters on it.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -220,7 +220,7 @@ pub fn chainbreaker() -> Arc<CardData> {
             ))),
         })
         .ability(AbilityDef {
-            rules_text: "{3}, {T}: Remove a -1/-1 counter from target creature.",
+            rules_text: "{3}, {T}: Remove a -1/-1 counter from target creature.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -280,7 +280,7 @@ pub fn adaptive_shimmerer() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Flash)
         .rules_text("Flash\nThis creature enters with three +1/+1 counters on it.")
         .ability(AbilityDef {
-            rules_text: "This creature enters with three +1/+1 counters on it.",
+            rules_text: "This creature enters with three +1/+1 counters on it.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -369,7 +369,7 @@ pub fn root_maze() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Artifacts and lands enter tapped.")
         .ability(AbilityDef {
-            rules_text: "Artifacts and lands enter tapped.",
+            rules_text: "Artifacts and lands enter tapped.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -450,7 +450,7 @@ pub fn containment_priest() -> Arc<CardData> {
             "Flash\nIf a nontoken creature would enter and it wasn't cast, exile it instead.",
         )
         .ability(AbilityDef {
-            rules_text: "If a nontoken creature would enter and it wasn't cast, exile it instead.",
+            rules_text: "If a nontoken creature would enter and it wasn't cast, exile it instead.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -569,7 +569,7 @@ pub fn keldon_warlord() -> Arc<CardData> {
              non-Wall creatures you control.",
         )
         .ability(AbilityDef {
-            rules_text: "Keldon Warlord's power and toughness are each equal to the number of non-Wall creatures you control.",
+            rules_text: "Keldon Warlord's power and toughness are each equal to the number of non-Wall creatures you control.".into(),
             is_characteristic_defining: true,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -648,7 +648,7 @@ pub fn thunder_thrash_elder() -> Arc<CardData> {
         .power_toughness(1, 1)
         .rules_text("Devour 3")
         .ability(AbilityDef {
-            rules_text: "Devour 3",
+            rules_text: "Devour 3".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -748,7 +748,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
              its toughness is equal to their total toughness.",
         )
         .ability(AbilityDef {
-            rules_text: "As this creature enters, exile any number of creature cards from your graveyard.",
+            rules_text: "As this creature enters, exile any number of creature cards from your graveyard.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -839,7 +839,7 @@ pub fn master_biomancer() -> Arc<CardData> {
              addition to its other types.",
         )
         .ability(AbilityDef {
-            rules_text: "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.",
+            rules_text: "Each other creature you control enters with a number of additional +1/+1 counters on it equal to this creature's power and as a Mutant in addition to its other types.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

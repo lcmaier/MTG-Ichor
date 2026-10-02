@@ -349,7 +349,7 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
         .card_type(card_type)
         .rules_text("Draw a card.")
         .ability(AbilityDef {
-            rules_text: "Draw a card.",
+            rules_text: "Draw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -443,7 +443,7 @@ pub fn altars_reap() -> Arc<CardData> {
             1,
         )]))
         .ability(AbilityDef {
-            rules_text: "Draw two cards.",
+            rules_text: "Draw two cards.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -515,7 +515,7 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact: Add {C}{C}.")
         .ability(AbilityDef {
-            rules_text: "Sacrifice an artifact: Add {C}{C}.",
+            rules_text: "Sacrifice an artifact: Add {C}{C}.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -592,7 +592,7 @@ pub fn mind_stone() -> Arc<CardData> {
         .rules_text("{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
         .mana_ability_single(ManaType::Colorless)
         .ability(AbilityDef {
-            rules_text: "{1}, {T}, Sacrifice this artifact: Draw a card.",
+            rules_text: "{1}, {T}, Sacrifice this artifact: Draw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -646,7 +646,7 @@ pub fn bone_splinters() -> Arc<CardData> {
             1,
         )]))
         .ability(AbilityDef {
-            rules_text: "Destroy target creature.",
+            rules_text: "Destroy target creature.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -700,7 +700,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact, {T}: Draw a card.")
         .ability(AbilityDef {
-            rules_text: "Sacrifice an artifact, {T}: Draw a card.",
+            rules_text: "Sacrifice an artifact, {T}: Draw a card.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

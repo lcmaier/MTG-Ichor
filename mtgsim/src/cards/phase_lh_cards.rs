@@ -74,7 +74,7 @@ pub fn holy_strength() -> Arc<CardData> {
         // and CR 303.4a makes it the spell's target.
         .enchant_filter(SelectionFilter::Creature)
         .ability(AbilityDef {
-            rules_text: "Enchanted creature gets +1/+2.",
+            rules_text: "Enchanted creature gets +1/+2.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -112,7 +112,7 @@ pub fn holy_strength() -> Arc<CardData> {
 /// a new shape; no registered card has one yet.
 pub fn equip(rules_text: &'static str, costs: Vec<Cost>) -> AbilityDef {
     AbilityDef {
-        rules_text,
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: ActivationRestriction::OnlyAsSorcery,
         id: AbilityId::UNASSIGNED,
@@ -174,7 +174,7 @@ pub fn bonesplitter() -> Arc<CardData> {
         .rules_text("Equipped creature gets +2/+0.
 Equip {1}")
         .ability(AbilityDef {
-            rules_text: "Equipped creature gets +2/+0.",
+            rules_text: "Equipped creature gets +2/+0.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -221,7 +221,7 @@ pub fn cobbled_wings() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 1))
         .rules_text("Equipped creature has flying.\nEquip {1}")
         .ability(AbilityDef {
-            rules_text: "Equipped creature has flying.",
+            rules_text: "Equipped creature has flying.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

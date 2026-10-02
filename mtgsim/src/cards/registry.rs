@@ -1101,9 +1101,10 @@ mod tests {
     /// Every ability a registered card carries says what its card says. A
     /// printed ability's text is exactly one paragraph of the card's rules
     /// text (CR 113.2c), a modal ability's bullets with it (CR 700.2), and
-    /// several abilities may share one: Platinum Angel's two halves of one
-    /// ability, or the CR's own several abilities on one line (603.11). A
-    /// granted ability or a token's is the text its card quotes. The exception
+    /// the paragraph the builder found for it. Several abilities may share
+    /// one: Platinum Angel's two halves of one ability, or the CR's own
+    /// several abilities on one line (603.11). A granted ability or a
+    /// token's is the text its card quotes. The exception
     /// is CR 305.6's ability, which a land has from its basic land type
     /// whatever its text box prints. A card's rules text carries no reminder
     /// text, which has no game function (CR 207.2); every parenthesis in a
@@ -1111,6 +1112,7 @@ mod tests {
     #[test]
     fn every_ability_carries_its_cards_text() {
         use crate::engine::layers::land_types::intrinsic_mana_ability;
+        use crate::objects::card_data::paragraphs;
         use crate::types::card_types::Subtype;
         use crate::types::ids::new_object_id;
 
@@ -1121,22 +1123,12 @@ mod tests {
             let card = (registry.cards[name.as_str()])();
             let printed = &card.rules_text;
             assert!(!printed.contains('('), "{name}'s rules text carries reminder text: {printed:?}");
-            let mut paragraphs: Vec<String> = Vec::new();
-            for line in printed.split('\n') {
-                match paragraphs.last_mut() {
-                    Some(choice) if line.starts_with('•') => {
-                        choice.push('\n');
-                        choice.push_str(line);
-                    }
-                    _ => paragraphs.push(line.to_string()),
-                }
-            }
             let intrinsic: Vec<&str> = card
                 .subtypes
                 .iter()
                 .filter_map(|subtype| match subtype {
                     Subtype::Land(land_type) if card.types.contains(&CardType::Land) => {
-                        intrinsic_mana_ability(new_object_id(), *land_type).map(|a| a.rules_text)
+                        intrinsic_mana_ability(new_object_id(), *land_type).map(|a| a.rules_text.words)
                     }
                     _ => None,
                 })
@@ -1147,13 +1139,16 @@ mod tests {
             };
             let mut copy = (*card).clone();
             for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
-                let text = ability.rules_text;
-                let printed_paragraph = paragraphs.iter().any(|paragraph| paragraph == text);
-                check(format!("{name} ability #{i}"), text, printed_paragraph || intrinsic.contains(&text));
+                let text = ability.rules_text.words;
+                let belongs = match ability.rules_text.paragraph() {
+                    Some(at) => paragraphs(printed).nth(usize::from(at)) == Some(text),
+                    None => intrinsic.contains(&text),
+                };
+                check(format!("{name} ability #{i}"), text, belongs);
                 let mut nested = 0usize;
                 ability.effect.for_each_ability_def_mut(&mut |def| {
-                    let quoted = printed.contains(&format!("\"{}\"", def.rules_text));
-                    check(format!("{name} ability #{i}, nested def #{nested}"), def.rules_text, quoted);
+                    let quoted = printed.contains(&format!("\"{}\"", def.rules_text.words));
+                    check(format!("{name} ability #{i}, nested def #{nested}"), def.rules_text.words, quoted);
                     nested += 1;
                 });
             }
