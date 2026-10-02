@@ -695,7 +695,9 @@ pub enum EffectRecipient {
     /// that an **earlier atom of this same effect** already announced.
     ///
     /// `Target` and `Choose` each *declare* an instance; this refers back to
-    /// one, by its position in [`Effect::instances`]' pre-order list.
+    /// one, by its position in [`Effect::instances`]' pre-order list. A spell
+    /// counts across all its spell abilities (`card_data::spell_effect`), so
+    /// a later paragraph names an earlier one's target by the spell's count.
     ///
     /// **An atom is an *effect*, not a clause**, and that is why the card has
     /// to say this rather than the engine working it out. The tree records what

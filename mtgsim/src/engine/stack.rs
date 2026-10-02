@@ -351,10 +351,7 @@ mod tests {
     ) -> crate::types::ids::ObjectId {
         // PRE-LAYER ZONE: printed abilities, on the card being put on the stack --
         // the same exemption engine/cast.rs runs under.
-        let ability = card_data.abilities.iter()
-            .find(|a| a.ability_type == AbilityType::Spell)
-            .unwrap();
-        let effect = ability.effect.clone();
+        let effect = crate::objects::card_data::spell_effect(&card_data.abilities).unwrap();
         let recipient = card_data
             .spell_instances
             .last()

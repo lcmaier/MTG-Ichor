@@ -68,16 +68,14 @@ impl GameState {
         // is still in hand here, so it is not a permanent and the layer system has
         // nothing to contribute -- see "Before Layers" in plans/codebase-state.md.
         //
-        // Find the spell ability on the card.
+        // The spell's abilities in printed order (CR 608.2c).
         // Permanent spells (creatures, enchantments, artifacts, planeswalkers)
         // may not have a spell ability — they resolve by entering the
         // battlefield. Use an empty Sequence as a no-op effect. The instances
         // of "target" are a separate question (CR 303.4a: an Aura's is its
         // enchant ability), answered by `CardData::spell_instances`.
-        let effect = if let Some(spell_ability) = card_data.abilities.iter()
-            .find(|a| a.ability_type == AbilityType::Spell)
-        {
-            spell_ability.effect.clone()
+        let effect = if let Some(effect) = crate::objects::card_data::spell_effect(&card_data.abilities) {
+            effect
         } else if card_data.types.iter().any(|t| t.is_permanent()) {
             crate::types::effects::Effect::Sequence(Vec::new())
         } else {

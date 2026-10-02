@@ -104,11 +104,9 @@ pub fn seeds_of_strength() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Target creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.")
-        .ability(spell("Target creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.", Effect::Sequence(vec![
-            pump(target_creature()),
-            pump(target_creature()),
-            pump(target_creature()),
-        ])))
+        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
+        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
+        .ability(spell("Target creature gets +1/+1 until end of turn.", pump(target_creature())))
         .build()
 }
 

@@ -44,9 +44,9 @@ pub struct CardData {
     /// None for non-Aura cards.
     pub enchant_filter: Option<SelectionFilter>,
     /// CR 601.2c's instances of "target" for this card cast as a spell, in
-    /// printed order: the spell ability's [`AbilityDef::instances`] — except for
-    /// an Aura, whose one instance is its enchant ability (CR 303.4a) and sits
-    /// in no effect tree. One field, one rule: the castability pre-check, the
+    /// printed order: those of [`spell_effect`], across all its spell
+    /// abilities — except for an Aura, whose one instance is its enchant
+    /// ability (CR 303.4a) and sits in no effect tree. One field, one rule: the castability pre-check, the
     /// announcement and CR 608.2b's re-check all read this, so all three see
     /// `enchant_filter`.
     ///
@@ -355,7 +355,8 @@ impl CardDataBuilder {
     /// `AbilityDef::instances` is overwritten on every def reached, id or no
     /// id, and `CardData::spell_instances` is filled last: from the enchant
     /// ability for an Aura (CR 303.4a), otherwise from the printed spell
-    /// ability, otherwise empty — a permanent spell announces nothing.
+    /// abilities' [`spell_effect`], otherwise empty — a permanent spell
+    /// announces nothing.
     pub fn build(mut self) -> Arc<CardData> {
         let name = self.data.name.clone();
         let mut ordinal = 0u32;
@@ -377,13 +378,28 @@ impl CardDataBuilder {
         // makes it the spell's one instance of "target".
         self.data.spell_instances = match &self.data.enchant_filter {
             Some(filter) => vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))],
-            None => abilities
-                .iter()
-                .find(|a| a.ability_type == AbilityType::Spell)
-                .map(|spell| spell.instances.clone())
-                .unwrap_or_default(),
+            None => spell_effect(abilities).map(|effect| effect.instances()).unwrap_or_default(),
         };
         Arc::new(self.data)
+    }
+}
+
+/// The effect a spell resolves with: its spell abilities in printed order.
+/// Each paragraph of an instant's or sorcery's text is a spell ability of its
+/// own (CR 113.2c), and the spell follows them in the order written (CR
+/// 608.2c), so several are one `Sequence`, whose instances of "target" are
+/// counted across the whole spell (CR 601.2c). One ability is its effect as
+/// written; a card with none has no spell effect.
+pub fn spell_effect(abilities: &[AbilityDef]) -> Option<Effect> {
+    let mut effects: Vec<Effect> = abilities
+        .iter()
+        .filter(|ability| ability.ability_type == AbilityType::Spell)
+        .map(|ability| ability.effect.clone())
+        .collect();
+    match effects.len() {
+        0 => None,
+        1 => effects.pop(),
+        _ => Some(Effect::Sequence(effects)),
     }
 }
 
@@ -423,6 +439,27 @@ mod tests {
         assert_eq!(forest.abilities.len(), 1);
         assert_eq!(forest.abilities[0].ability_type, AbilityType::Mana);
         assert_eq!(forest.abilities[0].rules_text, "{T}: Add {G}.");
+    }
+
+    /// Each paragraph of a spell is its own spell ability (CR 113.2c), and
+    /// the spell resolves them as one effect in printed order: Opt scries,
+    /// then draws. Seeds of Strength's three abilities announce their three
+    /// instances of "target" as the spell's (CR 601.2c). One ability is its
+    /// own effect, and a creature card has none.
+    #[test]
+    fn a_spell_resolves_its_abilities_in_printed_order_as_one_effect() {
+        let opt = crate::cards::phase_re8_cards::opt();
+        assert_eq!(opt.abilities[0].rules_text, "Scry 1.");
+        assert_eq!(
+            spell_effect(&opt.abilities),
+            Some(Effect::Sequence(vec![opt.abilities[0].effect.clone(), opt.abilities[1].effect.clone()]))
+        );
+        let seeds = crate::cards::phase_a4i_cards::seeds_of_strength();
+        assert_eq!(seeds.abilities.len(), 3);
+        assert_eq!(seeds.spell_instances.len(), 3);
+        let bolt = crate::cards::alpha::lightning_bolt();
+        assert_eq!(spell_effect(&bolt.abilities), Some(bolt.abilities[0].effect.clone()));
+        assert_eq!(spell_effect(&crate::cards::creatures::grizzly_bears().abilities), None);
     }
 
     #[test]

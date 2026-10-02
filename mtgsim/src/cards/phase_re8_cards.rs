@@ -244,23 +244,30 @@ pub fn opt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Scry 1.\nDraw a card.")
         .ability(AbilityDef {
-            rules_text: "Scry 1.\nDraw a card.",
+            rules_text: "Scry 1.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
-            effect: Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::Scry(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-            ]),
+            effect: Effect::Atom(
+                Primitive::Scry(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
+        })
+        .ability(AbilityDef {
+            rules_text: "Draw a card.",
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
         })
         .build()
 }

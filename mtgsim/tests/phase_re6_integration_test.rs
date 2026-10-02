@@ -90,7 +90,7 @@ fn resolve_card(game: &mut GameState, card: Arc<CardData>, controller: PlayerId)
         damage_prevented: None,
         trigger: None,
     };
-    game.resolve_effect(&card.abilities[0].effect, &ctx, &test_dp()).expect("resolving");
+    game.resolve_effect(&mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell"), &ctx, &test_dp()).expect("resolving");
     id
 }
 
@@ -109,7 +109,7 @@ fn stage_spell_with(
     chosen_targets: Vec<ResolvedTarget>,
     recipient: EffectRecipient,
 ) -> ObjectId {
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     let obj = GameObject::new(card, controller, Zone::Stack);
     let id = game.add_object(obj);
     game.stack.push(id);

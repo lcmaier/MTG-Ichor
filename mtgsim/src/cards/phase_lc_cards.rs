@@ -24,26 +24,33 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.")
         .ability(AbilityDef {
-            rules_text: "Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.",
+            rules_text: "Target creature becomes blue until end of turn. Untap that creature.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
-            effect: Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::ChangeColor(
-                        ColorChange::Set(blue_set),
-                        Duration::UntilEndOfTurn,
-                    ),
-                    EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            effect: Effect::Atom(
+                Primitive::ChangeColor(
+                    ColorChange::Set(blue_set),
+                    Duration::UntilEndOfTurn,
                 ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-            ]),
+                EffectRecipient::Target(SelectionFilter::Creature, TargetCount::Exactly(1)),
+            ),
+        })
+        .ability(AbilityDef {
+            rules_text: "Draw a card.",
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
         })
         .build()
 }
@@ -93,7 +100,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes red and gains haste until end of turn.\nDraw a card.")
         .ability(AbilityDef {
-            rules_text: "Target creature becomes red and gains haste until end of turn.\nDraw a card.",
+            rules_text: "Target creature becomes red and gains haste until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -114,11 +121,20 @@ pub fn crimson_wisps() -> Arc<CardData> {
                     // instance of "target", two atoms (CR 115.3).
                     EffectRecipient::SameInstanceAs(0),
                 ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
             ]),
+        })
+        .ability(AbilityDef {
+            rules_text: "Draw a card.",
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
         })
         .build()
 }

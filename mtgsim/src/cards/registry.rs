@@ -1098,13 +1098,16 @@ mod tests {
         }
     }
 
-    /// Every ability a registered card carries, printed or nested, says what
-    /// its card says: a paragraph of the card's rules text, or the paragraphs
-    /// the engine builds one ability from (Opt's two). The exception is CR
-    /// 305.6's ability, which a land has from its basic land type whatever its
-    /// text box prints. A card's rules text carries no reminder text, which has
-    /// no game function (CR 207.2); every parenthesis in a registered card's
-    /// Oracle text is reminder text.
+    /// Every ability a registered card carries says what its card says. A
+    /// printed ability's text is exactly one paragraph of the card's rules
+    /// text (CR 113.2c), a modal ability's bullets with it (CR 700.2), and
+    /// several abilities may share one: Platinum Angel's two halves of one
+    /// ability, or the CR's own several abilities on one line (603.11). A
+    /// granted ability or a token's is the text its card quotes. The exception
+    /// is CR 305.6's ability, which a land has from its basic land type
+    /// whatever its text box prints. A card's rules text carries no reminder
+    /// text, which has no game function (CR 207.2); every parenthesis in a
+    /// registered card's Oracle text is reminder text.
     #[test]
     fn every_ability_carries_its_cards_text() {
         use crate::engine::layers::land_types::intrinsic_mana_ability;
@@ -1118,6 +1121,16 @@ mod tests {
             let card = (registry.cards[name.as_str()])();
             let printed = &card.rules_text;
             assert!(!printed.contains('('), "{name}'s rules text carries reminder text: {printed:?}");
+            let mut paragraphs: Vec<String> = Vec::new();
+            for line in printed.split('\n') {
+                match paragraphs.last_mut() {
+                    Some(choice) if line.starts_with('•') => {
+                        choice.push('\n');
+                        choice.push_str(line);
+                    }
+                    _ => paragraphs.push(line.to_string()),
+                }
+            }
             let intrinsic: Vec<&str> = card
                 .subtypes
                 .iter()
@@ -1128,20 +1141,19 @@ mod tests {
                     _ => None,
                 })
                 .collect();
-            let check = |what: String, text: &str| {
+            let check = |what: String, text: &str, belongs: bool| {
                 assert!(!text.is_empty(), "{what} has no text");
-                assert!(
-                    printed.contains(text) || intrinsic.contains(&text),
-                    "{what}'s text {text:?} is not its card's: {:?}",
-                    card.rules_text
-                );
+                assert!(belongs, "{what}'s text {text:?} is not its card's: {:?}", card.rules_text);
             };
             let mut copy = (*card).clone();
             for (i, ability) in Arc::make_mut(&mut copy.abilities).iter_mut().enumerate() {
-                check(format!("{name} ability #{i}"), ability.rules_text);
+                let text = ability.rules_text;
+                let printed_paragraph = paragraphs.iter().any(|paragraph| paragraph == text);
+                check(format!("{name} ability #{i}"), text, printed_paragraph || intrinsic.contains(&text));
                 let mut nested = 0usize;
                 ability.effect.for_each_ability_def_mut(&mut |def| {
-                    check(format!("{name} ability #{i}, nested def #{nested}"), def.rules_text);
+                    let quoted = printed.contains(&format!("\"{}\"", def.rules_text));
+                    check(format!("{name} ability #{i}, nested def #{nested}"), def.rules_text, quoted);
                     nested += 1;
                 });
             }
@@ -1196,7 +1208,14 @@ mod instance_references {
         for name in names {
             let card = (registry.cards[name.as_str()])();
             for (i, ability) in card.abilities.iter().enumerate() {
-                check(&format!("{name} ability #{i}"), &ability.effect);
+                if ability.ability_type != crate::objects::card_data::AbilityType::Spell {
+                    check(&format!("{name} ability #{i}"), &ability.effect);
+                }
+            }
+            // A spell's instances are counted across its abilities, so a
+            // later paragraph names an earlier one's target by that count.
+            if let Some(effect) = crate::objects::card_data::spell_effect(&card.abilities) {
+                check(&format!("{name} as a spell"), &effect);
             }
         }
     }
@@ -1246,11 +1265,8 @@ mod instance_references {
                 Some(filter) => {
                     vec![EffectRecipient::Target(filter.clone(), TargetCount::Exactly(1))]
                 }
-                None => card
-                    .abilities
-                    .iter()
-                    .find(|a| a.ability_type == crate::objects::card_data::AbilityType::Spell)
-                    .map(|spell| spell.effect.instances())
+                None => crate::objects::card_data::spell_effect(&card.abilities)
+                    .map(|effect| effect.instances())
                     .unwrap_or_default(),
             };
             assert_eq!(
