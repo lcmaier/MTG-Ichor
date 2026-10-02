@@ -8954,20 +8954,22 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      cost has a part that is not mana, in Phase 8's breadth (`roadmap-v2.md`
      §C).
 
-204. **Cerulean Wisps doesn't untap its target.** Its first paragraph is
-     "Target creature becomes blue until end of turn. Untap that creature.",
-     and its spell ability changes the color and draws a card with no
-     `Primitive::Untap` between. Its doc quotes the card without that
-     sentence, and the encoding followed the doc. Seen when its rules text
-     became Oracle's (A6g's ability names).
+204. **Two test cards carry real cards' names: Cerulean Wisps and
+     Moonlace.** Each was written narrower than the card on purpose, to test
+     a color-changing effect (the owner, 2026-10-01): Cerulean Wisps leaves
+     out "Untap that creature.", and Moonlace targets a creature until end of
+     turn where the card makes a spell or permanent colorless for good (its
+     doc says "Simplified"). Their rules text became Oracle's in A6g's
+     ability names, so each now says more than it does.
 
-     **Reachability (2026-10-01):** reachable — wrong today: Cerulean Wisps
-     is in `PERFORMANCE_POOL`, and a tapped creature it targets stays tapped.
+     **Reachability (2026-10-01):** reachable — wrong today: both are in
+     `PERFORMANCE_POOL`, and a tapped creature Cerulean Wisps targets stays
+     tapped.
 
-     **Sized:** ~5 lines: an `Untap` on the same instance of "target"
-     (`EffectRecipient::SameInstanceAs`), the doc quoting the card, and a
-     test that fails on the tree. It moves the pooled games, so its A/B
-     predicts `differ`. **Slotted:** the test-card cleanup before Phase 8's
-     breadth (the owner, 2026-10-01), as a commit of its own beside
-     `roadmap-v2.md` §C's C0, which moves card files and changes no
-     behavior.
+     **Sized:** ~20–40 lines: each becomes a fixture with an invented name
+     and its own text, and the real card is registered only if written
+     whole. The pool's names change, so it is a pool change with its
+     re-record (`engineering-practices.md` §3). **Slotted:** the test-card
+     cleanup before Phase 8's breadth (the owner, 2026-10-01), with
+     `roadmap-v2.md` §C's C0, which moves the fixtures into
+     `cards::fixtures`.
