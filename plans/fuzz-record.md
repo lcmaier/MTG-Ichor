@@ -37,6 +37,37 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-02 for the playable PR's second review round** (subtypes
+in printed order with every creature type one mark, `Subtypes`; the type
+line against the copiable values, `ui::display::type_line_now`; a cost still
+owed in its printed order; `codebase-state.md` items 205 and 206 filed). No
+pool change and no game moved, so the §3 tables stand as the first-strike
+block below recorded them. `close_out.py`: **fix** `ec38a02` against
+**order** `a54e1b7`, the subtypes alone, and **final** `1665105`, the round's
+last commit.
+
+**Predictions, before any arm ran** (PR #211's body): every gameplay and
+cost row `IDENTICAL` for both arms on both pools at two seats and four;
+instructions per decision within ±0.3 for each, more likely down for order.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| each counter file outside `=== Timing ===`, final vs fix, performance / stress | byte-identical / byte-identical | byte-identical / byte-identical |
+| gameplay rows, order vs fix, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, both arms, performance / stress, dispatches agreed | 187,097 / 189,589 | 347,496 / 383,208 |
+| instructions / decision, order vs fix, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6533 M → 0.6275 M, **−3.95%** |
+| instructions / decision, final vs fix, the same board | | 0.6533 M → 0.6256 M, **−4.24%** |
+
+**One prediction missed, in the engine's favor: −3.95% where ±0.3 was
+predicted.** Hashing subtypes was about 4.7% of the program. A per-function
+callgrind diff of the two arms, exclusive instructions over the 20 games:
+SipHash 196 M → 75 M, hashing a `Subtype` 109 M → 0 and the hash sets' own
+operations, lookups, clones and inserts, 154 M → 0, against 57 M for the
+new scans and set methods and 23 M more allocation; the program fell 324.5 M
+of 8,206 M. The prediction priced the scan and not the SipHash it replaced.
+The type line and the payment order read −3.97% together, so 0.02 points;
+the one-pass commit's further 0.27 is codegen, since no game calls it.
+
 **Re-recorded 2026-10-02 for the first-strike step** (CR 510.4: a combat has
 a first-strike combat damage step only when an attacking or blocking creature
 has first strike or double strike, where every combat with an attacker had
