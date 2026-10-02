@@ -6,6 +6,7 @@
 //! every field, including the two with no wrapper: mana cost and the keyword set.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use mtgsim::engine::layers::compute::compute_characteristics;
 use mtgsim::engine::layers::types::EffectiveCharacteristics;
@@ -18,7 +19,8 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::display::{
-    attack_target_name, format_event, format_permanent, format_phase, keyword_name, named, player_name,
+    attack_target_name, format_event, format_permanent, format_phase, keyword_name, named, player_name, printed_faces,
+    type_line,
 };
 
 #[derive(Clone, Debug)]
@@ -67,6 +69,9 @@ pub struct CardView {
     pub name: String,
     pub mana_cost: Option<String>,
     pub type_line: String,
+    /// `ui::display::printed_faces`: the card before any effect, a face an
+    /// entry. Shared, since the views are built again at every repaint.
+    pub printed: Arc<[String]>,
 }
 
 #[derive(Clone, Debug)]
@@ -181,7 +186,8 @@ fn card_with(game: &GameState, id: ObjectId, chars: &EffectiveCharacteristics) -
         owner: game.objects.get(&id)?.owner,
         name: chars.name.clone(),
         mana_cost: chars.mana_cost.as_ref().map(ToString::to_string),
-        type_line: type_line(chars),
+        type_line: type_line(&chars.supertypes, &chars.types, &chars.subtypes),
+        printed: printed_faces(game, id).into(),
     })
 }
 
@@ -226,21 +232,6 @@ fn stack_item(game: &GameState, id: ObjectId) -> StackItem {
             .map(|e| e.chosen_targets.iter().flat_map(|t| &t.chosen).map(|t| target_name(game, t)).collect())
             .unwrap_or_default(),
         x: entry.and_then(|e| e.x_value),
-    }
-}
-
-/// `Legendary Creature — Elf Warrior`. The CR fixes no order within a set, so
-/// supertypes and subtypes are sorted: they are hash sets.
-fn type_line(chars: &EffectiveCharacteristics) -> String {
-    let mut supertypes: Vec<String> = chars.supertypes.iter().map(|s| format!("{s:?}")).collect();
-    supertypes.sort();
-    let mut subtypes: Vec<String> = chars.subtypes.iter().map(|s| s.word()).collect();
-    subtypes.sort();
-    let front: Vec<String> = supertypes.into_iter().chain(chars.types.iter().map(|t| format!("{t:?}"))).collect();
-    if subtypes.is_empty() {
-        front.join(" ")
-    } else {
-        format!("{} — {}", front.join(" "), subtypes.join(" "))
     }
 }
 

@@ -9,6 +9,8 @@
 //! No case per `ChoiceKind`: a click is read off the primitive and off the
 //! board things each option names (`prompt::OptionView::refs`).
 
+use std::sync::Arc;
+
 use mtgsim::ui::auto_yield::Yield;
 
 use crate::bridge::{Outcome, ToWindow, WINDOW_SEAT};
@@ -345,8 +347,10 @@ pub struct Item {
     /// The prompt is about it (`ChoiceKind::subject()`).
     pub subject: bool,
     pub tapped: bool,
-    /// Shown on hover; empty for none.
+    /// Shown on hover, what it is now; empty for none.
     pub hover: String,
+    /// Shown on hover beside it: the card as printed, a face an entry.
+    pub printed: Option<Arc<[String]>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -425,6 +429,7 @@ impl Marks {
             subject: self.subject == Some(target),
             tapped,
             hover: String::new(),
+            printed: None,
         }
     }
 
@@ -433,7 +438,9 @@ impl Marks {
             Some(cost) => format!("{} {cost}", card.name),
             None => card.name.clone(),
         };
-        self.item(BoardRef::Object(card.id), title, card.type_line.clone(), false)
+        let mut item = self.item(BoardRef::Object(card.id), title, card.type_line.clone(), false);
+        item.printed = Some(Arc::clone(&card.printed));
+        item
     }
 
     fn permanent(&self, permanent: &PermanentView) -> Item {
@@ -465,6 +472,7 @@ impl Marks {
         let title = format!("{} ({})", permanent.card.name, permanent.card.id);
         let mut item = self.item(BoardRef::Object(permanent.card.id), title, detail.join(" · "), permanent.tapped);
         item.hover = permanent.engine_text.clone();
+        item.printed = Some(Arc::clone(&permanent.card.printed));
         item
     }
 
@@ -522,6 +530,7 @@ impl BoardView {
                     subject: false,
                     tapped: false,
                     hover: String::new(),
+                    printed: None,
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),
@@ -825,6 +834,7 @@ mod tests {
         assert_eq!(targets(&mine.zones[2]), [Some(Object(b.relic))]);
         assert!(item(&view, b.bear).detail.starts_with("2/2"), "{}", item(&view, b.bear).detail);
         assert!(!item(&view, b.relic).detail.contains('/'), "no power or toughness off a creature");
+        assert_eq!(item(&view, b.relic).printed.as_deref().unwrap_or_default(), ["Relic\nArtifact".to_string()], "the card as printed beside the hover");
         assert!(item(&view, b.their_bear).detail.contains("attacking Player 0"));
         let giant = item(&view, b.their_giant).title;
         assert!(item(&view, b.arbor).detail.ends_with(&format!("blocking {giant}")), "named as the board titles it");

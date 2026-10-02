@@ -196,14 +196,32 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     let sense = if item.clickable { egui::Sense::click() } else { egui::Sense::hover() };
     let button = egui::Button::new(text).selected(item.chosen).stroke(stroke).sense(sense);
     let mut response = ui.add(button);
-    if !item.hover.is_empty() {
-        response = response.on_hover_text(&item.hover);
+    if !item.hover.is_empty() || item.printed.is_some() {
+        response = response.on_hover_ui(|ui| hover(ui, item));
     }
     if response.clicked()
         && let Some(target) = item.target
     {
         inputs.push(Input::Board(target));
     }
+}
+
+/// What a hover shows: the item as it is now, beside each face as printed.
+fn hover(ui: &mut egui::Ui, item: &Item) {
+    ui.horizontal_top(|ui| {
+        if !item.hover.is_empty() {
+            ui.vertical(|ui| {
+                ui.strong("Now");
+                ui.label(&item.hover);
+            });
+        }
+        for face in item.printed.iter().flat_map(|faces| faces.iter()) {
+            ui.vertical(|ui| {
+                ui.strong("As printed");
+                ui.label(face);
+            });
+        }
+    });
 }
 
 fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>) {

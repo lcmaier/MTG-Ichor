@@ -3,22 +3,24 @@
 // All functions are pure formatters over &GameState — no mutations.
 // Lives in ui/ because these are presentation helpers, not game-state queries.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::engine::combat::validation::CombatError;
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
-use crate::objects::card_data::{AbilityText, AbilityType};
+use crate::objects::card_data::{AbilityText, AbilityType, CardData, paragraphs};
 use crate::oracle::characteristics::{
     get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
 };
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
+use crate::types::card_types::{CardTypes, Subtype, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
-use crate::engine::combat::validation::CombatError;
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
@@ -36,6 +38,7 @@ pub fn card_name(game: &GameState, id: ObjectId) -> String {
 /// and the dispatch audit may not do (`the_sink_changes_nothing_the_game_does`,
 /// `an_audited_game_counts_and_traces_what_an_unaudited_one_does`).
 pub fn printed_name(game: &GameState, id: ObjectId) -> String {
+    // AS PRINTED: the card's own name, for a record no rule reads.
     game.objects.get(&id)
         .map(|obj| obj.card_data.name.clone())
         .unwrap_or_else(|| "<unknown>".to_string())
@@ -148,6 +151,43 @@ fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
         shown.push(part);
     }
     shown.into_iter().map(|(text, _)| text.words).collect()
+}
+
+/// The card `id` as printed, before any effect touched it, one entry per
+/// face: its name and mana cost, type line, rules text and numbers, a line
+/// each. A double-faced card's back is its second entry once CV-5 builds
+/// them. Beside what the object is now, it shows what an effect changed.
+pub fn printed_faces(game: &GameState, id: ObjectId) -> Vec<String> {
+    // AS PRINTED: the card itself, for a display no rule reads.
+    game.objects.get(&id).map(|obj| vec![printed_face(&obj.card_data)]).unwrap_or_default()
+}
+
+fn printed_face(card: &CardData) -> String {
+    let mut lines = vec![match &card.mana_cost {
+        Some(cost) => format!("{} {cost}", card.name),
+        None => card.name.clone(),
+    }];
+    lines.push(type_line(&card.supertypes, &card.types, &card.subtypes));
+    lines.extend(paragraphs(&card.rules_text).map(str::to_string));
+    match (card.power.zip(card.toughness), card.loyalty, card.defense) {
+        (Some((power, toughness)), _, _) => lines.push(format!("{power}/{toughness}")),
+        (None, Some(loyalty), _) => lines.push(format!("Loyalty {loyalty}")),
+        (None, None, Some(defense)) => lines.push(format!("Defense {defense}")),
+        (None, None, None) => {}
+    }
+    lines.join("\n")
+}
+
+/// `Legendary Creature — Elf Warrior`: supertypes, types in `CardType`'s
+/// order, then subtypes. The CR fixes no order within a set, so supertypes
+/// and subtypes are sorted: they are hash sets.
+pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &HashSet<Subtype>) -> String {
+    let mut supers: Vec<String> = supertypes.iter().map(|s| format!("{s:?}")).collect();
+    supers.sort();
+    let mut subs: Vec<String> = subtypes.iter().map(|s| s.word()).collect();
+    subs.sort();
+    let front: Vec<String> = supers.into_iter().chain(types.iter().map(|t| format!("{t:?}"))).collect();
+    if subs.is_empty() { front.join(" ") } else { format!("{} — {}", front.join(" "), subs.join(" ")) }
 }
 
 /// "Grizzly Bears (#12)", or "Grizzly Bears (Clone, #12)" for a copy: the
@@ -433,6 +473,7 @@ pub fn step_name(step: StepType) -> &'static str {
 /// "Grizzly Bears (Clone, #12)" when `name` is not its card's, so a copy reads
 /// as what it is.
 pub fn object_label(game: &GameState, id: ObjectId, name: &str) -> String {
+    // AS PRINTED: the card's own name, beside the one it has now.
     match game.objects.get(&id).map(|obj| obj.card_data.name.as_str()) {
         Some(card) if card != name => format!("{name} ({card}, {id})"),
         _ => format!("{name} ({id})"),
@@ -446,6 +487,7 @@ fn name_with_id(game: &GameState, id: ObjectId, announced: &NamesAsAnnounced) ->
     let kept = announced.as_deref().and_then(|names| names.iter().find(|(named, _)| *named == id));
     match (kept, game.objects.get(&id)) {
         (Some((_, name)), _) => object_label(game, id, name),
+        // AS PRINTED: no name was kept, so the card's own.
         (None, Some(obj)) => format!("{} ({})", obj.card_data.name, id),
         (None, None) => format!("{}", id),
     }
@@ -702,6 +744,11 @@ mod tests {
 
         assert_eq!(card_name(&game, clone), "Grizzly Bears");
         assert_eq!(format_permanent(&game, clone), "Grizzly Bears 2/2 (sick)");
+        assert_eq!(
+            printed_faces(&game, clone),
+            ["Clone {3}{U}\nCreature — Shapeshifter\nYou may have this creature enter as a copy of any creature on the battlefield.\n0/0"],
+            "as printed, it is still Clone"
+        );
     }
     #[test]
     fn the_log_names_a_copy_as_it_was_at_each_event() {
