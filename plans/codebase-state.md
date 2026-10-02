@@ -8789,7 +8789,18 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
        otherwise still say "red". The field is a `&'static str`, which a
        rewritten text cannot be, so it becomes an owned or shared string
        with this. The swap over a structured ability is the design's main
-       question;
+       question. It rewrites the ability and its words together, in the
+       object's own copy of its list: the layer walk copies a list on its
+       first write (`Arc::make_mut`, as a Layer 6 grant does), so the
+       printed card is untouched;
+     - the stack (the owner, 2026-10-01): CR 608.2b re-checks a target
+       against the spell as an effect changed it ("an effect may have
+       changed the text of the spell"), so Glamerdye making a Doom Blade
+       "nongreen" fizzles it against a green target. The stack entry keeps
+       the effect and each target's filter as they were at cast, so
+       resolution and the re-check read the spell's abilities as Layer 3
+       leaves them; `card_data::spell_effect` builds a spell's effect from
+       any ability list, the effective one included;
      - the renames (612.5–612.9): each is an `EffectModification` variant
        that answers `writes_name` true, so the event record's names read it
        with no further change (#203). Spy Kit's "all names", and CR 201.2a's
@@ -8934,25 +8945,30 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
 
 ### Found by A6g's ability names (2026-10-01)
 
-203. **A cost keyword's option names the keyword alone once a part of its
-     cost is not mana.** `ui::display::option_label` prints "Kicker {2}"
-     from the keyword and the cost's mana symbols, which is every cost
-     keyword's printed shape (CR 702.33a's "Kicker [cost]"). A part that is
-     not mana, escape's exile or a kicker's sacrifice, has no printed words
-     anywhere in the engine: `AlternativeCost` and `AdditionalCost` carry a
-     `Cost` tree and no text, where an `AbilityDef` now carries its
-     paragraph. So that option reads "Escape" and shows no cost.
+203. **Additional and alternative costs are not abilities on the effective
+     list, though CR 113.2b makes each an ability of its card.** The cast
+     reads `CardData::alternative_costs` and `additional_costs` off the
+     printed card (`put_on_stack.rs`), so no effect can take one away:
+     Yixlid Jailer's "cards in graveyards lose all abilities" must turn off
+     flashback (the owner, 2026-10-01), and a card in a hand that loses its
+     abilities keeps its kicker. Nor does a cost carry its text:
+     `ui::display::option_label` prints a cost keyword with its mana
+     ("Kicker {2}", CR 702.33a's form) and the keyword alone once a part of
+     the cost is not mana, such as escape's exile.
 
-     **Reachability (2026-10-01):** unreachable — no registered card's
-     optional cost has a part that is not mana, and Altar's Reap's mandatory
+     **Reachability (2026-10-01):** unreachable — no registered card can be
+     cast from a graveyard yet (`backlog.md` §2.3), and no registered card
+     takes the abilities of cards in a hand. Altar's Reap's mandatory
      sacrifice is never an option (CR 601.2b).
 
-     **Sized:** ~30–60 lines: each cost a card offers carries its printed
-     keyword line beside its `Cost` tree, as an `AbilityDef` carries its
-     paragraph, the label reads it, and the registry test holds it to the
-     card's text. **Slotted:** with the first registered card whose optional
-     cost has a part that is not mana, in Phase 8's breadth (`roadmap-v2.md`
-     §C).
+     **Sized:** a design first, in `cost-architecture.md`: each cost becomes
+     a static ability on the effective list, as the CR words them (flashback
+     is two static abilities, CR 702.34a; kicker one, 702.33a), carrying its
+     paragraph as its `rules_text` and read at cast off the effective list
+     as a cost modification is (CR 601.2f), so Layer 6 removes it like any
+     ability and the option's label is its text. Then ~150–300 lines.
+     **Slotted:** before flashback, `backlog.md` §2.3's first PR, the first
+     cast from a zone where an effect strips abilities.
 
 204. **Two test cards carry real cards' names: Cerulean Wisps and
      Moonlace.** Each was written narrower than the card on purpose, to test
