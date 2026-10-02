@@ -183,38 +183,37 @@ impl GameState {
         Ok(())
     }
 
+    /// CR 510.4: whether an attacking or blocking creature has first strike or
+    /// double strike, which is what gives combat a first-strike damage step.
+    pub(crate) fn a_combatant_strikes_first(&self) -> bool {
+        // Ordered, not `battlefield.values()`: the *answer* is order-independent,
+        // but every `has_keyword` is a layer walk and `state/diagnostics.rs`
+        // records those as a fixture, so a short circuit over a `HashMap` that
+        // stops after a different number of walks in every process is a fixture
+        // that wobbles.
+        self.battlefield_ids_ordered().into_iter().any(|id| {
+            let in_combat = self
+                .battlefield
+                .get(&id)
+                .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
+            in_combat
+                && (has_keyword(self, id, KeywordFlag::FirstStrike)
+                    || has_keyword(self, id, KeywordFlag::DoubleStrike))
+        })
+    }
+
     /// Combat damage turn-based action (rule 510).
     ///
-    /// `first_strike_only`: if true, only first/double strike creatures deal damage.
-    /// If no creature in combat has first strike or double strike, the first-strike
-    /// step is skipped entirely (returns Ok immediately).
+    /// `first_strike_only`: if true, only first/double strike creatures deal
+    /// damage, and with none in combat nothing is dealt: a turn never begins
+    /// that step then (`begin_step`), but a test may call this directly.
     pub fn process_combat_damage(
         &mut self,
         decisions: &dyn DecisionProvider,
         first_strike_only: bool,
     ) -> Result<(), String> {
-        if first_strike_only {
-            // Check if any creature in combat has first strike or double strike.
-            //
-            // Ordered, not `battlefield.values()`: the *answer* is order-independent,
-            // but every `has_keyword` is a layer walk and `state/diagnostics.rs`
-            // records those as a fixture, so a short circuit over a `HashMap` that
-            // stops after a different number of walks in every process is a fixture
-            // that wobbles.
-            let any_first_strike = self.battlefield_ids_ordered().into_iter().any(|id| {
-                let in_combat = self
-                    .battlefield
-                    .get(&id)
-                    .is_some_and(|e| e.attacking.is_some() || e.blocking.is_some());
-                in_combat
-                    && (has_keyword(self, id, KeywordFlag::FirstStrike)
-                        || has_keyword(self, id, KeywordFlag::DoubleStrike))
-            });
-
-            if !any_first_strike {
-                // No first/double strike creatures → skip this step entirely
-                return Ok(());
-            }
+        if first_strike_only && !self.a_combatant_strikes_first() {
+            return Ok(());
         }
 
         let active = self.active_player;
