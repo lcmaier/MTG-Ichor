@@ -748,7 +748,7 @@ pub fn sutured_ghoul() -> Arc<CardData> {
              its toughness is equal to their total toughness.",
         )
         .ability(AbilityDef {
-            rules_text: "As this creature enters, exile any number of creature cards from your graveyard.\nSutured Ghoul's power is equal to the total power of the exiled cards and its toughness is equal to their total toughness.",
+            rules_text: "As this creature enters, exile any number of creature cards from your graveyard.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
