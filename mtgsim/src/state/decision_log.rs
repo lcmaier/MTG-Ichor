@@ -31,7 +31,7 @@ use crate::types::ids::PlayerId;
 use crate::ui::choice_types::ChoiceKind;
 
 /// An answer, in the shape of the primitive that asked.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum LoggedAnswer<'a> {
     Picks(&'a [usize]),
     Number(u64),

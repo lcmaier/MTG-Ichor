@@ -187,7 +187,7 @@ pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &
 
 /// A type line word by word against the object's copiable values (CR 707.2),
 /// which are what it prints unless it is a copy: [`type_line_now`].
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct TypeLine {
     /// The supertypes, then the card types.
     pub front: Vec<TypeWord>,

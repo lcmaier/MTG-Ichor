@@ -77,7 +77,7 @@ pub struct CardView {
 /// `ui::display::type_line_now` as the window draws it: the words in order,
 /// a dash before the subtypes, and a word an effect took away faded where
 /// it stood. `text` is the line the object has now.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct TypeLineView {
     pub front: Vec<TypeWordView>,
     pub subtypes: Vec<TypeWordView>,

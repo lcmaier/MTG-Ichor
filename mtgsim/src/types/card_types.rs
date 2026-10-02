@@ -295,7 +295,8 @@ impl Subtypes {
     /// ones listed last in their own order. Setting none clears them all.
     pub fn set(&mut self, new: &Subtypes) {
         if new.is_empty() {
-            self.clear();
+            self.listed.clear();
+            self.every_creature_type = false;
             return;
         }
         let same_set = |old: &Subtype| {
@@ -315,11 +316,6 @@ impl Subtypes {
 
     pub fn is_empty(&self) -> bool {
         self.listed.is_empty() && !self.every_creature_type
-    }
-
-    pub fn clear(&mut self) {
-        self.listed.clear();
-        self.every_creature_type = false;
     }
 
     /// Those listed, in type-line order; under the every-creature-type mark,
@@ -352,7 +348,9 @@ impl std::fmt::Debug for Subtypes {
 impl FromIterator<Subtype> for Subtypes {
     fn from_iter<I: IntoIterator<Item = Subtype>>(subtypes: I) -> Subtypes {
         let mut set = Subtypes::new();
-        set.extend(subtypes);
+        for subtype in subtypes {
+            set.insert(subtype);
+        }
         set
     }
 }
@@ -363,27 +361,11 @@ impl<const N: usize> From<[Subtype; N]> for Subtypes {
     }
 }
 
-impl Extend<Subtype> for Subtypes {
-    fn extend<I: IntoIterator<Item = Subtype>>(&mut self, subtypes: I) {
-        for subtype in subtypes {
-            self.insert(subtype);
-        }
-    }
-}
-
 impl IntoIterator for Subtypes {
     type Item = Subtype;
     type IntoIter = std::vec::IntoIter<Subtype>;
     fn into_iter(self) -> Self::IntoIter {
         self.listed.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a Subtypes {
-    type Item = &'a Subtype;
-    type IntoIter = std::slice::Iter<'a, Subtype>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.listed.iter()
     }
 }
 
