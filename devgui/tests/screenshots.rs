@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use devgui::app::{SessionHeader, draw};
-use devgui::bridge::{GameSetup, ToWindow, spawn_game};
+use devgui::bridge::{EngineHandle, GameSetup, ToWindow, spawn_game};
 use devgui::prompt::{Answer, Reply};
 use devgui::view_model::{Input, WindowState};
 use egui_kittest::{Harness, SnapshotResult, SnapshotResults};
@@ -102,6 +102,7 @@ fn setup_stack(sample: &str) -> WindowState {
     let mut state = WindowState::default();
     state.receive(next(&engine));
     assert_eq!(state.board.as_ref().map(|board| board.stack.len()), Some(3), "the setup actions' stack");
+    finish(engine);
     state
 }
 
@@ -116,7 +117,16 @@ fn blocks_rejected() -> WindowState {
     engine.answers.send(state.input(Input::Done).expect("both blocks declared")).unwrap();
     state.receive(next(&engine));
     assert!(state.prompt.as_ref().is_some_and(|prompt| prompt.rejected.is_some()), "the re-ask says why");
+    finish(engine);
     state
+}
+
+/// Close a game waiting on the window and let its thread end, so none is
+/// still unwinding when the test process exits.
+fn finish(engine: EngineHandle) {
+    let EngineHandle { answers, thread, .. } = engine;
+    drop(answers);
+    thread.join().expect("a superseded game's thread ends without panicking");
 }
 
 /// What the window shows when the file does not load.
