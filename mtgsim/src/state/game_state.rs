@@ -651,6 +651,11 @@ pub struct GameState {
     /// branch number, never a buffer: the derived `Clone` forks it.
     pub(crate) trace: Option<crate::state::trace::TraceHandle>,
 
+    /// Where the game's decisions are logged, if anywhere — see
+    /// [`crate::state::decision_log`]. Empty in every game nobody logs, and
+    /// in every clone.
+    pub(crate) decision_log: crate::state::decision_log::DecisionLogHandle,
+
     // --- Randomness ---
     /// The game's one source of randomness: shuffles now, coin flips and
     /// "at random" choices later (CR 705).
@@ -913,6 +918,7 @@ impl GameState {
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,
+            decision_log: Default::default(),
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
     }

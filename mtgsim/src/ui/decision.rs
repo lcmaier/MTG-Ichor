@@ -10,8 +10,9 @@ use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 
 /// What the engine asks a seat's provider about the seat, rather than about a
 /// decision ([`DecisionProvider::seat_mode`]). Client state, never
-/// `GameState`'s: each field changes what the seat is asked, so a replay of
-/// the seat's answers keeps it.
+/// `GameState`'s, and no replay needs it: a field changes only whether a seat
+/// is asked a question with one legal answer, which the engine logs either
+/// way (`state::decision_log`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SeatMode {
     /// Asked at a priority point where `Pass` is all the seat can do, which

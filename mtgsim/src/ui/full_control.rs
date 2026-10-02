@@ -10,12 +10,10 @@
 //
 // **The switch is the client's.** A window flips it from its own thread, and
 // `FullControl` reads it once per prompt, so a flip lands at the seat's next
-// prompt wherever the engine is. A replay needs to know where it landed. A
-// client that flips it between prompts records each answer the switch routes,
-// the decorators' too, at the top of the seat where they all pass — never at
-// the provider at the bottom, which a decorator's answer never reaches.
-// `cli_play` flips it only while the seat answers a prompt, so its input
-// stream is already that record.
+// prompt wherever the engine is. No replay needs to know where: the engine
+// logs every answer, whichever provider gave it, and the passes it makes
+// itself (`state::decision_log`), so a flip changes who answers and never
+// the log.
 //
 // **Full control supersedes a yield** (the owner, 2026-09-30): while it is on,
 // the seat's yields are cancelled, so turning it off again does not bring one

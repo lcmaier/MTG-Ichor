@@ -126,6 +126,7 @@ impl<'g> Writer<'g> {
             dispatch_audit: _,
             events: _,
             trace: _,
+            decision_log: _,        // an observer's, as the trace is
             rng: _,                 // private to `StdRng`: a written board's randomness is fresh
         } = self.state;
         let (turn, active) = (*turn_number, *active_player);

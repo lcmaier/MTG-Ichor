@@ -92,7 +92,7 @@ impl Prompt {
 }
 
 /// `AssignCombatDamage { attacker_id: #7 }` → `AssignCombatDamage`.
-fn kind_name(kind: &ChoiceKind) -> String {
+pub(crate) fn kind_name(kind: &ChoiceKind) -> String {
     let debug = format!("{kind:?}");
     debug.split(|c: char| !c.is_alphanumeric()).next().unwrap_or_default().to_string()
 }

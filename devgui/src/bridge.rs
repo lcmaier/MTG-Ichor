@@ -6,13 +6,13 @@
 //! wakes the window, and blocks until the answer comes back.
 
 use std::any::Any;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 
 use mtgsim::cards::random_deck::random_deck;
@@ -21,6 +21,7 @@ use mtgsim::objects::card_data::CardData;
 use mtgsim::scenario::{BuiltScenario, Scenario, SetupActions, SetupDriver};
 use mtgsim::state::game::{Game, RandomStreams};
 use mtgsim::state::game_config::GameConfig;
+use mtgsim::state::decision_log::LoggedDecision;
 use mtgsim::state::game_state::{GameResult, GameState};
 use mtgsim::types::ids::PlayerId;
 use mtgsim::ui::auto_payer::AutoPayer;
@@ -32,7 +33,7 @@ use mtgsim::ui::random::RandomDecisionProvider;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 
-use crate::prompt::{Answer, Prompt};
+use crate::prompt::{Answer, Prompt, kind_name};
 use crate::snapshot::Snapshot;
 
 /// The seat the window plays.
@@ -143,7 +144,11 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
             (game, SetupActions::default(), log, streams.agents)
         }
     };
-    let log = Rc::new(RefCell::new(log));
+    // The engine writes the log, every seat's answers and its own passes, so
+    // the record is the game's whatever answered at seat 0.
+    let log = Arc::new(Mutex::new(log));
+    let writer = Arc::clone(&log);
+    game.state.log_decisions(move |game, decision| locked(&writer).answer(game, decision));
     game.state.record_events();
 
     let events_logged = Rc::new(Cell::new(0));
@@ -152,7 +157,6 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
         from_window,
         wake: Arc::clone(wake),
         events_logged: Rc::clone(&events_logged),
-        log: Rc::clone(&log),
     };
     // `cli_play`'s stacks: CR 601.2g's window closes once the cost is paid.
     let dp = DispatchDecisionProvider::new(vec![
@@ -170,7 +174,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
         Ok(GameResult::Draw) => Outcome::Draw,
         Err(error) => Outcome::Error(error),
     };
-    log.borrow_mut().outcome(&outcome);
+    locked(&log).outcome(&outcome);
     let snapshot = Snapshot::build(&game.state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
@@ -195,14 +199,12 @@ struct GuiSeat {
     wake: Arc<dyn Fn() + Send + Sync>,
     /// Shared with `play`, whose final board picks the log up from here.
     events_logged: Rc<Cell<usize>>,
-    log: Rc<RefCell<DecisionLog>>,
 }
 
 impl GuiSeat {
     fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
         let snapshot = Snapshot::build(game, self.events_logged.get());
         self.events_logged.set(snapshot.events_logged);
-        let kind = prompt.kind.clone();
         if self.to_window.send(ToWindow::Prompt { snapshot, prompt }).is_err() {
             std::panic::resume_unwind(Box::new(WindowGone));
         }
@@ -210,7 +212,6 @@ impl GuiSeat {
         let Ok(answer) = self.from_window.recv() else {
             std::panic::resume_unwind(Box::new(WindowGone));
         };
-        self.log.borrow_mut().answer(game, &kind, &answer);
         answer
     }
 }
@@ -276,7 +277,8 @@ enum GameStart<'a> {
     Scenario { path: &'a PathBuf, text: &'a str },
 }
 
-/// The seed, the start and every answer seat 0 gave, a line each and flushed
+/// The seed, the start and every answer the game's choices got, which the
+/// engine hands it (`mtgsim::state::decision_log`), a line each and flushed
 /// as written, so a game that panics leaves its whole record. Replaying it is
 /// the tools PR's; keeping it now is what makes anything the window shows
 /// reproducible.
@@ -317,11 +319,14 @@ impl DecisionLog {
         log
     }
 
-    /// `answer 23 [turn 3, Beginning — Draw] PriorityAction Picks([0])`.
-    fn answer(&mut self, game: &GameState, kind: &str, answer: &Answer) {
+    /// `answer 23 [turn 3, Beginning — Upkeep] player 0 PriorityAction Picks([0]) forced`,
+    /// `forced` where the question had one legal answer.
+    fn answer(&mut self, game: &GameState, decision: &LoggedDecision) {
         self.answers += 1;
         let when = format!("turn {}, {}", game.turn_number, format_phase(game));
-        let line = format!("answer {} [{when}] {kind} {answer:?}", self.answers);
+        let (player, kind, answer) = (decision.player, kind_name(decision.kind), decision.answer);
+        let forced = if decision.forced { " forced" } else { "" };
+        let line = format!("answer {} [{when}] player {player} {kind} {answer:?}{forced}", self.answers);
         self.line(&line);
     }
 
@@ -334,6 +339,11 @@ impl DecisionLog {
             writeln!(file, "{text}").and_then(|()| file.flush()).expect("cannot write the decision log");
         }
     }
+}
+
+/// The log behind its lock, which a panic while writing a line leaves as it was.
+fn locked(log: &Mutex<DecisionLog>) -> MutexGuard<'_, DecisionLog> {
+    log.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 fn panic_message(payload: &(dyn Any + Send)) -> String {

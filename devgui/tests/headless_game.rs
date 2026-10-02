@@ -35,8 +35,11 @@ fn a_whole_game_finishes_with_a_thread_playing_the_window() {
     assert_eq!(lines[..2], ["seed 7", "pool Performance"]);
     assert!(lines[2].starts_with("deck 0 ") && lines[3].starts_with("deck 1 "));
     assert!(lines[4].starts_with("answer 1 [turn 1, "), "each answer says when: {}", lines[4]);
-    let asked = lines.iter().filter(|l| l.starts_with("answer ")).count();
-    assert_eq!(asked, answered, "every answer the window gave is in the log");
+    let answers: Vec<&&str> = lines.iter().filter(|l| l.starts_with("answer ")).collect();
+    let seat_0 = answers.iter().filter(|l| l.contains("] player 0 ")).count();
+    assert!(seat_0 > answered, "seat 0's lines hold the window's answers, its decorators' and the engine's passes");
+    assert!(answers.iter().any(|l| l.contains("] player 1 ")), "and the other seat's answers");
+    assert!(answers.iter().any(|l| l.ends_with(" forced")), "a question with one legal answer is marked");
     assert_eq!(lines.last(), Some(&format!("outcome {outcome:?}").as_str()));
 }
 
@@ -86,7 +89,8 @@ fn a_whole_game_from_a_scenario_logs_the_file_it_began_from() {
     let text_lines = board.lines().count();
     assert_eq!(lines[3..3 + text_lines], board.lines().collect::<Vec<_>>()[..]);
     assert_eq!(lines[3 + text_lines], "end scenario text");
-    assert_eq!(lines.iter().filter(|l| l.starts_with("answer ")).count(), answered);
+    let seat_0 = lines.iter().filter(|l| l.starts_with("answer ") && l.contains("] player 0 ")).count();
+    assert!(seat_0 > answered, "every answer the window gave is among seat 0's lines");
 }
 
 /// A file the loader refuses reaches the window as its line and its fix.

@@ -10,8 +10,10 @@
 // under full control a seat's prompts never reach this decorator.
 //
 // **A yield is set at a priority prompt the person answers, and that answer
-// is a pass.** The provider at the bottom of the seat holds a `Yields` handle
-// and sets it there, so the answer that set it is the record a replay needs.
+// is a pass**, measured from the board it is set on. The provider at the
+// bottom of the seat holds a `Yields` handle and sets it there. The decision
+// log records that pass, and each the yield makes after it, as any other
+// (`state::decision_log`).
 
 use std::cell::RefCell;
 use std::rc::Rc;

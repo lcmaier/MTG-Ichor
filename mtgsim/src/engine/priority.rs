@@ -1,9 +1,10 @@
 use crate::oracle::legality::candidate_priority_actions;
 use crate::engine::actions::ActionContext;
+use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::game_state::GameState;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
-use crate::ui::choice_types::Rejection;
+use crate::ui::choice_types::{ChoiceKind, Rejection};
 use crate::ui::decision::{DecisionProvider, PriorityAction};
 
 /// How many answers to one question the engine rejects before it ends the
@@ -100,10 +101,18 @@ impl GameState {
 
                 // `Pass` is always offered, so a list of one is `[Pass]` alone:
                 // one legal answer, the engine's (`backlog.md` §2.22, rule 1),
-                // unless the seat stops at every priority point.
+                // unless the seat stops at every priority point. The engine's
+                // pass is logged as the seat's would be, so the decision log
+                // does not depend on whether the seat stops.
                 if available.len() == 1
                     && !decisions.seat_mode(current_priority).stops_at_every_priority_point
                 {
+                    self.log_decision(LoggedDecision {
+                        player: current_priority,
+                        kind: &ChoiceKind::PriorityAction,
+                        answer: LoggedAnswer::Picks(&[0]),
+                        forced: true,
+                    });
                     break (PriorityAction::Pass, false);
                 }
 

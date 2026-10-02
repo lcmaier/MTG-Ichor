@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use crate::engine::resolve::ResolvedTarget;
 use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
+use crate::state::decision_log::{LoggedAnswer, LoggedDecision};
 use crate::state::diagnostics::Diagnostics;
 use crate::state::game_state::GameState;
 use crate::engine::trace_records;
@@ -139,17 +140,19 @@ fn validate_pick_n(
         r.field_usizes("answer", indices);
         r
     });
-    check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
+    let decision = check_pick_n(indices, options.len(), bounds, context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Picks(indices), forced: !decision });
 }
 
-/// [`validate_pick_n`]'s checks, without the record.
+/// [`validate_pick_n`]'s checks, without the record; whether the prompt had
+/// a second legal answer.
 fn check_pick_n(
     indices: &[usize],
     options_len: usize,
     bounds: (usize, usize),
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert!(
         indices.len() >= bounds.0 && indices.len() <= bounds.1,
         "ask_{}: DP returned {} selections, expected {}-{}",
@@ -184,9 +187,11 @@ fn check_pick_n(
     // count is fixed and that count admits one combination — take none, or
     // take every option — so a lone candidate offered as "take it or not" is a
     // decision and a forced list is not, whichever way the caller spelled it.
-    if !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len)) {
+    let decision = !(bounds.0 == bounds.1 && (bounds.0 == 0 || bounds.0 == options_len));
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate pick_number response: value in range.
@@ -210,17 +215,19 @@ fn validate_pick_number(
         r.field_u64("answer", value);
         r
     });
-    check_pick_number(value, min, max, context_desc, &game.diagnostics);
+    let decision = check_pick_number(value, min, max, context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Number(value), forced: !decision });
 }
 
-/// [`validate_pick_number`]'s checks, without the record.
+/// [`validate_pick_number`]'s checks, without the record; whether the prompt
+/// had a second legal answer.
 fn check_pick_number(
     value: u64,
     min: u64,
     max: u64,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert!(
         value >= min && value <= max,
         "ask_{}: DP returned {} but range is [{}, {}]",
@@ -231,9 +238,11 @@ fn check_pick_number(
     );
 
     // Item 138's decision count: one number to name is no decision.
-    if max > min {
+    let decision = max > min;
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate allocate response: length matches buckets, sum equals total,
@@ -260,7 +269,7 @@ fn validate_allocation(
         r.field_u64s("answer", alloc);
         r
     });
-    check_allocation(
+    let decision = check_allocation(
         alloc,
         buckets.len(),
         total,
@@ -269,9 +278,11 @@ fn validate_allocation(
         context_desc,
         &game.diagnostics,
     );
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Allocation(alloc), forced: !decision });
 }
 
-/// [`validate_allocation`]'s checks, without the record.
+/// [`validate_allocation`]'s checks, without the record; whether the prompt
+/// had a second legal answer.
 fn check_allocation(
     alloc: &[u64],
     buckets_len: usize,
@@ -280,7 +291,7 @@ fn check_allocation(
     per_bucket_maxs: Option<&[u64]>,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert_eq!(
         alloc.len(),
         buckets_len,
@@ -340,9 +351,11 @@ fn check_allocation(
 
     // Item 138's decision count, off the same predicate the callers skip on —
     // a prompt that reached here at all had two or more legal allocations.
-    if forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none() {
+    let decision = forced_allocation(total, per_bucket_mins, per_bucket_maxs).is_none();
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 /// Validate choose_ordering response: valid permutation of 0..items_len.
@@ -363,16 +376,18 @@ fn validate_ordering(
         r.field_usizes("answer", order);
         r
     });
-    check_ordering(order, items.len(), context_desc, &game.diagnostics);
+    let decision = check_ordering(order, items.len(), context_desc, &game.diagnostics);
+    game.log_decision(LoggedDecision { player, kind: &ctx.kind, answer: LoggedAnswer::Order(order), forced: !decision });
 }
 
-/// [`validate_ordering`]'s checks, without the record.
+/// [`validate_ordering`]'s checks, without the record; whether the prompt had
+/// a second legal answer.
 fn check_ordering(
     order: &[usize],
     items_len: usize,
     context_desc: &str,
     diagnostics: &Diagnostics,
-) {
+) -> bool {
     assert_eq!(
         order.len(),
         items_len,
@@ -401,9 +416,11 @@ fn check_ordering(
     }
 
     // Item 138's decision count: one item has one order.
-    if items_len >= 2 {
+    let decision = items_len >= 2;
+    if decision {
         diagnostics.record_decision();
     }
+    decision
 }
 
 // ===========================================================================
