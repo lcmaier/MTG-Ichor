@@ -336,9 +336,9 @@ words in rules text (Mind Bend, Sleight of Mind, Magical Hack), and the rest
 are Exchange of Words, Deadpool, Trading Card, Volrath's Shapeshifter, Spy Kit,
 four that set a name (Witness Protection among them) and a name sticker.
 `codebase-state.md` item 195 has the queries, what Layer 3 owes and where each
-piece waits. Its design comes first, in `layers-architecture.md`: the engine
-keeps no rules text, so a word swap rewrites the colors, subtypes and land
-types inside structured abilities. Then its build, which gives each gate its
+piece waits. Its design comes first, in `layers-architecture.md`: a word swap
+rewrites the colors, subtypes and land types inside structured abilities,
+and since A6g's ability names each ability's rules text too. Then its build, which gives each gate its
 Layer 3 leg and makes each rename an `EffectModification` variant that answers
 `writes_name`. Independent of C0 and C1.
 

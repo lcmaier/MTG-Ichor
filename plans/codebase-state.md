@@ -8953,3 +8953,21 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      card's text. **Slotted:** with the first registered card whose optional
      cost has a part that is not mana, in Phase 8's breadth (`roadmap-v2.md`
      §C).
+
+204. **Cerulean Wisps doesn't untap its target.** Its first paragraph is
+     "Target creature becomes blue until end of turn. Untap that creature.",
+     and its spell ability changes the color and draws a card with no
+     `Primitive::Untap` between. Its doc quotes the card without that
+     sentence, and the encoding followed the doc. Seen when its rules text
+     became Oracle's (A6g's ability names).
+
+     **Reachability (2026-10-01):** reachable — wrong today: Cerulean Wisps
+     is in `PERFORMANCE_POOL`, and a tapped creature it targets stays tapped.
+
+     **Sized:** ~5 lines: an `Untap` on the same instance of "target"
+     (`EffectRecipient::SameInstanceAs`), the doc quoting the card, and a
+     test that fails on the tree. It moves the pooled games, so its A/B
+     predicts `differ`. **Slotted:** the test-card cleanup before Phase 8's
+     breadth (the owner, 2026-10-01), as a commit of its own beside
+     `roadmap-v2.md` §C's C0, which moves card files and changes no
+     behavior.
