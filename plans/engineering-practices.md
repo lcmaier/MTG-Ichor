@@ -1770,6 +1770,25 @@ engine writes every answer, whoever gave it, and the passes it makes itself
 is never in the log: it changes who answers, not the game, and it tells a
 reader what the player expects.
 
+**What the engine says and what a client draws** (the owner, at A6g's playable
+PR, 2026-10-02). Display work is of three kinds, and each has one home:
+- **a fact only the rules compute**, such as characteristics through the
+  layers, copiable values, the legal options or a prompt's subject, is the
+  engine's, since a client cannot get it without the layer walk;
+- **wording every reader sees alike**, such as names, questions, option
+  labels and log lines, is `ui::display`'s, in the engine crate because the
+  decision log and the trace say the same words;
+- **how it looks**, such as layout, color, emphasis, fading and what is
+  hidden, is the client's.
+
+A review asks of each new `ui::display` function or engine surface: would a
+second display client (the CLI, v1's GUI in `backlog.md` §2.38) compute the
+same thing from the same facts? If so it is the engine's; if it is how one
+client chose to look, it is the client's. `ui::display::type_line_now` is the
+worked case: each word's status is a set difference against the copiable
+values (CR 707.2) and its order is Oracle's or the card's, so the engine gives
+both, and fading a lost word is the dev GUI's (`TypeWordView::faded`).
+
 ### 10.1 The checklist for egui code
 
 A GUI PR's review reads each drawing file against these questions, and a
