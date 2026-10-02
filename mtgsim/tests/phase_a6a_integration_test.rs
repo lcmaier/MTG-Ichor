@@ -163,7 +163,7 @@ fn a_trigger_reads_the_record_it_bound_after_its_window_has_flushed() {
             "Graveside Mourner",
             1,
             1,
-            triggered_ability(whenever(dies(ObjectFilter::ByType(CardType::Creature)), gains_its_power)),
+            triggered_ability("", whenever(dies(ObjectFilter::ByType(CardType::Creature)), gains_its_power)),
         ),
         0,
     );
@@ -221,7 +221,7 @@ fn since_your_last_turn_spans_the_other_seats_turns() {
     let vigil = || {
         CardDataBuilder::new("Steady Vigil")
             .card_type(CardType::Enchantment)
-            .ability(triggered_ability(TriggerDef {
+            .ability(triggered_ability("", TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(quiet.clone()),
                 limit: None,
@@ -278,7 +278,7 @@ fn since_your_last_turn_counts_amounts_and_events_around_four_seats() {
     };
     let regent = CardDataBuilder::new("Watchful Regent")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: Some(Condition::All(vec![
                 exactly(TurnFact::LifeLost, 5),
@@ -330,6 +330,7 @@ fn free_instant() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
         .ability(AbilityDef {
+            rules_text: "",
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Spell,

@@ -45,6 +45,7 @@ pub(super) fn add_intrinsic_entry_abilities(chars: &mut EffectiveCharacteristics
     let loyalty = chars.loyalty.filter(|n| *n > 0).unwrap_or(0) as u32;
     Arc::make_mut(&mut chars.abilities).push(AbilityDef {
         id: AbilityId::derived_on(object, SynthesizedAbility::PlaneswalkerLoyalty),
+        rules_text: "This permanent enters with a number of loyalty counters on it equal to its printed loyalty number.",
         ability_type: AbilityType::Static,
         costs: Vec::new(),
         effect: Effect::Replacement(Box::new(ReplacementDef::new(

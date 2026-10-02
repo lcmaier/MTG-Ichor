@@ -411,6 +411,7 @@ fn a_departed_player_is_not_a_legal_target_and_the_spell_fizzles() {
     let draw_for_target = CardDataBuilder::new("Fixture Draw")
         .card_type(mtgsim::types::card_types::CardType::Instant)
         .ability(mtgsim::objects::card_data::AbilityDef {
+            rules_text: "",
             id: mtgsim::types::ids::new_ability_id(),
             instances: Vec::new(),
             ability_type: mtgsim::objects::card_data::AbilityType::Spell,
@@ -468,6 +469,7 @@ fn exile_reaches_a_card_in_a_graveyard() {
 fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
     let mut game = setup_game(2);
     let gain_instead = mtgsim::objects::card_data::AbilityDef {
+        rules_text: "",
         id: mtgsim::types::ids::new_ability_id(),
         instances: Vec::new(),
         ability_type: mtgsim::objects::card_data::AbilityType::Static,
@@ -507,6 +509,7 @@ fn a_loss_replaced_forever_is_a_draw_not_a_hang() {
 fn a_conditional_static_cant_is_honoured_while_its_condition_holds() {
     let mut game = setup_game(2);
     let cant_lose_while_decked = mtgsim::objects::card_data::AbilityDef {
+        rules_text: "",
         id: mtgsim::types::ids::new_ability_id(),
         instances: Vec::new(),
         ability_type: mtgsim::objects::card_data::AbilityType::Static,

@@ -38,6 +38,7 @@ pub fn act_of_treason() -> Arc<CardData> {
         .card_type(CardType::Sorcery)
         .rules_text("Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn. (It can attack and {T} this turn.)")
         .ability(AbilityDef {
+            rules_text: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

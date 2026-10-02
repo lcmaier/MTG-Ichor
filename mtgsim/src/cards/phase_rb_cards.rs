@@ -96,6 +96,7 @@ pub fn kalitas_traitor_of_ghet() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Lifelink\nIf a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.\n{2}{B}, Sacrifice another Vampire or Zombie: Put two +1/+1 counters on Kalitas.")
         .ability(AbilityDef {
+            rules_text: "If a nontoken creature an opponent controls would die, instead exile that card and create a 2/2 black Zombie creature token.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -200,6 +201,7 @@ pub fn rest_in_peace() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("When this enchantment enters, exile all graveyards.\nIf a card or token would be put into a graveyard from anywhere, exile it instead.")
         .ability(AbilityDef {
+            rules_text: "If a card or token would be put into a graveyard from anywhere, exile it instead.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -275,6 +277,7 @@ pub fn leyline_of_the_void() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("If this card is in your opening hand, you may begin the game with it on the battlefield.\nIf a card would be put into an opponent's graveyard from anywhere, exile it instead.")
         .ability(AbilityDef {
+            rules_text: "If a card would be put into an opponent's graveyard from anywhere, exile it instead.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

@@ -24,6 +24,7 @@ pub fn cerulean_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.")
         .ability(AbilityDef {
+            rules_text: "Target creature becomes blue until end of turn. Untap that creature.\nDraw a card.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -58,6 +59,7 @@ pub fn moonlace() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target spell or permanent becomes colorless.")
         .ability(AbilityDef {
+            rules_text: "Target spell or permanent becomes colorless.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -91,6 +93,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target creature becomes red and gains haste until end of turn. (It can attack and {T} this turn.)\nDraw a card.")
         .ability(AbilityDef {
+            rules_text: "Target creature becomes red and gains haste until end of turn.\nDraw a card.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -130,6 +133,7 @@ pub fn chromatic_ward() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
+            rules_text: "Creatures you control are red in addition to their other colors.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

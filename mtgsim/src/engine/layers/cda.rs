@@ -256,6 +256,7 @@ mod tests {
     /// A CDA-flagged static ability carrying one atom about the object itself.
     fn cda(primitive: Primitive) -> AbilityDef {
         AbilityDef {
+            rules_text: "",
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,

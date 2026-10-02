@@ -57,7 +57,7 @@ pub fn soul_warden() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Cleric))
         .power_toughness(1, 1)
         .rules_text("Whenever another creature enters, you gain 1 life.")
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("Whenever another creature enters, you gain 1 life.", whenever(
             enters(another(ObjectFilter::ByType(CardType::Creature))),
             Effect::Atom(Primitive::GainLife(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         )))
@@ -88,7 +88,7 @@ pub fn blood_artist() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Vampire))
         .power_toughness(0, 1)
         .rules_text("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.")
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("Whenever this creature or another creature dies, target player loses 1 life and you gain 1 life.", whenever(
             dies(ObjectFilter::ByType(CardType::Creature)),
             Effect::Sequence(vec![
                 Effect::Atom(
@@ -142,7 +142,7 @@ pub fn verdant_force() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Elemental))
         .power_toughness(7, 7)
         .rules_text("At the beginning of each upkeep, create a 1/1 green Saproling creature token.")
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("At the beginning of each upkeep, create a 1/1 green Saproling creature token.", whenever(
             at_beginning_of(StepType::Upkeep, Whose::Each),
             Effect::Atom(
                 Primitive::CreateToken(saproling_token(), AmountExpr::Fixed(1)),
@@ -180,7 +180,7 @@ pub fn wild_growth() -> Arc<CardData> {
         .subtype(Subtype::Enchantment(EnchantmentType::Aura))
         .rules_text("Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.")
         .enchant_filter(SelectionFilter::Permanent(ObjectFilter::ByType(CardType::Land)))
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("Whenever enchanted land is tapped for mana, its controller adds an additional {G}.", whenever(
             TriggerEvent::ManaAdded { source: TriggerSubject::Host, tapped_for_mana: Some(true), mana: None },
             Effect::Atom(
                 Primitive::ProduceMana(ManaOutput {
@@ -226,7 +226,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .keyword_flag(KeywordFlag::Vigilance)
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Vigilance (Attacking doesn't cause this creature to tap.)\nLifelink (Damage dealt by this creature also causes you to gain that much life.)\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("At the beginning of your upkeep, if you have 40 or more life, you win the game.", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: Some(Condition::Player {
                 players: PlayerSet::You,

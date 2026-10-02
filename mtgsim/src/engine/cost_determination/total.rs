@@ -565,7 +565,7 @@ mod tests {
             .power_toughness(1, 1)
             .rules_text("Affinity for artifacts");
         for _ in 0..instances {
-            builder = builder.affinity_for(ObjectFilter::ByType(CardType::Artifact));
+            builder = builder.affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact));
         }
         builder.build()
     }

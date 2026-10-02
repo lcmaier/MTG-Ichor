@@ -19,8 +19,9 @@ use crate::types::triggers::{
 use crate::types::zones::Zone;
 
 /// A triggered ability: no cost, the def as its effect.
-pub fn triggered_ability(def: TriggerDef) -> AbilityDef {
+pub fn triggered_ability(rules_text: &'static str, def: TriggerDef) -> AbilityDef {
     AbilityDef {
+        rules_text,
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Triggered,

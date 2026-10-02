@@ -105,6 +105,7 @@ fn fixture_enchantment_breaker() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Enchantment Breaker")
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),

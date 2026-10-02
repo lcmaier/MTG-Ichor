@@ -84,6 +84,7 @@ pub fn cytoshape() -> Arc<CardData> {
              becomes a copy of that creature until end of turn.",
         )
         .ability(AbilityDef {
+            rules_text: "Choose a nonlegendary creature on the battlefield. Target creature becomes a copy of that creature until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -142,6 +143,7 @@ pub fn mirrorform() -> Arc<CardData> {
              non-Aura permanent.",
         )
         .ability(AbilityDef {
+            rules_text: "Each nonland permanent you control becomes a copy of target non-Aura permanent.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -233,6 +235,7 @@ pub fn mirrorweave() -> Arc<CardData> {
              until end of turn.",
         )
         .ability(AbilityDef {
+            rules_text: "Each other creature becomes a copy of target nonlegendary creature until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -304,6 +307,7 @@ pub fn clone() -> Arc<CardData> {
         .power_toughness(0, 0)
         .rules_text("You may have this creature enter as a copy of any creature on the battlefield.")
         .ability(AbilityDef {
+            rules_text: "You may have this creature enter as a copy of any creature on the battlefield.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -376,6 +380,7 @@ pub fn spark_double() -> Arc<CardData> {
              with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
         )
         .ability(AbilityDef {
+            rules_text: "You may have this creature enter as a copy of a creature or planeswalker you control, except it enters with an additional +1/+1 counter on it if it's a creature, it enters with an additional loyalty counter on it if it's a planeswalker, and it isn't legendary.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

@@ -72,6 +72,7 @@ fn mana_land(name: &str, output: ManaOutput) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Land)
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -145,6 +146,7 @@ fn plain_rock() -> Arc<CardData> {
     CardDataBuilder::new("Plain Rock")
         .card_type(CardType::Artifact)
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -167,6 +169,7 @@ fn static_enchantment(name: &str, def: ReplacementDef) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
+            rules_text: "",
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,

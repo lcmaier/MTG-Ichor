@@ -19,8 +19,9 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
-fn static_ability(effect: Effect) -> AbilityDef {
+fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text,
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -75,7 +76,7 @@ pub fn grist_insect_clause() -> Arc<CardData> {
         .subtype(Subtype::Planeswalker(PlaneswalkerType::Grist))
         .loyalty(3)
         .rules_text("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.")
-        .ability(static_ability(Effect::Conditional(
+        .ability(static_ability("As long as Grist isn't on the battlefield, it's a 1/1 Insect creature in addition to its other types.", Effect::Conditional(
             // CR 113.6c — the ability says where it does not function.
             Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
             Box::new(Effect::Sequence(vec![
@@ -124,7 +125,7 @@ pub fn titanias_song_clause() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.")
-        .ability(static_ability(Effect::Sequence(vec![
+        .ability(static_ability("Each noncreature artifact loses all abilities and becomes an artifact creature with power and toughness each equal to its mana value.", Effect::Sequence(vec![
             Effect::Atom(
                 Primitive::ChangeType(adding(vec![CardType::Creature], vec![]), Duration::WhileSourceOnBattlefield),
                 noncreature_artifact(),
@@ -159,7 +160,7 @@ pub fn pocket_griffin() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Griffin))
         .power_toughness(2, 2)
         .rules_text("As long as this card is in your hand, creatures you control have flying.")
-        .ability(static_ability(Effect::Conditional(
+        .ability(static_ability("As long as this card is in your hand, creatures you control have flying.", Effect::Conditional(
             Condition::SourceInZone(ZoneSet::HAND),
             Box::new(Effect::Atom(
                 Primitive::GrantKeywordFlag(KeywordFlag::Flying, Duration::WhileSourceOnBattlefield),
@@ -189,7 +190,7 @@ pub fn arcane_adaptation_elf_clause() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("Creature cards you own that aren't on the battlefield are Elves in addition to their other types.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Creature cards you own that aren't on the battlefield are Elves in addition to their other types.", Effect::Atom(
             Primitive::ChangeType(
                 adding(vec![], vec![Subtype::Creature(CreatureType::Elf)]),
                 Duration::WhileSourceOnBattlefield,
@@ -216,7 +217,7 @@ pub fn library_artificer() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("Creature cards in libraries are artifacts in addition to their other types.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Creature cards in libraries are artifacts in addition to their other types.", Effect::Atom(
             Primitive::ChangeType(adding(vec![CardType::Artifact], vec![]), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::ByType(CardType::Creature), ZoneSet::LIBRARY),
         )))
@@ -238,7 +239,7 @@ pub fn library_assassins() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Artifact creature cards in libraries are Assassins in addition to their other types.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Artifact creature cards in libraries are Assassins in addition to their other types.", Effect::Atom(
             Primitive::ChangeType(
                 adding(vec![], vec![Subtype::Creature(CreatureType::Assassin)]),
                 Duration::WhileSourceOnBattlefield,

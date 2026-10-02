@@ -85,7 +85,7 @@ pub fn nykthos_paragon() -> Arc<CardData> {
             "Whenever you gain life, you may put that many +1/+1 counters on each creature you control. \
              Do this only once each turn.",
         )
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("Whenever you gain life, you may put that many +1/+1 counters on each creature you control. Do this only once each turn.", TriggerDef {
             condition: TriggerCondition::Event(TriggerEvent::GainsLife {
                 player: Some(PlayerRef::You),
                 multiplicity: Multiplicity::PerOccurrence,
@@ -128,6 +128,7 @@ pub fn psychosis_crawler() -> Arc<CardData> {
              Whenever you draw a card, each opponent loses 1 life.",
         )
         .ability(AbilityDef {
+            rules_text: "Psychosis Crawler's power and toughness are each equal to the number of cards in your hand.",
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,
@@ -139,7 +140,7 @@ pub fn psychosis_crawler() -> Arc<CardData> {
             is_characteristic_defining: true,
             activation_restriction: ActivationRestriction::None,
         })
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("Whenever you draw a card, each opponent loses 1 life.", whenever(
             draws_a_card(Whose::Yours),
             Effect::Atom(
                 Primitive::LoseLife(AmountExpr::Fixed(1)),
@@ -176,7 +177,7 @@ pub fn cosis_trickster() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Wizard))
         .power_toughness(1, 1)
         .rules_text("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.")
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("Whenever an opponent shuffles their library, you may put a +1/+1 counter on this creature.", whenever(
             shuffles_their_library(Whose::AnOpponents),
             you_may_put_counters(AmountExpr::Fixed(1), EffectRecipient::ThisObject),
         )))

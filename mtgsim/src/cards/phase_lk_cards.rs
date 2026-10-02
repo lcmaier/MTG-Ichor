@@ -27,8 +27,9 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
-fn static_ability(effect: Effect) -> AbilityDef {
+fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text,
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -97,7 +98,7 @@ pub fn wonder() -> Arc<CardData> {
             "Flying\nAs long as this card is in your graveyard and you control an Island, \
              creatures you control have flying.",
         )
-        .ability(static_ability(Effect::Conditional(
+        .ability(static_ability("As long as this card is in your graveyard and you control an Island, creatures you control have flying.", Effect::Conditional(
             Condition::All(vec![
                 // CR 113.6b — the clause that says where this ability functions.
                 Condition::SourceInZone(ZoneSet::GRAVEYARD),
@@ -160,7 +161,7 @@ pub fn exiled_ancestor() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Spirit))
         .power_toughness(1, 1)
         .rules_text("As long as this card isn't on the battlefield, creatures you control get +1/+1.")
-        .ability(static_ability(Effect::Conditional(
+        .ability(static_ability("As long as this card isn't on the battlefield, creatures you control get +1/+1.", Effect::Conditional(
             Condition::SourceInZone(ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
             Box::new(Effect::Atom(
                 Primitive::ModifyPowerToughness(

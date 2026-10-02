@@ -74,6 +74,7 @@ fn one_clause_pump() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Target creature gets +1/+1 until end of turn.")
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: mtgsim::types::ids::AbilityId::UNASSIGNED,

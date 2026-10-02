@@ -23,6 +23,8 @@ pub struct CardData {
     pub types: CardTypes,
     pub supertypes: HashSet<Supertype>,
     pub subtypes: HashSet<Subtype>,
+    /// The card's Oracle text, reminder text and all (CR 207.1). Each ability
+    /// carries its own paragraph of it as [`AbilityDef::rules_text`].
     pub rules_text: String,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
@@ -105,6 +107,17 @@ pub enum ActivationRestriction {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbilityDef {
     pub id: AbilityId,
+    /// The ability's own text: its paragraph of the card's Oracle text (CR
+    /// 113.2c makes each paragraph one ability, keyword lists aside), with no
+    /// reminder text (CR 207.2a). An ability no text box prints carries the
+    /// words of the rule that gives it: CR 305.6's "{T}: Add [mana symbol]."
+    /// and CR 306.5b's loyalty ability. A granted ability carries the text its
+    /// card quotes, and a copy carries the copied one (CR 707.2), so the window
+    /// reads what an object's abilities say off its effective list.
+    ///
+    /// Empty only on a test fixture: `cards::registry`'s tests hold every
+    /// registered card's abilities to its text.
+    pub rules_text: &'static str,
     pub ability_type: AbilityType,
     pub costs: Vec<Cost>,
     pub effect: Effect,
@@ -265,7 +278,7 @@ impl CardDataBuilder {
     /// for affinity for artifacts. "You control" is added here, so a card
     /// writes the noun and no more. CR 702.41b — "if a spell has multiple
     /// instances of affinity, each of them applies" — is calling this twice.
-    pub fn affinity_for(self, filter: ObjectFilter) -> Self {
+    pub fn affinity_for(self, rules_text: &'static str, filter: ObjectFilter) -> Self {
         let you_control = ObjectFilter::And(
             Box::new(filter),
             Box::new(ObjectFilter::ByController(PlayerRef::You)),
@@ -274,7 +287,7 @@ impl CardDataBuilder {
             CostModificationDef::itself(CostChange::ReduceGeneric(AmountExpr::CountOf(
                 Selector::PermanentsMatching(you_control),
             )))
-            .into_ability(),
+            .into_ability(rules_text),
         )
     }
 
@@ -292,6 +305,7 @@ impl CardDataBuilder {
     /// This is the standard basic land ability.
     pub fn mana_ability_single(mut self, mana_type: ManaType) -> Self {
         Arc::make_mut(&mut self.data.abilities).push(AbilityDef {
+            rules_text: tap_to_add_text(mana_type),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -371,6 +385,21 @@ impl CardDataBuilder {
     }
 }
 
+/// "{T}: Add {G}." — CR 305.6's words for the mana ability a basic land type
+/// gives, and a printed card's for the same ability ("{T}: Add {C}." too).
+/// One function for both, so a printed basic land's ability and the intrinsic
+/// one `layers::land_types` gives stay the same ability.
+pub(crate) fn tap_to_add_text(mana_type: ManaType) -> &'static str {
+    match mana_type {
+        ManaType::White => "{T}: Add {W}.",
+        ManaType::Blue => "{T}: Add {U}.",
+        ManaType::Black => "{T}: Add {B}.",
+        ManaType::Red => "{T}: Add {R}.",
+        ManaType::Green => "{T}: Add {G}.",
+        ManaType::Colorless => "{T}: Add {C}.",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,6 +420,7 @@ mod tests {
         assert!(forest.mana_cost.is_none());
         assert_eq!(forest.abilities.len(), 1);
         assert_eq!(forest.abilities[0].ability_type, AbilityType::Mana);
+        assert_eq!(forest.abilities[0].rules_text, "{T}: Add {G}.");
     }
 
     #[test]

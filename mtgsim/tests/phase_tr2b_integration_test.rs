@@ -49,7 +49,7 @@ use mtgsim::ui::decision::{DecisionProvider, ScriptedDecisionProvider};
 
 /// A 1/1 creature fixture carrying one triggered ability.
 fn watcher(name: &str, event: impl Into<TriggerEvent>, effect: Effect) -> Arc<CardData> {
-    creature_with_ability(name, 1, 1, triggered_ability(whenever(event, effect)))
+    creature_with_ability(name, 1, 1, triggered_ability("", whenever(event, effect)))
 }
 
 fn gain_one() -> Effect {
@@ -131,6 +131,7 @@ fn cast_a_spell(game: &mut GameState, player: PlayerId) {
         .mana_cost(ManaCost::build(&[], 0))
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "",
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
@@ -306,7 +307,7 @@ fn a_sacrifice_whose_permanent_has_gone_answers_cant_and_draws_nothing() {
     );
     let standing = CardDataBuilder::new("Standing Stillness")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("", whenever(
             TriggerEvent::CastsSpell { caster: None, spell: None },
             Effect::Sequence(vec![Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject), if_you(CostAnswer::Does, draw_three)]),
         )))
@@ -476,7 +477,7 @@ fn reckoner() -> Arc<CardData> {
         limit: None,
         effect: each_opponent_loses_its_power(),
     };
-    creature_with_ability("Borrowed Reckoner", 2, 2, triggered_ability(def))
+    creature_with_ability("Borrowed Reckoner", 2, 2, triggered_ability("", def))
 }
 
 /// Item 169's board: the reckoner enters under player 0's control though
@@ -586,7 +587,7 @@ fn an_ability_that_sacrifices_its_own_source_reads_the_power_it_left_with() {
         Effect::Atom(Primitive::Sacrifice, EffectRecipient::ThisObject),
         each_opponent_loses_its_power(),
     ]);
-    let martyr = creature_with_ability("Brief Martyr", 3, 3, triggered_ability(whenever(enters(TriggerSubject::ThisObject), effect)));
+    let martyr = creature_with_ability("Brief Martyr", 3, 3, triggered_ability("", whenever(enters(TriggerSubject::ThisObject), effect)));
     let martyr = put_on_battlefield(&mut game, martyr, 0);
     place(&mut game, &test_dp());
     game.resolve_top_of_stack(&test_dp()).unwrap();
@@ -613,7 +614,7 @@ fn two_sources_are_asked_their_order_only_when_the_def_reads_the_source() {
         let effect = if reads_source { counter_on_this } else { gain_one() };
         let idol = CardDataBuilder::new("Growing Idol")
             .card_type(CardType::Artifact)
-            .ability(triggered_ability(whenever(enters(ObjectFilter::ByType(CardType::Creature)), effect)))
+            .ability(triggered_ability("", whenever(enters(ObjectFilter::ByType(CardType::Creature)), effect)))
             .build();
         put_on_battlefield(&mut game, Arc::clone(&idol), 0);
         put_on_battlefield(&mut game, idol, 0);

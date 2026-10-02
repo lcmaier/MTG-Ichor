@@ -905,6 +905,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::build(&[ManaType::Red], 4))
             .ability(AbilityDef {
+                rules_text: "",
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
@@ -946,6 +947,7 @@ mod tests {
             .color(crate::types::colors::Color::Red)
             .mana_cost(ManaCost::from_symbols(vec![ManaSymbol::X, ManaSymbol::Colored(ManaType::Red)]))
             .ability(AbilityDef {
+                rules_text: "",
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
@@ -1063,6 +1065,7 @@ mod tests {
             .color(crate::types::colors::Color::Blue)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 2))
             .ability(AbilityDef {
+                rules_text: "",
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),

@@ -68,6 +68,7 @@ fn enters_with(
         .subtype(Subtype::Creature(CreatureType::Bear))
         .power_toughness(power, toughness)
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -298,6 +299,7 @@ fn test_two_entry_replacements_accumulate() {
         .card_type(CardType::Creature)
         .power_toughness(2, 2)
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -311,6 +313,7 @@ fn test_two_entry_replacements_accumulate() {
             ))),
         })
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -380,6 +383,7 @@ fn orb_shaped() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("Permanents enter tapped.")
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -802,6 +806,7 @@ fn kismet_shaped() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Permanents your opponents control enter tapped.")
         .ability(AbilityDef {
+            rules_text: "",
             is_characteristic_defining: false,
             activation_restriction: mtgsim::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),

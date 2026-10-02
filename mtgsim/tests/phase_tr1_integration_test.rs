@@ -85,7 +85,7 @@ fn a_creature() -> ObjectFilter {
 
 /// A 1/1 creature fixture carrying one triggered ability.
 fn watcher(name: &str, event: impl Into<TriggerEvent>, effect: Effect) -> Arc<CardData> {
-    creature_with_ability(name, 1, 1, triggered_ability(whenever(event, effect)))
+    creature_with_ability(name, 1, 1, triggered_ability("", whenever(event, effect)))
 }
 
 /// A colorless enchantment fixture carrying one triggered ability — for a
@@ -342,7 +342,7 @@ fn an_artifact_dying_in_the_wipe_still_sees_the_creatures_die() {
         &mut game,
         CardDataBuilder::new("Mourning Idol")
             .card_type(CardType::Artifact)
-            .ability(triggered_ability(whenever(dies(a_creature()), gain_one())))
+            .ability(triggered_ability("", whenever(dies(a_creature()), gain_one())))
             .build(),
         0,
     );
@@ -391,7 +391,7 @@ fn a_grant_ending_in_the_wipe_still_sees_the_creatures_die() {
     let carrier = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 0);
     let granter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 0);
     let bear = put_on_battlefield(&mut game, vanilla_creature(2, 2, &[]), 1);
-    let mut granted = triggered_ability(whenever(dies(another(a_creature())), gain_one()));
+    let mut granted = triggered_ability("", whenever(dies(another(a_creature())), gain_one()));
     granted.id = new_ability_id();
     game.continuous_effects.add(ContinuousEffect {
         duration: Duration::WhileSourceOnBattlefield,
@@ -422,7 +422,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
         &mut game,
         enchantment_watcher(
             "Landfall Lament",
-            triggered_ability(whenever(dies(ObjectFilter::ByType(CardType::Land)), draw_one())),
+            triggered_ability("", whenever(dies(ObjectFilter::ByType(CardType::Land)), draw_one())),
         ),
         0,
     );
@@ -438,7 +438,7 @@ fn a_per_occurrence_trigger_fires_once_per_land_in_a_wipe() {
         &mut game2,
         enchantment_watcher(
             "Landfall Dirge",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 dies(ObjectFilter::ByType(CardType::Land)).once_per_event(),
                 gain_one(),
             )),
@@ -700,7 +700,7 @@ fn attack_triggers_fire_as_attackers_are_declared() {
         &mut game,
         enchantment_watcher(
             "War Drums",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::Attacks { attacker: TriggerSubject::Any, multiplicity: Multiplicity::PerOccurrence },
                 gain_one(),
             )),
@@ -739,7 +739,7 @@ fn entering_tapped_is_not_becoming_tapped() {
         &mut game,
         enchantment_watcher(
             "Tap Sentinel",
-            triggered_ability(whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Any }, draw_one())),
+            triggered_ability("", whenever(TriggerEvent::BecomesTapped { subject: TriggerSubject::Any }, draw_one())),
         ),
         0,
     );
@@ -796,7 +796,7 @@ fn prevented_damage_triggers_nothing() {
         &mut game,
         enchantment_watcher(
             "Pain Diary",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Any,
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
@@ -823,7 +823,7 @@ fn prevented_damage_triggers_nothing() {
         &mut game,
         enchantment_watcher(
             "Pain Diary",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Any,
                     recipient: DamageRecipient::Player(Some(PlayerRef::You)),
@@ -853,7 +853,7 @@ fn a_replaced_death_triggers_the_exile_and_not_the_death() {
         &mut game,
         enchantment_watcher(
             "Banishment Ledger",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Filter(a_creature()),
                     from: Some(Zone::Battlefield),
@@ -888,7 +888,7 @@ fn damage_triggers_still_fire_when_the_creature_regenerates() {
         &mut game,
         enchantment_watcher(
             "Wound Tally",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::DamageDealt {
                     source: TriggerSubject::Any,
                     recipient: DamageRecipient::Object(Some(a_creature())),
@@ -981,7 +981,7 @@ fn a_dies_trigger_checks_only_the_first_zone_the_card_went_to() {
     let mut game = setup_two_player_game();
     let renewal = put_on_battlefield(
         &mut game,
-        enchantment_watcher("Renewal Vow", triggered_ability(whenever(dies(a_creature()), exile_it))),
+        enchantment_watcher("Renewal Vow", triggered_ability("", whenever(dies(a_creature()), exile_it))),
         0,
     );
     let _ = renewal;
@@ -1092,7 +1092,7 @@ fn a_trigger_on_a_trigger_is_placed_in_the_second_tier() {
         &mut game,
         enchantment_watcher(
             "Lenient Proctor",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::AbilityTriggers { caused_by: None, source: Some(a_creature()) },
                 gain_one(),
             )),
@@ -1226,7 +1226,7 @@ fn the_resolution_checks_the_clause_then_the_targets_then_resolves_then_announce
             "Judging Herald",
             1,
             1,
-            triggered_ability(TriggerDef {
+            triggered_ability("", TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(Condition::Player {
                     players: PlayerSet::You,
@@ -1314,7 +1314,7 @@ fn a_bound_object_is_still_affected_after_it_changes_characteristics() {
         &mut game,
         enchantment_watcher(
             "Growth Ledger",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 enters(a_creature()),
                 Effect::Atom(
                     Primitive::AddCounters { counter: CounterType::PlusOnePlusOne, amount: AmountExpr::Fixed(1), by: PlayerRef::You },
@@ -1438,7 +1438,7 @@ fn a_mana_producing_trigger_from_another_event_uses_the_stack() {
     assert!(!is_mana_ability(&targeted), "a target disqualifies it");
 
     let mut game = setup_two_player_game();
-    put_on_battlefield(&mut game, enchantment_watcher("Verdant Echo", triggered_ability(from_entry)), 0);
+    put_on_battlefield(&mut game, enchantment_watcher("Verdant Echo", triggered_ability("", from_entry)), 0);
     put_on_battlefield(&mut game, grizzly_bears(), 0);
     assert_eq!(pending(&game), 1, "queued like any other trigger");
     assert_eq!(game.players[0].mana_pool.amount(ManaType::Green), 0);
@@ -1461,7 +1461,7 @@ fn each_source_of_simultaneous_life_gain_triggers_separately() {
         &mut game,
         enchantment_watcher(
             "Vital Ledger",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
@@ -1493,7 +1493,7 @@ fn gaining_zero_life_triggers_nothing() {
         &mut game,
         enchantment_watcher(
             "Vital Ledger",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::GainsLife { player: Some(PlayerRef::You), multiplicity: Multiplicity::PerOccurrence },
                 draw_one(),
             )),
@@ -1558,7 +1558,7 @@ fn a_trigger_at_cleanup_grants_priority_and_begins_another_cleanup_step() {
         &mut g.state,
         enchantment_watcher(
             "Discard Diary",
-            triggered_ability(whenever(
+            triggered_ability("", whenever(
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::Any,
                     from: Some(Zone::Hand),
@@ -1754,7 +1754,7 @@ fn dread_shaped() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .power_toughness(6, 6)
         .rules_text("Whenever a creature deals damage to you, destroy it.")
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("", whenever(
             TriggerEvent::DamageDealt {
                 source: a_creature().into(),
                 recipient: DamageRecipient::Player(Some(PlayerRef::You)),
@@ -1763,7 +1763,7 @@ fn dread_shaped() -> Arc<CardData> {
             },
             gain_one(),
         )))
-        .ability(triggered_ability(whenever(
+        .ability(triggered_ability("", whenever(
             TriggerEvent::ZoneChange {
                 subject: TriggerSubject::ThisObject,
                 from: None,
@@ -1827,7 +1827,7 @@ fn one_ability_two_zones() -> Arc<CardData> {
         "Split Vigil",
         1,
         1,
-        triggered_ability(TriggerDef {
+        triggered_ability("", TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::ZoneChange {
                     subject: TriggerSubject::ThisObject,
@@ -1980,7 +1980,7 @@ fn a_grant_ending_leaves_the_surviving_grants_identity_alone() {
     // Diffusion Sliver's shape, from registry rows: each granter grants one
     // def to the carrier while it is on the battlefield. One def, cloned, so
     // the two grants are of one ability.
-    let mut granted = triggered_ability(whenever(enters(another(a_creature())), gain_one()));
+    let mut granted = triggered_ability("", whenever(enters(another(a_creature())), gain_one()));
     granted.id = new_ability_id();
     for (granter, timestamp) in granters.into_iter().zip([100, 101]) {
         game.continuous_effects.add(ContinuousEffect {
@@ -2067,7 +2067,7 @@ fn kicked_herald() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 1))
         .power_toughness(2, 2)
         .additional_cost(kicker_red())
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("", TriggerDef {
             condition: TriggerCondition::Event(enters(TriggerSubject::ThisObject).into()),
             intervening_if: Some(Condition::SpellWasKicked),
             limit: None,

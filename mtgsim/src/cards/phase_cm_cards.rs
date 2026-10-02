@@ -87,7 +87,7 @@ pub fn thalia_guardian_of_thraben() -> Arc<CardData> {
                 ObjectFilter::Not(Box::new(ObjectFilter::ByType(CardType::Creature))),
                 CostChange::Increase(ManaCost::build(&[], 1)),
             )
-            .into_ability(),
+            .into_ability("Noncreature spells cost {1} more to cast."),
         )
         .build()
 }
@@ -122,7 +122,7 @@ pub fn goblin_electromancer() -> Arc<CardData> {
                 )),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
-            .into_ability(),
+            .into_ability("Instant and sorcery spells you cast cost {1} less to cast."),
         )
         .build()
 }
@@ -156,7 +156,7 @@ pub fn trinisphere() -> Arc<CardData> {
         .rules_text("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast. (Additional mana in the cost may be paid with any color of mana or colorless mana. For example, a spell that would cost {1}{B} to cast costs {2}{B} to cast instead.)")
         .ability(
             CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
-                .into_ability_while(Condition::SourceUntapped),
+                .into_ability_while("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast.", Condition::SourceUntapped),
         )
         .build()
 }
@@ -201,7 +201,7 @@ pub fn myr_enforcer() -> Arc<CardData> {
             "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
              you control.)",
         )
-        .affinity_for(ObjectFilter::ByType(CardType::Artifact))
+        .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
         .build()
 }
 
@@ -228,7 +228,7 @@ pub fn frogmite() -> Arc<CardData> {
             "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
              you control.)",
         )
-        .affinity_for(ObjectFilter::ByType(CardType::Artifact))
+        .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
         .build()
 }
 
@@ -256,20 +256,20 @@ pub fn locked_sphere() -> Arc<CardData> {
         )
         .ability(
             CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
-                .into_ability_while(Condition::SourceUntapped),
+                .into_ability_while("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast.", Condition::SourceUntapped),
         )
         .build()
 }
 
 /// A reducer fixture: an enchantment whose one ability is a reduction on the
 /// spells its controller casts. `filter` narrows "spells you cast".
-fn reducer(name: &str, color: Color, mana: ManaType, filter: ObjectFilter, less: ManaCost, text: &str) -> Arc<CardData> {
+fn reducer(name: &str, color: Color, mana: ManaType, filter: ObjectFilter, less: ManaCost, text: &'static str) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .mana_cost(ManaCost::build(&[mana], 0))
         .color(color)
         .card_type(CardType::Enchantment)
         .rules_text(text)
-        .ability(CostModificationDef::spells(you_cast(filter), CostChange::Reduce(less)).into_ability())
+        .ability(CostModificationDef::spells(you_cast(filter), CostChange::Reduce(less)).into_ability(text))
         .build()
 }
 
@@ -341,7 +341,7 @@ pub fn power_reducer() -> Arc<CardData> {
                 you_cast(ObjectFilter::All),
                 CostChange::ReduceGeneric(AmountExpr::SourcePower),
             )
-            .into_ability(),
+            .into_ability("Spells you cast cost {X} less to cast, where X is this creature's power."),
         )
         .build()
 }
@@ -355,6 +355,7 @@ fn lesson(name: &str, cost: ManaCost, color: Color, card_type: CardType) -> Card
         .card_type(card_type)
         .rules_text("Draw a card.")
         .ability(AbilityDef {
+            rules_text: "Draw a card.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -448,6 +449,7 @@ pub fn altars_reap() -> Arc<CardData> {
             1,
         )]))
         .ability(AbilityDef {
+            rules_text: "Draw two cards.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -491,7 +493,7 @@ pub fn thunderscape_familiar() -> Arc<CardData> {
                 )),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
-            .into_ability(),
+            .into_ability("Black spells and green spells you cast cost {1} less to cast."),
         )
         .build()
 }
@@ -519,6 +521,7 @@ pub fn krark_clan_ironworks() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact: Add {C}{C}.")
         .ability(AbilityDef {
+            rules_text: "Sacrifice an artifact: Add {C}{C}.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -560,7 +563,7 @@ pub fn foundry_inspector() -> Arc<CardData> {
                 you_cast(ObjectFilter::ByType(CardType::Artifact)),
                 CostChange::Reduce(ManaCost::build(&[], 1)),
             )
-            .into_ability(),
+            .into_ability("Artifact spells you cast cost {1} less to cast."),
         )
         .build()
 }
@@ -595,6 +598,7 @@ pub fn mind_stone() -> Arc<CardData> {
         .rules_text("{T}: Add {C}.\n{1}, {T}, Sacrifice this artifact: Draw a card.")
         .mana_ability_single(ManaType::Colorless)
         .ability(AbilityDef {
+            rules_text: "{1}, {T}, Sacrifice this artifact: Draw a card.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -648,6 +652,7 @@ pub fn bone_splinters() -> Arc<CardData> {
             1,
         )]))
         .ability(AbilityDef {
+            rules_text: "Destroy target creature.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -701,6 +706,7 @@ pub fn self_eating_engine() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("Sacrifice an artifact, {T}: Draw a card.")
         .ability(AbilityDef {
+            rules_text: "Sacrifice an artifact, {T}: Draw a card.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

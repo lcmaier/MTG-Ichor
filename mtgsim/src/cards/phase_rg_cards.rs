@@ -14,8 +14,9 @@ use crate::types::ids::AbilityId;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::replacement::{EnterModsTemplate, EventPattern, ReplacementDef, Rewrite};
 
-fn static_ability(effect: Effect) -> AbilityDef {
+fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text,
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -30,8 +31,8 @@ fn static_ability(effect: Effect) -> AbilityDef {
 /// `condition` names. Over every permanent, because an entering Archelos is
 /// never one of its own: source 1a admits only `ObjectSet::SourceOnly`
 /// (CR 614.12's parenthesis), as Master Biomancer's "other" needs no leaf.
-fn others_enter(condition: Condition, template: EnterModsTemplate) -> AbilityDef {
-    static_ability(Effect::Conditional(
+fn others_enter(rules_text: &'static str, condition: Condition, template: EnterModsTemplate) -> AbilityDef {
+    static_ability(rules_text, Effect::Conditional(
         condition,
         Box::new(Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::EnterBattlefield { cast: None },
@@ -83,7 +84,7 @@ pub fn archelos_lagoon_mystic() -> Arc<CardData> {
             "As long as Archelos is tapped, other permanents enter tapped.\n\
              As long as Archelos is untapped, other permanents enter untapped.",
         )
-        .ability(others_enter(Condition::SourceTapped, EnterModsTemplate::tapped()))
-        .ability(others_enter(Condition::SourceUntapped, EnterModsTemplate::untapped()))
+        .ability(others_enter("As long as Archelos is tapped, other permanents enter tapped.", Condition::SourceTapped, EnterModsTemplate::tapped()))
+        .ability(others_enter("As long as Archelos is untapped, other permanents enter untapped.", Condition::SourceUntapped, EnterModsTemplate::untapped()))
         .build()
 }

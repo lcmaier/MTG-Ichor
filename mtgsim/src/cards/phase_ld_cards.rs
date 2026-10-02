@@ -27,6 +27,7 @@ pub fn liquimetal_coating_spell() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Colorless], 1))
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "Target permanent becomes an artifact in addition to its other types until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -71,6 +72,7 @@ pub fn ensoul_artifact_spell() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "Target artifact becomes an artifact creature with base power and toughness 5/5 until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -131,6 +133,7 @@ pub fn call_to_serve_spell() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "Target creature gets +1/+2 and is an Angel in addition to its other types until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -184,6 +187,7 @@ pub fn on_serras_wings_spell() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .ability(AbilityDef {
+            rules_text: "Target creature is legendary and gets +1/+1 until end of turn.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -250,6 +254,7 @@ pub fn blood_moon() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Nonbasic lands are Mountains.")
         .ability(AbilityDef {
+            rules_text: "Nonbasic lands are Mountains.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -298,6 +303,7 @@ pub fn urborg_effect() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
+            rules_text: "Each land is a Swamp in addition to its other land types.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -340,6 +346,7 @@ pub fn urborg_effect() -> Arc<CardData> {
 pub fn dual_land_ub() -> Arc<CardData> {
     fn mana_ability(mana_type: ManaType) -> AbilityDef {
         AbilityDef {
+            rules_text: crate::objects::card_data::tap_to_add_text(mana_type),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -385,6 +392,7 @@ pub fn lands_have_flying() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Lands have flying.")
         .ability(AbilityDef {
+            rules_text: "Lands have flying.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -433,6 +441,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .card_type(CardType::Enchantment)
         .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value. (Equipment that's a creature can't equip a creature.)")
         .ability(AbilityDef {
+            rules_text: "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -498,6 +507,7 @@ pub fn land_creatures_have_flying() -> Arc<CardData> {
         .card_type(CardType::Land)
         .rules_text("Creatures have flying.")
         .ability(AbilityDef {
+            rules_text: "Creatures have flying.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -552,6 +562,7 @@ pub fn self_stripping_land() -> Arc<CardData> {
         .card_type(CardType::Land)
         .rules_text("Nonbasic lands are Mountains.")
         .ability(AbilityDef {
+            rules_text: "Nonbasic lands are Mountains.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

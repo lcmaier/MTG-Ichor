@@ -26,8 +26,9 @@ use crate::types::keywords::KeywordFlag;
 use crate::types::mana::{ManaCost, ManaType};
 use crate::types::zones::ZoneSet;
 
-fn static_ability(effect: Effect) -> AbilityDef {
+fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text,
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -81,6 +82,7 @@ pub fn yixlid_jailer() -> Arc<CardData> {
         .power_toughness(2, 1)
         .rules_text("Cards in graveyards lose all abilities.")
         .ability(AbilityDef {
+            rules_text: "Cards in graveyards lose all abilities.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -124,6 +126,7 @@ pub fn scarwood_treefolk() -> Arc<CardData> {
         .power_toughness(3, 5)
         .rules_text("This creature enters tapped.")
         .ability(AbilityDef {
+            rules_text: "This creature enters tapped.",
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -172,7 +175,7 @@ pub fn graveyard_painter() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("Cards in graveyards are red in addition to their other colors.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Cards in graveyards are red in addition to their other colors.", Effect::Atom(
             Primitive::ChangeColor(ColorChange::Add(Color::Red), Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::GRAVEYARD),
         )))
@@ -200,7 +203,7 @@ pub fn graveyard_reveler() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Zombie))
         .power_toughness(1, 1)
         .rules_text("This creature gets +2/+2 as long as there's a red card in your graveyard.")
-        .ability(static_ability(Effect::Conditional(
+        .ability(static_ability("This creature gets +2/+2 as long as there's a red card in your graveyard.", Effect::Conditional(
             Condition::Player {
                 players: PlayerSet::You,
                 fact: PlayerFact::CardInGraveyard(ObjectFilter::ByColor(Color::Red)),
@@ -242,7 +245,7 @@ pub fn teferi_flash_clause() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("Creature cards you own that aren't on the battlefield have flash.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Creature cards you own that aren't on the battlefield have flash.", Effect::Atom(
             Primitive::GrantKeywordFlag(KeywordFlag::Flash, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(
                 ObjectFilter::And(
@@ -267,7 +270,7 @@ pub fn lattice_colorless_clause() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 2))
         .card_type(CardType::Artifact)
         .rules_text("All cards that aren't on the battlefield are colorless.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("All cards that aren't on the battlefield are colorless.", Effect::Atom(
             Primitive::ChangeColor(ColorChange::RemoveAll, Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::EVERYWHERE_BUT_BATTLEFIELD),
         )))

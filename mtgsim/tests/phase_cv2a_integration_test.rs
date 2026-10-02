@@ -329,7 +329,7 @@ fn wall_of_omens() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .power_toughness(0, 4)
         .keyword_flag(KeywordFlag::Defender)
-        .ability(triggered_ability(whenever(enters(TriggerSubject::ThisObject), draw)))
+        .ability(triggered_ability("", whenever(enters(TriggerSubject::ThisObject), draw)))
         .build()
 }
 
@@ -382,6 +382,7 @@ fn idle_thought() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .mana_cost(ManaCost::build(&[], 0))
         .ability(AbilityDef {
+            rules_text: "",
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
@@ -480,6 +481,7 @@ fn a_clone_copies_no_counters_status_or_noncopy_effects() {
 fn a_clone_of_an_animated_artifact_is_that_artifact() {
     let mut game = setup_two_player_game();
     let staff_ability = AbilityDef {
+        rules_text: "",
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
