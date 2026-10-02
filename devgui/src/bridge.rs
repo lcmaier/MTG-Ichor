@@ -101,8 +101,9 @@ pub fn spawn_game(setup: GameSetup, wake: Arc<dyn Fn() + Send + Sync>) -> Engine
             let played = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 play(&setup, &to_window, from_window, &wake)
             }));
-            if let Err(payload) = played {
-                // The window may be gone too, which is how a closed window ends this thread.
+            if let Err(payload) = played
+                && !payload.is::<WindowGone>()
+            {
                 let _ = to_window.send(ToWindow::Panicked { message: panic_message(payload.as_ref()) });
                 wake();
             }
@@ -129,25 +130,28 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
                 Pool::Performance => CardRegistry::performance_pool(),
                 Pool::Stress => CardRegistry::default_registry(),
             };
-            // Three streams from the one seed: the decks, the shuffle, the bot.
+            // `fuzz_games`' three streams from one seed: the decks off the seed
+            // itself, the shuffle and the bot off `RandomStreams`, so a fuzz
+            // game's printed seed deals the same game here.
+            let streams = RandomStreams::from_seed(setup.seed);
             let mut deck_rng = StdRng::seed_from_u64(setup.seed);
             let decks: Vec<Vec<Arc<CardData>>> =
                 (0..2).map(|_| random_deck(&registry, &mut deck_rng, &[], 1, DECK_SIZE)).collect();
             let log = DecisionLog::open(setup, &GameStart::Dealt(&decks));
             let mut game = Game::new(GameConfig::unrestricted(), decks).expect("two decks always make a game");
-            game.reseed(setup.seed.wrapping_add(1));
-            (game, SetupActions::default(), log, setup.seed.wrapping_add(2))
+            game.reseed(streams.game);
+            (game, SetupActions::default(), log, streams.agents)
         }
     };
     let log = Rc::new(RefCell::new(log));
     game.state.record_events();
 
-    let events_shown = Rc::new(Cell::new(0));
+    let events_logged = Rc::new(Cell::new(0));
     let seat = GuiSeat {
         to_window: to_window.clone(),
         from_window,
         wake: Arc::clone(wake),
-        events_shown: Rc::clone(&events_shown),
+        events_logged: Rc::clone(&events_logged),
         log: Rc::clone(&log),
     };
     // `cli_play`'s stacks: CR 601.2g's window closes once the cost is paid.
@@ -167,7 +171,7 @@ fn play(setup: &GameSetup, to_window: &Sender<ToWindow>, from_window: Receiver<A
         Err(error) => Outcome::Error(error),
     };
     log.borrow_mut().outcome(&outcome);
-    let snapshot = Snapshot::build(&game.state, events_shown.get());
+    let snapshot = Snapshot::build(&game.state, events_logged.get());
     let _ = to_window.send(ToWindow::Finished { snapshot, outcome });
     wake();
 }
@@ -190,20 +194,22 @@ struct GuiSeat {
     from_window: Receiver<Answer>,
     wake: Arc<dyn Fn() + Send + Sync>,
     /// Shared with `play`, whose final board picks the log up from here.
-    events_shown: Rc<Cell<usize>>,
+    events_logged: Rc<Cell<usize>>,
     log: Rc<RefCell<DecisionLog>>,
 }
 
 impl GuiSeat {
     fn answer(&self, game: &GameState, prompt: Prompt) -> Answer {
-        let snapshot = Snapshot::build(game, self.events_shown.get());
-        self.events_shown.set(snapshot.events_seen);
+        let snapshot = Snapshot::build(game, self.events_logged.get());
+        self.events_logged.set(snapshot.events_logged);
         let kind = prompt.kind.clone();
-        self.to_window
-            .send(ToWindow::Prompt { snapshot, prompt })
-            .expect("the window closed during the game");
+        if self.to_window.send(ToWindow::Prompt { snapshot, prompt }).is_err() {
+            std::panic::resume_unwind(Box::new(WindowGone));
+        }
         (self.wake)();
-        let answer = self.from_window.recv().expect("the window closed with a prompt open");
+        let Ok(answer) = self.from_window.recv() else {
+            std::panic::resume_unwind(Box::new(WindowGone));
+        };
         self.log.borrow_mut().answer(game, &kind, &answer);
         answer
     }
@@ -260,6 +266,12 @@ impl DecisionProvider for GuiSeat {
         SeatMode { person: true, ..SeatMode::default() }
     }
 }
+
+/// What a game whose window has gone unwinds with: the window closed, or
+/// Reload started another game. `resume_unwind` raises it without the panic
+/// hook, so the normal end of a superseded game prints nothing, and
+/// `spawn_game` sends no `Panicked` for it.
+struct WindowGone;
 
 /// How a game began, as its log records it.
 enum GameStart<'a> {

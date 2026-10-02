@@ -16,14 +16,16 @@ use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
 /// Something the player did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Input {
-    /// Clicked option `i` of the prompt.
-    Option(usize),
+    /// Clicked option `i`'s button.
+    OptionButton(usize),
     /// Clicked a card or a player on the board.
     Board(BoardRef),
     /// Set a `pick_number`'s number.
     Number(u64),
-    /// One more (`true`) or one fewer into bucket `i` of an allocation.
-    Adjust(usize, bool),
+    /// One more into bucket `i` of an allocation.
+    OneMore(usize),
+    /// One fewer in bucket `i` of an allocation.
+    OneFewer(usize),
     /// The confirm button.
     Done,
     /// Start the answer over.
@@ -55,6 +57,14 @@ impl Selection {
         }
     }
 
+    /// Whether `input` would change the answer in progress or complete it:
+    /// a click the window may offer. Run on a copy, so it is the input's own
+    /// logic that answers and no second copy of the rules.
+    pub fn is_live(&self, prompt: &Prompt, input: Input) -> bool {
+        let mut probe = self.clone();
+        probe.apply(prompt, input).is_some() || probe != *self
+    }
+
     /// The answer, once `input` completes a legal one. Legal by `ui/ask.rs`'s
     /// validators, so the engine never asserts on a window's answer.
     pub fn apply(&mut self, prompt: &Prompt, input: Input) -> Option<Answer> {
@@ -79,7 +89,7 @@ impl Selection {
             }
             (Primitive::Order, Selection::Order(order)) => {
                 let item = match input {
-                    Input::Option(i) => Some(i),
+                    Input::OptionButton(i) => Some(i),
                     Input::Board(target) => (0..prompt.options.len())
                         .find(|i| prompt.options[*i].refs.first() == Some(&target) && !order.contains(i)),
                     Input::Done => {
@@ -109,7 +119,7 @@ fn pick(
     input: Input,
 ) -> Option<Answer> {
     let clicked = match input {
-        Input::Option(i) if i < prompt.options.len() => Some(i),
+        Input::OptionButton(i) if i < prompt.options.len() => Some(i),
         Input::Board(target) => board_option(prompt, half, target),
         Input::Done => return (min..=max).contains(&chosen.len()).then(|| Answer::Picks(chosen.clone())),
         _ => None,
@@ -137,6 +147,7 @@ fn board_option(prompt: &Prompt, half: &mut Option<BoardRef>, target: BoardRef) 
     let starting: Vec<usize> =
         (0..prompt.options.len()).filter(|i| prompt.options[*i].refs.first() == Some(&target)).collect();
     match starting.as_slice() {
+        [] => None,
         [only] => Some(*only),
         several if several.iter().all(|i| prompt.options[*i].refs.len() == 2) => {
             *half = Some(target);
@@ -156,8 +167,8 @@ fn allocate(
     input: Input,
 ) -> Option<Answer> {
     let (bucket, more) = match input {
-        Input::Adjust(bucket, more) => (bucket, more),
-        Input::Option(bucket) => (bucket, true),
+        Input::OneMore(bucket) | Input::OptionButton(bucket) => (bucket, true),
+        Input::OneFewer(bucket) => (bucket, false),
         Input::Board(target) => (prompt.options.iter().position(|o| o.refs.first() == Some(&target))?, true),
         Input::Done => return (amounts.iter().sum::<u64>() == total).then(|| Answer::Allocation(amounts.to_vec())),
         _ => return None,
@@ -214,7 +225,7 @@ impl WindowState {
     /// The answer to send, once `input` completes one. The prompt closes with
     /// it; the board stays until the engine's next message.
     pub fn input(&mut self, input: Input) -> Option<Answer> {
-        // The window's own controls, which `app` acts on; no prompt's answer.
+        // The window's own controls, which `Session::input` acts on; no prompt's answer.
         if matches!(input, Input::Reload | Input::SaveBoard) {
             return None;
         }
@@ -244,13 +255,24 @@ impl WindowState {
         }
     }
 
+    /// What the board's place says while there is no board.
+    pub fn no_board(&self) -> &'static str {
+        if self.refused.is_some() {
+            "No board: the scenario did not load."
+        } else if self.panic.is_some() {
+            "No board: the engine panicked before its first prompt."
+        } else {
+            "Waiting for the engine's first prompt."
+        }
+    }
+
     pub fn board_view(&self) -> Option<BoardView> {
         let board = self.board.as_ref()?;
         Some(BoardView::new(board, &Marks::new(self.prompt.as_ref(), self.selection.as_ref())))
     }
 
     pub fn prompt_view(&self) -> Option<PromptView> {
-        Some(PromptView::new(self.prompt.as_ref()?, self.selection.as_ref()?))
+        Some(PromptView::new(self.prompt.as_ref()?, self.selection.as_ref()?, self.board.as_ref()))
     }
 }
 
@@ -273,7 +295,11 @@ pub struct Item {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ZoneView {
+    /// The header, with the zone's count where it has one.
     pub name: String,
+    /// The zone without its count, which keys the header's open state, so a
+    /// card arriving does not close a graveyard the person opened.
+    pub key: &'static str,
     pub items: Vec<Item>,
     /// Shown open rather than collapsed.
     pub open: bool,
@@ -297,8 +323,8 @@ pub struct BoardView {
     pub command: Vec<Item>,
 }
 
-/// Which board things the open prompt makes clickable, which it has chosen,
-/// and which it is about.
+/// Which board things a click would move the answer along, which the answer
+/// has chosen, and which the prompt is about.
 #[derive(Default)]
 struct Marks {
     clickable: Vec<BoardRef>,
@@ -312,20 +338,23 @@ impl Marks {
             return Marks::default();
         };
         let first = |i: &usize| prompt.options[*i].refs.first().copied();
-        let all: Vec<usize> = (0..prompt.options.len()).collect();
-        let (clickable, chosen) = match selection {
-            Selection::Picks { chosen, half: Some(half) } => (
-                prompt.options.iter().filter(|o| o.refs.first() == Some(half)).filter_map(|o| o.refs.get(1).copied()).collect(),
-                chosen.iter().filter_map(first).chain([*half]).collect(),
-            ),
-            Selection::Picks { chosen, half: None } => {
-                (all.iter().filter_map(first).collect(), chosen.iter().filter_map(first).collect())
+        // A pair's half waiting for its second click offers only its partners.
+        let candidates: Vec<BoardRef> = match selection {
+            Selection::Picks { half: Some(half), .. } => {
+                prompt.options.iter().filter(|o| o.refs.first() == Some(half)).filter_map(|o| o.refs.get(1).copied()).collect()
             }
-            Selection::Order(order) => {
-                (all.iter().filter(|i| !order.contains(i)).filter_map(first).collect(), order.iter().filter_map(first).collect())
+            _ => prompt.options.iter().flat_map(|o| o.refs.iter().copied()).collect(),
+        };
+        let mut clickable: Vec<BoardRef> = Vec::new();
+        for target in candidates {
+            if !clickable.contains(&target) && selection.is_live(prompt, Input::Board(target)) {
+                clickable.push(target);
             }
-            Selection::Allocation(_) => (all.iter().filter_map(first).collect(), Vec::new()),
-            Selection::Number(_) => (Vec::new(), Vec::new()),
+        }
+        let chosen = match selection {
+            Selection::Picks { chosen, half } => chosen.iter().filter_map(first).chain(*half).collect(),
+            Selection::Order(order) => order.iter().filter_map(first).collect(),
+            Selection::Allocation(_) | Selection::Number(_) => Vec::new(),
         };
         Marks { clickable, chosen, subject: prompt.subject.map(BoardRef::Object) }
     }
@@ -374,7 +403,7 @@ impl Marks {
         for attacker in &permanent.blocking {
             detail.push(format!("blocking {attacker}"));
         }
-        if let Some(host) = permanent.attached_to {
+        if let Some(host) = &permanent.attached_to {
             detail.push(format!("attached to {host}"));
         }
         let title = format!("{} ({})", permanent.card.name, permanent.card.id);
@@ -465,10 +494,11 @@ fn seat(player: &PlayerView, marks: &Marks) -> SeatView {
     let mut zones: Vec<ZoneView> = battlefield
         .into_iter()
         .filter(|(_, items)| !items.is_empty())
-        .map(|(name, items)| ZoneView { name: name.to_string(), items, open: true })
+        .map(|(name, items)| ZoneView { name: name.to_string(), key: name, items, open: true })
         .collect();
-    let counted = |name: &str, cards: &[CardView], open: bool| ZoneView {
+    let counted = |name: &'static str, cards: &[CardView], open: bool| ZoneView {
         name: format!("{name} ({})", cards.len()),
+        key: name,
         items: cards.iter().map(|card| marks.card(card)).collect(),
         open,
     };
@@ -484,8 +514,32 @@ pub struct OptionButton {
     pub chosen: bool,
     /// Its place in an ordering, from 1.
     pub place: Option<usize>,
-    /// An allocation's amount in this bucket, and whether it can go down and up.
-    pub amount: Option<(u64, bool, bool)>,
+    /// An allocation's bucket, drawn as its amount between "−" and "+".
+    pub amount: Option<Amount>,
+    /// A click on it moves the answer along.
+    pub live: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Amount {
+    pub value: u64,
+    pub can_lower: bool,
+    pub can_raise: bool,
+}
+
+/// A `pick_number`'s field.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NumberField {
+    pub min: u64,
+    pub max: u64,
+    pub value: u64,
+}
+
+/// The confirm button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DoneButton {
+    pub label: String,
+    pub live: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -494,21 +548,29 @@ pub struct PromptView {
     /// What makes an answer complete.
     pub rule: String,
     pub options: Vec<OptionButton>,
-    /// A number's range and its value now.
-    pub number: Option<(u64, u64, u64)>,
-    /// The confirm button, when the prompt has one, and whether it is live.
-    pub done: Option<(String, bool)>,
+    pub number: Option<NumberField>,
+    /// The confirm button, when the prompt has one.
+    pub done: Option<DoneButton>,
+    /// "Start over" has something to undo.
     pub can_reset: bool,
 }
 
 impl PromptView {
-    fn new(prompt: &Prompt, selection: &Selection) -> PromptView {
+    fn new(prompt: &Prompt, selection: &Selection, board: Option<&Snapshot>) -> PromptView {
+        let live = |input: Input| selection.is_live(prompt, input);
         let options = prompt.options.iter().enumerate();
-        let button = |label: &str| OptionButton { label: label.to_string(), chosen: false, place: None, amount: None };
+        let button = |i: usize, label: &str| OptionButton {
+            label: label.to_string(),
+            chosen: false,
+            place: None,
+            amount: None,
+            live: live(Input::OptionButton(i)),
+        };
+        let done_button = |label: &str| DoneButton { label: label.to_string(), live: live(Input::Done) };
         let (rule, options, number, done): (String, Vec<OptionButton>, _, _) = match (&prompt.primitive, selection) {
             (Primitive::PickN { min, max }, Selection::Picks { chosen, half }) => {
                 let rule = match half {
-                    Some(half) => format!("now click what {} goes with", name_of(half)),
+                    Some(half) => format!("now click what {} goes with", name_of(board, half)),
                     None => pick_rule(*min, *max),
                 };
                 // A lone option with a way out is a "may": yes or no.
@@ -516,43 +578,46 @@ impl PromptView {
                 let options = options
                     .map(|(i, o)| OptionButton {
                         chosen: chosen.contains(&i),
-                        ..button(&if may { format!("Yes: {}", o.label) } else { o.label.clone() })
+                        ..button(i, &if may { format!("Yes: {}", o.label) } else { o.label.clone() })
                     })
                     .collect();
                 let done = match (*min, *max) {
-                    (0, 1) => Some((if may { "No" } else { "Decline" }.to_string(), true)),
+                    (0, 1) => Some(done_button(if may { "No" } else { "Decline" })),
                     (_, 1) => None,
-                    _ => Some(("Done".to_string(), (*min..=*max).contains(&chosen.len()))),
+                    _ => Some(done_button("Done")),
                 };
                 (rule, options, None, done)
             }
             (Primitive::Number { min, max }, Selection::Number(value)) => {
                 let top = if *max == u64::MAX { "any".to_string() } else { max.to_string() };
-                (format!("a number from {min} to {top}"), Vec::new(), Some((*min, *max, *value)), Some(("Done".to_string(), true)))
+                let field = NumberField { min: *min, max: *max, value: *value };
+                (format!("a number from {min} to {top}"), Vec::new(), Some(field), Some(done_button("Done")))
             }
-            (Primitive::Allocate { total, mins, maxs }, Selection::Allocation(amounts)) => {
+            (Primitive::Allocate { total, .. }, Selection::Allocation(amounts)) => {
                 let left = total.saturating_sub(amounts.iter().sum());
                 let options = options
                     .map(|(i, o)| {
-                        let cap = maxs.as_ref().map_or(u64::MAX, |maxs| maxs[i]);
-                        OptionButton { amount: Some((amounts[i], amounts[i] > mins[i], left > 0 && amounts[i] < cap)), ..button(&o.label) }
+                        let amount =
+                            Amount { value: amounts[i], can_lower: live(Input::OneFewer(i)), can_raise: live(Input::OneMore(i)) };
+                        OptionButton { amount: Some(amount), ..button(i, &o.label) }
                     })
                     .collect();
-                (format!("divide {total}: {left} left"), options, None, Some(("Done".to_string(), left == 0)))
+                (format!("divide {total}: {left} left"), options, None, Some(done_button("Done")))
             }
             (Primitive::Order, Selection::Order(order)) => {
                 let options = options
                     .map(|(i, o)| {
                         let place = order.iter().position(|placed| *placed == i).map(|at| at + 1);
-                        OptionButton { chosen: place.is_some(), place, ..button(&o.label) }
+                        OptionButton { chosen: place.is_some(), place, ..button(i, &o.label) }
                     })
                     .collect();
                 let rule = format!("click them in order: {} of {} placed", order.len(), prompt.options.len());
-                (rule, options, None, Some(("Done".to_string(), order.len() == prompt.options.len())))
+                (rule, options, None, Some(done_button("Done")))
             }
             _ => (String::new(), Vec::new(), None, None),
         };
-        let can_reset = !matches!(prompt.primitive, Primitive::PickN { max: 1, .. } | Primitive::Number { .. });
+        let has_reset = !matches!(prompt.primitive, Primitive::PickN { max: 1, .. } | Primitive::Number { .. });
+        let can_reset = has_reset && live(Input::Reset);
         PromptView { question: prompt.question.clone(), rule, options, number, done, can_reset }
     }
 }
@@ -567,9 +632,13 @@ fn pick_rule(min: usize, max: usize) -> String {
     }
 }
 
-fn name_of(target: &BoardRef) -> String {
+/// `target` as the board titles it: `Hill Giant (#17)`, `Player 1`. A pair's
+/// half is a permanent, so the battlefield is where it is looked for.
+fn name_of(board: Option<&Snapshot>, target: &BoardRef) -> String {
     match target {
-        BoardRef::Object(id) => id.to_string(),
+        BoardRef::Object(id) => board
+            .and_then(|board| board.players.iter().flat_map(|p| &p.battlefield).find(|p| p.card.id == *id))
+            .map_or_else(|| id.to_string(), |permanent| format!("{} ({id})", permanent.card.name)),
         BoardRef::Player(player) => format!("Player {player}"),
     }
 }
@@ -578,8 +647,8 @@ fn name_of(target: &BoardRef) -> String {
 mod tests {
     use mtgsim::objects::card_data::CardDataBuilder;
     use mtgsim::test_support::{
-        card_of_type, forest, lightning_bolt, put_in_hand, put_on_battlefield, set_attacking, setup_two_player_game,
-        vanilla_creature,
+        card_of_type, forest, lightning_bolt, put_in_hand, put_on_battlefield, set_attacking, set_blocking,
+        setup_two_player_game, vanilla_creature,
     };
     use mtgsim::types::card_types::CardType;
     use mtgsim::types::ids::ObjectId;
@@ -615,6 +684,7 @@ mod tests {
         let their_giant = put_on_battlefield(&mut game, vanilla_creature(3, 3, &[]), 1);
         set_attacking(&mut game, their_bear, 0);
         set_attacking(&mut game, their_giant, 0);
+        set_blocking(&mut game, arbor, vec![their_giant]);
         let snapshot = Snapshot::build(&game, 0);
         Board { snapshot, bear, forest, arbor, relic, bolt, their_bear, their_giant }
     }
@@ -657,6 +727,8 @@ mod tests {
         assert_eq!(mine.player.target, Some(Player(WINDOW_SEAT)), "the window's seat is drawn last");
         let names: Vec<&str> = mine.zones.iter().map(|zone| zone.name.as_str()).collect();
         assert_eq!(names, ["Creatures", "Lands", "Other permanents", "Hand (1)", "Graveyard (0)", "Library (0)"]);
+        let keys: Vec<&str> = mine.zones.iter().map(|zone| zone.key).collect();
+        assert_eq!(keys, ["Creatures", "Lands", "Other permanents", "Hand", "Graveyard", "Library"], "no count in a key");
         let targets = |zone: &ZoneView| zone.items.iter().map(|item| item.target).collect::<Vec<_>>();
         assert_eq!(targets(&mine.zones[0]), [Some(Object(b.bear)), Some(Object(b.arbor))]);
         assert_eq!(targets(&mine.zones[1]), [Some(Object(b.forest))]);
@@ -664,6 +736,8 @@ mod tests {
         assert!(item(&view, b.bear).detail.starts_with("2/2"), "{}", item(&view, b.bear).detail);
         assert!(!item(&view, b.relic).detail.contains('/'), "no power or toughness off a creature");
         assert!(item(&view, b.their_bear).detail.contains("attacking Player 0"));
+        let giant = item(&view, b.their_giant).title;
+        assert!(item(&view, b.arbor).detail.ends_with(&format!("blocking {giant}")), "named as the board titles it");
     }
 
     #[test]
@@ -675,7 +749,7 @@ mod tests {
         assert!(item(&view, b.bolt).clickable);
         assert!(!item(&view, b.bear).clickable, "no option names it");
         assert_eq!(state.clone().input(Input::Board(Object(b.bear))), None);
-        assert_eq!(state.clone().input(Input::Option(0)), Some(Answer::Picks(vec![0])));
+        assert_eq!(state.clone().input(Input::OptionButton(0)), Some(Answer::Picks(vec![0])));
         let mut clicked = state.clone();
         assert_eq!(clicked.input(Input::Board(Object(b.bolt))), Some(Answer::Picks(vec![1])));
         assert!(clicked.prompt.is_none(), "the answer closes the prompt");
@@ -695,10 +769,21 @@ mod tests {
         assert!(item(&view, b.bear).chosen, "the half shows as chosen");
         assert!(item(&view, b.their_bear).clickable && item(&view, b.their_giant).clickable);
         assert!(!item(&view, b.arbor).clickable, "only the half's partners, until it is completed");
-        assert!(state.prompt_view().unwrap().rule.starts_with("now click"));
+        let bear = item(&view, b.bear).title;
+        assert_eq!(state.prompt_view().unwrap().rule, format!("now click what {bear} goes with"));
         state.input(Input::Board(Object(b.their_giant)));
         state.input(Input::Board(Object(b.arbor)));
         assert_eq!(state.input(Input::Done), Some(Answer::Picks(vec![1, 2])));
+    }
+
+    #[test]
+    fn a_click_on_what_a_pair_ends_at_starts_nothing() {
+        let b = board();
+        let blocks = vec![option("bear blocks bear", vec![Object(b.bear), Object(b.their_bear)])];
+        let mut state = deciding(&b, prompt(Primitive::PickN { min: 0, max: 1 }, blocks));
+        assert!(!item(&state.board_view().unwrap(), b.their_bear).clickable);
+        assert_eq!(state.input(Input::Board(Object(b.their_bear))), None);
+        assert_eq!(state.selection, Some(Selection::Picks { chosen: Vec::new(), half: None }), "no half waits for a partner");
     }
 
     #[test]
@@ -707,7 +792,7 @@ mod tests {
         let state = deciding(&b, prompt(Primitive::PickN { min: 0, max: 1 }, vec![option("Blood Artist", Vec::new())]));
         let view = state.prompt_view().unwrap();
         assert_eq!(view.options[0].label, "Yes: Blood Artist");
-        assert_eq!(view.done, Some(("No".to_string(), true)));
+        assert_eq!(view.done, Some(DoneButton { label: "No".to_string(), live: true }));
         assert_eq!(state.clone().input(Input::Done), Some(Answer::Picks(Vec::new())));
     }
 
@@ -715,14 +800,14 @@ mod tests {
     fn done_is_live_only_inside_the_bounds() {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::PickN { min: 2, max: 3 }, unnamed(4)));
-        state.input(Input::Option(0));
-        assert_eq!(state.prompt_view().unwrap().done, Some(("Done".to_string(), false)));
+        state.input(Input::OptionButton(0));
+        assert_eq!(state.prompt_view().unwrap().done.map(|done| done.live), Some(false));
         assert_eq!(state.input(Input::Done), None);
         for i in [3, 1, 2] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
-        assert_eq!(state.prompt_view().unwrap().done, Some(("Done".to_string(), true)));
-        state.input(Input::Option(3));
+        assert_eq!(state.prompt_view().unwrap().done.map(|done| done.live), Some(true));
+        state.input(Input::OptionButton(3));
         assert_eq!(
             state.input(Input::Done),
             Some(Answer::Picks(vec![0, 1])),
@@ -736,12 +821,12 @@ mod tests {
         let buckets = vec![option("bear", vec![Object(b.their_bear)]), option("player", vec![Player(1)])];
         let split = Primitive::Allocate { total: 3, mins: vec![1, 0], maxs: Some(vec![2, 3]) };
         let mut state = deciding(&b, prompt(split, buckets));
-        state.input(Input::Adjust(0, false));
+        state.input(Input::OneFewer(0));
         for _ in 0..3 {
-            state.input(Input::Adjust(0, true));
+            state.input(Input::OneMore(0));
         }
         let amount = state.prompt_view().unwrap().options[0].amount;
-        assert_eq!(amount, Some((2, true, false)), "held between its minimum and its maximum");
+        assert_eq!(amount, Some(Amount { value: 2, can_lower: true, can_raise: false }), "held between its minimum and its maximum");
         assert_eq!(state.input(Input::Done), None, "one still to place");
         state.input(Input::Board(Player(1)));
         assert_eq!(state.input(Input::Done), Some(Answer::Allocation(vec![2, 1])));
@@ -752,13 +837,13 @@ mod tests {
         let b = board();
         let mut state = deciding(&b, prompt(Primitive::Order, unnamed(3)));
         for i in [2, 0, 2] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
         assert_eq!(state.prompt_view().unwrap().options[2].place, Some(1));
         assert_eq!(state.input(Input::Done), None);
         state.input(Input::Reset);
         for i in [1, 2, 0] {
-            state.input(Input::Option(i));
+            state.input(Input::OptionButton(i));
         }
         assert_eq!(state.input(Input::Done), Some(Answer::Order(vec![1, 2, 0])));
     }
@@ -769,6 +854,29 @@ mod tests {
         let mut state = deciding(&b, prompt(Primitive::Number { min: 2, max: 5 }, Vec::new()));
         state.input(Input::Number(9));
         assert_eq!(state.input(Input::Done), Some(Answer::Number(5)));
+    }
+
+    #[test]
+    fn a_click_the_window_offers_always_moves_the_answer_along() {
+        let b = board();
+        // Two abilities of one permanent: its buttons tell them apart, and a
+        // click on the permanent could mean either, so it is no target.
+        let abilities = vec![option("ability 0", vec![Object(b.forest)]), option("ability 1", vec![Object(b.forest)])];
+        let state = deciding(&b, prompt(Primitive::PickN { min: 0, max: 1 }, abilities));
+        assert!(!item(&state.board_view().unwrap(), b.forest).clickable);
+
+        let mut order = deciding(&b, prompt(Primitive::Order, unnamed(2)));
+        assert!(!order.prompt_view().unwrap().can_reset, "nothing to start over yet");
+        order.input(Input::OptionButton(1));
+        let view = order.prompt_view().unwrap();
+        assert!(view.options[0].live && !view.options[1].live, "a placed option's button is spent");
+        assert!(view.can_reset);
+
+        let mut picks = deciding(&b, prompt(Primitive::PickN { min: 0, max: 2 }, unnamed(3)));
+        picks.input(Input::OptionButton(0));
+        picks.input(Input::OptionButton(2));
+        let live: Vec<bool> = picks.prompt_view().unwrap().options.iter().map(|o| o.live).collect();
+        assert_eq!(live, [true, false, true], "a pick past the maximum is refused, and a chosen one can be undone");
     }
 
     #[test]
@@ -789,6 +897,8 @@ mod tests {
         state.receive(ToWindow::Panicked { message });
         assert!(state.prompt.is_none() && state.prompt_view().is_none());
         assert_eq!(state.status(), "The engine panicked");
-        assert_eq!(state.input(Input::Option(0)), None);
+        assert_eq!(state.input(Input::OptionButton(0)), None);
+        let before_any_board = WindowState { panic: Some("early".to_string()), ..WindowState::default() };
+        assert_eq!(before_any_board.no_board(), "No board: the engine panicked before its first prompt.");
     }
 }

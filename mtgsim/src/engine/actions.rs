@@ -1655,6 +1655,10 @@ impl GameState {
                     return Err(format!("player {} has already left the game", player));
                 }
                 self.player_lost[player] = true;
+                // A layer condition names only players still in the game, and a loss
+                // may move nothing that bumps: nothing at two seats, and nothing of a
+                // player who owns nothing at more.
+                self.bump_layer_epoch();
                 self.emit_event(GameEvent::PlayerLost { player_id: player, reason });
                 // CR 104.3 — a player who loses leaves — and CR 800.4a's four clauses
                 // follow here rather than at the next state-based check: "it happens as

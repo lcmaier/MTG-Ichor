@@ -1,17 +1,18 @@
 //! The egui drawing: lays out what `view_model` built and hands each click to
 //! the `Session`. It decides nothing, so it is reviewed by running it.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use eframe::egui;
 
 use crate::bridge::GameSetup;
 use crate::session::Session;
-use crate::view_model::{BoardView, Input, Item, PromptView, WindowState, ZoneView};
+use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView, WindowState, ZoneView};
 
 pub struct DevGui {
     session: Session,
-    /// The seed, the start and the decision log's path.
+    /// The seed and the start.
     setup_line: String,
 }
 
@@ -25,7 +26,12 @@ impl eframe::App for DevGui {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.session.receive();
         let session = &self.session;
-        let header = SessionHeader { line: &self.setup_line, reloadable: session.setup.scenario.is_some(), saved: session.saved.as_deref() };
+        let header = SessionHeader {
+            line: &self.setup_line,
+            log: session.log_path.as_deref(),
+            reloadable: session.setup.scenario.is_some(),
+            saved: session.saved.as_ref().map(|saved| saved.as_ref().map(String::as_str).map_err(String::as_str)),
+        };
         for input in draw(ui, &session.state, &header) {
             self.session.input(input);
         }
@@ -34,15 +40,18 @@ impl eframe::App for DevGui {
 
 /// What the header says of the session, beside the board.
 pub struct SessionHeader<'a> {
-    /// The seed, the start and the decision log's path.
+    /// The seed and the start.
     pub line: &'a str,
+    /// This game's decision log.
+    pub log: Option<&'a Path>,
     /// A scenario's game, which Reload builds again from its file.
     pub reloadable: bool,
-    pub saved: Option<&'a str>,
+    /// The last save: where it went, or why it could not.
+    pub saved: Option<Result<&'a str, &'a str>>,
 }
 
 /// The whole window; the inputs the player made this frame.
-pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> Vec<Input> {
+pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> Vec<Input> {
     let mut inputs = Vec::new();
     let board = state.board_view();
     egui::Panel::top("header").show(ui, |ui| {
@@ -53,15 +62,24 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> 
                 ui.label(&board.header);
             }
             ui.separator();
-            ui.weak(session.line);
-            if session.reloadable && ui.button("Reload").clicked() {
+            match header.log {
+                Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
+                None => ui.weak(header.line),
+            };
+            if header.reloadable && ui.button("Reload").clicked() {
                 inputs.push(Input::Reload);
             }
             if state.board.is_some() && ui.button("Save board as scenario").clicked() {
                 inputs.push(Input::SaveBoard);
             }
-            if let Some(saved) = session.saved {
-                ui.weak(saved);
+            match header.saved {
+                Some(Ok(saved)) => {
+                    ui.weak(saved);
+                }
+                Some(Err(failed)) => {
+                    ui.colored_label(ui.visuals().error_fg_color, failed);
+                }
+                None => {}
             }
         });
     });
@@ -73,6 +91,12 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> 
         } else if let Some(message) = &state.panic {
             ui.colored_label(ui.visuals().error_fg_color, "The engine thread panicked:");
             ui.monospace(message);
+            if let Some(log) = header.log {
+                ui.weak(format!("The decision log {} holds this game's seed and every answer up to here: attach it to the report.", log.display()));
+            }
+            if header.reloadable {
+                ui.weak("Reload starts the scenario again.");
+            }
         } else if let Some(prompt) = state.prompt_view() {
             prompt_panel(ui, &prompt, &mut inputs);
         } else {
@@ -87,14 +111,15 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> 
         ui.strong("Log");
         let row_height = ui.text_style_height(&egui::TextStyle::Body);
         egui::ScrollArea::vertical().stick_to_bottom(true).show_rows(ui, row_height, state.log.len(), |ui, rows| {
+            // One text line a row, as `show_rows` counts them; the whole line on hover.
             for line in &state.log[rows] {
-                ui.label(line);
+                ui.add(egui::Label::new(line).truncate());
             }
         });
     });
     egui::CentralPanel::default().show(ui, |ui| {
         let Some(board) = &board else {
-            ui.weak(if state.refused.is_some() { "No board: the scenario did not load." } else { "Waiting for the engine's first prompt." });
+            ui.weak(state.no_board());
             return;
         };
         egui::ScrollArea::vertical().show(ui, |ui| {
@@ -113,28 +138,30 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, session: &SessionHeader) -> 
     inputs
 }
 
+/// The stack, empty or not, then each other shared zone that holds anything.
 fn side_panel(ui: &mut egui::Ui, board: &BoardView, inputs: &mut Vec<Input>) {
-    let lists = [
-        ("Stack, top first", &board.stack),
+    ui.strong("Stack, top first");
+    if board.stack.is_empty() {
+        ui.weak("empty");
+    }
+    for entry in &board.stack {
+        item(ui, entry, inputs);
+    }
+    let others = [
         ("Triggered, waiting to be put on the stack", &board.pending_triggers),
         ("Exile", &board.exile),
         ("Command zone", &board.command),
     ];
-    for (name, items) in lists {
-        if name.starts_with("Stack") || !items.is_empty() {
-            ui.strong(name);
-            if items.is_empty() {
-                ui.weak("empty");
-            }
-            for entry in items {
-                item(ui, entry, inputs);
-            }
+    for (name, items) in others.into_iter().filter(|(_, items)| !items.is_empty()) {
+        ui.strong(name);
+        for entry in items {
+            item(ui, entry, inputs);
         }
     }
 }
 
 fn zone_view(ui: &mut egui::Ui, zone: &ZoneView, inputs: &mut Vec<Input>) {
-    egui::CollapsingHeader::new(&zone.name).default_open(zone.open).show(ui, |ui| {
+    egui::CollapsingHeader::new(&zone.name).id_salt(zone.key).default_open(zone.open).show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for entry in &zone.items {
                 item(ui, entry, inputs);
@@ -181,15 +208,15 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
     ui.horizontal_wrapped(|ui| {
         for (i, option) in prompt.options.iter().enumerate() {
             match option.amount {
-                Some((amount, can_lower, can_raise)) => {
+                Some(Amount { value, can_lower, can_raise }) => {
                     ui.group(|ui| {
                         ui.label(&option.label);
                         if ui.add_enabled(can_lower, egui::Button::new("−")).clicked() {
-                            inputs.push(Input::Adjust(i, false));
+                            inputs.push(Input::OneFewer(i));
                         }
-                        ui.strong(amount.to_string());
+                        ui.strong(value.to_string());
                         if ui.add_enabled(can_raise, egui::Button::new("+")).clicked() {
-                            inputs.push(Input::Adjust(i, true));
+                            inputs.push(Input::OneMore(i));
                         }
                     });
                 }
@@ -198,23 +225,23 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
                         Some(place) => format!("{place}. {}", option.label),
                         None => option.label.clone(),
                     };
-                    if ui.add(egui::Button::new(label).selected(option.chosen)).clicked() {
-                        inputs.push(Input::Option(i));
+                    if ui.add_enabled(option.live, egui::Button::new(label).selected(option.chosen)).clicked() {
+                        inputs.push(Input::OptionButton(i));
                     }
                 }
             }
         }
     });
     ui.horizontal(|ui| {
-        if let Some((min, max, value)) = prompt.number {
+        if let Some(NumberField { min, max, value }) = prompt.number {
             let mut number = value;
             ui.add(egui::DragValue::new(&mut number).range(min..=max));
             if number != value {
                 inputs.push(Input::Number(number));
             }
         }
-        if let Some((label, live)) = &prompt.done
-            && ui.add_enabled(*live, egui::Button::new(label)).clicked()
+        if let Some(done) = &prompt.done
+            && ui.add_enabled(done.live, egui::Button::new(&done.label)).clicked()
         {
             inputs.push(Input::Done);
         }

@@ -1264,7 +1264,8 @@ impl GameState {
     /// (`ObjectSet::Host` reads it at every layer); the
     /// `objects` map in `add_object` / `remove_object`; `stack_entries` in
     /// `set_stack_entry` / `take_stack_entry`; `resolving` in
-    /// `resolve_top_of_stack`; the registry's rows through its own
+    /// `resolve_top_of_stack`; `player_lost` in `PlayerLoses`'s arm, since a
+    /// condition names only players still in the game; the registry's rows through its own
     /// `mutating`, including the re-stamp `attach` asks of it (CR 613.7e) —
     /// the entity's own `timestamp` is not a walk input, only registration
     /// reads it. Status the walk never reads — `tapped`, damage, combat,

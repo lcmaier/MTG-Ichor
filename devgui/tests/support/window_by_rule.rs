@@ -4,11 +4,12 @@
 //! order, things ordered as offered.
 
 use std::sync::Arc;
-use std::time::Duration;
 
-use devgui::bridge::{EngineHandle, GameSetup, Outcome, Pool, ToWindow, spawn_game};
+use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
 use devgui::prompt::{BoardRef, Primitive};
 use devgui::view_model::{Input, WindowState};
+
+use crate::games::next;
 
 /// A game this long has stopped being a game; fail rather than hang.
 const PROMPT_CAP: usize = 20_000;
@@ -19,7 +20,7 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
     };
     let last = prompt.options.len().checked_sub(1);
     match &prompt.primitive {
-        Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::Option)],
+        Primitive::PickN { max: 1, .. } => vec![last.map_or(Input::Done, Input::OptionButton)],
         Primitive::PickN { min, max } => {
             let mut actors: Vec<BoardRef> = Vec::new();
             let mut picks: Vec<usize> = Vec::new();
@@ -32,26 +33,15 @@ pub fn inputs_by_rule(state: &WindowState) -> Vec<Input> {
             }
             let short = (0..prompt.options.len()).filter(|i| !picks.contains(i)).take(min.saturating_sub(picks.len()));
             picks.extend(short.collect::<Vec<_>>());
-            picks.into_iter().map(Input::Option).chain([Input::Done]).collect()
+            picks.into_iter().map(Input::OptionButton).chain([Input::Done]).collect()
         }
         Primitive::Number { .. } => vec![Input::Done],
         Primitive::Allocate { total, .. } => (0..prompt.options.len())
-            .flat_map(|bucket| std::iter::repeat_n(Input::Adjust(bucket, true), *total as usize))
+            .flat_map(|bucket| std::iter::repeat_n(Input::OneMore(bucket), *total as usize))
             .chain([Input::Done])
             .collect(),
-        Primitive::Order => (0..prompt.options.len()).map(Input::Option).chain([Input::Done]).collect(),
+        Primitive::Order => (0..prompt.options.len()).map(Input::OptionButton).chain([Input::Done]).collect(),
     }
-}
-
-/// A dealt game at `seed` from the performance pool.
-pub fn dealt(seed: u64, log_path: Option<std::path::PathBuf>) -> GameSetup {
-    GameSetup { seed, pool: Pool::Performance, log_path, scenario: None }
-}
-
-/// A game from the review board `name` under `tests/scenarios/`.
-pub fn from_board(name: &str, log_path: Option<std::path::PathBuf>) -> GameSetup {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests").join("scenarios").join(name);
-    GameSetup { scenario: Some(path), ..dealt(0, log_path) }
 }
 
 /// Play a whole game by rule. `watch` sees the window after each message,
@@ -79,8 +69,4 @@ pub fn play_by_rule(setup: GameSetup, mut watch: impl FnMut(&WindowState)) -> (O
         engine.answers.send(answer).expect("the engine hung up with a prompt open");
     }
     panic!("no result after {PROMPT_CAP} prompts");
-}
-
-pub fn next(engine: &EngineHandle) -> ToWindow {
-    engine.from_engine.recv_timeout(Duration::from_secs(120)).expect("the engine went quiet for two minutes")
 }

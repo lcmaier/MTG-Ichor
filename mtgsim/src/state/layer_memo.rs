@@ -91,8 +91,16 @@ mod tests {
     use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer, PtValue};
     use crate::objects::object::GameObject;
     use crate::state::game_state::{GameState, StackEntry};
-    use crate::test_support::{put_in_hand, put_on_battlefield, registered, test_ctx, vanilla_creature};
-    use crate::types::effects::{CounterType, Effect};
+    use crate::engine::actions::GameAction;
+    use crate::events::event::LossReason;
+    use crate::objects::card_data::CardDataBuilder;
+    use crate::test_support::{
+        put_in_hand, put_on_battlefield, registered, setup_game, static_ability, test_ctx, vanilla_creature,
+    };
+    use crate::types::card_types::CardType;
+    use crate::types::effects::{
+        AmountExpr, Condition, CounterType, Duration, Effect, EffectRecipient, PlayerFact, PlayerSet, Primitive,
+    };
     use crate::types::ids::ObjectId;
     use crate::types::mana::ManaSpent;
     use crate::types::replacement::EnterMods;
@@ -241,6 +249,33 @@ mod tests {
         // Removing a kind the permanent does not carry writes nothing.
         assert_eq!(game.remove_counters(bears, CounterType::MinusOneMinusOne, 1), 0);
         assert_eq!(power(&game, bears), (Some(3), true));
+    }
+
+    /// CR 800.4a: a player who has left the game is no opponent, and a
+    /// layer condition names only players still in it. A loss moves nothing
+    /// of a player who owns nothing, so it is a walk input of its own.
+    #[test]
+    fn a_loss_bumps() {
+        let mut game = setup_game(4);
+        let while_an_opponent_is_low = CardDataBuilder::new("Fixture: +1/+2 while an opponent has 10 or less life")
+            .card_type(CardType::Creature)
+            .power_toughness(1, 1)
+            .ability(static_ability(Effect::Conditional(
+                Condition::Player { players: PlayerSet::Opponents, fact: PlayerFact::LifeAtMost(AmountExpr::Fixed(10)) },
+                Box::new(Effect::Atom(
+                    Primitive::ModifyPowerToughness(AmountExpr::Fixed(1), AmountExpr::Fixed(2), Duration::WhileSourceOnBattlefield),
+                    EffectRecipient::ThisObject,
+                )),
+            )))
+            .build();
+        let creature = put_on_battlefield(&mut game, while_an_opponent_is_low, 0);
+        game.players[2].life_total = 5;
+        assert_eq!(power(&game, creature), (Some(2), false));
+        assert_eq!(power(&game, creature), (Some(2), true));
+
+        game.execute_action(GameAction::PlayerLoses { player: 2, reason: LossReason::LifeReachedZero }, &test_ctx())
+            .unwrap();
+        assert_eq!(power(&game, creature), (Some(1), false), "the one opponent at 10 or less has left");
     }
 
     #[test]

@@ -216,6 +216,15 @@ jobs:
         working-directory: .
         run: python3 plans/check_engine_map.py
 
+      # The dev GUI's rule, logic in plain Rust under tests and egui only
+      # drawing (`engineering-practices.md` §10.2): no file but the drawing
+      # files names a window crate, and no drawing file names the engine.
+      # GUI code is what a review can least read line by line, so the line
+      # between the two is held here. Reads files only.
+      - name: egui only draws
+        working-directory: .
+        run: python3 plans/check_egui_only_draws.py
+
   # The dev GUI (`devgui/`), a crate beside the engine with its own lockfile
   # and target. A job of its own, so it runs beside `check` and is never the
   # long pole: its cold build measured 49 s at four jobs in WSL (2026-09-30),
@@ -249,7 +258,10 @@ jobs:
       - name: Clippy (the default lint set is a bar)
         run: cargo clippy --all-targets --locked -- -D warnings
 
-      # The view model's tests, and a whole game with a thread in the
-      # window's place. `tests/screenshots.rs` is the local check above.
+      # The view model's tests, and whole games with a thread in the
+      # window's place, by a fixed rule and by seeded random clicks (about
+      # 20 s of debug build: the layer memo's audit runs in it, which is
+      # how the random clicks found an engine bug). `tests/screenshots.rs`
+      # is the local check above.
       - name: Test, without the pictures
-        run: cargo test --locked --lib --test headless_game
+        run: cargo test --locked --lib --test headless_game --test random_clicks

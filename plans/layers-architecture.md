@@ -970,7 +970,11 @@ residual rather than in advance.
   - the `// CAST-ROLLBACK:` exemption, which moves a card without a zone change.
   Status the walk does not read — `tapped`, damage, the mana pool — does not bump. LH's
   `attached_to` and mutable timestamps join the list when they land; conditional
-  statics are registry rows and are covered already.
+  statics are registry rows and are covered already. **A row's condition reads
+  more than the row** (found 2026-10-01 by A6g's random-click games): whether a
+  player is still in the game, which `PlayerLoses` bumps for since A6g's review
+  PR; a player's life total, which nothing bumps for (`codebase-state.md` item
+  199); and, since RG, the source's tapped status (item 187).
 - **Bypasses.** The CR 614.12 look-ahead overlay (`lookahead.rs`) computes a hypothetical
   and the CR 603.10a LKI frame computes the past; neither consults or fills the memo.
   The per-call frame cache of §5.2 is untouched: it is the termination argument, not a

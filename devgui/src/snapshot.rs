@@ -34,8 +34,9 @@ pub struct Snapshot {
     pub command: Vec<CardView>,
     /// `format_event` lines for what happened since the previous snapshot.
     pub log: Vec<String>,
-    /// How many recorded events the log has covered, where the next one starts.
-    pub events_seen: usize,
+    /// How many recorded events the window's log holds, where the next
+    /// snapshot's starts.
+    pub events_logged: usize,
     /// The board as a scenario file, with what it could not write at the top
     /// (`Scenario::write`), for "Save board as scenario".
     pub board_text: String,
@@ -83,9 +84,10 @@ pub struct PermanentView {
     pub summoning_sick: bool,
     /// What it attacks, by name.
     pub attacking: Option<String>,
-    /// The attackers it blocks.
-    pub blocking: Vec<ObjectId>,
-    pub attached_to: Option<ObjectId>,
+    /// The attackers it blocks, by name.
+    pub blocking: Vec<String>,
+    /// What it is attached to, by name.
+    pub attached_to: Option<String>,
     pub phased_out: bool,
     pub face_down: bool,
     /// `ui::display::format_permanent`'s line, which lists the abilities in
@@ -112,11 +114,11 @@ pub struct PendingTriggerView {
 }
 
 impl Snapshot {
-    /// The board now, with the log from event `events_shown` on.
-    pub fn build(game: &GameState, events_shown: usize) -> Snapshot {
+    /// The board now, with the log from event `events_logged` on.
+    pub fn build(game: &GameState, events_logged: usize) -> Snapshot {
         let recorded = game.recorded_events();
         let log = recorded
-            .records_from(events_shown)
+            .records_from(events_logged)
             .iter()
             .map(|record| format_event(game, &record.event, &record.names))
             .collect();
@@ -157,7 +159,7 @@ impl Snapshot {
             exile: cards(game, &game.exile),
             command: cards(game, &game.command),
             log,
-            events_seen: recorded.len(),
+            events_logged: recorded.len(),
             board_text: Scenario::write(game).to_string(),
         }
     }
@@ -203,8 +205,8 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         tapped: state.tapped,
         summoning_sick: has_summoning_sickness(game, id),
         attacking: state.attacking.as_ref().map(|a| attack_target_name(game, &a.target)),
-        blocking: state.blocking.as_ref().map(|b| b.blocking.clone()).unwrap_or_default(),
-        attached_to: state.attached_to,
+        blocking: state.blocking.iter().flat_map(|b| &b.blocking).map(|attacker| named(game, *attacker)).collect(),
+        attached_to: state.attached_to.map(|host| named(game, host)),
         phased_out: state.phased_out,
         face_down: state.face_down,
         engine_text: format_permanent(game, id),

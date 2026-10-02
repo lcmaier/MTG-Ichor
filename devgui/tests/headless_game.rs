@@ -1,6 +1,8 @@
 //! The bridge with no window: another thread plays the window's part over the
 //! channels.
 
+#[path = "support/games.rs"]
+mod games;
 #[path = "support/window_by_rule.rs"]
 mod window_by_rule;
 
@@ -14,7 +16,8 @@ use devgui::view_model::Input;
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
 use devgui::prompt::{Answer, Primitive};
-use window_by_rule::{dealt, from_board, next, play_by_rule};
+use games::{dealt, from_board, next};
+use window_by_rule::play_by_rule;
 
 #[test]
 fn a_whole_game_finishes_with_a_thread_playing_the_window() {
@@ -150,6 +153,28 @@ fn setup_actions_play_before_the_first_prompt_and_again_on_reload() {
     }
 }
 
+/// Reload starts a decision log of its own beside the first, which keeps the
+/// record of the game it replaced.
+#[test]
+fn reload_keeps_the_replaced_games_log_and_starts_its_own() {
+    let dir = std::env::temp_dir().join("devgui-session-reload-log");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = std::env::temp_dir().join("devgui-session-reload-log.scenario");
+    std::fs::write(&path, BOLT_IN_HAND).unwrap();
+    let first = dir.join("bolt-seed-0.log");
+    let setup = GameSetup { scenario: Some(path), ..dealt(0, Some(first.clone())) };
+    let mut session = Session::start(setup, Arc::new(|| {}));
+    first_prompt(&mut session);
+    session.input(Input::Reload);
+    first_prompt(&mut session);
+    let second = dir.join("bolt-seed-0-2.log");
+    assert_eq!(session.log_path.as_ref(), Some(&second));
+    for log in [&first, &second] {
+        let text = std::fs::read_to_string(log).unwrap();
+        assert!(text.starts_with("scenario ") && text.contains("end scenario text"), "{}: {text}", log.display());
+    }
+}
+
 /// "Save board as scenario" writes beside the decision log, a file that
 /// loads, and a second save never overwrites the first.
 #[test]
@@ -163,7 +188,7 @@ fn save_board_writes_a_file_that_loads_beside_the_log() {
     first_prompt(&mut session);
     session.input(Input::SaveBoard);
     let saved = dir.join("bolt-seed-0-turn-1.scenario");
-    assert_eq!(session.saved, Some(format!("saved {}", saved.display())));
+    assert_eq!(session.saved, Some(Ok(format!("saved {}", saved.display()))));
     let text = std::fs::read_to_string(&saved).unwrap();
     let game = Scenario::parse(&text).and_then(|s| s.build(&CardRegistry::default_registry())).unwrap().game;
     assert_eq!(game.state.players[0].life_total, 13);
