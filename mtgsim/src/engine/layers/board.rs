@@ -490,6 +490,11 @@ impl<'l> Board<'l> {
     pub(super) fn take(mut self, id: ObjectId) -> Option<EffectiveCharacteristics> {
         self.frames.remove(&id)
     }
+
+    /// Every member's frame, consuming the pass.
+    pub(super) fn into_frames(self) -> IdMap<ObjectId, EffectiveCharacteristics> {
+        self.frames
+    }
 }
 
 /// One thing a layer applies — CR 613.8's unit of ordering: an effect's rows

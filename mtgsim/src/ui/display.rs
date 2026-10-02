@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::engine::combat::validation::CombatError;
 use crate::engine::layers::compute_characteristics;
-use crate::engine::layers::copy::copiable_values;
+use crate::engine::layers::copy::{CopiableValues, copiable_values, copiable_values_on_battlefield};
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityText, AbilityType, CardData, paragraphs};
@@ -20,7 +20,7 @@ use crate::state::game_state::{GameState, PhaseType, StepType};
 use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
-use crate::types::ids::{AbilityId, ObjectId, PlayerId};
+use crate::types::ids::{AbilityId, IdMap, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::types::mana::ManaSymbol;
 use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
@@ -231,17 +231,37 @@ impl std::fmt::Display for TypeLine {
 /// lost, and one an effect gave it goes last in its section, the subtypes
 /// in the order they were given. A word given and taken away is not there.
 pub fn type_line_now(game: &GameState, id: ObjectId) -> TypeLine {
-    let (Some(now), Some(base)) = (compute_characteristics(game, id), copiable_values(game, id)) else {
-        return TypeLine::default();
-    };
+    match (copiable_values(game, id), compute_characteristics(game, id)) {
+        (Some(base), Some(now)) => type_line_against(&base, &now),
+        _ => TypeLine::default(),
+    }
+}
+
+/// [`type_line_now`] for a reader asking about many objects, a board's
+/// worth: the permanents' copiable values come from one pass of the board.
+pub struct TypeLines(IdMap<ObjectId, CopiableValues>);
+
+impl TypeLines {
+    pub fn new(game: &GameState) -> TypeLines {
+        TypeLines(copiable_values_on_battlefield(game))
+    }
+
+    /// `id`'s type line, `now` being its characteristics.
+    pub fn of(&self, game: &GameState, id: ObjectId, now: &EffectiveCharacteristics) -> TypeLine {
+        match self.0.get(&id) {
+            Some(base) => type_line_against(base, now),
+            None => copiable_values(game, id).map(|base| type_line_against(&base, now)).unwrap_or_default(),
+        }
+    }
+}
+
+fn type_line_against(base: &CopiableValues, now: &EffectiveCharacteristics) -> TypeLine {
     let base_front = in_printed_order(&base.supertypes, &base.types);
     let now_front = in_printed_order(&now.supertypes, &now.types);
     let front = against(&base_front, &now_front, |word| base_front.contains(word), |word| now_front.contains(word), FrontWord::text);
-    let base_subtypes: Vec<Subtype> = base.subtypes.iter().cloned().collect();
-    let now_subtypes: Vec<Subtype> = now.subtypes.iter().cloned().collect();
     let mut subtypes = against(
-        &base_subtypes,
-        &now_subtypes,
+        base.subtypes.iter().as_slice(),
+        now.subtypes.iter().as_slice(),
         |subtype| base.subtypes.contains(subtype),
         |subtype| now.subtypes.contains(subtype),
         Subtype::word,
@@ -1019,6 +1039,18 @@ mod tests {
         every.subtypes.insert_every_creature_type();
         let every = put_on_battlefield(&mut game, Arc::new(every), 0);
         assert_eq!(type_line_now(&game, every).to_string(), "Creature — Shapeshifter (every creature type)");
+
+        // One pass of the board gives every object the line a pass for it alone would.
+        use crate::test_support::put_in_hand;
+        put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 1);
+        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
+        put_in_hand(&mut game, crate::cards::phase_rc_cards::dryad_arbor(), 1);
+        put_in_graveyard(&mut game, crate::cards::phase_rg_cards::archelos_lagoon_mystic(), 1);
+        let lines = TypeLines::new(&game);
+        for id in game.objects.keys() {
+            let now = compute_characteristics(&game, *id).unwrap();
+            assert_eq!(lines.of(&game, *id, &now), type_line_now(&game, *id), "{}", named(&game, *id));
+        }
     }
 
     #[test]

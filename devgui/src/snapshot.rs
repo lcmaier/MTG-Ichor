@@ -19,8 +19,8 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::display::{
-    TypeLine, TypeWord, TypeWordStatus, attack_target_name, format_event, format_permanent, format_phase, keyword_name,
-    named, player_name, printed_faces, type_line_now,
+    TypeLine, TypeLines, TypeWord, TypeWordStatus, attack_target_name, format_event, format_permanent, format_phase,
+    keyword_name, named, player_name, printed_faces,
 };
 
 #[derive(Clone, Debug)]
@@ -91,14 +91,15 @@ pub struct TypeWordView {
 }
 
 impl TypeLineView {
-    fn of(line: &TypeLine) -> TypeLineView {
-        let words = |section: &[TypeWord]| {
+    fn of(line: TypeLine) -> TypeLineView {
+        let text = line.to_string();
+        let words = |section: Vec<TypeWord>| {
             section
-                .iter()
-                .map(|word| TypeWordView { text: word.text.clone(), faded: word.status == TypeWordStatus::Lost })
+                .into_iter()
+                .map(|word| TypeWordView { faded: word.status == TypeWordStatus::Lost, text: word.text })
                 .collect()
         };
-        TypeLineView { front: words(&line.front), subtypes: words(&line.subtypes), text: line.to_string() }
+        TypeLineView { front: words(line.front), subtypes: words(line.subtypes), text }
     }
 }
 
@@ -156,10 +157,11 @@ impl Snapshot {
             .iter()
             .map(|record| format_event(game, &record.event, &record.names))
             .collect();
+        let lines = TypeLines::new(game);
         let permanents: Vec<PermanentView> = game
             .battlefield_ids_ordered()
             .into_iter()
-            .filter_map(|id| permanent(game, id))
+            .filter_map(|id| permanent(game, &lines, id))
             .collect();
         let players = game
             .players
@@ -170,9 +172,9 @@ impl Snapshot {
                 mana_pool: mana_pool(player.mana_pool.available()),
                 counters: player.counters.iter().map(|(kind, n)| (kind.name().to_string(), *n)).collect(),
                 lost: game.player_lost.get(player.id).copied().unwrap_or(false),
-                hand: cards(game, &player.hand),
-                library: cards(game, player.library.iter().rev()),
-                graveyard: cards(game, player.graveyard.iter().rev()),
+                hand: cards(game, &lines, &player.hand),
+                library: cards(game, &lines, player.library.iter().rev()),
+                graveyard: cards(game, &lines, player.graveyard.iter().rev()),
                 battlefield: permanents.iter().filter(|p| p.controller == player.id).cloned().collect(),
             })
             .collect();
@@ -190,8 +192,8 @@ impl Snapshot {
                     source: named(game, trigger.origin.source()),
                 })
                 .collect(),
-            exile: cards(game, &game.exile),
-            command: cards(game, &game.command),
+            exile: cards(game, &lines, &game.exile),
+            command: cards(game, &lines, &game.command),
             log,
             events_logged: recorded.len(),
             board_text: Scenario::write(game).to_string(),
@@ -199,27 +201,27 @@ impl Snapshot {
     }
 }
 
-fn cards<'a>(game: &GameState, ids: impl IntoIterator<Item = &'a ObjectId>) -> Vec<CardView> {
-    ids.into_iter().filter_map(|id| card(game, *id)).collect()
+fn cards<'a>(game: &GameState, lines: &TypeLines, ids: impl IntoIterator<Item = &'a ObjectId>) -> Vec<CardView> {
+    ids.into_iter().filter_map(|id| card(game, lines, *id)).collect()
 }
 
-fn card(game: &GameState, id: ObjectId) -> Option<CardView> {
+fn card(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<CardView> {
     let chars = compute_characteristics(game, id)?;
-    card_with(game, id, &chars)
+    card_with(game, lines, id, &chars)
 }
 
-fn card_with(game: &GameState, id: ObjectId, chars: &EffectiveCharacteristics) -> Option<CardView> {
+fn card_with(game: &GameState, lines: &TypeLines, id: ObjectId, chars: &EffectiveCharacteristics) -> Option<CardView> {
     Some(CardView {
         id,
         owner: game.objects.get(&id)?.owner,
         name: chars.name.clone(),
         mana_cost: chars.mana_cost.as_ref().map(ToString::to_string),
-        type_line: Arc::new(TypeLineView::of(&type_line_now(game, id))),
+        type_line: Arc::new(TypeLineView::of(lines.of(game, id, chars))),
         printed: printed_faces(game, id).into(),
     })
 }
 
-fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
+fn permanent(game: &GameState, lines: &TypeLines, id: ObjectId) -> Option<PermanentView> {
     let state = game.battlefield.get(&id)?;
     let chars = compute_characteristics(game, id)?;
     let is_creature = chars.types.contains(&CardType::Creature);
@@ -229,7 +231,7 @@ fn permanent(game: &GameState, id: ObjectId) -> Option<PermanentView> {
         state.counters.iter().map(|(kind, stack)| (*kind, stack.count)).collect();
     counters.sort();
     Some(PermanentView {
-        card: card_with(game, id, &chars)?,
+        card: card_with(game, lines, id, &chars)?,
         controller: chars.controller,
         is_creature,
         is_land: chars.types.contains(&CardType::Land),
