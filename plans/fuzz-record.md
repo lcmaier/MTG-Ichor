@@ -68,6 +68,11 @@ of 8,206 M. The prediction priced the scan and not the SipHash it replaced.
 The type line and the payment order read −3.97% together, so 0.02 points;
 the one-pass commit's further 0.27 is codegen, since no game calls it.
 
+**Re-read after the third round** (`3451716`: a gained card type in Oracle's
+order, `Eq` dropped from `Subtypes`, item 207 filed): every counter file
+byte-identical to fix's again, and instructions per decision −4.06%, the
+0.18 points from final's −4.24% codegen, since no game calls the display.
+
 **Re-recorded 2026-10-02 for the first-strike step** (CR 510.4: a combat has
 a first-strike combat damage step only when an attacking or blocking creature
 has first strike or double strike, where every combat with an attacker had
