@@ -5313,6 +5313,30 @@ first.
     the moves, as separate commits, so each moved file is a pure rename and
     its history follows it.
 
+    **Widened at A6g's ability-names review (the owner, 2026-10-02): the
+    vocabulary names instructions too, not only abilities.** An ability's
+    text is its paragraph (CR 113.2c, `AbilityDef::rules_text`), so two
+    abilities that share an instruction share no string: Meditate's spell
+    and Chronosavant's activated ability both end by skipping your next
+    turn. Nor is a sentence an instruction (CR 608.2c's own example; one
+    sentence of Faithless Looting is two). Text is what a client shows and
+    what the static parser reads; the code carries an instruction's
+    identity. So each instruction template is one named constructor in
+    `cards/authoring/` (`draw_cards(4)`, `skip_your_next_turn()`), "which
+    cards skip a turn" is who calls it, and the parser's phrase table maps
+    phrases to the same constructors, its acceptance test parsing every
+    registered card against the hand-written tree. Today the card files
+    write out 168 `Effect::Atom` literals over 37 primitives (20
+    `DrawCards`, 20 `CreateReplacement`); the trigger words came to 194
+    lines, and the instruction words are judged ~200–400. **The migration is
+    checked, not judged:** a constructor builds exactly the literal's value,
+    so every registered card builds equal before and after (`CardData`
+    compares by value), and the close-out reads identical counters and no
+    instruction change. Nothing outside the card files moves; the dev GUI
+    reads text and characteristics, never how a tree was written. **Slotted
+    in C0**, after the edits above and before the moves; sized with C0 when
+    it is designed, and C0's second PR if the two pass the band together.
+
     **What the transition to a real card list looks like — asked on review
     2026-09-08 and then measured, because both of us were arguing from
     impressions.** The measurement changed one of the answers.

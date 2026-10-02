@@ -302,7 +302,12 @@ printings re-filed **by first printing, one file per set**, and the fixtures
 into `cards::fixtures`, which stays inside `src` because a registered fixture
 must be reachable from `registry.rs`. Nothing behavioral changes and tests
 change one `use` line each, which is the reason it must not ride along with a
-phase that does change behavior.
+phase that does change behavior. **The constructors name instructions too**
+(the owner, 2026-10-02, at A6g's ability names): one per instruction template
+in `cards/authoring/`, so two abilities that share an instruction share its
+code, and the static parser maps phrases to the same constructors;
+`codebase-state.md`'s "Before card breadth" item 10 holds why, the count and
+how the migration is checked, and C0 may become two PRs.
 
 **Set filing is chosen on the marginal cost of the next card, not on today's
 tidiness** (this row briefly said the opposite): a new set is a new file and no
@@ -575,7 +580,7 @@ the audit workstream ran low, and RB ran to +5,475 because nobody counted.
 | Commander interleave | §2.1 ×2, `commander()`, CR 903.7, CR 800/802 | ~4 |
 | The lattice | §4's table | 10–13 |
 | **To "breadth unconstrained"** | | **~35–40** |
-| Phase 8's gate | **C0** — the card layer, re-filed by set, plus `cards::helpers` and the duration helper (§C) | 1 |
+| Phase 8's gate | **C0** — the card layer, re-filed by set, plus `cards::helpers`, the instruction constructors and the duration helper (§C) | 1–2 |
 | Phase 8's gate | **C1** — the rulings backlog, pooled cards first, each ruling linked to a passing test (§C) | ~3–5, guessed |
 
 After that, Phase 8's 643 atoms are throughput, not architecture — every card
