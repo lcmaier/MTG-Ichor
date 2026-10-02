@@ -2307,7 +2307,7 @@ section never asked.
 
     | Site | Stack-resident | Outcome-bearing? |
     |---|---|---|
-    | `priority.rs` priority loop | `blacklist`, `retries` | **No for `retries`; yes for `blacklist`, measured 2026-09-15 and halved 2026-09-16.** `all_candidates` left the stack with item 139 — the list is enumerated per prompt now, so the prompt is a function of the board. What survives is the blacklist: a fresh enumeration can still offer the action that just failed, and a fork resuming as a new round is not filtering it. Item 140 has the size |
+    | `priority.rs` priority loop | the last rejection, `rejections` | **No, since item 193 (2026-10-02).** `all_candidates` left the stack with item 139, so the list is enumerated per prompt, and the blacklist left the engine with item 193, so nothing filters it: a fork offers what the original did. The last rejection rides on the re-ask's prompt, and only an agent that reads it can answer differently, which is that agent's state, cloned with it |
     | `put_on_stack.rs::run_mana_ability_window` | the `failed` set | **No** — same shape; the mana pool itself is on `GameState` |
     | `put_on_stack.rs` 601.2b–d | the in-flight `StackEntry`, pre-push | **Yes** — see below |
     | `apply_replacements` | `applied` / `declined` / `exempt_applied` | **Yes** — see below |
@@ -2381,6 +2381,9 @@ section never asked.
     read puts the count back above zero, and item 140's `blacklist` on
     `GameState` is what makes it structural.
 
+    **Item 193 (2026-10-02):** the blacklist is gone and the engine filters
+    nothing, so a fork is offered what the original was.
+
 41. **A fork at a *priority boundary* is probably sound today, and one test
     would settle it.** Every entry in the table above is unwound at a priority
     pass: the two non-outcome-bearing sets are loop locals that do not survive
@@ -2449,8 +2452,9 @@ section never asked.
     test that reseeds the branch's provider and requires a *different* game.
 
     **What is still owed** is item 140's half — a prompt anywhere else in a
-    round, and CR 514.3a's cleanup re-loop — and with it the blacklist, which
-    is the one thing on the frame that can still decide a prompt. The entry
+    round, and CR 514.3a's cleanup re-loop. The blacklist, the one thing on
+    the frame that could decide a prompt, left the engine with item 193
+    (2026-10-02). The entry
     point item 140 extends rather than replaces is in the tree
     (`Game::resume_turn_at_priority`); what it adds is a round that can start
     at a seat other than the active player.
@@ -6952,9 +6956,8 @@ Commander-scale board closes item 69.
      deriving the pass count, ~30 lines; a `Game` entry that finishes the
      current step from its priority loop rather than re-running the step's
      turn-based actions (the probe did it by hand: `run_priority_loop`,
-     `advance_turn`, then `run_turn`), ~30 lines; the `blacklist` either
-     onto `GameState`, cleared per round (~20 lines), or made moot by the
-     exact action space, which is Phase 10's. Lands with the first
+     `advance_turn`, then `run_turn`), ~30 lines. The `blacklist` it once
+     sized left the engine with item 193 (2026-10-02). Lands with the first
      fork-based harness, after item 139.
 
      **A4h (2026-09-16) left it two things.** `Game::resume_turn_at_priority`
@@ -6969,7 +6972,11 @@ Commander-scale board closes item 69.
      last action the oracle was offering back — so the first card whose
      activation fails for a reason `activatable_abilities` cannot read turns
      `tests/priority_fork_test.rs` red, and that is the signal this item is
-     due rather than a regression in the card.
+     due rather than a regression in the card. **Item 193 (2026-10-02)** took
+     the filter out of the engine, and the same signal now reads through the
+     agent: a fork resumes the window without the re-ask's rejection, so the
+     random agent can take again what the original skipped, where the board
+     offers it again.
 
      **The harness boundary, which this item is half of (2026-09-25).** A
      research API wants `step(action) -> observation`, while this engine *asks*
@@ -8743,40 +8750,22 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      they bind a human seat too.~~ — ✅ CLOSED 2026-09-30 (A6j).** — archived.
      `SeatMode::person` exempts a person's seat from both: a canceled action
      is offered again and nothing is charged. `cli_play`'s and the dev GUI's
-     seats say they are a person's.
+     seats say they are a person's. Since item 193 (2026-10-02) no seat is
+     filtered or charged, and `person` is gone.
      **Reachability (2026-09-30):** closed — A6j.
      Full entry: `plans/archive/codebase-state-closed.md`, "Item 192".
 
 ### Found by A6j's review (2026-09-30)
 
-193. **A priority window's blacklist is a bot's policy living in the engine,
-     and a replay pays for it.** Within one window `run_priority_round` stops
-     offering an action that failed, so the random agent's re-picks of a
-     rewound cast terminate. That filters the offered list by state off
-     `GameState`, and since item 192 by who sits at the seat
-     (`SeatMode::person`), so the same answers, which are positions in that
-     list, replay as a different game under a different seat. **The owner's
-     call at review, the clean option:** the engine stops filtering. The
-     re-asked prompt carries what was rejected and why, which is the surface
-     `roadmap-v2.md` A6g's playable PR owes a person anyway ("a reason on a
-     re-asked prompt"); the random agent skips what it was told failed, since
-     a bot's policy lives on the bot's seat (`backlog.md` §2.22, rule 2);
-     `person` leaves `SeatMode`; and the engine keeps only a hang guard set
-     where no person reaches it. The prompt then depends on the board alone,
-     which also takes the blacklist out of item 140's loop locals.
-
-     **Reachability (2026-09-30):** reachable — not wrong; a replay hazard.
-     No replay exists yet, and the dev GUI's decision log replays today only
-     as a person's seat.
-
-     **Sized:** ~80–150 lines. Where the rejection rides is the design
-     question: on `ChoiceKind::PriorityAction` it touches every scripted
-     priority expectation, on `ChoiceContext` its 57 literal sites in 7
-     files. The random agent filters before it shuffles, so its draws should
-     not change (A/B predicted `IDENTICAL`, to be read); the budget becomes
-     the hang guard; a few tests script a re-ask. **Slotted:** with A6g's
-     playable PR, which designs the re-ask's reason for a person, and before
-     its tools PR, the first replay.
+193. **~~A priority window's blacklist is a bot's policy living in the engine,
+     and a replay pays for it.~~ — ✅ CLOSED 2026-10-02 (A6g's playable PR).**
+     — archived. The priority window offers the board's list as it stands and
+     its re-ask names the action CR 732.1 reversed (`ChoiceContext::rejected`),
+     the blocker loop's the rule its declaration broke; the random agent skips
+     what its window rejected, `SeatMode::person` is gone, and one hang guard,
+     `REJECTION_LIMIT`, ends a game at the thousandth rejected answer.
+     **Reachability (2026-10-02):** closed — A6g's playable PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 193".
 
 ### Found by the owner's testing in the dev GUI (2026-09-30)
 
@@ -8944,23 +8933,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      opened. **Slotted:** A6g's tools PR, which reshapes the start as a
      save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.
 
-201. **A click or a key can answer a prompt the person never saw.** egui
-     reads a click against the frame that reads it, so when a prompt
-     replaces another under the pointer, the second click of a double
-     click lands on the new one; a held key's repeat will do the same once
-     the window has keyboard shortcuts; and keyboard focus may pass to the
-     next prompt's button by its position, which the review did not trace
-     (`engineering-practices.md` §10.1, question 8; finding 14).
-
-     **Reachability (2026-10-01):** reachable — a double click on a button
-     whose answer brings the next prompt inside egui's 0.3 s double-click
-     window, which the random agent's quick turns make easy.
-
-     **Sized:** a design first: what the window does with input in the
-     moment after its prompt changes (drop a double click's second half,
-     hold input for a beat, or wait for the pointer to move); then ~20–40
-     lines in `view_model` and a test. **Slotted:** A6g's playable PR,
-     whose keyboard shortcuts make it acute.
+201. **~~A click or a key can answer a prompt the person never saw.~~ — ✅
+     CLOSED 2026-10-02 (A6g's playable PR).** — archived. For 0.3 seconds
+     after a prompt arrives, egui's double-click window, the window drops any
+     input that could answer it and shows nothing live; a held key's repeat
+     never answers; and each prompt's widgets take an id from its number, so
+     keyboard focus dies with its prompt.
+     **Reachability (2026-10-02):** closed — A6g's playable PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 201".
 
 202. **~~The dev GUI owns two surfaces the engine should: keyword names and
      the question each prompt asks.~~ — ✅ CLOSED 2026-10-01 (A6g's

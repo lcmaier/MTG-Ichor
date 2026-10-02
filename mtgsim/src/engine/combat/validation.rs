@@ -1009,6 +1009,7 @@ mod tests {
 
     // --- CR 509.1a's re-ask (SPECIAL-8) ---
 
+    // COVERS: ATOM-509.1a-002
     #[test]
     fn test_declare_blockers_retries_on_invalid_proposal() {
         // Scenario: defender has one blocker, attacker has two creatures in

@@ -271,7 +271,7 @@ Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 
 | Site | Where | Held off `GameState` | Status |
 |---|---|---|---|
-| the priority loop | `run_priority_round` `engine/priority.rs:30`; locals at `engine/priority.rs:77` | `blacklist` (outcome-bearing), `retries` — an agent's seat's only since A6j | `codebase-state.md` item 140 |
+| the priority loop | `run_priority_round` `engine/priority.rs:38`; locals at `engine/priority.rs:84` | the last rejection, which the re-ask names and nothing filters by since item 193, and `rejections` | not outcome-bearing; a resume mid-round is `codebase-state.md` item 140 |
 | the mana window | `run_mana_ability_window` `engine/put_on_stack.rs:540`; the set at `engine/put_on_stack.rs:566` | `failed` | not outcome-bearing |
 | CR 601.2b–d's announcement | `cast_spell` `engine/put_on_stack.rs:52`, rewound by `rollback_cast_to_hand` `engine/put_on_stack.rs:629` | the unpushed `StackEntry` | violator 2 |
 | the CR 616.1 loop | `apply_replacements` `engine/replacement/pipeline.rs:318`; the sets at `engine/replacement/pipeline.rs:339` | `applied`, `declined`, `exempt_applied`, the rewritten members | violator 1 |
@@ -281,7 +281,7 @@ Every prompt goes through `ui/ask.rs`, which validates the answer and traces a
 
 | Invariant | Lives at | Doc |
 |---|---|---|
-| Characteristics of a battlefield or stack object come through the layers | `oracle/characteristics.rs` → `compute_characteristics` `engine/layers/compute.rs:94`; exemptions tagged `// PRE-LAYER ZONE:`, and `register_static_effects` `state/game_state.rs:1583` | `layers-architecture.md` §11.1 |
+| Characteristics of a battlefield or stack object come through the layers | `oracle/characteristics.rs` → `compute_characteristics` `engine/layers/compute.rs:94`; exemptions tagged `// PRE-LAYER ZONE:` and `// AS PRINTED:` (`printed_faces` `ui/display.rs:160`), and `register_static_effects` `state/game_state.rs:1583` | `layers-architecture.md` §11.1 |
 | Ability indices are into the effective list | `activatable_abilities` `oracle/mana_helpers.rs:347`, the re-derivation by id at `engine/priority.rs:166`, `activate_ability` `engine/put_on_stack.rs:361` | `cant-effects-architecture.md` §4.4 |
 | Registry membership is not effect existence | `static_ability_still_exists` `engine/layers/board.rs:1099`, asked per layer; the descending ceiling is `Board::frame_of` `engine/layers/board.rs:411` | `layers-architecture.md` §5.2 |
 | CDAs are never registry effects | `cda_modifications` `engine/layers/cda.rs:71`; skipped at registration, `state/game_state.rs:1692`; a Layer 6 grant clears the flag at `engine/layers/compute.rs:1119`, in `apply_resolved` | `layers-architecture.md` §6 |

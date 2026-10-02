@@ -1761,6 +1761,15 @@ the two halves.
   what the window should then say;
 - **every picture it changed** (`devgui/tests/snapshots/`), old beside new.
 
+**The decision log is the engine's, not the window's** (the owner, at A6g's
+playable PR, 2026-10-02). A seat's provider sees only the prompts that reach
+it, which its settings decide, so a log written there differs for one game
+played with auto-yield and the same game played under full control. The
+engine writes every answer, whoever gave it, and the passes it makes itself
+(`state::decision_log`), and a client only attaches the writer. A seat's mode
+is never in the log: it changes who answers, not the game, and it tells a
+reader what the player expects.
+
 ### 10.1 The checklist for egui code
 
 A GUI PR's review reads each drawing file against these questions, and a
@@ -1816,7 +1825,12 @@ everything a drawing function calls runs that often.
 8. **Input read against a changed frame.** egui reads a click against the
    layout drawn in the frame that reads it. A prompt that replaces another
    under the pointer takes the second click of a double click, or a held key's
-   repeat, that the person aimed at the first.
+   repeat, that the person aimed at the first. The window's answer
+   (`codebase-state.md` item 201): for `SETTLE_SECONDS` after a prompt
+   arrives, `WindowState` drops any input that could answer it and shows
+   nothing live; a key's repeat answers nothing; and each prompt's widgets
+   take an id from its number, so focus dies with its prompt. A new kind of
+   input goes through `WindowState::input`, where the beat is.
 
 **First applied to the whole crate at A6g's review practices PR**, by a review
 agent given this list, a budget and a stop-and-report rule; the findings are
@@ -1847,8 +1861,8 @@ it clicks anything the window would let a person click (a live button, a
 board item marked clickable, "Start over" one click in twenty) until an
 answer completes: the half chosen and abandoned, the ordering reset midway,
 the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
-pool and three seeds on each review board, fifteen games in about 20 s of
-CI's debug build. Each game must finish, the engine's thread must not panic,
+pool and three seeds on each review board, eighteen games in about 15 s of
+the debug build CI runs, read locally. Each game must finish, the engine's thread must not panic,
 the engine must accept every answer the view model builds, and every click
 the window offers must change the answer or complete it: the view model asks
 one probe, `Selection::is_live`, which runs the click on a copy. The games
@@ -1860,6 +1874,15 @@ model's unit tests carry.
 window's snapshot reads every object at every prompt, which no engine test
 does. Its first run found an engine bug that way: a loss bumped no layer
 epoch (A6g's review, finding 1).
+
+**Since A6g's playable PR** the clicks also set and stop yields, press each
+live button's key, and switch full control between prompts, one prompt in
+twenty-five, which asks at the priority points the engine otherwise passes
+itself; they keep the window's clock, and each prompt must first drop a click
+and offer nothing in its beat. A fourth review board, `reask.scenario`,
+declares blocks illegally. Its second find came from full control's extra
+prompts: `Scenario::write`, which the snapshot calls, indexed a blocker's
+attacker after the attacker, a token, had ceased to exist.
 
 ### 10.4 What one prompt costs the window
 

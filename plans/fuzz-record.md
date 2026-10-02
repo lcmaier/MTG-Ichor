@@ -37,6 +37,34 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-02 for A6g's playable PR** (a re-ask names what the
+engine rejected and the engine stops filtering, `codebase-state.md` item 193,
+archived; the engine writes the decision log; in the dev GUI, which
+`fuzz_games` does not run, full control, auto-yield, the card as printed and
+keyboard shortcuts). No pool change. `close_out.py`: **main** `07d9187`
+(#210's merge) against **playable** `467fce6`, the branch's head.
+
+**Predictions, before any arm ran** (the PR's design review): every gameplay
+row `IDENTICAL`, since the random agent filters what its window rejected
+before it shuffles and a shuffle's draws depend on the length alone; the
+decision counters may rise, where a re-ask still offers the reversed action
+and the agent is asked where the engine took `Pass`; instructions per
+decision within ±0.3.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, playable vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / differ: Decisions |
+| audit, playable, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, playable vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6620 M → 0.6630 M, **+0.16%** |
+
+Every prediction held. The row that moved is the one predicted to: Decisions,
+648 to 649 a game at four seats on the stress pool, with every other counter
+row beside it identical, so the games are the same games. Where a re-ask's
+list still holds the reversed action, the agent is now asked, a prompt with
+two legal answers that counts, and skips it with no draw, where the engine
+used to take the `Pass` its filtered list held alone. `close_out.py` counts
+Decisions as a gameplay row, which is why this PR has a block.
+
 **Measured 2026-10-02 for A6g's ability names** (each ability's own rules
 text and the paragraph of its card it prints as, `AbilityDef::rules_text`; a
 spell's abilities one per paragraph, read through `card_data::spell_effect`;
