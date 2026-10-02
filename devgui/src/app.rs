@@ -10,7 +10,8 @@ use eframe::egui;
 use crate::bridge::GameSetup;
 use crate::session::Session;
 use crate::view_model::{
-    Amount, BoardView, Input, Item, KEYS, Key, NumberField, PromptView, SeatButton, WindowState, ZoneView,
+    Amount, BoardView, Input, Item, KEYS, Key, NumberField, PromptView, SeatButton, TypeLineView, TypeWordView, WindowState,
+    ZoneView,
 };
 
 pub struct DevGui {
@@ -214,13 +215,21 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
     }
 }
 
-/// What a hover shows: the item as it is now, beside each face as printed.
+/// What a hover shows: the item as it is now, its type line under its first
+/// line as a card prints one, beside each face as printed.
 fn hover(ui: &mut egui::Ui, item: &Item) {
     ui.horizontal_top(|ui| {
         if !item.hover.is_empty() {
             ui.vertical(|ui| {
                 ui.strong("Now");
-                ui.label(&item.hover);
+                let (first, rest) = item.hover.split_once('\n').unwrap_or((&item.hover, ""));
+                ui.label(first);
+                if let Some(line) = &item.type_line {
+                    type_line(ui, line);
+                }
+                if !rest.is_empty() {
+                    ui.label(rest);
+                }
             });
         }
         for face in item.printed.iter().flat_map(|faces| faces.iter()) {
@@ -228,6 +237,26 @@ fn hover(ui: &mut egui::Ui, item: &Item) {
                 ui.strong("As printed");
                 ui.label(face);
             });
+        }
+    });
+}
+
+/// A type line a word at a time, a word an effect took away greyed in place.
+fn type_line(ui: &mut egui::Ui, line: &TypeLineView) {
+    ui.horizontal_wrapped(|ui| {
+        // About a space's width, so the words read as one line.
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let word = |ui: &mut egui::Ui, word: &TypeWordView| {
+            if word.faded {
+                ui.weak(&word.text);
+            } else {
+                ui.label(&word.text);
+            }
+        };
+        line.front.iter().for_each(|w| word(ui, w));
+        if !line.subtypes.is_empty() {
+            ui.label("—");
+            line.subtypes.iter().for_each(|w| word(ui, w));
         }
     });
 }

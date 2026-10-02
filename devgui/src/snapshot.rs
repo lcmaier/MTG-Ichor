@@ -19,8 +19,8 @@ use mtgsim::types::effects::CounterType;
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::{ManaSymbol, ManaType};
 use mtgsim::ui::display::{
-    attack_target_name, format_event, format_permanent, format_phase, keyword_name, named, player_name, printed_faces,
-    type_line,
+    TypeLine, TypeWord, TypeWordStatus, attack_target_name, format_event, format_permanent, format_phase, keyword_name,
+    named, player_name, printed_faces, type_line_now,
 };
 
 #[derive(Clone, Debug)]
@@ -68,10 +68,38 @@ pub struct CardView {
     pub owner: PlayerId,
     pub name: String,
     pub mana_cost: Option<String>,
-    pub type_line: String,
+    pub type_line: Arc<TypeLineView>,
     /// `ui::display::printed_faces`: the card before any effect, a face an
     /// entry. Shared, since the views are built again at every repaint.
     pub printed: Arc<[String]>,
+}
+
+/// `ui::display::type_line_now` as the window draws it: the words in order,
+/// a dash before the subtypes, and a word an effect took away faded where
+/// it stood. `text` is the line the object has now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeLineView {
+    pub front: Vec<TypeWordView>,
+    pub subtypes: Vec<TypeWordView>,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeWordView {
+    pub text: String,
+    pub faded: bool,
+}
+
+impl TypeLineView {
+    fn of(line: &TypeLine) -> TypeLineView {
+        let words = |section: &[TypeWord]| {
+            section
+                .iter()
+                .map(|word| TypeWordView { text: word.text.clone(), faded: word.status == TypeWordStatus::Lost })
+                .collect()
+        };
+        TypeLineView { front: words(&line.front), subtypes: words(&line.subtypes), text: line.to_string() }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -186,7 +214,7 @@ fn card_with(game: &GameState, id: ObjectId, chars: &EffectiveCharacteristics) -
         owner: game.objects.get(&id)?.owner,
         name: chars.name.clone(),
         mana_cost: chars.mana_cost.as_ref().map(ToString::to_string),
-        type_line: type_line(&chars.supertypes, &chars.types, &chars.subtypes),
+        type_line: Arc::new(TypeLineView::of(&type_line_now(game, id))),
         printed: printed_faces(game, id).into(),
     })
 }

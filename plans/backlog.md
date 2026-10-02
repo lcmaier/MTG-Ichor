@@ -2438,6 +2438,11 @@ readable at once. The engine gives it each ability's own text and the
 paragraph of its card it prints as (`AbilityDef::rules_text`): the dev GUI's
 hover shows a printed ability once by it, and a removed one is a paragraph no
 ability on the object's list prints as. It still needs a back face (CV-5).
+The type line the same way (the owner, 2026-10-02, at the playable PR's
+review): the copiable values' words in printed order, one the object lost
+faded in place, one an effect gave it last in its section;
+`ui::display::type_line_now` marks each word, and the dev GUI's hover fades
+the lost ones.
 
 **One client, not the interface.** Nothing in the engine is shaped for this
 GUI beyond what any client is owed: item 141's payload rule and §2.22's census.

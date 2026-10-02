@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::engine::combat::validation::CombatError;
 use crate::engine::layers::compute_characteristics;
+use crate::engine::layers::copy::copiable_values;
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
 use crate::objects::card_data::{AbilityText, AbilityType, CardData, paragraphs};
@@ -16,7 +17,7 @@ use crate::oracle::characteristics::{
 };
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::card_types::{CardTypes, Subtypes, Supertype};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -177,16 +178,157 @@ fn printed_face(card: &CardData) -> String {
     lines.join("\n")
 }
 
-/// `Legendary Creature — Elf Warrior`: supertypes, types in `CardType`'s
-/// order, then subtypes. The CR fixes no order within a set, so supertypes
-/// and subtypes are sorted: they are hash sets.
+/// `Legendary Creature — Elf Warrior`: a type line in printed order.
 pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &Subtypes) -> String {
-    let mut supers: Vec<String> = supertypes.iter().map(|s| format!("{s:?}")).collect();
-    supers.sort();
-    let mut subs: Vec<String> = subtypes.iter().map(|s| s.word()).collect();
-    subs.sort();
-    let front: Vec<String> = supers.into_iter().chain(types.iter().map(|t| format!("{t:?}"))).collect();
-    if subs.is_empty() { front.join(" ") } else { format!("{} — {}", front.join(" "), subs.join(" ")) }
+    let front: Vec<String> = in_printed_order(supertypes, types).iter().map(|word| word.text()).collect();
+    let subtypes: Vec<String> = subtypes.iter().map(Subtype::word).collect();
+    if subtypes.is_empty() { front.join(" ") } else { format!("{} — {}", front.join(" "), subtypes.join(" ")) }
+}
+
+/// A type line word by word against the object's copiable values (CR 707.2),
+/// which are what it prints unless it is a copy: [`type_line_now`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TypeLine {
+    /// The supertypes, then the card types.
+    pub front: Vec<TypeWord>,
+    /// The words after the long dash (CR 205.3b).
+    pub subtypes: Vec<TypeWord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeWord {
+    pub text: String,
+    pub status: TypeWordStatus,
+}
+
+/// Where a word of [`TypeLine`] stands against the copiable values.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TypeWordStatus {
+    Kept,
+    /// The copiable values have it and the object does not.
+    Lost,
+    /// An effect gave it.
+    Gained,
+}
+
+impl std::fmt::Display for TypeLine {
+    /// The line the object has now: the words it lost are left out.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let has = |words: &[TypeWord]| -> Vec<String> {
+            words.iter().filter(|w| w.status != TypeWordStatus::Lost).map(|w| w.text.clone()).collect()
+        };
+        let subtypes = has(&self.subtypes);
+        write!(f, "{}", has(&self.front).join(" "))?;
+        if !subtypes.is_empty() {
+            write!(f, " — {}", subtypes.join(" "))?;
+        }
+        Ok(())
+    }
+}
+
+/// The type line of `id` as it is now, as Arena shows one: a word the object
+/// kept stands where it stood, one an effect took away stays there marked
+/// lost, and one an effect gave it goes last in its section, the subtypes
+/// in the order they were given. A word given and taken away is not there.
+pub fn type_line_now(game: &GameState, id: ObjectId) -> TypeLine {
+    let (Some(now), Some(base)) = (compute_characteristics(game, id), copiable_values(game, id)) else {
+        return TypeLine::default();
+    };
+    let base_front = in_printed_order(&base.supertypes, &base.types);
+    let now_front = in_printed_order(&now.supertypes, &now.types);
+    let front = against(&base_front, &now_front, |word| base_front.contains(word), |word| now_front.contains(word), FrontWord::text);
+    let base_subtypes: Vec<Subtype> = base.subtypes.iter().cloned().collect();
+    let now_subtypes: Vec<Subtype> = now.subtypes.iter().cloned().collect();
+    let mut subtypes = against(
+        &base_subtypes,
+        &now_subtypes,
+        |subtype| base.subtypes.contains(subtype),
+        |subtype| now.subtypes.contains(subtype),
+        Subtype::word,
+    );
+    let status = match (base.subtypes.has_every_creature_type(), now.subtypes.has_every_creature_type()) {
+        (true, true) => Some(TypeWordStatus::Kept),
+        (true, false) => Some(TypeWordStatus::Lost),
+        (false, true) => Some(TypeWordStatus::Gained),
+        (false, false) => None,
+    };
+    if let Some(status) = status {
+        subtypes.push(TypeWord { text: "(every creature type)".to_string(), status });
+    }
+    TypeLine { front, subtypes }
+}
+
+/// The words of one section: `base`'s in its order, each kept or lost, then
+/// the ones `now` has that `base` does not, in `now`'s order.
+fn against<T>(
+    base: &[T],
+    now: &[T],
+    base_has: impl Fn(&T) -> bool,
+    now_has: impl Fn(&T) -> bool,
+    text: impl Fn(&T) -> String,
+) -> Vec<TypeWord> {
+    let standing = base.iter().map(|word| TypeWord {
+        text: text(word),
+        status: if now_has(word) { TypeWordStatus::Kept } else { TypeWordStatus::Lost },
+    });
+    let gained = now.iter().filter(|word| !base_has(word)).map(|word| TypeWord { text: text(word), status: TypeWordStatus::Gained });
+    standing.chain(gained).collect()
+}
+
+/// A word in front of a type line's dash.
+#[derive(Clone, Copy, PartialEq)]
+enum FrontWord {
+    Supertype(Supertype),
+    CardType(CardType),
+}
+
+impl FrontWord {
+    fn text(&self) -> String {
+        match self {
+            FrontWord::Supertype(supertype) => format!("{supertype:?}"),
+            FrontWord::CardType(card_type) => format!("{card_type:?}"),
+        }
+    }
+}
+
+/// Supertypes before card types (CR 205.4a), each in Oracle's order: no card
+/// outside the Un-sets and playtest cards prints two in another order, by a
+/// Scryfall census of every pair (2026-10-02), and the CR gives none.
+fn in_printed_order(supertypes: &HashSet<Supertype>, types: &CardTypes) -> Vec<FrontWord> {
+    let supertype_rank = |supertype: &Supertype| match supertype {
+        Supertype::Basic => 0,
+        Supertype::Legendary => 1,
+        Supertype::Ongoing => 2,
+        Supertype::Snow => 3,
+        Supertype::World => 4,
+    };
+    let card_type_rank = |card_type: &CardType| match card_type {
+        CardType::Kindred => 0,
+        CardType::Enchantment => 1,
+        CardType::Artifact => 2,
+        CardType::Land => 3,
+        CardType::Creature => 4,
+        CardType::Planeswalker => 5,
+        CardType::Battle => 6,
+        CardType::Instant => 7,
+        CardType::Sorcery => 8,
+        // Each the one card type on its cards.
+        CardType::Conspiracy
+        | CardType::Dungeon
+        | CardType::Phenomenon
+        | CardType::Plane
+        | CardType::Scheme
+        | CardType::Vanguard => 9,
+    };
+    let mut supers: Vec<&Supertype> = supertypes.iter().collect();
+    supers.sort_by_key(|supertype| supertype_rank(supertype));
+    let mut card_types: Vec<&CardType> = types.iter().collect();
+    card_types.sort_by_key(|card_type| card_type_rank(card_type));
+    supers
+        .into_iter()
+        .map(|supertype| FrontWord::Supertype(*supertype))
+        .chain(card_types.into_iter().map(|card_type| FrontWord::CardType(*card_type)))
+        .collect()
 }
 
 /// "Grizzly Bears (#12)", or "Grizzly Bears (Clone, #12)" for a copy: the
@@ -790,6 +932,93 @@ mod tests {
         has(format!("ZoneChange: Grizzly Bears (Clone, {clone}) (Creature) [P0] Battlefield -> Graveyard [Destroyed]"));
         has(format!("Tapped: Grizzly Bears (Test Creature, {shaped})"));
         has(format!("Untapped: Test Creature ({shaped})"));
+    }
+
+    #[test]
+    fn a_type_line_prints_in_printed_order() {
+        use crate::cards::{dual_lands, phase_rc_cards, phase_rg_cards, phase_tr2b_cards};
+        let line = |card: Arc<CardData>| type_line(&card.supertypes, &card.types, &card.subtypes);
+        assert_eq!(line(phase_rc_cards::containment_priest()), "Creature — Human Cleric");
+        assert_eq!(line(phase_rc_cards::dryad_arbor()), "Land Creature — Forest Dryad");
+        assert_eq!(line(phase_tr2b_cards::nykthos_paragon()), "Enchantment Creature — Human Soldier");
+        assert_eq!(line(phase_rg_cards::archelos_lagoon_mystic()), "Legendary Creature — Turtle Shaman");
+        assert_eq!(line(dual_lands::bayou()), "Land — Swamp Forest");
+    }
+
+    fn words(section: &[TypeWord]) -> Vec<(&str, TypeWordStatus)> {
+        section.iter().map(|word| (word.text.as_str(), word.status)).collect()
+    }
+
+    #[test]
+    fn blood_moon_leaves_bayous_land_types_in_place_as_lost_and_adds_mountain_last() {
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+        use TypeWordStatus::{Gained, Kept, Lost};
+
+        let mut game = setup_two_player_game();
+        let bayou = put_on_battlefield(&mut game, crate::cards::dual_lands::bayou(), 0);
+        assert_eq!(type_line_now(&game, bayou).to_string(), "Land — Swamp Forest");
+        put_on_battlefield(&mut game, crate::cards::phase_ld_cards::blood_moon(), 1);
+
+        let line = type_line_now(&game, bayou);
+        assert_eq!(words(&line.front), [("Land", Kept)]);
+        assert_eq!(words(&line.subtypes), [("Swamp", Lost), ("Forest", Lost), ("Mountain", Gained)]);
+        assert_eq!(line.to_string(), "Land — Mountain");
+    }
+
+    #[test]
+    fn a_gained_card_type_goes_last_and_a_subtype_given_then_replaced_is_not_there() {
+        use crate::engine::layers::types::{EffectModification, Layer};
+        use crate::test_support::{put_on_battlefield, registered, setup_two_player_game};
+        use crate::types::card_types::CreatureType;
+        use TypeWordStatus::{Gained, Kept, Lost};
+
+        let mut game = setup_two_player_game();
+        let bear = CardDataBuilder::new("Test Bear")
+            .card_type(CardType::Creature)
+            .subtype(Subtype::Creature(CreatureType::Bear))
+            .power_toughness(2, 2)
+            .build();
+        let bear = put_on_battlefield(&mut game, bear, 0);
+        for modification in [
+            EffectModification::AddType(CardType::Artifact),
+            EffectModification::AddSubtype(Subtype::Creature(CreatureType::Elf)),
+            EffectModification::SetSubtypes(Subtypes::from([Subtype::Creature(CreatureType::Goblin)])),
+        ] {
+            let timestamp = game.allocate_timestamp();
+            game.continuous_effects.add(registered(bear, Layer::Layer4Type, timestamp, modification));
+        }
+
+        let line = type_line_now(&game, bear);
+        assert_eq!(words(&line.front), [("Creature", Kept), ("Artifact", Gained)], "not Oracle's \"Artifact Creature\"");
+        assert_eq!(words(&line.subtypes), [("Bear", Lost), ("Goblin", Gained)], "the Elf came and went");
+        assert_eq!(line.to_string(), "Creature Artifact — Goblin");
+    }
+
+    #[test]
+    fn a_copy_reads_against_what_it_copied_and_every_creature_type_is_one_word() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::card_types::CreatureType;
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::phase_rd_cards::samite_healer(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        let line = type_line_now(&game, clone);
+        assert!(line.front.iter().chain(&line.subtypes).all(|word| word.status == TypeWordStatus::Kept), "{line:?}");
+        assert_eq!(line.to_string(), "Creature — Human Cleric", "its own Shapeshifter is no part of it");
+
+        let mut every = (*CardDataBuilder::new("Every-Type Fixture")
+            .card_type(CardType::Creature)
+            .subtype(Subtype::Creature(CreatureType::Shapeshifter))
+            .power_toughness(1, 1)
+            .build())
+        .clone();
+        every.subtypes.insert_every_creature_type();
+        let every = put_on_battlefield(&mut game, Arc::new(every), 0);
+        assert_eq!(type_line_now(&game, every).to_string(), "Creature — Shapeshifter (every creature type)");
     }
 
     #[test]

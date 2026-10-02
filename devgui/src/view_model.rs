@@ -16,6 +16,7 @@ use mtgsim::ui::auto_yield::Yield;
 use crate::bridge::{Outcome, ToWindow, WINDOW_SEAT};
 use crate::prompt::{Answer, BoardRef, Primitive, Prompt, Reply};
 use crate::snapshot::{CardView, PermanentView, PlayerView, Snapshot};
+pub use crate::snapshot::{TypeLineView, TypeWordView};
 
 /// Something the player did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -421,6 +422,8 @@ pub struct Item {
     pub hover: String,
     /// Shown on hover beside it: the card as printed, a face an entry.
     pub printed: Option<Arc<[String]>>,
+    /// Shown on hover under the first line of `hover`, a permanent's.
+    pub type_line: Option<Arc<TypeLineView>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -500,6 +503,7 @@ impl Marks {
             tapped,
             hover: String::new(),
             printed: None,
+            type_line: None,
         }
     }
 
@@ -508,7 +512,7 @@ impl Marks {
             Some(cost) => format!("{} {cost}", card.name),
             None => card.name.clone(),
         };
-        let mut item = self.item(BoardRef::Object(card.id), title, card.type_line.clone(), false);
+        let mut item = self.item(BoardRef::Object(card.id), title, card.type_line.text.clone(), false);
         item.printed = Some(Arc::clone(&card.printed));
         item
     }
@@ -543,6 +547,7 @@ impl Marks {
         let mut item = self.item(BoardRef::Object(permanent.card.id), title, detail.join(" · "), permanent.tapped);
         item.hover = permanent.engine_text.clone();
         item.printed = Some(Arc::clone(&permanent.card.printed));
+        item.type_line = Some(Arc::clone(&permanent.card.type_line));
         item
     }
 
@@ -601,6 +606,7 @@ impl BoardView {
                     tapped: false,
                     hover: String::new(),
                     printed: None,
+                    type_line: None,
                 })
                 .collect(),
             exile: board.exile.iter().map(|card| owned(marks, card)).collect(),
@@ -907,6 +913,26 @@ mod tests {
             .find(|item| item.target == Some(Object(id)))
             .cloned()
             .unwrap_or_else(|| panic!("{id} is not on the board"))
+    }
+
+    #[test]
+    fn a_hover_greys_the_land_types_blood_moon_took_and_a_hand_card_prints_in_order() {
+        let mut game = setup_two_player_game();
+        let bayou = put_on_battlefield(&mut game, mtgsim::cards::dual_lands::bayou(), 0);
+        put_on_battlefield(&mut game, mtgsim::cards::phase_ld_cards::blood_moon(), 1);
+        let priest = put_in_hand(&mut game, mtgsim::cards::phase_rc_cards::containment_priest(), 0);
+        let view = WindowState { board: Some(Snapshot::build(&game, 0)), ..WindowState::default() }.board_view().unwrap();
+
+        let line = item(&view, bayou).type_line.expect("a permanent's hover has its type line");
+        let words = |section: &[TypeWordView]| section.iter().map(|w| (w.text.clone(), w.faded)).collect::<Vec<_>>();
+        assert_eq!(words(&line.front), [("Land".to_string(), false)]);
+        assert_eq!(
+            words(&line.subtypes),
+            [("Swamp".to_string(), true), ("Forest".to_string(), true), ("Mountain".to_string(), false)]
+        );
+        assert_eq!(line.text, "Land — Mountain");
+        assert_eq!(item(&view, priest).detail, "Creature — Human Cleric");
+        assert_eq!(item(&view, priest).type_line, None, "a hand card's line is its detail");
     }
 
     #[test]
