@@ -16,7 +16,8 @@ record, each labelled by what it consulted. The map's questions, the "where
 the reads differ" table and the closing section stay authored, and the page
 marks their places.
 
-`--events` is decision 5 of row A4c made literal: the performed-event
+`--events` is decision 5 of row A4c (`plans/archive/roadmap-v2-landed.md`)
+made literal: the performed-event
 stream goes to the sink, so `fuzz_games --dump-events` is one projection of a
 trace - `event` records rendered the way `dump_event_log` renders the log.
 

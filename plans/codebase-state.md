@@ -6375,7 +6375,8 @@ closed. **The last of RE's ten PRs.**
      entry's proposed `EngineMeters`: the module is already
      `state::diagnostics`, so the type stops fighting its path. **The sizing
      was low** — 120 lines across 21 files against this entry's 81 and row
-     A4m's 72, because neither count included an argument site or a test
+     A4m's 72 (`plans/archive/roadmap-v2-landed.md`), because neither
+     count included an argument site or a test
      file.
      → `plans/archive/codebase-state-closed.md`. **No `fuzz-record.md`
      block, because nothing moved:** both pools read `IDENTICAL` at two
@@ -7474,8 +7475,9 @@ owner decided it the same day.
      tests that already existed and nine dispositions. At 22 rulings a sitting
      the remaining **pooled 103 is about five** and the whole 308 is about
      fourteen, so the off-pool 205 is two thirds of the work on cards no
-     measurement walks. **Scheduled by the owner 2026-09-17** (`roadmap-v2.md`
-     row A4b): the pooled 103 takes a slot between phases whenever one is
+     measurement walks. **Scheduled by the owner 2026-09-17** (row A4b's
+     record, `plans/archive/roadmap-v2-landed.md`): the pooled 103 takes a
+     slot between phases whenever one is
      free, no deadline, and the off-pool 205 is not scheduled at all. Between
      phases rather than inside one because a bug this finds in a pooled card
      is an engine fix that moves the random agent's stream and owes its own
@@ -7500,7 +7502,8 @@ and **G** (the trace page above) closed inside A4i's own PR — cc1b4d9, c731e55
 four items (3ea4cb5; `fuzz-record.md`'s A4i block) and **withdrew the fourth after
 building it** — `targeting.rs`'s `FilterIdentity` carries why, because that is
 where someone would try it again. **E** is `backlog.md` §2.33. **H** and **I.2**
-are `roadmap-v2.md` row A4n, which carries the measurement and the three riders —
+are row A4n, whose record in `plans/archive/roadmap-v2-landed.md` carries the
+measurement and the three riders —
 closed 2026-09-18, with the third rider split out as row A4q.
 **I.1** is items 159 and 160, closed by A4o and A4p. **I.3** amended item 155 in
 place.
@@ -7935,8 +7938,8 @@ the file.
 ### Found by A4c — the trace sink (2026-09-18)
 
 **The sink is `mtgsim/src/state/trace.rs`; the record is its module doc and
-`tests/trace_sink_test.rs`; what the row did not predict is on `roadmap-v2.md`
-row A4c.** One thing is owed, by decision 6:
+`tests/trace_sink_test.rs`; what the row did not predict is in row A4c's
+record, `plans/archive/roadmap-v2-landed.md`.** One thing is owed, by decision 6:
 
 166. **The two-version trace diff — the artifact item 5 called higher-value,
      shaped for and not built.** One board through two engine builds, compared

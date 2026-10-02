@@ -1521,7 +1521,8 @@ schedulable rather than done:
   marks their places. What it is for is the question asked mid-debugging,
   and the regeneration of a page's rows after a refactor: rd-2's Trace A
   regenerated from its test found two rows the pinned page states and
-  today's engine does not (row A4c has them), which is the diff a spine
+  today's engine does not (row A4c's record in
+  `plans/archive/roadmap-v2-landed.md` has them), which is the diff a spine
   exists to show and not a reason to touch the page. The two corrections
   item 5 recorded before the code held: "gated the way `Diagnostics` is"
   became one `Option` branch per emit point with the payload built behind
