@@ -37,27 +37,34 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
-**Measured 2026-10-01 for A6g's ability names** (each ability's own rules
-text, `AbilityDef::rules_text`; a spell's abilities one per paragraph, read
-through `card_data::spell_effect`; `ui::display`'s questions and labels for
-both clients; `codebase-state.md` item 202, archived). No pool change.
-`close_out.py`: **main** `5fb64a5` (#208's merge) against **engine**
-`baaf787`, the last code commit, after the review's change to the cast.
+**Measured 2026-10-02 for A6g's ability names** (each ability's own rules
+text and the paragraph of its card it prints as, `AbilityDef::rules_text`; a
+spell's abilities one per paragraph, read through `card_data::spell_effect`;
+`ui::display`'s questions and labels for both clients; `codebase-state.md`
+item 202, archived). No pool change. `close_out.py`: **main** `5fb64a5`
+(#208's merge) against **engine** `fc11931`, the last code commit, after the
+review's paragraph stamp.
 
 **Predictions, before any arm ran** (PR #209's body): every gameplay and cost
-row `IDENTICAL` on both pools at two seats and four, since a spell's stack
-entry holds the same effect as before; instructions per decision within
-±0.3, `AbilityDef` growing from 384 bytes to 400 and the cast collecting a
-spell's abilities first.
+row `IDENTICAL` on both pools at two seats and four, since no rule reads an
+ability's text; instructions per decision within ±0.3, `AbilityDef` growing
+from 384 bytes to 408 and the builder finding each ability's paragraph once
+per card built.
 
 | | 2 seats | 4 seats |
 |---|---|---|
 | every counter row, gameplay and cost, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
 | audit, engine, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
-| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6600 M → 0.6598 M, **−0.03%** |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6601 M → 0.6619 M, **+0.27%** |
 
-Every prediction held. The engine arm before review, `49ddfac`, read the same
-rows and −0.11%.
+Every prediction held, the last on a second reading. The first, with the
+stamp allocating two vectors per card built, read **+0.43%**; a per-function
+callgrind diff named them, and the stamp now allocates nothing. Of the +0.27,
+about a tenth of a point is the stamp's scan of a card's text, ~2,700 builds
+over the 20 games, and the rest is code the compiler moved between functions
+(`has_subtype`'s set lookup, `EffectiveCharacteristics`' drop), as SU-2's
+was. The engine arms before review, `49ddfac`, and before the stamp,
+`baaf787`, read the same rows and −0.11% and −0.03%.
 
 **Measured 2026-10-01 for A6g's review practices** (the dev GUI's review
 path, `engineering-practices.md` §10), whose one engine change is a loss

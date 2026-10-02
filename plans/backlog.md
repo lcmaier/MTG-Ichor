@@ -2434,9 +2434,10 @@ once §2.9's information model lands.
 names), as Arena shows it: an object's abilities in printed order, a granted
 one marked (Arena's blue), a removed one faded, a printed ability the engine
 builds as several abilities shown once, and both faces of a double-faced card
-readable at once. The engine gives it each ability's own text
-(`AbilityDef::rules_text`) and needs to give it which printed paragraph each
-ability comes from, for the last three, and a back face (CV-5).
+readable at once. The engine gives it each ability's own text and the
+paragraph of its card it prints as (`AbilityDef::rules_text`): the dev GUI's
+hover shows a printed ability once by it, and a removed one is a paragraph no
+ability on the object's list prints as. It still needs a back face (CV-5).
 
 **One client, not the interface.** Nothing in the engine is shaped for this
 GUI beyond what any client is owed: item 141's payload rule and §2.22's census.
