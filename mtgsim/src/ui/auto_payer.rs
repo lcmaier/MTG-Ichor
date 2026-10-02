@@ -135,12 +135,10 @@ mod tests {
     }
 
     fn split_ctx() -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::GenericManaAllocation {
-                spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
-                mana_cost: ManaCost::build(&[], 2),
-            },
-        }
+        ChoiceContext::new(ChoiceKind::GenericManaAllocation {
+            spell_or_ability_id: crate::types::ids::ObjectId::UNASSIGNED,
+            mana_cost: ManaCost::build(&[], 2),
+        })
     }
 
     fn expects_split(answer: Vec<u64>) -> ScriptedDecisionProvider {
@@ -187,9 +185,7 @@ mod tests {
     fn orders_cost_reductions_in_gather_order() {
         let game = setup_two_player_game();
         let dp = AutoPayer::new(ScriptedDecisionProvider::new());
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::OrderCostReductions { spell_id: new_object_id() },
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::OrderCostReductions { spell_id: new_object_id() });
         let items = vec![ChoiceOption::Object(new_object_id()); 3];
         assert_eq!(dp.choose_ordering(&game, 0, &ctx, &items), vec![0, 1, 2]);
     }
@@ -205,12 +201,10 @@ mod tests {
             vec![1],
         );
         let dp = AutoPayer::new(inner);
-        let ctx = ChoiceContext {
-            kind: ChoiceKind::ChooseSacrificeForCost {
-                spell_or_ability_id: new_object_id(),
-                count: 1,
-            },
-        };
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseSacrificeForCost {
+            spell_or_ability_id: new_object_id(),
+            count: 1,
+        });
         let options = vec![ChoiceOption::Object(new_object_id()); 2];
         assert_eq!(dp.pick_n(&game, 0, &ctx, &options, (1, 1)), vec![1]);
     }
@@ -224,7 +218,7 @@ mod tests {
         let attacker_id = new_object_id();
         inner.expect_allocation(ChoiceKind::AssignCombatDamage { attacker_id }, vec![2, 1]);
         let dp = AutoPayer::new(inner);
-        let ctx = ChoiceContext { kind: ChoiceKind::AssignCombatDamage { attacker_id } };
+        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id });
         assert_eq!(dp.allocate(&game, 0, &ctx, 3, &buckets(2), &[0, 0], None), vec![2, 1]);
     }
 }

@@ -1,3 +1,4 @@
+use crate::engine::combat::validation::CombatError;
 use crate::events::event::DamageTarget;
 use crate::state::battlefield::AttackTarget;
 use crate::types::colors::Color;
@@ -351,12 +352,40 @@ impl ChoiceKind {
 
 }
 
-/// Wrapper carrying the semantic kind. No display text: a client words the
-/// question with `ui::display::question` and each option with
-/// `ui::display::option_label`, which keeps presentation off the boundary.
+/// The question, and the seat's last answer to it when the engine rejected
+/// that answer and is asking again. No display text: a client words the
+/// question with `ui::display::question`, each option with
+/// `ui::display::option_label` and a rejection with `ui::display::rejection`,
+/// which keeps presentation off the boundary.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
     pub kind: ChoiceKind,
+    /// `None` the first time a question is asked. Only the last answer
+    /// rejected: a seat that wants every rejection of a priority window keeps
+    /// them itself, as the random agent does (`codebase-state.md` item 193).
+    pub rejected: Option<Rejection>,
+}
+
+impl ChoiceContext {
+    /// A question asked for the first time.
+    pub const fn new(kind: ChoiceKind) -> ChoiceContext {
+        ChoiceContext { kind, rejected: None }
+    }
+}
+
+/// An answer the engine would not take, and the rule it broke, by id: never
+/// the engine's own error text, which stays in the trace's
+/// `priority_rejected` record (item 141's payload rule).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Rejection {
+    /// CR 732.1: the action could not be completed, so it was reversed and its
+    /// payments canceled. The player keeps priority and may take it again or
+    /// another action (CR 732.2). Most often a cost the player stopped paying,
+    /// or could not pay, in CR 601.2g's window.
+    Reversed(PriorityAction),
+    /// The blocks declared were illegal, so the defending player declares
+    /// again; `why` names the creatures and the rule (CR 509.1a–c).
+    IllegalBlocks { blocks: Vec<(ObjectId, ObjectId)>, why: CombatError },
 }
 
 /// A single selectable option presented to the DP.

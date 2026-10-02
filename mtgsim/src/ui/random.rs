@@ -413,12 +413,10 @@ mod tests {
     }
 
     fn window(remaining: ManaCost) -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::ManaAbilityWindow {
-                spell_or_ability_id: crate::types::ids::new_object_id(),
-                remaining_cost: remaining,
-            },
-        }
+        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: crate::types::ids::new_object_id(),
+            remaining_cost: remaining,
+        })
     }
 
     /// A five-color land offers five abilities; with `{G}` still owed the
@@ -493,7 +491,7 @@ mod tests {
     fn test_random_dp_pick_n_empty() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         let result = dp.pick_n(&game, 0, &ctx, &[], (0, 0));
         assert!(result.is_empty());
     }
@@ -502,7 +500,7 @@ mod tests {
     fn test_random_dp_pick_n_selects_within_bounds() {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         let options = vec![ChoiceOption::Action(PriorityAction::Pass); 3];
         let result = dp.pick_n(&game, 0, &ctx, &options, (1, 2));
         assert!(!result.is_empty() && result.len() <= 2);
@@ -516,7 +514,7 @@ mod tests {
         let dp = RandomDecisionProvider::new();
         let game = setup_basic_game();
         let spell_id = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext { kind: ChoiceKind::ChooseXValue { spell_id, x_count: 1 } };
+        let ctx = ChoiceContext::new(ChoiceKind::ChooseXValue { spell_id, x_count: 1 });
         let result = dp.pick_number(&game, 0, &ctx, 0, 10);
         assert!(result <= 10);
     }
@@ -527,7 +525,7 @@ mod tests {
         let game = setup_basic_game();
         let id_a = crate::types::ids::new_object_id();
         let id_b = crate::types::ids::new_object_id();
-        let ctx = ChoiceContext { kind: ChoiceKind::AssignCombatDamage { attacker_id: id_a } };
+        let ctx = ChoiceContext::new(ChoiceKind::AssignCombatDamage { attacker_id: id_a });
         let buckets = vec![ChoiceOption::Object(id_a), ChoiceOption::Object(id_b)];
         let mins = vec![0, 0];
         let result = dp.allocate(&game, 0, &ctx, 5, &buckets, &mins, None);

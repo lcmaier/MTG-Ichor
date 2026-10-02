@@ -170,7 +170,7 @@ mod tests {
     use crate::ui::decision::ScriptedDecisionProvider;
     use crate::ui::full_control::{FullControl, FullControlSwitch};
 
-    const PRIORITY: ChoiceContext = ChoiceContext { kind: ChoiceKind::PriorityAction };
+    const PRIORITY: ChoiceContext = ChoiceContext::new(ChoiceKind::PriorityAction);
 
     /// `[Pass, Cast]`: the seat has something to do, so a pass is a choice.
     fn pass_or_cast() -> Vec<ChoiceOption> {
@@ -251,7 +251,7 @@ mod tests {
         let person = ScriptedDecisionProvider::new();
         person.expect_pick_n(ChoiceKind::DeclareBlockers, vec![]);
         let seat = AutoYield::new(person, yields);
-        let blockers = ChoiceContext { kind: ChoiceKind::DeclareBlockers };
+        let blockers = ChoiceContext::new(ChoiceKind::DeclareBlockers);
 
         assert!(seat.pick_n(&game, 1, &blockers, &[ChoiceOption::Object(new_object_id())], (0, 1)).is_empty());
     }

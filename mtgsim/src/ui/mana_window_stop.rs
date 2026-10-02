@@ -120,12 +120,10 @@ mod tests {
     use crate::ui::decision::{PriorityAction, ScriptedDecisionProvider};
 
     fn window(remaining: ManaCost) -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::ManaAbilityWindow {
-                spell_or_ability_id: new_object_id(),
-                remaining_cost: remaining,
-            },
-        }
+        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: new_object_id(),
+            remaining_cost: remaining,
+        })
     }
 
     fn one_option() -> Vec<ChoiceOption> {
@@ -189,7 +187,7 @@ mod tests {
         let inner = ScriptedDecisionProvider::new();
         inner.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         let dp = ManaWindowStop::new(inner);
-        let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
         assert_eq!(dp.pick_n(&game, 0, &ctx, &one_option(), (0, 1)), vec![0]);
     }
 }

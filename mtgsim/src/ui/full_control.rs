@@ -156,12 +156,10 @@ mod tests {
     use crate::ui::mana_window_stop::ManaWindowStop;
 
     fn covered_window() -> ChoiceContext {
-        ChoiceContext {
-            kind: ChoiceKind::ManaAbilityWindow {
-                spell_or_ability_id: new_object_id(),
-                remaining_cost: ManaCost::zero(),
-            },
-        }
+        ChoiceContext::new(ChoiceKind::ManaAbilityWindow {
+            spell_or_ability_id: new_object_id(),
+            remaining_cost: ManaCost::zero(),
+        })
     }
 
     fn a_source() -> Vec<ChoiceOption> {
@@ -208,7 +206,7 @@ mod tests {
     fn full_control_cancels_the_yields_it_supersedes() {
         use crate::ui::auto_yield::{AutoYield, Yield};
         let game = setup_two_player_game();
-        let priority = ChoiceContext { kind: ChoiceKind::PriorityAction };
+        let priority = ChoiceContext::new(ChoiceKind::PriorityAction);
         let options = vec![
             ChoiceOption::Action(PriorityAction::Pass),
             ChoiceOption::Action(PriorityAction::CastSpell(new_object_id())),
