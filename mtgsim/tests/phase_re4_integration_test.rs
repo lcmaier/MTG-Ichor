@@ -87,7 +87,7 @@ fn resolve_for(game: &mut GameState, player: PlayerId, effect: &Effect, dp: &dyn
 /// Resolve a registered instant or sorcery's spell ability for `player`, as
 /// its text is written.
 fn resolve_card(game: &mut GameState, player: PlayerId, card: Arc<CardData>, dp: &dyn DecisionProvider) {
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     resolve_for(game, player, &effect, dp);
 }
 

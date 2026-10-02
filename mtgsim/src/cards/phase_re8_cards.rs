@@ -63,8 +63,9 @@ use crate::types::zones::{Zone, ZoneChangeCause, ZoneSet};
 
 /// A spell whose whole text is "target player discards N cards", differing
 /// only in who picks (CR 701.9b).
-fn target_player_discards(n: u64, chooser: DiscardChooser) -> AbilityDef {
+fn target_player_discards(rules_text: &'static str, n: u64, chooser: DiscardChooser) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         is_characteristic_defining: false,
         activation_restriction: crate::objects::card_data::ActivationRestriction::None,
         id: AbilityId::UNASSIGNED,
@@ -101,7 +102,7 @@ pub fn mind_rot() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("Target player discards two cards.")
-        .ability(target_player_discards(2, DiscardChooser::Affected))
+        .ability(target_player_discards("Target player discards two cards.", 2, DiscardChooser::Affected))
         .build()
 }
 
@@ -129,7 +130,7 @@ pub fn hymn_to_tourach() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Sorcery)
         .rules_text("Target player discards two cards at random.")
-        .ability(target_player_discards(2, DiscardChooser::AtRandom))
+        .ability(target_player_discards("Target player discards two cards at random.", 2, DiscardChooser::AtRandom))
         .build()
 }
 
@@ -180,6 +181,7 @@ pub fn nephalia_academy() -> Arc<CardData> {
             "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.\n{T}: Add {C}.",
         )
         .ability(AbilityDef {
+            rules_text: "If a spell or ability an opponent controls causes you to discard a card, you may reveal that card and put it on top of your library instead of putting it anywhere else.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -242,22 +244,30 @@ pub fn opt() -> Arc<CardData> {
         .card_type(CardType::Instant)
         .rules_text("Scry 1.\nDraw a card.")
         .ability(AbilityDef {
+            rules_text: "Scry 1.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
             costs: Vec::new(),
-            effect: Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::Scry(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-            ]),
+            effect: Effect::Atom(
+                Primitive::Scry(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
+        })
+        .ability(AbilityDef {
+            rules_text: "Draw a card.".into(),
+            is_characteristic_defining: false,
+            activation_restriction: crate::objects::card_data::ActivationRestriction::None,
+            id: AbilityId::UNASSIGNED,
+            instances: Vec::new(),
+            ability_type: AbilityType::Spell,
+            costs: Vec::new(),
+            effect: Effect::Atom(
+                Primitive::DrawCards(AmountExpr::Fixed(1)),
+                EffectRecipient::Controller,
+            ),
         })
         .build()
 }
@@ -305,10 +315,9 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Sphinx))
         .power_toughness(5, 6)
         .keyword_flag(KeywordFlag::Flying)
-        .rules_text(
-            "Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner",
-        )
+        .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner")
         .ability(AbilityDef {
+            rules_text: "If you would scry a number of cards, draw that many cards instead.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

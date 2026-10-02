@@ -71,7 +71,7 @@ fn destroy_all(game: &mut GameState, objects: &[ObjectId], source: ObjectId) {
 fn mourning_shrine() -> Arc<CardData> {
     CardDataBuilder::new("Mourning Shrine")
         .card_type(CardType::Enchantment)
-        .ability(triggered_ability(whenever(dies(ObjectFilter::ByType(CardType::Creature)), gain_one())))
+        .ability(triggered_ability("", whenever(dies(ObjectFilter::ByType(CardType::Creature)), gain_one())))
         .build()
 }
 
@@ -149,7 +149,7 @@ fn one_ability_triggers_once_per_death_across_a_survivors_two_lists() {
         limit: None,
         effect: gain_one(),
     };
-    let watcher = put_on_battlefield(&mut game, creature_with_ability("Twofold Mourner", 1, 1, triggered_ability(two_arms)), 0);
+    let watcher = put_on_battlefield(&mut game, creature_with_ability("Twofold Mourner", 1, 1, triggered_ability("", two_arms)), 0);
     // The granter is the source of an ability list's row, so the wipe that
     // takes it takes a look-back snapshot of the watcher.
     let granter = put_on_battlefield(&mut game, vanilla_creature(1, 1, &[]), 1);
@@ -217,15 +217,15 @@ fn dread_shaped() -> Arc<CardData> {
     CardDataBuilder::new("Incarnate Menace")
         .card_type(CardType::Creature)
         .power_toughness(6, 6)
-        .ability(triggered_ability(whenever(damage, gain_one())))
-        .ability(triggered_ability(whenever(from_anywhere, gain_one())))
+        .ability(triggered_ability("", whenever(damage, gain_one())))
+        .ability(triggered_ability("", whenever(from_anywhere, gain_one())))
         .build()
 }
 
 /// A Layer 6 grant of `event`'s trigger from `granter` to `carrier`, for as
 /// long as the granter is on the battlefield.
 fn grant(game: &mut GameState, granter: ObjectId, carrier: ObjectId, event: impl Into<TriggerEvent>) {
-    let mut granted = triggered_ability(whenever(event, gain_one()));
+    let mut granted = triggered_ability("", whenever(event, gain_one()));
     granted.id = new_ability_id();
     game.continuous_effects.add(ContinuousEffect {
         duration: Duration::WhileSourceOnBattlefield,

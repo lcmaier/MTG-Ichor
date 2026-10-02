@@ -64,7 +64,7 @@ use mtgsim::ui::mana_window_stop::ManaWindowStop;
 
 /// A 1/1 creature fixture carrying one triggered ability.
 fn watcher(name: &str, event: impl Into<TriggerEvent>, effect: Effect) -> Arc<CardData> {
-    creature_with_ability(name, 1, 1, triggered_ability(whenever(event, effect)))
+    creature_with_ability(name, 1, 1, triggered_ability("", whenever(event, effect)))
 }
 
 fn counter_on(recipient: EffectRecipient) -> Effect {
@@ -369,7 +369,7 @@ fn a_creature() -> ObjectFilter {
 
 /// A triggered ability with a once-per-turn limit.
 fn limited(event: impl Into<TriggerEvent>, limit: TriggerLimit, effect: Effect) -> AbilityDef {
-    triggered_ability(TriggerDef {
+    triggered_ability("", TriggerDef {
         condition: TriggerCondition::Event(event.into()),
         intervening_if: None,
         limit: Some(limit),
@@ -539,6 +539,7 @@ fn the_first_time_each_turn_is_the_records_place_in_its_turn() {
 /// resolved this turn, you gain 3 life."
 fn kindling_pilgrim() -> Arc<CardData> {
     let ability = AbilityDef {
+        rules_text: "".into(),
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
@@ -643,7 +644,7 @@ fn its_power_is_read_as_the_effect_applies() {
             "Proud Brute",
             3,
             3,
-            triggered_ability(whenever(enters(TriggerSubject::ThisObject), bolt_of_self)),
+            triggered_ability("", whenever(enters(TriggerSubject::ThisObject), bolt_of_self)),
         ),
         0,
     );
@@ -936,6 +937,7 @@ fn free_spell(name: &str, card_type: CardType) -> Arc<CardData> {
 /// The spell ability a fixture instant or sorcery carries.
 fn spell_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text: "".into(),
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Spell,
@@ -974,7 +976,7 @@ fn all_of_several_conditions_this_turn_reads_the_whole_turn() {
     ]);
     let tinkers_accord = enchantment_with(
         "Tinker's Accord",
-        triggered_ability(TriggerDef {
+        triggered_ability("", TriggerDef {
             condition: TriggerCondition::AnyOf(vec![
                 TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Creature)) },
                 TriggerEvent::CastsSpell { caster: Some(PlayerRef::You), spell: Some(spell_type(CardType::Artifact)) },
@@ -1071,7 +1073,7 @@ fn since_your_last_turn_spans_the_turns_after_it() {
     let steady_vigil = || {
         enchantment_with(
             "Steady Vigil",
-            triggered_ability(TriggerDef {
+            triggered_ability("", TriggerDef {
                 condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
                 intervening_if: Some(quiet.clone()),
                 limit: None,

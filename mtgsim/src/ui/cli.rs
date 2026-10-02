@@ -17,6 +17,7 @@ use crate::types::ids::PlayerId;
 use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
 use crate::ui::decision::{DecisionProvider, SeatMode};
+use crate::ui::display::{option_label, question};
 use crate::ui::full_control::FullControlSwitch;
 
 /// Interactive CLI decision provider for human play.
@@ -135,95 +136,6 @@ fn read_usize_list(prompt: &str, max: usize) -> Vec<usize> {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt lines
-// ---------------------------------------------------------------------------
-
-/// The line above the options, one per `ChoiceKind` and no wildcard: a new
-/// variant does not compile until this client says what it prints for it,
-/// which is `ChoiceKind::subject`'s discipline applied to the one place the
-/// text lives. The options and the bounds print beside it; this is only the
-/// question, with the subject by id (`#12`) where there is one.
-fn prompt_line(kind: &ChoiceKind) -> String {
-    match kind {
-        ChoiceKind::PriorityAction => "Choose action:".to_string(),
-        ChoiceKind::DeclareAttackers => "Choose attackers (indices):".to_string(),
-        ChoiceKind::DeclareBlockers => "Choose blockers (indices):".to_string(),
-        ChoiceKind::AssignCombatDamage { attacker_id } => {
-            format!("Assign {attacker_id}'s combat damage:")
-        }
-        ChoiceKind::AssignTrampleDamage { attacker_id, .. } => {
-            format!("Assign {attacker_id}'s trample damage:")
-        }
-        ChoiceKind::ChooseXValue { spell_id, .. } => format!("Choose value for X for {spell_id}:"),
-        ChoiceKind::ChooseAlternativeCost { spell_id } => {
-            format!("Choose cost for {spell_id} (0=normal, 1+=alternative):")
-        }
-        ChoiceKind::ChooseAdditionalCosts { spell_id } => {
-            format!("Choose additional costs for {spell_id} (indices, or none):")
-        }
-        ChoiceKind::SelectRecipients { spell_id, .. } => {
-            format!("Choose targets for {spell_id} (indices):")
-        }
-        ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
-            format!("Allocate generic mana of {mana_cost} for {spell_or_ability_id}:")
-        }
-        ChoiceKind::OrderCostReductions { spell_id } => {
-            format!("Order the cost reductions for {spell_id} (the first applies first):")
-        }
-        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => format!(
-            "Mana ability window for {spell_or_ability_id}: activate a mana ability to pay {remaining_cost} more, or leave blank to stop:"
-        ),
-        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count } => {
-            format!("Choose {count} permanent(s) to sacrifice for {spell_or_ability_id} (indices):")
-        }
-        ChoiceKind::ChooseReplacementEffect { affected_object } => match affected_object {
-            Some(id) => format!("Choose which replacement effect applies to {id}:"),
-            None => "Choose which replacement effect applies to you:".to_string(),
-        },
-        ChoiceKind::ApplyOptionalReplacement { source, .. } => {
-            format!("Apply {source}'s optional replacement effect?")
-        }
-        ChoiceKind::ApplyOptionalEffect { source } => format!("Take {source}'s \"you may\"?"),
-        ChoiceKind::AllocateNextDamage { source, remaining } => {
-            format!("Choose which damage {source} prevents ({remaining} left):")
-        }
-        ChoiceKind::ChooseDamageSource { source } => {
-            format!("Choose a source of damage for {source}:")
-        }
-        ChoiceKind::ChooseEnteringController { object } => {
-            format!("Choose the opponent who controls {object} as it enters:")
-        }
-        ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
-            format!("Choose objects to put into {to:?} as {source} modifies how {entering} enters:")
-        }
-        ChoiceKind::ChooseCopySource { source } => {
-            format!("Choose the permanent {source} copies:")
-        }
-        ChoiceKind::CommanderToCommandZoneSba { commander } => {
-            format!("Put {commander} into the command zone?")
-        }
-        ChoiceKind::Discard { source } => match source {
-            Some(id) => format!("Choose card(s) to discard for {id}:"),
-            None => "Choose card(s) to discard to hand size:".to_string(),
-        },
-        ChoiceKind::Scry { source, n } => match source {
-            Some(id) => format!("Scry {n} for {id}: choose which to put on the bottom:"),
-            None => format!("Scry {n}: choose which to put on the bottom:"),
-        },
-        ChoiceKind::ScryOrder { bottom, .. } => {
-            let where_ = if *bottom { "bottom" } else { "top" };
-            format!("Scry: order the cards going on {where_} (top-most first):")
-        }
-        ChoiceKind::LegendRule { legend_name } => {
-            format!("Legend rule: choose which '{legend_name}' to keep:")
-        }
-        ChoiceKind::OrderTriggers { player, .. } => {
-            format!("Player {player}: order your triggered abilities (first listed goes on the stack first):")
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // DecisionProvider implementation
 // ---------------------------------------------------------------------------
 
@@ -236,11 +148,9 @@ impl DecisionProvider for CliDecisionProvider {
         options: &[ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        let prompt = prompt_line(&context.kind);
-
-        println!("\n--- {} ---", prompt);
+        println!("\n--- {} ---", question(game, &context.kind));
         for (i, opt) in options.iter().enumerate() {
-            println!("  [{}] {:?}", i, opt);
+            println!("  [{}] {}", i, option_label(game, opt));
         }
 
         if bounds.0 == bounds.1 {
@@ -281,13 +191,13 @@ impl DecisionProvider for CliDecisionProvider {
 
     fn pick_number(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
         min: u64,
         max: u64,
     ) -> u64 {
-        let prompt = prompt_line(&context.kind);
+        let prompt = question(game, &context.kind);
 
         // For very large ranges (like X value with u64::MAX), show "0 or more"
         let range_str = if max == u64::MAX {
@@ -310,7 +220,7 @@ impl DecisionProvider for CliDecisionProvider {
 
     fn allocate(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
         total: u64,
@@ -318,9 +228,7 @@ impl DecisionProvider for CliDecisionProvider {
         per_bucket_mins: &[u64],
         per_bucket_maxs: Option<&[u64]>,
     ) -> Vec<u64> {
-        let prompt = prompt_line(&context.kind);
-
-        println!("\n--- {} (total: {}) ---", prompt, total);
+        println!("\n--- {} (total: {}) ---", question(game, &context.kind), total);
         for (i, bucket) in buckets.iter().enumerate() {
             let min_label = if per_bucket_mins[i] > 0 {
                 format!(" (min {})", per_bucket_mins[i])
@@ -330,7 +238,7 @@ impl DecisionProvider for CliDecisionProvider {
             let max_label = per_bucket_maxs
                 .and_then(|maxs| if maxs[i] < u64::MAX { Some(format!(" (max {})", maxs[i])) } else { None })
                 .unwrap_or_default();
-            println!("  [{}] {:?}{}{}", i, bucket, min_label, max_label);
+            println!("  [{}] {}{}{}", i, option_label(game, bucket), min_label, max_label);
         }
 
         loop {
@@ -373,15 +281,14 @@ impl DecisionProvider for CliDecisionProvider {
 
     fn choose_ordering(
         &self,
-        _game: &GameState,
+        game: &GameState,
         _player: PlayerId,
         context: &ChoiceContext,
         items: &[ChoiceOption],
     ) -> Vec<usize> {
-        let prompt = prompt_line(&context.kind);
-        println!("\n--- {} ---", prompt);
+        println!("\n--- {} ---", question(game, &context.kind));
         for (i, item) in items.iter().enumerate() {
-            println!("  [{}] {:?}", i, item);
+            println!("  [{}] {}", i, option_label(game, item));
         }
 
         loop {

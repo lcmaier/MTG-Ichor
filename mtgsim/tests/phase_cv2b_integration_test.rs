@@ -424,7 +424,7 @@ fn wall_of_omens() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::White], 1))
         .power_toughness(0, 4)
         .keyword_flag(KeywordFlag::Defender)
-        .ability(triggered_ability(whenever(enters(TriggerSubject::ThisObject), draw)))
+        .ability(triggered_ability("", whenever(enters(TriggerSubject::ThisObject), draw)))
         .build()
 }
 

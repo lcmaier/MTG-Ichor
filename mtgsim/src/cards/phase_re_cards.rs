@@ -335,8 +335,9 @@ use crate::types::zones::{DrawCause, Zone};
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
 /// ability list on every gather.
-fn static_replacement(def: ReplacementDef) -> AbilityDef {
+fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -350,8 +351,9 @@ fn static_replacement(def: ReplacementDef) -> AbilityDef {
 /// A static ability whose replacement effect exists only while `condition`
 /// holds — CR 604.2's "as long as", asked by `replacement::gather` at each
 /// proposal, the way the layer pass asks it of a Kird Ape.
-fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> AbilityDef {
+fn static_conditional_replacement(rules_text: &'static str, condition: Condition, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -364,8 +366,9 @@ fn static_conditional_replacement(condition: Condition, def: ReplacementDef) -> 
 
 /// A static "can't" (CR 101.2, 614.17) — read off the source's *effective*
 /// ability list by `engine::restriction::is_prohibited` at each proposal.
-fn static_restriction(what: Restriction) -> AbilityDef {
+fn static_restriction(rules_text: &'static str, what: Restriction) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -377,8 +380,9 @@ fn static_restriction(what: Restriction) -> AbilityDef {
 }
 
 /// One ability with no costs beyond the ones given.
-fn one_shot(ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
+fn one_shot(rules_text: &'static str, ability_type: AbilityType, costs: Vec<Cost>, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type,
@@ -428,11 +432,11 @@ pub fn yawgmoths_bargain() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Skip your draw step.\nPay 1 life: Draw a card.")
-        .ability(static_replacement(skip(
+        .ability(static_replacement("Skip your draw step.", skip(
             EventPattern::BeginStep { step: Some(StepType::Draw) },
             PlayerSet::You,
         )))
-        .ability(one_shot(
+        .ability(one_shot("Pay 1 life: Draw a card.",
             AbilityType::Activated,
             vec![Cost::PayLife(1)],
             Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
@@ -476,7 +480,7 @@ pub fn eon_hub() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 5))
         .card_type(CardType::Artifact)
         .rules_text("Players skip their upkeep steps.")
-        .ability(static_replacement(skip(
+        .ability(static_replacement("Players skip their upkeep steps.", skip(
             EventPattern::BeginStep { step: Some(StepType::Upkeep) },
             PlayerSet::Everyone,
         )))
@@ -509,7 +513,7 @@ pub fn meditate() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Instant)
         .rules_text("Draw four cards. You skip your next turn.")
-        .ability(one_shot(
+        .ability(one_shot("Draw four cards. You skip your next turn.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Sequence(vec![
@@ -558,7 +562,7 @@ pub fn time_walk() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Sorcery)
         .rules_text("Take an extra turn after this one.")
-        .ability(one_shot(
+        .ability(one_shot("Take an extra turn after this one.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(Primitive::ExtraTurn, EffectRecipient::Controller),
@@ -601,7 +605,7 @@ pub fn moment_of_silence() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Target player skips their next combat phase this turn.")
-        .ability(one_shot(
+        .ability(one_shot("Target player skips their next combat phase this turn.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -689,7 +693,7 @@ pub fn thought_reflection() -> Arc<CardData> {
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
         .rules_text("If you would draw a card, draw two cards instead.")
-        .ability(static_replacement(draw_two_instead(None)))
+        .ability(static_replacement("If you would draw a card, draw two cards instead.", draw_two_instead(None)))
         .build()
 }
 
@@ -736,7 +740,7 @@ pub fn teferis_ageless_insight() -> Arc<CardData> {
         .rules_text(
             "If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
         )
-        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
         .build()
 }
 
@@ -804,7 +808,7 @@ pub fn alms_collector() -> Arc<CardData> {
         .rules_text(
             "Flash\nIf an opponent would draw two or more cards, instead you and that player each draw a card.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If an opponent would draw two or more cards, instead you and that player each draw a card.",
             ReplacementDef::new(
                 EventPattern::DrawCards { at_least: Some(2) },
                 ObjectSet::NO_OBJECTS,
@@ -869,7 +873,7 @@ pub fn notion_thief() -> Arc<CardData> {
         .rules_text(
             "Flash\nIf an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If an opponent would draw a card except the first one they draw in each of their draw steps, instead that player skips that draw and you draw a card.",
             ReplacementDef::new(
                 EventPattern::DrawCard { cause: Some(DrawCause::Effect) },
                 ObjectSet::NO_OBJECTS,
@@ -926,7 +930,7 @@ pub fn rhox_faithmender() -> Arc<CardData> {
         .power_toughness(1, 5)
         .keyword_flag(KeywordFlag::Lifelink)
         .rules_text("Lifelink\nIf you would gain life, you gain twice that much life instead.")
-        .ability(static_replacement(
+        .ability(static_replacement("If you would gain life, you gain twice that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
                 ObjectSet::NO_OBJECTS,
@@ -973,7 +977,7 @@ pub fn tainted_remedy() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("If an opponent would gain life, that player loses that much life instead.")
-        .ability(static_replacement(
+        .ability(static_replacement("If an opponent would gain life, that player loses that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
                 ObjectSet::NO_OBJECTS,
@@ -1023,7 +1027,7 @@ pub fn words_of_worship() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("{1}: The next time you would draw a card this turn, you gain 5 life instead.")
-        .ability(one_shot(
+        .ability(one_shot("{1}: The next time you would draw a card this turn, you gain 5 life instead.",
             AbilityType::Activated,
             vec![Cost::Mana(ManaCost::build(&[], 1))],
             Effect::Atom(
@@ -1103,7 +1107,7 @@ pub fn ali_from_cairo() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Human))
         .power_toughness(0, 1)
         .rules_text("Damage that would reduce your life total to less than 1 reduces it to 1 instead.")
-        .ability(static_replacement(
+        .ability(static_replacement("Damage that would reduce your life total to less than 1 reduces it to 1 instead.",
             ReplacementDef::new(
                 EventPattern::LoseLife { cause: Some(LifeLossCausePattern::Damage) },
                 ObjectSet::NO_OBJECTS,
@@ -1150,7 +1154,7 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
         .rules_text(
             "If you would gain life, you gain twice that much life instead.\nIf you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If you would gain life, you gain twice that much life instead.",
             ReplacementDef::new(
                 EventPattern::GainLife,
                 ObjectSet::NO_OBJECTS,
@@ -1158,7 +1162,7 @@ pub fn alhammarrets_archive() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You),
         ))
-        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
         .build()
 }
 
@@ -1216,7 +1220,7 @@ pub fn skullcrack() -> Arc<CardData> {
         .rules_text(
             "Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
         )
-        .ability(one_shot(
+        .ability(one_shot("Players can't gain life this turn. Damage can't be prevented this turn. Skullcrack deals 3 damage to target player or planeswalker.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Sequence(vec![
@@ -1307,7 +1311,7 @@ pub fn laboratory_maniac() -> Arc<CardData> {
         .rules_text(
             "If you would draw a card while your library has no cards in it, you win the game instead.",
         )
-        .ability(static_conditional_replacement(
+        .ability(static_conditional_replacement("If you would draw a card while your library has no cards in it, you win the game instead.",
             Condition::Player { players: PlayerSet::You, fact: PlayerFact::LibraryEmpty },
             // Any individual draw, whatever instructed it: the draw step's,
             // a cantrip's, the seventh of Stunning Reversal's. The instruction
@@ -1400,7 +1404,7 @@ pub fn exquisite_archangel() -> Arc<CardData> {
         .rules_text(
             "Flying\nIf you would lose the game, instead exile this creature and your life total becomes equal to your starting life total.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If you would lose the game, instead exile this creature and your life total becomes equal to your starting life total.",
             ReplacementDef::new(
                 EventPattern::PlayerLoses,
                 ObjectSet::NO_OBJECTS,
@@ -1483,38 +1487,42 @@ pub fn stunning_reversal() -> Arc<CardData> {
             "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.\nExile Stunning Reversal.",
         )
         .ability(one_shot(
+            "The next time you would lose the game this turn, instead draw seven cards and your life total becomes 1.",
             AbilityType::Spell,
             Vec::new(),
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::CreateReplacement(
-                        Box::new(
-                            ReplacementDef::new(
-                                EventPattern::PlayerLoses,
-                                ObjectSet::NO_OBJECTS,
-                                Rewrite::Prevent,
-                            )
-                            .affecting_players(PlayerSet::You)
-                            .once()
-                            .with_then(Effect::Sequence(vec![
-                                Effect::Atom(
-                                    Primitive::DrawCards(AmountExpr::Fixed(7)),
-                                    EffectRecipient::Controller,
-                                ),
-                                Effect::Atom(
-                                    Primitive::SetLifeTotal(AmountExpr::Fixed(1)),
-                                    EffectRecipient::Controller,
-                                ),
-                            ])),
-                        ),
-                        Duration::UntilEndOfTurn,
-                        PatternFill::Authored,
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(
+                        ReplacementDef::new(
+                            EventPattern::PlayerLoses,
+                            ObjectSet::NO_OBJECTS,
+                            Rewrite::Prevent,
+                        )
+                        .affecting_players(PlayerSet::You)
+                        .once()
+                        .with_then(Effect::Sequence(vec![
+                            Effect::Atom(
+                                Primitive::DrawCards(AmountExpr::Fixed(7)),
+                                EffectRecipient::Controller,
+                            ),
+                            Effect::Atom(
+                                Primitive::SetLifeTotal(AmountExpr::Fixed(1)),
+                                EffectRecipient::Controller,
+                            ),
+                        ])),
                     ),
-                    EffectRecipient::Controller,
+                    Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
                 ),
-                // CR 608.2c's second instruction, on the spell itself.
-                Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
-            ]),
+                EffectRecipient::Controller,
+            ),
+        ))
+        // CR 608.2c's second instruction, on the spell itself.
+        .ability(one_shot(
+            "Exile Stunning Reversal.",
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(Primitive::Exile, EffectRecipient::ThisObject),
         ))
         .build()
 }
@@ -1568,13 +1576,13 @@ pub fn platinum_angel() -> Arc<CardData> {
         .power_toughness(4, 4)
         .keyword_flag(KeywordFlag::Flying)
         .rules_text("Flying\nYou can't lose the game and your opponents can't win the game.")
-        .ability(static_restriction(Restriction::Event {
+        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerLoses,
             affected_objects: ObjectSet::NO_OBJECTS,
             affected_players: PlayerSet::You,
             by: None,
         }))
-        .ability(static_restriction(Restriction::Event {
+        .ability(static_restriction("You can't lose the game and your opponents can't win the game.", Restriction::Event {
             pattern: EventPattern::PlayerWins,
             affected_objects: ObjectSet::NO_OBJECTS,
             affected_players: PlayerSet::Opponents,
@@ -1645,7 +1653,7 @@ pub fn raise_the_alarm() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Create two 1/1 white Soldier creature tokens.")
-        .ability(one_shot(
+        .ability(one_shot("Create two 1/1 white Soldier creature tokens.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -1674,7 +1682,7 @@ pub fn hordeling_outburst() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Create three 1/1 red Goblin creature tokens.")
-        .ability(one_shot(
+        .ability(one_shot("Create three 1/1 red Goblin creature tokens.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -1729,7 +1737,7 @@ pub fn parallel_lives() -> Arc<CardData> {
             "If an effect would create one or more tokens under your control, it creates \
              twice that many of those tokens instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
                 ObjectSet::NO_OBJECTS,
@@ -1786,26 +1794,27 @@ pub fn hallowed_moonlight() -> Arc<CardData> {
              instead.\nDraw a card.",
         )
         .ability(one_shot(
+            "Until end of turn, if a creature would enter and it wasn't cast, exile it instead.",
             AbilityType::Spell,
             Vec::new(),
-            Effect::Sequence(vec![
-                Effect::Atom(
-                    Primitive::CreateReplacement(
-                        Box::new(ReplacementDef::new(
-                            EventPattern::EnterBattlefield { cast: Some(false) },
-                            ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
-                            Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
-                        )),
-                        Duration::UntilEndOfTurn,
-                        PatternFill::Authored,
-                    ),
-                    EffectRecipient::Implicit,
+            Effect::Atom(
+                Primitive::CreateReplacement(
+                    Box::new(ReplacementDef::new(
+                        EventPattern::EnterBattlefield { cast: Some(false) },
+                        ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
+                        Rewrite::Instead(GameActionTemplate::ZoneChangeTo { to: Zone::Exile }),
+                    )),
+                    Duration::UntilEndOfTurn,
+                    PatternFill::Authored,
                 ),
-                Effect::Atom(
-                    Primitive::DrawCards(AmountExpr::Fixed(1)),
-                    EffectRecipient::Controller,
-                ),
-            ]),
+                EffectRecipient::Implicit,
+            ),
+        ))
+        .ability(one_shot(
+            "Draw a card.",
+            AbilityType::Spell,
+            Vec::new(),
+            Effect::Atom(Primitive::DrawCards(AmountExpr::Fixed(1)), EffectRecipient::Controller),
         ))
         .build()
 }
@@ -1874,7 +1883,7 @@ pub fn divine_visitation() -> Arc<CardData> {
             "If one or more creature tokens would be created under your control, that many \
              4/4 white Angel creature tokens with flying and vigilance are created instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If one or more creature tokens would be created under your control, that many 4/4 white Angel creature tokens with flying and vigilance are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: Some(TokenKind::of_type(CardType::Creature)) },
                 ObjectSet::NO_OBJECTS,
@@ -1942,8 +1951,8 @@ pub fn bard_king_of_dale() -> Arc<CardData> {
              of your draw steps, draw two cards instead.\nIf one or more tokens would be \
              created under your control, twice that many of those tokens are created instead.",
         )
-        .ability(static_replacement(draw_two_instead(Some(DrawCause::Effect))))
-        .ability(static_replacement(
+        .ability(static_replacement("If you would draw a card except the first one you draw in each of your draw steps, draw two cards instead.", draw_two_instead(Some(DrawCause::Effect))))
+        .ability(static_replacement("If one or more tokens would be created under your control, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
                 ObjectSet::NO_OBJECTS,
@@ -2029,7 +2038,7 @@ pub fn doubling_season() -> Arc<CardData> {
              counters on a permanent you control, it puts twice that many of those counters \
              on that permanent instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If an effect would create one or more tokens under your control, it creates twice that many of those tokens instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
                 ObjectSet::NO_OBJECTS,
@@ -2037,7 +2046,7 @@ pub fn doubling_season() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::You),
         ))
-        .ability(static_replacement(doubles_counters_on_your_permanents()))
+        .ability(static_replacement("If an effect would put one or more counters on a permanent you control, it puts twice that many of those counters on that permanent instead.", doubles_counters_on_your_permanents()))
         .build()
 }
 
@@ -2079,7 +2088,7 @@ pub fn hardened_scales() -> Arc<CardData> {
             "If one or more +1/+1 counters would be put on a creature you control, that many \
              plus one +1/+1 counters are put on it instead.",
         )
-        .ability(static_replacement(ReplacementDef::new(
+        .ability(static_replacement("If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::ByType(CardType::Creature)),
@@ -2151,7 +2160,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
              or player, they put half that many of each of those kinds of counters on that \
              permanent or player instead, rounded down.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If you would put one or more counters on a permanent or player, put twice that many of each of those kinds of counters on that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::You) },
                 ObjectSet::battlefield_filter(ObjectFilter::All),
@@ -2159,7 +2168,7 @@ pub fn vorinclex_monstrous_raider() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::Everyone),
         ))
-        .ability(static_replacement(
+        .ability(static_replacement("If an opponent would put one or more counters on a permanent or player, they put half that many of each of those kinds of counters on that permanent or player instead, rounded down.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: Some(PlayerSet::Opponents) },
                 ObjectSet::battlefield_filter(ObjectFilter::All),
@@ -2235,7 +2244,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
              instead.\nIf you would get one or more counters, you get that many plus one of \
              each of those kinds of counters instead.",
         )
-        .ability(static_replacement(ReplacementDef::new(
+        .ability(static_replacement("If one or more counters would be put on an artifact or creature you control, that many plus one of each of those kinds of counters are put on that permanent instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: None, by: None },
             ObjectSet::battlefield_filter(ObjectFilter::And(
                     Box::new(ObjectFilter::Or(
@@ -2246,7 +2255,7 @@ pub fn winding_constrictor() -> Arc<CardData> {
                 )),
             Rewrite::Amount(AmountRewrite::Plus(1)),
         )))
-        .ability(static_replacement(
+        .ability(static_replacement("If you would get one or more counters, you get that many plus one of each of those kinds of counters instead.",
             ReplacementDef::new(
                 EventPattern::AddCounters { counter: None, by: None },
                 ObjectSet::NO_OBJECTS,
@@ -2288,8 +2297,9 @@ pub fn live_fast() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Black], 2))
         .color(Color::Black)
         .card_type(CardType::Sorcery)
-        .rules_text("You draw two cards, lose 2 life, and get {E}{E} (two energy counters).")
+        .rules_text("You draw two cards, lose 2 life, and get {E}{E}.")
         .ability(AbilityDef {
+            rules_text: "You draw two cards, lose 2 life, and get {E}{E}.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Spell,
@@ -2354,7 +2364,7 @@ pub fn primal_vigor() -> Arc<CardData> {
              created instead.\nIf one or more +1/+1 counters would be put on a creature, \
              twice that many +1/+1 counters are put on that creature instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If one or more tokens would be created, twice that many of those tokens are created instead.",
             ReplacementDef::new(
                 EventPattern::CreateTokens { kind: None },
                 ObjectSet::NO_OBJECTS,
@@ -2362,7 +2372,7 @@ pub fn primal_vigor() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::Everyone),
         ))
-        .ability(static_replacement(ReplacementDef::new(
+        .ability(static_replacement("If one or more +1/+1 counters would be put on a creature, twice that many +1/+1 counters are put on that creature instead.", ReplacementDef::new(
             EventPattern::AddCounters { counter: Some(CounterType::PlusOnePlusOne), by: None },
             ObjectSet::battlefield_filter(ObjectFilter::ByType(CardType::Creature)),
             Rewrite::Amount(AmountRewrite::Multiplier(2)),

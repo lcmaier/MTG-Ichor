@@ -83,8 +83,9 @@ use crate::types::replacement::{
 /// A static ability whose effect is a replacement effect — never a resolution,
 /// so it carries no `Duration` and is re-derived off the source's *effective*
 /// ability list on every gather.
-fn static_replacement(def: ReplacementDef) -> AbilityDef {
+fn static_replacement(rules_text: &'static str, def: ReplacementDef) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -146,7 +147,7 @@ pub fn mana_reflection() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("If you tap a permanent for mana, it produces twice as much of that mana instead.")
-        .ability(static_replacement(
+        .ability(static_replacement("If you tap a permanent for mana, it produces twice as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
                 ObjectSet::NO_OBJECTS,
@@ -191,7 +192,7 @@ pub fn nyxbloom_ancient() -> Arc<CardData> {
         .rules_text(
             "Trample\nIf you tap a permanent for mana, it produces three times as much of that mana instead.",
         )
-        .ability(static_replacement(
+        .ability(static_replacement("If you tap a permanent for mana, it produces three times as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
                 ObjectSet::NO_OBJECTS,
@@ -241,6 +242,7 @@ pub fn deep_water() -> Arc<CardData> {
             "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.",
         )
         .ability(AbilityDef {
+            rules_text: "{U}: Until end of turn, if you tap a land you control for mana, it produces {U} instead of any other type.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -301,6 +303,7 @@ pub fn pale_moon() -> Arc<CardData> {
             "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.",
         )
         .ability(AbilityDef {
+            rules_text: "Until end of turn, if a player taps a nonbasic land for mana, it produces colorless mana instead of any other type.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -381,6 +384,7 @@ pub fn doubling_cube() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("{3}, {T}: Double the amount of each type of unspent mana you have.")
         .ability(AbilityDef {
+            rules_text: "{3}, {T}: Double the amount of each type of unspent mana you have.".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

@@ -36,11 +36,9 @@ pub fn act_of_treason() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 2))
         .color(Color::Red)
         .card_type(CardType::Sorcery)
-        .rules_text(
-            "Gain control of target creature until end of turn. Untap that creature. \
-             It gains haste until end of turn.",
-        )
+        .rules_text("Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.")
         .ability(AbilityDef {
+            rules_text: "Gain control of target creature until end of turn. Untap that creature. It gains haste until end of turn.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

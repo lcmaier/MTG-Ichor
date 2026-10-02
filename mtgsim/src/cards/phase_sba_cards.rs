@@ -107,6 +107,7 @@ pub fn battlegrowth() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 0))
         .rules_text("Put a +1/+1 counter on target creature.")
         .ability(AbilityDef {
+            rules_text: "Put a +1/+1 counter on target creature.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,

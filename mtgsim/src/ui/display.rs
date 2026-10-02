@@ -7,14 +7,20 @@ use std::sync::Arc;
 
 use crate::engine::layers::compute_characteristics;
 use crate::engine::layers::types::EffectiveCharacteristics;
-use crate::events::event::{GameEvent, NamesAsAnnounced};
-use crate::objects::card_data::AbilityType;
+use crate::events::event::{DamageTarget, GameEvent, NamesAsAnnounced};
+use crate::objects::card_data::{AbilityText, AbilityType};
 use crate::oracle::characteristics::{
-    get_effective_power, get_effective_toughness, is_creature,
+    get_effective_abilities, get_effective_power, get_effective_toughness, is_creature,
 };
+use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::ids::ObjectId;
+use crate::types::colors::Color;
+use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
+use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
+use crate::types::mana::ManaSymbol;
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers: a Clone copying Grizzly
 /// Bears is Grizzly Bears (CR 707.2).
@@ -34,8 +40,10 @@ pub fn printed_name(game: &GameState, id: ObjectId) -> String {
         .unwrap_or_else(|| "<unknown>".to_string())
 }
 
-/// Format a battlefield permanent for display.
-/// Example: "Grizzly Bears 2/2 [tapped]" or "Forest [tapped]"
+/// A battlefield permanent: its name, power and toughness, keywords and status
+/// on the first line, and the text of each of its other abilities on a line of
+/// its own. "Elvish Archers 2/1 [first strike] (tapped)", or "Forest" then
+/// "{T}: Add {G}.".
 pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
     let name = card_name(game, id);
     let entry = match game.battlefield.get(&id) {
@@ -57,14 +65,9 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
         }
     }
 
-    // Abilities: keywords shown compact, non-keyword abilities listed individually
     let keywords = collect_keywords(game, id);
     if !keywords.is_empty() {
         parts.push(format!("[{}]", keywords.join(", ")));
-    }
-    let ability_lines = format_abilities(game, id);
-    if !ability_lines.is_empty() {
-        parts.push(format!("{{{}}}" , ability_lines.join("; ")));
     }
 
     // Status flags
@@ -85,7 +88,10 @@ pub fn format_permanent(game: &GameState, id: ObjectId) -> String {
         parts.push(format!("({})", flags.join(", ")));
     }
 
-    parts.join(" ")
+    let status = parts.join(" ");
+    let mut lines = vec![status.as_str()];
+    lines.extend(ability_texts(game, id));
+    lines.join("\n")
 }
 
 /// A permanent's keywords in `KeywordFlag`'s order, since the effective set is
@@ -99,7 +105,7 @@ fn collect_keywords(game: &GameState, id: ObjectId) -> Vec<&'static str> {
 
 /// A keyword as it prints, one arm per flag and no wildcard: a new flag does
 /// not compile until this says what it prints as.
-fn keyword_name(flag: KeywordFlag) -> &'static str {
+pub fn keyword_name(flag: KeywordFlag) -> &'static str {
     match flag {
         KeywordFlag::Deathtouch => "deathtouch",
         KeywordFlag::Defender => "defender",
@@ -120,72 +126,225 @@ fn keyword_name(flag: KeywordFlag) -> &'static str {
     }
 }
 
-/// Format non-keyword abilities on a permanent for inline display.
-///
-/// Keywords are already shown via `collect_keywords` in a compact `[keyword, ...]`
-/// block. This function handles the remaining ability types: activated, triggered,
-/// static (non-keyword), and mana abilities. Each is shown as a short description.
-///
-/// Never the printed rules text: the layers can empty the list (a copy of a
-/// vanilla creature, a creature under Humility), and the text would then
-/// describe abilities the object does not have.
-fn format_abilities(game: &GameState, id: ObjectId) -> Vec<String> {
-    // Effective abilities, so a Blood-Mooned land isn't displayed with the
-    // abilities CR 305.7 took away.
-    let abilities = crate::oracle::characteristics::get_effective_abilities(game, id);
-
-    let mut lines = Vec::new();
-    for (i, ability) in abilities.iter().enumerate() {
+/// The text of each ability a permanent has that is not a keyword flag, in its
+/// effective list's order: the abilities CR 305.7 or a Layer 6 effect left it,
+/// never the card's printed text, which can describe abilities the object does
+/// not have (a copy of a vanilla creature, a creature under Humility). A
+/// printed ability the engine builds as several shows once, as printed: its
+/// parts share a paragraph and, when granted, the grant.
+fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
+    let mut shown: Vec<(AbilityText, Option<u64>)> = Vec::new();
+    for ability in get_effective_abilities(game, id).iter() {
         match ability.ability_type {
-            // Mana abilities: show what they produce
-            AbilityType::Mana => {
-                if let crate::types::effects::Effect::Atom(
-                    crate::types::effects::Primitive::ProduceMana(ref output),
-                    _,
-                ) = ability.effect
-                {
-                    let mana_str: Vec<String> = output.mana.iter()
-                        .filter_map(|(mt, expr)| {
-                            let letter = match mt {
-                                crate::types::mana::ManaType::White => "W",
-                                crate::types::mana::ManaType::Blue => "U",
-                                crate::types::mana::ManaType::Black => "B",
-                                crate::types::mana::ManaType::Red => "R",
-                                crate::types::mana::ManaType::Green => "G",
-                                crate::types::mana::ManaType::Colorless => "C",
-                            };
-                            match expr {
-                                crate::types::effects::AmountExpr::Fixed(0) => None,
-                                crate::types::effects::AmountExpr::Fixed(1) => {
-                                    Some(format!("{{{}}}", letter))
-                                }
-                                crate::types::effects::AmountExpr::Fixed(amt) => {
-                                    Some(format!("{}{}", amt, letter))
-                                }
-                                _ => Some(format!("{{?{}}}", letter)),
-                            }
-                        })
-                        .collect();
-                    lines.push(format!("mana: Add {}", mana_str.join("")));
-                }
-            }
-            // Activated abilities: show cost -> effect summary
-            AbilityType::Activated => {
-                lines.push(format!("activated({})", i));
-            }
-            // Triggered abilities: show rules text if available
-            AbilityType::Triggered => {
-                lines.push(format!("triggered({})", i));
-            }
-            // Static abilities (non-keyword): show rules text
-            AbilityType::Static => {
-                lines.push(format!("static({})", i));
-            }
-            // Spell abilities live on instants/sorceries, not permanents
-            AbilityType::Spell => {}
+            AbilityType::Mana | AbilityType::Activated | AbilityType::Triggered | AbilityType::Static => {}
+            // An instant's or sorcery's (CR 113.3a), which no permanent is.
+            AbilityType::Spell => continue,
         }
+        let part = (ability.rules_text, ability.id.granting_row());
+        if ability.rules_text.paragraph().is_some() && shown.contains(&part) {
+            continue;
+        }
+        shown.push(part);
     }
-    lines
+    shown.into_iter().map(|(text, _)| text.words).collect()
+}
+
+/// "Grizzly Bears (#12)", or "Grizzly Bears (Clone, #12)" for a copy: the
+/// object under the name it has now, in the shape `format_event`'s lines use,
+/// so a name on the board and one in the log read the same.
+pub fn named(game: &GameState, id: ObjectId) -> String {
+    match compute_characteristics(game, id) {
+        Some(chars) => object_label(game, id, &chars.name),
+        None => format!("{id} (gone)"),
+    }
+}
+
+pub fn player_name(player: PlayerId) -> String {
+    format!("Player {player}")
+}
+
+pub fn attack_target_name(game: &GameState, target: &AttackTarget) -> String {
+    match target {
+        AttackTarget::Player(player) => player_name(*player),
+        AttackTarget::Planeswalker(id) | AttackTarget::Battle(id) => named(game, *id),
+    }
+}
+
+fn damage_target_name(game: &GameState, target: &DamageTarget) -> String {
+    match target {
+        DamageTarget::Player(player) => player_name(*player),
+        DamageTarget::Object(id) => named(game, *id),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Prompts
+// ---------------------------------------------------------------------------
+
+/// The question a prompt asks, one arm per kind and no wildcard, so a new kind
+/// is asked a question at birth. Both clients print it; the CLI adds how to
+/// type an answer.
+pub fn question(game: &GameState, kind: &ChoiceKind) -> String {
+    let n = |id: &ObjectId| named(game, *id);
+    match kind {
+        ChoiceKind::PriorityAction => "You have priority".to_string(),
+        ChoiceKind::DeclareAttackers => "Declare attackers".to_string(),
+        ChoiceKind::DeclareBlockers => "Declare blockers".to_string(),
+        ChoiceKind::AssignCombatDamage { attacker_id } => format!("Assign {}'s combat damage", n(attacker_id)),
+        ChoiceKind::AssignTrampleDamage { attacker_id, defending_target } => format!(
+            "Assign {}'s trample damage; what is left goes to {}",
+            n(attacker_id),
+            damage_target_name(game, defending_target)
+        ),
+        ChoiceKind::ChooseXValue { spell_id, .. } => format!("Choose X for {}", n(spell_id)),
+        ChoiceKind::ChooseAlternativeCost { spell_id } => format!("Choose how to pay for {}", n(spell_id)),
+        ChoiceKind::ChooseAdditionalCosts { spell_id } => format!("Choose additional costs for {}", n(spell_id)),
+        ChoiceKind::SelectRecipients { spell_id, .. } => format!("Choose targets for {}", n(spell_id)),
+        ChoiceKind::GenericManaAllocation { spell_or_ability_id, mana_cost } => {
+            format!("Split the generic part of {mana_cost} for {}", n(spell_or_ability_id))
+        }
+        ChoiceKind::OrderCostReductions { spell_id } => {
+            format!("Order the cost reductions for {}; the first applies first", n(spell_id))
+        }
+        ChoiceKind::ManaAbilityWindow { spell_or_ability_id, remaining_cost } => {
+            format!("Pay {remaining_cost} more for {}: activate a mana ability, or stop", n(spell_or_ability_id))
+        }
+        ChoiceKind::ChooseSacrificeForCost { spell_or_ability_id, count } => {
+            format!("Sacrifice {count} for {}", n(spell_or_ability_id))
+        }
+        ChoiceKind::ChooseReplacementEffect { affected_object } => match affected_object {
+            Some(id) => format!("Choose the replacement effect that applies to {}", n(id)),
+            None => "Choose the replacement effect that applies to you".to_string(),
+        },
+        ChoiceKind::OrderTriggers { .. } => {
+            "Order your triggered abilities; the first goes on the stack first and resolves last".to_string()
+        }
+        ChoiceKind::ApplyOptionalReplacement { source, .. } => format!("Apply {}'s replacement effect?", n(source)),
+        ChoiceKind::ApplyOptionalEffect { source } => format!("{}: you may", n(source)),
+        ChoiceKind::AllocateNextDamage { source, remaining } => {
+            format!("Choose the damage {} prevents ({remaining} left)", n(source))
+        }
+        ChoiceKind::ChooseDamageSource { source } => format!("Choose a source of damage for {}", n(source)),
+        ChoiceKind::ChooseEnteringController { object } => {
+            format!("Choose the opponent who controls {} as it enters", n(object))
+        }
+        ChoiceKind::ChooseAuxiliaryZoneChange { entering, source, to } => {
+            format!("Choose what goes to the {to:?} as {} changes how {} enters", n(source), n(entering))
+        }
+        ChoiceKind::ChooseCopySource { source } => format!("Choose what {} copies", n(source)),
+        ChoiceKind::CommanderToCommandZoneSba { commander } => format!("Put {} into the command zone?", n(commander)),
+        ChoiceKind::Discard { source } => match source {
+            Some(id) => format!("Discard for {}", n(id)),
+            None => "Discard down to your maximum hand size".to_string(),
+        },
+        ChoiceKind::Scry { n: count, .. } => format!("Scry {count}: choose the cards that go on the bottom"),
+        ChoiceKind::ScryOrder { bottom, .. } => {
+            format!("Order the cards going on the {}, top-most first", if *bottom { "bottom" } else { "top" })
+        }
+        ChoiceKind::LegendRule { legend_name } => format!("Legend rule: choose the {legend_name} to keep"),
+    }
+}
+
+/// An option as a client labels it, one arm per kind of option and no
+/// wildcard. An activation is its object and the ability's own text:
+/// "Everywhere (#20) · {T}: Add {W}.".
+pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
+    let n = |id: &ObjectId| named(game, *id);
+    match option {
+        ChoiceOption::Object(id) => n(id),
+        ChoiceOption::Player(player) => player_name(*player),
+        ChoiceOption::Action(PriorityAction::Pass) => "Pass".to_string(),
+        ChoiceOption::Action(PriorityAction::CastSpell(id)) => format!("Cast {}", n(id)),
+        ChoiceOption::Action(PriorityAction::PlayLand(id)) => format!("Play {}", n(id)),
+        ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability)) => {
+            format!("{} · {}", n(id), ability_text(game, *id, *ability))
+        }
+        ChoiceOption::AttackerTarget(attacker, target) => {
+            format!("{} attacks {}", n(attacker), attack_target_name(game, target))
+        }
+        ChoiceOption::BlockerAttacker(blocker, attacker) => format!("{} blocks {}", n(blocker), n(attacker)),
+        ChoiceOption::NormalCost => "Its mana cost".to_string(),
+        ChoiceOption::AlternativeCost(cost) => alternative_cost_label(cost),
+        ChoiceOption::AdditionalCost(cost) => additional_cost_label(cost),
+        ChoiceOption::Number(number) => number.to_string(),
+        ChoiceOption::Color(color) => color_name(*color).to_string(),
+        ChoiceOption::CounterType(counter) => counter.name().to_string(),
+        ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
+    }
+}
+
+/// The text of the ability with this id on the object's effective list, which
+/// is where the activation's options came from.
+fn ability_text(game: &GameState, id: ObjectId, ability: AbilityId) -> &'static str {
+    get_effective_abilities(game, id)
+        .iter()
+        .find(|def| def.id == ability)
+        .map_or("an ability it no longer has", |def| def.rules_text.words)
+}
+
+fn alternative_cost_label(cost: &AlternativeCost) -> String {
+    match cost {
+        AlternativeCost::Flashback(costs) => keyword_and_cost("Flashback", costs),
+        AlternativeCost::Overload(costs) => keyword_and_cost("Overload", costs),
+        AlternativeCost::Dash(costs) => keyword_and_cost("Dash", costs),
+        AlternativeCost::Escape(costs) => keyword_and_cost("Escape", costs),
+        AlternativeCost::Evoke(costs) => keyword_and_cost("Evoke", costs),
+        AlternativeCost::Bestow(costs) => keyword_and_cost("Bestow", costs),
+        AlternativeCost::Custom(text, _) => text.clone(),
+    }
+}
+
+fn additional_cost_label(cost: &AdditionalCost) -> String {
+    match cost {
+        AdditionalCost::Kicker(costs) => keyword_and_cost("Kicker", costs),
+        AdditionalCost::Buyback(costs) => keyword_and_cost("Buyback", costs),
+        AdditionalCost::Entwine(costs) => keyword_and_cost("Entwine", costs),
+        AdditionalCost::Casualty(n) => format!("Casualty {n}"),
+        AdditionalCost::Bargain => "Bargain".to_string(),
+        // An ability word (CR 207.2c), with no "[keyword] [cost]" form.
+        AdditionalCost::Strive(_) => "Strive".to_string(),
+        AdditionalCost::Custom(text, _) => text.clone(),
+        // CR 601.2b announces only an optional cost, so this is never an
+        // option; it prints with no name.
+        AdditionalCost::Mandatory(_) => "Its additional cost".to_string(),
+    }
+}
+
+/// "Kicker {2}": a cost keyword as it prints, "[keyword] [cost]" (CR 702.33a
+/// and its neighbors), while every part of the cost is mana. A part that
+/// isn't, such as escape's exile, prints the keyword alone: nothing carries
+/// that part's printed words.
+fn keyword_and_cost(keyword: &str, costs: &[Cost]) -> String {
+    let mana: Option<Vec<String>> = costs
+        .iter()
+        .map(|cost| match cost {
+            Cost::Mana(mana) if mana.symbols.is_empty() => Some("{0}".to_string()),
+            Cost::Mana(mana) => Some(mana.to_string()),
+            Cost::TapSelf
+            | Cost::UntapSelf
+            | Cost::PayLife(_)
+            | Cost::SacrificeSelf
+            | Cost::Sacrifice(..)
+            | Cost::Discard(..)
+            | Cost::ExileFromGraveyard(..)
+            | Cost::RemoveCounters(..)
+            | Cost::AddCounters(..) => None,
+        })
+        .collect();
+    match mana {
+        Some(symbols) if !symbols.is_empty() => format!("{keyword} {}", symbols.concat()),
+        _ => keyword.to_string(),
+    }
+}
+
+fn color_name(color: Color) -> &'static str {
+    match color {
+        Color::White => "White",
+        Color::Blue => "Blue",
+        Color::Black => "Black",
+        Color::Red => "Red",
+        Color::Green => "Green",
+    }
 }
 
 /// Format the current phase/step for display.
@@ -484,9 +643,7 @@ mod tests {
         let entry = PermanentState::new(id, 0, 0);
         game.insert_battlefield_entity(id, entry);
 
-        let display = format_permanent(&game, id);
-        assert!(display.contains("mana: Add"), "Should show mana ability");
-        assert!(display.contains("{G}"), "Should show green mana");
+        assert_eq!(format_permanent(&game, id), "Forest\n{T}: Add {G}.");
     }
 
     #[test]
@@ -558,4 +715,119 @@ mod tests {
         assert_eq!(format_permanent(&game, id), "Test Creature 1/1 [flash, flying, intimidate, shroud]");
     }
 
+    fn activation_labels(game: &GameState, id: ObjectId) -> Vec<String> {
+        get_effective_abilities(game, id)
+            .iter()
+            .filter(|ability| matches!(ability.ability_type, AbilityType::Mana | AbilityType::Activated))
+            .map(|ability| option_label(game, &ChoiceOption::Action(PriorityAction::ActivateAbility(id, ability.id))))
+            .collect()
+    }
+
+    /// An activation is its object and the ability's own text: Everywhere's
+    /// five, a cost that sacrifices the source, a life payment, a sequence, and
+    /// an amount above one.
+    #[test]
+    fn an_activation_is_labeled_by_its_object_and_its_text() {
+        use crate::cards::{artifacts, dual_lands, phase_cm_cards, phase_re_cards, phase_tr2a_cards};
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        for (card, texts) in [
+            (dual_lands::everywhere(), vec!["{T}: Add {W}.", "{T}: Add {U}.", "{T}: Add {B}.", "{T}: Add {R}.", "{T}: Add {G}."]),
+            (phase_cm_cards::mind_stone(), vec!["{T}: Add {C}.", "{1}, {T}, Sacrifice this artifact: Draw a card."]),
+            (phase_re_cards::yawgmoths_bargain(), vec!["Pay 1 life: Draw a card."]),
+            (
+                phase_tr2a_cards::elvish_warmaster(),
+                vec!["{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn."],
+            ),
+            (artifacts::sol_ring(), vec!["{T}: Add {C}{C}."]),
+        ] {
+            let id = put_on_battlefield(&mut game, card, 0);
+            let expected: Vec<String> = texts.iter().map(|text| format!("{} · {text}", named(&game, id))).collect();
+            assert_eq!(activation_labels(&game, id), expected);
+        }
+    }
+
+    /// What a permanent's abilities say is read off its effective list: Blood
+    /// Moon leaves a dual CR 305.7's Mountain ability, and a creature lists and
+    /// activates the ability Citanul Hierophants grants it.
+    #[test]
+    fn a_permanent_shows_the_text_of_the_abilities_it_has_now() {
+        use crate::cards::{creatures, dual_lands, phase_ld_cards, phase_lf_cards};
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let sea = put_on_battlefield(&mut game, dual_lands::underground_sea(), 0);
+        assert_eq!(format_permanent(&game, sea), "Underground Sea\n{T}: Add {U}.\n{T}: Add {B}.");
+        put_on_battlefield(&mut game, phase_ld_cards::blood_moon(), 1);
+        assert_eq!(format_permanent(&game, sea), "Underground Sea\n{T}: Add {R}.");
+
+        let bears = put_on_battlefield(&mut game, creatures::grizzly_bears(), 0);
+        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        assert_eq!(format_permanent(&game, bears), "Grizzly Bears 2/2\n{T}: Add {G}.");
+        assert_eq!(activation_labels(&game, bears), [format!("Grizzly Bears ({bears}) · {{T}}: Add {{G}}.")]);
+    }
+
+    /// A printed ability shows once however the engine builds it: Platinum
+    /// Angel's second paragraph is two abilities, a can't-lose and a
+    /// can't-win. The same words are two abilities when one is printed and
+    /// one granted: Dryad Arbor's own mana ability and the one Citanul
+    /// Hierophants grants it.
+    #[test]
+    fn a_printed_ability_shows_once_and_a_granted_one_beside_it() {
+        use crate::cards::{phase_lf_cards, phase_rc_cards, phase_re_cards};
+        use crate::test_support::{put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let angel = put_on_battlefield(&mut game, phase_re_cards::platinum_angel(), 0);
+        assert_eq!(
+            format_permanent(&game, angel),
+            "Platinum Angel 4/4 [flying]\nYou can't lose the game and your opponents can't win the game."
+        );
+        let arbor = put_on_battlefield(&mut game, phase_rc_cards::dryad_arbor(), 0);
+        put_on_battlefield(&mut game, phase_lf_cards::citanul_hierophants(), 0);
+        assert_eq!(format_permanent(&game, arbor), "Dryad Arbor 1/1\n{T}: Add {G}.\n{T}: Add {G}.");
+    }
+
+    /// A cost keyword's option prints as the card does, "[keyword] [cost]",
+    /// while the cost is mana, and the keyword alone once a part is not; a
+    /// custom cost prints its own sentence.
+    #[test]
+    fn a_cost_option_prints_its_keyword_and_its_mana() {
+        use crate::cards::phase_cm_cards;
+        use crate::test_support::setup_two_player_game;
+        use crate::types::effects::ObjectFilter;
+        use crate::types::mana::{ManaCost, ManaType};
+
+        let game = setup_two_player_game();
+        let label = |option: ChoiceOption| option_label(&game, &option);
+        let kicker = phase_cm_cards::kicked_lesson().additional_costs[0].clone();
+        assert_eq!(label(ChoiceOption::AdditionalCost(kicker)), "Kicker {2}");
+        let custom = phase_cm_cards::bargain_lesson().alternative_costs[0].clone();
+        assert_eq!(label(ChoiceOption::AlternativeCost(custom)), "Pay {R} rather than pay this spell's mana cost");
+        let escape = AlternativeCost::Escape(vec![
+            Cost::Mana(ManaCost::build(&[ManaType::Black, ManaType::Black], 3)),
+            Cost::ExileFromGraveyard(ObjectFilter::All, 5),
+        ]);
+        assert_eq!(label(ChoiceOption::AlternativeCost(escape)), "Escape");
+    }
+
+    /// A question names its object as it is now: a Clone copying Grizzly Bears
+    /// is Grizzly Bears, and says it is a Clone.
+    #[test]
+    fn a_question_names_its_object_as_it_is_now() {
+        use crate::engine::actions::ActionContext;
+        use crate::test_support::{put_in_graveyard, put_on_battlefield, setup_two_player_game, RecordingDecisionProvider};
+        use crate::types::zones::ZoneChangeCause;
+
+        let mut game = setup_two_player_game();
+        put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let clone = put_in_graveyard(&mut game, crate::cards::phase_cv_cards::clone(), 0);
+        let dp = RecordingDecisionProvider::picking(0);
+        game.change_zone(clone, Zone::Battlefield, ZoneChangeCause::Returned, &ActionContext::new(&dp)).unwrap();
+        assert_eq!(
+            question(&game, &ChoiceKind::AssignCombatDamage { attacker_id: clone }),
+            format!("Assign Grizzly Bears (Clone, {clone})'s combat damage")
+        );
+    }
 }

@@ -545,7 +545,7 @@ fn a_player_removal_takes_as_much_as_it_can() {
 /// Resolve a registered instant or sorcery's spell ability for `player` with
 /// no targets, as its text is written.
 fn resolve_card(game: &mut GameState, player: PlayerId, card: Arc<CardData>, dp: &dyn DecisionProvider) {
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     resolve_targeting(game, player, vec![], &effect, dp);
 }
 
@@ -557,7 +557,7 @@ fn resolve_card_on(
     target: ObjectId,
     dp: &dyn DecisionProvider,
 ) {
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     resolve_targeting(game, player, vec![ResolvedTarget::Object(target)], &effect, dp);
 }
 

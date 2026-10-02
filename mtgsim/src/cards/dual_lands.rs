@@ -109,21 +109,23 @@ pub fn tropical_island() -> Arc<CardData> {
 }
 
 /// Everywhere
-/// Token Land — Plains Island Swamp Mountain Forest
-/// ({T}: Add {W}, {U}, {B}, {R}, or {G}.)
+/// Token Land
+/// This land is a Plains, Island, Swamp, Mountain, and Forest. ({T}: Add {W},
+/// {U}, {B}, {R}, or {G}.)
 ///
-/// (Scryfall, 2026-09-03.) **A token in the real game, not a card** — the one
+/// (Scryfall, 2026-10-01.) **A token in the real game, not a card** — the one
 /// Overlord of the Hauntwoods creates. It is in the registry because it is the
 /// only source of every color, which is what let `fuzz_games --require` stop
 /// seeding a deck's colors from the required card's; real "add one mana of any
 /// color" is not expressible yet (`backlog.md` §2.19). Test-only, like the
 /// rest of this module.
 ///
-/// **Its text box is reminder text, not rules text** (CR 207.2). The type line
-/// is the whole object and the five mana abilities are CR 305.6's intrinsics,
-/// written out for the reason in this module's doc; `rules_text` carries the
-/// reminder text so the display shows what the token shows, and not the
-/// `{T}: Add {W}.` the builder would otherwise invent from the first ability.
+/// **Its land types are printed subtypes here, where Oracle now prints them as
+/// text.** On 2026-09-03 the type line carried the five types; Oracle since
+/// moved them into the text box, a characteristic-defining ability (CR 604.3)
+/// that applies first in layer 4 (CR 613.3), so the base subtypes here read the
+/// same under every effect in the registry. The five mana abilities are
+/// CR 305.6's intrinsics, written out for the reason in this module's doc.
 ///
 /// **It does not enter tapped.** "Create a *tapped* Everywhere token" is the
 /// Overlord's instruction, not the token's text, so there is no `EnterWith` —
@@ -137,7 +139,7 @@ pub fn everywhere() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Swamp))
         .subtype(Subtype::Land(LandType::Mountain))
         .subtype(Subtype::Land(LandType::Forest))
-        .rules_text("({T}: Add {W}, {U}, {B}, {R}, or {G}.)")
+        .rules_text("This land is a Plains, Island, Swamp, Mountain, and Forest.")
         .mana_ability_single(ManaType::White)
         .mana_ability_single(ManaType::Blue)
         .mana_ability_single(ManaType::Black)

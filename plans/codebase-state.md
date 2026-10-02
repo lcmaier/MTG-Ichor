@@ -8782,9 +8782,25 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - 1 puts on a name sticker (612.9): A Good Day to Pie.
 
      What it owes, and where each piece waits:
-     - the word swaps (CR 612.2): the engine keeps no rules text, so a swap
-       rewrites the colors, subtypes and land types inside `AbilityDef`s and
-       their filters. This is the design's main question;
+     - the word swaps (CR 612.2): a swap rewrites the colors, subtypes and
+       land types inside `AbilityDef`s and their filters, and the words of
+       each ability's `rules_text`, which the window shows since A6g's
+       ability names: Sleight of Mind on Circle of Protection: Red would
+       otherwise still say "red". The field is a `&'static str`, which a
+       rewritten text cannot be, so it becomes an owned or shared string
+       with this. The swap over a structured ability is the design's main
+       question. It rewrites the ability and its words together, in the
+       object's own copy of its list: the layer walk copies a list on its
+       first write (`Arc::make_mut`, as a Layer 6 grant does), so the
+       printed card is untouched;
+     - the stack (the owner, 2026-10-01): CR 608.2b re-checks a target
+       against the spell as an effect changed it ("an effect may have
+       changed the text of the spell"), so Glamerdye making a Doom Blade
+       "nongreen" fizzles it against a green target. The stack entry keeps
+       the effect and each target's filter as they were at cast, so
+       resolution and the re-check read the spell's abilities as Layer 3
+       leaves them; `card_data::spell_effect` builds a spell's effect from
+       any ability list, the effective one included;
      - the renames (612.5–612.9): each is an `EffectModification` variant
        that answers `writes_name` true, so the event record's names read it
        with no further change (#203). Spy Kit's "all names", and CR 201.2a's
@@ -8919,19 +8935,57 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      lines in `view_model` and a test. **Slotted:** A6g's playable PR,
      whose keyboard shortcuts make it acute.
 
-202. **The dev GUI owns two surfaces the engine should: keyword names and
-     the question each prompt asks.** `snapshot::words` derives a keyword's
-     name from its `Debug` spelling, beside `ui::display`'s private
-     `keyword_name`, and `prompt::question` words a question for each
-     `ChoiceKind`, beside `ui/cli.rs`'s own `prompt_line`. A6g's rule has
-     the GUI draw only the engine's generic surfaces, and v1's GUI and the
-     AI harness will want both (finding 24).
+202. **~~The dev GUI owns two surfaces the engine should: keyword names and
+     the question each prompt asks.~~ — ✅ CLOSED 2026-10-01 (A6g's
+     ability-names PR).** — archived. `ui::display` words a prompt's
+     question, each option's label and each keyword's name, and both
+     clients read them; the dev GUI derives no name from `Debug`.
+     **Reachability (2026-10-01):** closed — A6g's ability-names PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 202".
 
-     **Reachability (2026-10-01):** reachable — not wrong today: every
-     keyword flag is one camel-case word whose `Debug` reads right, and the
-     two question tables say the same things two ways.
+### Found by A6g's ability names (2026-10-01)
 
-     **Sized:** ~60–100 lines: `keyword_name` public, and one question per
-     kind in `ui::display` that both clients read, the CLI adding its index
-     hint. **Slotted:** A6g's ability-names PR, which makes `ui::display`'s
-     wording public.
+203. **Additional and alternative costs are not abilities on the effective
+     list, though CR 113.2b makes each an ability of its card.** The cast
+     reads `CardData::alternative_costs` and `additional_costs` off the
+     printed card (`put_on_stack.rs`), so no effect can take one away:
+     Yixlid Jailer's "cards in graveyards lose all abilities" must turn off
+     flashback (the owner, 2026-10-01), and a card in a hand that loses its
+     abilities keeps its kicker. Nor does a cost carry its text:
+     `ui::display::option_label` prints a cost keyword with its mana
+     ("Kicker {2}", CR 702.33a's form) and the keyword alone once a part of
+     the cost is not mana, such as escape's exile.
+
+     **Reachability (2026-10-01):** unreachable — no registered card can be
+     cast from a graveyard yet (`backlog.md` §2.3), and no registered card
+     takes the abilities of cards in a hand. Altar's Reap's mandatory
+     sacrifice is never an option (CR 601.2b).
+
+     **Sized:** a design first, in `cost-architecture.md`: each cost becomes
+     a static ability on the effective list, as the CR words them (flashback
+     is two static abilities, CR 702.34a; kicker one, 702.33a), carrying its
+     paragraph as its `rules_text` and read at cast off the effective list
+     as a cost modification is (CR 601.2f), so Layer 6 removes it like any
+     ability and the option's label is its text. Then ~150–300 lines.
+     **Slotted:** before flashback, `backlog.md` §2.3's first PR, the first
+     cast from a zone where an effect strips abilities.
+
+204. **Two test cards carry real cards' names: Cerulean Wisps and
+     Moonlace.** Each was written narrower than the card on purpose, to test
+     a color-changing effect (the owner, 2026-10-01): Cerulean Wisps leaves
+     out "Untap that creature.", and Moonlace targets a creature until end of
+     turn where the card makes a spell or permanent colorless for good (its
+     doc says "Simplified"). Their rules text became Oracle's in A6g's
+     ability names, so each now says more than it does.
+
+     **Reachability (2026-10-01):** reachable — wrong today: both are in
+     `PERFORMANCE_POOL`, and a tapped creature Cerulean Wisps targets stays
+     tapped.
+
+     **Sized:** ~20–40 lines: each becomes a fixture with an invented name
+     and its own text, and the real card is registered only if written
+     whole. The pool's names change, so it is a pool change with its
+     re-record (`engineering-practices.md` §3). **Slotted:** the test-card
+     cleanup before Phase 8's breadth (the owner, 2026-10-01), with
+     `roadmap-v2.md` §C's C0, which moves the fixtures into
+     `cards::fixtures`.

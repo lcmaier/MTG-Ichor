@@ -154,6 +154,7 @@ pub fn lightning_bolt() -> Arc<CardData> {
         .color(Color::Red)
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .ability(AbilityDef {
+            rules_text: "Lightning Bolt deals 3 damage to any target.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: new_ability_id(),
@@ -744,6 +745,7 @@ pub fn registered_source_only(
 /// twice — a fresh call would give a second id and prove nothing.
 pub fn static_ability(effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text: "".into(),
         id: new_ability_id(),
         instances: Vec::new(),
         ability_type: AbilityType::Static,

@@ -821,6 +821,7 @@ fn restriction_creature() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Green], 3))
         .power_toughness(3, 3)
         .ability(AbilityDef {
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             is_characteristic_defining: false,

@@ -39,8 +39,9 @@ use crate::types::replacement::{EventPattern, GameActionTemplate, ReplacementDef
 use crate::types::zones::{Zone, ZoneSet};
 
 /// `codebase-state.md` item 120's constructor, the copy this file owes it.
-fn static_ability(effect: Effect) -> AbilityDef {
+fn static_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Static,
@@ -51,8 +52,9 @@ fn static_ability(effect: Effect) -> AbilityDef {
     }
 }
 
-fn spell_ability(effect: Effect) -> AbilityDef {
+fn spell_ability(rules_text: &'static str, effect: Effect) -> AbilityDef {
     AbilityDef {
+        rules_text: rules_text.into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Spell,
@@ -92,8 +94,8 @@ fn spell_ability(effect: Effect) -> AbilityDef {
 /// The affected set is the card itself, so on any board the family produces
 /// at most one candidate per event and CR 616.1 never asks; the ability is
 /// mandatory besides.
-fn shuffles_into_library_from_anywhere() -> AbilityDef {
-    static_ability(Effect::Conditional(
+fn shuffles_into_library_from_anywhere(rules_text: &'static str) -> AbilityDef {
+    static_ability(rules_text, Effect::Conditional(
         // CR 113.6b — the clause that says where this ability functions.
         Condition::SourceInZone(ZoneSet::ALL),
         Box::new(Effect::Replacement(Box::new(
@@ -138,12 +140,8 @@ pub fn darksteel_colossus() -> Arc<CardData> {
         .power_toughness(11, 11)
         .keyword_flag(KeywordFlag::Trample)
         .keyword_flag(KeywordFlag::Indestructible)
-        .rules_text(
-            "Trample\nIndestructible\nIf Darksteel Colossus would be put into a graveyard \
-             from anywhere, reveal Darksteel Colossus and shuffle it into its owner's \
-             library instead.",
-        )
-        .ability(shuffles_into_library_from_anywhere())
+        .rules_text("Trample\nIndestructible\nIf Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.")
+        .ability(shuffles_into_library_from_anywhere("If Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.", ))
         .build()
 }
 
@@ -179,11 +177,11 @@ pub fn nexus_of_fate() -> Arc<CardData> {
              graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's \
              library instead.",
         )
-        .ability(spell_ability(Effect::Atom(
+        .ability(spell_ability("Take an extra turn after this one.", Effect::Atom(
             Primitive::ExtraTurn,
             EffectRecipient::Controller,
         )))
-        .ability(shuffles_into_library_from_anywhere())
+        .ability(shuffles_into_library_from_anywhere("If Nexus of Fate would be put into a graveyard from anywhere, reveal Nexus of Fate and shuffle it into its owner's library instead.", ))
         .build()
 }
 
@@ -204,7 +202,7 @@ pub fn timid_golem() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Golem))
         .power_toughness(2, 2)
         .rules_text("If this creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability("If this creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
                 from: None,
                 to: Some(Zone::Graveyard),
@@ -244,7 +242,7 @@ pub fn hollow_hands() -> Arc<CardData> {
         .color(Color::Black)
         .card_type(CardType::Enchantment)
         .rules_text("Cards in hands lose all abilities.")
-        .ability(static_ability(Effect::Atom(
+        .ability(static_ability("Cards in hands lose all abilities.", Effect::Atom(
             Primitive::LoseAllAbilities(Duration::WhileSourceOnBattlefield),
             EffectRecipient::FilteredObjectsIn(ObjectFilter::All, ZoneSet::HAND),
         )))
@@ -267,7 +265,7 @@ pub fn sealing_ward() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Enchantment)
         .rules_text("If a creature would be put into a graveyard, exile it instead.")
-        .ability(static_ability(Effect::Replacement(Box::new(ReplacementDef::new(
+        .ability(static_ability("If a creature would be put into a graveyard, exile it instead.", Effect::Replacement(Box::new(ReplacementDef::new(
             EventPattern::ZoneChange {
                 from: None,
                 to: Some(Zone::Graveyard),

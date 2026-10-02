@@ -327,6 +327,7 @@ mod tests {
             .color(crate::types::colors::Color::Blue)
             .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
             .ability(AbilityDef {
+                rules_text: "".into(),
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: crate::types::ids::new_ability_id(),
@@ -350,10 +351,7 @@ mod tests {
     ) -> crate::types::ids::ObjectId {
         // PRE-LAYER ZONE: printed abilities, on the card being put on the stack --
         // the same exemption engine/cast.rs runs under.
-        let ability = card_data.abilities.iter()
-            .find(|a| a.ability_type == AbilityType::Spell)
-            .unwrap();
-        let effect = ability.effect.clone();
+        let effect = crate::objects::card_data::spell_effect(&card_data.abilities).unwrap();
         let recipient = card_data
             .spell_instances
             .last()

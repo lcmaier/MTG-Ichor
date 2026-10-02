@@ -35,6 +35,7 @@ pub fn sol_ring() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 1))
         .rules_text("{T}: Add {C}{C}.")
         .ability(AbilityDef {
+            rules_text: "{T}: Add {C}{C}.".into(),
             is_characteristic_defining: false,
             activation_restriction: crate::objects::card_data::ActivationRestriction::None,
             id: AbilityId::UNASSIGNED,
@@ -84,5 +85,6 @@ pub fn darksteel_myr() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[], 3))
         .power_toughness(0, 1)
         .keyword_flag(KeywordFlag::Indestructible)
+        .rules_text("Indestructible")
         .build()
 }

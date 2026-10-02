@@ -79,6 +79,7 @@ fn blank(name: &str) -> Arc<CardData> {
 fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .ability(AbilityDef {
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -101,6 +102,7 @@ fn fixture_spell(name: &str, primitive: Primitive) -> Arc<CardData> {
 fn fixture_sequence(name: &str, primitives: Vec<Primitive>) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .ability(AbilityDef {
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),
@@ -152,7 +154,7 @@ fn resolve_spell_at(
     dp: &dyn DecisionProvider,
 ) -> ObjectId {
     let source = put_in_graveyard(game, card.clone(), caster);
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     let ctx = ResolutionContext {
         source,
         ability_source: None,
@@ -166,7 +168,7 @@ fn resolve_spell_at(
     source
 }
 
-/// Resolve `card`'s one spell ability for `caster` with no target — Opt's
+/// Resolve `card`'s spell abilities for `caster` with no target — Opt's
 /// shape, where every instruction names the controller.
 fn resolve_spell(
     game: &mut GameState,
@@ -175,7 +177,7 @@ fn resolve_spell(
     dp: &dyn DecisionProvider,
 ) -> ObjectId {
     let source = put_in_graveyard(game, card.clone(), caster);
-    let effect = card.abilities[0].effect.clone();
+    let effect = mtgsim::objects::card_data::spell_effect(&card.abilities).expect("a spell");
     let ctx = ResolutionContext {
         source,
         ability_source: None,
@@ -696,6 +698,7 @@ fn scry_plus_one() -> Arc<CardData> {
     CardDataBuilder::new("Fixture Scry Doubler")
         .card_type(CardType::Enchantment)
         .ability(AbilityDef {
+            rules_text: "".into(),
             is_characteristic_defining: false,
             activation_restriction: ActivationRestriction::None,
             id: new_ability_id(),

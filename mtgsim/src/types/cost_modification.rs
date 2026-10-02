@@ -53,20 +53,21 @@ impl CostModificationDef {
 
     /// The static ability whose whole text is this modification — what a
     /// card file writes for Thalia or Goblin Electromancer.
-    pub fn into_ability(self) -> AbilityDef {
-        self.into_ability_body(None)
+    pub fn into_ability(self, rules_text: &'static str) -> AbilityDef {
+        self.into_ability_body(rules_text, None)
     }
 
     /// "As long as [condition], …" — the same ability with the clause on it:
     /// Trinisphere's "as long as this artifact is untapped". The condition
     /// is read against the settled board when a cost is determined.
-    pub fn into_ability_while(self, condition: Condition) -> AbilityDef {
-        self.into_ability_body(Some(condition))
+    pub fn into_ability_while(self, rules_text: &'static str, condition: Condition) -> AbilityDef {
+        self.into_ability_body(rules_text, Some(condition))
     }
 
-    fn into_ability_body(self, condition: Option<Condition>) -> AbilityDef {
+    fn into_ability_body(self, rules_text: &'static str, condition: Option<Condition>) -> AbilityDef {
         let body = Effect::CostModification(Box::new(self));
         AbilityDef {
+            rules_text: rules_text.into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Static,

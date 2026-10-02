@@ -195,6 +195,12 @@ impl AbilityId {
     pub fn definition(self) -> AbilityId {
         AbilityId::defined(self.definition)
     }
+
+    /// The Layer 6 row that granted this instance, or `None` for one the
+    /// object has by any other route.
+    pub fn granting_row(self) -> Option<u64> {
+        (self.grant != 0).then_some(self.grant)
+    }
 }
 
 impl std::fmt::Display for AbilityId {

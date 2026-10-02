@@ -304,6 +304,7 @@ mod tests {
 
     fn ability(effect: Effect) -> AbilityDef {
         AbilityDef {
+            rules_text: "".into(),
             id: new_ability_id(),
             instances: Vec::new(),
             ability_type: AbilityType::Static,
@@ -472,7 +473,7 @@ mod tests {
                 ObjectFilter::All,
                 CostChange::Increase(ManaCost::build(&[], 1)),
             )
-            .into_ability_while(Condition::SourceUntapped)
+            .into_ability_while("", Condition::SourceUntapped)
             .effect,
         );
         assert_eq!(

@@ -73,13 +73,13 @@ pub fn paladin_of_atonement() -> Arc<CardData> {
             "At the beginning of each upkeep, if you lost life last turn, put a +1/+1 counter on this creature.\n\
              When this creature dies, you gain life equal to its toughness.",
         )
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("At the beginning of each upkeep, if you lost life last turn, put a +1/+1 counter on this creature.", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Each)),
             intervening_if: Some(lost_life_last_turn),
             limit: None,
             effect: counter_on_this(),
         }))
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("When this creature dies, you gain life equal to its toughness.", TriggerDef {
             condition: TriggerCondition::Event(dies(TriggerSubject::ThisObject).into()),
             intervening_if: None,
             limit: None,
@@ -119,11 +119,8 @@ pub fn vengeful_warchief() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Orc))
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(4, 4)
-        .rules_text(
-            "Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature. \
-             (Damage causes loss of life.)",
-        )
-        .ability(triggered_ability(TriggerDef {
+        .rules_text("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.")
+        .ability(triggered_ability("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.", TriggerDef {
             condition: TriggerCondition::Event(TriggerEvent::LosesLife {
                 player: Some(PlayerRef::You),
                 multiplicity: Multiplicity::PerOccurrence,
@@ -191,6 +188,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
         multiplicity: Multiplicity::OncePerEvent,
     };
     let pump = AbilityDef {
+        rules_text: "{5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.".into(),
         id: AbilityId::UNASSIGNED,
         instances: Vec::new(),
         ability_type: AbilityType::Activated,
@@ -220,7 +218,7 @@ pub fn elvish_warmaster() -> Arc<CardData> {
              This ability triggers only once each turn.\n\
              {5}{G}{G}: Elves you control get +2/+2 and gain deathtouch until end of turn.",
         )
-        .ability(triggered_ability(TriggerDef {
+        .ability(triggered_ability("Whenever one or more other Elves you control enter, create a 1/1 green Elf Warrior creature token. This ability triggers only once each turn.", TriggerDef {
             condition: TriggerCondition::Event(other_elves_you_control),
             intervening_if: None,
             limit: Some(TriggerLimit::TriggersOnlyOnceEachTurn),
@@ -246,6 +244,7 @@ pub fn temple_bell() -> Arc<CardData> {
         .card_type(CardType::Artifact)
         .rules_text("{T}: Each player draws a card.")
         .ability(AbilityDef {
+            rules_text: "{T}: Each player draws a card.".into(),
             id: AbilityId::UNASSIGNED,
             instances: Vec::new(),
             ability_type: AbilityType::Activated,

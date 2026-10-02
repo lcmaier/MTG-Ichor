@@ -2235,6 +2235,7 @@ mod tests {
         /// A static `AbilityDef` with the given body.
         fn static_ability(effect: Effect) -> AbilityDef {
             AbilityDef {
+                rules_text: "".into(),
                 is_characteristic_defining: false,
                 activation_restriction: crate::objects::card_data::ActivationRestriction::None,
                 id: new_ability_id(),

@@ -18,8 +18,9 @@ use super::decision::PriorityAction;
 /// every match site when a variant is added. **One of those sites is the
 /// variant's own contract**: [`Self::subject`] matches without a wildcard, so
 /// a new variant decides at birth which object it is about (`backlog.md`
-/// §2.21). What it *shows* is each client's own — `ui/cli.rs`'s `prompt_line`
-/// is exhaustive for the same reason — and never the engine's.
+/// §2.21). What it *shows* is `ui::display::question`'s, which both clients
+/// read and which is exhaustive for the same reason; no text crosses the
+/// boundary itself.
 ///
 /// **A payload names things by id and in the CR's vocabulary, never by an
 /// engine AST** — `codebase-state.md` item 141. What a client needs is what
@@ -350,9 +351,9 @@ impl ChoiceKind {
 
 }
 
-/// Wrapper carrying the semantic kind. No display text — each provider
-/// renders its own prompts by matching on `kind`, exhaustively (`ui/cli.rs`'s
-/// `prompt_line`), which keeps presentation out of the engine boundary.
+/// Wrapper carrying the semantic kind. No display text: a client words the
+/// question with `ui::display::question` and each option with
+/// `ui::display::option_label`, which keeps presentation off the boundary.
 #[derive(Debug, Clone)]
 pub struct ChoiceContext {
     pub kind: ChoiceKind,
