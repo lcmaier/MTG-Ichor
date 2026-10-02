@@ -147,7 +147,7 @@ pub fn mana_reflection() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Enchantment)
         .rules_text("If you tap a permanent for mana, it produces twice as much of that mana instead.")
-        .ability(static_replacement("If you tap a permanent for mana, it produces twice as much of that mana instead.", 
+        .ability(static_replacement("If you tap a permanent for mana, it produces twice as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
                 ObjectSet::NO_OBJECTS,
@@ -192,7 +192,7 @@ pub fn nyxbloom_ancient() -> Arc<CardData> {
         .rules_text(
             "Trample\nIf you tap a permanent for mana, it produces three times as much of that mana instead.",
         )
-        .ability(static_replacement("If you tap a permanent for mana, it produces three times as much of that mana instead.", 
+        .ability(static_replacement("If you tap a permanent for mana, it produces three times as much of that mana instead.",
             ReplacementDef::new(
                 tapped_for_mana(None),
                 ObjectSet::NO_OBJECTS,

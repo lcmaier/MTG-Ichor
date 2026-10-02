@@ -231,7 +231,7 @@ pub fn furnace_of_rath() -> Arc<CardData> {
             "If a source would deal damage to a permanent or player, it deals double that \
              damage to that permanent or player instead.",
         )
-        .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.", 
+        .ability(static_replacement("If a source would deal damage to a permanent or player, it deals double that damage to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
                 affected,
@@ -286,7 +286,7 @@ pub fn ghosts_of_the_innocent() -> Arc<CardData> {
             "If a source would deal damage to a permanent or player, it deals half that \
              damage, rounded down, to that permanent or player instead.",
         )
-        .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.", 
+        .ability(static_replacement("If a source would deal damage to a permanent or player, it deals half that damage, rounded down, to that permanent or player instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
                 affected,
@@ -350,7 +350,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
              player or permanent instead.\nIf a source would deal damage to you or a \
              permanent you control, prevent half that damage, rounded up.",
         )
-        .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.", 
+        .ability(static_replacement("If a source would deal damage to an opponent or a permanent an opponent controls, that source deals double that damage to that player or permanent instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
                 ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::Opponent)),
@@ -358,7 +358,7 @@ pub fn gisela_blade_of_goldnight() -> Arc<CardData> {
             )
             .affecting_players(PlayerSet::Opponents),
         ))
-        .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.", 
+        .ability(static_replacement("If a source would deal damage to you or a permanent you control, prevent half that damage, rounded up.",
             ReplacementDef::new(
                 EventPattern::DealDamage { source: None, combat: None },
                 ObjectSet::battlefield_filter(ObjectFilter::ByController(PlayerRef::You)),
@@ -409,7 +409,7 @@ pub fn angel_of_suffering() -> Arc<CardData> {
             "Flying\nIf damage would be dealt to you, prevent that damage and mill twice \
              that many cards.",
         )
-        .ability(static_replacement("If damage would be dealt to you, prevent that damage and mill twice that many cards.", 
+        .ability(static_replacement("If damage would be dealt to you, prevent that damage and mill twice that many cards.",
             // About a player and no object at all: `NO_OBJECTS` names that,
             // where a `Filter` would have to describe an empty set and
             // `SourceOnly` would make the Angel shield *itself*.
@@ -540,7 +540,7 @@ pub fn mending_hands() -> Arc<CardData> {
         .color(Color::White)
         .card_type(CardType::Instant)
         .rules_text("Prevent the next 4 damage that would be dealt to any target this turn.")
-        .ability(one_shot("Prevent the next 4 damage that would be dealt to any target this turn.", 
+        .ability(one_shot("Prevent the next 4 damage that would be dealt to any target this turn.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(prevent_the_next_this_turn(4), any_target()),
@@ -567,7 +567,7 @@ pub fn samite_healer() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Cleric))
         .power_toughness(1, 1)
         .rules_text("{T}: Prevent the next 1 damage that would be dealt to any target this turn.")
-        .ability(one_shot("{T}: Prevent the next 1 damage that would be dealt to any target this turn.", 
+        .ability(one_shot("{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
             AbilityType::Activated,
             vec![Cost::TapSelf],
             Effect::Atom(prevent_the_next_this_turn(1), any_target()),
@@ -605,7 +605,7 @@ pub fn safe_passage() -> Arc<CardData> {
         .rules_text(
             "Prevent all damage that would be dealt to you and creatures you control this turn.",
         )
-        .ability(one_shot("Prevent all damage that would be dealt to you and creatures you control this turn.", 
+        .ability(one_shot("Prevent all damage that would be dealt to you and creatures you control this turn.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -658,7 +658,7 @@ pub fn samite_censer_bearer() -> Arc<CardData> {
             "{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to \
              each creature you control this turn.",
         )
-        .ability(one_shot("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.", 
+        .ability(one_shot("{W}, Sacrifice this creature: Prevent the next 1 damage that would be dealt to each creature you control this turn.",
             AbilityType::Activated,
             vec![Cost::Mana(ManaCost::build(&[ManaType::White], 0)), Cost::SacrificeSelf],
             Effect::Atom(
@@ -746,7 +746,7 @@ pub fn circle_of_protection_red() -> Arc<CardData> {
             "{1}: The next time a red source of your choice would deal damage to you this \
              turn, prevent that damage.",
         )
-        .ability(one_shot("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.", 
+        .ability(one_shot("{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
             AbilityType::Activated,
             vec![Cost::Mana(ManaCost::build(&[], 1))],
             Effect::Atom(
@@ -794,7 +794,7 @@ pub fn reverse_damage() -> Arc<CardData> {
             "The next time a source of your choice would deal damage to you this turn, \
              prevent that damage. You gain life equal to the damage prevented this way.",
         )
-        .ability(one_shot("The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.", 
+        .ability(one_shot("The next time a source of your choice would deal damage to you this turn, prevent that damage. You gain life equal to the damage prevented this way.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -846,7 +846,7 @@ pub fn dark_sphere() -> Arc<CardData> {
             "{T}, Sacrifice this artifact: The next time a source of your choice would deal \
              damage to you this turn, prevent half that damage, rounded down.",
         )
-        .ability(one_shot("{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.", 
+        .ability(one_shot("{T}, Sacrifice this artifact: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
             AbilityType::Activated,
             vec![Cost::TapSelf, Cost::SacrificeSelf],
             Effect::Atom(
@@ -914,7 +914,7 @@ pub fn guardian_seraph() -> Arc<CardData> {
             "Flying\nIf a source an opponent controls would deal damage to you, prevent 1 \
              of that damage.",
         )
-        .ability(static_replacement("If a source an opponent controls would deal damage to you, prevent 1 of that damage.", 
+        .ability(static_replacement("If a source an opponent controls would deal damage to you, prevent 1 of that damage.",
             ReplacementDef::new(
                 EventPattern::DealDamage {
                     source: Some(SourcePattern::matching(ObjectFilter::ByController(
@@ -989,7 +989,7 @@ pub fn pyroclasm() -> Arc<CardData> {
         .color(Color::Red)
         .card_type(CardType::Sorcery)
         .rules_text("Pyroclasm deals 2 damage to each creature.")
-        .ability(one_shot("Pyroclasm deals 2 damage to each creature.", 
+        .ability(one_shot("Pyroclasm deals 2 damage to each creature.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -1021,7 +1021,7 @@ pub fn fog() -> Arc<CardData> {
         .color(Color::Green)
         .card_type(CardType::Instant)
         .rules_text("Prevent all combat damage that would be dealt this turn.")
-        .ability(one_shot("Prevent all combat damage that would be dealt this turn.", 
+        .ability(one_shot("Prevent all combat damage that would be dealt this turn.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -1085,7 +1085,7 @@ pub fn torbran_thane_of_red_fell() -> Arc<CardData> {
             "If a red source you control would deal damage to an opponent or a permanent an \
              opponent controls, it deals that much damage plus 2 instead.",
         )
-        .ability(static_replacement("If a red source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead.", 
+        .ability(static_replacement("If a red source you control would deal damage to an opponent or a permanent an opponent controls, it deals that much damage plus 2 instead.",
             ReplacementDef::new(
                 EventPattern::DealDamage {
                     source: Some(SourcePattern::matching(ObjectFilter::And(
@@ -1252,7 +1252,7 @@ pub fn pinpoint_avalanche() -> Arc<CardData> {
             "Pinpoint Avalanche deals 4 damage to target creature. The damage can't be \
              prevented.",
         )
-        .ability(one_shot("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.", 
+        .ability(one_shot("Pinpoint Avalanche deals 4 damage to target creature. The damage can't be prevented.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
@@ -1292,7 +1292,7 @@ pub fn reflect_damage() -> Arc<CardData> {
             "The next time a source of your choice would deal damage this turn, that damage \
              is dealt to that source's controller instead.",
         )
-        .ability(one_shot("The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.", 
+        .ability(one_shot("The next time a source of your choice would deal damage this turn, that damage is dealt to that source's controller instead.",
             AbilityType::Spell,
             Vec::new(),
             Effect::Atom(
