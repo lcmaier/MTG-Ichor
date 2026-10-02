@@ -3152,3 +3152,26 @@ Closed as sized, in its own commit. `check_state_based_actions` reads every perm
      read them, and the probe as a test that fails against the tree.
      **Slotted:** `roadmap-v2.md` A6g, its own commit beside SU-2, ahead of the
      tools PR whose replays would carry it.
+
+### Item 202 — closed 2026-10-01 by A6g's ability-names PR
+
+Closed as sized, with every other option's label beside it (the owner, at the PR's design review). `ui::display` has `question`, one arm per `ChoiceKind`, and `option_label`, one per kind of option, both without a wildcard, beside `keyword_name`, now public, and `named`, `player_name` and `attack_target_name`, which the dev GUI had kept. Both clients read them: the dev GUI's prompt keeps only each option's board refs, and the CLI prints the labels where it printed `{:?}`, its questions naming objects where they named bare ids. The window's last names derived from `Debug` went with them, the keywords' and the cost options'. An activation's label is its object and the ability's own text, `AbilityDef::rules_text`, which the same PR added.
+
+*Original entry:*
+
+202. **The dev GUI owns two surfaces the engine should: keyword names and
+     the question each prompt asks.** `snapshot::words` derives a keyword's
+     name from its `Debug` spelling, beside `ui::display`'s private
+     `keyword_name`, and `prompt::question` words a question for each
+     `ChoiceKind`, beside `ui/cli.rs`'s own `prompt_line`. A6g's rule has
+     the GUI draw only the engine's generic surfaces, and v1's GUI and the
+     AI harness will want both (finding 24).
+
+     **Reachability (2026-10-01):** reachable — not wrong today: every
+     keyword flag is one camel-case word whose `Debug` reads right, and the
+     two question tables say the same things two ways.
+
+     **Sized:** ~60–100 lines: `keyword_name` public, and one question per
+     kind in `ui::display` that both clients read, the CLI adding its index
+     hint. **Slotted:** A6g's ability-names PR, which makes `ui::display`'s
+     wording public.

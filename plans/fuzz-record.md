@@ -37,6 +37,26 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-01 for A6g's ability names** (each ability's own rules
+text, `AbilityDef::rules_text`, and `ui::display`'s questions and labels for
+both clients; `codebase-state.md` item 202, archived). No pool change.
+`close_out.py`: **main** `5fb64a5` (#208's merge) against **engine**
+`49ddfac`, the last code commit.
+
+**Predictions, before any arm ran** (PR #209's body): every gameplay and cost
+row `IDENTICAL` on both pools at two seats and four, since nothing on the
+event path changes; instructions per decision within ±0.3, `AbilityDef`
+growing from 384 bytes to 400.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| every counter row, gameplay and cost, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| audit, engine, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6601 M → 0.6593 M, **−0.11%** |
+
+Every prediction held. The binaries differ in each card's text and the new
+field, which no game reads.
+
 **Measured 2026-10-01 for A6g's review practices** (the dev GUI's review
 path, `engineering-practices.md` §10), whose one engine change is a loss
 bumping the layer epoch: finding 1 of PR #208's table, `layers-architecture.md`

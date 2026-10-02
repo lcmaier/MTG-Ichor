@@ -8782,9 +8782,14 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      - 1 puts on a name sticker (612.9): A Good Day to Pie.
 
      What it owes, and where each piece waits:
-     - the word swaps (CR 612.2): the engine keeps no rules text, so a swap
-       rewrites the colors, subtypes and land types inside `AbilityDef`s and
-       their filters. This is the design's main question;
+     - the word swaps (CR 612.2): a swap rewrites the colors, subtypes and
+       land types inside `AbilityDef`s and their filters, and the words of
+       each ability's `rules_text`, which the window shows since A6g's
+       ability names: Sleight of Mind on Circle of Protection: Red would
+       otherwise still say "red". The field is a `&'static str`, which a
+       rewritten text cannot be, so it becomes an owned or shared string
+       with this. The swap over a structured ability is the design's main
+       question;
      - the renames (612.5–612.9): each is an `EffectModification` variant
        that answers `writes_name` true, so the event record's names read it
        with no further change (#203). Spy Kit's "all names", and CR 201.2a's
@@ -8919,19 +8924,32 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      lines in `view_model` and a test. **Slotted:** A6g's playable PR,
      whose keyboard shortcuts make it acute.
 
-202. **The dev GUI owns two surfaces the engine should: keyword names and
-     the question each prompt asks.** `snapshot::words` derives a keyword's
-     name from its `Debug` spelling, beside `ui::display`'s private
-     `keyword_name`, and `prompt::question` words a question for each
-     `ChoiceKind`, beside `ui/cli.rs`'s own `prompt_line`. A6g's rule has
-     the GUI draw only the engine's generic surfaces, and v1's GUI and the
-     AI harness will want both (finding 24).
+202. **~~The dev GUI owns two surfaces the engine should: keyword names and
+     the question each prompt asks.~~ — ✅ CLOSED 2026-10-01 (A6g's
+     ability-names PR).** — archived. `ui::display` words a prompt's
+     question, each option's label and each keyword's name, and both
+     clients read them; the dev GUI derives no name from `Debug`.
+     **Reachability (2026-10-01):** closed — A6g's ability-names PR.
+     Full entry: `plans/archive/codebase-state-closed.md`, "Item 202".
 
-     **Reachability (2026-10-01):** reachable — not wrong today: every
-     keyword flag is one camel-case word whose `Debug` reads right, and the
-     two question tables say the same things two ways.
+### Found by A6g's ability names (2026-10-01)
 
-     **Sized:** ~60–100 lines: `keyword_name` public, and one question per
-     kind in `ui::display` that both clients read, the CLI adding its index
-     hint. **Slotted:** A6g's ability-names PR, which makes `ui::display`'s
-     wording public.
+203. **A cost keyword's option names the keyword alone once a part of its
+     cost is not mana.** `ui::display::option_label` prints "Kicker {2}"
+     from the keyword and the cost's mana symbols, which is every cost
+     keyword's printed shape (CR 702.33a's "Kicker [cost]"). A part that is
+     not mana, escape's exile or a kicker's sacrifice, has no printed words
+     anywhere in the engine: `AlternativeCost` and `AdditionalCost` carry a
+     `Cost` tree and no text, where an `AbilityDef` now carries its
+     paragraph. So that option reads "Escape" and shows no cost.
+
+     **Reachability (2026-10-01):** unreachable — no registered card's
+     optional cost has a part that is not mana, and Altar's Reap's mandatory
+     sacrifice is never an option (CR 601.2b).
+
+     **Sized:** ~30–60 lines: each cost a card offers carries its printed
+     keyword line beside its `Cost` tree, as an `AbilityDef` carries its
+     paragraph, the label reads it, and the registry test holds it to the
+     card's text. **Slotted:** with the first registered card whose optional
+     cost has a part that is not mana, in Phase 8's breadth (`roadmap-v2.md`
+     §C).
