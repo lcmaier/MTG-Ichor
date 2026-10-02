@@ -260,55 +260,41 @@ pub fn enumerate_activatable_mana_abilities(
 /// For each colored symbol in the cost, if the pool has that color available
 /// (beyond what earlier symbols already consumed), skip the symbol. For generic
 /// symbols, subtract any excess pool mana. Returns a new ManaCost representing
-/// only the portion that must still be covered by tapping sources.
+/// only the portion that must still be covered by tapping sources, its symbols
+/// in the cost's own order, which is how a payment prompt prints it.
 pub(crate) fn remaining_cost_after_pool(
     cost: &ManaCost,
     pool: &crate::types::mana::ManaPool,
 ) -> ManaCost {
     // Snapshot pool amounts so we can "spend" conceptually without mutating
     let mut available: std::collections::HashMap<ManaType, u64> = pool.available().clone();
+    let mut covered = vec![false; cost.symbols.len()];
 
-    let mut remaining_symbols: Vec<ManaSymbol> = Vec::new();
-
-    // First pass: handle colored/colorless symbols
-    let mut generic_symbols: Vec<ManaSymbol> = Vec::new();
-    for sym in &cost.symbols {
-        match sym {
-            ManaSymbol::Colored(mt) => {
-                let avail = available.entry(*mt).or_insert(0);
-                if *avail > 0 {
-                    *avail -= 1; // pool covers this symbol
-                } else {
-                    remaining_symbols.push(*sym);
-                }
-            }
-            ManaSymbol::Colorless => {
-                let avail = available.entry(ManaType::Colorless).or_insert(0);
-                if *avail > 0 {
-                    *avail -= 1;
-                } else {
-                    remaining_symbols.push(*sym);
-                }
-            }
-            ManaSymbol::Generic => {
-                generic_symbols.push(*sym);
-            }
-            // Hybrid/Phyrexian/X — can't auto-subtract, keep as-is
-            other => remaining_symbols.push(*other),
+    // First pass: colored/colorless symbols, which only their own mana pays.
+    // Hybrid/Phyrexian/X can't auto-subtract and are kept as-is.
+    for (sym, covered) in cost.symbols.iter().zip(covered.iter_mut()) {
+        let mana_type = match sym {
+            ManaSymbol::Colored(mt) => *mt,
+            ManaSymbol::Colorless => ManaType::Colorless,
+            _ => continue,
+        };
+        let avail = available.entry(mana_type).or_insert(0);
+        if *avail > 0 {
+            *avail -= 1; // pool covers this symbol
+            *covered = true;
         }
     }
 
     // Second pass: generic symbols can be paid by any remaining pool mana
     let mut excess: u64 = available.values().sum();
-    for sym in generic_symbols {
-        if excess > 0 {
+    for (sym, covered) in cost.symbols.iter().zip(covered.iter_mut()) {
+        if *sym == ManaSymbol::Generic && excess > 0 {
             excess -= 1; // pool covers this generic
-        } else {
-            remaining_symbols.push(sym);
+            *covered = true;
         }
     }
 
-    ManaCost::from_symbols(remaining_symbols)
+    ManaCost::from_symbols(cost.symbols.iter().zip(covered).filter(|(_, covered)| !covered).map(|(sym, _)| *sym).collect())
 }
 
 /// Check if a card in hand passes the timing check for casting.
@@ -777,6 +763,19 @@ mod tests {
         let remaining = remaining_cost_after_pool(&cost, &pool);
         assert_eq!(remaining.colored_count(ManaType::Red), 0);
         assert_eq!(remaining.generic_count(), 1);
+    }
+
+    #[test]
+    fn what_a_pool_leaves_owing_keeps_the_costs_order() {
+        use crate::types::mana::ManaPool;
+
+        let anthem = ManaCost::build(&[ManaType::White, ManaType::White], 1);
+        let mut pool = ManaPool::new();
+        assert_eq!(remaining_cost_after_pool(&anthem, &pool).to_string(), "{1}{W}{W}");
+        pool.add(ManaType::White, 1);
+        assert_eq!(remaining_cost_after_pool(&anthem, &pool).to_string(), "{1}{W}");
+        pool.add(ManaType::Green, 1);
+        assert_eq!(remaining_cost_after_pool(&anthem, &pool).to_string(), "{W}");
     }
 
     #[test]
