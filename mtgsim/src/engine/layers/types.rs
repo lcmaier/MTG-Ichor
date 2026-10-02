@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::objects::card_data::AbilityDef;
-use crate::types::card_types::{CardType, CardTypes, Subtype, Supertype};
+use crate::types::card_types::{CardType, CardTypes, Subtype, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Duration, PlayerRef};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -127,11 +127,10 @@ pub enum EffectModification {
     // --- Layer 1a (CR 613.2a) ---
     /// CR 707 — the affected object becomes a copy of the captured values.
     ///
-    /// **Behind a pointer, and the numbers say why.** `CopiableValues` is 328
-    /// bytes (a `String`, five `HashSet`s, a `Vec<AbilityDef>` and two
-    /// `Option<i32>`); behind one it is 8. Inline, this arm would take
-    /// `EffectModification` from 72 bytes to ~336 and `ContinuousEffect` from
-    /// 168 to ~432 — paid by *every* row, including the thousands that carry
+    /// **Behind a pointer, and the numbers say why.** `CopiableValues` is 264
+    /// bytes (three `HashSet`s among them); behind one it is 8. Inline, this
+    /// arm would take `EffectModification` from 72 bytes to ~272 and
+    /// `ContinuousEffect` from 168 to ~368 — paid by *every* row, including the thousands that carry
     /// two `i32`s, because `effects_in_layer` hands the walk a contiguous slice
     /// it re-iterates per layer per object. Row size is the layer walk's memory
     /// traffic. **An `Arc` rather than a `Box`** because the registry is cloned
@@ -161,7 +160,7 @@ pub enum EffectModification {
     SetTypes(CardTypes),
     AddSubtype(Subtype),
     RemoveSubtype(Subtype),
-    SetSubtypes(HashSet<Subtype>),
+    SetSubtypes(Subtypes),
     AddSupertype(Supertype),
     RemoveSupertype(Supertype),
     SetSupertypes(HashSet<Supertype>),
@@ -310,7 +309,7 @@ pub struct EffectiveCharacteristics {
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
     pub types: CardTypes,
-    pub subtypes: HashSet<Subtype>,
+    pub subtypes: Subtypes,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,
     /// Seeded as the card's own `Arc` and written only through

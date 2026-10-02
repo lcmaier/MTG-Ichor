@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 use crate::engine::layers::types::EffectiveCharacteristics;
 use crate::objects::card_data::{AbilityDef, AbilityType};
-use crate::types::card_types::{CardType, LandType, Subtype};
+use crate::types::card_types::{CardType, LandType, Subtype, Subtypes};
 use crate::types::costs::Cost;
 use crate::types::effects::{AmountExpr, Effect, EffectRecipient, ManaOutput, Primitive};
 use crate::types::ids::{AbilityId, ObjectId, SynthesizedAbility};
@@ -120,28 +120,17 @@ pub(crate) fn intrinsic_mana_ability(
     })
 }
 
-/// The basic land types in `subtypes`, in `LandType` declaration order (WUBRG).
-///
-/// Only matters when an effect sets a land to *several* basic types at once. No
-/// shipped card does that — Blood Moon and Spreading Seas each set exactly one —
-/// so today this is exercised only by `set_subtypes_to_multiple_basics_grants_
-/// one_ability_each`. It is here because `std::collections::HashSet` seeds its
-/// hasher per process, so iteration order differs between runs of the binary;
-/// the push order becomes the order of `chars.abilities`, which
-/// `activatable_abilities` turns into activation indices. Left unsorted, the
-/// first such card would quietly make `fuzz_games` unreproducible at a fixed
-/// seed — a bug that reads as nondeterministic engine behavior rather than as an
-/// ordering problem. Three lines to never have to find that.
-fn basic_land_types_sorted(subtypes: &std::collections::HashSet<Subtype>) -> Vec<LandType> {
-    let mut found: Vec<LandType> = subtypes
+/// The basic land types in `subtypes`, in the order the effect lists them: the
+/// order their CR 305.7 mana abilities are granted in, and so the order
+/// `activatable_abilities` indexes them by.
+fn basic_land_types(subtypes: &Subtypes) -> Vec<LandType> {
+    subtypes
         .iter()
         .filter_map(|s| match s {
             Subtype::Land(lt) if lt.is_basic_land_type() => Some(*lt),
             _ => None,
         })
-        .collect();
-    found.sort_by_key(|lt| *lt as u8);
-    found
+        .collect()
 }
 
 /// Layer 4 `SetSubtypes` — replace subtypes, applying CR 305.7 when the new
@@ -151,27 +140,14 @@ fn basic_land_types_sorted(subtypes: &std::collections::HashSet<Subtype>) -> Vec
 /// untouched: Blood Moon does not make a land basic (ATOM-305.8-001).
 pub(crate) fn apply_set_subtypes(
     chars: &mut EffectiveCharacteristics,
-    new_subtypes: &std::collections::HashSet<Subtype>,
+    new_subtypes: &Subtypes,
     object_id: ObjectId,
 ) {
     let is_land = chars.types.contains(&CardType::Land);
-    let new_basics = basic_land_types_sorted(new_subtypes);
+    let new_basics = basic_land_types(new_subtypes);
 
-    // CR 205.1a — "when an effect sets one or more of an object's subtypes,
-    // the new subtype(s) replaces any existing subtypes from the appropriate
-    // set (creature types, land types, ...)". A set of land types replaces
-    // the land types and nothing else: Blood Moon makes Dryad Arbor a
-    // Mountain Dryad, not a Mountain. An empty set is a plain clear.
-    if new_subtypes.is_empty() {
-        chars.subtypes.clear();
-    } else {
-        chars.subtypes.retain(|old| {
-            !new_subtypes
-                .iter()
-                .any(|new| std::mem::discriminant(old) == std::mem::discriminant(new))
-        });
-        chars.subtypes.extend(new_subtypes.iter().cloned());
-    }
+    // Blood Moon makes Dryad Arbor a Dryad Mountain, not a Mountain.
+    chars.subtypes.set(new_subtypes);
 
     if !is_land || new_basics.is_empty() {
         // Non-land, or set to non-basic land types only: no 305.7 side effects.
@@ -227,7 +203,7 @@ mod tests {
     fn land_frame(printed_subtypes: &[LandType]) -> EffectiveCharacteristics {
         let mut types = crate::types::card_types::CardTypes::new();
         types.insert(CardType::Land);
-        let mut subtypes = HashSet::new();
+        let mut subtypes = Subtypes::new();
         for lt in printed_subtypes {
             subtypes.insert(Subtype::Land(*lt));
         }
@@ -272,7 +248,7 @@ mod tests {
         }
     }
 
-    fn subtype_set(types: &[LandType]) -> HashSet<Subtype> {
+    fn subtype_set(types: &[LandType]) -> Subtypes {
         types.iter().map(|lt| Subtype::Land(*lt)).collect()
     }
 
@@ -376,8 +352,12 @@ mod tests {
 
         assert_eq!(chars.abilities.len(), 2);
         let produced: Vec<_> = chars.abilities.iter().filter_map(produced_mana).collect();
-        // Declaration order: Mountain precedes Forest.
-        assert_eq!(produced, vec![ManaType::Red, ManaType::Green]);
+        assert_eq!(produced, vec![ManaType::Red, ManaType::Green], "the effect's order");
+
+        let mut reversed = land_frame(&[LandType::Island]);
+        apply_set_subtypes(&mut reversed, &subtype_set(&[LandType::Forest, LandType::Mountain]), id);
+        let produced: Vec<_> = reversed.abilities.iter().filter_map(produced_mana).collect();
+        assert_eq!(produced, vec![ManaType::Green, ManaType::Red]);
     }
 
     #[test]

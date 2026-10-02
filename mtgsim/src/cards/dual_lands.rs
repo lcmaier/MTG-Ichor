@@ -210,7 +210,7 @@ mod tests {
                 "{} must be nonbasic to be a Blood Moon target",
                 card.name
             );
-            assert_eq!(card.subtypes.len(), 2, "{}", card.name);
+            assert_eq!(card.subtypes.iter().count(), 2, "{}", card.name);
             assert_eq!(card.abilities.len(), 2, "{}", card.name);
         }
     }

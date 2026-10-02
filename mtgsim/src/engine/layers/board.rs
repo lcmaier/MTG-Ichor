@@ -1913,9 +1913,9 @@ mod tests {
     #[test]
     fn set_subtypes_to_a_basic_land_type_writes_abilities() {
         use crate::types::card_types::{CreatureType, LandType};
-        let mountain = EffectModification::SetSubtypes(std::collections::HashSet::from([Subtype::Land(LandType::Mountain)]));
+        let mountain = EffectModification::SetSubtypes(crate::types::card_types::Subtypes::from([Subtype::Land(LandType::Mountain)]));
         assert!(writes_of(&mountain).intersects(Channels::ABILITIES));
-        let goblin = EffectModification::SetSubtypes(std::collections::HashSet::from([Subtype::Creature(CreatureType::Goblin)]));
+        let goblin = EffectModification::SetSubtypes(crate::types::card_types::Subtypes::from([Subtype::Creature(CreatureType::Goblin)]));
         assert!(!writes_of(&goblin).intersects(Channels::ABILITIES));
         assert!(writes_of(&goblin).intersects(Channels::SUBTYPES));
         assert!(!writes_of(&EffectModification::ModifyPowerToughness {

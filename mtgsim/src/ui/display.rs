@@ -16,7 +16,7 @@ use crate::oracle::characteristics::{
 };
 use crate::state::battlefield::AttackTarget;
 use crate::state::game_state::{GameState, PhaseType, StepType};
-use crate::types::card_types::{CardTypes, Subtype, Supertype};
+use crate::types::card_types::{CardTypes, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
@@ -180,7 +180,7 @@ fn printed_face(card: &CardData) -> String {
 /// `Legendary Creature — Elf Warrior`: supertypes, types in `CardType`'s
 /// order, then subtypes. The CR fixes no order within a set, so supertypes
 /// and subtypes are sorted: they are hash sets.
-pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &HashSet<Subtype>) -> String {
+pub fn type_line(supertypes: &HashSet<Supertype>, types: &CardTypes, subtypes: &Subtypes) -> String {
     let mut supers: Vec<String> = supertypes.iter().map(|s| format!("{s:?}")).collect();
     supers.sort();
     let mut subs: Vec<String> = subtypes.iter().map(|s| s.word()).collect();

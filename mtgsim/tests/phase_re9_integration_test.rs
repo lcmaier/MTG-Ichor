@@ -23,7 +23,6 @@
 //! **What is not here**: a triggered mana ability (CR 605.1b), which is
 //! critical-path item 6's; the definition already fixes what it will propose.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use mtgsim::cards::phase5_pre_cards::dark_ritual;
@@ -42,7 +41,7 @@ use mtgsim::test_support::{
     forest, pass_turn, put_in_graveyard, put_in_hand, put_on_battlefield,
     setup_two_player_game, test_dp, vanilla_creature, RecordingDecisionProvider,
 };
-use mtgsim::types::card_types::{CardType, CardTypes, Subtype};
+use mtgsim::types::card_types::{CardType, CardTypes, Subtypes};
 use mtgsim::types::costs::Cost;
 use mtgsim::types::effects::{
     AmountExpr, Effect, EffectRecipient, ManaOutput, ObjectFilter, ObjectSet, PlayerSet,
@@ -295,7 +294,7 @@ fn pool(game: &GameState, player: PlayerId, mana_type: ManaType) -> u64 {
 /// restricted units included.
 fn spendable_on(game: &GameState, player: PlayerId, mana_type: ManaType, card_type: CardType) -> u64 {
     let types: CardTypes = [card_type].into_iter().collect();
-    let subtypes: HashSet<Subtype> = HashSet::new();
+    let subtypes = Subtypes::new();
     let ctx = SpendContext {
         purpose: SpendPurpose::CastSpell { card_types: &types, subtypes: &subtypes, name: "Fixture" },
     };

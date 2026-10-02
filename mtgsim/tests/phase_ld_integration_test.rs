@@ -264,7 +264,7 @@ fn test_blood_moon_makes_nonbasic_lands_mountains() {
     let subtypes = get_effective_subtypes(&game, nonbasic_id);
     assert!(subtypes.contains(&Subtype::Land(LandType::Mountain)));
     assert!(!subtypes.contains(&Subtype::Land(LandType::Island)));
-    assert_eq!(subtypes.len(), 1);
+    assert_eq!(subtypes.iter().count(), 1);
 
     // Basic Forest should be unaffected
     let basic_subtypes = get_effective_subtypes(&game, basic_id);

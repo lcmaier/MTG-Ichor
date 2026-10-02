@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::types::card_types::{CardType, CardTypes, Supertype, Subtype};
+use crate::types::card_types::{CardType, CardTypes, Supertype, Subtype, Subtypes};
 use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::cost_modification::{CostChange, CostModificationDef};
@@ -22,7 +22,7 @@ pub struct CardData {
     pub colors: HashSet<Color>,
     pub types: CardTypes,
     pub supertypes: HashSet<Supertype>,
-    pub subtypes: HashSet<Subtype>,
+    pub subtypes: Subtypes,
     /// The card's rules text (CR 207.1): its Oracle text without the reminder
     /// text, which has no game function (CR 207.2). Each ability carries its
     /// own paragraph of it as [`AbilityDef::rules_text`].
@@ -227,7 +227,7 @@ impl CardDataBuilder {
                 colors: HashSet::new(),
                 types: CardTypes::new(),
                 supertypes: HashSet::new(),
-                subtypes: HashSet::new(),
+                subtypes: Subtypes::new(),
                 rules_text: String::new(),
                 power: None,
                 toughness: None,

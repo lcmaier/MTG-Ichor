@@ -8996,3 +8996,44 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      cleanup before Phase 8's breadth (the owner, 2026-10-01), with
      `roadmap-v2.md` §C's C0, which moves the fixtures into
      `cards::fixtures`.
+
+### Found by A6g's playable review (2026-10-02)
+
+205. **Nothing writes "every creature type" yet.** `Subtypes` carries CR
+     702.73a's "every creature type" as one mark (`types/card_types.rs`), so
+     a membership test on a changeling is a flag, not a scan of the hundreds
+     of creature types CR 205.3m lists, and its type line keeps what it
+     prints. No Layer 4 arm sets the mark: changeling's characteristic-
+     defining ability (CR 702.73a), Mirror Entity's "gain all creature
+     types" and Maskwood Nexus's "are every creature type" each need their
+     writer.
+
+     **Reachability (2026-10-02):** unreachable — no registered card is every
+     creature type. The mark's one reader with a test is
+     `ManaRestriction::OnlyForCreatureType` (`types/mana.rs`, the changeling
+     fixture).
+
+     **Sized:** ~30–60 lines with the first such card: the CDA in
+     `engine/layers/cda.rs`, or an `EffectModification` arm, each calling
+     `Subtypes::insert_every_creature_type`. **Slotted:** Phase 8, with
+     `copy-effects-architecture.md` §4.1's changeling row (Omni-Changeling,
+     Moritte).
+
+206. **CR 205.1a's correlated subtypes stay when their card type goes.** An
+     effect that removes a card type, or sets card types without it, leaves
+     that type's subtypes behind: Dryad Arbor made a noncreature would still
+     be a Dryad (ATOM-205.1a-004). `EffectModification::RemoveType` and
+     `SetTypes` change the types alone (`engine/layers/compute.rs`). The rule
+     also bounds item 205's mark: an object that stops being a creature, and
+     is not a kindred, stops being every creature type.
+
+     **Reachability (2026-10-02):** unreachable — no registered card removes
+     or sets a card type; every registered type change adds one.
+
+     **Sized:** ~30–50 lines and the atom's fixture: after Layer 4's type
+     arms, a subtype stays only while a type it belongs to remains (creature
+     types with creature or kindred, CR 205.3m). The rule keeps them removed
+     "for the entire time the object's card type is removed", so whether a
+     later effect that gives the type back gives the subtypes back is read
+     against the rulings before it is built. **Slotted:** with the first
+     registered card that removes or sets a card type, in Phase 8's breadth.

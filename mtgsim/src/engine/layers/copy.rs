@@ -16,7 +16,7 @@ use crate::engine::layers::compute::LAYER_ORDER;
 use crate::engine::layers::types::{EffectModification, EffectiveCharacteristics, Layer};
 use crate::objects::card_data::AbilityDef;
 use crate::state::game_state::GameState;
-use crate::types::card_types::{CardTypes, Subtype, Supertype};
+use crate::types::card_types::{CardTypes, Subtypes, Supertype};
 use crate::types::colors::Color;
 use crate::types::effects::{Characteristic, CharacteristicEdit, CopyException};
 use crate::types::ids::ObjectId;
@@ -73,7 +73,7 @@ pub struct CopiableValues {
     pub mana_cost: Option<ManaCost>,
     pub colors: HashSet<Color>,
     pub types: CardTypes,
-    pub subtypes: HashSet<Subtype>,
+    pub subtypes: Subtypes,
     pub supertypes: HashSet<Supertype>,
     pub keyword_flags: HashSet<KeywordFlag>,
     /// CR 707.2a — a copy acquires abilities because they derive from rules

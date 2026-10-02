@@ -92,7 +92,7 @@ fn test_blood_moon_makes_everywhere_a_mountain_that_taps_for_red_only() {
     let _moon = put_on_battlefield(&mut game, blood_moon(), 0);
 
     let subtypes = get_effective_subtypes(&game, land);
-    assert_eq!(subtypes.len(), 1, "Mountain, and none of the other four");
+    assert_eq!(subtypes.iter().count(), 1, "Mountain, and none of the other four");
     assert!(subtypes.contains(&Subtype::Land(LandType::Mountain)));
 
     let sources = offered(&game, land);
