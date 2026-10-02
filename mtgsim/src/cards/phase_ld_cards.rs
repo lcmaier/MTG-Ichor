@@ -439,7 +439,7 @@ pub fn march_of_the_machines() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 4))
         .color(Color::Blue)
         .card_type(CardType::Enchantment)
-        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value. (Equipment that's a creature can't equip a creature.)")
+        .rules_text("Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.")
         .ability(AbilityDef {
             rules_text: "Each noncreature artifact is an artifact creature with power and toughness each equal to its mana value.",
             is_characteristic_defining: false,

@@ -91,7 +91,7 @@ pub fn crimson_wisps() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Red], 0))
         .color(Color::Red)
         .card_type(CardType::Instant)
-        .rules_text("Target creature becomes red and gains haste until end of turn. (It can attack and {T} this turn.)\nDraw a card.")
+        .rules_text("Target creature becomes red and gains haste until end of turn.\nDraw a card.")
         .ability(AbilityDef {
             rules_text: "Target creature becomes red and gains haste until end of turn.\nDraw a card.",
             is_characteristic_defining: false,

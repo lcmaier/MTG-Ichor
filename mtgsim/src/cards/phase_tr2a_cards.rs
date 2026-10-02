@@ -119,10 +119,7 @@ pub fn vengeful_warchief() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Orc))
         .subtype(Subtype::Creature(CreatureType::Warrior))
         .power_toughness(4, 4)
-        .rules_text(
-            "Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature. \
-             (Damage causes loss of life.)",
-        )
+        .rules_text("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.")
         .ability(triggered_ability("Whenever you lose life for the first time each turn, put a +1/+1 counter on this creature.", TriggerDef {
             condition: TriggerCondition::Event(TriggerEvent::LosesLife {
                 player: Some(PlayerRef::You),

@@ -23,8 +23,9 @@ pub struct CardData {
     pub types: CardTypes,
     pub supertypes: HashSet<Supertype>,
     pub subtypes: HashSet<Subtype>,
-    /// The card's Oracle text, reminder text and all (CR 207.1). Each ability
-    /// carries its own paragraph of it as [`AbilityDef::rules_text`].
+    /// The card's rules text (CR 207.1): its Oracle text without the reminder
+    /// text, which has no game function (CR 207.2). Each ability carries its
+    /// own paragraph of it as [`AbilityDef::rules_text`].
     pub rules_text: String,
     pub power: Option<i32>,
     pub toughness: Option<i32>,
@@ -107,13 +108,14 @@ pub enum ActivationRestriction {
 #[derive(Debug, Clone, PartialEq)]
 pub struct AbilityDef {
     pub id: AbilityId,
-    /// The ability's own text: its paragraph of the card's Oracle text (CR
-    /// 113.2c makes each paragraph one ability, keyword lists aside), with no
-    /// reminder text (CR 207.2a). An ability no text box prints carries the
-    /// words of the rule that gives it: CR 305.6's "{T}: Add [mana symbol]."
-    /// and CR 306.5b's loyalty ability. A granted ability carries the text its
-    /// card quotes, and a copy carries the copied one (CR 707.2), so the window
-    /// reads what an object's abilities say off its effective list.
+    /// The ability's own text: its paragraph of the card's rules text (CR
+    /// 113.2c makes each paragraph one ability, keyword lists aside), which
+    /// carries no reminder text (CR 207.2). An ability no text box prints
+    /// carries the words of the rule that gives it: CR 305.6's "{T}: Add [mana
+    /// symbol]." and CR 306.5b's loyalty ability. A granted ability carries
+    /// the text its card quotes, and a copy carries the copied one (CR 707.2),
+    /// so the window reads what an object's abilities say off its effective
+    /// list.
     ///
     /// Empty only on a test fixture: `cards::registry`'s tests hold every
     /// registered card's abilities to its text.

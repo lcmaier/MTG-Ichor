@@ -31,17 +31,16 @@ use crate::objects::card_data::{CardData, CardDataBuilder};
 use crate::types::card_types::{CardType, LandType, Subtype};
 use crate::types::mana::ManaType;
 
-/// Build a dual land from its Oracle text and its two basic land types.
+/// Build a dual land from its two basic land types.
 ///
 /// Subtype order follows the printed type line, which is also the order
 /// `land_types::basic_land_types_sorted` would produce — irrelevant to behavior,
 /// but it keeps the fixture readable next to the real card.
-fn dual(name: &str, rules_text: &str, first: LandType, second: LandType) -> Arc<CardData> {
+fn dual(name: &str, first: LandType, second: LandType) -> Arc<CardData> {
     CardDataBuilder::new(name)
         .card_type(CardType::Land)
         .subtype(Subtype::Land(first))
         .subtype(Subtype::Land(second))
-        .rules_text(rules_text)
         .mana_ability_single(mana_for(first))
         .mana_ability_single(mana_for(second))
         .build()
@@ -61,52 +60,52 @@ fn mana_for(land_type: LandType) -> ManaType {
 
 /// Tundra — Land — Plains Island
 pub fn tundra() -> Arc<CardData> {
-    dual("Tundra", "({T}: Add {W} or {U}.)", LandType::Plains, LandType::Island)
+    dual("Tundra", LandType::Plains, LandType::Island)
 }
 
 /// Underground Sea — Land — Island Swamp
 pub fn underground_sea() -> Arc<CardData> {
-    dual("Underground Sea", "({T}: Add {U} or {B}.)", LandType::Island, LandType::Swamp)
+    dual("Underground Sea", LandType::Island, LandType::Swamp)
 }
 
 /// Badlands — Land — Swamp Mountain
 pub fn badlands() -> Arc<CardData> {
-    dual("Badlands", "({T}: Add {B} or {R}.)", LandType::Swamp, LandType::Mountain)
+    dual("Badlands", LandType::Swamp, LandType::Mountain)
 }
 
 /// Taiga — Land — Mountain Forest
 pub fn taiga() -> Arc<CardData> {
-    dual("Taiga", "({T}: Add {R} or {G}.)", LandType::Mountain, LandType::Forest)
+    dual("Taiga", LandType::Mountain, LandType::Forest)
 }
 
 /// Savannah — Land — Forest Plains
 pub fn savannah() -> Arc<CardData> {
-    dual("Savannah", "({T}: Add {G} or {W}.)", LandType::Forest, LandType::Plains)
+    dual("Savannah", LandType::Forest, LandType::Plains)
 }
 
 /// Scrubland — Land — Plains Swamp
 pub fn scrubland() -> Arc<CardData> {
-    dual("Scrubland", "({T}: Add {W} or {B}.)", LandType::Plains, LandType::Swamp)
+    dual("Scrubland", LandType::Plains, LandType::Swamp)
 }
 
 /// Volcanic Island — Land — Island Mountain
 pub fn volcanic_island() -> Arc<CardData> {
-    dual("Volcanic Island", "({T}: Add {U} or {R}.)", LandType::Island, LandType::Mountain)
+    dual("Volcanic Island", LandType::Island, LandType::Mountain)
 }
 
 /// Bayou — Land — Swamp Forest
 pub fn bayou() -> Arc<CardData> {
-    dual("Bayou", "({T}: Add {B} or {G}.)", LandType::Swamp, LandType::Forest)
+    dual("Bayou", LandType::Swamp, LandType::Forest)
 }
 
 /// Plateau — Land — Mountain Plains
 pub fn plateau() -> Arc<CardData> {
-    dual("Plateau", "({T}: Add {R} or {W}.)", LandType::Mountain, LandType::Plains)
+    dual("Plateau", LandType::Mountain, LandType::Plains)
 }
 
 /// Tropical Island — Land — Forest Island
 pub fn tropical_island() -> Arc<CardData> {
-    dual("Tropical Island", "({T}: Add {G} or {U}.)", LandType::Forest, LandType::Island)
+    dual("Tropical Island", LandType::Forest, LandType::Island)
 }
 
 /// Everywhere
@@ -140,7 +139,7 @@ pub fn everywhere() -> Arc<CardData> {
         .subtype(Subtype::Land(LandType::Swamp))
         .subtype(Subtype::Land(LandType::Mountain))
         .subtype(Subtype::Land(LandType::Forest))
-        .rules_text("This land is a Plains, Island, Swamp, Mountain, and Forest. ({T}: Add {W}, {U}, {B}, {R}, or {G}.)")
+        .rules_text("This land is a Plains, Island, Swamp, Mountain, and Forest.")
         .mana_ability_single(ManaType::White)
         .mana_ability_single(ManaType::Blue)
         .mana_ability_single(ManaType::Black)

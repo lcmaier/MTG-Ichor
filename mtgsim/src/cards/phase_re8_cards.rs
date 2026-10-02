@@ -242,7 +242,7 @@ pub fn opt() -> Arc<CardData> {
         .mana_cost(ManaCost::build(&[ManaType::Blue], 0))
         .color(Color::Blue)
         .card_type(CardType::Instant)
-        .rules_text("Scry 1. (Look at the top card of your library. You may put that card on the bottom.)\nDraw a card.")
+        .rules_text("Scry 1.\nDraw a card.")
         .ability(AbilityDef {
             rules_text: "Scry 1.\nDraw a card.",
             is_characteristic_defining: false,
@@ -308,7 +308,7 @@ pub fn eligeth_crossroads_augur() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Sphinx))
         .power_toughness(5, 6)
         .keyword_flag(KeywordFlag::Flying)
-        .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner (You can have two commanders if both have partner.)")
+        .rules_text("Flying\nIf you would scry a number of cards, draw that many cards instead.\nPartner")
         .ability(AbilityDef {
             rules_text: "If you would scry a number of cards, draw that many cards instead.",
             is_characteristic_defining: false,

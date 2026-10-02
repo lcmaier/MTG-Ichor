@@ -153,7 +153,7 @@ pub fn trinisphere() -> Arc<CardData> {
     CardDataBuilder::new("Trinisphere")
         .mana_cost(ManaCost::build(&[], 3))
         .card_type(CardType::Artifact)
-        .rules_text("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast. (Additional mana in the cost may be paid with any color of mana or colorless mana. For example, a spell that would cost {1}{B} to cast costs {2}{B} to cast instead.)")
+        .rules_text("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast.")
         .ability(
             CostModificationDef::spells(ObjectFilter::All, CostChange::TotalAtLeast(3))
                 .into_ability_while("As long as this artifact is untapped, each spell that would cost less than three mana to cast costs three mana to cast.", Condition::SourceUntapped),
@@ -197,10 +197,7 @@ pub fn myr_enforcer() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Myr))
         .power_toughness(4, 4)
-        .rules_text(
-            "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
-             you control.)",
-        )
+        .rules_text("Affinity for artifacts")
         .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
         .build()
 }
@@ -224,10 +221,7 @@ pub fn frogmite() -> Arc<CardData> {
         .card_type(CardType::Creature)
         .subtype(Subtype::Creature(CreatureType::Frog))
         .power_toughness(2, 2)
-        .rules_text(
-            "Affinity for artifacts (This spell costs {1} less to cast for each artifact \
-             you control.)",
-        )
+        .rules_text("Affinity for artifacts")
         .affinity_for("Affinity for artifacts", ObjectFilter::ByType(CardType::Artifact))
         .build()
 }

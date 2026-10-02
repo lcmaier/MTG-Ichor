@@ -10,7 +10,6 @@ pub fn plains() -> Arc<CardData> {
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
         .subtype(Subtype::Land(LandType::Plains))
-        .rules_text("({T}: Add {W}.)")
         .mana_ability_single(ManaType::White)
         .build()
 }
@@ -21,7 +20,6 @@ pub fn island() -> Arc<CardData> {
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
         .subtype(Subtype::Land(LandType::Island))
-        .rules_text("({T}: Add {U}.)")
         .mana_ability_single(ManaType::Blue)
         .build()
 }
@@ -32,7 +30,6 @@ pub fn swamp() -> Arc<CardData> {
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
         .subtype(Subtype::Land(LandType::Swamp))
-        .rules_text("({T}: Add {B}.)")
         .mana_ability_single(ManaType::Black)
         .build()
 }
@@ -43,7 +40,6 @@ pub fn mountain() -> Arc<CardData> {
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
         .subtype(Subtype::Land(LandType::Mountain))
-        .rules_text("({T}: Add {R}.)")
         .mana_ability_single(ManaType::Red)
         .build()
 }
@@ -54,7 +50,6 @@ pub fn forest() -> Arc<CardData> {
         .card_type(CardType::Land)
         .supertype(Supertype::Basic)
         .subtype(Subtype::Land(LandType::Forest))
-        .rules_text("({T}: Add {G}.)")
         .mana_ability_single(ManaType::Green)
         .build()
 }

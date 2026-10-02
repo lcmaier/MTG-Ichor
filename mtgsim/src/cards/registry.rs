@@ -1099,41 +1099,25 @@ mod tests {
     }
 
     /// Every ability a registered card carries, printed or nested, says what
-    /// its card says: a paragraph of the card's text without its reminder text
-    /// (CR 207.2a), or the paragraphs the engine builds one ability from (Opt's
-    /// two). The exception is CR 305.6's ability, which a land has from its
-    /// basic land type whatever its text box prints.
+    /// its card says: a paragraph of the card's rules text, or the paragraphs
+    /// the engine builds one ability from (Opt's two). The exception is CR
+    /// 305.6's ability, which a land has from its basic land type whatever its
+    /// text box prints. A card's rules text carries no reminder text, which has
+    /// no game function (CR 207.2); every parenthesis in a registered card's
+    /// Oracle text is reminder text.
     #[test]
     fn every_ability_carries_its_cards_text() {
         use crate::engine::layers::land_types::intrinsic_mana_ability;
         use crate::types::card_types::Subtype;
         use crate::types::ids::new_object_id;
 
-        fn without_reminder(text: &str) -> String {
-            let mut out = String::new();
-            let mut depth = 0;
-            for c in text.chars() {
-                match c {
-                    '(' => {
-                        depth += 1;
-                        while out.ends_with(' ') {
-                            out.pop();
-                        }
-                    }
-                    ')' if depth > 0 => depth -= 1,
-                    _ if depth == 0 => out.push(c),
-                    _ => {}
-                }
-            }
-            out
-        }
-
         let registry = CardRegistry::default_registry();
         let mut names: Vec<String> = registry.cards.keys().cloned().collect();
         names.sort();
         for name in names {
             let card = (registry.cards[name.as_str()])();
-            let printed = without_reminder(&card.rules_text);
+            let printed = &card.rules_text;
+            assert!(!printed.contains('('), "{name}'s rules text carries reminder text: {printed:?}");
             let intrinsic: Vec<&str> = card
                 .subtypes
                 .iter()

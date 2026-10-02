@@ -99,7 +99,7 @@ pub fn culling_drone() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Eldrazi))
         .subtype(Subtype::Creature(CreatureType::Drone))
         .power_toughness(2, 2)
-        .rules_text("Devoid (This card has no color.)\nIngest (Whenever this creature deals combat damage to a player, that player exiles the top card of their library.)")
+        .rules_text("Devoid\nIngest")
         .ability(AbilityDef {
             rules_text: "Devoid",
             id: AbilityId::UNASSIGNED,

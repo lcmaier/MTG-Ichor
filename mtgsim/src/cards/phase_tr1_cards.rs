@@ -225,7 +225,7 @@ pub fn felidar_sovereign() -> Arc<CardData> {
         .power_toughness(4, 6)
         .keyword_flag(KeywordFlag::Vigilance)
         .keyword_flag(KeywordFlag::Lifelink)
-        .rules_text("Vigilance (Attacking doesn't cause this creature to tap.)\nLifelink (Damage dealt by this creature also causes you to gain that much life.)\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
+        .rules_text("Vigilance\nLifelink\nAt the beginning of your upkeep, if you have 40 or more life, you win the game.")
         .ability(triggered_ability("At the beginning of your upkeep, if you have 40 or more life, you win the game.", TriggerDef {
             condition: TriggerCondition::Event(at_beginning_of(StepType::Upkeep, Whose::Yours)),
             intervening_if: Some(Condition::Player {

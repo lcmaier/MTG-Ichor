@@ -140,7 +140,7 @@ pub fn darksteel_colossus() -> Arc<CardData> {
         .power_toughness(11, 11)
         .keyword_flag(KeywordFlag::Trample)
         .keyword_flag(KeywordFlag::Indestructible)
-        .rules_text("Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nIndestructible (Damage and effects that say \"destroy\" don't destroy this creature.)\nIf Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.")
+        .rules_text("Trample\nIndestructible\nIf Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.")
         .ability(shuffles_into_library_from_anywhere("If Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.", ))
         .build()
 }

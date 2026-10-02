@@ -215,11 +215,7 @@ pub fn ashaya_soul_of_the_wild() -> Arc<CardData> {
         .subtype(Subtype::Creature(CreatureType::Elemental))
         // `*/*` — the CDA supplies both numbers, in every zone (CR 208.2a).
         .power_toughness(0, 0)
-        .rules_text(
-            "Ashaya's power and toughness are each equal to the number of lands you control.\n\
-             Nontoken creatures you control are Forest lands in addition to their other types. \
-             (They're still affected by summoning sickness.)",
-        )
+        .rules_text("Ashaya's power and toughness are each equal to the number of lands you control.\nNontoken creatures you control are Forest lands in addition to their other types.")
         .ability(AbilityDef {
             rules_text: "Ashaya's power and toughness are each equal to the number of lands you control.",
             is_characteristic_defining: true,
