@@ -9037,3 +9037,25 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      later effect that gives the type back gives the subtypes back is read
      against the rulings before it is built. **Slotted:** with the first
      registered card that removes or sets a card type, in Phase 8's breadth.
+
+207. **Fourteen registered creatures lack the creature types they print.**
+     Citanul Hierophants, Earth Elemental, Giant Spider, Grizzly Bears, Hill
+     Giant, Knight of Meadowgrain, Raging Cougar, Rhox War Monk, Ridgetop
+     Raptor, Savannah Lions, Serra Angel, Thornweald Archer, Vampire
+     Nighthawk and War Mammoth: a relic of the bootstrapped tests (the owner,
+     2026-10-02). A census of type lines against Scryfall found them: the
+     order the card files list types in reproduces the printed line for 165
+     of the 180 real registered cards, and these are 14 of the other 15. The
+     fifteenth is Everywhere, a token the pools deal as a land card, printed
+     as "Token Land".
+
+     **Reachability (2026-10-02):** reachable — wrong today: Thornweald Archer
+     is no Elf, so in the stress pool Elvish Warmaster neither triggers on it
+     nor pumps it.
+
+     **Sized:** ~20 lines of card data and a fixture, Warmaster seeing the
+     Archer; every creature type the fourteen need is in `CreatureType`. It
+     moves the stress pool's stream, so it carries a re-record. **Slotted:**
+     beside C0 (`roadmap-v2.md` §C), the test-card reorganization before
+     Phase 8's breadth (the owner, 2026-10-02), as its own commit after the
+     move: C0's text keeps behavior out of the move, so the move stays a move.
