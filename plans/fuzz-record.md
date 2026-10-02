@@ -37,6 +37,77 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Re-recorded 2026-10-02 for the first-strike step** (CR 510.4: a combat has
+a first-strike combat damage step only when an attacking or blocking creature
+has first strike or double strike, where every combat with an attacker had
+one; the owner found it in the dev GUI while reviewing PR #211). No pool
+change, but **the stress pool's two-seat gameplay rows are a new baseline**.
+`close_out.py`: **playable** `467fce6`, the PR's head before the review,
+against **fix** `ec38a02`.
+
+**No prediction went in the PR body before the arms ran**, which §3.1 asks
+for; the fix came mid-review. The expectation when they started: games move
+where a player could act in the removed step, and every cost row falls.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, fix vs playable, performance / stress | differ: Wins by seat, Total damage / differ: Wins by seat, Avg turns, Spells cast, Damage events, Total damage, Life changes, Mana productions, Replacement prompts, Decisions, Priority decisions | differ: Avg turns, Spells cast, Lands played, Combat w/ atk, Creatures died, Damage events, Total damage, Life changes, Replacement prompts, Decisions, Priority decisions, Triggers placed, Trigger matches / differ: Wins by seat, Wins by effect, Avg turns, Max turns, Spells cast, Lands played, Combat w/ atk, Creatures died, Damage events, Total damage, Life changes, Turns after a departure, Mana productions, Replacement prompts, Decisions, Priority decisions, Trigger matches |
+| `Memo hits`, playable → fix, performance / stress | 70,550 → 68,888 / 81,996 → 78,709 | 182,976 → 179,796 / 240,042 → 233,653 |
+| `Replacement gathers`, playable → fix, performance / stress | 1215 → 1204 / 1172 → 1153 | 2254 → 2243 / 2412 → 2381 |
+| audit, performance / stress, dispatches agreed: playable; fix | 189,225 / 193,277; 187,097 / 189,589 | 350,537 / 388,612; 347,496 / 383,208 |
+| instructions / decision, fix vs playable, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6629 M → 0.6535 M, **−1.43%** |
+
+Where nobody could act in the step, it was work and nothing else: its
+`BeginStep` proposal, with a replacement gather and a restriction query, its
+dispatch, and a priority round the engine passed through without asking.
+That is the cost rows' move, and why the 50 two-seat `performance` games below
+read the gameplay rows they read before the fix. Where a player could act
+there, with an instant or an ability, the agent was asked and drew from its
+stream; without the step the stream moves, and the game with it. The `stress`
+pool holds more of those cards, so more of its rows moved.
+
+**The −1.43% is not a budget reading**: the counters differ, and the fall is
+work removed. The PR's reading stays playable's +0.16% at identical counters,
+below. What the fix adds is one ordered pass over the battlefield per combat
+with an attacker, and a second when a first striker is in it.
+
+**§3 fixture rows, fix, two seats, 50 games / seed 12345.** A new baseline for
+`stress` and for the bold rows; `performance`'s gameplay rows read as before.
+Item 194's block below holds the last one, and playable reproduced its
+gameplay rows to the digit first, its bold rows at most a walk and thirteen
+frames from it.
+
+| | performance | stress |
+|---|---|---|
+| Wins by seat | 26 (52.0%) / 24 (48.0%) | 29 (58.0%) / 20 (40.0%) |
+| Wins by effect | 0 | 1 |
+| Avg turns | 29.9 | 30.4 |
+| Spells cast | 22.9 | 22.2 |
+| Lands played | 17.3 | 17.4 |
+| Combat w/ atk | 10.6 | 9.7 |
+| Creatures died | 7.2 | 5.9 |
+| Damage events | 22.2 | 20.8 |
+| Total damage | 61.5 | 54.3 |
+| Life changes | 15.7 | 17.0 |
+| **Layer walks** | **374** | **471** |
+| **Board walks** | **237** | **293** |
+| **Memo hits** | **57,678** | **84,837** |
+| **Layer frames** | **4,292** | **6,168** |
+| **Frames/walk** | **11.47** | **13.10** |
+| **Dependency checks** | **14** | **50** |
+| **Replacement gathers** | **1070** | **1197** |
+| **Restriction queries** | **1072** | **1200** |
+| Mana productions | 87 | 130 |
+| Prevention allocations | 0.00 | 0.00 |
+| Replacement prompts | 0.42 | 2.12 |
+| Max batch depth | 5 | 5 |
+| Decisions | 232 | 360 |
+| Priority decisions | 87 | 140 |
+| Triggers placed | 1.3 | 2.1 |
+| Windows past gate | 29.1 | 54.6 |
+| Candidate visits | 37.5 | 97.2 |
+| Trigger matches | 2.7 | 3.3 |
+
 **Measured 2026-10-02 for A6g's playable PR** (a re-ask names what the
 engine rejected and the engine stops filtering, `codebase-state.md` item 193,
 archived; the engine writes the decision log; in the dev GUI, which
