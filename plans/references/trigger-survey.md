@@ -43,7 +43,8 @@ taken as recommended.
    than the CR's (the four "becomes" transitions, the five attack shapes of
    CR 508.3a–e) the row is the CR's and the note says what it folds.
 2. **A missing field is a row in table two and an item, never a patch.** The
-   doc owns the event stream's shape (row A6: "what waits for the doc, because
+   doc owns the event stream's shape (row A6,
+   `plans/archive/roadmap-v2-landed.md`: "what waits for the doc, because
    the doc names its fields"). Every gap below is filed in `codebase-state.md`
    with a reachability line and a size and built nowhere.
 3. **No trigger AST.** A survey names what must be expressible; the doc decides
