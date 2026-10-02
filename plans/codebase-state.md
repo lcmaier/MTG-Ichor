@@ -8882,3 +8882,56 @@ Layer 4 row is an ability-list source (CR 305.7; §4.10).
      with the first registered card whose static ability reads a life total,
      in Phase 8's breadth (`roadmap-v2.md` §C), or with item 187 at CV-6,
      whose summary bit it shares, if that comes first.
+
+200. **The dev GUI's start is read once, and a decision log it cannot open
+     reads as an engine panic.** `launch::read` settles a scenario's seed
+     at launch into `GameSetup::seed`, which then overrides the file's own
+     at every start, so Reload ignores an edited `seed` line, and a file
+     that did not parse at launch plays at seed 0 once it is fixed.
+     `DecisionLog::open` panics when it cannot create its file, which the
+     window shows as "The engine thread panicked". Findings 4 and 11 of A6g's
+     review practices PR.
+
+     **Reachability (2026-10-01):** reachable — not wrong in any game: the
+     first misleads a tester editing a board, and the second needs a
+     `logs/` folder that cannot be written.
+
+     **Sized:** ~30–50 lines: a start that keeps "the scenario's own seed"
+     until it reads the file, and a refusal for a log that cannot be
+     opened. **Slotted:** A6g's tools PR, which reshapes the start as a
+     save ("a save as a start", `roadmap-v2.md` A6g) and owns the log.
+
+201. **A click or a key can answer a prompt the person never saw.** egui
+     reads a click against the frame that reads it, so when a prompt
+     replaces another under the pointer, the second click of a double
+     click lands on the new one; a held key's repeat will do the same once
+     the window has keyboard shortcuts; and keyboard focus may pass to the
+     next prompt's button by its position, which the review did not trace
+     (`engineering-practices.md` §10.1, question 8; finding 14).
+
+     **Reachability (2026-10-01):** reachable — a double click on a button
+     whose answer brings the next prompt inside egui's 0.3 s double-click
+     window, which the random agent's quick turns make easy.
+
+     **Sized:** a design first: what the window does with input in the
+     moment after its prompt changes (drop a double click's second half,
+     hold input for a beat, or wait for the pointer to move); then ~20–40
+     lines in `view_model` and a test. **Slotted:** A6g's playable PR,
+     whose keyboard shortcuts make it acute.
+
+202. **The dev GUI owns two surfaces the engine should: keyword names and
+     the question each prompt asks.** `snapshot::words` derives a keyword's
+     name from its `Debug` spelling, beside `ui::display`'s private
+     `keyword_name`, and `prompt::question` words a question for each
+     `ChoiceKind`, beside `ui/cli.rs`'s own `prompt_line`. A6g's rule has
+     the GUI draw only the engine's generic surfaces, and v1's GUI and the
+     AI harness will want both (finding 24).
+
+     **Reachability (2026-10-01):** reachable — not wrong today: every
+     keyword flag is one camel-case word whose `Debug` reads right, and the
+     two question tables say the same things two ways.
+
+     **Sized:** ~60–100 lines: `keyword_name` public, and one question per
+     kind in `ui::display` that both clients read, the CLI adding its index
+     hint. **Slotted:** A6g's ability-names PR, which makes `ui::display`'s
+     wording public.

@@ -1848,7 +1848,9 @@ answer completes: the half chosen and abandoned, the ordering reset midway,
 the bucket filled and emptied that no fixed rule makes. Three dealt seeds a
 pool and three seeds on each review board, fifteen games in about 20 s of
 CI's debug build. Each game must finish, the engine's thread must not panic,
-and the engine must accept every answer the view model builds. The games
+the engine must accept every answer the view model builds, and every click
+the window offers must change the answer or complete it: the view model asks
+one probe, `Selection::is_live`, which runs the click on a copy. The games
 reach single and multiple picks and all three allocations (generic mana,
 combat damage, trample damage); no ordering and no number, which the view
 model's unit tests carry.

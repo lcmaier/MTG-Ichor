@@ -37,6 +37,36 @@ and so is `### 3.1a`, which keeps its old section number for the same reason:
 two live docs name it by that number, and breaking them to tidy a label is not
 worth it.
 
+**Measured 2026-10-01 for A6g's review practices** (the dev GUI's review
+path, `engineering-practices.md` §10), whose one engine change is a loss
+bumping the layer epoch: finding 1 of PR #208's table, `layers-architecture.md`
+§12's list of walk inputs. No pool change. `close_out.py`: **main** `a51afec`
+(#207's merge) against **engine** `81b727f`, the fix's commit and the PR's only
+engine change.
+
+**Predictions, before any arm ran** (PR #208's body): every gameplay counter
+`IDENTICAL` on both pools at two seats and four; the cost rows `IDENTICAL`
+unless `fuzz_games` reads characteristics after a two-seat game ends, a walk
+or two a game; instructions per decision within ±0.3.
+
+| | 2 seats | 4 seats |
+|---|---|---|
+| gameplay rows, engine vs `main`, performance / stress | **IDENTICAL** / **IDENTICAL** | **IDENTICAL** / **IDENTICAL** |
+| `Layer walks`, performance / stress | 402 → 402 / 466 → 467 | unmoved |
+| `Board walks`, performance / stress | 259 → 260 / 283 → 283 | unmoved |
+| `Memo hits`, performance / stress | 70,551 → 70,550 / 81,996 → 81,996 | unmoved |
+| `Layer frames`, performance / stress | 5,195 → 5,207 / 5,853 → 5,863 | unmoved |
+| `Dependency checks`, performance / stress | 17 → 17 / 23 → 24 | unmoved |
+| audit, engine, performance / stress, dispatches agreed | 189,225 / 193,277 | 350,537 / 388,612 |
+| instructions / decision, engine vs `main`, callgrind, `--games 20 --seed 12345 --pool performance --players 4 --deck-size 100 --life 40` | | 0.6601 M → 0.6600 M, **−0.01%** |
+
+**The two-seat cost rows moved, inside the caveat:** in one game a pool, a
+read after the loss is a walk where it was a memo hit, one board pass's worth
+of frames. Four seats are unmoved, since the leaving seat's cards move and
+bump there anyway. The bug was found by the dev GUI's random-click games in a
+debug build, where the memo's audit checks every hit against a fresh walk;
+`fuzz_games` runs in release, so its games could not have shown it.
+
 **Measured 2026-10-01 for SU-2** (setup actions; `setup-architecture.md` §8's ✅
 section) and item 198 (deathtouch damage read by one check; `codebase-state.md`,
 archived). No pool change and no game moved, so the §3 tables stand as item
