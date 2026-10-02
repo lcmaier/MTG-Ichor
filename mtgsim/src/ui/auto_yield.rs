@@ -86,11 +86,17 @@ impl Yields {
         }
         holds
     }
+
+    /// The yield that holds for `player`'s prompt now, for a client to show;
+    /// one that has ended is cleared, as [`Self::holds`] clears it.
+    pub fn holding(&self, game: &GameState, player: PlayerId) -> Option<Yield> {
+        if self.holds(game, player) { self.0.borrow().as_ref().map(|held| held.until) } else { None }
+    }
 }
 
 /// Where a priority prompt offers `Pass`, which it always does
 /// (`engine::priority`).
-pub(crate) fn pass_index(options: &[ChoiceOption]) -> usize {
+pub fn pass_index(options: &[ChoiceOption]) -> usize {
     options
         .iter()
         .position(|o| matches!(o, ChoiceOption::Action(PriorityAction::Pass)))

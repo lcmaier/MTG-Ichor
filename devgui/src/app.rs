@@ -8,7 +8,7 @@ use eframe::egui;
 
 use crate::bridge::GameSetup;
 use crate::session::Session;
-use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView, WindowState, ZoneView};
+use crate::view_model::{Amount, BoardView, Input, Item, NumberField, PromptView, SeatButton, WindowState, ZoneView};
 
 pub struct DevGui {
     session: Session,
@@ -66,6 +66,10 @@ pub fn draw(ui: &mut egui::Ui, state: &WindowState, header: &SessionHeader) -> V
                 Some(log) => ui.weak(format!("{} · decision log {}", header.line, log.display())),
                 None => ui.weak(header.line),
             };
+            let mut full_control = state.full_control;
+            if ui.checkbox(&mut full_control, "Full control").changed() {
+                inputs.push(Input::FullControl(full_control));
+            }
             if header.reloadable && ui.button("Reload").clicked() {
                 inputs.push(Input::Reload);
             }
@@ -204,6 +208,9 @@ fn item(ui: &mut egui::Ui, item: &Item, inputs: &mut Vec<Input>) {
 
 fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>) {
     ui.heading(&prompt.question);
+    if let Some(rejected) = &prompt.rejected {
+        ui.colored_label(ui.visuals().warn_fg_color, rejected);
+    }
     ui.weak(&prompt.rule);
     ui.horizontal_wrapped(|ui| {
         for (i, option) in prompt.options.iter().enumerate() {
@@ -249,4 +256,21 @@ fn prompt_panel(ui: &mut egui::Ui, prompt: &PromptView, inputs: &mut Vec<Input>)
             inputs.push(Input::Reset);
         }
     });
+    if !prompt.yields.is_empty() || prompt.yielding.is_some() {
+        ui.horizontal_wrapped(|ui| {
+            for button in &prompt.yields {
+                seat_button(ui, button, inputs);
+            }
+            if let Some((words, stop)) = &prompt.yielding {
+                ui.weak(words);
+                seat_button(ui, stop, inputs);
+            }
+        });
+    }
+}
+
+fn seat_button(ui: &mut egui::Ui, button: &SeatButton, inputs: &mut Vec<Input>) {
+    if ui.add_enabled(button.live, egui::Button::new(&button.label)).clicked() {
+        inputs.push(button.input);
+    }
 }

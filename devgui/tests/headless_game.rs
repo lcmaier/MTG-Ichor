@@ -12,10 +12,10 @@ use std::time::{Duration, Instant};
 
 use devgui::bridge::{GameSetup, Outcome, ToWindow, spawn_game};
 use devgui::session::Session;
-use devgui::view_model::Input;
+use devgui::view_model::{Input, WindowState};
 use mtgsim::cards::registry::CardRegistry;
 use mtgsim::scenario::Scenario;
-use devgui::prompt::{Answer, Primitive};
+use devgui::prompt::{Answer, Primitive, Reply};
 use games::{dealt, from_board, next};
 use window_by_rule::play_by_rule;
 
@@ -62,7 +62,7 @@ fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
     let engine = spawn_game(dealt(7, None), Arc::new(|| {}));
     match next(&engine) {
         ToWindow::Prompt { prompt, .. } if matches!(prompt.primitive, Primitive::PickN { .. }) => {
-            engine.answers.send(Answer::Picks(vec![99])).unwrap();
+            engine.answers.send(Reply::Answer(Answer::Picks(vec![99]))).unwrap();
         }
         other => panic!("expected a pick as the first prompt, got {other:?}"),
     }
@@ -70,6 +70,31 @@ fn an_illegal_answer_reaches_the_window_as_the_validators_message() {
         ToWindow::Panicked { message } => assert!(message.contains("DP returned index 99"), "{message}"),
         other => panic!("expected the validator's panic, got {other:?}"),
     }
+}
+
+/// CR 509.1a's re-ask, end to end: the window declares its one Wall of Stone
+/// blocking both Bears, the engine asks again and says why, and a legal
+/// declaration goes through.
+#[test]
+fn an_illegal_block_is_asked_again_with_the_rule_it_broke() {
+    let engine = spawn_game(from_board("reask.scenario", None), Arc::new(|| {}));
+    let mut state = WindowState::default();
+    state.receive(next(&engine));
+    let rejected = |state: &WindowState| state.prompt.as_ref().and_then(|prompt| prompt.rejected.clone());
+    assert_eq!(state.prompt.as_ref().map(|prompt| prompt.kind.as_str()), Some("DeclareBlockers"));
+    assert_eq!(rejected(&state), None, "a first ask rejects nothing");
+    state.input(Input::OptionButton(0));
+    state.input(Input::OptionButton(1));
+    engine.answers.send(state.input(Input::Done).expect("both blocks declared")).unwrap();
+
+    state.receive(next(&engine));
+    let why = rejected(&state).expect("the re-ask says why");
+    assert!(why.starts_with("Those blocks are illegal: Wall of Stone ("), "{why}");
+    assert!(why.ends_with(") can block only one attacker (CR 509.1a)"), "{why}");
+    state.input(Input::OptionButton(0));
+    engine.answers.send(state.input(Input::Done).expect("one block declared")).unwrap();
+    let message = next(&engine);
+    assert!(!matches!(message, ToWindow::Panicked { .. } | ToWindow::Finished { .. }), "{message:?}");
 }
 
 /// A game from a scenario: the log opens with the file, its seed and its
