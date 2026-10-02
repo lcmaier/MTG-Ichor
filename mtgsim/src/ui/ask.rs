@@ -40,7 +40,7 @@ use crate::types::effects::EffectRecipient;
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::mana::{ManaCost, ManaSymbol, ManaType};
 
-use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
+use super::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
 use super::decision::{DecisionProvider, PriorityAction};
 
 /// CR 102.2 — the one allocation a forced split admits, or `None` when the
@@ -412,19 +412,21 @@ fn check_ordering(
 
 /// Choose what to do when the player has priority.
 ///
-/// The engine enumerates all legal actions and passes them as options.
+/// The engine enumerates all legal actions and passes them as options, with
+/// the action it just reversed when this is the same window asking again.
 /// Returns the chosen `PriorityAction`.
 pub fn ask_choose_priority_action(
     dp: &dyn DecisionProvider,
     game: &GameState,
     player: PlayerId,
     legal_actions: &[PriorityAction],
+    rejected: Option<Rejection>,
 ) -> PriorityAction {
     let options: Vec<ChoiceOption> = legal_actions
         .iter()
         .map(|a| ChoiceOption::Action(a.clone()))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::PriorityAction);
+    let ctx = ChoiceContext { kind: ChoiceKind::PriorityAction, rejected };
     let index = dp.pick_n(game, player, &ctx, &options, (1, 1));
     validate_pick_n(&index, &options, (1, 1), "choose_priority_action", game, player, &ctx);
     // Item 138's split of the count above. `Pass` is always offered
@@ -469,6 +471,7 @@ pub fn ask_choose_blockers(
     game: &GameState,
     player: PlayerId,
     legal: &[(ObjectId, ObjectId)],
+    rejected: Option<Rejection>,
 ) -> Vec<(ObjectId, ObjectId)> {
     if legal.is_empty() {
         return Vec::new();
@@ -477,7 +480,7 @@ pub fn ask_choose_blockers(
         .iter()
         .map(|(blocker, attacker)| ChoiceOption::BlockerAttacker(*blocker, *attacker))
         .collect();
-    let ctx = ChoiceContext::new(ChoiceKind::DeclareBlockers);
+    let ctx = ChoiceContext { kind: ChoiceKind::DeclareBlockers, rejected };
     let indices = dp.pick_n(game, player, &ctx, &options, (0, legal.len()));
     validate_pick_n(&indices, &options, (0, legal.len()), "choose_blockers", game, player, &ctx);
     indices.iter().map(|&i| legal[i]).collect()
@@ -1380,7 +1383,7 @@ mod tests {
             PriorityAction::Pass,
             PriorityAction::PlayLand(crate::types::ids::new_object_id()),
         ];
-        let result = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let result = ask_choose_priority_action(&dp, &game, 0, &actions, None);
         assert!(matches!(result, PriorityAction::PlayLand(_)));
     }
 
@@ -1614,7 +1617,7 @@ mod tests {
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![5]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     #[test]
@@ -1624,7 +1627,7 @@ mod tests {
         let game = test_game_state();
         dp.expect_pick_n(ChoiceKind::PriorityAction, vec![0, 1]);
         let actions = vec![PriorityAction::Pass, PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     #[test]
@@ -1651,7 +1654,7 @@ mod tests {
         dp.expect_pick_n(ChoiceKind::DeclareAttackers, vec![0]);
         // Engine asks for PriorityAction but we expected DeclareAttackers
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     // --- ScriptedDP unconsumed expectations ---
@@ -1665,7 +1668,7 @@ mod tests {
         // Only consume one
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
         // dp drops here with 1 remaining expectation → panic
     }
 
@@ -1677,7 +1680,7 @@ mod tests {
         let dp = ScriptedDecisionProvider::new();
         let game = test_game_state();
         let actions = vec![PriorityAction::Pass];
-        let _ = ask_choose_priority_action(&dp, &game, 0, &actions);
+        let _ = ask_choose_priority_action(&dp, &game, 0, &actions, None);
     }
 
     // --- DispatchDecisionProvider routing ---
@@ -1705,11 +1708,11 @@ mod tests {
         ];
 
         // Player 0 chooses index 0 → Pass
-        let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions);
+        let result0 = ask_choose_priority_action(&dispatch, &game, 0, &actions, None);
         assert!(matches!(result0, PriorityAction::Pass));
 
         // Player 1 chooses index 1 → PlayLand
-        let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions);
+        let result1 = ask_choose_priority_action(&dispatch, &game, 1, &actions, None);
         assert!(matches!(result1, PriorityAction::PlayLand(_)));
     }
 

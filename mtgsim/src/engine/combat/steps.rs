@@ -10,12 +10,14 @@ use crate::engine::combat::validation::{
 };
 use crate::events::event::GameEvent;
 use crate::oracle::characteristics::has_keyword;
+use crate::engine::priority::REJECTION_LIMIT;
 use crate::oracle::legality::{legal_attackers, legal_blockers};
 use crate::state::battlefield::{AttackTarget, AttackingInfo, BlockingInfo};
 use crate::state::game_state::GameState;
 use crate::types::ids::{IdSet, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
 use crate::ui::ask::{ask_choose_attackers, ask_choose_blockers};
+use crate::ui::choice_types::Rejection;
 use crate::ui::decision::DecisionProvider;
 
 impl GameState {
@@ -108,7 +110,7 @@ impl GameState {
             // pair it can't legally pick regardless of strategy. Per-blocker
             // uniqueness (CR 509.1) is *set-level* and is not pre-filterable
             // on individual pairs — it's enforced by `validate_blockers` and
-            // the retry loop below.
+            // the re-ask below.
             let blocker_ids = legal_blockers(self, defender);
             let attackers_in_combat: Vec<ObjectId> = self.battlefield_ordered()
                 .into_iter()
@@ -120,33 +122,30 @@ impl GameState {
                 .filter(|&(bid, aid)| can_block(self, defender, bid, aid).is_ok())
                 .collect();
 
-            // CR 509.1c: "If, among other things, this set of blockers isn't
-            // legal, the defending player must choose a different set."
-            // Bounded retry loop (budget = 10). On validation failure we
-            // re-prompt the DP with the same pre-filtered pair list; on
-            // budget exhaustion we surface the final error (rare — indicates
-            // a DP that can't converge). Same pattern as `run_priority_round`'s
-            // retry.
-            const BLOCKER_RETRY_BUDGET: u32 = 10;
-            let mut retries: u32 = 0;
+            // A declaration that breaks CR 509.1a–c is illegal, so it is
+            // reversed (CR 732.1) and the defending player declares again,
+            // offered the same pairs and told which blocks were rejected and
+            // why. Only `REJECTION_LIMIT` bounds the re-asks, as in
+            // `run_priority_round`.
+            let mut rejected: Option<Rejection> = None;
+            let mut rejections: usize = 0;
             let proposed = loop {
                 let candidate = ask_choose_blockers(
-                    decisions, self, defender, &legal_block_pairs,
+                    decisions, self, defender, &legal_block_pairs, rejected.take(),
                 );
                 match validate_blockers(
                     self, defender, &candidate, &BlockConstraints::none(),
                 ) {
                     Ok(()) => break candidate,
-                    Err(e) => {
-                        if retries >= BLOCKER_RETRY_BUDGET {
-                            eprintln!(
-                                "WARN: blocker retry budget ({}) exhausted for player {} — \
-                                 last error: {}. Legal pairs: {}.",
-                                BLOCKER_RETRY_BUDGET, defender, e, legal_block_pairs.len()
-                            );
-                            return Err(format!("Invalid blockers: {}", e));
+                    Err(why) => {
+                        rejections += 1;
+                        if rejections == REJECTION_LIMIT {
+                            return Err(format!(
+                                "Invalid blockers: player {defender} declared illegal blocks {REJECTION_LIMIT} times, \
+                                 the last: {why}"
+                            ));
                         }
-                        retries = retries.saturating_add(1);
+                        rejected = Some(Rejection::IllegalBlocks { blocks: candidate, why });
                     }
                 }
             };

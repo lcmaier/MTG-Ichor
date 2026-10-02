@@ -16,8 +16,8 @@ use crate::state::game_state::GameState;
 use crate::types::ids::PlayerId;
 use crate::ui::auto_yield::{Yield, Yields, pass_index};
 use crate::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption};
-use crate::ui::decision::{DecisionProvider, SeatMode};
-use crate::ui::display::{option_label, question};
+use crate::ui::decision::DecisionProvider;
+use crate::ui::display::{option_label, question, rejection};
 use crate::ui::full_control::FullControlSwitch;
 
 /// Interactive CLI decision provider for human play.
@@ -149,6 +149,9 @@ impl DecisionProvider for CliDecisionProvider {
         bounds: (usize, usize),
     ) -> Vec<usize> {
         println!("\n--- {} ---", question(game, &context.kind));
+        if let Some(rejected) = &context.rejected {
+            println!("{}.", rejection(game, rejected));
+        }
         for (i, opt) in options.iter().enumerate() {
             println!("  [{}] {}", i, option_label(game, opt));
         }
@@ -327,10 +330,6 @@ impl DecisionProvider for CliDecisionProvider {
                 return order;
             }
         }
-    }
-
-    fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { person: true, ..SeatMode::default() }
     }
 }
 

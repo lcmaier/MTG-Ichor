@@ -136,9 +136,9 @@ pub(crate) fn layer_walk(
 /// `decision` — a prompt at the decision boundary, as far as every primitive
 /// shares it: who was asked, which primitive, which `ChoiceKind` (its variant
 /// name and its subject — main item 141's payload rule, so a
-/// `SelectRecipients` does not drag its filter tree in) and the options by
-/// id. The validator that calls this adds the primitive's own bounds and the
-/// answer.
+/// `SelectRecipients` does not drag its filter tree in), the answer it last
+/// rejected when it is asking again, and the options by id. The validator
+/// that calls this adds the primitive's own bounds and the answer.
 pub(crate) fn decision(
     prompt: &str,
     player: PlayerId,
@@ -150,6 +150,7 @@ pub(crate) fn decision(
     r.field_str("prompt", prompt);
     r.field_str("choice", choice_kind_name(&ctx.kind));
     r.field_opt_u64("subject", ctx.kind.subject().map(|o| o.raw()));
+    r.field_opt_str("rejected", ctx.rejected.as_ref().map(render_debug).as_deref());
     let rendered: Vec<String> = options.iter().map(render_option).collect();
     r.field_strs("options", &rendered);
     r
@@ -261,19 +262,19 @@ fn render_option(option: &ChoiceOption) -> String {
 /// re-ask — unless the re-ask offers `Pass` alone, which the engine takes
 /// without one (`engine::priority`) — and this is what happened in between,
 /// which no event log can show because a rejected action performs nothing.
+/// The error is the engine's own text, which the re-ask's
+/// `ChoiceContext::rejected` names by rule instead. `retry` counts this
+/// window's rejections.
 pub(crate) fn priority_rejected(
     player: PlayerId,
     action: &PriorityAction,
     error: &str,
     retry: usize,
-    blacklist: &[PriorityAction],
 ) -> Record {
     let mut r = Record::new("priority_rejected");
     r.field_u64("player", player as u64);
     r.field_str("action", &render_debug(action));
     r.field_str("error", error);
     r.field_u64("retry", retry as u64);
-    let rendered: Vec<String> = blacklist.iter().map(render_debug).collect();
-    r.field_strs("blacklist", &rendered);
     r
 }

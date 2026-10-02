@@ -18,8 +18,9 @@ use crate::types::colors::Color;
 use crate::types::costs::{AdditionalCost, AlternativeCost, Cost};
 use crate::types::ids::{AbilityId, ObjectId, PlayerId};
 use crate::types::keywords::KeywordFlag;
+use crate::engine::combat::validation::CombatError;
 use crate::types::mana::ManaSymbol;
-use crate::ui::choice_types::{ChoiceKind, ChoiceOption};
+use crate::ui::choice_types::{ChoiceKind, ChoiceOption, Rejection};
 use crate::ui::decision::PriorityAction;
 
 /// The name the object has now, through the layers: a Clone copying Grizzly
@@ -270,6 +271,46 @@ pub fn option_label(game: &GameState, option: &ChoiceOption) -> String {
         ChoiceOption::Color(color) => color_name(*color).to_string(),
         ChoiceOption::CounterType(counter) => counter.name().to_string(),
         ChoiceOption::ManaType(mana) => ManaSymbol::Colored(*mana).to_string(),
+    }
+}
+
+/// Why a seat is being asked again: the answer the engine rejected, and the
+/// rule that rejected it.
+pub fn rejection(game: &GameState, rejected: &Rejection) -> String {
+    match rejected {
+        Rejection::Reversed(action) => format!(
+            "{} could not be completed, so it was reversed and its payments canceled (CR 732.1)",
+            option_label(game, &ChoiceOption::Action(action.clone())),
+        ),
+        Rejection::IllegalBlocks { why, .. } => format!("Those blocks are illegal: {}", combat_error(game, why)),
+    }
+}
+
+/// The rule a combat declaration broke, one arm per error and no wildcard.
+fn combat_error(game: &GameState, error: &CombatError) -> String {
+    let n = |id: &ObjectId| named(game, *id);
+    match error {
+        CombatError::NotOnBattlefield(id) => format!("{} is not on the battlefield", n(id)),
+        CombatError::NotACreature(id) => format!("{} is not a creature", n(id)),
+        CombatError::NotControlledByPlayer(id, player) => {
+            format!("{} is not controlled by {}", n(id), player_name(*player))
+        }
+        CombatError::CreatureIsTapped(id) => format!("{} is tapped (CR 509.1a)", n(id)),
+        CombatError::CreatureHasSummoningSickness(id) => {
+            format!("{} has not been under its controller's control since their turn began (CR 302.6)", n(id))
+        }
+        CombatError::InvalidAttackTarget(id) => format!("{} can't attack that", n(id)),
+        CombatError::AttackerNotAttackingThisPlayer(blocker, attacker) => {
+            format!("{} is not attacking you, so {} can't block it (CR 509.1a)", n(attacker), n(blocker))
+        }
+        CombatError::TooManyBlocks(id, 1) => format!("{} can block only one attacker (CR 509.1a)", n(id)),
+        CombatError::TooManyBlocks(id, max) => format!("{} can block only {max} attackers", n(id)),
+        CombatError::HasDefender(id) => format!("{} has defender and can't attack (CR 702.3b)", n(id)),
+        CombatError::CantBlockFlyer(blocker, attacker) => {
+            format!("{} has flying, and {} has neither flying nor reach (CR 702.9b)", n(attacker), n(blocker))
+        }
+        // A restriction's own words, until RS-3 gives restrictions ids.
+        CombatError::ConstraintViolation(text) => text.clone(),
     }
 }
 
@@ -828,6 +869,29 @@ mod tests {
         assert_eq!(
             question(&game, &ChoiceKind::AssignCombatDamage { attacker_id: clone }),
             format!("Assign Grizzly Bears (Clone, {clone})'s combat damage")
+        );
+    }
+
+    /// A re-ask says what it rejected by the board's names and the rule.
+    #[test]
+    fn a_rejection_names_the_answer_and_the_rule() {
+        use crate::test_support::{put_in_hand, put_on_battlefield, setup_two_player_game};
+
+        let mut game = setup_two_player_game();
+        let bears = put_in_hand(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        let blocker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 1);
+        let attacker = put_on_battlefield(&mut game, crate::cards::creatures::grizzly_bears(), 0);
+        assert_eq!(
+            rejection(&game, &Rejection::Reversed(PriorityAction::CastSpell(bears))),
+            format!("Cast Grizzly Bears ({bears}) could not be completed, so it was reversed and its payments canceled (CR 732.1)")
+        );
+        let blocks = Rejection::IllegalBlocks {
+            blocks: vec![(blocker, attacker), (blocker, attacker)],
+            why: CombatError::TooManyBlocks(blocker, 1),
+        };
+        assert_eq!(
+            rejection(&game, &blocks),
+            format!("Those blocks are illegal: Grizzly Bears ({blocker}) can block only one attacker (CR 509.1a)")
         );
     }
 }

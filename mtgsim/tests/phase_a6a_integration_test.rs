@@ -100,7 +100,7 @@ impl DecisionProvider for WindowWatch {
     }
 
     fn seat_mode(&self, _player: PlayerId) -> SeatMode {
-        SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() }
+        SeatMode { stops_at_every_priority_point: true }
     }
 }
 

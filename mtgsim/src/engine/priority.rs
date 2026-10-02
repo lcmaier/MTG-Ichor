@@ -3,7 +3,14 @@ use crate::engine::actions::ActionContext;
 use crate::state::game_state::GameState;
 use crate::types::zones::Zone;
 use crate::ui::ask::ask_choose_priority_action;
+use crate::ui::choice_types::Rejection;
 use crate::ui::decision::{DecisionProvider, PriorityAction};
+
+/// How many answers to one question the engine rejects before it ends the
+/// game with an error. The CR sets no limit (CR 732.2 lets a player redo a
+/// reversed action), and this one is far past anything a person does, so only
+/// an agent that ignores `ChoiceContext::rejected` reaches it.
+pub(crate) const REJECTION_LIMIT: usize = 1_000;
 
 /// Result of a single priority round.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,25 +73,17 @@ impl GameState {
             // `candidate_priority_actions` is an overapproximation: it includes
             // e.g. `CastSpell(id)` when affordability is heuristically met but
             // the current mana pool can't actually cover the cost, and the engine
-            // retries when execution rejects a DP-chosen action (§2.2 of
+            // asks again when execution rejects a DP-chosen action (§2.2 of
             // `plans/atomic-tests/supplemental-docs/dp-middleware-and-candidate-enumeration.md`).
             //
-            // Retry loop: on execution failure, blacklist an agent's action for
-            // this priority window and re-prompt with a freshly enumerated list
-            // minus the blacklist; bound retries at `3 × candidates.len()`
-            // (minimum 6) and fall back to `Pass` when the budget is exhausted,
-            // with a diagnostic on stderr. A person's rejected action is offered
-            // again and charged to nothing: a cast they canceled looks like one
-            // that failed, and they may choose it again (`codebase-state.md`
-            // item 192).
-            let mut blacklist: Vec<PriorityAction> = Vec::new();
-            let mut retries: usize = 0;
-            // The budget is 3× the list this window *started* with: re-deriving it
-            // from a list the blacklist keeps shortening would shrink the budget
-            // as it is spent.
-            let mut budget: Option<usize> = None;
+            // The re-ask offers the board's list as it stands, the rejected
+            // action included, and says which action was rejected: the player
+            // may take it again (CR 732.2), and skipping it is an agent's policy,
+            // which lives on the agent's seat (`codebase-state.md` item 193).
+            let mut rejected: Option<Rejection> = None;
+            let mut rejections: usize = 0;
 
-            // Choose an action and attempt execution; retry on failure.
+            // Choose an action and attempt execution; ask again on failure.
             // On success, `executed` holds the action that ran and (for
             // ActivateAbility) whether it was a mana ability (which bypasses
             // the post-action SBA pass, per rule 605).
@@ -92,33 +91,13 @@ impl GameState {
                 // Enumerated per prompt, not per window. A rejected cast's mana
                 // abilities stay activated (CR 732.1 — the reversal is the
                 // player's option and the engine never offers it), so the board a
-                // retry is offered from is not the board the last list was built
+                // re-ask is offered from is not the board the last list was built
                 // from, and re-offering that list offers casts no enumeration of
                 // *this* board would. The prompt has to be a function of
                 // `GameState` or a clone taken at one cannot rebuild it —
                 // `codebase-state.md` items 139 and 41.
-                let available: Vec<PriorityAction> =
-                    candidate_priority_actions(self, current_priority)
-                        .into_iter()
-                        .filter(|a| !blacklist.contains(a))
-                        .collect();
-                let max_retries = *budget
-                    .get_or_insert_with(|| available.len().saturating_mul(3).max(6));
+                let available: Vec<PriorityAction> = candidate_priority_actions(self, current_priority);
 
-                // If every non-Pass candidate has been blacklisted (or the
-                // retry budget is exhausted), force a Pass. Pass is always
-                // safe — it has no execution path that can fail.
-                if available.is_empty() || retries >= max_retries {
-                    if retries >= max_retries {
-                        eprintln!(
-                            "WARN: priority retry budget ({}) exhausted for player {} — forcing Pass. \
-                             Blacklist size: {}. This is a diagnostic signal that `castable_spells` / \
-                             `activatable_abilities` may be too loose.",
-                            max_retries, current_priority, blacklist.len()
-                        );
-                    }
-                    break (PriorityAction::Pass, false);
-                }
                 // `Pass` is always offered, so a list of one is `[Pass]` alone:
                 // one legal answer, the engine's (`backlog.md` §2.22, rule 1),
                 // unless the seat stops at every priority point.
@@ -129,7 +108,7 @@ impl GameState {
                 }
 
                 let action = ask_choose_priority_action(
-                    decisions, self, current_priority, &available,
+                    decisions, self, current_priority, &available, rejected.take(),
                 );
 
                 // Pass doesn't execute anything — accept it immediately.
@@ -153,23 +132,16 @@ impl GameState {
                         ),
                         false,
                     ),
-                    PriorityAction::ActivateAbility(permanent_id, ability_id) => {
+                    PriorityAction::ActivateAbility(permanent_id, ability_id) => 'activation: {
                         // Dispatch mana-vs-non-mana. Mana abilities resolve
                         // immediately (rule 605) and don't trigger SBAs.
                         if let Err(e) = self.get_object(*permanent_id) {
                             // Source disappeared — rejected like any other.
-                            if !decisions.seat_mode(current_priority).person {
-                                blacklist.push(action.clone());
-                                retries = retries.saturating_add(1);
-                            }
                             eprintln!(
                                 "WARN: activate_ability source {} missing: {}",
                                 permanent_id, e
                             );
-                            self.trace(|| {
-                                crate::engine::trace_records::priority_rejected(current_priority, &action, &e, retries, &blacklist)
-                            });
-                            continue;
+                            break 'activation (Err(e), false);
                         }
                         // Effective abilities: intrinsic land mana abilities
                         // (CR 305.6) are absent from CardData, and the index
@@ -208,16 +180,21 @@ impl GameState {
                 match exec_result {
                     Ok(()) => break (action, was_mana_ability),
                     Err(e) => {
-                        if !decisions.seat_mode(current_priority).person {
-                            blacklist.push(action.clone());
-                            retries = retries.saturating_add(1);
-                        }
+                        rejections += 1;
                         // What `--dump-events` cannot show: a cast the enumeration
                         // offered and the engine rejected performs nothing, so the
                         // re-ask that follows is only explicable from here.
                         self.trace(|| {
-                            crate::engine::trace_records::priority_rejected(current_priority, &action, &e, retries, &blacklist)
+                            crate::engine::trace_records::priority_rejected(current_priority, &action, &e, rejections)
                         });
+                        if rejections == REJECTION_LIMIT {
+                            return Err(format!(
+                                "player {current_priority} chose an action the engine rejected {REJECTION_LIMIT} times in \
+                                 one priority window, the last {action:?}: {e}. A provider that keeps choosing what it was \
+                                 told failed does not read `ChoiceContext::rejected`."
+                            ));
+                        }
+                        rejected = Some(Rejection::Reversed(action));
                     }
                 }
             };
@@ -353,7 +330,7 @@ mod tests {
         let mut game = GameState::new(2, 20);
         game.set_turn_position(crate::state::game_state::Phase::new(PhaseType::Precombat));
         let decisions = ScriptedDecisionProvider::new()
-            .with_seat_mode(SeatMode { stops_at_every_priority_point: true, ..SeatMode::default() });
+            .with_seat_mode(SeatMode { stops_at_every_priority_point: true });
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
         decisions.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
 
