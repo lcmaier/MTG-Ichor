@@ -155,8 +155,7 @@ fn ability_texts(game: &GameState, id: ObjectId) -> Vec<&'static str> {
 
 /// The card `id` as printed, before any effect touched it, one entry per
 /// face: its name and mana cost, type line, rules text and numbers, a line
-/// each. A double-faced card's back is its second entry once CV-5 builds
-/// them. Beside what the object is now, it shows what an effect changed.
+/// each. Beside what the object is now, it shows what an effect changed.
 pub fn printed_faces(game: &GameState, id: ObjectId) -> Vec<String> {
     // AS PRINTED: the card itself, for a display no rule reads.
     game.objects.get(&id).map(|obj| vec![printed_face(&obj.card_data)]).unwrap_or_default()

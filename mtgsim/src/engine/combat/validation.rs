@@ -1052,7 +1052,7 @@ mod tests {
             crate::ui::choice_types::ChoiceKind::DeclareBlockers,
             vec![idx_att1],
         );
-        let seat = crate::test_support::RejectionWatcher::new(scripted);
+        let seat = crate::test_support::RejectionRecorder::new(scripted);
 
         game.process_declare_blockers(&seat).unwrap();
 
@@ -1066,7 +1066,7 @@ mod tests {
             blocks: pairs.clone(),
             why: CombatError::TooManyBlocks(blocker, 1),
         };
-        assert_eq!(seat.rejections("DeclareBlockers"), [None, Some(rejected)]);
+        assert_eq!(seat.rejected_at("DeclareBlockers"), [None, Some(rejected)]);
     }
 
     /// The hang guard: a seat that declares the same illegal blocks however

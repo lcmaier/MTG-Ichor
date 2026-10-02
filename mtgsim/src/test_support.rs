@@ -452,27 +452,32 @@ impl DecisionProvider for StackWatcher {
     }
 }
 
-/// Hands every prompt to `inner` and keeps, for each `pick_n`, its kind's
-/// variant and what it said was rejected: what a test reads to see that a
-/// re-ask names the answer the engine would not take.
-pub struct RejectionWatcher<D> {
+/// Hands every prompt to `inner` and records, prompt by prompt, its kind's
+/// variant and what the engine said it rejected (`ChoiceContext::rejected`):
+/// what a test reads to see that a re-ask names the answer it would not take.
+/// All four primitives record, since a re-ask may come through any of them.
+pub struct RejectionRecorder<D> {
     inner: D,
     seen: std::cell::RefCell<Vec<(String, Option<crate::ui::choice_types::Rejection>)>>,
 }
 
-impl<D: DecisionProvider> RejectionWatcher<D> {
+impl<D: DecisionProvider> RejectionRecorder<D> {
     pub fn new(inner: D) -> Self {
-        RejectionWatcher { inner, seen: std::cell::RefCell::new(Vec::new()) }
+        RejectionRecorder { inner, seen: std::cell::RefCell::new(Vec::new()) }
     }
 
-    /// Each `pick_n` prompt whose kind's `Debug` starts with `kind`, in order,
-    /// with what it rejected.
-    pub fn rejections(&self, kind: &str) -> Vec<Option<crate::ui::choice_types::Rejection>> {
+    /// What each prompt whose kind's `Debug` starts with `kind` rejected, in
+    /// the order they were asked: `None` where it rejected nothing.
+    pub fn rejected_at(&self, kind: &str) -> Vec<Option<crate::ui::choice_types::Rejection>> {
         self.seen.borrow().iter().filter(|(seen, _)| seen.starts_with(kind)).map(|(_, rejected)| rejected.clone()).collect()
+    }
+
+    fn record(&self, context: &crate::ui::choice_types::ChoiceContext) {
+        self.seen.borrow_mut().push((format!("{:?}", context.kind), context.rejected.clone()));
     }
 }
 
-impl<D: DecisionProvider> DecisionProvider for RejectionWatcher<D> {
+impl<D: DecisionProvider> DecisionProvider for RejectionRecorder<D> {
     fn pick_n(
         &self,
         game: &GameState,
@@ -481,7 +486,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionWatcher<D> {
         options: &[crate::ui::choice_types::ChoiceOption],
         bounds: (usize, usize),
     ) -> Vec<usize> {
-        self.seen.borrow_mut().push((format!("{:?}", context.kind), context.rejected.clone()));
+        self.record(context);
         self.inner.pick_n(game, player, context, options, bounds)
     }
 
@@ -493,6 +498,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionWatcher<D> {
         min: u64,
         max: u64,
     ) -> u64 {
+        self.record(context);
         self.inner.pick_number(game, player, context, min, max)
     }
 
@@ -506,6 +512,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionWatcher<D> {
         mins: &[u64],
         maxs: Option<&[u64]>,
     ) -> Vec<u64> {
+        self.record(context);
         self.inner.allocate(game, player, context, total, buckets, mins, maxs)
     }
 
@@ -516,6 +523,7 @@ impl<D: DecisionProvider> DecisionProvider for RejectionWatcher<D> {
         context: &crate::ui::choice_types::ChoiceContext,
         items: &[crate::ui::choice_types::ChoiceOption],
     ) -> Vec<usize> {
+        self.record(context);
         self.inner.choose_ordering(game, player, context, items)
     }
 

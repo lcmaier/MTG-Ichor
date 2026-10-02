@@ -918,7 +918,7 @@ impl GameState {
             dispatch_audit: None,
             events: EventWindow::new(),
             trace: None,
-            decision_log: Default::default(),
+            decision_log: crate::state::decision_log::DecisionLogHandle::NONE,
             rng: StdRng::seed_from_u64(Self::DEFAULT_RNG_SEED),
         }
     }

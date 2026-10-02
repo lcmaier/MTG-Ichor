@@ -48,20 +48,31 @@ pub struct LoggedDecision<'a> {
     /// The question had one legal answer: a priority point where the player
     /// could only pass, whether the engine passed or the seat stopped for it.
     /// A fact about the question, so it is the same whatever answered; a
-    /// reader that wants only the choices skips these lines.
+    /// reader that wants only the choices skips these lines. A question with
+    /// several answers that all give the same game is not forced: where the
+    /// engine can show that, as for two triggers of one ability, it does not
+    /// ask (`triggers::placement`), so there is no line, and where it cannot,
+    /// the choice is the player's (CR 603.3b) and logged as one.
     pub forced: bool,
 }
 
 /// What a game logs its decisions to, if anything: [`GameState::log_decisions`].
-#[derive(Default)]
 pub struct DecisionLogHandle(Option<Arc<DecisionWriter>>);
+
+impl DecisionLogHandle {
+    /// No log attached, which is every game until a client attaches one.
+    pub const NONE: DecisionLogHandle = DecisionLogHandle(None);
+}
 
 type DecisionWriter = dyn Fn(&GameState, &LoggedDecision) + Send + Sync;
 
+/// `GameState` derives `Clone`, and a clone is a fork: a search clones the
+/// game at a decision to try another answer. A derived clone would share this
+/// writer, so the fork's answers would land in the game's log among its own
+/// lines; a fork writes nothing until it is given a log of its own.
 impl Clone for DecisionLogHandle {
-    /// A fork logs nothing (the module doc).
     fn clone(&self) -> Self {
-        DecisionLogHandle(None)
+        DecisionLogHandle::NONE
     }
 }
 

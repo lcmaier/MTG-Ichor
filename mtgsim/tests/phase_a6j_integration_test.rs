@@ -11,7 +11,7 @@
 use mtgsim::cards::creatures;
 use mtgsim::engine::priority::PriorityResult;
 use mtgsim::state::game_state::GameState;
-use mtgsim::test_support::{RejectionWatcher, place_forest, put_in_hand, setup_two_player_game};
+use mtgsim::test_support::{RejectionRecorder, place_forest, put_in_hand, setup_two_player_game};
 use mtgsim::types::ids::{ObjectId, PlayerId};
 use mtgsim::types::mana::ManaCost;
 use mtgsim::ui::choice_types::{ChoiceContext, ChoiceKind, ChoiceOption, Rejection};
@@ -45,14 +45,14 @@ fn a_canceled_cast_is_offered_again_and_charged_to_nothing() {
         script.expect_pick_n(window(bears), vec![]);
     }
     script.expect_pick_n(ChoiceKind::PriorityAction, vec![0]);
-    let seat = RejectionWatcher::new(script);
+    let seat = RejectionRecorder::new(script);
 
     assert_eq!(game.run_priority_round(&seat).unwrap(), PriorityResult::PhaseEnds);
     assert!(game.players[0].hand.contains(&bears), "every cast was canceled");
     let reversed = Some(Rejection::Reversed(PriorityAction::CastSpell(bears)));
     let mut expected = vec![None];
     expected.extend(std::iter::repeat_n(reversed, 7));
-    assert_eq!(seat.rejections("PriorityAction"), expected, "the first ask rejects nothing, and each re-ask names the cast");
+    assert_eq!(seat.rejected_at("PriorityAction"), expected, "the first ask rejects nothing, and each re-ask names the cast");
 }
 
 /// The cast from hand, under `ManaWindowStop` as a client stacks it: stopped
@@ -67,15 +67,15 @@ fn a_reversed_cast_is_named_on_the_re_ask_and_can_be_cast_again() {
     script.expect_pick_n(ChoiceKind::PriorityAction, vec![1]);
     script.expect_pick_n(window(bears), vec![0]);
     script.expect_pick_n(window(bears), vec![0]);
-    let seat = RejectionWatcher::new(ManaWindowStop::new(script));
+    let seat = RejectionRecorder::new(ManaWindowStop::new(script));
 
     assert_eq!(game.run_priority_round(&seat).unwrap(), PriorityResult::ActionTaken);
     assert!(game.stack.contains(&bears), "the second cast was paid");
     assert_eq!(
-        seat.rejections("PriorityAction"),
+        seat.rejected_at("PriorityAction"),
         [None, Some(Rejection::Reversed(PriorityAction::CastSpell(bears)))],
     );
-    assert_eq!(seat.rejections("ManaAbilityWindow"), [None, None, None], "a window is no re-ask");
+    assert_eq!(seat.rejected_at("ManaAbilityWindow"), [None, None, None], "a window is no re-ask");
 }
 
 /// Chooses the cast and stops its window, whatever it is told.
